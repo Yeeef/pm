@@ -19,6 +19,7 @@
 - Start the title of a need from a test with "[TEST]". Dismiss it when the check ends.
 - Do not post status outside the site. The site is the owner's status view.
 - Examine a subagent's report against the files before you accept it.
+- Link a record only with the URL that `pm record link` prints. Do not build a URL or give a records path.
 - Keep one area on each design page. Write its final state, not a history of findings.
 - When the pm service is down, restart it. If the restart fails, raise an action and add a bug task.
 
