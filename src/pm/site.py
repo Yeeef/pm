@@ -21,7 +21,7 @@ from .beads import (ACTION, HUMAN, NO_DECISION, REPLY_AUTHOR, ancestors, blocker
 from .records import (BLOCK_ATTRS, BLOCKS, Record, RecordError, attrs, decisions, first_para, outcome,
                       project_of, section_text, validate_record)
 
-STYLE = Path(__file__).resolve().parent.parent / "style.css"
+STYLE = Path(__file__).resolve().parent / "style.css"
 
 PILL = {"done": ("done", "DONE"), "running": ("run", "RUNNING"),
         "blocked": ("blocked", "BLOCKED"), "ready": ("queued", "READY")}

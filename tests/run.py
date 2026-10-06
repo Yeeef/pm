@@ -1,8 +1,4 @@
-# /// script
-# requires-python = ">=3.12"
-# dependencies = ["pytest>=8", "markdown-it-py>=3", "mdit-py-plugins>=0.4", "pyyaml>=6"]
-# ///
-"""Run the harness tests: uv run tests/run.py [pytest args]."""
+"""Run the pm tests in the package environment: uv run --project pm python pm/tests/run.py [pytest args]."""
 
 import sys
 from pathlib import Path

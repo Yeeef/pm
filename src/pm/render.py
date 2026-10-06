@@ -1,17 +1,13 @@
-# /// script
-# requires-python = ">=3.12"
-# dependencies = ["markdown-it-py>=3", "mdit-py-plugins>=0.4", "pyyaml>=6"]
-# ///
 """Render project records (Markdown) plus live Beads status into a static site.
 
-Usage: uv run render.py OUT_DIR
+Usage: python -m pm.render OUT_DIR
 
 Every record is a Markdown file with a YAML header. Its `type` decides how it
 renders: project, sprint, day, design or doc. Fenced-div blocks are limited to a
 fixed vocabulary; anything else is an error. Records are read from the store
 (`<main checkout>/.records`), found from the current directory as pm finds it.
 Status always comes from Beads (`bd list --all --json`), never from the records. Parsing, validation and
-rendering live in the `harness` package beside this script, shared with pm.py.
+rendering live in the other modules of the `pm` package, shared with pm.cli.
 """
 
 from __future__ import annotations
@@ -19,10 +15,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from harness.beads import load_beads
-from harness.records import RecordError, read_records, read_summaries
-from harness.site import render_pages, write_site
-from harness.store import code_root, design_dates, find_store
+from pm.beads import load_beads
+from pm.records import RecordError, read_records, read_summaries
+from pm.site import render_pages, write_site
+from pm.store import code_root, design_dates, find_store
 
 
 def main(argv: list[str]) -> int:

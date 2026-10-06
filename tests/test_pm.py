@@ -6,6 +6,7 @@ import contextlib
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -17,11 +18,11 @@ from pathlib import Path
 
 import pytest
 
-from conftest import HARNESS, PM, fake_bd_env, project, sprint
+from conftest import HARNESS, PM, RENDER, fake_bd_env, project, sprint
 
 sys.path.insert(0, str(HARNESS))
-from harness.beads import REPLY_MARK, reply_body, reply_in_beads  # noqa: E402
-from harness.site import thread  # noqa: E402
+from pm.beads import REPLY_MARK, reply_body, reply_in_beads  # noqa: E402
+from pm.site import thread  # noqa: E402
 
 FRAME = "## Goal\n\nShip the thing.\n\n## Scope\n\n**In:** the thing.\n\n**Out:** other things.\n\n## Done when\n\n- It ships.\n"
 
@@ -247,8 +248,8 @@ def test_sprint_open_matches_real_sprint_records():
     """The generated skeleton equals the one in this repo's own sprint records."""
     import sys
     sys.path.insert(0, str(HARNESS))
-    import pm
-    from harness.store import find_store
+    from pm import cli as pm
+    from pm.store import find_store
     store = find_store(HARNESS)
     skeleton = lambda t: [l for l in t.splitlines() if l.startswith(("#", ">"))]
     frame = {"Goal": "g", "Scope": "**In:** a\n\n**Out:** b", "Done when": "- d"}
@@ -333,7 +334,7 @@ def test_sprint_close_skips_a_dismissed_review(repo):
 
 def test_merge_stamp_stays_in_the_outcome_when_a_heading_follows_the_verdict():
     sys.path.insert(0, str(HARNESS))
-    import pm
+    from pm import cli as pm
     text = ("## Delivery report\n\n### Outcome\n\n> prompt\n\nDone: it ships.\n### Against \"Done when\"\n\n- met\n")
     assert pm.merge_stamp(text, "Merged as abc1234 (PR #1).") == text.replace(
         "Done: it ships.\n", "Done: it ships.\n\nMerged as abc1234 (PR #1).\n\n")
@@ -1190,8 +1191,8 @@ def test_design_prompts_match_real_design_pages():
     """Each template section in this repo's design pages carries the prompt lines pm design new writes."""
     import sys
     sys.path.insert(0, str(HARNESS))
-    import pm
-    from harness.store import find_store
+    from pm import cli as pm
+    from pm.store import find_store
     store = find_store(HARNESS)
     real = list((store / "design").glob("*.md"))
     assert real
@@ -1288,8 +1289,8 @@ def test_render_refuses_postmortem_missing_section(repo, missing):
 def test_postmortem_prompts_match_real_postmortems():
     """Each section of this repo's postmortems carries the prompt line pm postmortem new writes."""
     sys.path.insert(0, str(HARNESS))
-    import pm
-    from harness.store import find_store
+    from pm import cli as pm
+    from pm.store import find_store
     real = list((find_store(HARNESS) / "postmortems").glob("*.md"))
     if not real:  # the first one lands in the shared store only once pm on main reads the type
         pytest.skip("no postmortem in the store yet")
@@ -1486,7 +1487,7 @@ def git_in(cwd, *args):
 
 def setup_in(cwd, *args):
     """pm setup with the fake bd, whose calls land in <tmp>/bd.log next to the clone."""
-    return subprocess.run(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "setup", *args], cwd=cwd,
+    return subprocess.run([*PM, "setup", *args], cwd=cwd,
                           env=fake_bd_env(cwd.parent, GIT_ENV),
                           capture_output=True, text=True)
 
@@ -1541,7 +1542,7 @@ def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origi
     assert (clone / "records").is_symlink() and (clone / "records/sprints/demo-1.md").read_text() == "one\n"
     assert git_in(clone, "status", "--porcelain") == ""
     config = (clone / ".git/config").read_text()
-    where = subprocess.run(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "where"], cwd=clone,
+    where = subprocess.run([*PM, "where"], cwd=clone,
                            env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
     assert where[0] == f"store     {clone}/.records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
     assert where[1] == f"checkout  {clone}  branch main, records link set up"
@@ -1566,7 +1567,7 @@ def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origi
 def test_where_before_setup_names_what_is_missing(tmp_path, origin):
     git_in(tmp_path, "clone", "-q", str(origin), "clone")
     clone = tmp_path / "clone"
-    res = subprocess.run(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "where"], cwd=clone,
+    res = subprocess.run([*PM, "where"], cwd=clone,
                          env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
     assert res.stdout.splitlines() == [
@@ -1579,7 +1580,7 @@ def test_where_before_setup_names_what_is_missing(tmp_path, origin):
         f"push      {clone}/.git/pm-push.log  no push recorded yet",
         f"site      http://localhost:8000 (make docs, served by pm serve); make render writes {clone}/site",
     ]
-    res = subprocess.run(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "where", "records"], cwd=clone,
+    res = subprocess.run([*PM, "where", "records"], cwd=clone,
                          env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True)
     assert res.returncode != 0 and "error: no records store at" in res.stderr
 
@@ -1593,7 +1594,7 @@ def test_setup_site_url_sets_keeps_replaces_and_clears_pm_site_url(tmp_path, ori
                               capture_output=True, text=True).stdout.strip()
 
     def site_line():
-        out = subprocess.run(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "where"], cwd=clone,
+        out = subprocess.run([*PM, "where"], cwd=clone,
                              env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout
         return next(l for l in out.splitlines() if l.startswith("site "))
 
@@ -1621,7 +1622,7 @@ def test_setup_excludes_mains_tracked_copy(tmp_path, origin):
     git_in(tmp_path, "clone", "-q", str(origin), "clone")
     clone = tmp_path / "clone"
     git_in(clone, "subtree", "add", "--prefix=records", "origin/records", "-m", "copy records")
-    where = subprocess.run(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "where"], cwd=clone,
+    where = subprocess.run([*PM, "where"], cwd=clone,
                            env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
     assert where[1] == f"checkout  {clone}  branch main, records/ is main's tracked copy, not the link; run bin/pm setup"
     res = setup_in(clone)
@@ -1648,7 +1649,7 @@ def test_setup_refuses_a_bootstrap_that_does_not_clone_the_remote(tmp_path, orig
     """No refs/dolt/data reachable: bd would import a stale JSONL or mint a database; setup refuses instead."""
     git_in(tmp_path, "clone", "-q", str(origin), "clone")
     clone = tmp_path / "clone"
-    res = subprocess.run(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "setup"], cwd=clone,
+    res = subprocess.run([*PM, "setup"], cwd=clone,
                          env=dict(fake_bd_env(tmp_path, GIT_ENV), FAKE_BD_BOOTSTRAP="init"), capture_output=True, text=True)
     assert res.returncode != 0
     assert "error: bd bootstrap would init, not clone the remote's refs/dolt/data: fake" in res.stderr
@@ -1689,7 +1690,7 @@ def codex_roots(clone):
 
 
 def where_in(clone):
-    return subprocess.run(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "where"], cwd=clone,
+    return subprocess.run([*PM, "where"], cwd=clone,
                           env=fake_bd_env(clone.parent, GIT_ENV), capture_output=True, text=True).stdout
 
 
@@ -1786,7 +1787,7 @@ def test_write_on_one_branch_is_visible_on_another_without_merge(repo):
 
 def test_concurrent_writes_from_two_worktrees_land_as_separate_commits(repo):
     wts = [repo.worktree("feature-a"), repo.worktree("feature-b")]
-    procs = [subprocess.Popen(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "finding", "add", "--sprint", "demo.1",
+    procs = [subprocess.Popen([*PM, "finding", "add", "--sprint", "demo.1",
                                f"From {wt.name}."], cwd=wt, env=repo.env, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, text=True) for wt in wts]
     for p in procs:
@@ -1802,11 +1803,11 @@ def test_concurrent_writes_from_two_worktrees_land_as_separate_commits(repo):
 def test_a_write_with_open_stdin_does_not_block_other_writes(repo):
     """Sprint 23 finding: pm action need, run with stdin left open, read stdin while holding the store lock and
     blocked every other session's write for minutes. pm reads stdin before it takes the lock."""
-    held = subprocess.Popen(["uv", "run", "--quiet", str(PM), "decision", "need", "--title", "Q", "--parent", "demo.1"],
+    held = subprocess.Popen([*PM, "decision", "need", "--title", "Q", "--parent", "demo.1"],
                             cwd=repo.root, env=repo.env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True)
     try:
-        res = subprocess.run(["uv", "run", "--quiet", str(PM), "finding", "add", "--sprint", "demo.1", "Not blocked."],
+        res = subprocess.run([*PM, "finding", "add", "--sprint", "demo.1", "Not blocked."],
                              cwd=repo.root, env=repo.env, capture_output=True, text=True, timeout=60)
         assert res.returncode == 0, res.stderr
         assert held.poll() is None, "the first write still waits for its stdin"
@@ -2002,7 +2003,7 @@ def test_missing_store_fails_hard_without_falling_back(repo):
         res = repo.pm(*args)
         assert res.returncode != 0
         assert re.search(r"error: no records store at .*/repo/\.records; set it up with bin/pm setup", res.stderr)
-    res = subprocess.run(["uv", "run", "--quiet", str(HARNESS / "render.py"), "site"], cwd=repo.root, env=repo.env,
+    res = subprocess.run([*RENDER, "site"], cwd=repo.root, env=repo.env,
                          capture_output=True, text=True)
     assert res.returncode != 0 and "error: no records store at" in res.stderr
 
@@ -2042,7 +2043,7 @@ def test_store_on_wrong_branch_is_refused(repo):
     assert re.search(r"error: .*\.records is not a worktree on branch records", res.stderr)
 
 
-SERVE_BEHIND = 10  # seconds a served page may be behind, as harness/site.py has it
+SERVE_BEHIND = 10  # seconds a served page may be behind, as pm/site.py has it
 
 
 def asof(page: str) -> float:
@@ -2087,7 +2088,7 @@ def test_serve_shows_each_change_within_its_stated_age(repo):
     import urllib.request
 
     repo.dolt()
-    srv = subprocess.Popen(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         url = re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0)
@@ -2125,7 +2126,7 @@ def test_serve_reuses_a_page_only_while_records_and_beads_are_unchanged(repo):
     import urllib.request
 
     repo.dolt()
-    srv = subprocess.Popen(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         url = re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0)
@@ -2172,7 +2173,7 @@ def free_port() -> int:
 def served(repo):
     """pm serve for the repo's store on a free port; the repo's env carries that PORT from here on."""
     repo.dolt()
-    srv = subprocess.Popen(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         port = re.search(r"http://localhost:(\d+)", srv.stdout.readline()).group(1)
@@ -2337,7 +2338,7 @@ def serving(repo, **env):
     """pm serve for the repo's store on a free port with `env` added; its URL, then its stderr once it stopped."""
     log = repo.root.parent / "serve.log"
     with log.open("w") as err:
-        srv = subprocess.Popen(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "serve"], cwd=repo.root,
+        srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
                                env=dict(repo.env, PORT="0", **env), stdout=subprocess.PIPE, stderr=err, text=True)
     try:
         yield re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0), log
@@ -2437,7 +2438,7 @@ def spool(repo) -> Path:
 def kill_serve(repo, **env):
     """Start pm serve in its own process group; its URL and a function that kills the group with SIGKILL."""
     import signal
-    srv = subprocess.Popen(["uv", "run", "--quiet", str(HARNESS / "pm.py"), "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
                            env=dict(repo.env, PORT="0", **env), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                            text=True, start_new_session=True)
     url = re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0)
@@ -2524,7 +2525,7 @@ def test_a_page_is_served_and_refreshed_without_waiting_for_the_store_lock(repo,
 
 def test_a_served_page_states_its_age_and_when_it_is_behind(repo):
     sys.path.insert(0, str(HARNESS))
-    from harness.site import STATUS_SLOT, fill_status
+    from pm.site import STATUS_SLOT, fill_status
     at = time.mktime((2026, 10, 5, 14, 43, 20, 0, 0, -1))
     page = f"<body>{STATUS_SLOT}<h1>x</h1>"
     fresh = fill_status(page, at, "abc", at + 3)
@@ -2684,7 +2685,7 @@ def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
     raised with its output piped through grep, and a second reply to a request already delivered."""
     with session_inbox() as (inbox, lines):
         env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET=inbox, NEED=NEED)
-        pm = f"uv run --quiet {PM}"
+        pm = shlex.join(PM)
         raise_ = f'printf %s "$NEED" | {pm} decision need --parent demo.1'
         script = (f"{raise_} --title A >/dev/null && {raise_} --title B >/dev/null && "
                   f"{raise_} --title C | grep -o 'raised decision need [^ ;]*'")
@@ -2927,7 +2928,7 @@ def transcript(repo, sid: str, age_s: float, where: str = "-repo") -> None:
 
 def claim(repo, task: str, sid: str | None, *extra: str):
     env = dict(repo.env, **({"CLAUDE_CODE_SESSION_ID": sid} if sid else {}))
-    return subprocess.run(["uv", "run", "--quiet", str(PM), "task", "claim", task, *extra], cwd=repo.root, env=env,
+    return subprocess.run([*PM, "task", "claim", task, *extra], cwd=repo.root, env=env,
                           capture_output=True, text=True)
 
 
@@ -2976,7 +2977,7 @@ def test_show_names_holders_and_warns_of_other_live_sessions(repo):
     assert "  held by: aaaaaaaa\n" in out
     assert re.search(r"in_progress  \.1\.2  Ask the owner  \[held by aaaaaaaa, \d+d, live\]", out)
     assert out.startswith("warning: other live sessions hold these tasks; do not start or delegate them:\n  demo.1.2")
-    mine = subprocess.run(["uv", "run", "--quiet", str(PM), "show"], cwd=repo.root, capture_output=True, text=True,
+    mine = subprocess.run([*PM, "show"], cwd=repo.root, capture_output=True, text=True,
                           env=dict(repo.env, CLAUDE_CODE_SESSION_ID="aaaaaaaa-1111")).stdout
     assert "warning:" not in mine
     assert "[held by aaaaaaaa" in repo.pm("show", "--sprint", "demo.1").stdout
@@ -3262,7 +3263,7 @@ def test_a_malformed_summary_fails_render_and_commit_naming_the_file(repo, bad, 
     path.write_text(bad)
     for args in (("render",), ("commit", "-m", "a summary", str(path))):
         refused(repo, *args, match=rf"error: days/{TODAY}\.summary\.json: {says}")
-    res = subprocess.run(["uv", "run", "--quiet", str(HARNESS / "render.py"), "site"], cwd=repo.root, env=repo.env,
+    res = subprocess.run([*RENDER, "site"], cwd=repo.root, env=repo.env,
                          capture_output=True, text=True)
     assert res.returncode == 1 and f"error: days/{TODAY}.summary.json: {says}" in res.stderr, res.stderr
 

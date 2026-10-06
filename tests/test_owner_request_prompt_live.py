@@ -25,7 +25,7 @@ pytestmark = pytest.mark.skipif(
     reason="live model tests: set PM_LIVE_TESTS=1 (make test-live) with `claude` on PATH",
 )
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[2]
 RUNS = 3
 SYSTEM = "You evaluate a hook condition. Answer with the JSON object only."
 

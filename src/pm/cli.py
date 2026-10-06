@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.12"
-# dependencies = ["markdown-it-py>=3", "mdit-py-plugins>=0.4", "pyyaml>=6"]
-# ///
 """pm: the write path for project records, and project actions that touch both records and Beads.
 
 Every write names its target, validates the records branch as its commit will
@@ -43,21 +39,21 @@ from pathlib import Path
 
 import yaml
 
-from harness.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
+from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
                            merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
                            session_of, show_beads, site_replies, state)
-from harness.records import (NONE_YET, NOT_CLOSED, Record, RecordError, decisions, first_para, headings,
+from pm.records import (NONE_YET, NOT_CLOSED, Record, RecordError, decisions, first_para, headings,
                              insert_entry, outcome, parse_records, project_of, read_records, read_summaries,
                              read_summary, record_texts, report_part, section_range, section_text,
                              summary_path)
-from harness.site import (SERVE_BEHIND, STATUS_SLOT, STYLE, check_needs_answered, cites, dismissed, local_day,
+from pm.site import (SERVE_BEHIND, STATUS_SLOT, STYLE, check_needs_answered, cites, dismissed, local_day,
                           fill_replies, fill_status, pr_label, render_page, render_pages, render_record,
                           request_place, sprint_reviews, write_site)
-from harness.store import (BRANCH, SETUP, code_root, commit, committed_records, design_dates, find_store, head_files,
+from pm.store import (BRANCH, SETUP, code_root, commit, committed_records, design_dates, find_store, head_files,
                            read_files, store_path, uncommitted)
-from harness.store import git as store_git
-from harness import push as pushjob
+from pm.store import git as store_git
+from pm import push as pushjob
 
 SPRINT_PROMPTS = {
     "Goal": "> What should be true when this sprint ends, and why now?",
@@ -2644,7 +2640,7 @@ def parser() -> argparse.ArgumentParser:
     return ap
 
 
-def main(argv: list[str]) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     name = f"{args.cmd} {getattr(args, 'sub', '')}".strip()
     try:

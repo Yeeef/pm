@@ -1,4 +1,4 @@
-"""In-process tests of the scheduled push (harness/push.py): failure paths and the schedulers' files, with git, the
+"""In-process tests of the scheduled push (pm/push.py): failure paths and the schedulers' files, with git, the
 schedulers and the platform replaced where a subprocess run cannot reach them."""
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ import pytest
 from conftest import HARNESS
 
 sys.path.insert(0, str(HARNESS))
-from harness import push  # noqa: E402
-from harness.records import RecordError  # noqa: E402
+from pm import push  # noqa: E402
+from pm.records import RecordError  # noqa: E402
 
 
 def git(cwd: Path, *args: str) -> str:

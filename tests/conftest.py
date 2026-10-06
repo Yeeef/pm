@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-HARNESS = Path(__file__).resolve().parent.parent
-PM = HARNESS / "pm.py"
+HARNESS = Path(__file__).resolve().parents[2] / "skills/project-management/harness"  # the hook scripts
+# pm and the renderer from the package environment the tests run in (make test).
+PM = [str(Path(sys.executable).with_name("pm"))]
+RENDER = [sys.executable, "-m", "pm.render"]
 FAKE_BD = Path(__file__).resolve().parent / "fake_bd.py"
 FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"
 FAKE_SCHED = Path(__file__).resolve().parent / "fake_sched.py"
@@ -146,7 +149,7 @@ class Repo:
         self.env = fake_bd_env(tmp, os.environ)
 
     def pm(self, *args: str, stdin: str = "", cwd: Path | None = None) -> subprocess.CompletedProcess:
-        return subprocess.run(["uv", "run", "--quiet", str(PM), *args],
+        return subprocess.run([*PM, *args],
                               cwd=cwd or self.root, env=self.env, input=stdin, capture_output=True, text=True)
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
