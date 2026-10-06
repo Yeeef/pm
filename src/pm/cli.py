@@ -39,6 +39,7 @@ from pathlib import Path
 
 import yaml
 
+from pm import hooks
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
                            merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
@@ -2629,6 +2630,17 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("what", nargs="?", choices=["records"], help="print only this location's path")
     s.set_defaults(func=cmd_where)
 
+    s = sub.add_parser("prime", help="pm's rules, then pm show: the context a session starts with; the SessionStart "
+                                     "hook runs it, and an agent may run it by hand")
+    s.add_argument("--subagent", action="store_true", help="only the one line a subagent gets: the Beads agent profile")
+    s.add_argument("--hook-json", action="store_true", help="read the SessionStart or SubagentStart input on stdin "
+                   "and print the hook's JSON envelope, as Claude Code and Codex read it")
+
+    hook = sub.add_parser("hook", help="what a runtime hook runs: the hook input JSON on stdin; installs nothing"
+                          ).add_subparsers(dest="sub", required=True)
+    hook.add_parser("stop", help="Stop: block once while records this session's tool calls name are uncommitted "
+                                 "in the store")
+
     s = sub.add_parser("commit", help="commit your hand edits in the store, named by path, on the records branch",
                        description="Commit only the named records, so other sessions' uncommitted edits in the "
                                    "shared store are left alone. With no path, it lists what is uncommitted and "
@@ -2643,6 +2655,10 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     name = f"{args.cmd} {getattr(args, 'sub', '')}".strip()
+    if args.cmd == "prime":  # hooks fail open and need no store, so they run before pm looks for one
+        return hooks.cmd_prime(args.subagent, args.hook_json)
+    if args.cmd == "hook":
+        return hooks.HOOKS[args.sub]()
     try:
         if args.func is cmd_setup:
             print(cmd_setup(args))

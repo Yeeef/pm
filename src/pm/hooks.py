@@ -1,0 +1,227 @@
+"""What the runtimes' hooks run: `pm prime` (session and subagent context) and `pm hook <name>` (the other hooks).
+
+Every hook fails open: it exits 0 and says on stderr why it let the event through, because a broken hook must never
+stop a session from starting or an agent from stopping. Standard library only, so importing it stays cheap."""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+from importlib.resources import files
+from pathlib import Path
+
+# ---------------------------------------------------------------- pm prime
+
+CAP = 10_000  # Claude Code's additionalContext limit, in characters
+TIMEOUT = 20  # seconds; `pm show` takes about 1 s
+HEADER = ("Project state from `bin/pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
+          "may have changed since; run `bin/pm show` again before stating project state to the owner.\n\n")
+CUT = "\n… cut at the hook's 10,000-character limit; run `bin/pm show` for the rest."
+SHOW = [sys.executable, "-m", "pm.cli", "show", "--refresh-inbox"]
+
+
+def rules() -> str:
+    """pm's rules, shipped in the package so they match the installed pm."""
+    return files("pm").joinpath("prime.md").read_text(encoding="utf-8").strip()
+
+
+def context(cwd: str | None, cmd: list[str] | None = None, session: str | None = None, cap: int = CAP) -> str:
+    """`pm show` under a header, cut at a line to `cap` characters, or one line when it fails. `pm show` runs as the
+    starting session, so its warning lists only tasks other live sessions hold, and with --refresh-inbox, which
+    first points the session's open requests at its current inbox socket (a resumed session binds a new one) from
+    the Beads read `pm show` makes anyway. It runs in a subprocess so a hang is cut off at TIMEOUT."""
+    cmd = cmd or SHOW
+    env = dict(os.environ, CLAUDE_CODE_SESSION_ID=session) if session else None
+    try:
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT, env=env)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"pm show did not run at session start ({type(e).__name__}: {e}); run `bin/pm show` by hand."
+    if res.returncode != 0:
+        why = (res.stderr or res.stdout).strip().splitlines()
+        return f"pm show failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm show` by hand."
+    text = HEADER.format(at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")) + res.stdout.strip()
+    if len(text) > cap:
+        text = text[:text.rfind("\n", 0, cap - len(CUT))] + CUT
+    return text
+
+
+def prime(cwd: str | None, session: str | None = None) -> str:
+    """The session context: the rules, then `pm show`; the whole stays within CAP, so `pm show` gets what the rules
+    leave."""
+    head = rules() + "\n\n"
+    return head + context(cwd, session=session, cap=CAP - len(head))
+
+
+def profile(cwd: str | None, cmd: list[str] | None = None) -> str:
+    """The one line a subagent gets: the active Beads agent profile, or why it could not be read."""
+    cmd = cmd or ["bd", "config", "get", "agent.profile", "--json"]
+    try:
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT)
+        if res.returncode != 0:
+            why = (res.stderr or res.stdout).strip().splitlines()
+            raise RuntimeError(why[-1] if why else f"exit {res.returncode}")
+        value = json.loads(res.stdout)["value"]
+        if not value:
+            raise RuntimeError("agent.profile is not set")
+    except (OSError, subprocess.SubprocessError, RuntimeError, ValueError, KeyError, TypeError) as e:
+        return f"Beads agent profile: unknown (bd config failed: {type(e).__name__}: {e})."
+    note = " (commit and push are routine unless your brief says otherwise)" if value == "team-maintainer" else ""
+    return f"Beads agent profile: {value}{note}."
+
+
+def read_event() -> dict | None:
+    """The hook input JSON on stdin, or None when it is not a JSON object."""
+    try:
+        event = json.loads(sys.stdin.read() or "{}")
+    except ValueError:
+        return None
+    return event if isinstance(event, dict) else None
+
+
+def cmd_prime(subagent: bool, hook_json: bool) -> int:
+    """`pm prime`: the rules and `pm show`, or with --subagent the one line a subagent gets. With --hook-json it reads
+    the SessionStart or SubagentStart input on stdin (cwd, session_id) and prints the envelope Claude Code and Codex
+    both read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}."""
+    event = (read_event() or {}) if hook_json else {}
+    cwd = event.get("cwd")
+    text = profile(cwd) if subagent else prime(cwd, event.get("session_id"))
+    if hook_json:
+        name = "SubagentStart" if subagent else "SessionStart"
+        text = json.dumps({"hookSpecificOutput": {"hookEventName": name, "additionalContext": text}})
+    print(text)
+    return 0
+
+
+# ---------------------------------------------------------------- pm hook stop
+# An agent may not hand back with records it edited by hand left uncommitted in the store. `pm` writes commit
+# themselves, but Goal, Done when, design pages and delivery reports are edited by hand and committed with
+# `pm commit`; a forgotten one is invisible on the records branch and blocks the next `pm` write to that record.
+#
+# The store is `<main checkout>/.records`, found from the clone's common git dir. When it has uncommitted files, the
+# hook blocks the stop once with a reason naming them. A session commits only its own records, and other sessions
+# write to the same store at the same time, so it blocks only on files this session touched: a dirty file counts when
+# its path under the store (such as `sprints/demo-1.md`) appears in one of this session's tool calls in the transcript
+# (Claude Code `tool_use` inputs; Codex `function_call` arguments and `custom_tool_call` inputs, such as apply_patch).
+# A file edited without naming that path (after `cd` into a store folder, or through a glob) is missed; a file this
+# session only read but another session edited is named, and the reason says to leave a file it did not edit.
+#
+# Prints {"decision": "block", "reason": ...} to block, nothing to let the stop through. On `stop_hook_active` it
+# always lets the stop through, so it never loops. One `git status` when the store is clean.
+
+STOP_REASON = (
+    "These records in the store ({store}) have uncommitted changes, and this session's tool calls name them:\n"
+    "{files}\n"
+    "Commit the ones you edited with `bin/pm commit -m \"<why>\" <path>...` (paths as listed, under records/), or "
+    "revert them with `git -C {store} checkout -- <path>` (`rm` for a new file). Leave a file you did not edit: "
+    "another session is writing it."
+)
+
+
+def git(cwd: str | Path | None, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=True).stdout
+
+
+def store_of(cwd: str | None) -> Path:
+    """The records store of the clone containing `cwd`: `.records` beside the clone's common .git dir."""
+    common = Path(git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
+    return common.parent / ".records"
+
+
+def dirty(store: Path) -> list[str]:
+    """Paths, relative to the store, of tracked files with changes and of untracked files."""
+    out = git(store, "status", "--porcelain", "-z", "--untracked-files=all")
+    entries, paths = out.split("\0"), []
+    i = 0
+    while i < len(entries):
+        e = entries[i]
+        if len(e) > 3:
+            paths.append(e[3:])
+            if "R" in e[:2] or "C" in e[:2]:  # a rename or copy, staged or not, is followed by its source path
+                i += 1
+        i += 1
+    return paths
+
+
+def tool_inputs(entry: dict) -> list[str]:
+    """The tool-call inputs in one transcript line, as text: Claude Code `tool_use` blocks, Codex function and custom
+    tool calls."""
+    if entry.get("type") == "assistant":
+        content = (entry.get("message") or {}).get("content")
+        return [json.dumps(b.get("input"), ensure_ascii=False) for b in content or []
+                if isinstance(b, dict) and b.get("type") == "tool_use"] if isinstance(content, list) else []
+    payload = entry.get("payload")
+    if entry.get("type") == "response_item" and isinstance(payload, dict):
+        if payload.get("type") == "function_call":
+            return [str(payload.get("arguments", ""))]
+        if payload.get("type") == "custom_tool_call":
+            return [str(payload.get("input", ""))]
+        if payload.get("type") == "local_shell_call":
+            return [json.dumps(payload.get("action"), ensure_ascii=False)]
+    return []
+
+
+def touched(transcript: str, paths: list[str]) -> list[str]:
+    """The paths among `paths` that some tool call in the transcript names. Lines that name none are not parsed."""
+    found: set[str] = set()
+    with open(transcript, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            hits = [p for p in paths if p not in found and p in line]
+            if not hits:
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            calls = tool_inputs(entry)
+            found.update(p for p in hits if any(p in c for c in calls))
+    return [p for p in paths if p in found]
+
+
+def stop_reason(event: dict) -> str | None:
+    """The block reason for this stop, or None to let it through."""
+    if event.get("stop_hook_active"):
+        return None
+    try:
+        store = store_of(event.get("cwd"))
+        if not store.is_dir():
+            return None  # a clone without a store has no records to commit
+        if Path(git(store, "rev-parse", "--show-toplevel").strip()).resolve() != store.resolve():
+            print(f"pm hook stop: {store} is not a worktree of its own; letting the stop through", file=sys.stderr)
+            return None
+        paths = dirty(store)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"pm hook stop: git is unavailable ({type(e).__name__}); letting the stop through", file=sys.stderr)
+        return None
+    if not paths:
+        return None
+    transcript = event.get("transcript_path")
+    try:
+        mine = touched(transcript, paths) if transcript else None
+    except OSError:
+        mine = None
+    if mine is None:
+        print("pm hook stop: no readable transcript, so the records this session touched are unknown; "
+              f"letting the stop through with {len(paths)} uncommitted in {store}", file=sys.stderr)
+        return None
+    if not mine:
+        return None
+    return STOP_REASON.format(store=store, files="\n".join(f"- records/{p}" for p in mine))
+
+
+def hook_stop() -> int:
+    event = read_event()
+    if event is None:
+        print("pm hook stop: hook input is not JSON; letting the stop through", file=sys.stderr)
+        return 0
+    reason = stop_reason(event)
+    if reason:
+        print(json.dumps({"decision": "block", "reason": reason}))
+    return 0
+
+
+HOOKS = {"stop": hook_stop}

@@ -1,4 +1,4 @@
-"""The SessionStart hook that injects `pm show`, the Stop hook that blocks on this session's uncommitted records, and
+"""`pm prime` (the session and subagent context), `pm hook stop` (blocks on this session's uncommitted records), and
 the render check on generated sections. The hooks run as the runtimes run them: JSON on stdin, in a temp clone."""
 
 from __future__ import annotations
@@ -9,53 +9,69 @@ import subprocess
 import sys
 from pathlib import Path
 
-from conftest import HARNESS
+from conftest import PM
 
-SESSION = HARNESS / "session_context_hook.py"
-STOP = HARNESS / "uncommitted_records_hook.py"
-sys.path.insert(0, str(HARNESS))
-import session_context_hook  # noqa: E402
+from pm import hooks
+
+SESSION = [*PM, "prime", "--hook-json"]
+SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
+STOP = [*PM, "hook", "stop"]
 
 
-def run(hook, event, env, cwd):
-    return subprocess.run([sys.executable, str(hook)], input=json.dumps(event), env=env, cwd=cwd,
-                          capture_output=True, text=True, timeout=60)
+def run(cmd, event, env, cwd):
+    return subprocess.run(cmd, input=json.dumps(event), env=env, cwd=cwd, capture_output=True, text=True, timeout=60)
 
 
 # ---------------------------------------------------------------- session context
 
 
-def test_session_start_injects_pm_show(repo):
+def shown_part(text):
+    """The `pm show` part of the session context, after the rules."""
+    rules = hooks.rules() + "\n\n"
+    assert text.startswith(rules) and rules.startswith("# pm rules\n")
+    return text[len(rules):]
+
+
+def test_session_start_injects_rules_and_pm_show(repo):
     res = run(SESSION, {"hook_event_name": "SessionStart", "cwd": str(repo.root)}, repo.env, repo.root)
     assert res.returncode == 0, res.stderr
     out = json.loads(res.stdout)["hookSpecificOutput"]
     assert out["hookEventName"] == "SessionStart"
     shown = repo.pm("show").stdout.strip()
-    header, _, body = out["additionalContext"].partition("\n\n")
+    header, _, body = shown_part(out["additionalContext"]).partition("\n\n")
     assert re.fullmatch(r"Project state from `bin/pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
                         r"run `bin/pm show` again before stating project state to the owner\.", header)
     assert body == shown
     assert "Sprint 1: First" in shown
+    plain = repo.pm("prime")  # by hand: the same text, no envelope
+    assert plain.returncode == 0 and plain.stdout.strip() == out["additionalContext"]
 
 
 def test_session_start_cuts_long_output_at_a_line(tmp_path):
     long = "\n".join(f"line {n} " + "x" * 90 for n in range(200))
-    text = session_context_hook.context(str(tmp_path), [sys.executable, "-c", f"print({long!r})"])
-    assert len(text) <= session_context_hook.CAP
-    assert text.endswith(session_context_hook.CUT)
-    assert text[:-len(session_context_hook.CUT)].endswith("x" * 90)  # whole lines only
+    text = hooks.context(str(tmp_path), [sys.executable, "-c", f"print({long!r})"])
+    assert len(text) <= hooks.CAP
+    assert text.endswith(hooks.CUT)
+    assert text[:-len(hooks.CUT)].endswith("x" * 90)  # whole lines only
 
 
 def test_session_start_fails_open_with_one_line(repo):
     (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
     res = run(SESSION, {"cwd": str(repo.root)}, repo.env, repo.root)
     assert res.returncode == 0
-    text = json.loads(res.stdout)["hookSpecificOutput"]["additionalContext"]
+    text = shown_part(json.loads(res.stdout)["hookSpecificOutput"]["additionalContext"])
     assert text.startswith("pm show failed at session start (") and "\n" not in text
 
 
+def test_session_context_stays_within_the_cap_with_the_rules(tmp_path, monkeypatch):
+    long = "\n".join(f"line {n} " + "x" * 90 for n in range(200))
+    monkeypatch.setattr(hooks, "SHOW", [sys.executable, "-c", f"print({long!r})"])
+    text = hooks.prime(str(tmp_path))
+    assert len(text) <= hooks.CAP and text.endswith(hooks.CUT) and shown_part(text).startswith("Project state")
+
+
 def test_session_start_fails_open_when_pm_is_missing(tmp_path):
-    text = session_context_hook.context(str(tmp_path), [str(tmp_path / "no-such-pm")])
+    text = hooks.context(str(tmp_path), [str(tmp_path / "no-such-pm")])
     assert text.startswith("pm show did not run at session start (") and "\n" not in text
 
 
@@ -64,21 +80,21 @@ def fake(out, code=0):
 
 
 def test_subagent_start_names_the_profile(tmp_path):
-    text = session_context_hook.profile(str(tmp_path), fake('{"key": "agent.profile", "value": "team-maintainer"}'))
+    text = hooks.profile(str(tmp_path), fake('{"key": "agent.profile", "value": "team-maintainer"}'))
     assert text == "Beads agent profile: team-maintainer (commit and push are routine unless your brief says otherwise)."
-    text = session_context_hook.profile(str(tmp_path), fake('{"key": "agent.profile", "value": "conservative"}'))
+    text = hooks.profile(str(tmp_path), fake('{"key": "agent.profile", "value": "conservative"}'))
     assert text == "Beads agent profile: conservative."
 
 
 def test_subagent_start_says_why_when_bd_fails(tmp_path):
     for cmd in (fake("boom", 1), fake('{"value": ""}'), [str(tmp_path / "no-such-bd")]):
-        text = session_context_hook.profile(str(tmp_path), cmd)
+        text = hooks.profile(str(tmp_path), cmd)
         assert text.startswith("Beads agent profile: unknown (bd config failed: ") and "\n" not in text
 
 
 def test_subagent_start_envelope(tmp_path):
     event = {"hook_event_name": "SubagentStart", "cwd": str(tmp_path)}
-    res = run(SESSION, event, {"PATH": str(tmp_path)}, tmp_path)  # no bd on PATH
+    res = run(SUBAGENT, event, {"PATH": str(tmp_path)}, tmp_path)  # no bd on PATH
     assert res.returncode == 0, res.stderr
     out = json.loads(res.stdout)["hookSpecificOutput"]
     assert out["hookEventName"] == "SubagentStart"
@@ -153,8 +169,8 @@ def test_stop_fails_open_without_a_transcript_or_git(repo, tmp_path):
     assert res.returncode == 0 and res.stdout == "" and "no readable transcript" in res.stderr
     res = run(STOP, {"cwd": str(tmp_path)}, repo.env, tmp_path)  # not a git checkout
     assert res.returncode == 0 and res.stdout == "" and "git is unavailable" in res.stderr
-    res = subprocess.run([sys.executable, str(STOP)], input="not json", capture_output=True, text=True)
-    assert res.returncode == 0 and res.stdout == ""
+    res = subprocess.run(STOP, input="not json", capture_output=True, text=True)
+    assert res.returncode == 0 and res.stdout == "" and "not JSON" in res.stderr
 
 
 # ---------------------------------------------------------------- generated sections
@@ -194,10 +210,9 @@ def test_render_accepts_prompt_lines_and_code_in_other_sections(repo):
 def test_stop_reads_an_unstaged_rename_and_a_broken_transcript(repo, tmp_path):
     """An unstaged rename (` R new\\0old`) is one entry, and invalid UTF-8 or a non-object line does not stop the
     scan."""
-    import uncommitted_records_hook as stop
     (repo.store / "sprints/demo-1.md").rename(repo.store / "sprints/demo-9.md")
     repo.git("add", "-N", "sprints/demo-9.md", cwd=repo.store)
-    assert sorted(stop.dirty(repo.store)) == ["sprints/demo-9.md"]
+    assert sorted(hooks.dirty(repo.store)) == ["sprints/demo-9.md"]
     t = tmp_path / "t.jsonl"
     claude_transcript(t, {"file_path": "records/sprints/demo-9.md"})
     t.write_bytes(b"\xff\xfe sprints/demo-9.md\n[\"sprints/demo-9.md\"]\n" + t.read_bytes())
