@@ -27,10 +27,10 @@ def run(cmd, event, env, cwd):
 
 
 def shown_part(text):
-    """The `pm show` part of the session context, after the rules."""
-    rules = hooks.rules() + "\n\n"
-    assert text.startswith(rules) and rules.startswith("# pm rules\n")
-    return text[len(rules):]
+    """The `pm show` part of the session context, after the rules and the command list."""
+    head = hooks.head()
+    assert text.startswith(head) and head.startswith("# pm rules\n")
+    return text[len(head):]
 
 
 def test_session_start_injects_rules_and_pm_show(repo):
@@ -69,6 +69,32 @@ def test_session_context_stays_within_the_cap_with_the_rules(tmp_path, monkeypat
     monkeypatch.setattr(hooks, "SHOW", [sys.executable, "-c", f"print({long!r})"])
     text = hooks.prime(str(tmp_path))
     assert len(text) <= hooks.CAP and text.endswith(hooks.CUT) and shown_part(text).startswith("Project state")
+
+
+def subcommands():
+    from pm.cli import parser
+    return next(a for a in parser()._subparsers._group_actions if a.dest == "cmd").choices
+
+
+def test_prime_lists_every_agent_command_from_the_parser():
+    listed = re.findall(r"^- `pm (\S+)`: \S", hooks.commands(), re.M)
+    assert listed == [c for c in subcommands() if c not in {"prime", "hook", "push"}]
+    assert "prime" not in listed and "show" in listed
+    assert hooks.commands().endswith("\n\nRun `pm <noun> --help` for its commands and flags.")
+
+
+def test_prime_lists_a_new_command_without_editing_prime_md(monkeypatch):
+    from pm import cli
+    build = cli.parser
+
+    def extended():
+        ap = build()
+        next(a for a in ap._subparsers._group_actions if a.dest == "cmd").add_parser(
+            "frobnicate", help="frobnicate the records; " + "x" * 200)
+        return ap
+    monkeypatch.setattr(cli, "parser", extended)
+    assert "- `pm frobnicate`: frobnicate the records\n" in hooks.commands()
+    assert "frobnicate" not in hooks.rules()
 
 
 def test_session_start_fails_open_when_pm_is_missing(tmp_path):

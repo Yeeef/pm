@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -28,6 +29,30 @@ SHOW = [sys.executable, "-m", "pm.cli", "show", "--refresh-inbox"]
 def rules() -> str:
     """pm's rules, shipped in the package so they match the installed pm."""
     return files("pm").joinpath("prime.md").read_text(encoding="utf-8").strip()
+
+
+MACHINERY = {"prime", "hook", "push"}  # what the runtimes and the scheduler call, not agents
+WIDTH = 80  # characters of each command's help in the list
+
+
+def commands() -> str:
+    """pm's commands with their help, read from the argparse parser so the list never drifts from the code."""
+    from pm.cli import parser  # lazy: cli imports this module
+    sub = next(a for a in parser()._subparsers._group_actions if a.dest == "cmd")
+    lines = ["## Commands", ""]
+    for act in sub._choices_actions:
+        if act.dest in MACHINERY:
+            continue
+        text = re.split(r"; |\. ", act.help or "", maxsplit=1)[0].strip()
+        if len(text) > WIDTH:
+            text = text[:text.rfind(" ", 0, WIDTH - 1)] + "…"
+        lines.append(f"- `pm {act.dest}`: {text}")
+    return "\n".join(lines + ["", "Run `pm <noun> --help` for its commands and flags."])
+
+
+def head() -> str:
+    """What prime prints before `pm show`: the rules and the command list, never cut."""
+    return rules() + "\n\n" + commands() + "\n\n"
 
 
 def context(cwd: str | None, cmd: list[str] | None = None, session: str | None = None, cap: int = CAP) -> str:
@@ -51,10 +76,10 @@ def context(cwd: str | None, cmd: list[str] | None = None, session: str | None =
 
 
 def prime(cwd: str | None, session: str | None = None) -> str:
-    """The session context: the rules, then `pm show`; the whole stays within CAP, so `pm show` gets what the rules
-    leave."""
-    head = rules() + "\n\n"
-    return head + context(cwd, session=session, cap=CAP - len(head))
+    """The session context: the rules and the command list, then `pm show`; the whole stays within CAP, so `pm show`
+    gets what the rules and the commands leave."""
+    first = head()
+    return first + context(cwd, session=session, cap=CAP - len(first))
 
 
 def profile(cwd: str | None, cmd: list[str] | None = None) -> str:
