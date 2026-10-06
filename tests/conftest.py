@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from pm import __version__
+
 HARNESS = Path(__file__).resolve().parents[2] / "skills/project-management/harness"  # the hook scripts
 # pm and the renderer from the package environment the tests run in (make test).
 PM = [str(Path(sys.executable).with_name("pm"))]
@@ -18,6 +20,15 @@ FAKE_BD = Path(__file__).resolve().parent / "fake_bd.py"
 FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"
 FAKE_SCHED = Path(__file__).resolve().parent / "fake_sched.py"
 FAKE_CLAUDE = Path(__file__).resolve().parent / "fake_claude.py"
+
+
+def write_config(root: Path, **settings) -> Path:
+    """Write the repo's .pm/config.toml under `root`: this pm's version and the defaults, as overridden."""
+    values = {"version": __version__, "remote": "origin", "main_branch": "main", "port": 8000, **settings}
+    path = root / ".pm/config.toml"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("".join(f"{k} = {v if isinstance(v, int) else json.dumps(v)}\n" for k, v in values.items()))
+    return path
 
 
 def uv_dir(*args: str) -> str:
@@ -225,7 +236,8 @@ def repo(tmp_path: Path) -> Repo:
     r.git("config", "user.email", "t@example.com")
     r.git("config", "user.name", "t")
     (root / ".gitignore").write_text("/records\n/.records/\n")
-    r.git("add", ".gitignore")
+    write_config(root)
+    r.git("add", ".gitignore", ".pm")
     r.git("commit", "-qm", "code")
     r.git("worktree", "add", "-q", "--detach", ".records")
     r.git("checkout", "-q", "--orphan", "records", cwd=r.store)

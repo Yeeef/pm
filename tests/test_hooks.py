@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from conftest import PM
+from conftest import PM, write_config
 
 from pm import hooks
 
@@ -93,8 +94,12 @@ def test_subagent_start_says_why_when_bd_fails(tmp_path):
 
 
 def test_subagent_start_envelope(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    write_config(tmp_path)
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin/git").symlink_to(shutil.which("git"))
     event = {"hook_event_name": "SubagentStart", "cwd": str(tmp_path)}
-    res = run(SUBAGENT, event, {"PATH": str(tmp_path)}, tmp_path)  # no bd on PATH
+    res = run(SUBAGENT, event, {"PATH": str(tmp_path / "bin")}, tmp_path)  # git for pm's config check; no bd
     assert res.returncode == 0, res.stderr
     out = json.loads(res.stdout)["hookSpecificOutput"]
     assert out["hookEventName"] == "SubagentStart"
@@ -163,13 +168,13 @@ def test_stop_passes_when_stop_hook_active(repo, tmp_path):
     assert res.returncode == 0 and res.stdout == ""
 
 
-def test_stop_fails_open_without_a_transcript_or_git(repo, tmp_path):
+def test_stop_fails_open_without_a_transcript_or_git(repo, tmp_path, capsys):
     edit_sprint(repo)
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(tmp_path / "gone.jsonl")}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == "" and "no readable transcript" in res.stderr
-    res = run(STOP, {"cwd": str(tmp_path)}, repo.env, tmp_path)  # not a git checkout
-    assert res.returncode == 0 and res.stdout == "" and "git is unavailable" in res.stderr
-    res = subprocess.run(STOP, input="not json", capture_output=True, text=True)
+    # The event's cwd is not a git checkout (pm itself runs in one with a config: outside one it fails hard).
+    assert hooks.stop_reason({"cwd": str(tmp_path)}) is None and "git is unavailable" in capsys.readouterr().err
+    res = subprocess.run(STOP, input="not json", cwd=repo.root, env=repo.env, capture_output=True, text=True)
     assert res.returncode == 0 and res.stdout == "" and "not JSON" in res.stderr
 
 

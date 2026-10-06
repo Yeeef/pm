@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import HARNESS, PM, RENDER, fake_bd_env, project, sprint
+from conftest import write_config, HARNESS, PM, RENDER, fake_bd_env, project, sprint
 
 sys.path.insert(0, str(HARNESS))
 from pm.beads import REPLY_MARK, reply_body, reply_in_beads  # noqa: E402
@@ -1522,8 +1522,9 @@ def origin(tmp_path):
     git_in(o, "commit", "-qm", "records")
     git_in(o, "subtree", "split", "--prefix=records", "-b", "records")
     (o / ".gitignore").write_text("/records\n/.records/\n")
+    write_config(o)
     git_in(o, "rm", "-rq", "records")
-    git_in(o, "add", ".gitignore")
+    git_in(o, "add", ".gitignore", ".pm")
     git_in(o, "commit", "-qm", "records live on the records branch")
     return o
 
@@ -1578,20 +1579,20 @@ def test_where_before_setup_names_what_is_missing(tmp_path, origin):
         f"codex     {tmp_path}/codex  missing, so Codex is not used here",
         schedule_line(clone, tmp_path / "home", "missing; run bin/pm setup"),
         f"push      {clone}/.git/pm-push.log  no push recorded yet",
-        f"site      http://localhost:8000 (make docs, served by pm serve); make render writes {clone}/site",
+        f"site      http://localhost:8000 (served by pm serve); pm render writes {clone}/site",
     ]
     res = subprocess.run([*PM, "where", "records"], cwd=clone,
                          env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True)
     assert res.returncode != 0 and "error: no records store at" in res.stderr
 
 
-def test_setup_site_url_sets_keeps_replaces_and_clears_pm_site_url(tmp_path, origin):
+def test_setup_site_url_sets_keeps_replaces_and_clears_site_url_in_config(tmp_path, origin):
     git_in(tmp_path, "clone", "-q", str(origin), "clone")
     clone = tmp_path / "clone"
+    before = (clone / ".pm/config.toml").read_text()
 
     def stored():
-        return subprocess.run(["git", "config", "--get", "pm.siteUrl"], cwd=clone, env=GIT_ENV,
-                              capture_output=True, text=True).stdout.strip()
+        return tomllib.loads((clone / ".pm/config.toml").read_text()).get("site_url", "")
 
     def site_line():
         out = subprocess.run([*PM, "where"], cwd=clone,
@@ -1615,6 +1616,8 @@ def test_setup_site_url_sets_keeps_replaces_and_clears_pm_site_url(tmp_path, ori
     res = setup_in(clone, "--site-url", "")
     assert res.returncode == 0 and "site URL cleared" in res.stdout
     assert stored() == "" and site_line().split()[1] == "http://localhost:8000"
+    assert (clone / ".pm/config.toml").read_text() == before  # every other line kept as it was
+    assert subprocess.run(["git", "config", "--get-regexp", "^pm\\."], cwd=clone, capture_output=True, text=True).stdout == ""
 
 
 def test_setup_excludes_mains_tracked_copy(tmp_path, origin):
@@ -1658,6 +1661,7 @@ def test_setup_refuses_a_bootstrap_that_does_not_clone_the_remote(tmp_path, orig
 
 def test_setup_refuses_without_records_branch(tmp_path):
     git_in(tmp_path, "init", "-q", "-b", "main", "empty")
+    write_config(tmp_path / "empty")
     res = setup_in(tmp_path / "empty")
     assert res.returncode != 0
     assert "error: no records branch here or on origin" in res.stderr
@@ -1826,7 +1830,7 @@ def test_need_answered_on_another_branch_does_not_block_writes(repo):
                   cwd=wt)
     assert res.returncode == 0, res.stderr
     assert repo.issues()["demo.1.2"]["status"] == "closed"
-    assert repo.git("ls-files", cwd=wt) == ".gitignore\n", "the decision is not on the code branch"
+    assert repo.git("ls-files", cwd=wt) == ".gitignore\n.pm/config.toml\n", "the decision is not on the code branch"
     res = repo.pm("task", "add", "--sprint", "demo.1", "--title", "Next step")
     assert res.returncode == 0, res.stderr
     assert repo.pm("render").returncode == 0
@@ -2028,7 +2032,7 @@ def test_where_lists_every_location_with_its_state(repo):
         f"codex     {repo.root.parent}/codex  missing, so Codex is not used here",
         schedule_line(repo.root, repo.root.parent / "home", "missing; run bin/pm setup"),
         f"push      {repo.root}/.git/pm-push.log  no push recorded yet",
-        f"site      http://localhost:8000 (make docs, served by pm serve); make render writes {wt}/site",
+        f"site      http://localhost:8000 (served by pm serve); pm render writes {wt}/site",
     ]
     (hooks / "pre-commit").unlink()
     assert repo.pm("where").stdout.splitlines()[1:4:2] == [
@@ -2208,7 +2212,7 @@ def test_record_link_refuses_without_a_server(repo):
     port = free_port()
     repo.env = dict(repo.env, PORT=str(port))
     refused(repo, "record", "link", "demo.1",
-            match=rf"no site is served on :{port}; start it with PORT={port} make docs, then run this again")
+            match=rf"no site is served on :{port}; start it with PORT={port} pm serve, then run this again")
 
 
 def test_record_link_refuses_a_foreign_server(repo, tmp_path):
@@ -2226,7 +2230,7 @@ def test_record_link_refuses_a_foreign_server(repo, tmp_path):
         repo.env = dict(repo.env, PORT=str(port))
         refused(repo, "record", "link", "demo.1",
                 match=rf"the server on :{port} is not pm serve.*stop the old server on :{port}, then "
-                      rf"PORT={port} make docs")
+                      rf"PORT={port} pm serve")
     finally:
         srv.terminate()
         srv.wait()
@@ -2241,7 +2245,7 @@ def test_show_site_line_has_constant_size(repo):
 
     before = show()
     site = [l for l in before if l.startswith("site: ")]
-    assert site == ["site: http://localhost:8000 (make docs); a record's page is <site>/<its path under records/, "
+    assert site == ["site: http://localhost:8000 (pm serve); a record's page is <site>/<its path under records/, "
                     "without .md>.html; pm record link <target> prints one"]
     issues = json.loads(repo.state.read_text())
     for n in range(3, 9):
@@ -3121,8 +3125,8 @@ def test_serve_shows_the_push_banner_on_home_and_project_pages(pushed, served):
 
 @pytest.fixture
 def public(repo):
-    """The clone's public base URL (a tunnel to pm serve), set before `served` starts."""
-    repo.git("config", "pm.siteUrl", "https://pm.example.com/")
+    """The repo's public base URL (a tunnel to pm serve), set in its config before `served` starts."""
+    write_config(repo.root, site_url="https://pm.example.com/")
     return "https://pm.example.com"
 
 
@@ -3142,7 +3146,7 @@ def test_reply_is_accepted_from_the_public_host_only(repo, public, served, host,
 def test_reply_from_a_public_host_is_refused_when_none_is_set(repo, served):
     res = post_reply(served, {"token": page_token(served), "id": "demo.1.2", "text": "Small."},
                      {"Host": "pm.example.com"})
-    assert res[0] == 403 and "neither this machine nor the configured pm.siteUrl" in res[2]
+    assert res[0] == 403 and "neither this machine nor the configured site_url" in res[2]
     assert repo.bd_writes() == []
 
 

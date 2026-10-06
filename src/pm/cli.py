@@ -39,7 +39,7 @@ from pathlib import Path
 
 import yaml
 
-from pm import hooks
+from pm import config, hooks
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
                            merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
@@ -1196,15 +1196,19 @@ def cmd_render(args, records: Path) -> str:
 SERVE_HEADER = "X-PM-Store"  # pm serve's replies name the store they render, so a link can check who answers
 
 
+def cfg() -> config.Config:
+    """The repo's .pm/config.toml; main() has checked it before any command runs."""
+    return config.load(Path.cwd())
+
+
 def port() -> int:
-    return int(os.environ.get("PORT", "8000"))
+    """The site port: config's `port`, or the PORT environment variable for one run."""
+    return int(os.environ["PORT"]) if os.environ.get("PORT") else cfg().port
 
 
-@functools.cache
 def public_url() -> str:
-    """The site's public base URL, set per clone with `pm setup --site-url https://…` (a tunnel to pm serve), or ""."""
-    res = subprocess.run(["git", "config", "--get", "pm.siteUrl"], capture_output=True, text=True)
-    return res.stdout.strip().rstrip("/")
+    """The site's public base URL, the repo's `site_url` (a tunnel to pm serve), or ""."""
+    return cfg().site_url
 
 
 def site_url() -> str:
@@ -1224,7 +1228,7 @@ def check_reply(form: dict[str, list[str]], token: str, host: str | None,
     the check reads nothing. Returns the HTTP status, then on success (303) the issue id and the reply's text, else
     the reason it was refused and ""."""
     if (host or "").rsplit(":", 1)[0] not in reply_hosts():
-        return 403, (f"refused: Host {host!r} is neither this machine nor the configured pm.siteUrl; "
+        return 403, (f"refused: Host {host!r} is neither this machine nor the configured site_url; "
                      f"open the site at {site_url()}"), ""
     if not hmac.compare_digest(form.get("token", [""])[0].encode(), token.encode()):
         return 403, ("refused: the reply carries no valid token; reload the page (the server may have restarted) "
@@ -1558,7 +1562,7 @@ def cmd_serve(args, records: Path) -> str:
                          f"</h1><p>This page offers a reload once the site has it.</p></main>"), snap
         # The push banner is read on every request, before the digest: the job changes it, not the records.
         if path == "index.html" or path.startswith("projects/"):
-            text = text.replace("</nav>", "</nav>" + pushjob.banner(records.parent, records), 1)
+            text = text.replace("</nav>", "</nav>" + pushjob.banner(records.parent, records, cfg().remote), 1)
         # A sent reply stays on its card until the snapshot's Beads data holds its comment, which the thread then shows:
         # a refresh that finds Dolt unchanged keeps an older read under a newer as_of, so the time alone is no proof.
         shown = {i: r for i, r in list(replies.items())
@@ -1677,7 +1681,7 @@ def review_pr(issue: dict) -> str | None:
 
 
 def merged_on_main(root: Path, pr: str) -> str | None:
-    """The merge commit of `pr` once it is merged and on origin/main (a PR merged into a stacked base is not), else
+    """The merge commit of `pr` once it is merged and on the remote's main branch (a PR merged into a stacked base is not), else
     None; a gh or git failure is reported on stderr and counts as not merged yet, so the wait goes on."""
     try:
         view = subprocess.run(["gh", "pr", "view", pr, "--json", "state,mergeCommit"], cwd=root, capture_output=True,
@@ -1692,24 +1696,25 @@ def merged_on_main(root: Path, pr: str) -> str | None:
     sha = (info.get("mergeCommit") or {}).get("oid")
     if info.get("state") != "MERGED" or not sha:
         return None
+    remote, main = cfg().remote, cfg().main_branch
     try:
-        fetch = subprocess.run(["git", "fetch", "--quiet", "origin", "main"], cwd=root, capture_output=True, text=True,
+        fetch = subprocess.run(["git", "fetch", "--quiet", remote, main], cwd=root, capture_output=True, text=True,
                                stdin=subprocess.DEVNULL, timeout=GH_TIMEOUT)
     except subprocess.TimeoutExpired:
-        print(f"warning: git fetch origin main took over {GH_TIMEOUT}s, still waiting", file=sys.stderr, flush=True)
+        print(f"warning: git fetch {remote} {main} took over {GH_TIMEOUT}s, still waiting", file=sys.stderr, flush=True)
         return None
     if fetch.returncode != 0:
-        print(f"warning: git fetch origin main failed, still waiting: {fetch.stderr.strip()}", file=sys.stderr,
+        print(f"warning: git fetch {remote} {main} failed, still waiting: {fetch.stderr.strip()}", file=sys.stderr,
               flush=True)
         return None
-    on_main = subprocess.run(["git", "merge-base", "--is-ancestor", sha, "origin/main"], cwd=root, capture_output=True,
+    on_main = subprocess.run(["git", "merge-base", "--is-ancestor", sha, f"{remote}/{main}"], cwd=root, capture_output=True,
                              stdin=subprocess.DEVNULL)
     return sha if on_main.returncode == 0 else None
 
 
 def pull_main(root: Path) -> str:
     """The command that fast-forwards this clone's main checkout, which hooks, rules and the ~/.claude links read."""
-    return f"git -C {shlex.quote(str(store_path(root).parent))} pull --ff-only origin main"
+    return f"git -C {shlex.quote(str(store_path(root).parent))} pull --ff-only {cfg().remote} {cfg().main_branch}"
 
 
 def new_replies(root: Path, issue: dict) -> tuple[list[dict], int]:
@@ -1740,8 +1745,8 @@ def merge_text(root: Path, issue: dict, sha: str) -> str:
     meta = issue.get("metadata") if isinstance(issue.get("metadata"), dict) else {}
     pr = (meta.get("review") or {}).get("pr") or "?"
     n = re.search(r"/pull/(\d+)", pr)
-    return (f"pm: PR {'#' + n.group(1) if n else pr} of review {issue['id']} ({issue['title']}) merged to main as "
-            f"{sha}\nnext: pm action done {issue['id']} --reason \"merged as {sha}\", then update the main checkout: "
+    return (f"pm: PR {'#' + n.group(1) if n else pr} of review {issue['id']} ({issue['title']}) merged to "
+            f"{cfg().main_branch} as {sha}\nnext: pm action done {issue['id']} --reason \"merged as {sha}\", then update the main checkout: "
             f"{pull_main(root)}")
 
 
@@ -1885,7 +1890,7 @@ def show_data(repo: Repo) -> dict:
         })
     today = date.today().isoformat()
     summary = read_summaries(repo.records).get(today)
-    return {"site": site_url(), "projects": projects, "push": pushjob.flags(repo.records.parent, repo.records),
+    return {"site": site_url(), "projects": projects, "push": pushjob.flags(repo.records.parent, repo.records, cfg().remote),
             "today": {"date": today, "page": f"days/{today}.html",
                       "summary": first_sentence(summary["text"], 160) if summary else None,
                       "generated_at": summary["generated_at"] if summary else None}}
@@ -1951,7 +1956,7 @@ def show_text(data: dict) -> str:
     t = data["today"]
     out.append(f"today {t['date']}: " + (f"{t['summary']} (generated {t['generated_at']})" if t["summary"]
                                          else "no summary yet; the scheduled push generates it from today's activity"))
-    out.append(f"site: {data['site']} (make docs); a record's page is <site>/<its path under records/, without .md>"
+    out.append(f"site: {data['site']} (pm serve); a record's page is <site>/<its path under records/, without .md>"
                ".html; pm record link <target> prints one")
     return "\n".join(out)
 
@@ -2033,7 +2038,7 @@ def cmd_record_link(args, records: Path) -> str:
     import urllib.request
 
     rec = link_target(read_records(records), records, args.target)
-    fix = "make docs" if port() == 8000 else f"PORT={port()} make docs"
+    fix = "pm serve" if port() == cfg().port else f"PORT={port()} pm serve"
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port()}/style.css", timeout=2) as r:
             served = r.headers.get(SERVE_HEADER)
@@ -2061,7 +2066,7 @@ def setup_beads(main: Path) -> list[str]:
         # Anything but cloning the remote's refs/dolt/data (an old issues.jsonl, a fresh database) would fork
         # the project's issues; fail instead.
         raise Refuse(f"bd bootstrap would {plan['action']}, not clone the remote's refs/dolt/data: "
-                     f"{plan.get('reason', 'no reason given')}; fetch origin's refs/dolt/data and run {SETUP} again")
+                     f"{plan.get('reason', 'no reason given')}; fetch {cfg().remote}'s refs/dolt/data and run {SETUP} again")
     if plan["action"] == "sync":
         bd(main, "bootstrap", "--yes")
         out.append(f"set up the Beads database ({plan['action']}): {plan.get('beads_dir', main / '.beads')}")
@@ -2091,13 +2096,14 @@ def cmd_setup(args) -> str:
     store = store_path(cwd)
     out = setup_beads(store.parent)
     if not store.exists():
+        remote = cfg().remote
         if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"],
                           cwd=cwd, capture_output=True).returncode != 0:
-            if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{BRANCH}"],
+            if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/remotes/{remote}/{BRANCH}"],
                               cwd=cwd, capture_output=True).returncode != 0:
-                raise Refuse(f"no {BRANCH} branch here or on origin; fetch it, or create it once with "
+                raise Refuse(f"no {BRANCH} branch here or on {remote}; fetch it, or create it once with "
                              f"git subtree split --prefix=records -b {BRANCH}")
-            store_git(cwd, "branch", "--track", BRANCH, f"origin/{BRANCH}")
+            store_git(cwd, "branch", "--track", BRANCH, f"{remote}/{BRANCH}")
         store_git(cwd, "worktree", "add", "--quiet", str(store), BRANCH)
         out.append(f"checked out branch {BRANCH} at {store}")
     find_store(cwd)
@@ -2131,21 +2137,20 @@ def cmd_setup(args) -> str:
 
 
 def setup_site_url(url: str) -> str:
-    """Store the clone's public site URL in git config pm.siteUrl ("" clears it); "" when nothing changed."""
+    """Store the repo's public site URL as `site_url` in .pm/config.toml ("" removes it), for the owner to commit;
+    "" when nothing changed."""
     url = url.strip().rstrip("/")
     if url:
         parts = urllib.parse.urlsplit(url)
         if parts.scheme not in ("http", "https") or not parts.hostname or parts.path or parts.query or parts.fragment:
             raise Refuse(f"--site-url {url!r} is not an http(s) base URL like https://pm.example.com")
     old = public_url()
-    public_url.cache_clear()
     if url == old:
         return ""
+    config.write_site_url(cfg(), url)
     if url:
-        subprocess.run(["git", "config", "pm.siteUrl", url], check=True)
-        return f"site URL set to {url}" + (f" (was {old})" if old else "")
-    subprocess.run(["git", "config", "--unset", "pm.siteUrl"], check=True)
-    return f"site URL cleared (was {old}); links use http://localhost:{port()}"
+        return f"site URL set to {url}" + (f" (was {old})" if old else "") + f" in {cfg().path}; commit it"
+    return f"site URL cleared (was {old}) in {cfg().path}; commit it; links use http://localhost:{port()}"
 
 
 # Codex's workspace-write sandbox keeps .git read-only even inside the workspace, leaves the store outside a
@@ -2242,7 +2247,7 @@ def cmd_push(args, records: None) -> tuple[int, str]:
             return True, summarize_day(find_store(cwd))
         except (Refuse, RecordError) as e:
             return False, str(e)
-    return pushjob.push(store_path(cwd).parent, lambda: find_store(cwd), summarize)
+    return pushjob.push(store_path(cwd).parent, cfg().remote, lambda: find_store(cwd), summarize)
 
 
 def cmd_where(args, records: Path) -> str:
@@ -2266,9 +2271,10 @@ def where_all() -> str:
     else:
         branch = g(store, "rev-parse", "--abbrev-ref", "HEAD")
         line = f"store     {store}  branch {branch}" + ("" if branch == BRANCH else f" (must be {BRANCH})")
-        counts = g(store, "rev-list", "--left-right", "--count", f"HEAD...origin/{BRANCH}").split()
-        line += (f", {counts[0]} ahead, {counts[1]} behind origin/{BRANCH} (as of the last fetch)" if counts
-                 else f", no origin/{BRANCH}")
+        upstream = f"{cfg().remote}/{BRANCH}"
+        counts = g(store, "rev-list", "--left-right", "--count", f"HEAD...{upstream}").split()
+        line += (f", {counts[0]} ahead, {counts[1]} behind {upstream} (as of the last fetch)" if counts
+                 else f", no {upstream}")
         out.append(line)
 
     top = Path(g(cwd, "rev-parse", "--show-toplevel"))
@@ -2325,8 +2331,8 @@ def where_all() -> str:
 
     out.append(pushjob.where(main))
     out += pushjob.describe(main)
-    out.append(f"site      {site_url()} (make docs, served by pm serve); "
-               f"make render writes {top / 'site'}")
+    out.append(f"site      {site_url()} (served by pm serve); "
+               f"pm render writes {top / 'site'}")
     return "\n".join(out)
 
 
@@ -2585,9 +2591,9 @@ def parser() -> argparse.ArgumentParser:
     record = sub.add_parser("record", help="records on the served site").add_subparsers(dest="sub", required=True)
     s = record.add_parser(
         "link", help="print a record's page URL on the served site; the only link to give for a record",
-        description="Print the URL of a record's page on the site pm serve (make docs) serves on "
-                    "localhost:$PORT (default 8000), printed with the clone's public base URL instead when "
-                    "`pm setup --site-url` set one. pm serve's pages follow the records within 10 s and state "
+        description="Print the URL of a record's page on the site pm serve serves on "
+                    "localhost:$PORT (default: port in .pm/config.toml), printed with the repo's site_url "
+                    "instead when .pm/config.toml sets one. pm serve's pages follow the records within 10 s and state "
                     "their data's age, so no render step is needed. Fails with the command that fixes it when nothing serves there, "
                     "or when what answers is not pm serve for this store.")
     s.add_argument("target", help="a sprint or project Beads id, a project name, a design slug, or a record path "
@@ -2597,7 +2603,7 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("render", help="render the site into <repo root>/site; the check before a commit")
     s.set_defaults(func=cmd_render)
 
-    s = sub.add_parser("serve", help="serve the site on localhost:$PORT (default 8000); a page is at most "
+    s = sub.add_parser("serve", help="serve the site on localhost:$PORT (default: port in .pm/config.toml); a page is at most "
                                      "10 s behind the records and Beads and states its data's age; an open page "
                                      "never reloads itself but shows within ~10 s that newer data exists, "
                                      "loaded on reload")
@@ -2609,7 +2615,7 @@ def parser() -> argparse.ArgumentParser:
                                      "uv's cache to the writable roots of $CODEX_HOME/config.toml, and install the "
                                      "scheduled pm push (launchd, a systemd user timer or cron); a no-op once set up")
     s.add_argument("--site-url", metavar="URL",
-                   help="the site's public base URL (a tunnel to pm serve), stored in git config pm.siteUrl: "
+                   help="the site's public base URL (a tunnel to pm serve), written to site_url in .pm/config.toml: "
                         "pm's printed links use it and replies from its host are accepted; '' clears it")
     s.set_defaults(func=cmd_setup)
 
@@ -2618,7 +2624,7 @@ def parser() -> argparse.ArgumentParser:
                        description="Push Beads data with bd dolt push, then summarize today (pm day summarize "
                                    "only when today's activity changed), "
                                    "then push the records branch when the store is "
-                                   "ahead of origin/records: fetch, rebase onto origin/records if it moved (under "
+                                   "ahead of <remote>/records: fetch, rebase onto it if it moved (under "
                                    "the store lock; a rebase that stops is aborted, leaving the store as it was), "
                                    f"push. Each step has a {pushjob.TIMEOUT}s timeout; a second run while one holds "
                                    "the lock exits at once. Each step's outcome goes to <clone>/.git/pm-push.json "
@@ -2655,7 +2661,12 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     name = f"{args.cmd} {getattr(args, 'sub', '')}".strip()
-    if args.cmd == "prime":  # hooks fail open and need no store, so they run before pm looks for one
+    try:  # every command, hooks included, fails hard without the repo's config or on another pinned version
+        config.load(Path.cwd())
+    except config.ConfigError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    if args.cmd == "prime":  # past the config check, hooks fail open and need no store, so they run before pm looks for one
         return hooks.cmd_prime(args.subagent, args.hook_json)
     if args.cmd == "hook":
         return hooks.HOOKS[args.sub]()

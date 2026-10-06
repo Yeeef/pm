@@ -77,45 +77,45 @@ def push_beads(main: Path) -> tuple[bool, str]:
     return run(["bd", "dolt", "push"], main)
 
 
-def push_records(store: Path) -> tuple[bool, str]:
-    """Push the store when it is ahead of origin/records, rebasing onto it first when the remote moved. The rebase
+def push_records(store: Path, remote: str) -> tuple[bool, str]:
+    """Push the store when it is ahead of <remote>/records, rebasing onto it first when the remote moved. The rebase
     holds the store lock every pm write takes; a rebase that stops is aborted, and an abort that fails or leaves HEAD
     off the records branch is reported as needing repair by hand."""
-    ok, said = run(["git", "fetch", "--quiet", "origin", BRANCH], store)
+    ok, said = run(["git", "fetch", "--quiet", remote, BRANCH], store)
     if not ok:
         return False, said
-    ok, counts = run(["git", "rev-list", "--left-right", "--count", f"HEAD...origin/{BRANCH}"], store)
+    ok, counts = run(["git", "rev-list", "--left-right", "--count", f"HEAD...{remote}/{BRANCH}"], store)
     if not ok:
         return False, counts
     ahead, behind = map(int, counts.split())
     if not ahead:
-        return True, f"up to date with origin/{BRANCH}" + (f" ({behind} behind; not pulled)" if behind else "")
+        return True, f"up to date with {remote}/{BRANCH}" + (f" ({behind} behind; not pulled)" if behind else "")
     if behind:
         fd = os.open(store, os.O_RDONLY)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX)
             if not run(["git", "diff", "--quiet", "HEAD"], store)[0]:
-                return False, (f"origin/{BRANCH} moved and the store has uncommitted changes to tracked records; "
+                return False, (f"{remote}/{BRANCH} moved and the store has uncommitted changes to tracked records; "
                                "not rebased, retried on the next run")
-            ok, said = run(["git", "rebase", "--quiet", f"origin/{BRANCH}"], store)
+            ok, said = run(["git", "rebase", "--quiet", f"{remote}/{BRANCH}"], store)
             if not ok:
                 aborted, why = run(["git", "rebase", "--abort"], store)
                 on, branch = run(["git", "symbolic-ref", "--short", "HEAD"], store)
                 if not aborted or not on or branch != BRANCH:
-                    return False, (f"rebase onto origin/{BRANCH} stopped and its abort did not restore the store, "
+                    return False, (f"rebase onto {remote}/{BRANCH} stopped and its abort did not restore the store, "
                                    f"which needs manual repair: git -C {store} status, then git -C {store} rebase "
                                    f"--abort or git -C {store} switch {BRANCH} (abort: {why or 'ok'}; HEAD: "
                                    f"{branch or 'detached'}); the rebase: {said}")
-                return False, f"rebase onto origin/{BRANCH} stopped, aborted and the store left as it was: {said}"
+                return False, f"rebase onto {remote}/{BRANCH} stopped, aborted and the store left as it was: {said}"
         finally:
             os.close(fd)
-    ok, said = run(["git", "push", "--quiet", "origin", f"HEAD:{BRANCH}"], store)
+    ok, said = run(["git", "push", "--quiet", remote, f"HEAD:{BRANCH}"], store)
     if not ok:
         return False, said
-    return True, f"pushed {ahead} commit(s)" + (f" after rebasing onto {behind} new on origin/{BRANCH}" if behind else "")
+    return True, f"pushed {ahead} commit(s)" + (f" after rebasing onto {behind} new on {remote}/{BRANCH}" if behind else "")
 
 
-def push(main: Path, find, summarize) -> tuple[int, str]:
+def push(main: Path, remote: str, find, summarize) -> tuple[int, str]:
     """One run of the job, under a lock no second run waits for: push Beads, summarize today (`summarize` returns ok
     and what it did, or raises), push the records. `find` returns the store, so a store that cannot be found is that
     step's recorded failure, as is any step that raises; a failed step does not stop the next."""
@@ -129,7 +129,7 @@ def push(main: Path, find, summarize) -> tuple[int, str]:
         state = read_state(main)
         lines = []
         for name, step in (("beads", lambda: push_beads(main)), ("summary", summarize),
-                           ("records", lambda: push_records(find()))):
+                           ("records", lambda: push_records(find(), remote))):
             at = now().isoformat()
             try:
                 ok, said = step()
@@ -147,14 +147,14 @@ def push(main: Path, find, summarize) -> tuple[int, str]:
         os.close(fd)
 
 
-def unpushed(store: Path) -> int | None:
-    """Records commits not on origin/records, as of the last fetch; None without origin/records."""
-    res = subprocess.run(["git", "rev-list", "--count", f"origin/{BRANCH}..HEAD"], cwd=store, capture_output=True,
+def unpushed(store: Path, remote: str) -> int | None:
+    """Records commits not on <remote>/records, as of the last fetch; None without it."""
+    res = subprocess.run(["git", "rev-list", "--count", f"{remote}/{BRANCH}..HEAD"], cwd=store, capture_output=True,
                          text=True)
     return int(res.stdout) if res.returncode == 0 else None
 
 
-def flags(main: Path, store: Path | None) -> list[str]:
+def flags(main: Path, store: Path | None, remote: str) -> list[str]:
     """A line per step (each store's push, and the day summary) whose last run failed or whose last success is older
     than OVERDUE, counted from the schedule's install when it never succeeded; none before both."""
     state = read_state(main)
@@ -177,15 +177,15 @@ def flags(main: Path, store: Path | None) -> list[str]:
             what = f"last successful {kind_}" if s["last_ok"] else f"no successful {kind_} since"
             line = (f"{name} {kind_} overdue: {what} {since}, {int(age // 60)} min ago "
                     f"(the job runs every {INTERVAL // 60} min)")
-        if name == "records" and store is not None and (n := unpushed(store)):
-            line += f"; {n} records commit(s) not on origin/{BRANCH}"
+        if name == "records" and store is not None and (n := unpushed(store, remote)):
+            line += f"; {n} records commit(s) not on {remote}/{BRANCH}"
         out.append(line)
     return [f"{l}; log {log}" for l in out]
 
 
-def banner(main: Path, store: Path) -> str:
+def banner(main: Path, store: Path, remote: str) -> str:
     """The site's warning over the home and project pages; empty when every push is current."""
-    lines = flags(main, store)
+    lines = flags(main, store, remote)
     if not lines:
         return ""
     items = "".join(f"<li>{html.escape(l)}</li>" for l in lines)

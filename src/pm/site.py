@@ -477,7 +477,7 @@ def awaiting(cards: list[tuple[dict, str]], prompt: bool) -> str:
 
 
 # The slot for the line stating the age of a page's data. pm serve fills it on every page it serves; the static site
-# keeps the comment, since a file in site/ is as old as its make render.
+# keeps the comment, since a file in site/ is as old as the pm render that wrote it.
 STATUS_SLOT = "<!--pm-status-->"
 
 PAGE = """<!doctype html>

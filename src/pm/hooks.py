@@ -1,7 +1,9 @@
 """What the runtimes' hooks run: `pm prime` (session and subagent context) and `pm hook <name>` (the other hooks).
 
 Every hook fails open: it exits 0 and says on stderr why it let the event through, because a broken hook must never
-stop a session from starting or an agent from stopping. Standard library only, so importing it stays cheap."""
+stop a session from starting or an agent from stopping. The one exception runs before any hook: pm's check of the
+repo's .pm/config.toml, which fails hard, so a session never runs a pm other than the one the repo pins. Standard
+library only, so importing it stays cheap."""
 
 from __future__ import annotations
 

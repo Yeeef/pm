@@ -15,6 +15,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from pm import config
 from pm.beads import load_beads
 from pm.records import RecordError, read_records, read_summaries
 from pm.site import render_pages, write_site
@@ -27,12 +28,13 @@ def main(argv: list[str]) -> int:
         return 2
     site = Path(argv[1]).resolve()
     try:
+        config.load(Path.cwd())  # fails hard without the repo's config or on another pinned version
         records = find_store(Path.cwd())
         repo = code_root(Path.cwd(), records)
         recs = read_records(records)
         pages = render_pages(recs, load_beads(repo), repo.name, dates=design_dates(records, recs),
                              summaries=read_summaries(records))
-    except RecordError as e:
+    except (RecordError, config.ConfigError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     write_site(pages, site)

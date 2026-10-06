@@ -59,7 +59,7 @@ def test_a_failed_rebase_abort_is_reported_as_needing_repair(clone, monkeypatch)
     real = push.run
     monkeypatch.setattr(push, "run", lambda cmd, cwd, timeout=None: (False, "abort failed")
                         if cmd[1:3] == ["rebase", "--abort"] else real(cmd, cwd))
-    ok, said = push.push_records(store)
+    ok, said = push.push_records(store, "origin")
     assert not ok and "needs manual repair" in said and "git -C" in said, said
 
 
@@ -74,7 +74,7 @@ def test_a_rebase_abort_that_leaves_head_off_the_branch_is_reported(clone, monke
             return True, ""
         return real(cmd, cwd)
     monkeypatch.setattr(push, "run", fake)
-    ok, said = push.push_records(store)
+    ok, said = push.push_records(store, "origin")
     assert not ok and "needs manual repair" in said, said
 
 
@@ -95,7 +95,7 @@ def test_a_step_that_raises_is_recorded_as_a_failure(clone, monkeypatch):
 
     def find():
         raise RecordError("no records store")
-    code, said = push.push(main, find, lambda: (True, "skipped"))
+    code, said = push.push(main, "origin", find, lambda: (True, "skipped"))
     assert code == 1
     state = push.read_state(main)
     assert state["beads"]["ok"] and not state["records"]["ok"] and "no records store" in state["records"]["message"]
@@ -105,28 +105,28 @@ def test_a_failed_summary_is_flagged_and_the_records_still_pushed(clone, monkeyp
     main, store = clone
     monkeypatch.setattr(push, "push_beads", lambda m: (True, "fine"))
     pushed = []
-    monkeypatch.setattr(push, "push_records", lambda s: pushed.append(s) or (True, "pushed 1 commit(s)"))
+    monkeypatch.setattr(push, "push_records", lambda s, remote: pushed.append(s) or (True, "pushed 1 commit(s)"))
 
-    code, said = push.push(main, lambda: store, lambda: (False, "claude -p failed (exit 1): boom"))
+    code, said = push.push(main, "origin", lambda: store, lambda: (False, "claude -p failed (exit 1): boom"))
     assert code == 1 and pushed == [store]
     assert "summary error: claude -p failed (exit 1): boom" in push.files(main)[1].read_text()
-    flagged = push.flags(main, store)
+    flagged = push.flags(main, store, "origin")
     assert len(flagged) == 1 and flagged[0].startswith("summary step failed at ") and "boom" in flagged[0], flagged
 
 
 def test_an_installed_schedule_that_never_ran_is_flagged_overdue(clone):
     main, store = clone
     push.write_state(main, {"installed_at": (push.now() - timedelta(hours=1)).isoformat()})
-    lines = push.flags(main, store)
+    lines = push.flags(main, store, "origin")
     assert [l.split(":")[0] for l in lines] == ["beads push overdue", "summary step overdue", "records push overdue"], lines
     push.write_state(main, {"installed_at": push.now().isoformat()})
-    assert push.flags(main, store) == []
+    assert push.flags(main, store, "origin") == []
 
 
 def test_push_writes_each_line_to_the_log_once_and_schedulers_do_not(clone, monkeypatch):
     main, store = clone
     monkeypatch.setattr(push, "push_beads", lambda m: (True, "fine"))
-    push.push(main, lambda: store, lambda: (True, "skipped"))
+    push.push(main, "origin", lambda: store, lambda: (True, "skipped"))
     assert len(push.files(main)[1].read_text().splitlines()) == 3
     assert push.launchd_job(main, "/bin")["StandardOutPath"] == "/dev/null"
 
