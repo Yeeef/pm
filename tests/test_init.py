@@ -23,6 +23,7 @@ BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# be
 PM_FILES = [".pm/config.toml", ".pm/README.md", ".pm/.gitignore", ".claude/settings.json", ".codex/hooks.json",
             ".beads/hooks/post-checkout", ".beads/hooks/pre-commit", ".github/workflows/pm-records-guard.yml",
             ".github/workflows/pm-records-copy.yml", ".gitignore"]
+BD_SET = [".beads/config.yaml"]  # what bd changes when pm init sets the agent profile
 GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n"
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
                    "/.claude/settings.local.json\n# --- END PM ---\n")
@@ -190,6 +191,7 @@ def existing(tmp_path: Path) -> Path:
     for name in ("post-checkout", "pre-commit"):
         (seed / f".beads/hooks/{name}").write_text(BEADS_HOOK + "\n# mine\necho done\n")
         (seed / f".beads/hooks/{name}").chmod(0o755)
+    (seed / ".beads/config.yaml").write_text("# beads\n")
     (seed / ".claude").mkdir()
     (seed / ".claude/settings.json").write_text(json.dumps(USER_SETTINGS, indent=2) + "\n")
     (seed / ".codex").mkdir()
@@ -221,7 +223,7 @@ def test_init_keeps_what_is_not_pms(existing: Path, tmp_path: Path):
     assert (existing / ".gitignore").read_text() == "*.log\nbuild/\n" + GITIGNORE_BLOCK
     assert git(existing / ".pm/store/records", "ls-files").split() == ["sprints/a-1.md"]
     after = snapshot(existing)
-    assert all(after[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
+    assert all(after[k] == v for k, v in before.items() if k not in PM_FILES + BD_SET), "files pm does not manage are kept"
     again = pm(existing, "init")
     assert again.returncode == 0, again.stderr
     assert snapshot(existing) == after and "git add" not in again.stdout

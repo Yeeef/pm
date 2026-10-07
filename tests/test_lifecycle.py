@@ -13,7 +13,7 @@ import pytest
 
 from pm import __version__
 from conftest import PM
-from test_init import BEADS_HOOK, PM_FILES, env, existing, git, new_repo, pm, section, snapshot  # noqa: F401 (fixtures)
+from test_init import BD_SET, BEADS_HOOK, PM_FILES, env, existing, git, new_repo, pm, section, snapshot  # noqa: F401 (fixtures)
 
 LOCAL_SETTINGS = '{\n  "model": "café"\n}\n'  # non-ASCII: pm rewrites the file around it, byte for byte
 CODEX_USER = '# mine\nmodel = "o3"\n\n[sandbox_workspace_write]\nnetwork_access = true\n'
@@ -118,7 +118,7 @@ def test_upgrade_moves_the_pin_and_keeps_what_is_not_pms(existing: Path, tmp_pat
     assert (existing / ".beads/hooks/pre-commit").read_text() == BEADS_HOOK + section("pre-commit") + "\n# mine\necho done\n"
     assert git(existing, "status", "--porcelain").split() == ["M", ".beads/hooks/pre-commit", "M", ".pm/config.toml"]
     after = snapshot(existing)
-    assert all(after[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
+    assert all(after[k] == v for k, v in before.items() if k not in PM_FILES + BD_SET), "files pm does not manage are kept"
     again = pm(existing, "upgrade")
     assert again.returncode == 0 and "nothing to commit" in again.stdout and snapshot(existing) == after
 
@@ -172,7 +172,7 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     after = snapshot(existing)
     assert after.pop(".gitignore") == before.pop(".gitignore") + b"\n"
     assert after.pop(".claude/settings.local.json") == LOCAL_SETTINGS.encode()
-    assert after.pop(".beads/config.yaml") == b"agent.profile: team-maintainer\n", "Beads and its config stay"
+    assert after.pop(".beads/config.yaml") == before.pop(".beads/config.yaml") + b"agent.profile: team-maintainer\n"
     assert after == before
     assert pm(existing, "uninstall").returncode != 0, "with .pm/ gone, pm refuses to run here"
 

@@ -172,8 +172,9 @@ elif args[:2] == ["config", "set"]:
     common = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
                             capture_output=True, text=True).stdout.strip()
     (Path(common) / f"fake-bd-{args[2]}").write_text(args[3])
-    with open(main_checkout() / ".beads/config.yaml", "a") as f:  # bd keeps its config in the tracked config.yaml
-        f.write(f"{args[2]}: {args[3]}\n")
+    config = main_checkout() / ".beads/config.yaml"  # bd keeps its config in the tracked config.yaml
+    if config.exists():
+        config.write_text(config.read_text() + f"{args[2]}: {args[3]}\n")
 elif args[:1] == ["init"]:
     # As bd init does: .beads/ with its config and its git hooks (Beads' marked section), core.hooksPath, the
     # database, and its SessionStart hook in .claude/settings.json (bd writes JSON with sorted keys). It does not
