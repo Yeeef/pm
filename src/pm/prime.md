@@ -13,7 +13,7 @@ A project lives in two layers. Beads is the work layer: items, holders, status a
 | Work tracking: Beads | What exists, who holds it, its status, what blocks what: epics, tasks, needs. | Agents, through `bd` and `pm` |
 | Record layer: Markdown under `records/` | Why and Context: goals, sprint frames, decisions, findings, designs, reports. | Agents, through `pm` and hand edits that `pm commit` commits |
 | `pm` cli | The orchestration: it writes records, runs the actions that touch both layers, and checks each write. | |
-| `pm` service | One background process per clone (`pm service install`, `status`, `restart`, `logs`). It serves the site from the records and Beads, delivers the owner's replies to the sessions that asked, and every 10 minutes pushes Beads data and the `records` branch. Sessions push neither. | |
+| `pm` service | One background process per clone (`pm service install`, `status`, `restart`, `logs`). It serves the site from the records and Beads, delivers the owner's replies to the sessions that asked, and syncs pm and beads state. | |
 | Interface | **The owner's interface is the site.** The owner reads status there and answers there. **The agent's interface is `pm` and the records.** | Nobody; it is rendered |
 
 Each fact has one home: Beads holds the status, the records hold the why. Two copies of one fact drift. `pm` wraps an action only when it touches both Beads and a record, or needs a check beyond Beads. Other task work stays plain `bd`.
