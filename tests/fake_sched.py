@@ -40,6 +40,10 @@ elif tool == "systemctl" and args[1:2] == ["daemon-reload"]:
 elif tool == "systemctl" and args[1:3] == ["enable", "--now"]:
     state["loaded"].append(unit(args[3]))
     save()
+elif tool == "systemctl" and args[1:3] == ["disable", "--now"]:
+    if unit(args[3]) in state["loaded"]:
+        state["loaded"].remove(unit(args[3]))
+    save()
 elif tool == "systemctl" and args[1:2] == ["restart"]:
     sys.exit(0 if unit(args[2]) in state["loaded"] else 5)
 elif tool == "systemctl" and args[1:2] == ["is-active"]:

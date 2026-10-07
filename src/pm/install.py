@@ -5,8 +5,10 @@ A piece is either a whole file pm owns (`.pm/config.toml`, `.pm/README.md`, `.pm
 pm's part of a shared file: its hook entries in `.claude/settings.json` and `.codex/hooks.json` (a hook is pm's when
 its command starts with `pm prime` or `pm hook `), its marked section in `.beads/hooks/post-checkout` and
 `pre-commit` (after Beads' section), and its marked block in `.gitignore`. Each piece has `present(text)`, whether
-pm's part is there, and `apply(text)`, the file with pm's part as this version writes it and every other byte kept.
-`pm init` applies a piece only when it is not present, so a second run changes nothing."""
+pm's part is there, `apply(text)`, the file with pm's part as this version writes it and every other byte kept,
+`part(text)`, pm's part alone (what `pm doctor` compares with `part(apply(text))`), and `remove(text)`, the file
+without pm's part (None: nothing else is left, so the file goes). `pm init` applies a piece only when it is not
+present, so a second run changes nothing; `pm upgrade` applies every piece; `pm uninstall` removes every piece."""
 
 from __future__ import annotations
 
@@ -38,6 +40,8 @@ class Piece:
     rel: str                                  # the path under the worktree root
     present: Callable[[str | None], bool]     # pm's part is in the file (None: the file is absent)
     apply: Callable[[str | None], str]        # the file with pm's part as this version writes it
+    part: Callable[[str | None], object]      # pm's part alone, comparable (None: absent)
+    remove: Callable[[str], str | None]       # the file without pm's part (None: delete it)
     mode: int = 0o644                         # for a file pm creates
 
 
@@ -135,7 +139,7 @@ jobs:
 
 
 def whole(rel: str, content: str) -> Piece:
-    return Piece(rel, lambda text: text is not None, lambda text: content)
+    return Piece(rel, lambda text: text is not None, lambda text: content, lambda text: text, lambda text: None)
 
 
 # ---------------------------------------------------------------- hook entries in the runtimes' settings
@@ -230,8 +234,48 @@ def hooks_apply(rel: str, entries: dict[str, dict]) -> Callable[[str | None], st
     return apply
 
 
+def hooks_part(rel: str) -> Callable[[str | None], object]:
+    """pm's hooks by event, in order, each as written; None when the file is absent."""
+    def part(text: str | None) -> object:
+        if text is None:
+            return None
+        events = load_hooks(rel, text).get("hooks", {})
+        mine = {e: [h for g in gs for h in g.get("hooks", []) if isinstance(h, dict) and is_pm_hook(h)]
+                for e, gs in events.items()}
+        return {e: hs for e, hs in mine.items() if hs}
+    return part
+
+
+def hooks_remove(rel: str) -> Callable[[str], str | None]:
+    """The settings without pm's hooks: a group or event pm's removal empties goes too, and so does `hooks` and then
+    the file when nothing else is left."""
+    def remove(text: str) -> str | None:
+        data = load_hooks(rel, text, layout=True)
+        events = data.get("hooks")
+        if not events:
+            return text
+        for event in list(events):
+            gs = events[event]
+            kept = []
+            for g in gs:
+                mine = [h for h in g.get("hooks", []) if isinstance(h, dict) and is_pm_hook(h)]
+                if mine:
+                    g["hooks"] = [h for h in g["hooks"] if h not in mine]
+                    if not g["hooks"]:
+                        continue
+                kept.append(g)
+            if gs and not kept:
+                del events[event]
+            else:
+                gs[:] = kept
+        if not events:
+            del data["hooks"]
+        return dump_json(data) if data else None
+    return remove
+
+
 def hooks_piece(rel: str, entries: dict[str, dict]) -> Piece:
-    return Piece(rel, hooks_present(rel, entries), hooks_apply(rel, entries))
+    return Piece(rel, hooks_present(rel, entries), hooks_apply(rel, entries), hooks_part(rel), hooks_remove(rel))
 
 
 # ---------------------------------------------------------------- marked sections
@@ -291,6 +335,19 @@ def marked(begin: re.Pattern) -> Callable[[str | None], bool]:
     return lambda text: text is not None and begin.search(text) is not None
 
 
+def section_part(pattern: re.Pattern) -> Callable[[str | None], object]:
+    """pm's marked sections in the file, as written; None when the file is absent."""
+    return lambda text: None if text is None else [m.group(0) for m in pattern.finditer(text)]
+
+
+def section_remove(rel: str, pattern: re.Pattern, begin: re.Pattern, bare: tuple[str, ...]) -> Callable[[str], str | None]:
+    """The file without pm's section; None when only what pm writes into a new file (`bare`) is left."""
+    def remove(text: str) -> str | None:
+        out = strip_section(rel, text, pattern, begin)
+        return None if out in bare else out
+    return remove
+
+
 # ---------------------------------------------------------------- the pieces
 
 def pieces(s: Settings) -> list[Piece]:
@@ -300,11 +357,14 @@ def pieces(s: Settings) -> list[Piece]:
         whole(".pm/.gitignore", PM_GITIGNORE),
         hooks_piece(".claude/settings.json", claude_hooks()),
         hooks_piece(".codex/hooks.json", codex_hooks()),
-        *(Piece(f".beads/hooks/{name}", marked(BEGIN_ANY), git_hook_apply(f".beads/hooks/{name}", name), 0o755)
+        *(Piece(f".beads/hooks/{name}", marked(BEGIN_ANY), git_hook_apply(f".beads/hooks/{name}", name),
+                section_part(SECTION), section_remove(f".beads/hooks/{name}", SECTION, BEGIN_ANY, ("", SHEBANG)),
+                0o755)
           for name in GIT_HOOKS),
         whole(".github/workflows/pm-records-guard.yml", guard_workflow(s)),
         whole(".github/workflows/pm-records-copy.yml", copy_workflow(s)),
-        Piece(".gitignore", marked(GITIGNORE_BEGIN_RE), gitignore_apply),
+        Piece(".gitignore", marked(GITIGNORE_BEGIN_RE), gitignore_apply, section_part(GITIGNORE_SECTION),
+              section_remove(".gitignore", GITIGNORE_SECTION, GITIGNORE_BEGIN_RE, ("",))),
     ]
 
 
@@ -317,6 +377,52 @@ def plan(top: Path, s: Settings) -> list[tuple[Piece, Path, str | None, str]]:
         text = path.read_text() if path.exists() else None
         if not piece.present(text):
             out.append((piece, path, text, piece.apply(text)))
+    return out
+
+
+def read(path: Path) -> str | None:
+    return path.read_text() if path.exists() else None
+
+
+def drift(top: Path, s: Settings) -> list[str]:
+    """Each piece whose pm part under `top` is not what this version writes, as one line saying how."""
+    out = []
+    for piece in pieces(s):
+        text = read(top / piece.rel)
+        try:
+            want = piece.part(piece.apply(text))
+            have = piece.part(text)
+        except InstallError as e:
+            out.append(f"{piece.rel}: {e}")
+            continue
+        if not have:
+            out.append(f"{piece.rel}: pm's part is missing")
+        elif have != want:
+            out.append(f"{piece.rel}: pm's part differs from what pm {__version__} writes")
+    return out
+
+
+def rewrite(top: Path, s: Settings) -> list[tuple[Piece, Path, str | None, str]]:
+    """Every piece whose file under `top` differs from the file with pm's part as this version writes it, with its
+    path, current text and new text; read-only, so a refusal leaves the worktree as it was."""
+    out = []
+    for piece in pieces(s):
+        path = top / piece.rel
+        text = read(path)
+        new = piece.apply(text)
+        if new != text:
+            out.append((piece, path, text, new))
+    return out
+
+
+def removals(top: Path, s: Settings) -> list[tuple[Path, str | None]]:
+    """Each file under `top` holding a pm part, with the file without it (None: delete the file); read-only."""
+    out = []
+    for piece in pieces(s):
+        path = top / piece.rel
+        text = read(path)
+        if text is not None and piece.part(text):
+            out.append((path, piece.remove(text)))
     return out
 
 

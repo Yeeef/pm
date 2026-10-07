@@ -12,6 +12,7 @@ on its port for this clone's store."""
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import plistlib
 import re
@@ -197,6 +198,68 @@ def install(main: Path, port: int) -> str:
         push.write_state(main, {**state, "installed_at": push.now().isoformat()})
     return (f"{'updated' if up else 'installed'} the pm service: {said}, serving http://localhost:{port} and pushing "
             f"every {push.INTERVAL // 60} min; log {log_path(main)}")
+
+
+def unit_command(main: Path, kind: str) -> list[str] | None:
+    """The command the installed unit runs, as install wrote it; None when it names none."""
+    path = unit_file(main, kind)
+    if kind == "launchd":
+        try:
+            args = plistlib.loads(path.read_bytes()).get("ProgramArguments")
+        except plistlib.InvalidFileException:
+            return None
+        return args if isinstance(args, list) else None
+    found = re.search(r"^ExecStart=(.*)$", path.read_text(), re.M)
+    if not found:
+        return None
+    return [json.loads(a).replace("%%", "%") for a in re.findall(r'"(?:[^"\\]|\\.)*"', found.group(1))]
+
+
+def drift(main: Path, port: int) -> list[str]:
+    """How this clone's service differs from what pm init installs, one line each: installed, held by the
+    supervisor, running this pm, on `port`."""
+    try:
+        kind = supervisor()
+    except RecordError as e:
+        return [str(e)]
+    unit = unit_file(main, kind)
+    if not unit.exists():
+        return [f"not installed ({unit} is missing); run pm init"]
+    out = []
+    if not loaded(main, kind):
+        out.append(f"{kind} does not hold {label(main)}; run pm service restart")
+    try:
+        have = unit_port(main, kind)
+    except RecordError as e:
+        out.append(str(e))
+    else:
+        if have != port:
+            out.append(f"{unit} serves on :{have}, not :{port}; run pm service install")
+    if unit_command(main, kind) != command():
+        out.append(f"{unit} does not run this pm ({' '.join(command())}); run pm service install")
+    return out
+
+
+def uninstall(main: Path) -> str:
+    """Stop this clone's service and remove its unit; empty when none is installed."""
+    kind = platform_kind()
+    unit, name = unit_file(main, kind), label(main)
+    if not unit.exists():
+        return ""
+    if loaded(main, kind):
+        if kind == "launchd":
+            checked(["launchctl", "bootout", f"gui/{os.getuid()}/{name}"])
+            deadline = time.monotonic() + RESTART_WAIT
+            while loaded(main, kind):
+                if time.monotonic() > deadline:
+                    raise RecordError(f"launchd still holds {name} {RESTART_WAIT} s after bootout; run pm uninstall again")
+                time.sleep(0.2)
+        else:
+            checked(["systemctl", "--user", "disable", "--now", unit.name])
+    unit.unlink()
+    if kind == "systemd":
+        checked(["systemctl", "--user", "daemon-reload"])
+    return f"removed the pm service: {kind} {name} ({unit})"
 
 
 def answering(port: int) -> str | None:

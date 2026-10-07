@@ -2366,6 +2366,244 @@ def cmd_init(args) -> str:
     return "\n".join(out)
 
 
+def code_top(cwd: Path, store: Path, what: str) -> Path:
+    """The code worktree a repo-level command acts on; refused inside the store."""
+    top = Path(store_git(cwd, "rev-parse", "--show-toplevel"))
+    if top.resolve() == store.resolve():
+        raise Refuse(f"{top} is the records store; run pm {what} from a code worktree")
+    return top
+
+
+def settings_of(c: config.Config) -> install.Settings:
+    return install.Settings(c.remote, c.main_branch, c.port, c.site_url)
+
+
+def sparse_patterns(top: Path) -> list[str]:
+    if store_git(top, "config", "--get", "--default=", "core.sparseCheckout") != "true":
+        return []
+    res = subprocess.run(["git", "sparse-checkout", "list"], cwd=top, capture_output=True, text=True)
+    return res.stdout.split() if res.returncode == 0 else []
+
+
+PM_SPARSE = ["/*", "!/records/"]  # what setup_clone sets
+
+
+def doctor_setup(top: Path, main: Path, store: Path) -> list[str]:
+    """How the clone and this worktree differ from what pm init makes, one line each."""
+    out = []
+    try:
+        find_store(top)
+    except RecordError as e:
+        out.append(f"store: {e}")
+    link = top / "records"
+    if not (link.is_symlink() and link.resolve() == store.resolve()):
+        out.append(f"records link: {link} is not a link to {store}; run pm init")
+    if "!/records/" not in sparse_patterns(top):
+        out.append(f"sparse checkout: {top} does not exclude records/; run pm init")
+    hooks_path = store_git(main, "config", "--get", "--default=", "core.hooksPath")
+    if not hooks_path or (main / hooks_path).resolve() != (main / ".beads/hooks").resolve():
+        out.append(f"hooks path: core.hooksPath is {hooks_path or 'unset'}, not .beads/hooks; run pm init")
+    out += [f"service: {d}" for d in service.drift(main, service.port_for(main, cfg().port))]
+    if codex_home().is_dir() and store.is_dir():
+        path = codex_home() / "config.toml"
+        missing = [r for r in codex_roots(main) if r not in codex_config(path)[2]]
+        if missing:
+            out.append(f"codex: {path} lacks writable_roots {', '.join(missing)}; run pm init")
+    if Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").is_dir():
+        path = top / ".claude/settings.local.json"
+        if str(store) not in claude_dirs(path):
+            out.append(f"claude: {path} does not list {store} in permissions.additionalDirectories; run pm init")
+    return out
+
+
+def cmd_doctor(args) -> tuple[int, str]:
+    """Compare every managed piece with what this pm (the pinned version, as main checked) writes, and the clone and
+    worktree with what pm init makes; non-zero on any difference."""
+    cwd = Path.cwd()
+    store = store_path(cwd)
+    main = main_of(store)
+    top = code_top(cwd, store, "doctor")
+    diffs = [f"repo: {d}; run pm upgrade to rewrite it" for d in install.drift(top, settings_of(cfg()))]
+    diffs += doctor_setup(top, main, store)
+    if diffs:
+        return 1, "\n".join(diffs)
+    return 0, f"pm {__version__}: every managed piece and the clone's setup match what pm init makes"
+
+
+def cmd_upgrade(args) -> str:
+    """Move the pin to the running pm and rewrite every managed piece as it writes them; commits nothing."""
+    to = args.to or __version__
+    if to != __version__:
+        raise Refuse(f"pm upgrade --to {to} must run pm {to}, but pm {__version__} is running; install it with "
+                     f"{config.INSTALL.format(v=to)}, then run pm upgrade")
+    cwd = Path.cwd()
+    store = store_path(cwd)
+    top = code_top(cwd, store, "upgrade")
+    try:
+        c = config.read(top)
+    except config.ConfigError as e:
+        raise Refuse(str(e))
+    try:
+        planned = install.rewrite(top, settings_of(c))
+    except install.InstallError as e:
+        raise Refuse(str(e))
+    written = install.write(planned)
+    if not written:
+        return f"pm {__version__}: every managed piece is current; nothing to commit"
+    branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
+    moved = f"moved the pin from {c.version} to {__version__}" if c.version != __version__ else f"pin stays {__version__}"
+    return "\n".join([moved, *(f"wrote {rel}" for rel in written),
+                      f"pm commits nothing on {branch}; commit pm's files there: git add -- {' '.join(written)} && "
+                      f'git commit -m "Upgrade pm to {__version__}"'])
+
+
+def claude_dirs(path: Path) -> list:
+    try:
+        data = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError) as e:
+        raise Refuse(f"cannot parse {path}: {e}; fix it by hand")
+    perms = data.get("permissions", {}) if isinstance(data, dict) else None
+    dirs = perms.get("additionalDirectories", []) if isinstance(perms, dict) else None
+    if not isinstance(dirs, list):
+        raise Refuse(f"{path}: permissions.additionalDirectories is not a list of paths; fix it by hand")
+    return dirs
+
+
+def remove_claude(top: Path, store: Path) -> str:
+    """Take the store out of this worktree's .claude/settings.local.json; the file goes when nothing else is left."""
+    path = top / ".claude/settings.local.json"
+    if str(store) not in claude_dirs(path):
+        return ""
+    data = json.loads(path.read_text())
+    dirs = data["permissions"]["additionalDirectories"]
+    dirs.remove(str(store))
+    if not dirs:
+        del data["permissions"]["additionalDirectories"]
+        if not data["permissions"]:
+            del data["permissions"]
+    if data:
+        write_atomic(path, json.dumps(data, indent=2) + "\n")
+    else:
+        path.unlink()
+        with contextlib.suppress(OSError):
+            path.parent.rmdir()  # only when empty
+    return f"removed {store} from permissions.additionalDirectories in {path}"
+
+
+def remove_codex_roots(path: Path, roots: list[str]) -> str:
+    """`path`'s text without pm's writable roots, by a minimal edit undoing add_codex_roots; refused when the edit
+    would change anything else."""
+    text, data, have = codex_config(path)
+    gone = [r for r in roots if r in have]
+    if not gone:
+        return text
+    header = CODEX_HEADER.search(text)
+    items = ", ".join(json.dumps(r, ensure_ascii=False) for r in gone)
+    if header is None:
+        raise Refuse(f"{path} sets {CODEX_TABLE} without a [{CODEX_TABLE}] header; remove these from its writable_roots "
+                     f"by hand: {items}")
+    nxt = re.compile(r"^[ \t]*\[", re.M).search(text, header.end())
+    end = nxt.start() if nxt else len(text)
+    section = text[header.end():end]
+    for r in gone:
+        item = json.dumps(r, ensure_ascii=False)
+        for form in (item + ", ", ", " + item, item):
+            if form in section:
+                section = section.replace(form, "", 1)
+                break
+    new = text[:header.end()] + section + text[end:]
+    expected = copy.deepcopy(data)
+    kept = [r for r in have if r not in gone]
+    expected[CODEX_TABLE]["writable_roots"] = kept
+    if not kept:  # what add_codex_roots made from nothing goes too: the key, then the table
+        block = f"[{CODEX_TABLE}]\nwritable_roots = []\n"
+        if set(data[CODEX_TABLE]) == {"writable_roots"} and new.endswith(block):
+            new = new[:-len(block)]
+            new = new[:-1] if new.endswith("\n\n") else new
+            del expected[CODEX_TABLE]
+        elif section.startswith("\nwritable_roots = []"):
+            new = text[:header.end()] + section[len("\nwritable_roots = []"):] + text[end:]
+            del expected[CODEX_TABLE]["writable_roots"]
+    if tomllib.loads(new) != expected:
+        raise Refuse(f"editing {path} would change more than writable_roots; remove these by hand: {items}")
+    return new
+
+
+def worktrees(main: Path) -> list[Path]:
+    res = store_git(main, "worktree", "list", "--porcelain")
+    return [Path(l.removeprefix("worktree ")) for l in res.splitlines() if l.startswith("worktree ")]
+
+
+def cmd_uninstall(args) -> str:
+    """Remove pm's pieces from this worktree and pm's setup from the clone and the machine; the records branch,
+    records/ on the main branch and Beads stay. Refused before anything changes when the store holds uncommitted
+    records or a piece cannot be removed without touching what is not pm's."""
+    cwd = Path.cwd()
+    store = store_path(cwd)
+    main = main_of(store)
+    top = code_top(cwd, store, "uninstall")
+    try:
+        removals = install.removals(top, settings_of(cfg()))
+    except install.InstallError as e:
+        raise Refuse(str(e))
+    trees = [t for t in worktrees(main) if t.resolve() != store.resolve()]
+    roots: list[str] = []
+    if store.is_dir():
+        dirty = store_git(store, "status", "--porcelain")
+        if dirty:
+            raise Refuse(f"the store {store} holds uncommitted records; commit them with pm commit or revert them, "
+                         f"then run pm uninstall again:\n{dirty}")
+        roots = codex_roots(main)
+    codex_path = codex_home() / "config.toml"
+    codex_new = remove_codex_roots(codex_path, roots) if roots and codex_path.exists() else None
+    for t in trees:
+        claude_dirs(t / ".claude/settings.local.json")  # refuse an unreadable one before changing anything
+    out = []
+    said = service.uninstall(main)
+    if said:
+        out.append(said)
+    for t in trees:
+        link = t / "records"
+        if link.is_symlink() and link.resolve() == store.resolve():
+            link.unlink()
+            out.append(f"removed the link {link}")
+        if sparse_patterns(t) == PM_SPARSE:
+            store_git(t, "sparse-checkout", "disable")
+            subprocess.run(["git", "config", "--worktree", "--unset", "sparse.expectFilesOutsideOfPatterns"], cwd=t,
+                           capture_output=True)
+            out.append(f"turned off the sparse checkout of {t}")
+        claude = remove_claude(t, store)
+        if claude:
+            out.append(claude)
+    if store.is_dir():
+        store_git(main, "worktree", "remove", str(store))
+        out.append(f"removed the store checkout {store}; the {BRANCH} branch stays")
+    if codex_new is not None and codex_new != codex_path.read_text():
+        write_atomic(codex_path, codex_new)
+        out.append(f"removed pm's writable_roots from {codex_path}")
+    changed = []
+    for path, text in removals:
+        if text is None:
+            path.unlink()
+        else:
+            path.write_text(text)
+        changed.append(path.relative_to(top).as_posix())
+    for base in dict.fromkeys([top.resolve(), main.resolve()]):
+        pmdir = base / ".pm"
+        if base == top.resolve() and pmdir.exists():
+            shutil.rmtree(pmdir)
+            changed.append(".pm")
+        elif pmdir.exists():  # another branch's checkout: only the clone's own state, never its tracked files
+            for d in ("store", "run"):
+                shutil.rmtree(pmdir / d, ignore_errors=True)
+    out += [f"removed pm's part of {rel}" if (top / rel).exists() else f"removed {rel}" for rel in dict.fromkeys(changed)]
+    if changed:
+        branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
+        out.append(f"pm commits nothing on {branch}; commit the removal there: git add -A -- "
+                   f"{' '.join(dict.fromkeys(changed))} && git commit -m \"Uninstall pm\"")
+    return "\n".join(out) or "pm is not installed here; nothing to remove"
+
+
 def setup_claude(top: Path, store: Path) -> str:
     """Add the store to permissions.additionalDirectories in this worktree's .claude/settings.local.json, keeping
     the rest of the file's data: records/ resolves outside the worktree, so without it Claude Code asks before each
@@ -2941,6 +3179,22 @@ def parser() -> argparse.ArgumentParser:
                                    "runs it; run it by hand only to debug, or on another PORT.")
     s.set_defaults(func=cmd_serve)
 
+    s = sub.add_parser("doctor", help="compare every managed piece with what this pm writes, and the clone and "
+                                      "worktree with what pm init makes; report each difference, exit 1 on any")
+    s.set_defaults(func=cmd_doctor)
+
+    s = sub.add_parser("upgrade", help="move the pin in .pm/config.toml to this pm and rewrite every managed piece "
+                                       "as it writes them; writes files and prints the commit to make, never commits")
+    s.add_argument("--to", metavar="X", help="the version to move to; it must be the running pm's (the default)")
+    s.set_defaults(func=cmd_upgrade)
+
+    s = sub.add_parser("uninstall", help="remove pm's pieces from this worktree (hook entries, workflows, .gitignore "
+                                         "block, pm's sections in .beads/hooks, .pm/) and the clone's and machine's "
+                                         "setup (the store checkout, records/ links and sparse checkouts in every "
+                                         "worktree, the pm service, Codex roots); keeps the records branch, "
+                                         "records/ on the main branch and Beads; never commits")
+    s.set_defaults(func=cmd_uninstall)
+
     s = sub.add_parser("setup", help="make the clone ready: connect Beads (bd bootstrap), install the git "
                                      "hooks, check out the records store at <main checkout>/.pm/store/records if "
                                      "missing, link this worktree's records/ to it, and add the clone's .git, the store, .beads and "
@@ -3040,8 +3294,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     name = f"{args.cmd} {getattr(args, 'sub', '')}".strip()
     try:  # every command, hooks included, fails hard without the repo's config or on another pinned version; pm init
-        # writes a missing one
-        if not (args.cmd == "init" and not (config.root(Path.cwd()) / config.REL).is_file()):
+        # writes a missing one, and pm upgrade moves the pin
+        if args.cmd != "upgrade" and not (args.cmd == "init" and not (config.root(Path.cwd()) / config.REL).is_file()):
             config.load(Path.cwd())
     except config.ConfigError as e:
         print(f"error: {e}", file=sys.stderr)
@@ -3053,9 +3307,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "hook":
         return hooks.HOOKS[args.sub]()
     try:
-        if args.func in (cmd_setup, cmd_init):
+        if args.func in (cmd_setup, cmd_init, cmd_upgrade, cmd_uninstall):
             print(args.func(args))
             return 0
+        if args.func is cmd_doctor:
+            code, said = cmd_doctor(args)
+            print(said)
+            return code
         if args.func is cmd_push:
             code, said = cmd_push(args, None)  # finds the store itself: a missing store is a recorded failure
             print(said)
