@@ -46,7 +46,7 @@ def commands() -> str:
     from pm.cli import parser  # lazy: cli imports this module
     sub = next(a for a in parser()._subparsers._group_actions if a.dest == "cmd")
     nouns = ", ".join(f"`{act.dest}`" for act in sub._choices_actions if act.dest not in MACHINERY)
-    return f"## Commands\n\n`pm` nouns: {nouns}.\nRun `pm <noun> --help` for its commands and flags."
+    return f"## Commands\n\n`pm` nouns: {nouns}."
 
 
 def head() -> str:
@@ -126,8 +126,8 @@ def profile(cwd: str | None, cmd: list[str] | None = None) -> str:
 
 
 def subagent_context(cwd: str | None) -> str:
-    """The subagent context: the Beads profile line, then the rules; no command list and no `pm show`."""
-    return profile(cwd) + "\n\n" + rules()
+    """The subagent context: the Beads profile line, the rules and the command list; no `pm show`."""
+    return profile(cwd) + "\n\n" + rules() + "\n\n" + commands()
 
 
 def read_event() -> dict | None:
@@ -140,7 +140,7 @@ def read_event() -> dict | None:
 
 
 def cmd_prime(subagent: bool, hook_json: bool) -> int:
-    """`pm prime`: the rules and `pm show`, or with --subagent the profile line and the rules. With --hook-json it reads
+    """`pm prime`: the rules, the commands and `pm show`, or with --subagent the profile line, the rules and the commands. With --hook-json it reads
     the SessionStart or SubagentStart input on stdin (cwd, session_id) and prints the envelope Claude Code and Codex
     both read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}."""
     event = (read_event() or {}) if hook_json else {}

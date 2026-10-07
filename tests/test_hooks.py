@@ -50,8 +50,9 @@ def test_session_start_injects_rules_setup_where_and_pm_show(repo):
     header, _, body = rest.partition("\n\n")
     assert re.fullmatch(r"Project state from `bin/pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
                         r"run `bin/pm show` again before stating project state to the owner\.", header)
-    assert body == shown
-    assert "Sprint 1: First" in shown
+    # pm show gets what the rest leaves under the cap, cut at a line
+    assert body == shown or (body.endswith(hooks.CUT) and shown.startswith(body[:-len(hooks.CUT)]))
+    assert "Sprint 1: First" in body
     plain = repo.pm("prime")  # by hand: the same text, no envelope
     assert plain.returncode == 0 and plain.stdout.strip() == out["additionalContext"]
 
@@ -127,7 +128,7 @@ def subcommands():
 
 
 def listed_nouns():
-    line = hooks.commands().split("\n")[2]
+    line = hooks.commands().split("\n")[-1]
     assert line.startswith("`pm` nouns: ") and line.endswith(".")
     return re.findall(r"`(\w+)`", line[len("`pm` nouns: "):])
 
@@ -137,8 +138,8 @@ def test_prime_lists_every_agent_command_from_the_parser():
     assert listed == [c for c in subcommands() if c not in {"prime", "hook", "push"}]
     assert "prime" not in listed and "show" in listed
     assert hooks.commands().startswith("## Commands\n\n")
-    assert hooks.commands().endswith("\nRun `pm <noun> --help` for its commands and flags.")
-    assert hooks.commands().count("\n") == 3  # compact: a heading, the nouns, the help pointer
+    assert hooks.commands().count("\n") == 2  # compact: a heading and the nouns; prime.md points at --help
+    assert "Run `pm <noun> --help` for its commands and flags." in hooks.rules()
 
 
 def test_prime_lists_a_new_command_without_editing_prime_md(monkeypatch):
@@ -153,6 +154,23 @@ def test_prime_lists_a_new_command_without_editing_prime_md(monkeypatch):
     monkeypatch.setattr(cli, "parser", extended)
     assert listed_nouns()[-1] == "frobnicate"
     assert "frobnicate" not in hooks.rules()
+
+
+def sentences(text):
+    """Each sentence of prime.md's bullets, paragraphs and table cells, with a code span counted as one word and an
+    arrow (a step in an ordered line) as none."""
+    for line in text.splitlines():
+        if line.startswith("#") or re.fullmatch(r"\|[-|]+\|", line):
+            continue
+        for cell in line.strip("| ").split(" | ") if line.startswith("|") else [line.lstrip("- ")]:
+            cell = re.sub(r"`[^`]*`", "CODE", cell).replace("→", " ")
+            yield from (s for s in re.split(r"(?<=[.?!])\s+", cell) if s.strip())
+
+
+def test_prime_md_sentences_are_at_most_20_words():
+    """ASD-STE100: at most 20 words in an instruction sentence; pm's rules hold only instructions and short facts."""
+    long = [(len(s.split()), s) for s in sentences(hooks.rules()) if len(s.split()) > 20]
+    assert not long, long
 
 
 def test_session_start_fails_open_when_pm_is_missing(tmp_path):
@@ -190,8 +208,8 @@ def test_subagent_start_envelope(tmp_path):
     text = out["additionalContext"]
     assert text.startswith("Beads agent profile: unknown (")
     first, _, rest = text.partition("\n\n")
-    assert "\n" not in first and rest == hooks.rules()  # the rules, no command list, no pm show
-    assert "## Commands" not in text and len(text) <= hooks.CAP
+    assert "\n" not in first and rest == hooks.rules() + "\n\n" + hooks.commands()  # no pm show
+    assert len(text) <= hooks.CAP
 
 
 # ---------------------------------------------------------------- uncommitted records

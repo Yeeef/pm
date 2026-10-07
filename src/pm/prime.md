@@ -3,6 +3,9 @@
 ## Model
 - Beads holds the work. Records hold the context. `pm` writes records. The site shows both to the owner.
 - Records point at Beads ids. Do not copy a status into a record.
+- `records/` links to one store on the records branch. All sessions and worktrees write in it. Commit only the paths that you edited.
+- Run `pm <noun> --help` for its commands and flags.
+- Each rule has a reason. When a rule and its reason disagree in a new case, obey the reason.
 
 | Object | In Beads | Record |
 |---|---|---|
@@ -24,6 +27,7 @@
 - Run `pm show` again before you tell the owner the project state.
 - Claim a task only with `pm task claim`. Do not use `bd update --claim`. Tell a subagent that it holds a task only after the claim succeeds.
 - Close a task with `pm task close`. Do not use `bd close`.
+- A subagent claims and closes its own task with `pm task claim` and `pm task close`.
 - Record a scope change as a sprint decision. Do not rename a task or rewrite its description for it.
 - Add findings when they occur. Give each result its numbers.
 - Record a decision at project level when a later sprint must obey it. Record it at project level as soon as it applies beyond one sprint.
@@ -31,16 +35,20 @@
 - Read the decisions before you ask the owner. Do not ask again about a decided question.
 - When work waits on the owner, raise a need. Then continue other ready work. Do not decide silently.
 - Record an owner answer that sets a rule as a decision. Use `--need` for a need, `--confirmed` for an answer in chat.
+- Close an owner answer that sets no rule with `pm decision close`. If you are not sure, record a decision.
+- The owner's replies and PR merges come into this session as new turns. Do not poll or wait for them.
 - After an owner reply, do its next step at once. Then close the need with `pm decision` or `pm action done`.
 - Close an action with `pm action done` when you see it done. Give the evidence in `--reason`.
-- Start the title of a need from a test with "[TEST]". Dismiss it when the check ends.
+- Start the title of a need from a test with "[TEST]". Dismiss it with `bd human dismiss <id>` when the check ends.
 - Do not post status outside the site. The site is the owner's status view.
 - Do not push Beads data or the records branch. The scheduled `pm push` does it.
 - Examine a subagent's report against the files before you accept it.
 - Link a record only with the URL that `pm record link` prints. Do not build a URL or give a records path.
 - Keep one area on each design page. Write its final state, not a history of findings.
+- Do not put decisions or plans on a design page. Put them in the project or sprint record.
 - In a sprint's Design pages, link the sub pages that its work changed.
 - Write a postmortem when an incident costs more than a day, or breaks other sessions or the site.
+- Write "not recorded" for a date or fact that the records do not have. Do not guess.
 - Get the owner's confirmation of the project goal before you open a project.
 - Run `pm feedback add` when pm stops you or costs you time.
 
@@ -51,12 +59,22 @@ These rules have guards. Obey them so that the guards do not stop you.
 - Do not commit `records/` on a code branch.
 - Commit each record that you edit before you end your turn.
 - Give each `pm` write its target with `--sprint` or `--project`.
-- Do not write in generated sections, such as Progress. Keep each section and its prompt line. Write "None yet." in an empty section.
+- Do not write in generated sections: Progress, Decisions await you, Actions await you. Keep each section and its prompt line. Write "None yet." in an empty section.
+- Use only these blocks: `::: decision`, `::: result`, mermaid. Put a one-line reading under each diagram or large table.
 - Start the delivery report's Outcome with done, partial or voided and one sentence.
 - In Against Done when, give each item as met or not, with evidence.
-- Push the sprint branch and open its PR without approval. Write the delivery report before you ask for a review. Ask the owner to review and merge with `pm action need --pr`.
-- Close a PR review only when its merge is on main. A merge into a stacked base is not on main.
-- Close a sprint only after its PR is on main.
+- Push the sprint branch and open its PR without approval.
+- Close a sprint in this order: write the report → push and open the PR → `pm action need --pr` → close or move other tasks.
+- After the merge is on main: `pm action done <review> --reason "merged as <sha>"` → `pm sprint close`. A merge into a stacked base is not on main. A voided sprint without a PR closes without one.
+
+## Reading pm show
+| Text | Meaning | Do |
+|---|---|---|
+| `held by <session>, <age>, live` | A session works on it. | Leave it. |
+| `held by <session>, <age>, idle` | Its session wrote nothing for 30 minutes. | `pm task claim` can take it. |
+| `held by <name> without a session` | Someone claimed it outside `pm`. | Leave it, unless the owner tells you to take it. |
+| `[undelivered reply: pm reply read <id>]` | An owner reply did not get to its session. | Run `pm reply read <id>`. Then do its next step. |
+| `warning: the scheduled push needs attention` | The push failed or is late. | Read `pm where` and `.git/pm-push.log`. If you cannot fix it, raise an action and add a bug task. |
 
 ## Planning
 - Write the sprint frame before work starts:
