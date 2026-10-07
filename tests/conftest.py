@@ -180,6 +180,8 @@ def integration_only(args) -> str | None:
     if str(RENDER_PAGES) in map(str, args):
         return "the whole site rendered (Repo.pages)"
     name, rest = Path(str(args[0])).name, [str(a) for a in args[1:]]
+    if rest[:2] == ["-m", "pm.cli"]:  # how pm's hooks and service run pm (hooks.SETUP, the service unit)
+        name, rest = "pm", rest[2:]
     if name == "git":
         sub = next((a for i, a in enumerate(rest) if not a.startswith("-") and rest[i - 1:i] not in (["-C"], ["-c"])),
                    "")
@@ -190,8 +192,8 @@ def integration_only(args) -> str | None:
     if name == "pm" and rest:
         if rest[0] in HEAVY_PM:
             return f"pm {rest[0]}"
-        if rest[0] == "prime" and "--state" in rest:
-            return "the session-start hook (pm prime --state)"
+        if rest[0] == "prime" and not {"--rules", "--subagent"} & set(rest):
+            return "the session-start hook (pm prime runs pm setup, where and show)"
     return None
 
 

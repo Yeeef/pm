@@ -39,14 +39,14 @@ A design change edits the sub page it touches to the new state; the trail of fin
 Run `make test` while working. When a change touches what an integration test covers (the service and its site,
 `init`, `setup`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
 Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> --watch`):
-`.github/workflows/pm-tests.yml` runs the light set and the integration set as separate steps on every PR.
+`.github/workflows/pm-tests.yml` runs the light set and the integration set as separate jobs on every PR and push to main.
 `make test-full` (or `ARGS="-k …"`) reproduces a CI failure locally.
 
 A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
 (`pm init`, `setup`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
-bare repo), runs `pm push` or the session-start hook (`pm prime --state`). The autouse fixture
-`light_unless_integration` in `conftest.py` fails an unmarked test that starts one of these (`integration_only`
-names them).
+bare repo), runs `pm push` or the session-start hook (`pm prime` without `--rules` or `--subagent`, also run as
+`python -m pm.cli`). The autouse fixture `light_unless_integration` in `conftest.py` fails an unmarked test that
+starts one of these (`integration_only` names them).
 
 What the tests are:
 
