@@ -109,3 +109,21 @@ def test_init_replaces_a_tool_built_from_another_commit_of_this_version(uv, monk
     assert tool.ensure() == f"installed the pm uv tool {__version__} from {spec(other)}"
     assert uv()[-3] == ["tool", "install", "--reinstall", spec(other)]
     assert tool.running() == f"{__version__} at {other['vcs_info']['commit_id']} in pm" and tool.current()
+
+
+def test_a_launched_pm_keeps_the_launcher_tool_and_takes_any_launcher_as_current(uv, monkeypatch, tmp_path):
+    """In a repo pinned to another version the tool launched this pm: installing this build would replace the
+    launcher, so pm init leaves the tool and says so, and the service's unit still runs the tool's interpreter."""
+    tool.ensure()  # the machine's launcher, built from SOURCE
+    runs_from(monkeypatch, {**SOURCE, "vcs_info": {**SOURCE["vcs_info"], "commit_id": "5e8bd2b" + "0" * 33}})
+    monkeypatch.setenv("PM_LAUNCHED", __version__)
+    n = len(uv())
+    py = tmp_path / "tools/pm/bin/python"
+    assert tool.ensure() == (f"left the pm uv tool ({py}) as it is: it launched this pm {__version__} for the repo's "
+                             "pin, and installing this version would replace the launcher")
+    assert not [c for c in uv()[n:] if c[:2] == ["tool", "install"]] and tool.current() == py
+    dist = next((tmp_path / "tools/pm/site").glob("*.dist-info"))
+    (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: pm\nVersion: 0.1.0\n")  # a tool from before the launcher
+    with pytest.raises(RecordError, match=re.escape(f"runs pm 0.1.0 from {spec(SOURCE)}, which cannot run this repo's "
+                                                    f"pin {__version__}; install a pm uv tool at 0.1.2 or later")):
+        tool.current()

@@ -32,7 +32,7 @@ def machine(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "home/.config"))
     bindir = tmp_path / "tools%x"
     bindir.mkdir()
-    for t in ("bd", "git"):
+    for t in ("bd", "git", "uv"):
         (bindir / t).write_text("#!/bin/sh\n")
         (bindir / t).chmod(0o755)
     monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}/usr/bin:/bin")

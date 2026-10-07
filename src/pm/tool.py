@@ -8,7 +8,11 @@ git, never runs its build, so every command that installs or checks the tool or 
 one, naming the command that runs pm as the tool. A build is the version and the commit and subdirectory it was
 built from, not the URL as typed, so a tool built from another commit of the same version is replaced, and the
 service, which sends its build, is seen as stale, while one commit spelled two ways is one build. The service's
-unit runs the tool's interpreter, whose path stays the same across versions."""
+unit runs the tool's interpreter, whose path stays the same across versions.
+
+The tool is also the launcher (launch.py): in a repo pinned to another version it runs that version. A pm so
+launched never installs the tool, which stays the machine's launcher, and takes any launcher as current; its own
+build is what the service it starts sends, so the stale check compares the pin's build with the pin's build."""
 
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ from pathlib import Path
 
 from pm import __version__
 from .config import INSTALL, RELEASE
+from .launch import FIRST, launched, old
 from .records import RecordError
 
 NAME = "pm"
@@ -110,6 +115,13 @@ def current() -> Path:
     cmd = install_command()
     py = python()
     have = installed(py)
+    if launched():  # the tool launched this pm for the repo's pin: any launcher runs the pin
+        if have is None or old(have[0]):
+            what = f"runs pm {shown(*have)}" if have else "is not installed"
+            first = ".".join(map(str, FIRST))
+            raise RecordError(f"the pm uv tool ({py}) {what}, which cannot run this repo's pin {__version__}; install "
+                              f"a pm uv tool at {first} or later, such as {INSTALL.format(v=__version__)}")
+        return py
     if have is None or build(*have) != running():
         what = f"runs pm {shown(*have)}" if have else "is not installed"
         raise RecordError(f"the pm uv tool ({py}) {what}, not pm {shown(__version__, own())}; run pm init, or "
@@ -141,6 +153,10 @@ def ensure() -> str:
     `pm` on PATH is the tool's, which hooks call; empty when it was already current. Refused when the installed
     tool's source cannot be read (an install from an index), since then pm cannot tell which build it runs, and
     when this pm did not come from git (source())."""
+    if launched():
+        current()
+        return (f"left the pm uv tool ({python()}) as it is: it launched this pm {__version__} for the repo's pin, "
+                "and installing this version would replace the launcher")
     said = ""
     spec = source()
     py = python()

@@ -171,8 +171,12 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     edit(existing / ".pm/config.toml", f'version = "{__version__}"', 'version = "0.0.1"')
     edit(existing / ".beads/hooks/pre-commit", f"BEGIN PM v{__version__}", "BEGIN PM v0.0.1")
     git(existing, "commit", "--no-verify", "-qam", "pm 0.0.1")
-    assert pm(existing, "show").returncode == 1, "every other command refuses the old pin"
-    res = pm(existing, "upgrade", "--to", "9.9.9")
+    def launched(pin: str, *args: str) -> subprocess.CompletedProcess:  # as the pm uv tool launches `pin`, whose
+        # release here builds this pm: test_launch.py has the launch itself, which would reach GitHub
+        return subprocess.run([*PM, *args], cwd=existing, env=dict(env(existing.parent), PM_LAUNCHED=pin),
+                              capture_output=True, text=True)
+    assert launched("0.0.1", "show").returncode == 1, "every other command refuses the old pin"
+    res = launched("9.9.9", "upgrade", "--to", "9.9.9")
     assert res.returncode == 1 and 'uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v9.9.9' in res.stderr
     head = git(existing, "rev-parse", "HEAD")
     res = pm(existing, "upgrade")

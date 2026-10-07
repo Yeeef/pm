@@ -31,13 +31,15 @@ def test_every_command_fails_without_a_config(repo, args):
 
 @pytest.mark.parametrize("args", COMMANDS)
 def test_every_command_fails_on_another_pinned_version(repo, args):
+    """Once launched for the pin (test_launch.py has the launch), a pm on another version fails hard."""
     path = write_config(repo.root, version="9.9.9")
+    repo.env = dict(repo.env, PM_LAUNCHED="9.9.9")
     res = repo.pm(*args, stdin=json.dumps({"cwd": str(repo.root)}))
     assert res.returncode == 1 and res.stdout == ""
     assert res.stderr == (
-        f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {__version__} is running; install the pinned "
-        'version with uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v9.9.9#subdirectory=pm" '
-        f"(or move the pin to {__version__} with pm upgrade)\n")
+        f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {__version__} is running, launched for that "
+        f"pin: release tag pm-v9.9.9 at https://github.com/Yeeef/yeeef-agents builds pm {__version__}; fix the tag, "
+        f"or move the pin to {__version__} with pm upgrade\n")
 
 
 def help_texts(ap) -> list[str]:

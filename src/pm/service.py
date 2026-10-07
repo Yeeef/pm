@@ -35,7 +35,7 @@ SERVE_HEADER = "X-PM-Store"  # the service's replies name the store they render,
 VERSION_HEADER = "X-PM-Version"  # and the pm build they run (tool.running), so a probe sees a service left on an old one
 PROBE_TIMEOUT = 1   # seconds a probe of the site may take; pm where runs one at every session start
 RESTART_WAIT = 15   # seconds restart waits for the site to answer
-TOOLS = ("bd", "git")  # what the service runs; install refuses a PATH without them
+TOOLS = ("bd", "git", "uv")  # what the service runs (uv runs the pinned pm); install refuses a PATH without them
 
 
 def label(main: Path) -> str:

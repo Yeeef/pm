@@ -18,8 +18,9 @@ is for them, and nothing here ships: the wheel holds only `src/pm/` (`[tool.hatc
 | `src/pm/service.py`, `push.py` | `pm service`: one supervised process per clone serves the site and runs `pm push` |
 | `src/pm/install.py`, `tool.py`, `legacy.py` | `pm init`, `doctor`, `upgrade`, `uninstall`: the repo's pieces, the pm uv tool, the pre-package harness's pieces |
 | `src/pm/config.py` | `.pm/config.toml`: every command fails hard without it or on another pinned version |
+| `src/pm/launch.py` | The launcher: `main()` first runs the repo's pinned version through `uv tool run` when it is not this one |
 | `tests/` | pytest suite, fakes and the live eval (below) |
-| The pm uv tool | The `pm` on PATH that hooks, agents and the service run; `pm init` installs it from git (`tool.py`). Run this checkout's code with `uv run --project pm pm …` |
+| The pm uv tool | The `pm` on PATH that hooks, agents and the service run; `pm init` installs it from git (`tool.py`). It runs each repo's pinned version (`launch.py`). Run this checkout's code with `uv run --project pm pm …`; this checkout's pin is its own version, so it runs in process |
 | `../.claude/settings.json`, `../.codex/hooks.json` | Where the runtimes wire the hooks (below) |
 | `../.pm/config.toml` | This repo's pm config; its `version` must equal `version` in `pyproject.toml` |
 | `../records/design/pm-harness.md` | The harness design; one sub page per area (`pm-cli.md`, `owner-request-hook.md`, `records-store.md`, `site-replies.md`, …) |
@@ -51,7 +52,11 @@ starts one of these (`integration_only` names them).
 What the tests are:
 
 - `test_pm.py`: each command against a temp repo and a fake `bd`; every refusal changes nothing, every happy path
-  writes what it says. `test_config.py`: the config check. `test_service.py`: the service's units in process and
+  writes what it says. `test_config.py`: the config check. `test_launch.py`: the
+  launcher against a fake `uv` (logs argv, stdin and the `PM_LAUNCHED` markers) and a fake `git ls-remote`; its
+  integration test builds release 0.1.0 with real uv from this clone's tag `pm-v0.1.0` (the release URL rewritten
+  to this clone, so nothing reaches GitHub) and runs `pm show` in a repo pinned to it. A test that pins another
+  version and does not test the launch sets `PM_LAUNCHED=<pin>`, as a launched pm has it, or it would reach GitHub. `test_service.py`: the service's units in process and
   `pm service` end to end. `test_tool.py`: the pm uv tool. `test_init.py`, `test_lifecycle.py`, `test_migrate.py`:
   `pm init`, `doctor`, `upgrade` and `uninstall` on temp clones, and the move off the pre-package harness.
   `test_hooks.py`: `pm prime` and `pm hook stop`, run as the runtimes run them (JSON on stdin). `test_owner_request_hook.py`: the owner-request hook against a

@@ -276,6 +276,7 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
     return dict(base, PATH=f"{bindir}{os.pathsep}{base['PATH']}", FAKE_BD_STATE=str(tmp / "bd.json"),
                 FAKE_BD_LOG=str(tmp / "bd.log"), FAKE_GH_STATE=str(tmp / "gh.json"), CODEX_HOME=str(tmp / "codex"),
                 CLAUDE_CONFIG_DIR=str(tmp / "claude"), HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "home/.config"),
+                XDG_DATA_HOME=str(tmp / "home/.local/share"),
                 FAKE_SCHED_LOG=str(tmp / "sched.log"), FAKE_SCHED_STATE=str(tmp / "sched.json"),
                 FAKE_CLAUDE_LOG=str(tmp / "claude.log"), UV_TOOL_DIR=str(tmp / "uv/tools"),
                 UV_TOOL_BIN_DIR=str(tmp / "uv/bin"), PYTHONPATH=str(tmp / "uv/tools/pm/site"), **UV_DIRS)
@@ -393,7 +394,8 @@ def pytest_configure(config):
     os.environ.update({f"PM_TESTS_REAL_{k}": v for k, v in REAL.items()})
     home = config.pm_home = Path(tempfile.mkdtemp(prefix="pm-tests-home-"))
     os.environ.update(HOME=str(home / "home"), CODEX_HOME=str(home / "codex"), CLAUDE_CONFIG_DIR=str(home / "claude"),
-                      XDG_CONFIG_HOME=str(home / "home/.config"), **UV_DIRS)
+                      XDG_CONFIG_HOME=str(home / "home/.config"), XDG_DATA_HOME=str(home / "home/.local/share"),
+                      **UV_DIRS)
     (home / "home").mkdir()
     # the tests' git, without the user's global config: new repos and bare remotes start on main
     (home / "home/.gitconfig").write_text("[init]\n\tdefaultBranch = main\n[user]\n\tname = t\n\temail = t@example.com\n")
