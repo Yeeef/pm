@@ -24,13 +24,13 @@ from pm.owner_request import hook_owner_request
 
 CAP = 10_000  # Claude Code's additionalContext limit, in characters
 TIMEOUT = 20  # seconds; `pm show` takes about 1 s
-SETUP_TIMEOUT = 6  # seconds; `pm setup` takes 0.4-1.6 s; a fresh clone's Beads bootstrap needs `pm init` by hand
+INIT_TIMEOUT = 6  # seconds; `pm init` in a set-up clone takes 0.8-0.9 s (tests, 2026-10-07); a fresh clone's Beads bootstrap needs `pm init` by hand
 WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s. With the others, under the hooks' 30 s timeout
 HEADER = ("Project state from `pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
           "may have changed since; run `pm show` again before stating project state to the owner.\n\n")
 CUT = "\n… cut at the hook's 10,000-character limit; run `pm show` for the rest."
 SHOW = [sys.executable, "-m", "pm.cli", "show", "--refresh-inbox"]
-SETUP = [sys.executable, "-m", "pm.cli", "setup"]
+INIT = [sys.executable, "-m", "pm.cli", "init"]
 WHERE = [sys.executable, "-m", "pm.cli", "where"]
 
 
@@ -87,18 +87,20 @@ def chunks() -> list[str]:
     return out
 
 
-def setup(cwd: str | None, cmd: list[str] | None = None) -> str:
-    """What `pm setup` did, ending in a blank line, or one line saying why it did not run. Session start is the one
-    place setup runs in a new worktree: it changes nothing in a set-up one, and readies one whatever tool created it
-    (a git `post-checkout` hook would miss Claude Code's worktrees, added with --no-checkout and then reset)."""
+def init(cwd: str | None, cmd: list[str] | None = None) -> str:
+    """What `pm init` did, ending in a blank line, or one line saying why it did not run. Session start is the one
+    place init runs in a new worktree: it changes nothing in a set-up one, and readies one whatever tool created it
+    (a git `post-checkout` hook would miss Claude Code's worktrees, added with --no-checkout and then reset). A
+    refusal is named by its error line, the first of its output."""
     try:
-        res = subprocess.run(cmd or SETUP, cwd=cwd, capture_output=True, text=True, timeout=SETUP_TIMEOUT)
+        res = subprocess.run(cmd or INIT, cwd=cwd, capture_output=True, text=True, timeout=INIT_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"pm setup did not run at session start ({type(e).__name__}: {e}); run `pm init` by hand.\n\n"
+        return f"pm init did not run at session start ({type(e).__name__}: {e}); run `pm init` by hand.\n\n"
     if res.returncode != 0:
         why = (res.stderr or res.stdout).strip().splitlines()
-        return f"pm setup failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `pm init` by hand.\n\n"
-    return f"`pm setup` at session start:\n{res.stdout.strip()}\n\n"
+        line = next((l for l in why if l.startswith("error: ")), why[-1]) if why else f"exit {res.returncode}"
+        return f"pm init failed at session start ({line}); run `pm init` by hand.\n\n"
+    return f"`pm init` at session start:\n{res.stdout.strip()}\n\n"
 
 
 def where(cwd: str | None, cmd: list[str] | None = None) -> str:
@@ -135,9 +137,9 @@ def context(cwd: str | None, cmd: list[str] | None = None, session: str | None =
 
 
 def state(cwd: str | None, session: str | None = None) -> str:
-    """`pm prime --state`: what `pm setup` did and `pm where`, then `pm show`, all within CAP, so `pm show` gets what
-    the setup and where lines leave and loses its last part first."""
-    first = setup(cwd) + where(cwd)
+    """`pm prime --state`: what `pm init` did and `pm where`, then `pm show`, all within CAP, so `pm show` gets what
+    the init and where lines leave and loses its last part first."""
+    first = init(cwd) + where(cwd)
     return first + context(cwd, session=session, cap=CAP - len(first))
 
 
@@ -174,7 +176,7 @@ def read_event() -> dict | None:
 
 def cmd_prime(part: str | int | None, hook_json: bool) -> int:
     """`pm prime`: the rules, the commands and the state; `part` prints one: N (chunk N of `chunks()`), "state"
-    (`pm setup`, `pm where` and `pm show`) or "subagent" (the line naming the Beads agent profile). SessionStart runs
+    (`pm init`, `pm where` and `pm show`) or "subagent" (the line naming the Beads agent profile). SessionStart runs
     one hook per chunk plus "state", SubagentStart one per chunk plus "subagent", each under its own CAP. With
     --hook-json it reads the hook input on stdin (cwd, session_id, hook_event_name) and prints the envelope Claude
     Code and Codex both read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}, named for the

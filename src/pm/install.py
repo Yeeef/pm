@@ -172,7 +172,7 @@ def codex_hooks() -> dict[str, dict]:
                 for i in range(1, n + 1)]
     return {
         "SessionStart": {"hooks": [*rules(30),
-                                   h("pm prime --state --hook-json", "Loading pm setup, pm where and pm show", 30)],
+                                   h("pm prime --state --hook-json", "Loading pm init, pm where and pm show", 30)],
                          "matcher": "startup|resume|clear"},
         "SubagentStart": {"hooks": [*rules(15),
                                     h("pm prime --subagent --hook-json", "Naming the Beads agent profile", 15)]},
@@ -414,13 +414,13 @@ def drift(top: Path, s: Settings) -> list[str]:
     return out
 
 
-def rewrite(top: Path, s: Settings) -> list[tuple[Piece, Path, str | None, str]]:
+def rewrite(top: Path, s: Settings, overlay: dict[str, str | None] | None = None) -> list[tuple[Piece, Path, str | None, str]]:
     """Every piece whose file under `top` differs from the file with pm's part as this version writes it, with its
-    path, current text and new text; read-only, so a refusal leaves the worktree as it was."""
+    path, current text and new text; `overlay` as in plan(). Read-only, so a refusal leaves the worktree as it was."""
     out = []
     for piece in pieces(s):
         path = top / piece.rel
-        text = read(path)
+        text = overlay[piece.rel] if overlay and piece.rel in overlay else read(path)
         new = piece.apply(text)
         if new != text:
             out.append((piece, path, text, new))

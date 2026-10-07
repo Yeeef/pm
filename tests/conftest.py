@@ -174,7 +174,7 @@ def no_service_left(tmp_path: Path):
     stop_services(tmp_path)
 
 
-# The user's files pm writes outside a repo: Codex's config (pm setup's writable roots) and the service units.
+# The user's files pm writes outside a repo: Codex's config (pm init's writable roots) and the service units.
 # pytest_configure points HOME, CODEX_HOME and CLAUDE_CONFIG_DIR at a temp dir for the whole test process, so
 # whatever a test runs with the inherited environment (git and the pm hooks it runs, in-process calls) writes there,
 # never here; each test then checks that nothing here changed.

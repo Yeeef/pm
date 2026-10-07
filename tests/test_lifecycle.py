@@ -5,12 +5,14 @@ upgrade moves the pin and rewrites pm's parts only, uninstall removes pm's parts
 from __future__ import annotations
 
 import json
+import socket
 import subprocess
 import tomllib
 from pathlib import Path
 
 import pytest
 
+from conftest import PM
 from pm import __version__
 from test_init import (BD_SET, BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, PM_FILES, USER_CODEX, USER_SETTINGS,  # noqa: F401
                        commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
@@ -85,6 +87,28 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
     res = pm(new_repo, "upgrade")
     assert res.returncode == 0 and "pin stays" in res.stdout, res.stderr
     assert doctor(new_repo)[0] == 0
+
+
+def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new_repo: Path):
+    """Once .pm/config.toml exists, pm init (session start runs it) does only the clone's half: a branch that changed
+    pm's hook entries keeps its change, and pm doctor names pm upgrade as the fix."""
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    git(new_repo, "checkout", "-q", "-b", "changed")
+    settings = new_repo / ".claude/settings.json"
+    edit(settings, '"pm hook stop || exit 1"', '"pm hook stop"')
+    (new_repo / ".github/workflows/pm-records-guard.yml").unlink()
+    git(new_repo, "commit", "-qam", "change pm's pieces")
+    changed = settings.read_bytes()
+    res = pm(new_repo, "init")
+    assert res.returncode == 0, res.stderr
+    assert settings.read_bytes() == changed and not (new_repo / ".github/workflows/pm-records-guard.yml").exists()
+    assert git(new_repo, "status", "--porcelain") == "" and "git add" not in res.stdout, res.stdout
+    code, lines = doctor(new_repo)
+    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
+                                          "repo: .github/workflows/pm-records-guard.yml: pm's part is missing"]), lines
+    assert all(l.endswith("run pm upgrade to rewrite it") for l in lines), lines
 
 
 SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of the line doctor reports for it
@@ -234,7 +258,11 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
     git(new_repo, "push", "-q", "origin", "main")
     other = tmp_path / "other"
     git(tmp_path, "clone", "-q", str(tmp_path / "remote.git"), str(other))
-    res = pm(other, "setup")
+    with socket.socket() as s:  # a second clone on this machine gets its own site port
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    res = subprocess.run([*PM, "init"], cwd=other, env=dict(env(tmp_path), PORT=str(port)), capture_output=True,
+                         text=True)
     assert res.returncode == 0, res.stderr
     roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
     mine = [r for r in roots if r.startswith(str(new_repo.resolve()))]

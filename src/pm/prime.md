@@ -66,7 +66,7 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 
 **pm is self-contained.** It orchestrates the work, and it gives the context about itself, level by level. `pm prime` prints this file at session start: the model and the procedures. `pm show` prints the state. Each command's `--help` holds that command's, or its subsystem's, detail. This file names a command and its refusals; for more, run `pm <noun> [cmd] --help`.
 
-**Behind both.** The pm service, one background process per clone, serves the site from the records and Beads and runs `pm push`: it pushes Beads data and the `records` branch and generates the day summary. Sessions push neither. `pm check` checks every record. When `pm where` shows the service down, run `pm service restart`. If that fails, raise an action and add a bug task. For more about the service (ports, logs, health, stale builds), read `pm service --help`. `pm push --help` holds the push's detail.
+**Behind both.** The pm service, one background process per clone, serves the site from the records and Beads and runs `pm push`: it pushes Beads data and the `records` branch and generates the day summary. Sessions push neither. `pm check` checks every record. When `pm where` shows the service down, run `pm service restart`. If that fails, raise an action and add a bug task. For more about the service (ports, logs, health, stale builds), read `pm service --help`. `pm push --help` holds the push's detail. Set the public site link with `pm init --site-url URL`, and the site port with `PORT=<n> pm service install`.
 
 ## 4. Working with them
 
@@ -99,7 +99,7 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 | See every location and its state | `pm where`; `pm where records` prints the store's path |
 | Report where pm got in your way | `pm feedback add --project NAME`, once, with what happened and what would have helped |
 
-Session start runs `pm setup`, then injects `pm where` and `pm show` beside `bd prime`. When it says setup failed or timed out, run `pm setup` by hand. Never run `bd init`, which makes a new database.
+Session start runs `pm init`, then injects `pm where` and `pm show` beside `bd prime`. When it says init failed or timed out, run `pm init` by hand. Never run `bd init`, which makes a new database.
 
 **Reading pm show.**
 
@@ -146,7 +146,7 @@ Session start runs `pm setup`, then injects `pm where` and `pm show` beside `bd 
 
 ## 7. Records
 
-**Where records live.** Each clone has one store: the `records` branch, checked out at `<main checkout>/.records`. Each worktree's `records/` is a git-ignored link to it, made by `pm setup`. So a write from any branch or worktree shows everywhere at once, as Beads does.
+**Where records live.** Each clone has one store: the `records` branch, checked out at `<main checkout>/.pm/store/records`. Each worktree's `records/` is a git-ignored link to it, made by `pm init`. So a write from any branch or worktree shows everywhere at once, as Beads does.
 
 - Code branches never commit `records/`. The pre-commit hook and the PR guard refuse it.
 - A GitHub Action copies the store into `main`'s `records/` on each push to `main`.

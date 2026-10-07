@@ -4,8 +4,10 @@ run as the runtimes run them: JSON on stdin, in a temp clone."""
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +31,15 @@ def run(cmd, event, env, cwd):
     return subprocess.run(cmd, input=json.dumps(event), env=env, cwd=cwd, capture_output=True, text=True, timeout=60)
 
 
+def init_ready(repo):
+    """Session start runs pm init, which needs `pm` on PATH to be the pm uv tool's and installs the pm service (under
+    the fake supervisor): put the tool's bin dir first on PATH, and give the service a free port, never the user's."""
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    repo.env = dict(repo.env, PATH=f"{repo.env['UV_TOOL_BIN_DIR']}{os.pathsep}{repo.env['PATH']}", PORT=str(port))
+
+
 # ---------------------------------------------------------------- session context
 
 
@@ -40,16 +51,20 @@ def context_of(res, event="SessionStart"):
 
 
 @pytest.mark.slow
-def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
+def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     """One hook per rules chunk, then the state, each under Claude Code's per-hook cap, with pm show whole."""
-    assert repo.pm("setup").returncode == 0  # a clone set up once, as pm setup leaves it
+    init_ready(repo)
+    first = repo.pm("init")  # a clone set up once, as pm init leaves it
+    assert first.returncode == 0, first.stderr
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(hooks.STARTS) + 1)]
     assert got == hooks.chunks() and got[0].startswith("# pm rules (1 of 4): the introduction; ")
     text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
     ran, _, rest = text.partition("\n\n")
-    assert ran.startswith(f"`pm setup` at session start:\nalready set up: {repo.records} -> {repo.store}\n")
+    # quiet when set up: nothing changed, the service is current
+    assert ran.startswith(f"`pm init` at session start:\nalready set up: {repo.records} -> {repo.store}\n"), ran
+    assert "installed" not in ran and "updated" not in ran and "wrote" not in ran, ran
     located, _, rest = rest.partition("\n\n")
     assert located == "Locations from `pm where` at session start:\n" + repo.pm("where").stdout.strip()
     assert f"checkout  {repo.root}  branch main, records link set up" in located
@@ -97,7 +112,7 @@ def test_session_start_keeps_a_busy_days_pm_show_whole(tmp_path, monkeypatch):
     """The fixture is today-size: every warning and owner request line reaches the session, and nothing is cut."""
     assert len(TODAY_SHOW) > 7_085 and len(TODAY_WHERE) > 1_295
     monkeypatch.setattr(hooks, "SHOW", [sys.executable, "-c", f"print({TODAY_SHOW!r})"])
-    monkeypatch.setattr(hooks, "SETUP", [sys.executable, "-c", f"print({'already set up: ' + 'x' * 260!r})"])
+    monkeypatch.setattr(hooks, "INIT", [sys.executable, "-c", f"print({'already set up: ' + 'x' * 260!r})"])
     monkeypatch.setattr(hooks, "WHERE", [sys.executable, "-c", f"print({TODAY_WHERE!r})"])
     text = hooks.state(str(tmp_path))
     assert len(text) <= hooks.CAP and hooks.CUT not in text
@@ -122,6 +137,7 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
         repo.git("commit", "-qm", "copy records")
         shutil.rmtree(repo.records)
         repo.records.symlink_to(repo.store)
+    init_ready(repo)
     wt = repo.root.parent / "bridge"
     repo.git("worktree", "add", "-q", "--no-checkout", "-b", "bridge", str(wt))
     repo.git("reset", "-q", "--hard", cwd=wt)
@@ -130,13 +146,14 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
     assert repo.git("status", "--porcelain", cwd=wt) == ""
     ran, located, rest = text.split("\n\n", 2)
-    assert ran.startswith("`pm setup` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
+    assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
     assert f"checkout  {wt}  branch bridge, records link set up" in located
     assert rest.startswith("Project state from `pm show` at session start, ") and "Sprint 1: First" in rest
 
 
 @pytest.mark.slow
 def test_session_start_fails_open_with_one_line(repo):
+    init_ready(repo)
     (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
     text = context_of(run(STATE, {"cwd": str(repo.root)}, repo.env, repo.root))
     _, located, shown = text.split("\n\n", 2)
@@ -162,6 +179,18 @@ def test_prime_lists_every_agent_command_from_the_parser():
     assert hooks.commands().startswith("# Commands\n\n")
     assert hooks.commands().count("\n") == 2  # compact: a heading and the nouns; prime.md points at --help
     assert "Run `pm <noun> --help` for its commands and flags." in hooks.rules()
+
+
+def test_pm_init_is_the_one_install_command_and_session_start_runs_it():
+    """No `pm setup`: pm --help lists init only, and the session-start state hook runs pm init (the worktree test
+    above shows it setting up a new worktree)."""
+    from pm.cli import parser
+    assert "setup" not in subcommands() and "init" in subcommands()
+    listing = parser().format_help()
+    assert not re.search(r"^ {4}setup\b|[{,]setup[,}]|pm setup", listing, re.M), listing
+    assert hooks.INIT[-1:] == ["init"]
+    res = subprocess.run([*PM, "setup"], capture_output=True, text=True)
+    assert res.returncode == 2 and "invalid choice: 'setup'" in res.stderr, res.stderr
 
 
 def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():

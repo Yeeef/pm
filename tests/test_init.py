@@ -138,7 +138,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     # the commit to make names every file the run changed: pm's pieces and what bd wrote
     assert f"git add -- {' '.join(PM_FILES + ['.beads/config.yaml'])} && " in res.stdout, res.stdout
     assert f'git commit -m "Install pm {__version__}"' in res.stdout
-    # the pm service, under the fake supervisor in tmp/home: pm init installs it, pm setup never does
+    # the pm service, under the fake supervisor in tmp/home: pm init installs it
     sched = [json.loads(l) for l in (tmp_path / "sched.log").read_text().splitlines()]
     assert [c for c in sched if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]], sched
     assert "installed the pm service: " in res.stdout

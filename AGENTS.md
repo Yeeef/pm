@@ -47,12 +47,12 @@ What the tests are:
   `test_hooks.py`: `pm prime` and `pm hook stop`, run as the runtimes run them (JSON on stdin). `test_owner_request_hook.py`: the owner-request hook against a
   fake judge. `test_owner_request_prompt_live.py`: the judge's accuracy, with the real model.
 - Fixtures (`conftest.py`): `repo` is a temp main checkout with its store at `.pm/store/records` on branch
-  `records` and the `records/` link, as `pm setup` leaves a clone. Its env puts the fakes first on PATH and points
+  `records` and the `records/` link, as `pm init` leaves a clone. Its env puts the fakes first on PATH and points
   `HOME`, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` at temp dirs. `pytest_configure` points the test process's own
   `HOME`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME` at a temp dir too, so git and the pm hooks it
   runs never touch the user's files, and an autouse check fails a test that changes the user's Codex config or
   pm service units. `test_pm.py` adds `served` (a `pm service run` on a free port), `origin` (a cut-over origin,
-  for `pm setup`) and `pushed` (a bare origin plus a second clone, for `pm push`).
+  for `pm init` in a second clone) and `pushed` (a bare origin plus a second clone, for `pm push`).
 - Fakes: `fake_bd.py` serves issues from `$FAKE_BD_STATE` and logs calls to `$FAKE_BD_LOG`; `$FAKE_BD_FAIL`
   makes one call fail until `$FAKE_BD_HEAL` exists, `$FAKE_BD_HOLD` makes one wait. `fake_gh.py` answers
   `gh pr view` from `$FAKE_GH_STATE`. `fake_claude.py` stands in for `claude -p` and logs each call. `fake_sched.py`
@@ -89,6 +89,10 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   `pm hook stop`, each `|| exit 1`) and `.codex/hooks.json`, with `hooks = true` in `.codex/config.toml`. A hook
   change edits both functions; this repo's two files are what `pm init` writes. Hooks fail open on their own
   errors (one line on stderr); a `pm` missing from PATH fails each hook with the shell's error.
+- `pm init` is the one install command. Its repo half (pm's pieces, `bd init`, the records branch) runs only when
+  the worktree has no `.pm/config.toml`; after that `pm doctor` reports and `pm upgrade` rewrites a piece. Its clone
+  half (Beads, the store, the `records/` link, excludes, Codex and Claude Code dirs, the pm uv tool, the service)
+  runs every time: `pm prime --state` runs it (`hooks.INIT`) at each session start, within `hooks.INIT_TIMEOUT`.
 
 ## The site
 
@@ -113,7 +117,7 @@ A change to setup, the hooks, the site or replies gets a live check besides its 
   (Claude Code's own sequence), or a session started with `claude -w <name>`; a headless `claude -p` session
   checks a write through `records/`. Remove the worktree and its branch afterwards (`git worktree remove`,
   `git branch -D`).
-- A check of `pm init`, `pm setup`, `pm push` or the service runs in a scratch clone of a scratch origin under a
+- A check of `pm init`, `pm push` or the service runs in a scratch clone of a scratch origin under a
   temp directory with `HOME` and `CODEX_HOME` there, as the fixtures do, never on this clone's Beads, store or service;
   never run `bd init`.
 - The live check's command, output and numbers go in the sprint's Findings and its delivery report.
