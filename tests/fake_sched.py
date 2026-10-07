@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A stand-in for launchctl and systemctl in tests, by the name it is called as: logs each call to
+"""A stand-in for launchctl, systemctl and crontab in tests, by the name it is called as: logs each call to
 $FAKE_SCHED_LOG and keeps what is loaded, and the pid each loaded unit runs as, in $FAKE_SCHED_STATE (a JSON
 object). Loading a unit starts its command as the supervisor would (working directory, environment, log), so the
 service really answers; unloading it stops the process. Nothing restarts a process that exits. No test touches the
@@ -108,6 +108,14 @@ elif tool == "systemctl" and args[1:2] == ["restart"]:
     save()
 elif tool == "systemctl" and args[1:2] == ["is-active"]:
     sys.exit(0 if unit(args[2]) in state["loaded"] else 3)
+elif tool == "crontab" and args == ["-l"]:
+    if "crontab" not in state:
+        print("no crontab for test", file=sys.stderr)
+        sys.exit(1)
+    print(state["crontab"], end="")
+elif tool == "crontab" and args == ["-"]:
+    state["crontab"] = sys.stdin.read()
+    save()
 else:
     print(f"fake {tool}: unsupported {args}", file=sys.stderr)
     sys.exit(1)

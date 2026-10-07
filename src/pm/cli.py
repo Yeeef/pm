@@ -40,7 +40,7 @@ from pathlib import Path
 
 import yaml
 
-from pm import __version__, config, hooks, install
+from pm import __version__, config, hooks, install, legacy
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
                            merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
@@ -2291,6 +2291,9 @@ def setup_clone(site_url: str | None) -> str:
     excluded = setup_exclude(main)
     if excluded:
         out.append(excluded)
+    if not store.exists() and legacy.old_store(main).is_dir():
+        raise Refuse(f"the records store is still at {legacy.old_store(main)}, where the project-management harness "
+                     f"kept it; pm init moves it to {store} and migrates the rest of the old setup: run pm init")
     if not store.exists():
         remote = cfg().remote
         if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"],
@@ -2383,10 +2386,14 @@ def cmd_init(args) -> str:
     else:
         c = cfg()
         s = install.Settings(c.remote, c.main_branch, c.port, c.site_url)
+    old = legacy.old_store(main)
+    why = legacy.store_unsettled(old, s.remote, BRANCH) if old.is_dir() and not store.exists() else ""
+    if why:  # refused before anything changes; migrate_clone checks again once the old push job is stopped
+        raise Refuse(f"pm init moves the records store from {old} to {store}, but {why}; then run pm init again")
     before = worktree_changes(top)
     out = []
     try:
-        planned = install.plan(top, s)  # read-only: a refusal comes before bd init, which writes and commits
+        install.plan(top, s, repo_legacy(top)[0])  # read-only: a refusal comes before bd init, which writes and commits
     except install.InstallError as e:
         raise Refuse(str(e))
     written: list[str] = []
@@ -2410,20 +2417,58 @@ def init_steps(args, top: Path, main: Path, s: install.Settings, fresh: bool, ou
         bd(top, "init", "--non-interactive")
         out.append("ran bd init: Beads set up its database, its files and its git hooks (and commits them itself)")
     try:
-        planned = install.plan(top, s)  # again: bd init wrote files pm's pieces share
+        overlay, found = repo_legacy(top)  # again: bd init wrote files pm's pieces share
+        planned = install.plan(top, s, overlay)
         if (subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"], cwd=top,
                            capture_output=True).returncode != 0
                 and not install.remote_has_branch(top, s.remote, BRANCH)):
             out.append(install.create_records_branch(top, s.remote, BRANCH))
+        out += [f"legacy: {f}" for f in found]
+        written += write_legacy(top, overlay, {piece.rel for piece, *_ in planned})
         written += install.write(planned)
     except install.InstallError as e:
         raise Refuse(str(e))
-    out += [f"wrote {rel}" for rel in written]
+    out += [f"wrote {rel}" for rel in written if (top / rel).exists()]
+    try:
+        out += [f"legacy: {l}" for l in legacy.migrate_clone(main, main / config.STORE, s.remote, BRANCH,
+                                                            codex_remove)]
+    except RecordError as e:
+        raise Refuse(str(e))
     out.append(setup_clone(None if fresh else args.site_url))
     said = service.install(main, service.port_for(main, cfg().port))
     if said:
         out.append(said)
     return "\n".join(out)
+
+
+def repo_legacy(top: Path) -> tuple[dict[str, str | None], list[str]]:
+    """The tracked files holding legacy pieces, each without them (None: the file goes), and what goes; read-only."""
+    return legacy.repo_overlay(top, {rel: install.events(rel) for rel in legacy.SETTINGS})
+
+
+def write_legacy(top: Path, overlay: dict[str, str | None], pieces: set[str]) -> list[str]:
+    """Write the files that lose a legacy piece and that no pm piece rewrites (that write starts from the overlay);
+    the paths written or removed."""
+    for rel, text in overlay.items():
+        if rel in pieces:
+            continue
+        if text is None:
+            (top / rel).unlink()
+        else:
+            (top / rel).write_text(text)
+    return [rel for rel in overlay if rel not in pieces]
+
+
+def codex_remove(roots: list[str]) -> str:
+    """Take `roots` out of Codex's writable_roots, keeping every other byte; what changed, or empty."""
+    path = codex_home() / "config.toml"
+    if not path.is_file():
+        return ""
+    new = remove_codex_roots(path, roots)
+    if new == path.read_text():
+        return ""
+    write_atomic(path, new)
+    return f"removed {', '.join(roots)} from writable_roots in {path}"
 
 
 def commit_hint(top: Path, before: dict[str, str], written: list[str]) -> str:
@@ -2521,6 +2566,13 @@ def cmd_doctor(args) -> tuple[int, str]:
     top = code_top(cwd, store, "doctor")
     diffs = [f"repo: {d}; run pm upgrade to rewrite it" for d in install.drift(top, settings_of(cfg()))]
     diffs += doctor_setup(top, main, store)
+    try:
+        repo_found = repo_legacy(top)[1]
+    except install.InstallError as e:
+        repo_found = [str(e)]
+    codex = codex_home() / "config.toml"
+    diffs += [f"legacy: {d}; run pm init" for d in
+              repo_found + legacy.clone_pieces(main, store, codex_config(codex)[2] if codex.is_file() else [])]
     if diffs:
         return 1, "\n".join(diffs)
     return 0, f"pm {__version__}: every managed piece and the clone's setup match what pm init makes"

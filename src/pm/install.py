@@ -368,16 +368,22 @@ def pieces(s: Settings) -> list[Piece]:
     ]
 
 
-def plan(top: Path, s: Settings) -> list[tuple[Piece, Path, str | None, str]]:
-    """Each piece not present under `top`, with its path, current text and new text. Planning reads only, so a
+def plan(top: Path, s: Settings, overlay: dict[str, str | None] | None = None) -> list[tuple[Piece, Path, str | None, str]]:
+    """Each piece not present under `top`, with its path, current text and new text; `overlay` gives a file's text
+    to start from in place of the one on disk (the file without its legacy pieces). Planning reads only, so a
     refusal leaves the worktree as it was."""
     out = []
     for piece in pieces(s):
         path = top / piece.rel
-        text = path.read_text() if path.exists() else None
+        text = overlay[piece.rel] if overlay and piece.rel in overlay else path.read_text() if path.exists() else None
         if not piece.present(text):
             out.append((piece, path, text, piece.apply(text)))
     return out
+
+
+def events(rel: str) -> set[str]:
+    """The events pm writes hooks for in a runtime's settings file."""
+    return set({".claude/settings.json": claude_hooks(), ".codex/hooks.json": codex_hooks()}.get(rel, {}))
 
 
 def read(path: Path) -> str | None:
