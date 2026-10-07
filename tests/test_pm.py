@@ -3559,3 +3559,13 @@ def test_show_carries_feedback(repo):
     assert out.count(line) == 1 and lines.index(hint) < lines.index(line) < next(i for i, l in enumerate(lines) if l.endswith("  sprints and decisions:"))
     data = json.loads(repo.pm("show", "--json").stdout)
     assert data["projects"][0]["feedback"] == [{"entries": 2, "url": line.split("-> ")[1]}]
+
+
+def test_serve_answers_head_as_get_without_a_body(repo, served):
+    for path in ("/", "/style.css"):
+        with urllib.request.urlopen(f"{served}{path}") as r:
+            get = r.headers
+        with urllib.request.urlopen(urllib.request.Request(f"{served}{path}", method="HEAD")) as r:
+            assert r.status == 200 and r.read() == b""
+            same = ("Content-Type", "X-PM-Store") + (("Content-Length",) if path == "/style.css" else ())
+            assert all(r.headers[k] == get[k] for k in same), (path, dict(r.headers), dict(get))

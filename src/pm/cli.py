@@ -1770,6 +1770,9 @@ def cmd_serve(args, records: Path) -> str:
             text = fill_status(text, snap.as_of, digest(text), time.time())
             self.reply(code, "text/html; charset=utf-8", text.encode())
 
+        def do_HEAD(self):  # GET's status and headers without the body, so curl -I and probes work
+            self.do_GET()
+
         def do_POST(self):
             """A reply from a card's form: checked, spooled for Beads, and back to the card, which shows it saving."""
             if urllib.parse.urlsplit(self.path).path != "/reply":
@@ -1795,7 +1798,8 @@ def cmd_serve(args, records: Path) -> str:
             self.send_header("Cache-Control", "no-store")
             self.send_header(service.SERVE_HEADER, str(records.resolve()))  # lets a probe tell this service apart
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != "HEAD":
+                self.wfile.write(body)
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port()), Handler)
     now["snap"] = refresh(None)  # the first load has data to serve
