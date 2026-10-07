@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from pm import __version__
+from conftest import PM
 from test_init import BEADS_HOOK, PM_FILES, env, existing, git, new_repo, pm, section, snapshot  # noqa: F401 (fixtures)
 
 LOCAL_SETTINGS = '{\n  "model": "café"\n}\n'  # non-ASCII: pm rewrites the file around it, byte for byte
@@ -203,3 +204,12 @@ def test_uninstall_skips_a_worktree_whose_directory_is_gone(new_repo: Path, tmp_
     assert res.returncode == 0, res.stderr
     assert sched_units(tmp_path) == [] and not (new_repo / ".pm").exists()
     assert not (tmp_path / "wt/records").is_symlink()
+
+
+def test_doctor_reports_a_service_on_another_port_than_port_asks_for(new_repo: Path, tmp_path: Path):
+    assert pm(new_repo, "init").returncode == 0
+    res = subprocess.run([*PM, "doctor"], cwd=new_repo, env=dict(env(tmp_path), PORT="8001"), capture_output=True,
+                         text=True)
+    assert res.returncode == 1 and res.stdout.splitlines() == [
+        line for line in res.stdout.splitlines() if line.startswith("service: ") and "serves on :8000, not :8001" in line
+    ] and res.stdout, res.stdout
