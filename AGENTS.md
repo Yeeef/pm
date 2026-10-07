@@ -30,13 +30,23 @@ A design change edits the sub page it touches to the new state; the trail of fin
 
 | Command | Runs |
 |---|---|
-| `make test` (repo root) | The fast set: `pm/tests/run.py -n auto -m "not slow"` in the package environment |
-| `make test-full` (repo root) | Every test but the live eval, the slow ones too (`-n auto`) |
+| `make test` (repo root) | The light set: `pm/tests/run.py -n auto -m "not integration"` in the package environment |
+| `make test-full` (repo root) | Every test but the live eval, the integration ones too (`-n auto`), as CI runs them |
+| `make test-full ARGS="-k serve"` | Only the tests `-k` selects; `ARGS` goes to pytest in `make test` too |
 | `uv run pytest -q -n auto tests/test_hooks.py` (in `pm/`) | One file, or `-k name` for one test |
 | `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH |
 
-Run the fast set during development and the full set before raising a PR review (owner decision, 2026-10-06). A
-test that starts the service, makes a clone with a remote or runs the session-start hook is marked `slow`.
+Run `make test` while working. When a change touches what an integration test covers (the service and its site,
+`init`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
+Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> --watch`):
+`.github/workflows/pm-tests.yml` runs the light set and the integration set as separate jobs on every PR and push to main.
+`make test-full` (or `ARGS="-k …"`) reproduces a CI failure locally.
+
+A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
+(`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
+bare repo), runs `pm push` or the session-start hook (`pm prime` without `--rules` or `--subagent`, also run as
+`python -m pm.cli`). The autouse fixture `light_unless_integration` in `conftest.py` fails an unmarked test that
+starts one of these (`integration_only` names them).
 
 What the tests are:
 

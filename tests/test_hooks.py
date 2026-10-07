@@ -53,7 +53,7 @@ def context_of(res, event="SessionStart"):
     return out["additionalContext"]
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     """One hook per rules chunk, then the state, each under Claude Code's per-hook cap, with pm show whole."""
     init_ready(repo)
@@ -125,7 +125,7 @@ def test_session_start_keeps_a_busy_days_pm_show_whole(tmp_path, monkeypatch):
     assert all(len(c) <= hooks.CAP for c in hooks.chunks())  # each rules hook, too, reaches the session inline
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 @pytest.mark.parametrize("tracked", [False, True], ids=["no-records", "mains-tracked-copy"])
 def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     """Claude Code's worktrees: added with --no-checkout, then reset, so git never runs post-checkout. With main
@@ -159,7 +159,7 @@ def test_session_start_runs_init_without_port(tmp_path, monkeypatch):
     assert said == "`pm init` at session start:\nunset\n\n", said
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_session_start_reports_a_down_service_and_a_typed_init_restarts_it(repo, tmp_path):
     """Session start installs only a missing service: a down one is reported, never restarted within its budget;
     pm init typed by a person restarts it, on the port its unit serves on although the port's last connections
@@ -179,7 +179,7 @@ def test_session_start_reports_a_down_service_and_a_typed_init_restarts_it(repo,
     assert f"serving http://localhost:{port} " in res.stdout
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_session_start_fails_open_with_one_line(repo):
     init_ready(repo)
     (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails

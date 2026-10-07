@@ -9,7 +9,8 @@ import pytest
 from conftest import write_config
 from pm import __version__
 
-COMMANDS = [("show",), ("where",), ("prime",), ("hook", "stop")]
+# prime's parts share one config check; --subagent is the one that starts no pm setup (a light test may not)
+COMMANDS = [("show",), ("where",), ("prime", "--subagent"), ("hook", "stop")]
 
 
 def test_version_has_one_source():
