@@ -24,7 +24,7 @@ from pm.owner_request import hook_owner_request
 
 CAP = 10_000  # Claude Code's additionalContext limit, in characters
 TIMEOUT = 20  # seconds; `pm show` takes about 1 s
-SETUP_TIMEOUT = 6  # seconds; `pm setup` takes 0.4-1.6 s; a fresh clone's Beads bootstrap needs `bin/pm setup` by hand
+SETUP_TIMEOUT = 6  # seconds; `pm setup` takes 0.4-1.6 s; a fresh clone's Beads bootstrap needs `pm init` by hand
 WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s. With the others, under the hooks' 30 s timeout
 HEADER = ("Project state from `bin/pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
           "may have changed since; run `bin/pm show` again before stating project state to the owner.\n\n")
@@ -63,11 +63,11 @@ def setup(cwd: str | None, cmd: list[str] | None = None) -> str:
     try:
         res = subprocess.run(cmd or SETUP, cwd=cwd, capture_output=True, text=True, timeout=SETUP_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"pm setup did not run at session start ({type(e).__name__}: {e}); run `bin/pm setup` by hand.\n\n"
+        return f"pm setup did not run at session start ({type(e).__name__}: {e}); run `pm init` by hand.\n\n"
     if res.returncode != 0:
         why = (res.stderr or res.stdout).strip().splitlines()
-        return f"pm setup failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm setup` by hand.\n\n"
-    return f"`bin/pm setup` at session start:\n{res.stdout.strip()}\n\n"
+        return f"pm setup failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `pm init` by hand.\n\n"
+    return f"`pm setup` at session start:\n{res.stdout.strip()}\n\n"
 
 
 def where(cwd: str | None, cmd: list[str] | None = None) -> str:

@@ -76,14 +76,14 @@ def test_port_comes_from_the_config_and_PORT_overrides_it_for_one_run(repo):
     repo.env.pop("PORT", None)
     res = repo.pm("record", "link", "demo.1")
     assert res.returncode == 1
-    assert "no site is served on :1; start it with pm serve, then" in res.stderr
-    assert repo.pm("show").stdout.count("site: http://localhost:1 (pm serve)") == 1
+    assert "no site is served on :1; start it with pm service install, then" in res.stderr
+    assert repo.pm("show").stdout.count("site: http://localhost:1 (the pm service)") == 1
     repo.env["PORT"] = "2"
     res = repo.pm("record", "link", "demo.1")
-    assert "no site is served on :2; start it with PORT=2 pm serve, then" in res.stderr
+    assert "no site is served on :2; start it with pm service install, then" in res.stderr
 
 
 def test_site_url_comes_from_the_config(repo):
     write_config(repo.root, site_url="https://pm.example.com/")
     res = repo.pm("show")
-    assert "site: https://pm.example.com (pm serve)" in res.stdout
+    assert "site: https://pm.example.com (the pm service)" in res.stdout

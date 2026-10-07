@@ -115,6 +115,10 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     untracked = sorted(l[3:] for l in status if l.startswith("?? ") and not l[3:].startswith(".beads/embedded"))
     assert untracked == sorted(PM_FILES + [".beads/config.yaml"])
     assert f"git add -- {' '.join(PM_FILES)}" in res.stdout and f'git commit -m "Install pm {__version__}"' in res.stdout
+    # the pm service, under the fake supervisor in tmp/home: pm init installs it, pm setup never does
+    sched = [json.loads(l) for l in (tmp_path / "sched.log").read_text().splitlines()]
+    assert [c for c in sched if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]], sched
+    assert "installed the pm service: " in res.stdout
 
     before = snapshot(new_repo)
     again = pm(new_repo, "init")

@@ -1,11 +1,9 @@
-"""In-process tests of the scheduled push (pm/push.py): failure paths and the schedulers' files, with git, the
-schedulers and the platform replaced where a subprocess run cannot reach them."""
+"""In-process tests of the push (pm/push.py) the service runs: failure paths, with git replaced where a subprocess run
+cannot reach them."""
 
 from __future__ import annotations
 
-import json
 import os
-import plistlib
 import subprocess
 import sys
 import time
@@ -123,97 +121,9 @@ def test_an_installed_schedule_that_never_ran_is_flagged_overdue(clone):
     assert push.flags(main, store, "origin") == []
 
 
-def test_push_writes_each_line_to_the_log_once_and_schedulers_do_not(clone, monkeypatch):
+def test_push_writes_each_line_to_the_log_once_in_the_runtime_dir(clone, monkeypatch):
     main, store = clone
     monkeypatch.setattr(push, "push_beads", lambda m: (True, "fine"))
     push.push(main, "origin", lambda: store, lambda: (True, "skipped"))
+    assert push.files(main) == tuple(main / ".pm/run" / f for f in ("push.json", "push.log", "push.lock"))
     assert len(push.files(main)[1].read_text().splitlines()) == 3
-    assert push.launchd_job(main, "/bin")["StandardOutPath"] == "/dev/null"
-
-
-# ---------------------------------------------------------------- the schedulers
-
-@pytest.fixture
-def linux(monkeypatch, tmp_path):
-    """sys.platform linux, every tool on PATH, and the schedulers replaced by a recorder of calls and a crontab."""
-    monkeypatch.setattr(sys, "platform", "linux")
-    bindir = tmp_path / "tools"
-    bindir.mkdir()
-    for t in ("uv", "bd", "git"):
-        (bindir / t).write_text("#!/bin/sh\n")
-        (bindir / t).chmod(0o755)
-    monkeypatch.setenv("PATH", f"{bindir}%x{os.pathsep}/usr/bin:/bin")
-    (tmp_path / "tools%x").symlink_to(bindir)
-    calls, world = [], {"systemd": True, "crontab": None, "crontab_error": "no crontab for t"}
-
-    def quiet(cmd, input=None):
-        calls.append(cmd)
-        ok = subprocess.CompletedProcess(cmd, 0, "", "")
-        if cmd[:2] == ["systemctl", "--user"]:
-            return ok if world["systemd"] else subprocess.CompletedProcess(cmd, 1, "", "Failed to connect to bus")
-        if cmd == ["crontab", "-l"]:
-            return (subprocess.CompletedProcess(cmd, 0, world["crontab"], "") if world["crontab"] is not None
-                    else subprocess.CompletedProcess(cmd, 1, "", world["crontab_error"]))
-        if cmd == ["crontab", "-"]:
-            world["crontab"] = input
-            return ok
-        raise AssertionError(cmd)
-    monkeypatch.setattr(push, "quiet", quiet)
-    return calls, world
-
-
-def test_systemd_units_quote_paths_and_escape_percent(clone, linux):
-    main, _ = clone
-    calls, world = linux
-    assert push.install(main).startswith("installed the push schedule: systemd user timer")
-    service, timer = push.systemd_units(main)
-    text = service.read_text()
-    path = os.environ["PATH"].replace("%", "%%")
-    assert f"WorkingDirectory={main}\n" in text
-    assert f'Environment="PATH={path}"' in text
-    assert f'ExecStart="{main}/bin/pm" push' in text
-    assert "StandardOutput=null" in text and f'StandardError=append:{push.files(main)[1]}' in text
-    assert "OnUnitActiveSec=600s" in timer.read_text()
-    assert ["systemctl", "--user", "enable", "--now", timer.name] in calls
-    assert "installed_at" in push.read_state(main)
-
-
-def test_cron_is_used_without_a_systemd_user_instance(clone, linux):
-    main, _ = clone
-    calls, world = linux
-    world["systemd"] = False
-    world["crontab"] = "0 * * * * keep me\n"
-    assert push.install(main).startswith("installed the push schedule: crontab entry")
-    lines = world["crontab"].splitlines()
-    assert lines[0] == "0 * * * * keep me" and lines[1].endswith(f"# {push.label(main)}")
-    assert "> /dev/null 2>>" in lines[1] and lines[1].startswith("*/10 * * * * cd ")
-    world["systemd"] = True
-    assert push.install(main) == "", "the cron job counts as installed once systemd shows up"
-    assert not push.systemd_units(main)[1].exists()
-
-
-def test_cron_refuses_a_crontab_it_cannot_read(clone, linux):
-    main, _ = clone
-    calls, world = linux
-    world["systemd"] = False
-    world["crontab_error"] = "crontab: permission denied"
-    with pytest.raises(RecordError, match="permission denied"):
-        push.install(main)
-    assert ["crontab", "-"] not in calls
-
-
-def test_install_refuses_a_path_without_the_tools(clone, linux, monkeypatch):
-    main, _ = clone
-    monkeypatch.setenv("PATH", "/nonexistent")
-    with pytest.raises(RecordError, match="uv, bd, git"):
-        push.install(main)
-
-
-def test_launchd_plist_contents(clone, monkeypatch):
-    main, _ = clone
-    job = push.launchd_job(main, "/x/bin")
-    assert job == {"Label": push.label(main), "ProgramArguments": [str(main / "bin/pm"), "push"],
-                   "WorkingDirectory": str(main), "StartInterval": 600, "RunAtLoad": True,
-                   "StandardOutPath": "/dev/null", "StandardErrorPath": str(push.files(main)[1]),
-                   "EnvironmentVariables": {"PATH": "/x/bin"}}
-    assert plistlib.loads(plistlib.dumps(job)) == job

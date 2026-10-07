@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import write_config, HARNESS, REAL_RECORDS, PM, RENDER, fake_bd_env, project, sprint
+from conftest import write_config, HARNESS, REAL_RECORDS, PM, fake_bd_env, project, sprint
 
 sys.path.insert(0, str(HARNESS))
 from pm.beads import REPLY_MARK, reply_body, reply_in_beads  # noqa: E402
@@ -225,7 +225,7 @@ def test_sprint_open_title_with_emoji_renders(repo):
     res = repo.pm("sprint", "open", "demo", "--title", "Ship \U0001F680: now", stdin=FRAME)
     assert res.returncode == 0, res.stderr
     assert 'title: "Ship \U0001F680: now"' in (repo.records / "sprints/demo-3.md").read_text()
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_sprint_open_creates_epic_and_record(repo):
@@ -283,7 +283,7 @@ def test_sprint_close_stamps_the_merge_commits_and_names_the_stamp_commit(repo):
     assert (repo.records / "sprints/demo-1.md").read_text() == before.replace(
         "Done: shipped the thing.\n", f"Done: shipped the thing.\n\n{stamp}\n")
     assert repo.bd_writes() == [["close", "demo.1", f"--reason=Done: shipped the thing. (records commit {store_head(repo)})"]]
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_sprint_close_without_a_review_closes_with_no_stamp(repo):
@@ -300,8 +300,8 @@ def test_sprint_close_keeps_changelog_bullets_out_of_the_close_reason(repo):
     """An Outcome may follow its verdict sentence with bullets of what shipped; only the verdict closes the epic, and
     the stamp goes between the two."""
     close_ready(repo, outcome="Done: shipped the thing.\n\n- `pm thing` added\n- the old flag removed")
-    assert repo.pm("render").returncode == 0
-    assert "<li><code>pm thing</code> added</li>" in (repo.root / "site/sprints/demo-1.html").read_text()
+    assert repo.pm("check").returncode == 0
+    assert "<li><code>pm thing</code> added</li>" in repo.page("sprints/demo-1.html")
     res = repo.pm("sprint", "close", "demo.1")
     assert res.returncode == 0, res.stderr
     assert ("Done: shipped the thing.\n\nMerged as 8f5c618 (PR #12).\n\n- `pm thing` added"
@@ -372,8 +372,8 @@ def test_sprint_closes_after_its_pr_merges(repo):
     assert res.returncode == 0, res.stderr
     assert committed(repo, ["[SPRINT] demo sprint 1: closed, merged as 8f5c618"])
     assert repo.bd_writes() == [["close", "demo.1", f"--reason=Done: shipped the thing. (records commit {store_head(repo)})"]]
-    assert repo.pm("render").returncode == 0
-    page = (repo.root / "site/sprints/demo-1.html").read_text()
+    assert repo.pm("check").returncode == 0
+    page = repo.page("sprints/demo-1.html")
     assert "<p>Done: shipped the thing.</p>\n<p>Merged as 8f5c618 (PR #12).</p>" in page
 
 
@@ -381,9 +381,9 @@ def test_an_old_report_with_a_draft_until_paragraph_still_renders(repo):
     """Records written under the old flow keep the paragraph as ordinary text, open or closed."""
     report(repo, "Done: shipped the thing.\n\nDraft until its PR merges.")
     repo.set_issue("demo.1", status="closed")
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode == 0, res.stderr
-    assert "<p>Draft until its PR merges.</p>" in (repo.root / "site/sprints/demo-1.html").read_text()
+    assert "<p>Draft until its PR merges.</p>" in repo.page("sprints/demo-1.html")
 
 
 def test_project_open_creates_epic_and_record(repo):
@@ -504,7 +504,7 @@ def test_decision_add_sprint_replaces_placeholder(repo):
     assert path.read_text() == before.replace("inside this sprint, and why?\n\nNone yet.",
                                               f"inside this sprint, and why?\n\n{block}")
     assert repo.bd_writes() == []
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_decision_add_project_appends_owner_decisions(repo):
@@ -751,7 +751,7 @@ def test_decision_add_need_closes_need_and_records_decision(repo):
     assert repo.issues()["demo.1.2"]["status"] == "closed"
     assert path.read_text().split("## Design pages")[0].rstrip().endswith(
         f"::: decision {{source=owner date={TODAY}}}\n{text}\n:::")
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_decision_add_need_prints_undo_when_write_fails(repo):
@@ -768,27 +768,27 @@ def test_decision_add_need_prints_undo_when_write_fails(repo):
 
 def test_render_fails_on_answered_need_without_decision(repo):
     repo.set_issue("demo.1.2", status="closed", close_reason="Responded")
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode != 0
     assert "error: need demo.1.2 (Ask the owner) is closed but no decision cites it" in res.stderr
 
 
 def test_render_accepts_dismissed_need_and_cited_need(repo):
     repo.set_issue("demo.1.2", status="closed", close_reason="Dismissed")
-    assert repo.pm("render").returncode == 0, "a dismissed need has no answer to record"
+    assert repo.pm("check").returncode == 0, "a dismissed need has no answer to record"
     repo.set_issue("demo.1.2", close_reason="Responded")
     path = repo.records / "projects/demo.md"
     # Cited as free text, as this repo's older decisions do ("Answered in `…`"); a longer id does not count.
     path.write_text(path.read_text().replace("Because small is cheap.", "Because small is cheap. See demo.1.20."))
-    assert repo.pm("render").returncode != 0
+    assert repo.pm("check").returncode != 0
     path.write_text(path.read_text().replace("See demo.1.20.", "Answered in `demo.1.2`."))
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_need_dismissed_with_a_note_has_no_answer_to_record(repo):
     """bd 1.3.1's `bd human dismiss <id> "<note>"` closes with reason "Dismissed: <note>": still a dismissal."""
     repo.set_issue("demo.1.2", status="closed", close_reason="Dismissed: No longer applicable")
-    assert repo.pm("render").returncode == 0, "a dismissed need has no answer to record"
+    assert repo.pm("check").returncode == 0, "a dismissed need has no answer to record"
     refused(repo, "decision", "close", "demo.1.2", "--reason", "Only a port.", match=r"was dismissed")
 
 
@@ -837,20 +837,20 @@ def test_decision_close_closes_small_answer_without_record(repo):
     need = repo.issues()["demo.1.2"]
     assert (need["status"], need["labels"]) == ("closed", ["human", "no-decision"])
     assert repo.store_log() == heads and repo.git("status", "--porcelain", cwd=repo.store) == ""
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_decision_close_marks_need_the_owner_closed(repo):
     """The owner answered with bd human respond; the agent marks the answer as setting no rule."""
     repo.set_issue("demo.1.2", status="closed", close_reason="Responded")
-    assert repo.pm("render").returncode != 0
+    assert repo.pm("check").returncode != 0
     # Only render and commit check the whole store; a write that does not touch the need goes through.
     assert repo.pm("finding", "add", "--sprint", "demo.1", "Blocked.").returncode == 0
     res = repo.pm("decision", "close", "demo.1.2", "--reason", "It picks a port and sets no rule.")
     assert res.returncode == 0, res.stderr
     assert repo.bd_writes() == [["comments", "add", "demo.1.2", "No decision record: It picks a port and sets no rule."],
                                 ["update", "demo.1.2", "--add-label=no-decision"]]
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 WHY = "It picks a port and sets no rule."
@@ -872,12 +872,12 @@ def test_decision_close_labels_after_responding_and_retries(repo):
             in res.stderr), res.stderr
     need = repo.issues()["demo.1.2"]
     assert (need["status"], need["labels"]) == ("closed", ["human"])
-    assert repo.pm("render").returncode != 0
+    assert repo.pm("check").returncode != 0
     res = repo.pm("decision", "close", "demo.1.2", "--reason", WHY)
     assert res.returncode == 0, res.stderr
     assert repo.comments("demo.1.2") == [f"Response: {ANSWER}\n\nNo decision record: {WHY}"]
     assert repo.issues()["demo.1.2"]["labels"] == ["human", "no-decision"]
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_decision_close_on_closed_need_is_safe_to_retry(repo):
@@ -894,7 +894,7 @@ def test_decision_close_on_closed_need_is_safe_to_retry(repo):
     assert "undo with: bd update demo.1.2 --remove-label=no-decision" in res.stdout
     assert repo.comments("demo.1.2") == [f"No decision record: {WHY}"]
     assert repo.issues()["demo.1.2"]["labels"] == ["human", "no-decision"]
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_decision_add_records_answer_of_need_the_owner_closed(repo):
@@ -903,13 +903,13 @@ def test_decision_add_records_answer_of_need_the_owner_closed(repo):
     res = repo.pm("decision", "add", "--level", "sprint", "--sprint", "demo.1", "--need", "demo.1.2", stdin=BODY)
     assert res.returncode == 0, res.stderr
     assert repo.bd_writes() == []
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_render_still_fails_on_rule_answer_that_skipped_its_decision(repo):
     """Closing a decision need any other way (bd human respond, bd close) leaves it to the check."""
     repo.set_issue("demo.1.2", status="closed", close_reason="Use the small parser everywhere")
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode != 0
     assert ("need demo.1.2 (Ask the owner) is closed but no decision cites it; record the owner's answer with "
             "pm decision add --need demo.1.2, or, if the answer sets no rule, close it with pm decision close "
@@ -925,7 +925,7 @@ def test_action_done_closes_action_and_render_needs_no_decision(repo):
     res = repo.pm("action", "done", "demo.1.3", "--reason", "PR #12 is merged.")
     assert res.returncode == 0, res.stderr
     assert repo.bd_writes() == [["close", "demo.1.3", "--reason=PR #12 is merged."]]
-    assert repo.pm("render").returncode == 0, "a done action has no answer to record"
+    assert repo.pm("check").returncode == 0, "a done action has no answer to record"
     repo.log.write_text("")
     refused(repo, "action", "done", "demo.1.3", "--reason", "Again.", match=r"error: action demo.1.3 is already closed")
 
@@ -999,9 +999,9 @@ def test_action_need_pr_card_links_pr_sprints_design_pages_and_focus(repo):
     assert res.returncode == 0, res.stderr
     issue = repo.issues()["demo.1.3"]
     assert (issue["title"], issue["labels"], issue["parent"]) == ("Review PR #12", ["human", "action"], "demo.1")
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
     for page, up in (("index.html", ""), ("days/2026-10-01.html", "../")):
-        html = (repo.root / "site" / page).read_text()
+        html = repo.page(page)
         card = html.split('id="actions-await-you"')[1].split('<div class="card need"')[1].split("</div>")[0]
         assert f'<a href="{PR}">{PR}</a>' in card
         assert (f'<a href="{up}sprints/demo-1.html">Sprint 1: First</a>, <a href="{up}sprints/demo-2.html">Sprint 2: '
@@ -1016,8 +1016,8 @@ def test_sprint_page_lists_its_own_requests_the_pr_review_included(repo):
     focus and reply slot, between Progress and Decisions; another sprint's requests stay off it."""
     report(repo, "Done: shipped the thing.")
     assert repo.pm("action", "need", "--pr", PR, "--sprint", "demo.1", "--focus", "The lock").returncode == 0
-    assert repo.pm("render").returncode == 0
-    page = (repo.root / "site/sprints/demo-1.html").read_text()
+    assert repo.pm("check").returncode == 0
+    page = repo.page("sprints/demo-1.html")
     assert page.index('id="progress"') < page.index('id="decisions-await-you"') < page.index('id="actions-await-you"') \
         < page.index('<h2 id="decisions">')
     decisions = page.split('id="decisions-await-you"')[1].split('id="actions-await-you"')[0]
@@ -1026,7 +1026,7 @@ def test_sprint_page_lists_its_own_requests_the_pr_review_included(repo):
     card = actions.split('<div class="card need" id="need-demo.1.3">')[1]
     assert f'<a href="{PR}">{PR}</a>' in card and "<p>The lock</p>" in card and "<!--pm-reply demo.1.3 action-->" in card
     assert "Draft" not in page
-    other = (repo.root / "site/sprints/demo-2.html").read_text()
+    other = repo.page("sprints/demo-2.html")
     assert ('<h2 id="decisions-await-you">Decisions await you</h2>' in other
             and '<p class="empty">No decisions waiting on the owner.</p>' in other
             and '<p class="empty">No actions waiting on the owner.</p>' in other and "need-demo" not in other)
@@ -1036,7 +1036,7 @@ def test_sprint_page_lists_its_own_requests_the_pr_review_included(repo):
 def test_render_refuses_a_hand_written_await_you_section_in_a_sprint(repo, heading):
     path = repo.store / "sprints/demo-1.md"
     path.write_text(path.read_text().replace("## Decisions\n", f"## {heading}\n\nHand-written.\n\n## Decisions\n"))
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode == 1 and f"'## {heading}' is a section the page generates" in res.stderr, res.stderr
 
 
@@ -1050,7 +1050,7 @@ def test_malformed_review_metadata_is_a_clear_error(repo, review):
     traceback; it is not skipped, so the owner's card never silently loses its context."""
     add_action(repo)
     repo.set_issue("demo.1.3", metadata={"review": review})
-    for args in (["render"],):
+    for args in (["check"],):
         res = repo.pm(*args)
         assert res.returncode == 1 and "Traceback" not in res.stderr, res.stderr
         assert re.match(r"error: demo.1.3 \(Merge PR #12\): metadata\.review ", res.stderr), res.stderr
@@ -1067,9 +1067,9 @@ def test_request_cards_and_show_lines_name_the_sprint_and_task_a_request_sits_un
         {"id": "demo.3", "title": "Under the project", "status": "open", "issue_type": "task", "parent": "demo",
          "labels": ["human"], "description": "Which one?", "created_at": "2026-10-01T12:00:00Z"}]
     repo.state.write_text(json.dumps(issues))
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
     for page, up in (("index.html", ""), ("days/2026-10-01.html", "../")):
-        html = (repo.root / "site" / page).read_text()
+        html = repo.page(page)
         where = {i: re.search(rf'id="need-{re.escape(i)}">.*?<p class="k">(.*?) · {re.escape(i)}</p>', html).group(1)
                  for i in ("demo.1.2", "demo.1.4.1", "demo.3")}
         project = f'<a href="{up}projects/demo.html">Demo</a>'
@@ -1087,8 +1087,8 @@ def test_a_decision_need_card_renders_the_layout_and_an_old_free_text_need_still
     before the layout, keeps rendering as text."""
     assert repo.pm("decision", "need", "--title", "Pick a parser", "--parent", "demo.1", stdin=NEED).returncode == 0
     repo.set_issue("demo.1.2", description="Which parser?\nOptions: small (cheap); full (slow)\nDefault: small")
-    assert repo.pm("render").returncode == 0
-    html = (repo.root / "site/index.html").read_text()
+    assert repo.pm("check").returncode == 0
+    html = repo.page("index.html")
     card = lambda i: html.split(f'<div class="card need" id="need-{i}">')[1].split('<div class="card')[0]
     assert ("<p><strong>Question:</strong> Which parser should we use?</p>\n<p><strong>Facts:</strong></p>\n<ul>\n"
             "<li>Records hold no tables yet.</li>\n</ul>\n<p><strong>Options:</strong></p>\n<ul>\n"
@@ -1105,17 +1105,17 @@ def test_a_decision_need_card_renders_the_layout_and_an_old_free_text_need_still
 def test_a_fact_that_starts_with_a_block_marker_renders_as_one_plain_item(repo, fact, item):
     stdin = NEED.replace("Records hold no tables yet.", fact)
     assert repo.pm("decision", "need", "--title", "Pick a parser", "--parent", "demo.1", stdin=stdin).returncode == 0
-    assert repo.pm("render").returncode == 0
-    html = (repo.root / "site/index.html").read_text()
+    assert repo.pm("check").returncode == 0
+    html = repo.page("index.html")
     card = html.split('<div class="card need" id="need-demo.1.3">')[1].split('<div class="card')[0]
     assert f"<p><strong>Facts:</strong></p>\n<ul>\n<li>{item}</li>\n</ul>" in card
 
 
 def test_site_shows_decisions_and_actions_under_their_own_headings(repo):
     add_action(repo)
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
     for page in ("index.html", "days/2026-10-01.html"):
-        html = (repo.root / "site" / page).read_text()
+        html = repo.page(page)
         decisions = html.split('<h2 id="decisions-await-you">Decisions await you</h2>')[1].split('id="actions-await-you"')[0]
         actions = html.split('<h2 id="actions-await-you">Actions await you</h2>')[1].split('id="sprints"')[0]
         assert "Ask the owner" in decisions and "bd human respond demo.1.2" in decisions and "Merge PR #12" not in decisions
@@ -1164,7 +1164,7 @@ def test_doc_new_refuses_existing_file(repo):
 def test_render_refuses_bad_doc_header(repo, header, match):
     (repo.records / "docs").mkdir()
     repo.write("docs/2026-10-01-note.md", f"---\ntype: doc\ntitle: Note\n{header}---\n\nx\n")
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode != 0 and re.search(match, res.stderr), res.stderr
 
 
@@ -1175,17 +1175,17 @@ def test_doc_new_writes_and_pages_list_it(repo):
     assert path.read_text() == f'---\ntype: doc\ntitle: "Arm B: the result"\ndate: {TODAY}\nbead: demo.1.1\n---\n\n{DOC}'
     assert repo.pm("doc", "new", "overview", "--title", "Overview", "--project", "demo", stdin=DOC).returncode == 0
     assert repo.bd_writes() == []
-    assert repo.pm("render").returncode == 0
-    site = repo.root / "site"
+    assert repo.pm("check").returncode == 0
+    site = repo.pages()
     doc_a, doc_o = f"docs/{TODAY}-arm-b.html", f"docs/{TODAY}-overview.html"
-    listed = lambda page: re.findall(r'href="(?:\.\./)?(docs/[^"]+)"', (site / page).read_text())
+    listed = lambda page: re.findall(r'href="(?:\.\./)?(docs/[^"]+)"', site[page])
     assert listed("sprints/demo-1.html") == [doc_a]          # its task's doc, not the project doc
     assert listed("sprints/demo-2.html") == []
     assert sorted(listed("projects/demo.html")) == sorted([doc_a, doc_o])
     assert sorted(listed(f"days/{TODAY}.html")) == sorted([doc_a, doc_o])
     assert listed("days/2026-10-01.html") == []
     assert sorted(listed("index.html")) == sorted([doc_a, doc_o])
-    page = (site / doc_a).read_text()
+    page = site[doc_a]
     assert "Arm B wins: 0.037 vs 0.041." in page and 'href="../projects/demo.html"' in page
 
 
@@ -1231,8 +1231,8 @@ def test_feedback_add_creates_then_appends_one_doc(repo):
     assert second[2].endswith("`sess-2`\n\nNo command to list tasks.\n")      # no About line without --sprint/--task
     assert repo.store_log()[:2] == [f"pm: added feedback to records/docs/{TODAY}-demo-feedback.md"] * 2
     assert repo.bd_writes() == []
-    assert repo.pm("render").returncode == 0
-    page = (repo.root / "site" / f"docs/{TODAY}-demo-feedback.html").read_text()
+    assert repo.pm("check").returncode == 0
+    page = repo.page(f"docs/{TODAY}-demo-feedback.html")
     assert "The refusal named no fix." in page and "No command to list tasks." in page
 
 
@@ -1283,8 +1283,8 @@ def test_design_new_writes_every_section_and_renders(repo):
     assert text.count("\n\nNone yet.\n") == 7 and text.endswith("None yet.\n")
     assert all(re.search(rf"^## {re.escape(h)}\n\n> ", text, re.M) for h in heads)  # each opens with a prompt
     assert repo.bd_writes() == []
-    assert repo.pm("render").returncode == 0
-    page = (repo.root / "site/design/arch.html").read_text()
+    assert repo.pm("check").returncode == 0
+    page = repo.page("design/arch.html")
     assert '<nav class="toc">' in page and 'href="../projects/demo.html"' in page
 
 
@@ -1292,7 +1292,7 @@ def test_design_new_writes_every_section_and_renders(repo):
 def test_render_refuses_design_missing_required_section(repo, missing):
     (repo.records / "design").mkdir()
     repo.write("design/arch.md", design(skip=missing))
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode != 0
     assert f"design/arch: design record needs a '## {missing}' section" in res.stderr
 
@@ -1300,7 +1300,7 @@ def test_render_refuses_design_missing_required_section(repo, missing):
 def test_render_accepts_design_without_prior_art(repo):
     (repo.records / "design").mkdir()
     repo.write("design/arch.md", design())
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def store_commit(repo, day: str, *args: str) -> None:
@@ -1343,20 +1343,20 @@ def test_design_pages_show_dates_from_the_stores_git_history(repo):
     assert follow("arch") == ["2026-03-04", "2026-01-02"] and follow("store") == ["2026-05-06", "2026-02-01"]
     expected = {"Edited": ("2026-01-10", today), "New": (today, today), "Store": ("2026-02-01", "2026-05-06"),
                 "Arch": ("2026-01-02", "2026-03-04")}
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode == 0, res.stderr
-    index = (repo.root / "site/index.html").read_text()
+    index = repo.page("index.html")
     listed = re.findall(r'<li><a href="design/[a-z-]+\.html">(\w+)</a><span class="k"><span>created ([\d-]+)</span>'
                         r'<span>updated ([\d-]+)</span></span></li>', index)
     assert listed == [(title, *expected[title]) for title in ("Edited", "New", "Store", "Arch")]
     for slug, title in (("arch", "Arch"), ("store", "Store"), ("new", "New"), ("edited", "Edited")):
         created, updated = expected[title]
-        page = (repo.root / f"site/design/{slug}.html").read_text()
+        page = repo.page(f"design/{slug}.html")
         assert f'<p class="meta"><span>created {created}</span><span>updated {updated}</span></p>' in page
 
 
 def test_serve_shows_design_dates_after_a_commit_that_changes_no_file(repo, served):
-    """pm serve recomputes the dates when the store's HEAD moves, though no record file changed."""
+    """The pm service recomputes the dates when the store's HEAD moves, though no record file changed."""
     from datetime import date
     dated_designs(repo)
     today = date.today().isoformat()
@@ -1427,16 +1427,16 @@ def test_postmortem_new_writes_every_section_and_pages_list_it(repo):
     assert repo.bd_writes() == []
     assert committed(repo, [f"pm: created records/postmortems/{TODAY}-drift.md; fill in its sections by hand in the "
                             f"store, then pm commit -m \"…\" records/postmortems/{TODAY}-drift.md"])
-    assert repo.pm("render").returncode == 0
-    site = repo.root / "site"
+    assert repo.pm("check").returncode == 0
+    site = repo.pages()
     pm_s, pm_p = f"postmortems/{TODAY}-outage.html", f"postmortems/{TODAY}-drift.html"
-    listed = lambda page: re.findall(r'href="(?:\.\./)?(postmortems/[^"]+)"', (site / page).read_text())
+    listed = lambda page: re.findall(r'href="(?:\.\./)?(postmortems/[^"]+)"', site[page])
     assert listed("sprints/demo-1.html") == [pm_s]           # its sprint's, not the project-level one
     assert listed("sprints/demo-2.html") == []
     assert sorted(listed("projects/demo.html")) == sorted([pm_s, pm_p])
     assert sorted(listed("index.html")) == sorted([pm_s, pm_p])
-    assert 'id="postmortems"' in (site / "sprints/demo-1.html").read_text()
-    page = (site / pm_s).read_text()
+    assert 'id="postmortems"' in site["sprints/demo-1.html"]
+    page = site[pm_s]
     assert 'href="../projects/demo.html"' in page and 'href="../sprints/demo-1.html">Sprint 1: First</a>' in page
 
 
@@ -1451,7 +1451,7 @@ def test_postmortem_new_writes_every_section_and_pages_list_it(repo):
 def test_render_refuses_bad_postmortem_header(repo, header, path, match):
     (repo.records / "postmortems").mkdir()
     repo.write(f"postmortems/{path}.md", postmortem(header))
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode != 0 and re.search(match, res.stderr), res.stderr
 
 
@@ -1459,7 +1459,7 @@ def test_render_refuses_bad_postmortem_header(repo, header, path, match):
 def test_render_refuses_postmortem_missing_section(repo, missing):
     (repo.records / "postmortems").mkdir()
     repo.write("postmortems/2026-10-01-outage.md", postmortem(skip=missing))
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode != 0
     assert f"postmortems/2026-10-01-outage: postmortem record needs a '## {missing}' section" in res.stderr
 
@@ -1618,7 +1618,7 @@ def test_task_move_reparents_and_records_decision(repo):
                                               f"inside this sprint, and why?\n\n{block}")
     assert committed(repo, ["pm: moved demo.1.3 from demo.1 to demo.2 and added a sprint decision to "
                             "records/sprints/demo-1.md"])
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_task_move_prints_undo_when_write_fails(repo):
@@ -1644,8 +1644,8 @@ def test_task_move_out_of_closed_sprint(repo):
 
 
 def test_day_page_links_sprints_to_their_records(repo):
-    assert repo.pm("render").returncode == 0
-    page = (repo.root / "site/days/2026-10-01.html").read_text()
+    assert repo.pm("check").returncode == 0
+    page = repo.page("days/2026-10-01.html")
     sprints = page.split('id="sprints"')[1]
     assert '<a href="../sprints/demo-1.html">' in sprints
     needs = page.split('id="decisions-await-you"')[1].split('id="actions-await-you"')[0]
@@ -1669,12 +1669,12 @@ def setup_in(cwd, *args):
                           capture_output=True, text=True)
 
 
-def schedule_line(clone: Path, home: Path, state: str) -> str:
-    """pm where's schedule line for a clone, on this platform's scheduler as the fakes present it."""
-    name = f"local.pm-push.{clone.name}.{__import__('hashlib').sha1(str(clone.resolve()).encode()).hexdigest()[:8]}"
+def service_line(clone: Path, home: Path, state: str) -> str:
+    """pm where's service line for a clone, on this platform's supervisor as the fakes present it."""
+    name = f"local.pm.{clone.name}.{__import__('hashlib').sha1(str(clone.resolve()).encode()).hexdigest()[:8]}"
     at = (home / f"Library/LaunchAgents/{name}.plist" if sys.platform == "darwin"
-          else home / f".config/systemd/user/{name}.timer")
-    return f"schedule  {'launchd' if sys.platform == 'darwin' else 'systemd'} {name} ({at})  {state}"
+          else home / f".config/systemd/user/{name}.service")
+    return f"service   {'launchd' if sys.platform == 'darwin' else 'systemd'} {name} ({at})  {state}"
 
 
 def sched_calls(tmp_path) -> list[list[str]]:
@@ -1724,21 +1724,14 @@ def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origi
                            env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
     assert where[0] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
     assert where[1] == f"checkout  {clone}  branch main, records link set up"
-    assert schedule_line(clone, tmp_path / "home", "installed") in where
+    # pm init installs the service; setup leaves the machine's supervisor alone
+    assert service_line(clone, tmp_path / "home", "not installed; run pm service install") in where
     assert f"push      {clone}/.pm/run/push.log  no push recorded yet" in where
-    installs = [c for c in sched_calls(tmp_path) if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]]
-    assert len(installs) == 1, sched_calls(tmp_path)
-    if sys.platform == "darwin":
-        plist = __import__("plistlib").loads(Path(installs[0][3]).read_bytes())
-        assert plist["ProgramArguments"] == [str(clone / "bin/pm"), "push"] and plist["WorkingDirectory"] == str(clone)
-        assert plist["StartInterval"] == 600 and plist["StandardErrorPath"] == str(clone / ".pm/run/push.log")
-        assert plist["StandardOutPath"] == "/dev/null", "pm push writes its own log lines"
-    assert f"installed the push schedule: " in res.stdout
+    assert not [c for c in sched_calls(tmp_path) if c[1:2] in (["bootstrap"], ["kickstart"]) or c[2:3] in (["enable"], ["restart"])]
     again = setup_in(clone)
     assert again.returncode == 0 and again.stdout.startswith("already set up"), again.stderr
     assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
                                      ["hooks", "install", "--beads"]], "no bd change"
-    assert len([c for c in sched_calls(tmp_path) if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]]) == 1
     assert (clone / ".git/config").read_text() == config
 
 
@@ -1749,14 +1742,14 @@ def test_where_before_setup_names_what_is_missing(tmp_path, origin):
                          env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
     assert res.stdout.splitlines() == [
-        f"store     {clone}/.pm/store/records  missing; run bin/pm setup",
-        f"checkout  {clone}  branch main, no records link; run bin/pm setup",
-        f"beads     {clone}/.beads  no database; run bin/pm setup",
-        "hooks     core.hooksPath unset; run bin/pm setup",
+        f"store     {clone}/.pm/store/records  missing; run pm init",
+        f"checkout  {clone}  branch main, no records link; run pm init",
+        f"beads     {clone}/.beads  no database; run pm init",
+        "hooks     core.hooksPath unset; run pm init",
         f"codex     {tmp_path}/codex  missing, so Codex is not used here",
-        schedule_line(clone, tmp_path / "home", "missing; run bin/pm setup"),
+        service_line(clone, tmp_path / "home", "not installed; run pm service install"),
         f"push      {clone}/.pm/run/push.log  no push recorded yet",
-        f"site      http://localhost:8000 (served by pm serve); pm render writes {clone}/site",
+        "site      http://localhost:8000 (served by the pm service)",
     ]
     res = subprocess.run([*PM, "where", "records"], cwd=clone,
                          env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True)
@@ -1804,7 +1797,7 @@ def test_setup_excludes_mains_tracked_copy(tmp_path, origin):
     git_in(clone, "subtree", "add", "--prefix=records", "origin/records", "-m", "copy records")
     where = subprocess.run([*PM, "where"], cwd=clone,
                            env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
-    assert where[1] == f"checkout  {clone}  branch main, records/ is main's tracked copy, not the link; run bin/pm setup"
+    assert where[1] == f"checkout  {clone}  branch main, records/ is main's tracked copy, not the link; run pm init"
     res = setup_in(clone)
     assert res.returncode == 0, res.stderr
     assert "sparse checkout" in res.stdout
@@ -1883,7 +1876,7 @@ def test_setup_adds_codex_roots_in_a_new_table(clone, before):
     if before is not None:
         config.write_text(before)
         config.chmod(0o600)
-    assert f"codex     {config}  writable_roots not checked without the store; run bin/pm setup" in where_in(clone)
+    assert f"codex     {config}  writable_roots not checked without the store; run pm init" in where_in(clone)
     res = setup_in(clone)
     assert res.returncode == 0, res.stderr
     assert f"added to sandbox_workspace_write.writable_roots in {config}" in res.stdout
@@ -1997,8 +1990,8 @@ def test_write_on_one_branch_is_visible_on_another_without_merge(repo):
     assert repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
     assert repo.git("log", "--format=%s").splitlines() == ["code"]
     assert "- Seen from every branch." in repo.pm("show", "--sprint", "demo.1").stdout
-    assert repo.pm("render").returncode == 0
-    assert "Seen from every branch." in (repo.root / "site/sprints/demo-1.html").read_text()
+    assert repo.pm("check").returncode == 0
+    assert "Seen from every branch." in repo.page("sprints/demo-1.html")
 
 
 def test_concurrent_writes_from_two_worktrees_land_as_separate_commits(repo):
@@ -2045,7 +2038,7 @@ def test_need_answered_on_another_branch_does_not_block_writes(repo):
     assert repo.git("ls-files", cwd=wt) == ".gitignore\n.pm/.gitignore\n.pm/config.toml\n", "the decision is not on the code branch"
     res = repo.pm("task", "add", "--sprint", "demo.1", "--title", "Next step")
     assert res.returncode == 0, res.stderr
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_hand_edit_is_committed_with_pm_commit(repo):
@@ -2081,7 +2074,7 @@ def test_only_render_and_commit_check_records_a_command_does_not_touch(repo):
         assert res.returncode == 0, (args, res.stderr)
     goal = repo.store / "sprints/demo-1.md"
     goal.write_text(goal.read_text().replace("Ship it.", "Ship it soon."))
-    for args in (["show", "--sprint", "demo.2"], ["render"], ["commit", "-m", "Goal", "records/sprints/demo-1.md"]):
+    for args in (["show", "--sprint", "demo.2"], ["check"], ["commit", "-m", "Goal", "records/sprints/demo-1.md"]):
         res = repo.pm(*args)
         assert res.returncode == 1 and re.search(broken, res.stderr), (args, res.stderr)
     assert repo.git("status", "--porcelain", cwd=repo.store) == " M sprints/demo-1.md\n"
@@ -2137,7 +2130,7 @@ def test_commit_and_write_refuse_what_depends_on_another_sessions_uncommitted_re
     (repo.store / "projects/other.md").write_text(project("Other", "other"))
     (repo.store / "design").mkdir()
     (repo.store / "design/x.md").write_text(design_page("other"))
-    assert repo.pm("render").returncode == 0, "the working store renders"
+    assert repo.pm("check").returncode == 0, "the working store renders"
     refused(repo, "commit", "-m", "Design", "records/design/x.md", match=r"error: design/x: no project record found")
     refused(repo, "design", "new", "y", "--title", "Y", "--project", "other",
             match=r"error: no project record named 'other'")
@@ -2166,7 +2159,7 @@ def test_write_ignores_another_sessions_broken_uncommitted_records(repo):
     a.write_text(a.read_text().replace("## Findings", "## Finds"))
     (repo.store / "docs").mkdir()
     (repo.store / "docs/scratch.md").write_text("session A, not a record yet")
-    assert repo.pm("render").returncode != 0, "the working store does not render"
+    assert repo.pm("check").returncode != 0, "the working store does not render"
     res = repo.pm("finding", "add", "--sprint", "demo.2", "Mine.")
     assert res.returncode == 0, res.stderr
     assert repo.git("show", "--name-only", "--format=", "HEAD", cwd=repo.store).split() == ["sprints/demo-2.md"]
@@ -2215,13 +2208,10 @@ def test_missing_store_fails_hard_without_falling_back(repo):
     repo.git("worktree", "remove", "--force", ".pm/store/records")
     repo.records.unlink()
     shutil.copytree(Path(__file__).parent, repo.records)  # a plain records/ in the worktree is never read
-    for args in (["show"], ["where", "records"], ["render"]):
+    for args in (["show"], ["where", "records"], ["check"], ["service", "status"]):
         res = repo.pm(*args)
         assert res.returncode != 0
-        assert re.search(r"error: no records store at .*/repo/\.pm/store/records; set it up with bin/pm setup", res.stderr)
-    res = subprocess.run([*RENDER, "site"], cwd=repo.root, env=repo.env,
-                         capture_output=True, text=True)
-    assert res.returncode != 0 and "error: no records store at" in res.stderr
+        assert re.search(r"error: no records store at .*/repo/\.pm/store/records; set it up with pm init", res.stderr)
 
 
 def test_where_lists_every_location_with_its_state(repo):
@@ -2238,13 +2228,13 @@ def test_where_lists_every_location_with_its_state(repo):
     assert res.returncode == 0, res.stderr
     assert res.stdout.splitlines() == [
         f"store     {repo.store}  branch records, no origin/records",
-        f"checkout  {wt}  branch feature-x, no records link; run bin/pm setup",
-        f"beads     {repo.root}/.beads  database demo, remote git+https://example.com/demo.git; ahead/behind not reported by bd; agent profile conservative; run bin/pm setup",
+        f"checkout  {wt}  branch feature-x, no records link; run pm init",
+        f"beads     {repo.root}/.beads  database demo, remote git+https://example.com/demo.git; ahead/behind not reported by bd; agent profile conservative; run pm init",
         f"hooks     {hooks}  post-checkout installed, pre-commit installed",
         f"codex     {repo.root.parent}/codex  missing, so Codex is not used here",
-        schedule_line(repo.root, repo.root.parent / "home", "missing; run bin/pm setup"),
+        service_line(repo.root, repo.root.parent / "home", "not installed; run pm service install"),
         f"push      {repo.root}/.pm/run/push.log  no push recorded yet",
-        f"site      http://localhost:8000 (served by pm serve); pm render writes {wt}/site",
+        "site      http://localhost:8000 (served by the pm service)",
     ]
     (hooks / "pre-commit").unlink()
     assert repo.pm("where").stdout.splitlines()[1:4:2] == [
@@ -2263,7 +2253,7 @@ SERVE_BEHIND = 10  # seconds a served page may be behind, as pm/site.py has it
 
 
 def asof(page: str) -> float:
-    """The time, in epoch seconds, a page served by pm serve states its data is current as of."""
+    """The time, in epoch seconds, a page served by the pm service states its data is current as of."""
     m = re.search(r'<p class="asof[^"]*" data-asof="([\d.]+)"', page)
     assert m, "the page states no age"
     return float(m.group(1))
@@ -2298,13 +2288,13 @@ def without_status(page: str) -> str:
 
 
 def test_serve_shows_each_change_within_its_stated_age(repo):
-    """pm serve shows a pm write and a Beads change within SERVE_BEHIND s, every page stating data from before a
+    """The pm service shows a pm write and a Beads change within SERVE_BEHIND s, every page stating data from before a
     change it does not show yet, and a failing render as the error."""
     import urllib.error
     import urllib.request
 
     repo.dolt()
-    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         url = re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0)
@@ -2342,7 +2332,7 @@ def test_serve_reuses_a_page_only_while_records_and_beads_are_unchanged(repo):
     import urllib.request
 
     repo.dolt()
-    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         url = re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0)
@@ -2387,9 +2377,9 @@ def free_port() -> int:
 
 @pytest.fixture
 def served(repo):
-    """pm serve for the repo's store on a free port; the repo's env carries that PORT from here on."""
+    """The pm service for the repo's store on a free port; the repo's env carries that PORT from here on."""
     repo.dolt()
-    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         port = re.search(r"http://localhost:(\d+)", srv.stdout.readline()).group(1)
@@ -2424,7 +2414,7 @@ def test_record_link_refuses_without_a_server(repo):
     port = free_port()
     repo.env = dict(repo.env, PORT=str(port))
     refused(repo, "record", "link", "demo.1",
-            match=rf"no site is served on :{port}; start it with PORT={port} pm serve, then run this again")
+            match=rf"no site is served on :{port}; start it with pm service install, then run this again")
 
 
 def test_record_link_refuses_a_foreign_server(repo, tmp_path):
@@ -2441,8 +2431,8 @@ def test_record_link_refuses_a_foreign_server(repo, tmp_path):
                 time.sleep(0.05)
         repo.env = dict(repo.env, PORT=str(port))
         refused(repo, "record", "link", "demo.1",
-                match=rf"the server on :{port} is not pm serve.*stop the old server on :{port}, then "
-                      rf"PORT={port} pm serve")
+                match=rf"the server on :{port} is not the pm service.*stop the old server on :{port}, then "
+                      rf"pm service install")
     finally:
         srv.terminate()
         srv.wait()
@@ -2457,7 +2447,7 @@ def test_show_site_line_has_constant_size(repo):
 
     before = show()
     site = [l for l in before if l.startswith("site: ")]
-    assert site == ["site: http://localhost:8000 (pm serve); a record's page is <site>/<its path under records/, "
+    assert site == ["site: http://localhost:8000 (the pm service); a record's page is <site>/<its path under records/, "
                     "without .md>.html; pm record link <target> prints one"]
     issues = json.loads(repo.state.read_text())
     for n in range(3, 9):
@@ -2485,7 +2475,7 @@ def test_show_site_line_has_constant_size(repo):
 def test_render_accepts_needs_closed_by_newer_pm(repo, fields):
     """Beads is shared with newer pm code: its actions, small answers and dismiss-with-note closes need no decision."""
     repo.set_issue("demo.1.2", status="closed", **fields)
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 # ---------------------------------------------------------------- replies on the site
@@ -2543,18 +2533,18 @@ def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
     until_shown(lambda: urllib.request.urlopen(f"{served}/").read().decode(),
                 lambda p: p.count('<span class="replied">not delivered') == 2 and "Merged as abc123." in p, None)
 
-    assert repo.pm("render").returncode == 0  # the static site keeps the slot and shows no form, but the replies
-    static = (repo.root / "site" / "index.html").read_text()
+    assert repo.pm("check").returncode == 0  # the static site keeps the slot and shows no form, but the replies
+    static = repo.page("index.html")
     assert "<!--pm-reply demo.1.2 decision-->" in static and "<form" not in static
     assert "<p>Merged as abc123.</p>" in static and "<!-- pm-reply" not in static
 
 
 @contextlib.contextmanager
 def serving(repo, **env):
-    """pm serve for the repo's store on a free port with `env` added; its URL, then its stderr once it stopped."""
+    """The pm service for the repo's store on a free port with `env` added; its URL, then its stderr once it stopped."""
     log = repo.root.parent / "serve.log"
     with log.open("w") as err:
-        srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
+        srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                                env=dict(repo.env, PORT="0", **env), stdout=subprocess.PIPE, stderr=err, text=True)
     try:
         yield re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0), log
@@ -2652,9 +2642,9 @@ def spool(repo) -> Path:
 
 
 def kill_serve(repo, **env):
-    """Start pm serve in its own process group; its URL and a function that kills the group with SIGKILL."""
+    """Start the pm service in its own process group; its URL and a function that kills the group with SIGKILL."""
     import signal
-    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0", **env), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                            text=True, start_new_session=True)
     url = re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0)
@@ -2774,7 +2764,7 @@ def test_a_write_the_fingerprint_missed_shows_after_the_next_reread(repo, served
 @pytest.mark.parametrize("value", ["", "abc", ["1"]])
 def test_a_bad_pickup_count_is_a_clear_error(repo, value):
     repo.set_issue("demo.1.2", metadata={"picked_up": value})
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode == 1 and "Traceback" not in res.stderr, res.stderr
     assert "error: demo.1.2 (Ask the owner): metadata.picked_up is " in res.stderr, res.stderr
 
@@ -2833,7 +2823,7 @@ def test_a_request_records_its_session_and_inbox_never_the_token(repo):
                     CLAUDE_CODE_MESSAGING_TOKEN="secret-token")
     res = repo.pm("decision", "need", "--title", "Parser?", "--parent", "demo.1", stdin=NEED)
     assert res.returncode == 0, res.stderr
-    assert "pm serve pushes the owner's reply into this session" in res.stdout
+    assert "the pm service pushes the owner's reply into this session" in res.stdout
     assert repo.pm("action", "need", "--title", "Restart the site", "--parent", "demo.1", stdin=ACTION).returncode == 0
     issues = repo.issues()
     assert issues["demo.1.3"]["metadata"] == {"session": "sess-1", "inbox": "/run/x/inbox.sock",
@@ -2903,7 +2893,7 @@ def inbox_text(line: dict) -> str:
 
 
 def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
-    """The three replies lost on 2026-10-06, each pushed by pm serve: several requests raised in one command, one
+    """The three replies lost on 2026-10-06, each pushed by the pm service: several requests raised in one command, one
     raised with its output piped through grep, and a second reply to a request already delivered."""
     with session_inbox() as (inbox, lines):
         env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET=inbox, NEED=NEED)
@@ -2967,7 +2957,7 @@ def test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read(repo
 
 def test_a_push_that_failed_is_retried_by_the_sweep(repo):
     """The session's inbox was not there when the reply came (a push that failed, as after a crash between storing
-    and pushing): pm serve's sweep, at start and every minute, pushes it once the inbox is back."""
+    and pushing): the pm service's sweep, at start and every minute, pushes it once the inbox is back."""
     repo.dolt()
     path = os.path.join(inbox_dir(), "s")
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET=path)
@@ -3092,7 +3082,7 @@ def test_a_reviewed_prs_merge_is_pushed_into_the_session_once(repo):
                                     f"next: pm action done demo.1.3 --reason \"merged as {sha}\", then update the "
                                     f"main checkout: {pull_main(repo)}")
         assert repo.issues()["demo.1.3"]["metadata"]["merged"] == sha
-        assert repo.issues()["demo.1.3"]["status"] == "open", "the agent closes the review, not pm serve"
+        assert repo.issues()["demo.1.3"]["status"] == "open", "the agent closes the review, not the pm service"
         with serving(repo) as (url, _):  # a restart: the merge is stored, so it is neither looked up nor pushed again
             until_shown(lambda: load(f"{url}/"), lambda p: "Review PR #7" in p, None)
             deadline = time.time() + 2
@@ -3127,7 +3117,7 @@ def test_the_merge_watch_goes_on_while_the_pr_is_open_or_merged_off_main(repo, o
 
 
 def test_a_merge_its_session_missed_is_flagged_and_read(repo):
-    """pm serve saw the merge (metadata.merged) but could not push it: pm show flags it, pm reply read prints it."""
+    """The pm service saw the merge (metadata.merged) but could not push it: pm show flags it, pm reply read prints it."""
     sha = review_with_origin(repo)
     repo.set_issue("demo.1.3", metadata={**repo.issues()["demo.1.3"]["metadata"], "merged": sha})
     assert "[undelivered reply: pm reply read demo.1.3]" in repo.pm("show").stdout
@@ -3207,7 +3197,7 @@ def test_show_names_holders_and_warns_of_other_live_sessions(repo):
     assert holder == {"session": "aaaaaaaa-1111", "assignee": None, "claimed_at": "2026-10-01T12:00:00Z", "live": True}
 
 
-# ---------------------------------------------------------------- pm push: the scheduled job
+# ---------------------------------------------------------------- pm push: what the service runs
 
 DAY2 = "---\ntype: day\ndate: 2026-10-02\n---\n\n## Today\n\n> What are we chasing today, and why now?\n\nMore.\n"
 
@@ -3308,12 +3298,12 @@ def test_push_exits_at_once_while_another_holds_the_lock(pushed):
 
 def test_show_flags_a_failed_or_overdue_push(pushed):
     repo = pushed
-    assert not repo.pm("show").stdout.startswith("warning: the scheduled push"), "no flag before the first run"
+    assert not repo.pm("show").stdout.startswith("warning: the pm service's push"), "no flag before the first run"
     repo.env = dict(repo.env, FAKE_BD_FAIL=json.dumps(["dolt", "push"]))
     assert repo.pm("push").returncode == 1
     log = re.escape(str(repo.root / ".pm/run/push.log"))
     lines = repo.pm("show").stdout.splitlines()
-    assert lines[0] == "warning: the scheduled push needs attention (pm where; it runs bin/pm push):"
+    assert lines[0] == "warning: the pm service's push needs attention (pm service status; pm service logs):"
     assert re.fullmatch(r"  beads push failed at \S+: bd dolt push failed: fake bd: failing .* on purpose; log " + log,
                         lines[1]), lines[1]
     assert not lines[2].startswith("  records"), "records pushed fine"
@@ -3325,7 +3315,7 @@ def test_show_flags_a_failed_or_overdue_push(pushed):
     repo.commit("unpushed")
     lines = repo.pm("show").stdout.splitlines()
     assert re.fullmatch(r"  records push overdue: last successful push 2026-01-01T00:00:00\+00:00, \d+ min ago "
-                        r"\(the job runs every 10 min\); 1 records commit\(s\) not on origin/records; log " + log,
+                        r"\(the pm service pushes every 10 min\); 1 records commit\(s\) not on origin/records; log " + log,
                         lines[1]), lines[1]
     assert not lines[2].startswith("  beads")
 
@@ -3344,7 +3334,7 @@ def test_serve_shows_the_push_banner_on_home_and_project_pages(pushed, served):
 
 @pytest.fixture
 def public(repo):
-    """The repo's public base URL (a tunnel to pm serve), set in its config before `served` starts."""
+    """The repo's public base URL (a tunnel to the pm service), set in its config before `served` starts."""
     write_config(repo.root, site_url="https://pm.example.com/")
     return "https://pm.example.com"
 
@@ -3387,12 +3377,12 @@ def summary(repo) -> dict:
 
 def test_a_day_with_activity_renders_a_page_without_a_day_file(repo):
     repo.set_issue("demo.1.2", status="in_progress", started_at=now_z())
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
     assert not (repo.records / f"days/{TODAY}.md").exists()
-    page = (repo.root / f"site/days/{TODAY}.html").read_text()
+    page = repo.page(f"days/{TODAY}.html")
     assert "STARTED</span> Ask the owner" in page and "No summary has been generated for this day." in page
-    assert f'href="days/{TODAY}.html"' in (repo.root / "site/index.html").read_text()
-    assert "Start." in (repo.root / "site/days/2026-10-01.html").read_text(), "an older day record keeps its paragraph"
+    assert f'href="days/{TODAY}.html"' in repo.page("index.html")
+    assert "Start." in repo.page("days/2026-10-01.html"), "an older day record keeps its paragraph"
 
 
 def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
@@ -3411,10 +3401,10 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     assert res.returncode == 0, res.stderr
     assert summary(repo)["text"] == "Summary 2." and summary(repo)["digest"] != first["digest"]
     assert "started: Ask the owner" in claude_calls(repo)[1]["stdin"]
-    assert repo.pm("render").returncode == 0
-    page = (repo.root / f"site/days/{TODAY}.html").read_text()
+    assert repo.pm("check").returncode == 0
+    page = repo.page(f"days/{TODAY}.html")
     assert re.search(r"<span>generated at \d\d:\d\d</span>.*Summary 2\.", page, re.S), page
-    assert "Summary 2." in (repo.root / "site/index.html").read_text()
+    assert "Summary 2." in repo.page("index.html")
     assert f"today {TODAY}: Summary 2. (generated " in repo.pm("show").stdout
 
 
@@ -3473,11 +3463,12 @@ def test_a_summary_with_html_shows_it_as_text(repo):
     path = repo.records / f"days/{TODAY}.summary.json"
     path.write_text(json.dumps({"date": TODAY, "generated_at": now_z().replace("Z", "+00:00"), "digest": "x",
                                 "model": "haiku", "text": "Done <script>alert(1)</script>.\n\nSecond *part*."}))
-    assert repo.pm("render").returncode == 0
-    for page in (f"site/days/{TODAY}.html", "site/index.html"):
-        text = (repo.root / page).read_text()
+    assert repo.pm("check").returncode == 0
+    site = repo.pages()
+    for page in (f"days/{TODAY}.html", "index.html"):
+        text = site[page]
         assert "<script>alert" not in text and "&lt;script&gt;alert(1)&lt;/script&gt;" in text, page
-    assert "<em>part</em>" in (repo.root / f"site/days/{TODAY}.html").read_text(), "Markdown still renders"
+    assert "<em>part</em>" in repo.page(f"days/{TODAY}.html"), "Markdown still renders"
 
 
 def test_a_bullet_summary_renders_a_list_on_the_day_page_and_one_line_in_lists(repo):
@@ -3485,10 +3476,10 @@ def test_a_bullet_summary_renders_a_list_on_the_day_page_and_one_line_in_lists(r
     repo.env = dict(repo.env, FAKE_CLAUDE_OUTPUT="- The parser *ships*.\n- Review the parser change.")
     assert repo.pm("day", "summarize").returncode == 0
     assert "Output only the bullets" in claude_calls(repo)[-1]["stdin"]
-    assert repo.pm("render").returncode == 0
-    day = (repo.root / f"site/days/{TODAY}.html").read_text()
+    assert repo.pm("check").returncode == 0
+    day = repo.page(f"days/{TODAY}.html")
     assert "<ul>\n<li>The parser <em>ships</em>.</li>\n<li>Review the parser change.</li>\n</ul>" in day, day
-    index = (repo.root / "site/index.html").read_text()
+    index = repo.page("index.html")
     assert "The parser <em>ships</em>. · Review the parser change." in index
     assert "- The parser" not in index
 
@@ -3497,20 +3488,17 @@ def test_a_paragraph_summary_still_renders_as_a_paragraph(repo):
     path = repo.records / f"days/{TODAY}.summary.json"
     path.write_text(json.dumps({"date": TODAY, "generated_at": now_z().replace("Z", "+00:00"), "digest": "x",
                                 "model": "haiku", "text": "The parser ships. Review it."}))
-    assert repo.pm("render").returncode == 0
-    assert "<p>The parser ships. Review it.</p>" in (repo.root / f"site/days/{TODAY}.html").read_text()
-    assert "The parser ships. Review it." in (repo.root / "site/index.html").read_text()
+    assert repo.pm("check").returncode == 0
+    assert "<p>The parser ships. Review it.</p>" in repo.page(f"days/{TODAY}.html")
+    assert "The parser ships. Review it." in repo.page("index.html")
 
 
 @pytest.mark.parametrize("bad, says", [("{not json", "not valid JSON"), ('{"date": "x"}', "a summary is a JSON object")])
 def test_a_malformed_summary_fails_render_and_commit_naming_the_file(repo, bad, says):
     path = repo.records / f"days/{TODAY}.summary.json"
     path.write_text(bad)
-    for args in (("render",), ("commit", "-m", "a summary", str(path))):
+    for args in (("check",), ("commit", "-m", "a summary", str(path))):
         refused(repo, *args, match=rf"error: days/{TODAY}\.summary\.json: {says}")
-    res = subprocess.run([*RENDER, "site"], cwd=repo.root, env=repo.env,
-                         capture_output=True, text=True)
-    assert res.returncode == 1 and f"error: days/{TODAY}.summary.json: {says}" in res.stderr, res.stderr
 
 
 def test_day_summarize_failure_writes_nothing(repo):

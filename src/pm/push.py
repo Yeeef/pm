@@ -1,31 +1,25 @@
-"""The scheduled push: one job per clone pushes Beads data (`bd dolt push`) and the records branch, so no session
-pushes either. `pm push` is the job; `pm setup` installs its schedule (launchd, a systemd user timer, or cron).
+"""The push: Beads data (`bd dolt push`), today's summary and the records branch, so no session pushes either. The
+pm service (pm.service) runs it every INTERVAL; `pm push` is one run by hand.
 
-Each run records the outcome of each store's last attempt in a state file in the main checkout's .pm/run, outside
-any branch, and appends to a log beside it (pm push is the log's only writer of result lines; the schedulers send only a
-crash's stderr there); `pm show`, `pm where` and the served site read the state to flag a failed or overdue push.
+Each run records the outcome of each step's last attempt in a state file in the clone's runtime directory
+(`.pm/run/`, never committed), and appends a line per step to a log beside it; `pm show`, `pm where`, `pm service
+status` and the served site read the state to flag a failed or overdue push.
 """
 
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import html
 import json
 import os
-import plistlib
-import shlex
-import shutil
 import signal
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .config import RUN
-from .records import RecordError
+from .config import run_dir
 
-INTERVAL = 600            # seconds between scheduled runs
+INTERVAL = 600            # seconds between the service's runs
 OVERDUE = 3 * INTERVAL    # no successful push for this long is flagged
 TIMEOUT = 120             # seconds each step (bd dolt push, git fetch, rebase, push) may take
 STORES = ("beads", "records")
@@ -34,8 +28,8 @@ BRANCH = "records"
 
 
 def files(main: Path) -> tuple[Path, Path, Path]:
-    """The state file, the log and the lock file, in the main checkout's .pm/run (git-ignored by .pm/.gitignore)."""
-    run = main / RUN
+    """The state file, the log and the lock file, in the clone's runtime directory."""
+    run = run_dir(main)
     return run / "push.json", run / "push.log", run / "push.lock"
 
 
@@ -159,7 +153,7 @@ def unpushed(store: Path, remote: str) -> int | None:
 
 def flags(main: Path, store: Path | None, remote: str) -> list[str]:
     """A line per step (each store's push, and the day summary) whose last run failed or whose last success is older
-    than OVERDUE, counted from the schedule's install when it never succeeded; none before both."""
+    than OVERDUE, counted from the service's install when it never succeeded; none before both."""
     state = read_state(main)
     log = files(main)[1]
     out = []
@@ -179,7 +173,7 @@ def flags(main: Path, store: Path | None, remote: str) -> list[str]:
                 continue
             what = f"last successful {kind_}" if s["last_ok"] else f"no successful {kind_} since"
             line = (f"{name} {kind_} overdue: {what} {since}, {int(age // 60)} min ago "
-                    f"(the job runs every {INTERVAL // 60} min)")
+                    f"(the pm service pushes every {INTERVAL // 60} min)")
         if name == "records" and store is not None and (n := unpushed(store, remote)):
             line += f"; {n} records commit(s) not on {remote}/{BRANCH}"
         out.append(line)
@@ -203,130 +197,3 @@ def describe(main: Path) -> list[str]:
         return [f"push      {log}  no push recorded yet"]
     return [f"push      {name} {'ok' if s['ok'] else 'error'} at {s['at']}: {s['message']}"
             for name, s in state.items() if name in STEPS] + [f"push      log {log}"]
-
-
-# ---------------------------------------------------------------- the schedule
-
-def label(main: Path) -> str:
-    """One schedule per clone: its directory name and a hash of its path."""
-    digest = hashlib.sha1(str(main.resolve()).encode()).hexdigest()[:8]
-    return f"local.pm-push.{main.name}.{digest}"
-
-
-def quiet(cmd: list[str], input: str | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, input=input, capture_output=True, text=True)
-
-
-def has_systemd() -> bool:
-    try:
-        return quiet(["systemctl", "--user", "show-environment"]).returncode == 0
-    except FileNotFoundError:
-        return False
-
-
-def launchd_plist(main: Path) -> Path:
-    return Path.home() / "Library/LaunchAgents" / f"{label(main)}.plist"
-
-
-def systemd_units(main: Path) -> tuple[Path, Path]:
-    d = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "systemd/user"
-    return d / f"{label(main)}.service", d / f"{label(main)}.timer"
-
-
-def cron_lines() -> list[str]:
-    """The user's crontab. Only "no crontab for <user>" counts as empty; any other failure is refused, so an
-    install never overwrites a crontab it could not read."""
-    try:
-        res = quiet(["crontab", "-l"])
-    except FileNotFoundError:
-        raise RecordError("no scheduler for pm push: systemd has no user instance and crontab is not installed")
-    if res.returncode == 0:
-        return res.stdout.splitlines()
-    if "no crontab for" in res.stderr:
-        return []
-    raise RecordError(f"crontab -l failed: {(res.stderr or res.stdout).strip()}")
-
-
-def installed(main: Path) -> tuple[str, bool]:
-    """The scheduler holding this clone's job and whether it is installed (and loaded; for systemd, its timer active). On Linux the systemd unit
-    and the crontab entry are both checked, so a job under one is never installed again under the other."""
-    name = label(main)
-    if sys.platform == "darwin":
-        return "launchd", launchd_plist(main).exists() and quiet(
-            ["launchctl", "print", f"gui/{os.getuid()}/{name}"]).returncode == 0
-    if systemd_units(main)[1].exists():
-        return "systemd", quiet(["systemctl", "--user", "is-active", f"{name}.timer"]).returncode == 0
-    systemd = has_systemd()
-    try:
-        if any(l.endswith(f"# {name}") for l in cron_lines()):
-            return "cron", True
-    except RecordError:
-        if not systemd:
-            raise
-    return ("systemd" if systemd else "cron"), False
-
-
-def launchd_job(main: Path, path: str) -> dict:
-    """The launchd agent. pm push writes its own log lines; only stderr (a failure before pm runs) goes to the log."""
-    return {"Label": label(main), "ProgramArguments": [str(main / "bin/pm"), "push"], "WorkingDirectory": str(main),
-            "StartInterval": INTERVAL, "RunAtLoad": True, "StandardOutPath": "/dev/null",
-            "StandardErrorPath": str(files(main)[1]), "EnvironmentVariables": {"PATH": path}}
-
-
-def unit_quote(value: str) -> str:
-    """A systemd unit value, double-quoted, with % (which starts a specifier) escaped."""
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%") + '"'
-
-
-def install(main: Path) -> str:
-    """Install this clone's schedule if it is missing; empty when it is installed. The job runs `<main>/bin/pm push`
-    from the main checkout with the PATH setup ran under, refused unless uv, bd and git resolve in it."""
-    kind, done = installed(main)
-    if done:
-        return ""
-    name, log, pm = label(main), files(main)[1], main / "bin/pm"
-    log.parent.mkdir(parents=True, exist_ok=True)  # the schedulers append a crash's stderr to it
-    path = os.environ.get("PATH", "")
-    missing = [t for t in ("uv", "bd", "git") if shutil.which(t, path=path) is None]
-    if missing:
-        raise RecordError(f"the push schedule needs uv, bd, git on PATH; {', '.join(missing)} not found in {path}")
-    if kind == "launchd":
-        plist = launchd_plist(main)
-        if not plist.exists():
-            plist.parent.mkdir(parents=True, exist_ok=True)
-            plist.write_bytes(plistlib.dumps(launchd_job(main, path)))
-        res = quiet(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(plist)])
-        if res.returncode != 0:
-            raise RecordError(f"launchctl bootstrap {plist} failed: {(res.stderr or res.stdout).strip()}")
-        said = f"launchd agent {name} ({plist})"
-    elif kind == "systemd":
-        service, timer = systemd_units(main)
-        service.parent.mkdir(parents=True, exist_ok=True)
-        # WorkingDirectory= takes the rest of the line as the path: quotes would be part of it, and systemd then
-        # refuses the unit as not absolute.
-        service.write_text(f"[Unit]\nDescription=pm push\n\n[Service]\nType=oneshot\n"
-                           f"WorkingDirectory={str(main).replace('%', '%%')}\nEnvironment={unit_quote('PATH=' + path)}\n"
-                           f"ExecStart={unit_quote(str(pm))} push\nStandardOutput=null\n"
-                           f"StandardError=append:{str(log).replace('%', '%%')}\n")
-        timer.write_text(f"[Unit]\nDescription=pm push every {INTERVAL // 60} min\n\n[Timer]\n"
-                         f"OnBootSec=1min\nOnUnitActiveSec={INTERVAL}s\n\n[Install]\nWantedBy=timers.target\n")
-        for cmd in (["systemctl", "--user", "daemon-reload"], ["systemctl", "--user", "enable", "--now", timer.name]):
-            res = quiet(cmd)
-            if res.returncode != 0:
-                raise RecordError(f"{' '.join(cmd)} failed: {(res.stderr or res.stdout).strip()}")
-        said = f"systemd user timer {timer}"
-    else:
-        line = (f"*/{INTERVAL // 60} * * * * cd {shlex.quote(str(main))} && PATH={shlex.quote(path)} "
-                f"{shlex.quote(str(pm))} push > /dev/null 2>>{shlex.quote(str(log))} # {name}")
-        res = quiet(["crontab", "-"], input="".join(l + "\n" for l in cron_lines() + [line]))
-        if res.returncode != 0:
-            raise RecordError(f"crontab - failed: {(res.stderr or res.stdout).strip()}")
-        said = f"crontab entry {name}"
-    write_state(main, {**read_state(main), "installed_at": now().isoformat()})
-    return f"installed the push schedule: {said}, every {INTERVAL // 60} min"
-
-
-def where(main: Path) -> str:
-    kind, done = installed(main)
-    at = {"launchd": launchd_plist(main), "systemd": systemd_units(main)[1], "cron": "crontab"}[kind]
-    return f"schedule  {kind} {label(main)} ({at})  " + ("installed" if done else "missing; run bin/pm setup")

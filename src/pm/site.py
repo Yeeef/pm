@@ -1,10 +1,9 @@
-"""HTML rendering of records joined with live Beads status, as a static site."""
+"""HTML rendering of records joined with live Beads status: the pages the pm service serves."""
 
 from __future__ import annotations
 
 import html
 import re
-import shutil
 import dataclasses
 import time
 from dataclasses import dataclass
@@ -400,12 +399,12 @@ def thread(i: dict) -> str:
     return f'<div class="replies"><p class="k">Replies</p>{"".join(out)}</div>'
 
 
-NOT_DELIVERED = ("not delivered yet: the session that asked is not running, or the push failed and pm serve tries "
+NOT_DELIVERED = ("not delivered yet: the session that asked is not running, or the push failed and the pm service tries "
                  "again; the next session sees it")
 DELIVERY = {"delivered": "delivered to the agent's session",
             "nothing to deliver": "the agent had read it already",
             "not running": "not delivered: the session that asked is not running, the next one will see it",
-            "failed": "not delivered yet: the push failed; pm serve tries again every minute"}
+            "failed": "not delivered yet: the push failed; the pm service tries again every minute"}
 
 
 def owner_card(i: dict, where: str, beads: dict[str, dict], md: MarkdownIt, recs: list[Record],
@@ -423,11 +422,11 @@ def owner_card(i: dict, where: str, beads: dict[str, dict], md: MarkdownIt, recs
             f'<p class="k">{how}</p>{thread(i)}{REPLY_SLOT.format(id=html.escape(i["id"]), kind=kind(i))}</div>')
 
 
-# The slot a card leaves for its reply form. pm serve fills it with a form carrying the server's token on every page
-# it serves; the static site keeps the comment, so it shows no form that could not work.
+# The slot a card leaves for its reply form. The pm service fills it with a form carrying the server's token on every page
+# it serves.
 REPLY_SLOT = "<!--pm-reply {id} {kind}-->"
 # Each submit carries a reply id, new unless the text is the one the id was made for (a double click, or a failed
-# reply sent again as it came back), so pm serve stores a resent reply once.
+# reply sent again as it came back), so the pm service stores a resent reply once.
 REPLY_FORM = ('<form class="reply" method="post" action="/reply" data-text="{text}" onsubmit="'
               'const t = this.elements.text.value, r = this.elements.rid; '
               'if (!r.value || this.dataset.text !== t) {{ r.value = crypto.randomUUID(); this.dataset.text = t; }}">'
@@ -476,8 +475,7 @@ def awaiting(cards: list[tuple[dict, str]], prompt: bool) -> str:
     return "\n".join(out)
 
 
-# The slot for the line stating the age of a page's data. pm serve fills it on every page it serves; the static site
-# keeps the comment, since a file in site/ is as old as the pm render that wrote it.
+# The slot for the line stating the age of a page's data. The pm service fills it on every page it serves.
 STATUS_SLOT = "<!--pm-status-->"
 
 PAGE = """<!doctype html>
@@ -686,17 +684,7 @@ def render_page(path: str, recs: list[Record], beads: dict[str, dict], site_name
     rec = next((r for r in recs if r.out == path), None)
     return render_record(rec, recs, beads, dates) if rec else None
 
-def write_site(pages: dict[str, str], site: Path) -> None:
-    if site.exists():
-        shutil.rmtree(site)
-    for rel, text in pages.items():
-        dest = site / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(text)
-    shutil.copy(STYLE, site / "style.css")
-
-
-SERVE_BEHIND = 10  # seconds a page from pm serve may be behind the records and Beads before it says it is behind
+SERVE_BEHIND = 10  # seconds a page from the pm service may be behind the records and Beads before it says it is behind
 STATUS = ('<p class="asof{behind}" data-asof="{asof:.3f}" data-page="{digest}">{text}</p>\n<script>{script}</script>')
 # Keeps the stated age current and polls /version: an unchanged page takes the newer age; a changed one never
 # reloads by itself (owner decision: auto reloads flash the page) but shows a sticky "Newer data: reload" banner the

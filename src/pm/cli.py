@@ -52,11 +52,12 @@ from pm.records import (NONE_YET, NOT_CLOSED, Record, RecordError, decisions, fi
                              summary_path)
 from pm.site import (SERVE_BEHIND, STATUS_SLOT, STYLE, check_needs_answered, cites, dismissed, local_day,
                           fill_replies, fill_status, pr_label, render_page, render_pages, render_record,
-                          request_place, sprint_reviews, write_site)
+                          request_place, sprint_reviews)
 from pm.store import (BRANCH, SETUP, code_root, commit, committed_records, design_dates, find_store, head_files,
                            main_of, read_files, store_path, uncommitted)
 from pm.store import git as store_git
 from pm import push as pushjob
+from pm import service
 
 SPRINT_PROMPTS = {
     "Goal": "> What should be true when this sprint ends, and why now?",
@@ -751,9 +752,9 @@ INBOX_ENV = "CLAUDE_CODE_MESSAGING_SOCKET"  # Claude Code exports its session's 
 
 
 def delivery_hint(need_id: str) -> str:
-    """How the raising agent hears the answer: pm serve pushes it into the session's inbox when there is one."""
+    """How the raising agent hears the answer: the pm service pushes it into the session's inbox when there is one."""
     if os.environ.get(INBOX_ENV, "").strip():
-        return (f"pm serve pushes the owner's reply into this session; if the session has ended by then, pm show "
+        return (f"the pm service pushes the owner's reply into this session; if the session has ended by then, pm show "
                 f"flags it for the next one, which reads it with pm reply read {need_id}")
     return (f"this session has no inbox (${INBOX_ENV} unset), so no reply is pushed to it; pm show flags a reply, "
             f"and pm reply read {need_id} prints it")
@@ -848,7 +849,7 @@ def raise_review(args, records: Path) -> str:
              f"--title={title}", f"--description={desc}", f"--external-ref={pr}",
              f"--metadata={json.dumps(meta)}", "--json")
     need_id, _ = created(out)
-    return (f"raised review {need_id} under {parent}; {delivery_hint(need_id)}; pm serve pushes the PR's merge to "
+    return (f"raised review {need_id} under {parent}; {delivery_hint(need_id)}; the pm service pushes the PR's merge to "
             f"main the same way; once the PR is on main: pm action done {need_id} --reason \"merged as <sha>\"")
 
 
@@ -1324,16 +1325,17 @@ def cmd_project_close(args, records: Path) -> str:
     return f"closed {epic_id}: {reason}"
 
 
-def cmd_render(args, records: Path) -> str:
+def check_records(recs: list[Record], beads: dict[str, dict], name: str, summaries: dict | None = None) -> int:
+    """The check of pm check and pm commit: every page of the site renders from `recs` and `beads`, and every answered
+    decision need is cited or marked no-decision; it writes nothing. The number of pages checked."""
+    return len(render_pages(recs, beads, name, summaries=summaries))
+
+
+def cmd_check(args, records: Path) -> str:
     repo = load(records, working=True)
-    site = repo.root / "site"
-    pages = render_pages(repo.recs, repo.beads, repo.root.name, dates=design_dates(records, repo.recs),
-                         summaries=read_summaries(records))
-    write_site(pages, site)
-    return f"rendered {len(pages)} pages into {site}"
+    n = check_records(repo.recs, repo.beads, repo.root.name, read_summaries(records))
+    return f"checked the records in {records}: all {n} pages render"
 
-
-SERVE_HEADER = "X-PM-Store"  # pm serve's replies name the store they render, so a link can check who answers
 
 
 def cfg() -> config.Config:
@@ -1342,22 +1344,23 @@ def cfg() -> config.Config:
 
 
 def port() -> int:
-    """The site port: config's `port`, or the PORT environment variable for one run."""
-    return int(os.environ["PORT"]) if os.environ.get("PORT") else cfg().port
+    """The site port: the PORT environment variable for one run, else the installed service's port, else config's
+    `port`."""
+    return service.port_for(service_main(), cfg().port)
 
 
 def public_url() -> str:
-    """The site's public base URL, the repo's `site_url` (a tunnel to pm serve), or ""."""
+    """The site's public base URL, the repo's `site_url` (a tunnel to the pm service), or ""."""
     return cfg().site_url
 
 
 def site_url() -> str:
-    """The base of links printed for the owner; anything that connects to pm serve uses 127.0.0.1:$PORT instead."""
+    """The base of links printed for the owner; anything that connects to the pm service uses 127.0.0.1:$PORT instead."""
     return public_url() or f"http://localhost:{port()}"
 
 
 def reply_hosts() -> tuple[str, ...]:
-    """pm serve binds 127.0.0.1; any other Host is a rebinding domain, except the configured public URL's host."""
+    """The pm service binds 127.0.0.1; any other Host is a rebinding domain, except the configured public URL's host."""
     public = urllib.parse.urlsplit(public_url()).hostname
     return ("127.0.0.1", "localhost") + ((public,) if public else ())
 
@@ -1394,7 +1397,7 @@ def store_reply(root: Path, issue_id: str, text: str) -> None:
         bd(root, "comments", "add", issue_id, f"--file={f.name}", f"--author={REPLY_AUTHOR}")
 
 
-# The reply spool: pm serve appends each checked reply here, fsynced, before it answers the POST, and a "done" line
+# The reply spool: the pm service appends each checked reply here, fsynced, before it answers the POST, and a "done" line
 # once the reply is in Beads, so a reply taken survives a crash or kill and a restart delivers it. It lives in the
 # clone's git dir, next to the store and never committed; it is emptied whenever no reply in it is pending.
 REPLY_SPOOL = "pm-replies.jsonl"
@@ -1460,12 +1463,12 @@ def deliver_reply(root: Path, spool: Path, entry: dict) -> None:
         spool_add(spool, {"done": entry["rid"]}, drain=True)
 
 
-SERVE_CHECK = 1.0  # seconds between pm serve's looks for a change in the records, the store's HEAD or Beads
+SERVE_CHECK = 1.0  # seconds between the pm service's looks for a change in the records, the store's HEAD or Beads
 
 
 @dataclass(frozen=True)
 class Snapshot:
-    """What pm serve serves: the records and Beads as read at `as_of` (epoch seconds) or later, so they are current
+    """What the pm service serves: the records and Beads as read at `as_of` (epoch seconds) or later, so they are current
     as of then; `error` when they do not render. `pages` caches each page rendered from them, with its digest."""
     as_of: float
     texts: dict
@@ -1480,7 +1483,8 @@ class Snapshot:
 
 
 def cmd_serve(args, records: Path) -> str:
-    """Serve the site on localhost:$PORT. A request never waits on a writer: it renders from the last snapshot of the
+    """`pm service run`, the pm service's process: serve the site on localhost:$PORT and push (cmd_push) every
+    pushjob.INTERVAL seconds, the first that long after start. A request never waits on a writer: it renders from the last snapshot of the
     records and Beads, which a background thread keeps current, and every page states the time its data is current
     as of, refreshes itself when a newer snapshot changes it, and says when it is more than SERVE_BEHIND seconds
     behind. The thread looks every SERVE_CHECK seconds (sooner after a request or a reply) at the record files, the
@@ -1674,6 +1678,16 @@ def cmd_serve(args, records: Path) -> str:
             writes.put(({"id": "sweep", "sweep": True}, 0))
             time.sleep(MERGE_POLL)
 
+    def pusher() -> None:
+        """Every INTERVAL seconds: push Beads data, summarize today and push the records branch, logging each step's
+        line; a run that raises is logged, and the next one tries again."""
+        while True:
+            time.sleep(pushjob.INTERVAL)
+            try:
+                print(cmd_push(args, None)[1], file=sys.stderr, flush=True)
+            except Exception:
+                traceback.print_exc()
+
     def page(path: str) -> tuple[int, str, Snapshot]:
         """The status and HTML of the page at `path` from the current snapshot, its reply slots filled and its status
         slot left for fill_status, and that snapshot."""
@@ -1779,7 +1793,7 @@ def cmd_serve(args, records: Path) -> str:
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
-            self.send_header(SERVE_HEADER, str(records.resolve()))  # lets pm record link tell pm serve apart
+            self.send_header(service.SERVE_HEADER, str(records.resolve()))  # lets a probe tell this service apart
             self.end_headers()
             self.wfile.write(body)
 
@@ -1790,15 +1804,16 @@ def cmd_serve(args, records: Path) -> str:
         if rid not in done:
             replies[entry["id"]] = {"state": "saving", "text": entry["text"]}
             writes.put((entry, 0))
-    work = [refresher, writer, ticker]
+    work = [refresher, writer, ticker, pusher]
     if not gh:
-        print("note: gh is not installed, so pm serve does not watch reviews' PRs for their merge", file=sys.stderr,
+        print("note: gh is not installed, so the pm service does not watch reviews' PRs for their merge", file=sys.stderr,
               flush=True)
     for w in work:
         threading.Thread(target=w, daemon=True).start()
     beads = f"Beads reread when {noms} changes" if noms else "Beads reread every look (Dolt server)"
     print(f"Serving http://localhost:{server.server_address[1]}; each page states the age of its data, at most "
-          f"{SERVE_BEHIND} s behind unless it says so; {beads}", flush=True)
+          f"{SERVE_BEHIND} s behind unless it says so; {beads}; pushing every {pushjob.INTERVAL // 60} min",
+          flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -1808,8 +1823,8 @@ def cmd_serve(args, records: Path) -> str:
 
 # ---------------------------------------------------------------- reply delivery and pm reply read
 
-MERGE_POLL = 60  # seconds between pm serve's looks at GitHub for open reviews' merges to main
-PUSH_TIMEOUT = 5  # seconds pm serve gives a session's inbox to take a message
+MERGE_POLL = 60  # seconds between the pm service's looks at GitHub for open reviews' merges to main
+PUSH_TIMEOUT = 5  # seconds the pm service gives a session's inbox to take a message
 GH_TIMEOUT = 60  # seconds a gh or git call of the merge watch may take before it counts as not merged yet
 
 
@@ -1934,10 +1949,10 @@ def push_inbox(issue: dict, text: str) -> str | None:
 
 
 def push_undelivered(root: Path, issue_id: str) -> str:
-    """The one delivery path of pm serve, for replies and merges alike: push what of the request has not reached its
+    """The one delivery path of the pm service, for replies and merges alike: push what of the request has not reached its
     session into that session's inbox, and mark it delivered only once the push went through. Returns "delivered",
     "nothing to deliver" (read already), or why not ("not running: …", "failed: …"); the request then stays flagged by
-    pm show, and pm serve's sweep tries it again."""
+    pm show, and the pm service's sweep tries it again."""
     issue = show_beads(root, [issue_id])[issue_id]
     text, marks = undelivered(root, issue)
     if not text:
@@ -2049,7 +2064,7 @@ def place(need: dict, under: str, names: dict[str, str]) -> str:
 def show_text(data: dict) -> str:
     out = []
     if data["push"]:
-        out.append("warning: the scheduled push needs attention (pm where; it runs bin/pm push):")
+        out.append("warning: the pm service's push needs attention (pm service status; pm service logs):")
         out += [f"  {l}" for l in data["push"]]
     me = current_session()
     others = [(t["id"], t["holder"]) for p in data["projects"] for sp in p["sprints"] for t in sp["tasks"]
@@ -2060,8 +2075,8 @@ def show_text(data: dict) -> str:
     # Most important first: `pm prime` cuts the end at its cap, so the task lists and past decisions go last.
     t = data["today"]
     out.append(f"today {t['date']}: " + (f"{t['summary']} (generated {t['generated_at']})" if t["summary"]
-                                         else "no summary yet; the scheduled push generates it from today's activity"))
-    out.append(f"site: {data['site']} (pm serve); a record's page is <site>/<its path under records/, without .md>"
+                                         else "no summary yet; the pm service generates it from today's activity"))
+    out.append(f"site: {data['site']} (the pm service); a record's page is <site>/<its path under records/, without .md>"
                ".html; pm record link <target> prints one")
     out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"')
     for p in data["projects"]:
@@ -2182,25 +2197,17 @@ def link_target(recs: list[Record], records: Path, target: str) -> Record:
 
 
 def cmd_record_link(args, records: Path) -> str:
-    """The rendered page's URL once pm serve for this store answers on $PORT; otherwise the command that fixes it.
-    The probe fetches style.css, which pm serve answers without rendering."""
-    import urllib.error
-    import urllib.request
-
+    """The rendered page's URL once the pm service for this store answers on $PORT; otherwise the command that fixes it."""
     rec = link_target(read_records(records), records, args.target)
-    fix = "pm serve" if port() == cfg().port else f"PORT={port()} pm serve"
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port()}/style.css", timeout=2) as r:
-            served = r.headers.get(SERVE_HEADER)
-    except urllib.error.HTTPError as e:
-        served = e.headers.get(SERVE_HEADER)
-    except OSError:
-        raise Refuse(f"no site is served on :{port()}; start it with {fix}, then run this again")
+    fix = "pm service restart" if service.installed(service_main()) else "pm service install"
+    served = service.answering(port())
     if served is None:
-        raise Refuse(f"the server on :{port()} is not pm serve, so its pages may be stale; stop the old server on "
+        raise Refuse(f"no site is served on :{port()}; start it with {fix}, then run this again")
+    if not served:
+        raise Refuse(f"the server on :{port()} is not the pm service, so its pages may be stale; stop the old server on "
                      f":{port()}, then {fix}")
     if Path(served) != records.resolve():
-        raise Refuse(f"the pm serve on :{port()} renders another store ({served}); stop it, then {fix}")
+        raise Refuse(f"the pm service on :{port()} renders another store ({served}); stop it, then {fix}")
     return f"{site_url()}/{rec.out}"
 
 
@@ -2246,7 +2253,8 @@ def cmd_setup(args) -> str:
 def setup_clone(site_url: str | None) -> str:
     """Make the clone and this worktree ready, pm init's half that runs every time (and the post-checkout hook's):
     connect Beads and install the git hooks, check out the store if it is missing, link this worktree's records/ to
-    it, install the clone's background job, and let Codex's sandbox write the store and commit to it."""
+    it, and let Codex's sandbox write the store and commit to it. The pm service is pm init's, not this half's: a
+    session start runs this, and must not install a real service."""
     cwd = Path.cwd()
     store = store_path(cwd)
     main = main_of(store)
@@ -2283,9 +2291,6 @@ def setup_clone(site_url: str | None) -> str:
     claude = setup_claude(top, store)
     if claude:
         out.append(claude)
-    sched = install_service(main)
-    if sched:
-        out.append(sched)
     if site_url is not None:
         site = setup_site_url(site_url)
         if site:
@@ -2293,12 +2298,6 @@ def setup_clone(site_url: str | None) -> str:
     done = "\n".join(out) or f"already set up: {link} -> {store}"
     codex = setup_codex(main)
     return f"{done}\n{codex}" if codex else done
-
-
-def install_service(main: Path) -> str:
-    """Install the clone's background job if it is missing; "" when it is installed. Today that is the scheduled
-    pm push; the pm service (`pm service install`, task yeeef-agents-9va.51.6) replaces it here."""
-    return pushjob.install(main)
 
 
 def check_hooks_path(top: Path, main: Path) -> None:
@@ -2357,6 +2356,9 @@ def cmd_init(args) -> str:
         raise Refuse(str(e))
     out += [f"wrote {rel}" for rel in written]
     out.append(setup_clone(None if fresh else args.site_url))
+    said = service.install(main, service.port_for(main, cfg().port))
+    if said:
+        out.append(said)
     if written:
         branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
         out.append(f"pm commits nothing on {branch}; commit pm's files there: git add -- {' '.join(written)} && "
@@ -2494,7 +2496,7 @@ def setup_codex(main: Path) -> str:
 
 
 def cmd_push(args, records: None) -> tuple[int, str]:
-    """One run of the scheduled push; its exit code is non-zero when either store failed. It finds the store
+    """One run of the push, as the pm service makes every 10 minutes; its exit code is non-zero when either store failed. It finds the store
     itself, so a missing store is recorded as the records step's failure rather than leaving no state."""
     cwd = Path.cwd()
 
@@ -2504,6 +2506,29 @@ def cmd_push(args, records: None) -> tuple[int, str]:
         except (Refuse, RecordError) as e:
             return False, str(e)
     return pushjob.push(main_of(store_path(cwd)), cfg().remote, lambda: find_store(cwd), summarize)
+
+
+def service_main() -> Path:
+    """The main checkout, where the service runs and keeps its state: the git common dir's parent."""
+    return main_of(store_path(Path.cwd()))
+
+
+def cmd_service_install(args, records: Path) -> str:
+    main = service_main()
+    said = service.install(main, port())
+    return said or f"already installed and current\n{service.health(main, records)[1]}"
+
+
+def cmd_service_status(args, records: Path) -> tuple[int, str]:
+    return service.status(service_main(), records, cfg().remote)
+
+
+def cmd_service_restart(args, records: Path) -> str:
+    return service.restart(service_main(), records)
+
+
+def cmd_service_logs(args, records: Path) -> str:
+    return service.logs(service_main(), args.lines)
 
 
 def cmd_where(args, records: Path) -> str:
@@ -2585,10 +2610,9 @@ def where_all() -> str:
             state_ = f"unreadable: {e}"
         out.append(f"codex     {path}  {state_}")
 
-    out.append(pushjob.where(main))
+    out.append(service.health(main, store)[1])
     out += pushjob.describe(main)
-    out.append(f"site      {site_url()} (served by pm serve); "
-               f"pm render writes {top / 'site'}")
+    out.append(f"site      {site_url()} (served by the pm service)")
     return "\n".join(out)
 
 
@@ -2632,7 +2656,7 @@ def cmd_commit(args, records: Path) -> str:
     for p in paths:
         if p.name.endswith(".summary.json") and p.exists():
             read_summary(p)
-    render_pages(committed_records(records, changes), load_beads(root), root.name)
+    check_records(committed_records(records, changes), load_beads(root), root.name)
     head = commit(records, message, paths)
     return f"committed {', '.join('records/' + p.relative_to(store).as_posix() for p in paths)} as {head}: {message}"
 
@@ -2664,13 +2688,13 @@ def parser() -> argparse.ArgumentParser:
 
     day = sub.add_parser("day", help="day pages: generated from the day's activity; nobody writes a day record").add_subparsers(
         dest="sub", required=True)
-    s = day.add_parser("summarize", help="generate today's Today summary with claude -p; the scheduled push runs it",
+    s = day.add_parser("summarize", help="generate today's Today summary with claude -p; the pm service runs it",
                        description="Summarize today's activity (what the day page shows, plus the records committed "
                                    f"today) with claude -p --model {SUMMARY_MODEL} into records/days/<today>.summary.json"
                                    ", committed on the records branch; the day page shows it as Today, labelled with "
                                    "the time it was generated. Skips when nothing happened today or the activity's "
                                    "digest is unchanged since the last summary. Fails, writing nothing, when claude "
-                                   "is missing or fails. pm push runs it every 10 minutes.")
+                                   "is missing or fails. The pm service runs it every 10 minutes.")
     s.add_argument("--dry-run", action="store_true", help="print the summary it would write; write nothing")
     s.set_defaults(func=cmd_day_summarize)
 
@@ -2766,7 +2790,7 @@ def parser() -> argparse.ArgumentParser:
     s = reply.add_parser(
         "read", help="print the owner's replies and reviews' merges that did not reach your session",
         description="Print the requests' site replies not yet delivered and their reviews' PR merges not yet "
-                    "reported, with what to do next, and mark them delivered; it does not wait. pm serve pushes "
+                    "reported, with what to do next, and mark them delivered; it does not wait. The pm service pushes "
                     "each reply and merge into the inbox of the session that raised the request when it can; what "
                     "it could not deliver (the session had ended, or has no inbox) waits here and is flagged by pm "
                     f"show. Without ids, this session's open requests (${SESSION_ENV}); with ids, those, closed "
@@ -2874,31 +2898,55 @@ def parser() -> argparse.ArgumentParser:
     record = sub.add_parser("record", help="records on the served site").add_subparsers(dest="sub", required=True)
     s = record.add_parser(
         "link", help="print a record's page URL on the served site; the only link to give for a record",
-        description="Print the URL of a record's page on the site pm serve serves on "
+        description="Print the URL of a record's page on the site the pm service serves on "
                     "localhost:$PORT (default: port in .pm/config.toml), printed with the repo's site_url "
-                    "instead when .pm/config.toml sets one. pm serve's pages follow the records within 10 s and state "
+                    "instead when .pm/config.toml sets one. The pm service's pages follow the records within 10 s and state "
                     "their data's age, so no render step is needed. Fails with the command that fixes it when nothing serves there, "
-                    "or when what answers is not pm serve for this store.")
+                    "or when what answers is not the pm service for this store.")
     s.add_argument("target", help="a sprint or project Beads id, a project name, a design slug, or a record path "
                                   "(records/<…>.md; records/ and .md optional)")
     s.set_defaults(func=cmd_record_link)
 
-    s = sub.add_parser("render", help="render the site into <repo root>/site; the check before a commit")
-    s.set_defaults(func=cmd_render)
+    s = sub.add_parser("check", help="check that every record renders with Beads, writing nothing; the check before a "
+                                     "commit, and the one pm commit runs")
+    s.set_defaults(func=cmd_check)
 
-    s = sub.add_parser("serve", help="serve the site on localhost:$PORT (default: port in .pm/config.toml); a page is at most "
-                                     "10 s behind the records and Beads and states its data's age; an open page "
-                                     "never reloads itself but shows within ~10 s that newer data exists, "
-                                     "loaded on reload")
+    svc = sub.add_parser("service", help="the pm service: one background process per clone serves the site and pushes "
+                                         "Beads data and the records branch every 10 minutes").add_subparsers(
+        dest="sub", required=True)
+    s = svc.add_parser("install", help="install and start this clone's service (launchd on macOS, systemd on Linux), "
+                                       "or update it; a no-op once installed and current",
+                       description="Install the pm service under the machine's supervisor, which starts it at login "
+                                   "and restarts it after a crash: a launchd agent with KeepAlive on macOS, a systemd "
+                                   "user service on Linux; refused on a machine with neither. It runs this pm with "
+                                   "the current PATH (bd and git must be on it) and serves on $PORT, else the port it "
+                                   "was installed with, else the port in .pm/config.toml; give a second clone of the "
+                                   "repo its own PORT once.")
+    s.set_defaults(func=cmd_service_install)
+    s = svc.add_parser("status", help="whether the service is up and its site answers for this store, and its pushes; "
+                                      "non-zero when either needs attention")
+    s.set_defaults(func=cmd_service_status)
+    s = svc.add_parser("restart", help="restart the service and wait for its site to answer; when it fails, raise an "
+                                       "action for the owner and add a bug task")
+    s.set_defaults(func=cmd_service_restart)
+    s = svc.add_parser("logs", help="print the end of the service's log, <main checkout>/.pm/run/service.log")
+    s.add_argument("-n", "--lines", type=int, default=50, help="how many lines (default 50)")
+    s.set_defaults(func=cmd_service_logs)
+    s = svc.add_parser("run", help="the service's process, run by its supervisor: serve the site on localhost:$PORT "
+                                   "and push every 10 minutes",
+                       description="Serve the site on localhost:$PORT (default: port in .pm/config.toml): a page is at "
+                                   "most 10 s behind the records and Beads and states its data's age; an open page "
+                                   "never reloads itself but shows within ~10 s that newer data exists, loaded on "
+                                   "reload. Every 10 minutes, the first 10 after start, run pm push. The supervisor "
+                                   "runs it; run it by hand only to debug, or on another PORT.")
     s.set_defaults(func=cmd_serve)
 
     s = sub.add_parser("setup", help="make the clone ready: connect Beads (bd bootstrap), install the git "
                                      "hooks, check out the records store at <main checkout>/.pm/store/records if "
                                      "missing, link this worktree's records/ to it, and add the clone's .git, the store, .beads and "
-                                     "uv's cache to the writable roots of $CODEX_HOME/config.toml, and install the "
-                                     "scheduled pm push (launchd, a systemd user timer or cron); a no-op once set up")
+                                     "uv's cache to the writable roots of $CODEX_HOME/config.toml; a no-op once set up")
     s.add_argument("--site-url", metavar="URL",
-                   help="the site's public base URL (a tunnel to pm serve), written to site_url in .pm/config.toml: "
+                   help="the site's public base URL (a tunnel to the pm service), written to site_url in .pm/config.toml: "
                         "pm's printed links use it and replies from its host are accepted; '' clears it")
     s.set_defaults(func=cmd_setup)
 
@@ -2910,7 +2958,7 @@ def parser() -> argparse.ArgumentParser:
                                    ".github/workflows/pm-records-{guard,copy}.yml and pm's .gitignore lines; run bd "
                                    "init when the repo has no .beads/; create the records branch with an empty store "
                                    "and push it when the remote has none. Then the clone and worktree: what pm setup "
-                                   "does. Refuses a core.hooksPath other than .beads/hooks. Run it again to restore "
+                                   "does, and the clone's pm service (pm service install). Refuses a core.hooksPath other than .beads/hooks. Run it again to restore "
                                    "a missing piece; it changes nothing that is there.")
     s.add_argument("--site-url", metavar="URL",
                    help="the site's public base URL, written to site_url in .pm/config.toml; links use it, else "
@@ -2918,19 +2966,20 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_init)
 
     s = sub.add_parser("push", help="push Beads data (bd dolt push), summarize today and push the records branch; "
-                                    "the scheduled job pm setup installs, not a session command",
+                                    "what the pm service runs every 10 minutes, not a session command",
                        description="Push Beads data with bd dolt push, then summarize today (pm day summarize "
                                    "only when today's activity changed), "
                                    "then push the records branch when the store is "
                                    "ahead of <remote>/records: fetch, rebase onto it if it moved (under "
                                    "the store lock; a rebase that stops is aborted, leaving the store as it was), "
                                    f"push. Each step has a {pushjob.TIMEOUT}s timeout; a second run while one holds "
-                                   "the lock exits at once. Each step's outcome goes to <main checkout>/.pm/run/push.json "
-                                   "(read by pm show, pm where and the site) and <main checkout>/.pm/run/push.log, a line per step.")
+                                   "the lock exits at once. Each step's outcome goes to <clone>/.pm/run/push.json "
+                                   "(read by pm show, pm where, pm service status and the site) and "
+                                   "<clone>/.pm/run/push.log, a line per step.")
     s.set_defaults(func=cmd_push)
 
     s = sub.add_parser("where", help="list every location with its state: the store, this checkout, Beads, the "
-                                     "hooks, the Codex sandbox roots, the push schedule and its last run, and the site; 'pm where records' prints only the store's path")
+                                     "hooks, the Codex sandbox roots, the pm service, the last push, and the site; 'pm where records' prints only the store's path")
     s.add_argument("what", nargs="?", choices=["records"], help="print only this location's path")
     s.set_defaults(func=cmd_where)
 
@@ -3020,15 +3069,17 @@ def main(argv: list[str] | None = None) -> int:
         if name in WRITES:
             fd = locked(records)
             try:
-                print(args.func(args, records))
+                out = args.func(args, records)
             finally:
                 os.close(fd)
         else:
-            print(args.func(args, records))
+            out = args.func(args, records)
     except (Refuse, RecordError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    return 0
+    code, out = out if isinstance(out, tuple) else (0, out)  # a command with its own exit code returns both
+    print(out)
+    return code
 
 
 if __name__ == "__main__":
