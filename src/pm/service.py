@@ -165,8 +165,8 @@ def install(main: Path, port: int) -> str:
     unit, want = unit_file(main, kind), unit_bytes(main, kind, path, port, py)
     changed = not unit.exists() or unit.read_bytes() != want
     up = loaded(main, kind)
-    if not changed and up:
-        return ""
+    if not changed and up and answering(port) == (str((main / STORE).resolve()), __version__):
+        return ""  # a unit held but answering on another version (the tool just moved) or not at all is restarted
     if changed:
         unit.parent.mkdir(parents=True, exist_ok=True)
         unit.write_bytes(want)

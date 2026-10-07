@@ -63,6 +63,7 @@ def machine(tmp_path, monkeypatch):
     # the pm uv tool is this interpreter, and the site comes up at once: test_service_*_end_to_end runs both for real
     monkeypatch.setattr(tool, "python", lambda: Path(sys.executable))
     monkeypatch.setattr(tool, "current", lambda: Path(sys.executable))
+    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), __version__))
     monkeypatch.setattr(service, "wait_up", lambda main, port, done, hint="": world.setdefault("waited", []).append(port))
     return main, calls, world
 
@@ -217,6 +218,17 @@ def test_service_stops_once_the_pin_moves(repo):
         srv.kill()
     assert srv.returncode == 1
     assert f"now pins pm 9.9.9, but this service runs pm {__version__}; stopping" in out, out
+
+
+def test_install_restarts_a_current_unit_that_answers_on_another_version(machine, monkeypatch):
+    """The unit's bytes do not change with the tool's version: a held unit answering on another one is restarted."""
+    main, calls, world = machine
+    monkeypatch.setattr(sys, "platform", "linux")
+    service.install(main, 8123)
+    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), "0.0.1"))
+    unit = service.unit_file(main, "systemd")
+    assert service.install(main, 8123).startswith("updated the pm service")
+    assert calls[-1] == ["systemctl", "--user", "restart", unit.name] and world["waited"] == [8123, 8123]
 
 
 def test_health_and_doctor_report_a_service_on_another_version(machine, monkeypatch):

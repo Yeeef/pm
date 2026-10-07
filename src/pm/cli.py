@@ -2363,6 +2363,16 @@ def cmd_init(args) -> str:
     if top.resolve() == store.resolve():
         raise Refuse(f"{top} is the records store; run pm init from a code worktree")
     check_hooks_path(top, main)
+    if top.resolve() != main.resolve():
+        # the service runs in the main checkout, under its pin, with the one pm uv tool the hooks run too
+        try:
+            pin = config.read(main).version
+        except config.ConfigError as e:
+            raise Refuse(f"the pm service runs in the main checkout {main}, under its branch's pin, and that branch "
+                         f"has none ({e}); run pm init there, or check out a branch there that pins pm {__version__}")
+        if pin != __version__:
+            raise Refuse(f"the main checkout {main} pins pm {pin}, and the pm service and the one pm uv tool follow "
+                         f"it; run pm init with pm {pin}, or move main's pin with pm upgrade there first")
     fresh = not (top / config.REL).is_file()
     if fresh:
         s = init_settings(top, args.site_url)
@@ -2417,7 +2427,7 @@ def worktree_changes(top: Path) -> dict[str, str]:
         if not e:
             continue
         code, rel = e[:2], e[3:]
-        if code[0] in "RC":
+        if "R" in code or "C" in code:
             next(entries, None)  # a rename's or copy's source path
         path = top / rel
         digest = hashlib.sha1(path.read_bytes()).hexdigest() if path.is_file() and not path.is_symlink() else ""

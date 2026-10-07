@@ -187,9 +187,7 @@ def test_uninstall_then_init_round_trips(new_repo: Path, tmp_path: Path):
     assert (tmp_path / "codex/config.toml").read_text() == CODEX_USER
     res = pm(new_repo, "init")
     assert res.returncode == 0, res.stderr
-    def lasting(snap: dict) -> dict:  # .pm/run is runtime state: the new service's install time differs
-        return {k: v for k, v in snap.items() if not k.startswith(".pm/run/")}
-    assert lasting(snapshot(new_repo)) == lasting(installed)
+    assert snapshot(new_repo) == installed
     assert (tmp_path / "codex/config.toml").read_text() == codex
     assert git(new_repo, "status", "--porcelain").strip() == ""
     assert doctor(new_repo)[0] == 0

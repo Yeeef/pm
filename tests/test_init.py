@@ -65,8 +65,10 @@ def pm(cwd: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def snapshot(root: Path) -> dict[str, bytes]:
+    """Every file under `root` but git's and the service's runtime state (.pm/run: its log grows with each probe)."""
     return {p.relative_to(root).as_posix(): p.read_bytes() for p in sorted(root.rglob("*"))
-            if p.is_file() and not p.is_symlink() and ".git" not in p.relative_to(root).parts}
+            if p.is_file() and not p.is_symlink() and ".git" not in p.relative_to(root).parts
+            and not p.relative_to(root).as_posix().startswith(".pm/run/")}
 
 
 def pm_free(data: dict) -> dict:
@@ -281,3 +283,13 @@ def test_init_refuses_without_the_pm_uv_tool_it_cannot_install(new_repo: Path, t
     assert res.returncode == 1, res
     assert 'was not installed from git; install the tool with uv tool install "git+https://github.com/Yeeef' in res.stderr
     assert snapshot(new_repo) == before and not (tmp_path / "sched.log").exists(), "no bd init, no service"
+
+
+def test_init_from_a_worktree_refuses_a_main_checkout_without_this_pin(new_repo: Path, tmp_path: Path):
+    """The service runs in the main checkout under its pin, and the machine has one pm uv tool: init from a worktree
+    whose branch pins pm while main's does not would leave the service and main's hooks failing."""
+    wt = tmp_path / "wt"
+    git(new_repo, "worktree", "add", "-q", "-b", "feature", str(wt))
+    res = pm(wt, "init")
+    assert res.returncode == 1 and f"the pm service runs in the main checkout {new_repo}" in res.stderr, res.stderr
+    assert not (wt / ".pm").exists() and not (new_repo / ".pm").exists()
