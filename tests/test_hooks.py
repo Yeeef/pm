@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -15,10 +16,13 @@ from conftest import PM, write_config
 
 from pm import hooks
 
-RULES = [*PM, "prime", "--rules", "--hook-json"]
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
 STOP = [*PM, "hook", "stop"]
+
+
+def rules_cmd(n):
+    return [*PM, "prime", "--rules", str(n), "--hook-json"]
 
 
 def run(cmd, event, env, cwd):
@@ -37,11 +41,11 @@ def context_of(res, event="SessionStart"):
 
 @pytest.mark.slow
 def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
-    """Two hooks, each under Claude Code's per-hook cap: the rules never cut, then the state with pm show whole."""
+    """One hook per rules chunk, then the state, each under Claude Code's per-hook cap, with pm show whole."""
     assert repo.pm("setup").returncode == 0  # a clone set up once, as bin/pm setup leaves it
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
-    rules = context_of(run(RULES, event, repo.env, repo.root))
-    assert rules == hooks.rules() + "\n\n" + hooks.commands() and rules.startswith("# pm rules\n")
+    got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(hooks.STARTS) + 1)]
+    assert got == hooks.chunks() and got[0].startswith("# pm rules (1 of 4): the introduction; ")
     text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
     ran, _, rest = text.partition("\n\n")
@@ -53,8 +57,8 @@ def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
     assert re.fullmatch(r"Project state from `bin/pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
                         r"run `bin/pm show` again before stating project state to the owner\.", header)
     assert body == shown and "Sprint 1: First" in body
-    plain = repo.pm("prime")  # by hand: both, no envelope
-    assert plain.returncode == 0 and plain.stdout.strip() == rules + "\n\n" + text
+    plain = repo.pm("prime")  # by hand: the rules whole and in order, then the state, no envelope
+    assert plain.returncode == 0 and plain.stdout.strip() == hooks.head() + "\n\n" + text
 
 
 TODAY_SHOW = "\n".join([  # pm show of a busy day: 2026-10-07 printed 7,085 characters; this one prints more
@@ -101,8 +105,7 @@ def test_session_start_keeps_a_busy_days_pm_show_whole(tmp_path, monkeypatch):
         if line.startswith(("warning:", "  last run", "  overdue", "  yeeef-agents-9va")) or "await you" in line \
                 or "-> bd show" in line:
             assert line in text.splitlines()
-    rules = hooks.head()
-    assert len(rules) <= hooks.CAP and hooks.CUT not in rules  # the rules hook is never cut
+    assert all(len(c) <= hooks.CAP for c in hooks.chunks())  # each rules hook, too, reaches the session inline
 
 
 @pytest.mark.slow
@@ -155,26 +158,51 @@ def test_prime_lists_every_agent_command_from_the_parser():
     listed = listed_nouns()
     assert listed == [c for c in subcommands() if c not in {"prime", "hook", "push"}]
     assert "prime" not in listed and "show" in listed
-    assert hooks.commands().startswith("## Commands\n\n")
+    assert hooks.commands().startswith("# Commands\n\n")
     assert hooks.commands().count("\n") == 2  # compact: a heading and the nouns; prime.md points at --help
     assert "Run `pm <noun> --help` for its commands and flags." in hooks.rules()
 
 
+def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
+    """Each chunk reaches the session inline (a hook over CAP arrives as a 2 KB preview), and the chunks without
+    their titles are the rules and the command list: nothing lost, nothing twice. A failure here means prime.md
+    outgrew its chunks: move a heading in hooks.STARTS, or add one and its hook entries."""
+    cs = hooks.chunks()
+    assert len(cs) == len(hooks.STARTS) == 4
+    assert all(len(c) <= hooks.CAP for c in cs), [len(c) for c in cs]
+    titles, bodies = zip(*(c.split("\n\n", 1) for c in cs))
+    assert "\n\n".join(bodies) == hooks.head()
+    assert [b.split("\n", 1)[0] for b in bodies] == list(hooks.STARTS)
+    for n, t in enumerate(titles, 1):  # hooks arrive in any order, so each title names its place and its sections
+        assert t.startswith(f"# pm rules ({n} of 4): ") and "\n" not in t
+    assert "Part 2: how — 7. Records" in titles[2] and "Part 3: writing to the owner" in titles[3]
+
+
+def test_hook_entries_run_every_rules_chunk():
+    """Both runtimes' SessionStart and SubagentStart entries run chunks 1 to N, then the state or the profile line."""
+    root = Path(__file__).resolve().parents[2]
+    n = len(hooks.STARTS)
+    for path in (".claude/settings.json", ".codex/hooks.json"):
+        events = json.loads((root / path).read_text())["hooks"]
+        for event, last in (("SessionStart", "--state"), ("SubagentStart", "--subagent")):
+            cmds = [h["command"] for g in events[event] for h in g["hooks"] if "prime" in h["command"]
+                    and "bd prime" not in h["command"]]
+            want = [f"prime --rules {i} --hook-json" for i in range(1, n + 1)] + [f"prime {last} --hook-json"]
+            assert [c[c.index("prime "):] for c in cmds] == want, (path, event)
+
+
 def test_subagent_start_envelope(tmp_path):
+    """The rules chunks and the profile line, each a SubagentStart envelope; no pm show."""
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     write_config(tmp_path)
     (tmp_path / "bin").mkdir()
     (tmp_path / "bin/git").symlink_to(shutil.which("git"))
     event = {"hook_event_name": "SubagentStart", "cwd": str(tmp_path)}
-    res = run(SUBAGENT, event, {"PATH": str(tmp_path / "bin")}, tmp_path)  # git for pm's config check; no bd
-    assert res.returncode == 0, res.stderr
-    out = json.loads(res.stdout)["hookSpecificOutput"]
-    assert out["hookEventName"] == "SubagentStart"
-    text = out["additionalContext"]
-    assert text.startswith("Beads agent profile: unknown (")
-    first, _, rest = text.partition("\n\n")
-    assert "\n" not in first and rest == hooks.head()  # no pm show
-    assert len(text) <= hooks.CAP
+    env = {"PATH": str(tmp_path / "bin")}  # git for pm's config check; no bd
+    text = context_of(run(SUBAGENT, event, env, tmp_path), "SubagentStart")
+    assert text.startswith("Beads agent profile: unknown (") and "\n" not in text
+    got = [context_of(run(rules_cmd(n), event, env, tmp_path), "SubagentStart") for n in range(1, len(hooks.STARTS) + 1)]
+    assert got == hooks.chunks() and all(len(c) <= hooks.CAP for c in got)
 
 
 # ---------------------------------------------------------------- uncommitted records

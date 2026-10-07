@@ -66,24 +66,27 @@ A case's label comes from the rule, never from what the judge answers: a miss is
 
 ## Changing prime.md and the hooks
 
-- `pm prime --rules` prints `prime.md` then the noun list, which `hooks.commands()` reads from the parser
+- `pm prime` prints `prime.md` then the noun list, which `hooks.commands()` reads from the parser
   (`MACHINERY` = `prime`, `hook`, `push` are left out). A new noun needs no edit to `prime.md`;
   `test_prime_lists_every_agent_command_from_the_parser` checks the list. A new command's rules go in its
   `--help`, and `prime.md` names it only where a procedure runs it.
-- Claude Code caps each hook's `additionalContext` at `hooks.CAP` (10,000 characters). The rules and the state run
-  as two SessionStart hooks, so `pm show` keeps its own cap; the rules hook is never cut, the state cuts `pm show`
-  last, at a line. `test_session_start_keeps_a_busy_days_pm_show_whole` and `test_subagent_start_envelope` hold
-  the rules under the cap; both fail while `prime.md` is over it (24,873 characters with the noun list, 2026-10-07).
+- Claude Code passes each hook's `additionalContext` inline only up to `hooks.CAP` (10,000 characters; a longer
+  one arrives as a 2 KB preview and a file path), per hook, and the hooks of one entry arrive in any order. So the
+  rules run as one hook per chunk: `hooks.chunks()` cuts them at the headings in `hooks.STARTS` and puts a title
+  line naming each chunk's place and sections on top (`pm prime --rules N`), and the state runs as its own hook,
+  cut at a line. 2026-10-07: 4 chunks of 8,447, 5,749, 6,317 and 4,708 characters, 24,872 without titles.
+  `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` fails when a chunk outgrows the cap: move a heading in
+  `STARTS`, or add one plus its hook entries; `test_hook_entries_run_every_rules_chunk` checks the entries.
 - `test_prime_md_sentences_are_at_most_20_words` splits every bullet, paragraph and table cell into sentences; a
   code span counts as one word and an arrow as none. Headings and table rules are skipped.
 - `prime.md` carries only what a user's agents need (owner decision, 2026-10-07). Guidance for developing pm,
   `[TEST]` needs and this repo's checks go here, never in `prime.md` or a `--help` text.
 - Keep `prime.md` and `--help` in step with the code: a refusal `prime.md` names must exist in `cli.py` with that
   wording, and a flag named in either must parse. `test_pm.py` asserts refusal texts; grep it before rewording one.
-- The hooks are wired in `.claude/settings.json` (SessionStart: `bin/pm prime --rules --hook-json` and
-  `--state --hook-json`; SubagentStart: `--subagent --hook-json`; Stop: `pm hook owner-request` then
-  `pm hook stop`, each `|| exit 1`) and in `.codex/hooks.json` with `hooks = true` in `.codex/config.toml`. A hook
-  change edits both. Hooks fail open on their own errors (one line on stderr) and fail loudly when `bin/pm` is
+- The hooks are wired in `.claude/settings.json` (SessionStart: `bin/pm prime --rules N --hook-json` for each
+  chunk, then `--state --hook-json`; SubagentStart: the same chunks, then `--subagent --hook-json`; Stop:
+  `pm hook owner-request` then `pm hook stop`, each `|| exit 1`) and in `.codex/hooks.json` with `hooks = true` in
+  `.codex/config.toml`. A hook change edits both. Hooks fail open on their own errors (one line on stderr) and fail loudly when `bin/pm` is
   missing.
 
 ## The site

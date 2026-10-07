@@ -46,13 +46,44 @@ def commands() -> str:
     from pm.cli import parser  # lazy: cli imports this module
     sub = next(a for a in parser()._subparsers._group_actions if a.dest == "cmd")
     nouns = ", ".join(f"`{act.dest}`" for act in sub._choices_actions if act.dest not in MACHINERY)
-    return f"## Commands\n\n`pm` nouns: {nouns}."
+    return f"# Commands\n\n`pm` nouns: {nouns}."
 
 
 def head() -> str:
-    """The rules and the command list: `pm prime --rules`, never cut. Claude Code caps each hook's additionalContext
-    at CAP, so the rules run as their own SessionStart hook and leave `pm show` its own cap."""
+    """The rules and the command list, whole and in order: what `chunks()` splits."""
     return rules() + "\n\n" + commands()
+
+
+# Where `chunks()` cuts `head()`: the heading line each chunk starts with. Claude Code passes each hook's
+# additionalContext inline only up to CAP characters (longer reaches the model as a 2 KB preview and a file path), so
+# the rules run as one hook per chunk. The hooks of one entry run in parallel and arrive in any order, so each chunk
+# starts with a title naming its place and its sections. The hook entries name each chunk by number: a new chunk is a
+# new hook entry in every runtime's settings.
+STARTS = ("# pm rules", "# Part 2: how", "## 7. Records", "## 8. Needs and actions")
+
+
+def chunks() -> list[str]:
+    """`head()` cut at the lines in STARTS, each chunk under a title line such as "# pm rules (2 of 4): Part 2: how —
+    5. Reading state, 6. Projects, sprints and tasks". Without the titles, the chunks joined by blank lines are
+    `head()`. Raises ValueError when a heading in STARTS is missing or out of order."""
+    lines = head().split("\n")
+    at = [lines.index(s) for s in STARTS]
+    if at[0] != 0 or at != sorted(at):
+        raise ValueError(f"the chunk headings {STARTS} are not in order at the top of prime.md")
+    bodies = ["\n".join(lines[a:b]).strip() for a, b in zip(at, at[1:] + [len(lines)])]
+    out, part = [], ""
+    for i, body in enumerate(bodies, 1):
+        groups = [] if body.startswith("# ") else [[part, []]]  # a chunk that starts inside a part names it
+        for line in body.split("\n"):
+            if line.startswith("# "):
+                part = line[2:]
+                groups.append([part, []])
+            elif line.startswith("## "):
+                groups[-1][1].append(line[3:])
+        what = "; ".join(("the introduction" if p == "pm rules" else p) + (" — " + ", ".join(s) if s else "")
+                         for p, s in groups)
+        out.append(f"# pm rules ({i} of {len(bodies)}): {what}\n\n{body}")
+    return out
 
 
 def setup(cwd: str | None, cmd: list[str] | None = None) -> str:
@@ -110,7 +141,7 @@ def state(cwd: str | None, session: str | None = None) -> str:
 
 
 def prime(cwd: str | None, session: str | None = None) -> str:
-    """Plain `pm prime`, for a reader by hand: the rules and the command list, then the state."""
+    """Plain `pm prime`, for a reader by hand: the rules and the command list in order, then the state."""
     return head() + "\n\n" + state(cwd, session)
 
 
@@ -131,11 +162,6 @@ def profile(cwd: str | None, cmd: list[str] | None = None) -> str:
     return f"Beads agent profile: {value}{note}."
 
 
-def subagent_context(cwd: str | None) -> str:
-    """The subagent context: the Beads profile line, the rules and the command list; no `pm show`."""
-    return profile(cwd) + "\n\n" + head()
-
-
 def read_event() -> dict | None:
     """The hook input JSON on stdin, or None when it is not a JSON object."""
     try:
@@ -145,18 +171,22 @@ def read_event() -> dict | None:
     return event if isinstance(event, dict) else None
 
 
-def cmd_prime(part: str | None, hook_json: bool) -> int:
-    """`pm prime`: the rules, the commands and the state; `part` prints one: "rules" (the rules and the commands),
-    "state" (`pm setup`, `pm where` and `pm show`) or "subagent" (the profile line, the rules and the commands). The
-    SessionStart hooks run "rules" and "state" as two hooks, each under its own CAP. With --hook-json it reads the
-    SessionStart or SubagentStart input on stdin (cwd, session_id) and prints the envelope Claude Code and Codex both
-    read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}."""
+def cmd_prime(part: str | int | None, hook_json: bool) -> int:
+    """`pm prime`: the rules, the commands and the state; `part` prints one: N (chunk N of `chunks()`), "state"
+    (`pm setup`, `pm where` and `pm show`) or "subagent" (the line naming the Beads agent profile). SessionStart runs
+    one hook per chunk plus "state", SubagentStart one per chunk plus "subagent", each under its own CAP. With
+    --hook-json it reads the hook input on stdin (cwd, session_id, hook_event_name) and prints the envelope Claude
+    Code and Codex both read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}, named for the
+    event that ran it, so one chunk command serves both events."""
     event = (read_event() or {}) if hook_json else {}
     cwd, session = event.get("cwd"), event.get("session_id")
-    text = {"subagent": lambda: subagent_context(cwd), "rules": head, "state": lambda: state(cwd, session),
-            None: lambda: prime(cwd, session)}[part]()
+    if isinstance(part, int):
+        text = chunks()[part - 1]
+    else:
+        text = {"subagent": lambda: profile(cwd), "state": lambda: state(cwd, session),
+                None: lambda: prime(cwd, session)}[part]()
     if hook_json:
-        name = "SubagentStart" if part == "subagent" else "SessionStart"
+        name = event.get("hook_event_name") or ("SubagentStart" if part == "subagent" else "SessionStart")
         text = json.dumps({"hookSpecificOutput": {"hookEventName": name, "additionalContext": text}})
     print(text)
     return 0

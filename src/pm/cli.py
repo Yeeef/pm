@@ -2841,14 +2841,17 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_where)
 
     s = sub.add_parser("prime", help="pm's rules, then pm setup, pm where and pm show: the context a session starts "
-                                     "with; the SessionStart hooks run --rules and --state, and an agent may run it by hand")
+                                     "with; the SessionStart hooks run --rules 1 to --rules "
+                                     f"{len(hooks.STARTS)} and --state, and an agent may run it by hand")
     part = s.add_mutually_exclusive_group()
-    part.add_argument("--rules", dest="part", action="store_const", const="rules",
-                      help="only the rules and the command list, never cut: the first SessionStart hook")
+    part.add_argument("--rules", dest="part", type=int, choices=range(1, len(hooks.STARTS) + 1), metavar="N",
+                      help=f"only chunk N of the rules and the command list, under a title naming its sections: "
+                           f"one hook each on SessionStart and SubagentStart, since Claude Code passes a hook's text "
+                           f"inline only up to 10,000 characters")
     part.add_argument("--state", dest="part", action="store_const", const="state",
-                      help="only pm setup, pm where and pm show, cut at a line to 10,000 characters: the second SessionStart hook")
+                      help="only pm setup, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook")
     part.add_argument("--subagent", dest="part", action="store_const", const="subagent",
-                      help="what a subagent gets: the Beads agent profile line, the rules and the command list, without pm show")
+                      help="only the line naming the Beads agent profile: the last SubagentStart hook, beside the rules chunks")
     s.add_argument("--hook-json", action="store_true", help="read the SessionStart or SubagentStart input on stdin "
                    "and print the hook's JSON envelope, as Claude Code and Codex read it")
 
