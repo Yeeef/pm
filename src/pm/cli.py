@@ -3179,7 +3179,7 @@ def parser() -> argparse.ArgumentParser:
                     "taken if the owner does not answer, then its reason. Send it with a quoted heredoc (<<'EOF'), "
                     "so code spans stay. pm writes the description in one Markdown layout and refuses an option "
                     "without a cost, a default that names no option, and a sentence of more than 25 words. Record "
-                    "the answer with pm decision add --need, or close a small answer with pm decision close. A need a test or live check raises starts its title with \"[TEST]\"; close it with bd human dismiss <id> once the check is done.")
+                    "the answer with pm decision add --need, or close a small answer with pm decision close.")
     s.add_argument("--title", required=True)
     s.add_argument("--parent", required=True, metavar="ID", help="the sprint or task the decision belongs to")
     s.set_defaults(func=cmd_decision_need)
@@ -3206,7 +3206,7 @@ def parser() -> argparse.ArgumentParser:
                     "close the review with pm action done <id> --reason \"merged as <sha>\"; "
                     "the site's card links the PR, each sprint's record and delivery report, and the design "
                     "pages named with --design plus those the sprints' records list, and shows the focus; stdin "
-                    "then holds optional extra context. Close it with pm action done once you see it done. A need a test or live check raises starts its title with \"[TEST]\"; close it with bd human dismiss <id> once the check is done.")
+                    "then holds optional extra context. Close it with pm action done once you see it done.")
     s.add_argument("--title", help="required without --pr; with --pr, default: Review PR #<n>")
     s.add_argument("--parent", metavar="ID", help="the sprint or task the action belongs to (required without --pr; "
                    "not allowed with it)")
@@ -3457,14 +3457,17 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_where)
 
     s = sub.add_parser("prime", help="pm's rules, then pm setup, pm where and pm show: the context a session starts "
-                                     "with; the SessionStart hooks run --rules and --state, and an agent may run it by hand")
+                                     "with; the SessionStart hooks run --rules 1 to --rules "
+                                     f"{len(hooks.STARTS)} and --state, and an agent may run it by hand")
     part = s.add_mutually_exclusive_group()
-    part.add_argument("--rules", dest="part", action="store_const", const="rules",
-                      help="only the rules and the command list, never cut: the first SessionStart hook")
+    part.add_argument("--rules", dest="part", type=int, choices=range(1, len(hooks.STARTS) + 1), metavar="N",
+                      help=f"only chunk N of the rules and the command list, under a title naming its sections: "
+                           f"one hook each on SessionStart and SubagentStart, since Claude Code passes a hook's text "
+                           f"inline only up to 10,000 characters")
     part.add_argument("--state", dest="part", action="store_const", const="state",
-                      help="only pm setup, pm where and pm show, cut at a line to 10,000 characters: the second SessionStart hook")
+                      help="only pm setup, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook")
     part.add_argument("--subagent", dest="part", action="store_const", const="subagent",
-                      help="what a subagent gets: the Beads agent profile line, the rules and the command list, without pm show")
+                      help="only the line naming the Beads agent profile: the last SubagentStart hook, beside the rules chunks")
     s.add_argument("--hook-json", action="store_true", help="read the SessionStart or SubagentStart input on stdin "
                    "and print the hook's JSON envelope, as Claude Code and Codex read it")
 
