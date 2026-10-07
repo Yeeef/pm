@@ -1482,6 +1482,18 @@ class Snapshot:
     summaries: dict | None = None  # generated day summaries (read_summaries)
 
 
+def pin_moved(path: Path) -> str:
+    """Why the pm service must stop, its config at `path` no longer pinning the version it runs; "" while it does."""
+    try:
+        pin = tomllib.loads(path.read_text()).get("version")
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        return f"the pm service cannot read its pin in {path} ({e}); stopping"
+    if pin != __version__:
+        return (f"{path} now pins pm {pin}, but this service runs pm {__version__}; stopping, so the supervisor "
+                f"starts the pm uv tool's version (install it with {config.INSTALL.format(v=pin)} or pm init)")
+    return ""
+
+
 def cmd_serve(args, records: Path) -> str:
     """`pm service run`, the pm service's process: serve the site on localhost:$PORT and push (cmd_push) every
     pushjob.INTERVAL seconds, the first that long after start. A request never waits on a writer: it renders from the last snapshot of the
@@ -1500,7 +1512,8 @@ def cmd_serve(args, records: Path) -> str:
     open requests for anything their running session has not received and push it again. A card shows its reply saving, then saved
     and whether it was delivered, or the error, then among its replies from Beads. Each request,
     refresh and reply write logs one line to stderr: what, total ms, ms waiting for the store lock, in git, rendering,
-    and in each bd call."""
+    and in each bd call. Every look also reads the config's pin again: once it pins another version (a pull after pm
+    upgrade), the service stops with an error, and the supervisor starts the pm uv tool again."""
     import html
     import http.server
     import queue
@@ -1510,6 +1523,8 @@ def cmd_serve(args, records: Path) -> str:
     import uuid
 
     root = code_root(Path.cwd(), records)
+    pin_file = cfg().path  # read again every look: a pull that moves the pin stops this service
+    stopped: list[str] = []  # why the refresher stopped the server
     noms = dolt_store(root)
     token = secrets.token_urlsafe(32)  # embedded in the served pages' reply forms; a POST without it is refused
     heads = head_files(records)
@@ -1586,6 +1601,12 @@ def cmd_serve(args, records: Path) -> str:
         while True:
             wake.wait(SERVE_CHECK)
             wake.clear()
+            moved = pin_moved(pin_file)
+            if moved:  # the supervisor starts the service again, which then runs the pm uv tool's version or fails
+                stopped.append(moved)
+                print(f"error: {moved}", file=sys.stderr, flush=True)
+                server.shutdown()
+                return
             try:
                 now["snap"] = refresh(now["snap"])
             except Exception:  # a file vanished mid-look (a git or Dolt rewrite): keep the snapshot, look again
@@ -1797,6 +1818,7 @@ def cmd_serve(args, records: Path) -> str:
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header(service.SERVE_HEADER, str(records.resolve()))  # lets a probe tell this service apart
+            self.send_header(service.VERSION_HEADER, __version__)
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(body)
@@ -1822,6 +1844,8 @@ def cmd_serve(args, records: Path) -> str:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    if stopped:
+        raise Refuse(stopped[0])
     return "stopped"  # replies still pending stay in the spool for the next start
 
 
@@ -2207,11 +2231,11 @@ def cmd_record_link(args, records: Path) -> str:
     served = service.answering(port())
     if served is None:
         raise Refuse(f"no site is served on :{port()}; start it with {fix}, then run this again")
-    if not served:
+    if not served[0]:
         raise Refuse(f"the server on :{port()} is not the pm service, so its pages may be stale; stop the old server on "
                      f":{port()}, then {fix}")
-    if Path(served) != records.resolve():
-        raise Refuse(f"the pm service on :{port()} renders another store ({served}); stop it, then {fix}")
+    if Path(served[0]) != records.resolve():
+        raise Refuse(f"the pm service on :{port()} renders another store ({served[0]}); stop it, then {fix}")
     return f"{site_url()}/{rec.out}"
 
 

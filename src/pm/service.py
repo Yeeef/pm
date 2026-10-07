@@ -11,6 +11,7 @@ the site answering on its port for this clone's store."""
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -24,11 +25,14 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from pm import __version__
+
 from . import push, tool
 from .config import STORE, run_dir
 from .records import RecordError
 
 SERVE_HEADER = "X-PM-Store"  # the service's replies name the store they render, so a probe can check who answers
+VERSION_HEADER = "X-PM-Version"  # and the pm version they run, so a probe sees a service left on an old version
 PROBE_TIMEOUT = 1   # seconds a probe of the site may take; pm where runs one at every session start
 RESTART_WAIT = 15   # seconds restart waits for the site to answer
 TOOLS = ("bd", "git")  # what the service runs; install refuses a PATH without them
@@ -202,7 +206,7 @@ def wait_up(main: Path, port: int, done: str, hint: str = "") -> str:
         if ok:
             return line
         served = answering(port)
-        if time.monotonic() > deadline or (served is not None and served != str((main / STORE).resolve())):
+        if time.monotonic() > deadline or (served is not None and served[0] != str((main / STORE).resolve())):
             # past the deadline, or another server holds the port, so this clone's service cannot bind it
             raise RecordError(f"{done}, but the site does not answer for this store on :{port} "
                               f"({line.split('  ', 1)[-1].strip()}); {hint + '; ' if hint else ''}read pm service logs")
@@ -251,6 +255,10 @@ def drift(main: Path, port: int) -> list[str]:
     else:
         if unit_command(main, kind) != want:
             out.append(f"{unit} does not run the pm uv tool ({' '.join(want)}); run pm service install")
+    with contextlib.suppress(RecordError):
+        served = answering(unit_port(main, kind))
+        if served and Path(served[0]) == (main / STORE).resolve() and served[1] != __version__:
+            out.append(f"the service on :{unit_port(main, kind)} is stale: {stale(served[1])}")
     return out
 
 
@@ -276,16 +284,24 @@ def uninstall(main: Path) -> str:
     return f"removed the pm service: {kind} {name} ({unit})"
 
 
-def answering(port: int) -> str | None:
-    """The store the server on `port` renders, by its SERVE_HEADER; "" when what answers is not pm, None when nothing
-    answers. The probe fetches style.css, which the service answers without rendering."""
+def answering(port: int) -> tuple[str, str] | None:
+    """The store the server on `port` renders and the pm version it runs, by SERVE_HEADER and VERSION_HEADER ("" for
+    one it does not send: what answers is not pm, or a pm too old to say); None when nothing answers. The probe
+    fetches style.css, which the service answers without rendering."""
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/style.css", timeout=PROBE_TIMEOUT) as r:
-            return r.headers.get(SERVE_HEADER) or ""
+            headers = r.headers
     except urllib.error.HTTPError as e:
-        return e.headers.get(SERVE_HEADER) or ""
+        headers = e.headers
     except OSError:
         return None
+    return headers.get(SERVE_HEADER) or "", headers.get(VERSION_HEADER) or ""
+
+
+def stale(version: str) -> str:
+    """What to say of a service answering for this store on another pm version than this one."""
+    return (f"it runs pm {version or 'older than 0.1.0'}, not the pinned {__version__}: the pm uv tool is on another "
+            f"version; run pm init")
 
 
 def health(main: Path, store: Path) -> tuple[bool, str]:
@@ -307,9 +323,11 @@ def health(main: Path, store: Path) -> tuple[bool, str]:
     served = answering(port)
     if served is None:
         return False, head + f"down: nothing answers on :{port}; run pm service restart, then pm service logs"
-    if Path(served) != store.resolve():
-        what = f"another store ({served})" if served else "a server that is not pm"
+    if Path(served[0]) != store.resolve():
+        what = f"another store ({served[0]})" if served[0] else "a server that is not pm"
         return False, head + f"down: :{port} is held by {what}; stop it, then run pm service restart"
+    if served[1] != __version__:
+        return False, head + f"stale: {stale(served[1])}"
     return True, head + f"running; the site answers on :{port}"
 
 

@@ -12,12 +12,13 @@ import socket
 import subprocess
 import sys
 import threading
+import urllib.request
 from pathlib import Path
 
 import pytest
 
 from conftest import PM, stop_services
-from pm import push, service, tool
+from pm import __version__, push, service, tool
 from pm.records import RecordError
 
 
@@ -136,14 +137,13 @@ def test_restart_and_logs_refuse_before_install(machine, monkeypatch):
         service.logs(main, 10)
 
 
-def service_run(repo, port: str, log: Path | None = None) -> tuple[subprocess.Popen, int]:
-    """`pm service run` on `port` (0: a free one), as the supervisor starts it; its output to `log` when given."""
-    out = open(log, "a") if log else subprocess.DEVNULL
+def service_run(repo, port: str) -> tuple[subprocess.Popen, int]:
+    """`pm service run` on `port` (0: a free one), as the supervisor starts it, its stdout and stderr in one pipe."""
     srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root, env=dict(repo.env, PORT=port),
-                           stdout=subprocess.PIPE if not log else out, stderr=subprocess.STDOUT if log else out, text=True)
-    if log:
-        return srv, int(port)
-    return srv, int(re.search(r"http://localhost:(\d+)", srv.stdout.readline()).group(1))
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    while not (found := re.search(r"^Serving http://localhost:(\d+)", srv.stdout.readline())):
+        assert srv.poll() is None, "pm service run exited before serving"
+    return srv, int(found.group(1))
 
 
 def free_port() -> int:
@@ -200,6 +200,34 @@ def test_install_fails_when_the_service_does_not_come_up(repo):
     assert f"the site does not answer for this store on :{port}" in res.stderr, res.stderr
     assert "held by a server that is not pm" in res.stderr
     assert "give this clone its own port with PORT=<n> pm service install" in res.stderr
+
+
+def test_service_stops_once_the_pin_moves(repo):
+    """A pull after pm upgrade moves the pin under a running service: it stops with an error instead of serving the
+    old version, and the supervisor's restart then runs the pm uv tool's."""
+    repo.dolt()
+    srv, port = service_run(repo, "0")
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/style.css") as r:
+            assert r.headers["X-PM-Version"] == __version__
+        cfg = repo.root / ".pm/config.toml"
+        cfg.write_text(cfg.read_text().replace(f'version = "{__version__}"', 'version = "9.9.9"'))
+        out, _ = srv.communicate(timeout=10)
+    finally:
+        srv.kill()
+    assert srv.returncode == 1
+    assert f"now pins pm 9.9.9, but this service runs pm {__version__}; stopping" in out, out
+
+
+def test_health_and_doctor_report_a_service_on_another_version(machine, monkeypatch):
+    main, calls, world = machine
+    monkeypatch.setattr(sys, "platform", "linux")
+    service.install(main, 8123)
+    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), "0.0.1"))
+    ok, line = service.health(main, main / ".pm/store/records")
+    assert not ok and line.endswith(f"stale: it runs pm 0.0.1, not the pinned {__version__}: the pm uv tool is on "
+                                    "another version; run pm init"), line
+    assert any("is stale: it runs pm 0.0.1" in d for d in service.drift(main, None))
 
 
 def test_status_flags_a_failed_push(repo):
