@@ -120,5 +120,4 @@ A change to setup, the hooks, the site or replies gets a live check besides its 
 
 ## Elsewhere
 
-- `main` still holds the pre-package harness (`bin/pm`, `skills/project-management/harness/*.py`, `SKILL.md`,
-  `RULES.md`); this branch replaces it with the package, and `pm init` moves a clone off it (`legacy.py`).
+- A clone set up by the old harness (a `.records` store, the old push job, path-based hook entries) is moved onto installed pm by `pm init`; the list of what it removes is `legacy.py`.
