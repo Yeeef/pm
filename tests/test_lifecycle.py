@@ -190,3 +190,16 @@ def test_uninstall_then_init_round_trips(new_repo: Path, tmp_path: Path):
     assert (tmp_path / "codex/config.toml").read_text() == codex
     assert git(new_repo, "status", "--porcelain").strip() == ""
     assert doctor(new_repo)[0] == 0
+
+
+def test_uninstall_skips_a_worktree_whose_directory_is_gone(new_repo: Path, tmp_path: Path):
+    """A worktree deleted without git worktree remove is still listed (prunable); uninstall skips it."""
+    install_everywhere(new_repo, tmp_path)
+    gone = tmp_path / "gone"
+    subprocess.run(["git", "worktree", "add", "-q", "-b", "gone", str(gone)], cwd=new_repo, env=env(tmp_path), check=True)
+    subprocess.run(["rm", "-rf", str(gone)], check=True)
+    assert "prunable" in git(new_repo, "worktree", "list", "--porcelain")
+    res = pm(new_repo, "uninstall")
+    assert res.returncode == 0, res.stderr
+    assert sched_units(tmp_path) == [] and not (new_repo / ".pm").exists()
+    assert not (tmp_path / "wt/records").is_symlink()

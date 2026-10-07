@@ -2534,8 +2534,16 @@ def remove_codex_roots(path: Path, roots: list[str]) -> str:
 
 
 def worktrees(main: Path) -> list[Path]:
-    res = store_git(main, "worktree", "list", "--porcelain")
-    return [Path(l.removeprefix("worktree ")) for l in res.splitlines() if l.startswith("worktree ")]
+    """The clone's worktrees whose directory exists: one deleted without git worktree remove is still listed
+    (prunable), and git cannot run in it."""
+    out = []
+    for block in store_git(main, "worktree", "list", "--porcelain").split("\n\n"):
+        lines = block.splitlines()
+        if lines and lines[0].startswith("worktree ") and not any(l.startswith("prunable") for l in lines):
+            tree = Path(lines[0].removeprefix("worktree "))
+            if tree.is_dir():
+                out.append(tree)
+    return out
 
 
 def cmd_uninstall(args) -> str:
@@ -2562,6 +2570,7 @@ def cmd_uninstall(args) -> str:
     codex_new = remove_codex_roots(codex_path, roots) if roots and codex_path.exists() else None
     for t in trees:
         claude_dirs(t / ".claude/settings.local.json")  # refuse an unreadable one before changing anything
+    sparse = {t: sparse_patterns(t) == PM_SPARSE for t in trees}  # read before the first change, which may not fail
     out = []
     said = service.uninstall(main)
     if said:
@@ -2571,7 +2580,7 @@ def cmd_uninstall(args) -> str:
         if link.is_symlink() and link.resolve() == store.resolve():
             link.unlink()
             out.append(f"removed the link {link}")
-        if sparse_patterns(t) == PM_SPARSE:
+        if sparse[t]:
             store_git(t, "sparse-checkout", "disable")
             subprocess.run(["git", "config", "--worktree", "--unset", "sparse.expectFilesOutsideOfPatterns"], cwd=t,
                            capture_output=True)
