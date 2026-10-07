@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from conftest import PM
-from pm import __version__, tool
+from pm import __version__, launch, tool
 from pm.records import RecordError
 
 FAKE_UV = '''#!{py}
@@ -116,7 +116,7 @@ def test_a_launched_pm_keeps_the_launcher_tool_and_takes_any_launcher_as_current
     launcher, so pm init leaves the tool and says so, and the service's unit still runs the tool's interpreter."""
     tool.ensure()  # the machine's launcher, built from SOURCE
     runs_from(monkeypatch, {**SOURCE, "vcs_info": {**SOURCE["vcs_info"], "commit_id": "5e8bd2b" + "0" * 33}})
-    monkeypatch.setenv("PM_LAUNCHED", __version__)
+    monkeypatch.setitem(launch.marks, launch.LAUNCHED, __version__)  # as launch() took it from the environment
     n = len(uv())
     py = tmp_path / "tools/pm/bin/python"
     assert tool.ensure() == (f"left the pm uv tool ({py}) as it is: it launched this pm {__version__} for the repo's "

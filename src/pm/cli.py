@@ -2594,7 +2594,8 @@ def cmd_doctor(args) -> tuple[int, str]:
     store = store_path(cwd)
     main = main_of(store)
     top = code_top(cwd, store, "doctor")
-    diffs = [f"repo: {d}; run pm upgrade to rewrite it" for d in install.drift(top, settings_of(cfg()))]
+    fix = f"pm upgrade --to {__version__}"  # the pin: a bare pm upgrade runs the pm uv tool's version
+    diffs = [f"repo: {d}; run {fix} to rewrite it" for d in install.drift(top, settings_of(cfg()))]
     diffs += doctor_setup(top, main, store)
     try:
         repo_found = repo_legacy(top)[1]
@@ -2602,7 +2603,7 @@ def cmd_doctor(args) -> tuple[int, str]:
         repo_found = []
         diffs.append(f"repo: cannot look for the pre-package harness's pieces: {e}")
     codex = codex_home() / "config.toml"
-    diffs += [f"legacy: {d}; run pm upgrade" for d in repo_found]  # pm init leaves an installed repo's files alone
+    diffs += [f"legacy: {d}; run {fix}" for d in repo_found]  # pm init leaves an installed repo's files alone
     diffs += [f"legacy: {d}; run pm init" for d in
               legacy.clone_pieces(main, store, codex_config(codex)[2] if codex.is_file() else [])]
     if diffs:
@@ -2612,11 +2613,12 @@ def cmd_doctor(args) -> tuple[int, str]:
 
 
 def cmd_upgrade(args) -> str:
-    """Move the pin to the running pm and rewrite every managed piece as it writes them; commits nothing."""
+    """Move the pin to the running pm and rewrite every managed piece as it writes them; commits nothing. Without
+    --to it never moves a pin down: the pm uv tool runs a bare pm upgrade at its own version."""
     to = args.to or __version__
     if to != __version__:
-        raise Refuse(f"pm upgrade --to {to} must run pm {to}, but pm {__version__} is running; install it with "
-                     f"{config.INSTALL.format(v=to)}, then run pm upgrade")
+        raise Refuse(f"pm upgrade --to {to} must run pm {to}, but pm {__version__} is running; run it as the pm uv "
+                     f"tool, which launches pm {to}: install the latest with {config.LATEST}")
     cwd = Path.cwd()
     store = store_path(cwd)
     top = code_top(cwd, store, "upgrade")
@@ -2624,6 +2626,11 @@ def cmd_upgrade(args) -> str:
         c = config.read(top)
     except config.ConfigError as e:
         raise Refuse(str(e))
+    have, run = launch.key(c.version), launch.key(__version__)
+    if args.to is None and have is not None and run is not None and have > run:
+        raise Refuse(f"this repo pins pm {c.version}, newer than the running pm {__version__}, and pm upgrade moves "
+                     f"a pin down only when --to names the version; run pm upgrade --to {c.version} to rewrite pm's "
+                     f"pieces at the pin, or install the latest pm uv tool with {config.LATEST}, then pm upgrade")
     try:
         overlay, found = repo_legacy(top)  # the pre-package harness's pieces go too
         planned = install.rewrite(top, settings_of(c), overlay)
@@ -3183,7 +3190,9 @@ Stale build: every {SERVE_CHECK:g} s the service rereads the pin in {config.REL}
 pull after pm upgrade) the service exits and the supervisor starts the pm uv tool again, which runs the new
 pin. A service that answers on another build than the running pm, the pinned one, is stale in pm where, pm
 service status and pm doctor. Fix: pm init (it installs the pm uv tool at this build unless the tool launched
-it, then the service); when the tool already runs this build, pm service install or pm service restart.
+it, then the service); when the tool already runs this build, pm service install or pm service restart. A unit
+that runs another interpreter than the pm uv tool's (a pin older than 0.1.2 wrote it to run its own tool) is
+stale there too, and session start leaves it: pm service install rewrites it.
 
 Agents: pm prime carries pm where's service line and push state, and pm show warns when a push needs
 attention. When the service is down, run pm service restart; if that fails, raise an action for the
@@ -3492,7 +3501,9 @@ def parser() -> argparse.ArgumentParser:
                                        "as it writes them (the fix pm doctor names for a changed one), removing the "
                                        "pre-package harness's; writes files and prints the commit to make, never commits")
     s.add_argument("--to", metavar="X", help="the version to move to: the running pm's (the default), or another, "
-                                             "which the pm uv tool runs to make the move")
+                                             "which the pm uv tool runs to make the move; without it pm upgrade "
+                                             "refuses a pin newer than the running pm (--to the pin rewrites the "
+                                             "pieces at it)")
     s.set_defaults(func=cmd_upgrade)
 
     s = sub.add_parser("uninstall", help="remove pm's pieces from this worktree (hook entries, workflows, .gitignore "

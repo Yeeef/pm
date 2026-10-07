@@ -387,8 +387,13 @@ def health(main: Path, store: Path) -> tuple[bool, str]:
         return False, head + "not installed; run pm service install"
     try:
         port = unit_port(main, kind)
+        want = command(tool.python())
     except RecordError as e:
         return False, head + f"broken: {e}"
+    have = unit_command(main, kind)
+    if have != want:  # a pin older than the launcher wrote it to run that pin's own tool: restarting runs that again
+        return False, head + (f"stale: its unit runs {' '.join(have or ['nothing'])}, not the pm uv tool "
+                              f"({' '.join(want)}); run pm service install")
     if not loaded(main, kind):
         return False, head + f"down: {kind} does not hold it; run pm service restart"
     served = answering(port)

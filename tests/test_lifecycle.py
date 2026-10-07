@@ -83,7 +83,7 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
         change(new_repo)
     code, lines = doctor(new_repo)
     assert code == 1 and reported(lines, [f"repo: {want}" for _, want in REPO_CHANGES.values()]), lines
-    assert all(l.endswith("run pm upgrade to rewrite it") for l in lines), lines
+    assert all(l.endswith(f"run pm upgrade --to {__version__} to rewrite it") for l in lines), lines
     res = pm(new_repo, "upgrade")
     assert res.returncode == 0 and "pin stays" in res.stdout, res.stderr
     assert doctor(new_repo)[0] == 0
@@ -91,7 +91,7 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
 
 def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new_repo: Path):
     """Once .pm/config.toml exists, pm init (session start runs it) does only the clone's half: a branch that changed
-    pm's hook entries keeps its change, and pm doctor names pm upgrade as the fix."""
+    pm's hook entries keeps its change, and pm doctor names pm upgrade --to the pin as the fix."""
     assert pm(new_repo, "init").returncode == 0
     git(new_repo, "add", "-A")
     git(new_repo, "commit", "-qm", "Install pm")
@@ -108,7 +108,7 @@ def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new
     code, lines = doctor(new_repo)
     assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
                                           "repo: .github/workflows/pm-records-guard.yml: pm's part is missing"]), lines
-    assert all(l.endswith("run pm upgrade to rewrite it") for l in lines), lines
+    assert all(l.endswith(f"run pm upgrade --to {__version__} to rewrite it") for l in lines), lines
     # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
     res = pm(new_repo, "init", "--site-url", "pm.example.com")
     assert res.returncode == 1 and "is not an http(s) base URL" in res.stderr and git(new_repo, "status", "--porcelain") == ""
@@ -177,7 +177,9 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
                               capture_output=True, text=True)
     assert launched("0.0.1", "show").returncode == 1, "every other command refuses the old pin"
     res = launched("9.9.9", "upgrade", "--to", "9.9.9")
-    assert res.returncode == 1 and 'uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v9.9.9' in res.stderr
+    assert res.returncode == 1 and res.stderr.endswith(  # the launcher's install, never an old pm in its place
+        'which launches pm 9.9.9: install the latest with uv tool install --reinstall '
+        '"git+https://github.com/Yeeef/yeeef-agents#subdirectory=pm"\n'), res.stderr
     head = git(existing, "rev-parse", "HEAD")
     res = pm(existing, "upgrade")
     assert res.returncode == 0, res.stderr
