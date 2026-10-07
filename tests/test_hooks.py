@@ -233,7 +233,7 @@ def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
     assert [b.split("\n", 1)[0] for b in bodies] == list(hooks.STARTS)
     for n, t in enumerate(titles, 1):  # hooks arrive in any order, so each title names its place and its sections
         assert t.startswith(f"# pm rules ({n} of 2): ") and "\n" not in t
-    assert "What — 1. The layers" in titles[0] and "How; Writing to the owner" in titles[1]
+    assert "What — 1. The layers" in titles[0] and "How; Commands" in titles[1]
 
 
 def test_hook_entries_run_every_rules_chunk():
