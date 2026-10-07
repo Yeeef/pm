@@ -239,3 +239,14 @@ def test_init_refuses_settings_it_would_reformat(existing: Path):
     res = pm(existing, "init")
     assert res.returncode != 0 and ".claude/settings.json is not laid out as pm writes JSON" in res.stderr, res.stderr
     assert snapshot(existing) == before
+
+
+def test_init_refuses_before_bd_init_runs(new_repo: Path, tmp_path: Path):
+    """A refusal comes before bd init, which writes and commits Beads' files: the repo is left as it was."""
+    (new_repo / ".claude").mkdir()
+    (new_repo / ".claude/settings.json").write_text(json.dumps(USER_SETTINGS))
+    head, before = git(new_repo, "rev-parse", "HEAD"), snapshot(new_repo)
+    res = pm(new_repo, "init")
+    assert res.returncode != 0 and ".claude/settings.json is not laid out as pm writes JSON" in res.stderr, res.stderr
+    assert ["init", "--non-interactive"] not in [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
+    assert snapshot(new_repo) == before and git(new_repo, "rev-parse", "HEAD") == head

@@ -2342,11 +2342,15 @@ def cmd_init(args) -> str:
         c = cfg()
         s = install.Settings(c.remote, c.main_branch, c.port, c.site_url)
     out = []
+    try:
+        planned = install.plan(top, s)  # read-only: a refusal comes before bd init, which writes and commits
+    except install.InstallError as e:
+        raise Refuse(str(e))
     if not (top / ".beads").exists():
         bd(top, "init", "--non-interactive")
         out.append("ran bd init: Beads set up its database, its files and its git hooks (and commits them itself)")
     try:
-        planned = install.plan(top, s)
+        planned = install.plan(top, s)  # again: bd init wrote files pm's pieces share
         if (subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"], cwd=top,
                            capture_output=True).returncode != 0
                 and not install.remote_has_branch(top, s.remote, BRANCH)):
