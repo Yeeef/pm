@@ -65,12 +65,12 @@ def head() -> str:
 # the rules run as one hook per chunk. The hooks of one entry run in parallel and arrive in any order, so each chunk
 # starts with a title naming its place and its sections. The hook entries name each chunk by number: a new chunk is a
 # new hook entry in every runtime's settings.
-STARTS = ("# pm rules", "# Part 2: how", "## 7. Records", "## 8. Needs and actions")
+STARTS = ("# pm rules", "# How")
 
 
 def chunks() -> list[str]:
-    """`head()` cut at the lines in STARTS, each chunk under a title line such as "# pm rules (2 of 4): Part 2: how —
-    5. Reading state, 6. Projects, sprints and tasks". Without the titles, the chunks joined by blank lines are
+    """`head()` cut at the lines in STARTS, each chunk under a title line such as "# pm rules (1 of 2): the introduction;
+    What — 1. The layers, 2. The objects, 3. Records, 4. Invariants". Without the titles, the chunks joined by blank lines are
     `head()`. Raises ValueError when a heading in STARTS is missing or out of order."""
     lines = head().split("\n")
     at = [lines.index(s) for s in STARTS]
