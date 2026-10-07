@@ -4,15 +4,17 @@ run as the runtimes run them: JSON on stdin, in a temp clone."""
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from conftest import PM, write_config
+from conftest import PM, stop_services, write_config
 
 from pm import hooks
 
@@ -29,6 +31,18 @@ def run(cmd, event, env, cwd):
     return subprocess.run(cmd, input=json.dumps(event), env=env, cwd=cwd, capture_output=True, text=True, timeout=60)
 
 
+def init_ready(repo):
+    """Session start runs pm init, which needs `pm` on PATH to be the pm uv tool's, and installs a missing pm service
+    (under the fake supervisor) on the config's port, since it drops $PORT: put the tool's bin dir first on PATH and
+    install the service once, by hand, on a free port, never the user's."""
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    repo.env = dict(repo.env, PATH=f"{repo.env['UV_TOOL_BIN_DIR']}{os.pathsep}{repo.env['PATH']}", PORT=str(port))
+    first = repo.pm("init")  # a clone set up once, as pm init leaves it
+    assert first.returncode == 0, first.stderr
+
+
 # ---------------------------------------------------------------- session context
 
 
@@ -39,36 +53,39 @@ def context_of(res, event="SessionStart"):
     return out["additionalContext"]
 
 
-@pytest.mark.slow
-def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
+@pytest.mark.integration
+def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     """One hook per rules chunk, then the state, each under Claude Code's per-hook cap, with pm show whole."""
-    assert repo.pm("setup").returncode == 0  # a clone set up once, as bin/pm setup leaves it
+    init_ready(repo)
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(hooks.STARTS) + 1)]
     assert got == hooks.chunks() and got[0].startswith("# pm rules (1 of 2): the introduction; ")
     text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
     ran, _, rest = text.partition("\n\n")
-    assert ran.startswith(f"`bin/pm setup` at session start:\nalready set up: {repo.records} -> {repo.store}\n")
+    # quiet when set up: nothing changed, the service is current
+    assert ran.startswith(f"`pm init` at session start:\nalready set up: {repo.records} -> {repo.store}\n"), ran
+    assert "installed" not in ran and "updated" not in ran and "wrote" not in ran, ran
     located, _, rest = rest.partition("\n\n")
-    assert located == "Locations from `bin/pm where` at session start:\n" + repo.pm("where").stdout.strip()
+    assert located == "Locations from `pm where` at session start:\n" + repo.pm("where").stdout.strip()
     assert f"checkout  {repo.root}  branch main, records link set up" in located
     header, _, body = rest.partition("\n\n")
-    assert re.fullmatch(r"Project state from `bin/pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
-                        r"run `bin/pm show` again before stating project state to the owner\.", header)
-    assert body == shown and "Sprint 1: First" in body
+    assert re.fullmatch(r"Project state from `pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
+                        r"run `pm show` again before stating project state to the owner\.", header)
+    minute = lambda s: re.sub(r"\d\d:\d\d UTC", "hh:mm UTC", s)  # a stamp may cross a minute between two calls
+    assert minute(body) == minute(shown) and "Sprint 1: First" in body
     plain = repo.pm("prime")  # by hand: the rules whole and in order, then the state, no envelope
-    assert plain.returncode == 0 and plain.stdout.strip() == hooks.head() + "\n\n" + text
+    assert plain.returncode == 0 and minute(plain.stdout.strip()) == minute(hooks.head() + "\n\n" + text)
 
 
 TODAY_SHOW = "\n".join([  # pm show of a busy day: 2026-10-07 printed 7,085 characters; this one prints more
-    "warning: the scheduled push needs attention (pm where; it runs bin/pm push):",
+    "warning: the pm service's push needs attention (pm service status; pm service logs):",
     "  last run 2026-10-07 01:10 UTC failed: bd dolt push: remote rejected (non-fast-forward)",
     "  overdue: no run for 41 minutes; it runs every 10 minutes",
     "warning: other live sessions hold these tasks; do not start or delegate them:",
     *(f"  yeeef-agents-9va.6{n}.{n}  held by 7f3a9c0{n}, 2h ago, live" for n in range(8)),
     "today 2026-10-07: " + "Auto-summary pages, decision cards and feedback tracking shipped. " * 3,
-    "site: https://pm.example.com (pm serve); a record's page is <site>/<its path under records/, without .md>.html",
+    "site: https://pm.example.com (the pm service); a record's page is <site>/<its path under records/, without .md>.html",
     'feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"',
     *(line for p in range(5) for line in (
         f"project-{p}  yeeef-agents-p{p}  " + "One shared record for agents and the owner, kept current. " * 2,
@@ -96,7 +113,7 @@ def test_session_start_keeps_a_busy_days_pm_show_whole(tmp_path, monkeypatch):
     """The fixture is today-size: every warning and owner request line reaches the session, and nothing is cut."""
     assert len(TODAY_SHOW) > 7_085 and len(TODAY_WHERE) > 1_295
     monkeypatch.setattr(hooks, "SHOW", [sys.executable, "-c", f"print({TODAY_SHOW!r})"])
-    monkeypatch.setattr(hooks, "SETUP", [sys.executable, "-c", f"print({'already set up: ' + 'x' * 260!r})"])
+    monkeypatch.setattr(hooks, "INIT", [sys.executable, "-c", f"print({'already set up: ' + 'x' * 260!r})"])
     monkeypatch.setattr(hooks, "WHERE", [sys.executable, "-c", f"print({TODAY_WHERE!r})"])
     text = hooks.state(str(tmp_path))
     assert len(text) <= hooks.CAP and hooks.CUT not in text
@@ -108,7 +125,7 @@ def test_session_start_keeps_a_busy_days_pm_show_whole(tmp_path, monkeypatch):
     assert all(len(c) <= hooks.CAP for c in hooks.chunks())  # each rules hook, too, reaches the session inline
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 @pytest.mark.parametrize("tracked", [False, True], ids=["no-records", "mains-tracked-copy"])
 def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     """Claude Code's worktrees: added with --no-checkout, then reset, so git never runs post-checkout. With main
@@ -125,21 +142,50 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     repo.git("worktree", "add", "-q", "--no-checkout", "-b", "bridge", str(wt))
     repo.git("reset", "-q", "--hard", cwd=wt)
     assert (wt / "records").is_dir() == tracked and not (wt / "records").is_symlink()
+    init_ready(repo)  # after the worktree: main's sparse checkout, which pm init sets, would carry over to it
     text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt))
-    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
+    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve(), text
     assert repo.git("status", "--porcelain", cwd=wt) == ""
     ran, located, rest = text.split("\n\n", 2)
-    assert ran.startswith("`bin/pm setup` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
+    assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
     assert f"checkout  {wt}  branch bridge, records link set up" in located
-    assert rest.startswith("Project state from `bin/pm show` at session start, ") and "Sprint 1: First" in rest
+    assert rest.startswith("Project state from `pm show` at session start, ") and "Sprint 1: First" in rest
 
 
-@pytest.mark.slow
+def test_session_start_runs_init_without_port(tmp_path, monkeypatch):
+    """$PORT in a session's environment is no request to move the clone's service: session start's init never sees it."""
+    monkeypatch.setenv("PORT", "8123")
+    said = hooks.init(str(tmp_path), [sys.executable, "-c", "import os; print(os.environ.get('PORT', 'unset'))"])
+    assert said == "`pm init` at session start:\nunset\n\n", said
+
+
+@pytest.mark.integration
+def test_session_start_reports_a_down_service_and_a_typed_init_restarts_it(repo, tmp_path):
+    """Session start installs only a missing service: a down one is reported, never restarted within its budget;
+    pm init typed by a person restarts it, on the port its unit serves on although the port's last connections
+    linger in TIME_WAIT."""
+    init_ready(repo)
+    port = int(repo.env["PORT"])
+    repo.env = {k: v for k, v in repo.env.items() if k != "PORT"}
+    stop_services(tmp_path)  # the process dies; the fake supervisor still holds the unit
+    calls = (tmp_path / "sched.log").read_text()
+    text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(repo.root)}, repo.env, repo.root))
+    ran = text.partition("\n\n")[0]
+    assert f"left the installed pm service as it is (session start never restarts it): down: nothing answers on :{port}" \
+        in ran, ran
+    assert (tmp_path / "sched.log").read_text().count("bootstrap") == calls.count("bootstrap"), "no restart"
+    res = repo.pm("init")
+    assert res.returncode == 0 and f"updated the pm service: " in res.stdout, (res.stdout, res.stderr)
+    assert f"serving http://localhost:{port} " in res.stdout
+
+
+@pytest.mark.integration
 def test_session_start_fails_open_with_one_line(repo):
+    init_ready(repo)
     (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
     text = context_of(run(STATE, {"cwd": str(repo.root)}, repo.env, repo.root))
     _, located, shown = text.split("\n\n", 2)
-    assert located.startswith("Locations from `bin/pm where` at session start:\n")  # pm where reads no Beads
+    assert located.startswith("Locations from `pm where` at session start:\n")  # pm where reads no Beads
     assert shown.startswith("pm show failed at session start (") and "\n" not in shown
 
 
@@ -161,6 +207,18 @@ def test_prime_lists_every_agent_command_from_the_parser():
     assert hooks.commands().startswith("# Commands\n\n")
     assert hooks.commands().count("\n") == 2  # compact: a heading and the nouns; prime.md points at --help
     assert "for more, run `pm <noun> [cmd] --help`." in hooks.rules()  # the pointer the compact list relies on
+
+
+def test_pm_init_is_the_one_install_command_and_session_start_runs_it():
+    """No `pm setup`: pm --help lists init only, and the session-start state hook runs pm init (the worktree test
+    above shows it setting up a new worktree)."""
+    from pm.cli import parser
+    assert "setup" not in subcommands() and "init" in subcommands()
+    listing = parser().format_help()
+    assert not re.search(r"^ {4}setup\b|[{,]setup[,}]|pm setup", listing, re.M), listing
+    assert hooks.INIT[-2:] == ["init", "--session-start"]
+    res = subprocess.run([*PM, "setup"], capture_output=True, text=True)
+    assert res.returncode == 2 and "invalid choice: 'setup'" in res.stderr, res.stderr
 
 
 def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
@@ -228,7 +286,7 @@ def test_stop_blocks_on_a_record_this_session_edited(repo, tmp_path):
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": False}, repo.env, repo.root)
     out = json.loads(res.stdout)
     assert out["decision"] == "block"
-    assert "- records/sprints/demo-1.md" in out["reason"] and "bin/pm commit -m" in out["reason"]
+    assert "- records/sprints/demo-1.md" in out["reason"] and "pm commit -m" in out["reason"]
 
 
 def test_stop_passes_another_sessions_edit(repo, tmp_path):

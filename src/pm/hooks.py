@@ -13,23 +13,29 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 
+from pm.config import STORE
 from pm.owner_request import hook_owner_request
 
 # ---------------------------------------------------------------- pm prime
 
 CAP = 10_000  # Claude Code's additionalContext limit, in characters
 TIMEOUT = 20  # seconds; `pm show` takes about 1 s
-SETUP_TIMEOUT = 6  # seconds; `pm setup` takes 0.4-1.6 s; a fresh clone's Beads bootstrap needs `bin/pm setup` by hand
-WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s. With the others, under the hooks' 30 s timeout
-HEADER = ("Project state from `bin/pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
-          "may have changed since; run `bin/pm show` again before stating project state to the owner.\n\n")
-CUT = "\n… cut at the hook's 10,000-character limit; run `bin/pm show` for the rest."
+# seconds; `pm init` in a set-up clone takes 0.8-0.9 s (tests, 2026-10-07), and one that installs a missing pm service
+# waits up to service.RESTART_WAIT (15 s) for its site (session start never restarts an installed one); a fresh
+# clone's Beads bootstrap needs `pm init` by hand
+INIT_TIMEOUT = 18
+WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s
+BUDGET = 28  # seconds for init, where and show together, under the state hook's 30 s timeout
+HEADER = ("Project state from `pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
+          "may have changed since; run `pm show` again before stating project state to the owner.\n\n")
+CUT = "\n… cut at the hook's 10,000-character limit; run `pm show` for the rest."
 SHOW = [sys.executable, "-m", "pm.cli", "show", "--refresh-inbox"]
-SETUP = [sys.executable, "-m", "pm.cli", "setup"]
+INIT = [sys.executable, "-m", "pm.cli", "init", "--session-start"]
 WHERE = [sys.executable, "-m", "pm.cli", "where"]
 
 
@@ -86,18 +92,22 @@ def chunks() -> list[str]:
     return out
 
 
-def setup(cwd: str | None, cmd: list[str] | None = None) -> str:
-    """What `pm setup` did, ending in a blank line, or one line saying why it did not run. Session start is the one
-    place setup runs in a new worktree: it changes nothing in a set-up one, and readies one whatever tool created it
-    (a git `post-checkout` hook would miss Claude Code's worktrees, added with --no-checkout and then reset)."""
+def init(cwd: str | None, cmd: list[str] | None = None) -> str:
+    """What `pm init` did, ending in a blank line, or one line saying why it did not run. Session start is the one
+    place init runs in a new worktree: it changes nothing in a set-up one, and readies one whatever tool created it
+    (a git `post-checkout` hook would miss Claude Code's worktrees, added with --no-checkout and then reset). A
+    refusal is named by its error line, the first of its output. $PORT is left out: a session's environment is no
+    request to move the clone's service, which `PORT=<n> pm service install` typed by a person is."""
+    env = {k: v for k, v in os.environ.items() if k != "PORT"}
     try:
-        res = subprocess.run(cmd or SETUP, cwd=cwd, capture_output=True, text=True, timeout=SETUP_TIMEOUT)
+        res = subprocess.run(cmd or INIT, cwd=cwd, capture_output=True, text=True, timeout=INIT_TIMEOUT, env=env)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"pm setup did not run at session start ({type(e).__name__}: {e}); run `bin/pm setup` by hand.\n\n"
+        return f"pm init did not run at session start ({type(e).__name__}: {e}); run `pm init` by hand.\n\n"
     if res.returncode != 0:
         why = (res.stderr or res.stdout).strip().splitlines()
-        return f"pm setup failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm setup` by hand.\n\n"
-    return f"`bin/pm setup` at session start:\n{res.stdout.strip()}\n\n"
+        line = next((l for l in why if l.startswith("error: ")), why[-1]) if why else f"exit {res.returncode}"
+        return f"pm init failed at session start ({line}); run `pm init` by hand.\n\n"
+    return f"`pm init` at session start:\n{res.stdout.strip()}\n\n"
 
 
 def where(cwd: str | None, cmd: list[str] | None = None) -> str:
@@ -106,27 +116,28 @@ def where(cwd: str | None, cmd: list[str] | None = None) -> str:
     try:
         res = subprocess.run(cmd or WHERE, cwd=cwd, capture_output=True, text=True, timeout=WHERE_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"pm where did not run at session start ({type(e).__name__}: {e}); run `bin/pm where` by hand.\n\n"
+        return f"pm where did not run at session start ({type(e).__name__}: {e}); run `pm where` by hand.\n\n"
     if res.returncode != 0:
         why = (res.stderr or res.stdout).strip().splitlines()
-        return f"pm where failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm where` by hand.\n\n"
-    return f"Locations from `bin/pm where` at session start:\n{res.stdout.strip()}\n\n"
+        return f"pm where failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `pm where` by hand.\n\n"
+    return f"Locations from `pm where` at session start:\n{res.stdout.strip()}\n\n"
 
 
-def context(cwd: str | None, cmd: list[str] | None = None, session: str | None = None, cap: int = CAP) -> str:
+def context(cwd: str | None, cmd: list[str] | None = None, session: str | None = None, cap: int = CAP,
+            timeout: float = TIMEOUT) -> str:
     """`pm show` under a header, cut at a line to `cap` characters, or one line when it fails. `pm show` runs as the
     starting session, so its warning lists only tasks other live sessions hold, and with --refresh-inbox, which
     first points the session's open requests at its current inbox socket (a resumed session binds a new one) from
-    the Beads read `pm show` makes anyway. It runs in a subprocess so a hang is cut off at TIMEOUT."""
+    the Beads read `pm show` makes anyway. It runs in a subprocess so a hang is cut off at `timeout`."""
     cmd = cmd or SHOW
     env = dict(os.environ, CLAUDE_CODE_SESSION_ID=session) if session else None
     try:
-        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT, env=env)
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"pm show did not run at session start ({type(e).__name__}: {e}); run `bin/pm show` by hand."
+        return f"pm show did not run at session start ({type(e).__name__}: {e}); run `pm show` by hand."
     if res.returncode != 0:
         why = (res.stderr or res.stdout).strip().splitlines()
-        return f"pm show failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm show` by hand."
+        return f"pm show failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `pm show` by hand."
     text = HEADER.format(at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")) + res.stdout.strip()
     if len(text) > cap:
         text = text[:text.rfind("\n", 0, cap - len(CUT))] + CUT
@@ -134,10 +145,12 @@ def context(cwd: str | None, cmd: list[str] | None = None, session: str | None =
 
 
 def state(cwd: str | None, session: str | None = None) -> str:
-    """`pm prime --state`: what `pm setup` did and `pm where`, then `pm show`, all within CAP, so `pm show` gets what
-    the setup and where lines leave and loses its last part first."""
-    first = setup(cwd) + where(cwd)
-    return first + context(cwd, session=session, cap=CAP - len(first))
+    """`pm prime --state`: what `pm init` did and `pm where`, then `pm show`, all within CAP, so `pm show` gets what
+    the init and where lines leave and loses its last part first."""
+    start = time.monotonic()
+    first = init(cwd) + where(cwd)
+    left = min(TIMEOUT, max(1.0, BUDGET - (time.monotonic() - start)))  # pm show gets what init and where left
+    return first + context(cwd, session=session, cap=CAP - len(first), timeout=left)
 
 
 def prime(cwd: str | None, session: str | None = None) -> str:
@@ -173,7 +186,7 @@ def read_event() -> dict | None:
 
 def cmd_prime(part: str | int | None, hook_json: bool) -> int:
     """`pm prime`: the rules, the commands and the state; `part` prints one: N (chunk N of `chunks()`), "state"
-    (`pm setup`, `pm where` and `pm show`) or "subagent" (the line naming the Beads agent profile). SessionStart runs
+    (`pm init`, `pm where` and `pm show`) or "subagent" (the line naming the Beads agent profile). SessionStart runs
     one hook per chunk plus "state", SubagentStart one per chunk plus "subagent", each under its own CAP. With
     --hook-json it reads the hook input on stdin (cwd, session_id, hook_event_name) and prints the envelope Claude
     Code and Codex both read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}, named for the
@@ -197,7 +210,7 @@ def cmd_prime(part: str | int | None, hook_json: bool) -> int:
 # themselves, but Goal, Done when, design pages and delivery reports are edited by hand and committed with
 # `pm commit`; a forgotten one is invisible on the records branch and blocks the next `pm` write to that record.
 #
-# The store is `<main checkout>/.records`, found from the clone's common git dir. When it has uncommitted files, the
+# The store is `<main checkout>/.pm/store/records`, found from the clone's common git dir. When it has uncommitted files, the
 # hook blocks the stop once with a reason naming them. A session commits only its own records, and other sessions
 # write to the same store at the same time, so it blocks only on files this session touched: a dirty file counts when
 # its path under the store (such as `sprints/demo-1.md`) appears in one of this session's tool calls in the transcript
@@ -211,7 +224,7 @@ def cmd_prime(part: str | int | None, hook_json: bool) -> int:
 STOP_REASON = (
     "These records in the store ({store}) have uncommitted changes, and this session's tool calls name them:\n"
     "{files}\n"
-    "Commit the ones you edited with `bin/pm commit -m \"<why>\" <path>...` (paths as listed, under records/), or "
+    "Commit the ones you edited with `pm commit -m \"<why>\" <path>...` (paths as listed, under records/), or "
     "revert them with `git -C {store} checkout -- <path>` (`rm` for a new file). Leave a file you did not edit: "
     "another session is writing it."
 )
@@ -222,9 +235,9 @@ def git(cwd: str | Path | None, *args: str) -> str:
 
 
 def store_of(cwd: str | None) -> Path:
-    """The records store of the clone containing `cwd`: `.records` beside the clone's common .git dir."""
+    """The records store of the clone containing `cwd`: `.pm/store/records` beside the clone's common .git dir."""
     common = Path(git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
-    return common.parent / ".records"
+    return common.parent / STORE
 
 
 def dirty(store: Path) -> list[str]:
@@ -321,4 +334,19 @@ def hook_stop() -> int:
     return 0
 
 
-HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request}
+# ---------------------------------------------------------------- pm hook git-pre-commit
+# Records live on the records branch; a code-branch commit must not edit records/ (main's copy is the copy
+# workflow's). A merge is let through, since merging main brings in the copy. Unlike the runtime hooks, this one
+# refuses: it is the guard.
+
+def hook_git_pre_commit() -> int:
+    if Path(git(None, "rev-parse", "--path-format=absolute", "--git-dir").strip(), "MERGE_HEAD").exists():
+        return 0
+    if git(None, "diff", "--cached", "--name-only", "--", "records/").strip():
+        print("error: this commit edits records/, which only the records branch may change; write records with pm\n"
+              "and unstage these edits: git restore --staged records/", file=sys.stderr)
+        return 1
+    return 0
+
+
+HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request, "git-pre-commit": hook_git_pre_commit}

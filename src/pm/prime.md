@@ -35,7 +35,7 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 
 ## 3. Records
 
-**Where records live.** Each clone has one store: the `records` branch, checked out at `<main checkout>/.pm/store/records`. Each worktree's `records/` is a git-ignored link to it, made by `pm setup`. So a write from any branch or worktree shows everywhere at once, as Beads does.
+**Where records live.** Each clone has one store: the `records` branch, checked out at `<main checkout>/.pm/store/records`. Each worktree's `records/` is a git-ignored link to it, made by `pm init`. So a write from any branch or worktree shows everywhere at once, as Beads does.
 - Code branches never commit `records/`.
 - A GitHub Action copies the store into `main`'s `records/` on each push to `main`.
 - Many sessions write in one store. Commit only the paths that you edited.
@@ -89,7 +89,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A design page covers one area. When it grows to several areas, make each area a sub design page. The main page keeps a short summary per area that links its sub page.
 - A postmortem is due when an incident cost more than a day, or broke other sessions or the owner's view.
 - A day page is generated. Nobody writes one.
-- Session start runs `pm setup`, then injects `pm where` and `pm show` beside `bd prime`. When it says setup failed or timed out, run `pm init` by hand. Never run `bd init`, which makes a new database.
+- Session start runs `pm init --session-start`, then injects `pm where` and `pm show` beside `bd prime`. When it says init failed or timed out, run `pm init` by hand. Never run `bd init`, which makes a new database.
 - **Never leave a request only in chat.** Raise a need first for each request that sprint work waits on. Examples: a decision on a sprint's scope or design, a PR review or merge, an action a task waits on.
 - **The sprint frame.** Goal: what is true when the sprint ends, and why now. Scope: an **In:** and an **Out:** list, at a high level; detail goes in a design page. Done when: a check and its expected result, written before the run. The evidence then shows the goal met, or the finding that voids it. For a one-shot or costly run, the expected result is written first, so the run cannot be read backwards.
 - If you are not sure, record a decision. The record check fails on an answered decision need that no decision cites and that has no `no-decision` label.
@@ -134,7 +134,8 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - Keep a small operational fact (a command, a path, a gotcha): `bd remember`; decisions go in records, not there.
 - Report where pm got in your way: `pm feedback add --project NAME`, once, with what happened and what would have helped.
 - check pm service status: `pm service status`; `pm where` shows its line too. When the service is down, run `pm service restart`; if that fails, raise an action and add a bug task. `pm service logs` prints the end of its log.
-- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and its link, and the pm service. Session start runs `pm setup` for the clone and worktree; a worktree used without a session needs `pm setup` by hand. `pm doctor` reports each piece that differs from what pm writes.
+- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and its link, and the pm service. Session start runs `pm init --session-start` for the clone and worktree: it installs a missing service, but only reports a stale or down one. A worktree used without a session needs `pm init` by hand. `pm doctor` reports each piece that differs from what pm writes.
+- set the site link or port: `pm init --site-url URL` sets the public site link. `PORT=<n> pm service install` moves this clone's site port; on a first install, run `PORT=<n> pm init`.
 
 # Writing to the owner
 

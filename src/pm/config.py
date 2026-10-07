@@ -15,7 +15,10 @@ from pathlib import Path
 from pm import __version__
 
 REL = ".pm/config.toml"
-INSTALL = 'uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v{v}#subdirectory=pm"'
+STORE = ".pm/store/records"  # the records store, under the main checkout
+RUN = ".pm/run"  # runtime state in the main checkout, never committed: the service log, the push state, locks
+RELEASE = "git+https://github.com/Yeeef/yeeef-agents@pm-v{v}#subdirectory=pm"  # a release's requirement
+INSTALL = f'uv tool install "{RELEASE}"'
 KEYS = {"version": str, "remote": str, "main_branch": str, "port": int, "site_url": str}
 REQUIRED = ("version", "remote", "main_branch", "port")
 
@@ -46,12 +49,22 @@ def root(cwd: Path) -> Path:
     if res.returncode != 0:
         raise ConfigError(f"{cwd} is not in a git worktree: {(res.stderr or res.stdout).strip()}")
     top, common = (Path(p).resolve() for p in res.stdout.split("\n")[:2])
-    return common.parent if common.name == ".git" and top == common.parent / ".records" else top
+    return common.parent if common.name == ".git" and top == common.parent / STORE else top
 
 
 @functools.cache
 def load(cwd: Path) -> Config:
     """The config of the checkout containing `cwd`, checked against the running pm's version."""
+    c = read(cwd)
+    if c.version != __version__:
+        raise ConfigError(f"this repo pins pm {c.version} in {c.path}, but pm {__version__} is running; install "
+                          f"the pinned version with {INSTALL.format(v=c.version)} (or move the pin to {__version__} "
+                          f"with pm upgrade)")
+    return c
+
+
+def read(cwd: Path) -> Config:
+    """The config of the checkout containing `cwd`, checked for its keys but not its pin: `pm upgrade` moves it."""
     path = root(cwd) / REL
     if not path.is_file():
         raise ConfigError(f"this repo has no {REL} (looked for {path}); create it with pm init")
@@ -66,12 +79,13 @@ def load(cwd: Path) -> Config:
         raise ConfigError(f"{path}: " + "; ".join(filter(None, [
             unknown and f"unknown keys {', '.join(unknown)}", missing and f"missing keys {', '.join(missing)}",
             wrong and "wrong types for " + ", ".join(f"{k} (want {KEYS[k].__name__})" for k in wrong)])))
-    if data["version"] != __version__:
-        raise ConfigError(f"this repo pins pm {data['version']} in {path}, but pm {__version__} is running; install "
-                          f"the pinned version with {INSTALL.format(v=data['version'])} (or move the pin with "
-                          f"pm upgrade once it exists)")
     return Config(path, data["version"], data["remote"], data["main_branch"], data["port"],
                   data.get("site_url", "").strip().rstrip("/"))
+
+
+def run_dir(main: Path) -> Path:
+    """The clone's runtime-state directory, `<main checkout>/.pm/run`; writers create it."""
+    return main / RUN
 
 
 def write_site_url(cfg: Config, url: str) -> None:

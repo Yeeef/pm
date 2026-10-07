@@ -4,7 +4,7 @@ Every write names its target, validates the records branch as its commit will
 leave it (HEAD plus the change, never another session's uncommitted file), and
 writes nothing if the result would not render or if a record it changes has
 uncommitted edits. Records live in
-the store, the `records` branch checked out at `<main checkout>/.records`; each
+the store, the `records` branch checked out at `<main checkout>/.pm/store/records`; each
 write commits there under a lock every worktree shares. Commands that
 also call `bd` run the `bd` step first. Claim tasks with `pm task claim`; finding and linking tasks stay plain `bd`.
 `pm feedback add` appends where pm got in the way to the project's pm feedback doc.
@@ -40,7 +40,7 @@ from pathlib import Path
 
 import yaml
 
-from pm import config, hooks
+from pm import __version__, config, hooks, install, legacy
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
                            merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
@@ -52,11 +52,12 @@ from pm.records import (NONE_YET, NOT_CLOSED, Record, RecordError, decisions, fi
                              summary_path)
 from pm.site import (SERVE_BEHIND, STATUS_SLOT, STYLE, check_needs_answered, cites, dismissed, local_day,
                           fill_replies, fill_status, pr_label, render_page, render_pages, render_record,
-                          request_place, sprint_reviews, write_site)
+                          request_place, sprint_reviews)
 from pm.store import (BRANCH, SETUP, code_root, commit, committed_records, design_dates, find_store, head_files,
-                           read_files, store_path, uncommitted)
+                           main_of, read_files, store_path, uncommitted)
 from pm.store import git as store_git
 from pm import push as pushjob
+from pm import service, tool
 
 SPRINT_PROMPTS = {
     "Goal": "> What should be true when this sprint ends, and why now?",
@@ -751,9 +752,9 @@ INBOX_ENV = "CLAUDE_CODE_MESSAGING_SOCKET"  # Claude Code exports its session's 
 
 
 def delivery_hint(need_id: str) -> str:
-    """How the raising agent hears the answer: pm serve pushes it into the session's inbox when there is one."""
+    """How the raising agent hears the answer: the pm service pushes it into the session's inbox when there is one."""
     if os.environ.get(INBOX_ENV, "").strip():
-        return (f"pm serve pushes the owner's reply into this session; if the session has ended by then, pm show "
+        return (f"the pm service pushes the owner's reply into this session; if the session has ended by then, pm show "
                 f"flags it for the next one, which reads it with pm reply read {need_id}")
     return (f"this session has no inbox (${INBOX_ENV} unset), so no reply is pushed to it; pm show flags a reply, "
             f"and pm reply read {need_id} prints it")
@@ -848,7 +849,7 @@ def raise_review(args, records: Path) -> str:
              f"--title={title}", f"--description={desc}", f"--external-ref={pr}",
              f"--metadata={json.dumps(meta)}", "--json")
     need_id, _ = created(out)
-    return (f"raised review {need_id} under {parent}; {delivery_hint(need_id)}; pm serve pushes the PR's merge to "
+    return (f"raised review {need_id} under {parent}; {delivery_hint(need_id)}; the pm service pushes the PR's merge to "
             f"main the same way; once the PR is on main: pm action done {need_id} --reason \"merged as <sha>\"")
 
 
@@ -1324,16 +1325,17 @@ def cmd_project_close(args, records: Path) -> str:
     return f"closed {epic_id}: {reason}"
 
 
-def cmd_render(args, records: Path) -> str:
+def check_records(recs: list[Record], beads: dict[str, dict], name: str, summaries: dict | None = None) -> int:
+    """The check of pm check and pm commit: every page of the site renders from `recs` and `beads`, and every answered
+    decision need is cited or marked no-decision; it writes nothing. The number of pages checked."""
+    return len(render_pages(recs, beads, name, summaries=summaries))
+
+
+def cmd_check(args, records: Path) -> str:
     repo = load(records, working=True)
-    site = repo.root / "site"
-    pages = render_pages(repo.recs, repo.beads, repo.root.name, dates=design_dates(records, repo.recs),
-                         summaries=read_summaries(records))
-    write_site(pages, site)
-    return f"rendered {len(pages)} pages into {site}"
+    n = check_records(repo.recs, repo.beads, repo.root.name, read_summaries(records))
+    return f"checked the records in {records}: all {n} pages render"
 
-
-SERVE_HEADER = "X-PM-Store"  # pm serve's replies name the store they render, so a link can check who answers
 
 
 def cfg() -> config.Config:
@@ -1342,22 +1344,23 @@ def cfg() -> config.Config:
 
 
 def port() -> int:
-    """The site port: config's `port`, or the PORT environment variable for one run."""
-    return int(os.environ["PORT"]) if os.environ.get("PORT") else cfg().port
+    """The site port: the PORT environment variable for one run, else the installed service's port, else config's
+    `port`."""
+    return service.port_for(service_main(), cfg().port)
 
 
 def public_url() -> str:
-    """The site's public base URL, the repo's `site_url` (a tunnel to pm serve), or ""."""
+    """The site's public base URL, the repo's `site_url` (a tunnel to the pm service), or ""."""
     return cfg().site_url
 
 
 def site_url() -> str:
-    """The base of links printed for the owner; anything that connects to pm serve uses 127.0.0.1:$PORT instead."""
+    """The base of links printed for the owner; anything that connects to the pm service uses 127.0.0.1:$PORT instead."""
     return public_url() or f"http://localhost:{port()}"
 
 
 def reply_hosts() -> tuple[str, ...]:
-    """pm serve binds 127.0.0.1; any other Host is a rebinding domain, except the configured public URL's host."""
+    """The pm service binds 127.0.0.1; any other Host is a rebinding domain, except the configured public URL's host."""
     public = urllib.parse.urlsplit(public_url()).hostname
     return ("127.0.0.1", "localhost") + ((public,) if public else ())
 
@@ -1394,7 +1397,7 @@ def store_reply(root: Path, issue_id: str, text: str) -> None:
         bd(root, "comments", "add", issue_id, f"--file={f.name}", f"--author={REPLY_AUTHOR}")
 
 
-# The reply spool: pm serve appends each checked reply here, fsynced, before it answers the POST, and a "done" line
+# The reply spool: the pm service appends each checked reply here, fsynced, before it answers the POST, and a "done" line
 # once the reply is in Beads, so a reply taken survives a crash or kill and a restart delivers it. It lives in the
 # clone's git dir, next to the store and never committed; it is emptied whenever no reply in it is pending.
 REPLY_SPOOL = "pm-replies.jsonl"
@@ -1460,12 +1463,12 @@ def deliver_reply(root: Path, spool: Path, entry: dict) -> None:
         spool_add(spool, {"done": entry["rid"]}, drain=True)
 
 
-SERVE_CHECK = 1.0  # seconds between pm serve's looks for a change in the records, the store's HEAD or Beads
+SERVE_CHECK = 1.0  # seconds between the pm service's looks for a change in the records, the store's HEAD or Beads
 
 
 @dataclass(frozen=True)
 class Snapshot:
-    """What pm serve serves: the records and Beads as read at `as_of` (epoch seconds) or later, so they are current
+    """What the pm service serves: the records and Beads as read at `as_of` (epoch seconds) or later, so they are current
     as of then; `error` when they do not render. `pages` caches each page rendered from them, with its digest."""
     as_of: float
     texts: dict
@@ -1479,8 +1482,21 @@ class Snapshot:
     summaries: dict | None = None  # generated day summaries (read_summaries)
 
 
+def pin_moved(path: Path) -> str:
+    """Why the pm service must stop, its config at `path` no longer pinning the version it runs; "" while it does."""
+    try:
+        pin = tomllib.loads(path.read_text()).get("version")
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        return f"the pm service cannot read its pin in {path} ({e}); stopping"
+    if pin != __version__:
+        return (f"{path} now pins pm {pin}, but this service runs pm {__version__}; stopping, so the supervisor "
+                f"starts the pm uv tool's version (install it with {config.INSTALL.format(v=pin)} or pm init)")
+    return ""
+
+
 def cmd_serve(args, records: Path) -> str:
-    """Serve the site on localhost:$PORT. A request never waits on a writer: it renders from the last snapshot of the
+    """`pm service run`, the pm service's process: serve the site on localhost:$PORT and push (cmd_push) every
+    pushjob.INTERVAL seconds, the first that long after start. A request never waits on a writer: it renders from the last snapshot of the
     records and Beads, which a background thread keeps current, and every page states the time its data is current
     as of, refreshes itself when a newer snapshot changes it, and says when it is more than SERVE_BEHIND seconds
     behind. The thread looks every SERVE_CHECK seconds (sooner after a request or a reply) at the record files, the
@@ -1496,7 +1512,8 @@ def cmd_serve(args, records: Path) -> str:
     open requests for anything their running session has not received and push it again. A card shows its reply saving, then saved
     and whether it was delivered, or the error, then among its replies from Beads. Each request,
     refresh and reply write logs one line to stderr: what, total ms, ms waiting for the store lock, in git, rendering,
-    and in each bd call."""
+    and in each bd call. Every look also reads the config's pin again: once it pins another version (a pull after pm
+    upgrade), the service stops with an error, and the supervisor starts the pm uv tool again."""
     import html
     import http.server
     import queue
@@ -1506,6 +1523,9 @@ def cmd_serve(args, records: Path) -> str:
     import uuid
 
     root = code_root(Path.cwd(), records)
+    pin_file = cfg().path  # read again every look: a pull that moves the pin stops this service
+    build = tool.running()  # sent with every reply, so a probe sees a service left on another build
+    stopped: list[str] = []  # why the refresher stopped the server
     noms = dolt_store(root)
     token = secrets.token_urlsafe(32)  # embedded in the served pages' reply forms; a POST without it is refused
     heads = head_files(records)
@@ -1582,6 +1602,12 @@ def cmd_serve(args, records: Path) -> str:
         while True:
             wake.wait(SERVE_CHECK)
             wake.clear()
+            moved = pin_moved(pin_file)
+            if moved:  # the supervisor starts the service again, which then runs the pm uv tool's version or fails
+                stopped.append(moved)
+                print(f"error: {moved}", file=sys.stderr, flush=True)
+                server.shutdown()
+                return
             try:
                 now["snap"] = refresh(now["snap"])
             except Exception:  # a file vanished mid-look (a git or Dolt rewrite): keep the snapshot, look again
@@ -1674,6 +1700,16 @@ def cmd_serve(args, records: Path) -> str:
             writes.put(({"id": "sweep", "sweep": True}, 0))
             time.sleep(MERGE_POLL)
 
+    def pusher() -> None:
+        """Every INTERVAL seconds: push Beads data, summarize today and push the records branch, logging each step's
+        line; a run that raises is logged, and the next one tries again."""
+        while True:
+            time.sleep(pushjob.INTERVAL)
+            try:
+                print(cmd_push(args, None)[1], file=sys.stderr, flush=True)
+            except Exception:
+                traceback.print_exc()
+
     def page(path: str) -> tuple[int, str, Snapshot]:
         """The status and HTML of the page at `path` from the current snapshot, its reply slots filled and its status
         slot left for fill_status, and that snapshot."""
@@ -1702,7 +1738,7 @@ def cmd_serve(args, records: Path) -> str:
                          f"</h1><p>This page offers a reload once the site has it.</p></main>"), snap
         # The push banner is read on every request, before the digest: the job changes it, not the records.
         if path == "index.html" or path.startswith("projects/"):
-            text = text.replace("</nav>", "</nav>" + pushjob.banner(records.parent, records, cfg().remote), 1)
+            text = text.replace("</nav>", "</nav>" + pushjob.banner(main_of(records), records, cfg().remote), 1)
         # A sent reply stays on its card until the snapshot's Beads data holds its comment, which the thread then shows:
         # a refresh that finds Dolt unchanged keeps an older read under a newer as_of, so the time alone is no proof.
         shown = {i: r for i, r in list(replies.items())
@@ -1756,6 +1792,9 @@ def cmd_serve(args, records: Path) -> str:
             text = fill_status(text, snap.as_of, digest(text), time.time())
             self.reply(code, "text/html; charset=utf-8", text.encode())
 
+        def do_HEAD(self):  # GET's status and headers without the body, so curl -I and probes work
+            self.do_GET()
+
         def do_POST(self):
             """A reply from a card's form: checked, spooled for Beads, and back to the card, which shows it saving."""
             if urllib.parse.urlsplit(self.path).path != "/reply":
@@ -1779,9 +1818,11 @@ def cmd_serve(args, records: Path) -> str:
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
-            self.send_header(SERVE_HEADER, str(records.resolve()))  # lets pm record link tell pm serve apart
+            self.send_header(service.SERVE_HEADER, str(records.resolve()))  # lets a probe tell this service apart
+            self.send_header(service.VERSION_HEADER, build)
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != "HEAD":
+                self.wfile.write(body)
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port()), Handler)
     now["snap"] = refresh(None)  # the first load has data to serve
@@ -1790,26 +1831,29 @@ def cmd_serve(args, records: Path) -> str:
         if rid not in done:
             replies[entry["id"]] = {"state": "saving", "text": entry["text"]}
             writes.put((entry, 0))
-    work = [refresher, writer, ticker]
+    work = [refresher, writer, ticker, pusher]
     if not gh:
-        print("note: gh is not installed, so pm serve does not watch reviews' PRs for their merge", file=sys.stderr,
+        print("note: gh is not installed, so the pm service does not watch reviews' PRs for their merge", file=sys.stderr,
               flush=True)
     for w in work:
         threading.Thread(target=w, daemon=True).start()
     beads = f"Beads reread when {noms} changes" if noms else "Beads reread every look (Dolt server)"
     print(f"Serving http://localhost:{server.server_address[1]}; each page states the age of its data, at most "
-          f"{SERVE_BEHIND} s behind unless it says so; {beads}", flush=True)
+          f"{SERVE_BEHIND} s behind unless it says so; {beads}; pushing every {pushjob.INTERVAL // 60} min",
+          flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    if stopped:
+        raise Refuse(stopped[0])
     return "stopped"  # replies still pending stay in the spool for the next start
 
 
 # ---------------------------------------------------------------- reply delivery and pm reply read
 
-MERGE_POLL = 60  # seconds between pm serve's looks at GitHub for open reviews' merges to main
-PUSH_TIMEOUT = 5  # seconds pm serve gives a session's inbox to take a message
+MERGE_POLL = 60  # seconds between the pm service's looks at GitHub for open reviews' merges to main
+PUSH_TIMEOUT = 5  # seconds the pm service gives a session's inbox to take a message
 GH_TIMEOUT = 60  # seconds a gh or git call of the merge watch may take before it counts as not merged yet
 
 
@@ -1854,7 +1898,7 @@ def merged_on_main(root: Path, pr: str) -> str | None:
 
 def pull_main(root: Path) -> str:
     """The command that fast-forwards this clone's main checkout, which hooks, rules and the ~/.claude links read."""
-    return f"git -C {shlex.quote(str(store_path(root).parent))} pull --ff-only {cfg().remote} {cfg().main_branch}"
+    return f"git -C {shlex.quote(str(main_of(store_path(root))))} pull --ff-only {cfg().remote} {cfg().main_branch}"
 
 
 def new_replies(root: Path, issue: dict) -> tuple[list[dict], int]:
@@ -1934,10 +1978,10 @@ def push_inbox(issue: dict, text: str) -> str | None:
 
 
 def push_undelivered(root: Path, issue_id: str) -> str:
-    """The one delivery path of pm serve, for replies and merges alike: push what of the request has not reached its
+    """The one delivery path of the pm service, for replies and merges alike: push what of the request has not reached its
     session into that session's inbox, and mark it delivered only once the push went through. Returns "delivered",
     "nothing to deliver" (read already), or why not ("not running: …", "failed: …"); the request then stays flagged by
-    pm show, and pm serve's sweep tries it again."""
+    pm show, and the pm service's sweep tries it again."""
     issue = show_beads(root, [issue_id])[issue_id]
     text, marks = undelivered(root, issue)
     if not text:
@@ -2032,7 +2076,7 @@ def show_data(repo: Repo) -> dict:
         })
     today = date.today().isoformat()
     summary = read_summaries(repo.records).get(today)
-    return {"site": site_url(), "projects": projects, "push": pushjob.flags(repo.records.parent, repo.records, cfg().remote),
+    return {"site": site_url(), "projects": projects, "push": pushjob.flags(main_of(repo.records), repo.records, cfg().remote),
             "today": {"date": today, "page": f"days/{today}.html",
                       "summary": first_sentence(summary_line(summary["text"]), 160) if summary else None,
                       "generated_at": summary["generated_at"] if summary else None}}
@@ -2049,7 +2093,7 @@ def place(need: dict, under: str, names: dict[str, str]) -> str:
 def show_text(data: dict) -> str:
     out = []
     if data["push"]:
-        out.append("warning: the scheduled push needs attention (pm where; it runs bin/pm push):")
+        out.append("warning: the pm service's push needs attention (pm service status; pm service logs):")
         out += [f"  {l}" for l in data["push"]]
     me = current_session()
     others = [(t["id"], t["holder"]) for p in data["projects"] for sp in p["sprints"] for t in sp["tasks"]
@@ -2060,8 +2104,8 @@ def show_text(data: dict) -> str:
     # Most important first: `pm prime` cuts the end at its cap, so the task lists and past decisions go last.
     t = data["today"]
     out.append(f"today {t['date']}: " + (f"{t['summary']} (generated {t['generated_at']})" if t["summary"]
-                                         else "no summary yet; the scheduled push generates it from today's activity"))
-    out.append(f"site: {data['site']} (pm serve); a record's page is <site>/<its path under records/, without .md>"
+                                         else "no summary yet; the pm service generates it from today's activity"))
+    out.append(f"site: {data['site']} (the pm service); a record's page is <site>/<its path under records/, without .md>"
                ".html; pm record link <target> prints one")
     out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"')
     for p in data["projects"]:
@@ -2182,25 +2226,17 @@ def link_target(recs: list[Record], records: Path, target: str) -> Record:
 
 
 def cmd_record_link(args, records: Path) -> str:
-    """The rendered page's URL once pm serve for this store answers on $PORT; otherwise the command that fixes it.
-    The probe fetches style.css, which pm serve answers without rendering."""
-    import urllib.error
-    import urllib.request
-
+    """The rendered page's URL once the pm service for this store answers on $PORT; otherwise the command that fixes it."""
     rec = link_target(read_records(records), records, args.target)
-    fix = "pm serve" if port() == cfg().port else f"PORT={port()} pm serve"
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port()}/style.css", timeout=2) as r:
-            served = r.headers.get(SERVE_HEADER)
-    except urllib.error.HTTPError as e:
-        served = e.headers.get(SERVE_HEADER)
-    except OSError:
-        raise Refuse(f"no site is served on :{port()}; start it with {fix}, then run this again")
+    fix = "pm service restart" if service.installed(service_main()) else "pm service install"
+    served = service.answering(port())
     if served is None:
-        raise Refuse(f"the server on :{port()} is not pm serve, so its pages may be stale; stop the old server on "
+        raise Refuse(f"no site is served on :{port()}; start it with {fix}, then run this again")
+    if not served[0]:
+        raise Refuse(f"the server on :{port()} is not the pm service, so its pages may be stale; stop the old server on "
                      f":{port()}, then {fix}")
-    if Path(served) != records.resolve():
-        raise Refuse(f"the pm serve on :{port()} renders another store ({served}); stop it, then {fix}")
+    if Path(served[0]) != records.resolve():
+        raise Refuse(f"the pm service on :{port()} renders another store ({served[0]}); stop it, then {fix}")
     return f"{site_url()}/{rec.out}"
 
 
@@ -2239,12 +2275,20 @@ def setup_beads(main: Path) -> list[str]:
     return out
 
 
-def cmd_setup(args) -> str:
-    """Make the clone ready: connect Beads and install the git hooks, check out the store if it is missing,
-    link this worktree's records/ to it, and let Codex's sandbox write the store and commit to it."""
+def setup_clone() -> str:
+    """Make the clone and this worktree ready, the part of pm init's clone half that the post-checkout hook runs too:
+    connect Beads and install the git hooks, check out the store if it is missing, link this worktree's records/ to
+    it, and let Codex's sandbox write the store and commit to it. pm init then installs the pm service."""
     cwd = Path.cwd()
     store = store_path(cwd)
-    out = setup_beads(store.parent)
+    main = main_of(store)
+    out = setup_beads(main)
+    excluded = setup_exclude(main)
+    if excluded:
+        out.append(excluded)
+    if not store.exists() and legacy.old_store(main).is_dir():
+        raise Refuse(f"the records store is still at {legacy.old_store(main)}, where the project-management harness "
+                     f"kept it; pm init moves it to {store} and migrates the rest of the old setup: run pm init")
     if not store.exists():
         remote = cfg().remote
         if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"],
@@ -2277,16 +2321,525 @@ def cmd_setup(args) -> str:
     claude = setup_claude(top, store)
     if claude:
         out.append(claude)
-    sched = pushjob.install(store.parent)
-    if sched:
-        out.append(sched)
-    if args.site_url is not None:
+    done = "\n".join(out) or f"already set up: {link} -> {store}"
+    codex = setup_codex(main)
+    return f"{done}\n{codex}" if codex else done
+
+
+def check_hooks_path(top: Path, main: Path) -> None:
+    """Refuse a core.hooksPath other than Beads' .beads/hooks (relative, or this worktree's or the main checkout's
+    absolute path); unset is fine, as pm init has bd install it. Any other is refused since pm's git hooks live in Beads' hook files."""
+    current = store_git(top, "config", "--get", "--default=", "core.hooksPath")
+    if current and (top / current).resolve() not in ((top / ".beads/hooks").resolve(), (main / ".beads/hooks").resolve()):
+        raise Refuse(f"core.hooksPath is {current}, not .beads/hooks; pm's git hooks live in Beads' hook files, so pm "
+                     f"init works only with Beads' hooks path (other hook managers are not supported)")
+
+
+def init_settings(top: Path, site_url: str | None, port: int) -> install.Settings:
+    """A new repo's settings: the remote origin, which must exist, and its default branch (origin/HEAD), else the
+    branch checked out; `port` is the site port."""
+    remote = "origin"
+    if subprocess.run(["git", "remote", "get-url", remote], cwd=top, capture_output=True).returncode != 0:
+        raise Refuse(f"this repo has no remote {remote}; pm keeps the records branch and Beads data there, so add it "
+                     f"(git remote add {remote} URL) and run pm init again")
+    head = subprocess.run(["git", "symbolic-ref", "--quiet", "--short", f"refs/remotes/{remote}/HEAD"], cwd=top,
+                          capture_output=True, text=True).stdout.strip()
+    branch = head.removeprefix(f"{remote}/") if head else store_git(top, "symbolic-ref", "--short", "HEAD")
+    url = (site_url or "").strip().rstrip("/")
+    if url:
+        check_site_url(url)
+    return install.Settings(remote, branch, port, url)
+
+
+def cmd_init(args) -> str:
+    """Install pm: the repo's half only when the repo has no .pm/config.toml yet (a first install; pm doctor reports
+    and pm upgrade rewrites a changed piece after that), then the clone's and this worktree's half every time, the pm
+    service last. Session start runs it, so every worktree an agent works in is ready. The repo's pieces are written,
+    never committed: the output names the commit to make, also when a later step fails."""
+    cwd = Path.cwd()
+    store = store_path(cwd)
+    main = main_of(store)
+    top = Path(store_git(cwd, "rev-parse", "--show-toplevel"))
+    if top.resolve() == store.resolve():
+        raise Refuse(f"{top} is the records store; run pm init from a code worktree")
+    check_hooks_path(top, main)
+    fresh = not (top / config.REL).is_file()
+    if top.resolve() != main.resolve():
+        if fresh:  # pm's files come from the main branch; a linked worktree without them is on a branch from before
+            raise Refuse(f"this worktree's branch has no {config.REL}: it was cut before pm was installed in this "
+                         f"repo, and pm init installs the repo's files only in the main checkout; merge the main "
+                         f"branch into this one, or run pm init in the main checkout {main}; pm init wrote nothing")
+        # the service runs in the main checkout, under its pin, with the one pm uv tool the hooks run too; this
+        # worktree's setup does not depend on either, so it runs first and only the tool and the service are refused
+        try:
+            pin = config.read(main).version
+        except config.ConfigError as e:
+            pin, why = None, (f"the pm service runs in the main checkout {main}, under its branch's pin, and that "
+                              f"branch has none ({e}); run pm init there, or check out a branch there that pins pm "
+                              f"{__version__}")
+        else:
+            why = (f"the main checkout {main} pins pm {pin}, and the pm service and the one pm uv tool follow it; run "
+                   f"pm init with pm {pin}, or move main's pin with pm upgrade there first")
+        if pin != __version__:
+            raise Refuse(f"{why}. pm init set up this worktree and left the pm uv tool and the service alone:\n"
+                         f"{setup_clone()}")
+    if fresh:  # the site port: $PORT, else the clone's unit's, else the first free one no pm unit here names
+        s = init_settings(top, args.site_url, service.port_for(main, service.free_port()))
+    else:
+        c = cfg()
+        s = install.Settings(c.remote, c.main_branch, c.port, c.site_url)
+        if args.site_url and args.site_url.strip():
+            check_site_url(args.site_url.strip().rstrip("/"))  # before anything is written
+    old = legacy.old_store(main)
+    if old.is_dir() and store.exists():
+        raise Refuse(f"both the old store {old} and the store {store} exist; keep the one holding your records, remove "
+                     f"the other (git worktree remove), and run pm init again")
+    why = legacy.store_unsettled(old, s.remote, BRANCH) if old.is_dir() else ""
+    if why:  # refused before anything changes; migrate_clone checks again once the old push job is stopped
+        raise Refuse(f"pm init moves the records store from {old} to {store}, but {why}; then run pm init again")
+    if not (args.session_start and service.installed(main)):  # session start leaves an installed service alone
+        try:  # the service pm init ends with must be able to serve: refused before anything is written
+            service.check_port(main, s.port if fresh else service.port_for(main, s.port))
+        except RecordError as e:
+            raise Refuse(str(e))
+    before = worktree_changes(top)
+    out = []
+    if fresh:
+        try:  # read-only: a refusal comes before bd init, which writes and commits
+            install.plan(top, s, repo_legacy(top)[0])
+        except install.InstallError as e:
+            raise Refuse(str(e))
+    written: list[str] = []
+    try:
+        done = init_steps(args, top, main, s, fresh, out, written)
+    except (Refuse, RecordError) as e:  # a failure after writing still names what to commit, then what to run
+        hint = commit_hint(top, before, written)
+        if not hint:
+            raise
+        raise Refuse("\n".join([str(e), *out, hint, "then fix the error above and run pm init again"])) from e
+    return "\n".join(l for l in (done, commit_hint(top, before, written)) if l)
+
+
+def init_steps(args, top: Path, main: Path, s: install.Settings, fresh: bool, out: list[str],
+               written: list[str]) -> str:
+    """pm init's writes, in order; `out` and `written` say how far it got when one fails. The repo's half (bd init,
+    pm's pieces, the records branch) runs only when `fresh`."""
+    tooled = tool.ensure()  # the service's unit and the hooks run the pm uv tool, not this pm (uvx's, say)
+    if tooled:
+        out.append(tooled)
+    if fresh and not (top / ".beads").exists():
+        bd(top, "init", "--non-interactive")
+        out.append("ran bd init: Beads set up its database, its files and its git hooks (and commits them itself)")
+    try:  # the clone first: it can still refuse, and the repo's writes (.gitignore losing /.records/) must not precede it
+        out += [f"legacy: {l}" for l in legacy.migrate_clone(main, main / config.STORE, s.remote, BRANCH,
+                                                            codex_remove)]
+    except RecordError as e:
+        raise Refuse(str(e))
+    if fresh:
+        try:
+            overlay, found = repo_legacy(top)  # again: bd init wrote files pm's pieces share
+            planned = install.plan(top, s, overlay)
+            if (subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"], cwd=top,
+                               capture_output=True).returncode != 0
+                    and not install.remote_has_branch(top, s.remote, BRANCH)):
+                out.append(install.create_records_branch(top, s.remote, BRANCH))
+            out += [f"legacy: {f}" for f in found]
+            written += write_legacy(top, overlay, {piece.rel for piece, *_ in planned})
+            written += install.write(planned)
+        except install.InstallError as e:
+            raise Refuse(str(e))
+        out += [f"wrote {rel}" for rel in written if (top / rel).exists()]
+    elif args.site_url is not None:
         site = setup_site_url(args.site_url)
         if site:
             out.append(site)
-    done = "\n".join(out) or f"already set up: {link} -> {store}"
-    codex = setup_codex(store.parent)
-    return f"{done}\n{codex}" if codex else done
+    out.append(setup_clone())
+    if args.session_start and service.installed(main):
+        # A restart may take service.RESTART_WAIT (15 s) of session start's budget, and parallel session starts
+        # would each make one: session start only reports a stale or down service, and pm service restart fixes it.
+        ok, line = service.health(main, main / config.STORE)
+        if not ok:
+            out.append(f"left the installed pm service as it is (session start never restarts it): "
+                       f"{line.split(')  ', 1)[-1]}")
+        return "\n".join(out)
+    said = service.install(main, service.port_for(main, cfg().port))
+    if said:
+        out.append(said)
+    return "\n".join(out)
+
+
+def repo_legacy(top: Path) -> tuple[dict[str, str | None], list[str]]:
+    """The tracked files holding legacy pieces, each without them (None: the file goes), and what goes; read-only."""
+    return legacy.repo_overlay(top, {rel: install.events(rel) for rel in legacy.SETTINGS})
+
+
+def write_legacy(top: Path, overlay: dict[str, str | None], pieces: set[str]) -> list[str]:
+    """Write the files that lose a legacy piece and that no pm piece rewrites (that write starts from the overlay);
+    the paths written or removed."""
+    for rel, text in overlay.items():
+        if rel in pieces:
+            continue
+        if text is None:
+            (top / rel).unlink()
+        else:
+            (top / rel).write_text(text)
+    return [rel for rel in overlay if rel not in pieces]
+
+
+def codex_remove(roots: list[str]) -> str:
+    """Take `roots` out of Codex's writable_roots, keeping every other byte; what changed, or empty."""
+    path = codex_home() / "config.toml"
+    if not path.is_file():
+        return ""
+    new = remove_codex_roots(path, roots)
+    if new == path.read_text():
+        return ""
+    write_atomic(path, new)
+    return f"removed {', '.join(roots)} from writable_roots in {path}"
+
+
+def commit_hint(top: Path, before: dict[str, str], written: list[str]) -> str:
+    """The commit to make of what pm init changed in `top` since `before`; empty when nothing changed."""
+    after = worktree_changes(top)
+    changed = list(dict.fromkeys(written + [p for p in after if after[p] != before.get(p)]))
+    if not changed:  # pm's pieces, and what bd changed meanwhile (bd init's files, the agent profile in .beads/config.yaml)
+        return ""
+    branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
+    return (f"pm commits nothing on {branch}; commit what pm init changed there: git add -- {' '.join(changed)} "
+            f'&& git commit -m "Install pm {__version__}"')
+
+
+def worktree_changes(top: Path) -> dict[str, str]:
+    """Each path git status shows in `top` (untracked files one by one), with its status and, for a file, a hash of
+    its bytes, so a file changed again under the same status still differs."""
+    res = subprocess.run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=top,
+                         capture_output=True, text=True)  # not store_git: its strip would eat a leading status space
+    if res.returncode != 0:
+        raise Refuse(f"git status failed in {top}: {res.stderr.strip()}")
+    raw = res.stdout
+    out, entries = {}, iter(raw.split("\0"))
+    for e in entries:
+        if not e:
+            continue
+        code, rel = e[:2], e[3:]
+        if "R" in code or "C" in code:
+            next(entries, None)  # a rename's or copy's source path
+        path = top / rel
+        digest = hashlib.sha1(path.read_bytes()).hexdigest() if path.is_file() and not path.is_symlink() else ""
+        out[rel] = f"{code} {digest}"
+    return out
+
+
+def code_top(cwd: Path, store: Path, what: str) -> Path:
+    """The code worktree a repo-level command acts on; refused inside the store."""
+    top = Path(store_git(cwd, "rev-parse", "--show-toplevel"))
+    if top.resolve() == store.resolve():
+        raise Refuse(f"{top} is the records store; run pm {what} from a code worktree")
+    return top
+
+
+def settings_of(c: config.Config) -> install.Settings:
+    return install.Settings(c.remote, c.main_branch, c.port, c.site_url)
+
+
+def sparse_patterns(top: Path) -> list[str]:
+    if store_git(top, "config", "--get", "--default=", "core.sparseCheckout") != "true":
+        return []
+    res = subprocess.run(["git", "sparse-checkout", "list"], cwd=top, capture_output=True, text=True)
+    return res.stdout.split() if res.returncode == 0 else []
+
+
+PM_SPARSE = ["/*", "!/records/"]  # what setup_clone sets
+
+
+def doctor_setup(top: Path, main: Path, store: Path) -> list[str]:
+    """How the clone and this worktree differ from what pm init makes, one line each."""
+    out = []
+    try:
+        find_store(top)
+    except RecordError as e:
+        out.append(f"store: {e}")
+    link = top / "records"
+    if not (link.is_symlink() and link.resolve() == store.resolve()):
+        out.append(f"records link: {link} is not a link to {store}; run pm init")
+    if "!/records/" not in sparse_patterns(top):
+        out.append(f"sparse checkout: {top} does not exclude records/; run pm init")
+    hooks_path = store_git(main, "config", "--get", "--default=", "core.hooksPath")
+    if not hooks_path or (main / hooks_path).resolve() != (main / ".beads/hooks").resolve():
+        fix = ("run pm init" if not hooks_path else
+               "pm works only with Beads' hooks path: move any hooks there into .beads/hooks (outside Beads' and "
+               "pm's marked sections), run git config --unset core.hooksPath, then pm init")
+        out.append(f"hooks path: core.hooksPath is {hooks_path or 'unset'}, not .beads/hooks; {fix}")
+    out += [f"service: {d}" for d in service.drift(main, service.port_for(main, cfg().port))]
+    if codex_home().is_dir() and store.is_dir():
+        path = codex_home() / "config.toml"
+        missing = [r for r in codex_roots(main) if r not in codex_config(path)[2]]
+        if missing:
+            out.append(f"codex: {path} lacks writable_roots {', '.join(missing)}; run pm init")
+    path = exclude_path(main)
+    missing = [l for l in PM_EXCLUDE if l not in exclude_lines(path)]
+    if missing:
+        out.append(f"git exclude: {path} lacks {', '.join(missing)}; run pm init")
+    if Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").is_dir():
+        path = top / ".claude/settings.local.json"
+        if str(store) not in claude_dirs(path):
+            out.append(f"claude: {path} does not list {store} in permissions.additionalDirectories; run pm init")
+    return out
+
+
+def cmd_doctor(args) -> tuple[int, str]:
+    """Compare every managed piece with what this pm (the pinned version, as main checked) writes, and the clone and
+    worktree with what pm init makes; non-zero on any difference."""
+    cwd = Path.cwd()
+    store = store_path(cwd)
+    main = main_of(store)
+    top = code_top(cwd, store, "doctor")
+    diffs = [f"repo: {d}; run pm upgrade to rewrite it" for d in install.drift(top, settings_of(cfg()))]
+    diffs += doctor_setup(top, main, store)
+    try:
+        repo_found = repo_legacy(top)[1]
+    except install.InstallError as e:  # a file pm cannot read: no legacy piece is known, the file needs a hand fix
+        repo_found = []
+        diffs.append(f"repo: cannot look for the pre-package harness's pieces: {e}")
+    codex = codex_home() / "config.toml"
+    diffs += [f"legacy: {d}; run pm upgrade" for d in repo_found]  # pm init leaves an installed repo's files alone
+    diffs += [f"legacy: {d}; run pm init" for d in
+              legacy.clone_pieces(main, store, codex_config(codex)[2] if codex.is_file() else [])]
+    if diffs:
+        return 1, "\n".join(diffs)
+    return 0, f"pm {__version__}: every managed piece and the clone's setup match what pm init makes"
+
+
+def cmd_upgrade(args) -> str:
+    """Move the pin to the running pm and rewrite every managed piece as it writes them; commits nothing."""
+    to = args.to or __version__
+    if to != __version__:
+        raise Refuse(f"pm upgrade --to {to} must run pm {to}, but pm {__version__} is running; install it with "
+                     f"{config.INSTALL.format(v=to)}, then run pm upgrade")
+    cwd = Path.cwd()
+    store = store_path(cwd)
+    top = code_top(cwd, store, "upgrade")
+    try:
+        c = config.read(top)
+    except config.ConfigError as e:
+        raise Refuse(str(e))
+    try:
+        overlay, found = repo_legacy(top)  # the pre-package harness's pieces go too
+        planned = install.rewrite(top, settings_of(c), overlay)
+    except install.InstallError as e:
+        raise Refuse(str(e))
+    written = write_legacy(top, overlay, {piece.rel for piece, *_ in planned}) + install.write(planned)
+    if not written:
+        return f"pm {__version__}: every managed piece is current; nothing to commit"
+    branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
+    moved = f"moved the pin from {c.version} to {__version__}" if c.version != __version__ else f"pin stays {__version__}"
+    return "\n".join([moved, *(f"legacy: {f}" for f in found), *(f"wrote {rel}" for rel in written),
+                      f"pm commits nothing on {branch}; commit pm's files there: git add -- {' '.join(written)} && "
+                      f'git commit -m "Upgrade pm to {__version__}"'])
+
+
+def claude_dirs(path: Path) -> list:
+    try:
+        data = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError) as e:
+        raise Refuse(f"cannot parse {path}: {e}; fix it by hand")
+    perms = data.get("permissions", {}) if isinstance(data, dict) else None
+    dirs = perms.get("additionalDirectories", []) if isinstance(perms, dict) else None
+    if not isinstance(dirs, list):
+        raise Refuse(f"{path}: permissions.additionalDirectories is not a list of paths; fix it by hand")
+    return dirs
+
+
+def remove_claude(top: Path, store: Path) -> str:
+    """Take the store out of this worktree's .claude/settings.local.json; the file goes when nothing else is left."""
+    path = top / ".claude/settings.local.json"
+    if str(store) not in claude_dirs(path):
+        return ""
+    data = json.loads(path.read_text())
+    dirs = data["permissions"]["additionalDirectories"]
+    dirs.remove(str(store))
+    if not dirs:
+        del data["permissions"]["additionalDirectories"]
+        if not data["permissions"]:
+            del data["permissions"]
+    if data:
+        write_atomic(path, install.dump_json(data))
+    else:
+        path.unlink()
+        with contextlib.suppress(OSError):
+            path.parent.rmdir()  # only when empty
+    return f"removed {store} from permissions.additionalDirectories in {path}"
+
+
+def remove_codex_roots(path: Path, roots: list[str]) -> str:
+    """`path`'s text without pm's writable roots, by a minimal edit undoing add_codex_roots; refused when the edit
+    would change anything else."""
+    text, data, have = codex_config(path)
+    gone = [r for r in roots if r in have]
+    if not gone:
+        return text
+    header = CODEX_HEADER.search(text)
+    items = ", ".join(json.dumps(r, ensure_ascii=False) for r in gone)
+    if header is None:
+        raise Refuse(f"{path} sets {CODEX_TABLE} without a [{CODEX_TABLE}] header; remove these from its writable_roots "
+                     f"by hand: {items}")
+    nxt = re.compile(r"^[ \t]*\[", re.M).search(text, header.end())
+    end = nxt.start() if nxt else len(text)
+    section = text[header.end():end]
+    for r in gone:
+        item = json.dumps(r, ensure_ascii=False)
+        for form in (item + ", ", ", " + item, item):
+            if form in section:
+                section = section.replace(form, "", 1)
+                break
+    new = text[:header.end()] + section + text[end:]
+    expected = copy.deepcopy(data)
+    kept = [r for r in have if r not in gone]
+    expected[CODEX_TABLE]["writable_roots"] = kept
+    if not kept:  # what add_codex_roots made from nothing goes too: the key, then the table
+        block = f"[{CODEX_TABLE}]\nwritable_roots = []\n"
+        if set(data[CODEX_TABLE]) == {"writable_roots"} and new.endswith(block):
+            new = new[:-len(block)]
+            new = new[:-1] if new.endswith("\n\n") else new
+            del expected[CODEX_TABLE]
+        elif section.startswith("\nwritable_roots = []"):
+            new = text[:header.end()] + section[len("\nwritable_roots = []"):] + text[end:]
+            del expected[CODEX_TABLE]["writable_roots"]
+    try:
+        edited = tomllib.loads(new)
+    except tomllib.TOMLDecodeError as e:  # a writable_roots spread over lines, say: its commas stay behind
+        raise Refuse(f"editing {path} would leave it invalid TOML ({e}); remove these from its writable_roots by hand: "
+                     f"{items}")
+    if edited != expected:
+        raise Refuse(f"editing {path} would change more than writable_roots; remove these by hand: {items}")
+    return new
+
+
+def worktrees(main: Path) -> list[Path]:
+    """The clone's worktrees whose directory exists: one deleted without git worktree remove is still listed
+    (prunable), and git cannot run in it."""
+    out = []
+    for block in store_git(main, "worktree", "list", "--porcelain").split("\n\n"):
+        lines = block.splitlines()
+        if lines and lines[0].startswith("worktree ") and not any(l.startswith("prunable") for l in lines):
+            tree = Path(lines[0].removeprefix("worktree "))
+            if tree.is_dir():
+                out.append(tree)
+    return out
+
+
+def cmd_uninstall(args) -> str:
+    """Remove pm's pieces from this worktree and pm's setup from the clone and the machine; the records branch,
+    records/ on the main branch and Beads stay. Refused before anything changes when the store holds uncommitted
+    records or a piece cannot be removed without touching what is not pm's."""
+    cwd = Path.cwd()
+    store = store_path(cwd)
+    main = main_of(store)
+    top = code_top(cwd, store, "uninstall")
+    try:
+        removals = install.removals(top, settings_of(cfg()))
+    except install.InstallError as e:
+        raise Refuse(str(e))
+    trees = [t for t in worktrees(main) if t.resolve() != store.resolve()]
+    roots: list[str] = []
+    if store.is_dir():
+        dirty = store_git(store, "status", "--porcelain")
+        if dirty:
+            raise Refuse(f"the store {store} holds uncommitted records; commit them with pm commit or revert them, "
+                         f"then run pm uninstall again:\n{dirty}")
+        roots = clone_codex_roots(main)  # uv's cache stays: other clones' setup may have added or need it
+    codex_path = codex_home() / "config.toml"
+    codex_new = remove_codex_roots(codex_path, roots) if roots and codex_path.exists() else None
+    for t in trees:
+        claude_dirs(t / ".claude/settings.local.json")  # refuse an unreadable one before changing anything
+    sparse = {t: sparse_patterns(t) == PM_SPARSE for t in trees}  # read before the first change, which may not fail
+    out = []
+    said = service.uninstall(main)
+    if said:
+        out.append(said)
+    for t in trees:
+        link = t / "records"
+        if link.is_symlink() and link.resolve() == store.resolve():
+            link.unlink()
+            out.append(f"removed the link {link}")
+        if sparse[t]:
+            store_git(t, "sparse-checkout", "disable")
+            subprocess.run(["git", "config", "--worktree", "--unset", "sparse.expectFilesOutsideOfPatterns"], cwd=t,
+                           capture_output=True)
+            out.append(f"turned off the sparse checkout of {t}")
+        claude = remove_claude(t, store)
+        if claude:
+            out.append(claude)
+    if store.is_dir():
+        store_git(main, "worktree", "remove", str(store))
+        out.append(f"removed the store checkout {store}; the {BRANCH} branch stays")
+    excluded = remove_exclude(main)
+    if excluded:
+        out.append(excluded)
+    if codex_new is not None and codex_new != codex_path.read_text():
+        write_atomic(codex_path, codex_new)
+        out.append(f"removed this clone's writable_roots from {codex_path}; uv's cache stays, as other clones share it")
+    changed = []
+    for path, text in removals:
+        if text is None:
+            path.unlink()
+        else:
+            path.write_text(text)
+        changed.append(path.relative_to(top).as_posix())
+    for base in dict.fromkeys([top.resolve(), main.resolve()]):
+        pmdir = base / ".pm"
+        if base == top.resolve() and pmdir.exists():
+            shutil.rmtree(pmdir)
+            changed.append(".pm")
+        elif pmdir.exists():  # another branch's checkout: only the clone's own state, never its tracked files
+            for d in ("store", "run"):
+                shutil.rmtree(pmdir / d, ignore_errors=True)
+    out += [f"removed pm's part of {rel}" if (top / rel).exists() else f"removed {rel}" for rel in dict.fromkeys(changed)]
+    if changed:
+        branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
+        out.append(f"pm commits nothing on {branch}; commit the removal there: git add -A -- "
+                   f"{' '.join(dict.fromkeys(changed))} && git commit -m \"Uninstall pm\"")
+    return "\n".join(out) or "pm is not installed here; nothing to remove"
+
+
+# the clone's own state under .pm/ and each worktree's records/ link, in the common git dir's info/exclude: a branch
+# made before pm has neither .pm/.gitignore nor pm's .gitignore block, and there git add -A would stage the store as an
+# embedded repo and the link as a file
+PM_EXCLUDE = ["/.pm/store/", "/.pm/run/", "/records"]
+
+
+def exclude_path(main: Path) -> Path:
+    return main / ".git/info/exclude"  # store_path checked that the common git dir is main's .git
+
+
+def exclude_lines(path: Path) -> list[str]:
+    return path.read_text().splitlines() if path.exists() else []
+
+
+def setup_exclude(main: Path) -> str:
+    """Append the PM_EXCLUDE lines missing from the clone's info/exclude, keeping the rest byte for byte."""
+    path = exclude_path(main)
+    missing = [l for l in PM_EXCLUDE if l not in exclude_lines(path)]
+    if not missing:
+        return ""
+    text = path.read_text() if path.exists() else ""
+    sep = "" if not text or text.endswith("\n") else "\n"
+    write_atomic(path, text + sep + "".join(f"{l}\n" for l in missing))
+    return f"added {', '.join(missing)} to {path}, so no branch stages the clone's pm state"
+
+
+def remove_exclude(main: Path) -> str:
+    """Take the PM_EXCLUDE lines out of the clone's info/exclude, keeping every other byte."""
+    path = exclude_path(main)
+    if not path.exists():
+        return ""
+    lines = path.read_text().splitlines(keepends=True)
+    kept = [l for l in lines if l.rstrip("\r\n") not in PM_EXCLUDE]
+    if kept == lines:
+        return ""
+    gone = [l for l in PM_EXCLUDE if l in exclude_lines(path)]
+    write_atomic(path, "".join(kept))
+    return f"removed {', '.join(gone)} from {path}"
 
 
 def setup_claude(top: Path, store: Path) -> str:
@@ -2309,8 +2862,14 @@ def setup_claude(top: Path, store: Path) -> str:
         return ""
     dirs.append(str(store))
     path.parent.mkdir(exist_ok=True)
-    write_atomic(path, json.dumps(data, indent=2) + "\n")
+    write_atomic(path, install.dump_json(data))
     return f"added {store} to permissions.additionalDirectories in {path}, so Claude Code writes records through records/ without asking"
+
+
+def check_site_url(url: str) -> None:
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.path or parts.query or parts.fragment:
+        raise Refuse(f"--site-url {url!r} is not an http(s) base URL like https://pm.example.com")
 
 
 def setup_site_url(url: str) -> str:
@@ -2318,9 +2877,7 @@ def setup_site_url(url: str) -> str:
     "" when nothing changed."""
     url = url.strip().rstrip("/")
     if url:
-        parts = urllib.parse.urlsplit(url)
-        if parts.scheme not in ("http", "https") or not parts.hostname or parts.path or parts.query or parts.fragment:
-            raise Refuse(f"--site-url {url!r} is not an http(s) base URL like https://pm.example.com")
+        check_site_url(url)
     old = public_url()
     if url == old:
         return ""
@@ -2342,18 +2899,23 @@ def codex_home() -> Path:
     return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
 
-def codex_roots(main: Path) -> list[str]:
-    """The clone's git dir, the store, the store's git dir, the Beads dir and uv's cache, as absolute paths."""
-    store = main / ".records"
+def clone_codex_roots(main: Path) -> list[str]:
+    """The roots only this clone needs: its git dir, the store, the store's git dir and the Beads dir, as absolute
+    paths."""
+    store = main / config.STORE
     store_gitdir = Path(store_git(store, "rev-parse", "--absolute-git-dir"))
+    return [str(p.resolve()) for p in (main / ".git", store, store_gitdir, main / ".beads")]
+
+
+def codex_roots(main: Path) -> list[str]:
+    """The clone's own roots and uv's cache, which every clone on the machine shares."""
     try:
         res = subprocess.run(["uv", "--color", "never", "cache", "dir"], capture_output=True, text=True)
     except FileNotFoundError:
-        raise Refuse("uv is not installed; bin/pm runs through it")
+        raise Refuse("uv is not installed; pm is a uv tool and needs it")
     if res.returncode != 0 or not res.stdout.strip():
         raise Refuse(f"uv cache dir failed: {res.stderr.strip()}")
-    return [str(p.resolve()) for p in (main / ".git", store, store_gitdir, main / ".beads",
-                                          Path(res.stdout.strip()))]
+    return clone_codex_roots(main) + [str(Path(res.stdout.strip()).resolve())]
 
 
 def codex_config(path: Path) -> tuple[str, dict, list[str]]:
@@ -2415,7 +2977,7 @@ def setup_codex(main: Path) -> str:
 
 
 def cmd_push(args, records: None) -> tuple[int, str]:
-    """One run of the scheduled push; its exit code is non-zero when either store failed. It finds the store
+    """One run of the push, as the pm service makes every 10 minutes; its exit code is non-zero when either store failed. It finds the store
     itself, so a missing store is recorded as the records step's failure rather than leaving no state."""
     cwd = Path.cwd()
 
@@ -2424,7 +2986,30 @@ def cmd_push(args, records: None) -> tuple[int, str]:
             return True, summarize_day(find_store(cwd))
         except (Refuse, RecordError) as e:
             return False, str(e)
-    return pushjob.push(store_path(cwd).parent, cfg().remote, lambda: find_store(cwd), summarize)
+    return pushjob.push(main_of(store_path(cwd)), cfg().remote, lambda: find_store(cwd), summarize)
+
+
+def service_main() -> Path:
+    """The main checkout, where the service runs and keeps its state: the git common dir's parent."""
+    return main_of(store_path(Path.cwd()))
+
+
+def cmd_service_install(args, records: Path) -> str:
+    main = service_main()
+    said = service.install(main, port())
+    return said or f"already installed and current\n{service.health(main, records)[1]}"
+
+
+def cmd_service_status(args, records: Path) -> tuple[int, str]:
+    return service.status(service_main(), records, cfg().remote)
+
+
+def cmd_service_restart(args, records: Path) -> str:
+    return service.restart(service_main())
+
+
+def cmd_service_logs(args, records: Path) -> str:
+    return service.logs(service_main(), args.lines)
 
 
 def cmd_where(args, records: Path) -> str:
@@ -2436,7 +3021,7 @@ def where_all() -> str:
     """Every location an agent or the owner needs, each with its state; works before setup, to show what is missing."""
     cwd = Path.cwd()
     store = store_path(cwd)
-    main = store.parent
+    main = main_of(store)
 
     def g(where: Path, *args: str) -> str:
         res = subprocess.run(["git", *args], cwd=where, capture_output=True, text=True)
@@ -2506,10 +3091,9 @@ def where_all() -> str:
             state_ = f"unreadable: {e}"
         out.append(f"codex     {path}  {state_}")
 
-    out.append(pushjob.where(main))
+    out.append(service.health(main, store)[1])
     out += pushjob.describe(main)
-    out.append(f"site      {site_url()} (served by pm serve); "
-               f"pm render writes {top / 'site'}")
+    out.append(f"site      {site_url()} (served by the pm service)")
     return "\n".join(out)
 
 
@@ -2553,7 +3137,7 @@ def cmd_commit(args, records: Path) -> str:
     for p in paths:
         if p.name.endswith(".summary.json") and p.exists():
             read_summary(p)
-    render_pages(committed_records(records, changes), load_beads(root), root.name)
+    check_records(committed_records(records, changes), load_beads(root), root.name)
     head = commit(records, message, paths)
     return f"committed {', '.join('records/' + p.relative_to(store).as_posix() for p in paths)} as {head}: {message}"
 
@@ -2566,6 +3150,43 @@ READS_STDIN = {"decision add", "decision need", "decision close", "action need",
 WRITES = {"finding add", "feedback add", "decision add", "decision need", "decision close", "action need", "action done",
           "doc new", "design new", "postmortem new", "project open", "sprint open", "sprint close", "task add", "task close",
           "task move", "commit"}
+
+# `pm service --help`: the service's whole context, which pm prime only points at.
+SERVICE_HELP = f"""\
+The pm service: one supervised background process per clone, `pm service run` in the main checkout. It
+serves the site live from the records store and Beads (a page is at most {SERVE_BEHIND} s behind them), delivers
+the owner's site replies and reviewed PRs' merges (GitHub polled every {MERGE_POLL} s) into the sessions that
+raised them, and pushes Beads data (bd dolt push), today's summary and the records branch every
+{pushjob.INTERVAL} s, the first push {pushjob.INTERVAL} s after it starts. Sessions push neither.
+
+Supervisor: it starts the service at login and again after a crash. A launchd agent with KeepAlive on
+macOS (~/Library/LaunchAgents/local.pm.<dir>.<hash>.plist); a systemd user service with Restart=always
+on Linux ($XDG_CONFIG_HOME/systemd/user/local.pm.<dir>.<hash>.service, ~/.config by default). On a
+machine with neither there is no service, and install refuses.
+
+Unit: runs the pm uv tool's interpreter (`<tool python> -m pm.cli service run`; pm init installs the
+tool) in the main checkout, with the PATH install ran with (bd and git must be on it) and PORT.
+
+Port: $PORT, else the installed unit's port, else `port` in {config.REL}. Installing again keeps the unit's
+port. A second clone of the repo on this machine needs its own: PORT=<n> pm service install.
+
+State and logs, in <main checkout>/{config.RUN}/ (never committed): service.log (pm service logs), push.json
+(each push step's last outcome), push.log (a line per step per run), push.lock (one push at a time).
+
+Health (pm service status, pm where): the supervisor holds the unit, and the site answers on its port
+with {service.SERVE_HEADER} naming this clone's store and {service.VERSION_HEADER} naming this pm's build. Status also
+flags a push step that failed or has not succeeded for {pushjob.OVERDUE} s.
+
+Stale build: every {SERVE_CHECK:g} s the service rereads the pin in {config.REL}; once it pins another version (a
+pull after pm upgrade) the service exits and the supervisor starts the pm uv tool again. A service that
+answers on another build than the running pm is stale in pm where, pm service status and pm doctor. Fix:
+pm init (it installs the pm uv tool at this build, then the service); when the tool already runs this
+build, pm service install or pm service restart.
+
+Agents: pm prime carries pm where's service line and push state, and pm show warns when a push needs
+attention. When the service is down, run pm service restart; if that fails, raise an action for the
+owner (pm action need) and add a bug task (pm task add). pm init installs the service; pm uninstall stops
+it and removes its unit."""
 
 
 def parser() -> argparse.ArgumentParser:
@@ -2585,13 +3206,13 @@ def parser() -> argparse.ArgumentParser:
 
     day = sub.add_parser("day", help="day pages: generated from the day's activity; nobody writes a day record").add_subparsers(
         dest="sub", required=True)
-    s = day.add_parser("summarize", help="generate today's Today summary with claude -p; the scheduled push runs it",
+    s = day.add_parser("summarize", help="generate today's Today summary with claude -p; the pm service runs it",
                        description="Summarize today's activity (what the day page shows, plus the records committed "
                                    f"today) with claude -p --model {SUMMARY_MODEL} into records/days/<today>.summary.json"
                                    ", committed on the records branch; the day page shows it as Today, labelled with "
                                    "the time it was generated. Skips when nothing happened today or the activity's "
                                    "digest is unchanged since the last summary. Fails, writing nothing, when claude "
-                                   "is missing or fails. pm push runs it every 10 minutes.")
+                                   "is missing or fails. The pm service runs it every 10 minutes.")
     s.add_argument("--dry-run", action="store_true", help="print the summary it would write; write nothing")
     s.set_defaults(func=cmd_day_summarize)
 
@@ -2687,7 +3308,7 @@ def parser() -> argparse.ArgumentParser:
     s = reply.add_parser(
         "read", help="print the owner's replies and reviews' merges that did not reach your session",
         description="Print the requests' site replies not yet delivered and their reviews' PR merges not yet "
-                    "reported, with what to do next, and mark them delivered; it does not wait. pm serve pushes "
+                    "reported, with what to do next, and mark them delivered; it does not wait. The pm service pushes "
                     "each reply and merge into the inbox of the session that raised the request when it can; what "
                     "it could not deliver (the session had ended, or has no inbox) waits here and is flagged by pm "
                     f"show. Without ids, this session's open requests (${SESSION_ENV}); with ids, those, closed "
@@ -2795,52 +3416,146 @@ def parser() -> argparse.ArgumentParser:
     record = sub.add_parser("record", help="records on the served site").add_subparsers(dest="sub", required=True)
     s = record.add_parser(
         "link", help="print a record's page URL on the served site; the only link to give for a record",
-        description="Print the URL of a record's page on the site pm serve serves on "
+        description="Print the URL of a record's page on the site the pm service serves on "
                     "localhost:$PORT (default: port in .pm/config.toml), printed with the repo's site_url "
-                    "instead when .pm/config.toml sets one. pm serve's pages follow the records within 10 s and state "
+                    "instead when .pm/config.toml sets one. The pm service's pages follow the records within 10 s and state "
                     "their data's age, so no render step is needed. Fails with the command that fixes it when nothing serves there, "
-                    "or when what answers is not pm serve for this store.")
+                    "or when what answers is not the pm service for this store.")
     s.add_argument("target", help="a sprint or project Beads id, a project name, a design slug, or a record path "
                                   "(records/<…>.md; records/ and .md optional)")
     s.set_defaults(func=cmd_record_link)
 
-    s = sub.add_parser("render", help="render the site into <repo root>/site; the check before a commit")
-    s.set_defaults(func=cmd_render)
+    s = sub.add_parser("check", help="check that every record renders with Beads, writing nothing; the check before a "
+                                     "commit, and the one pm commit runs")
+    s.set_defaults(func=cmd_check)
 
-    s = sub.add_parser("serve", help="serve the site on localhost:$PORT (default: port in .pm/config.toml); a page is at most "
-                                     "10 s behind the records and Beads and states its data's age; an open page "
-                                     "never reloads itself but shows within ~10 s that newer data exists, "
-                                     "loaded on reload")
+    svc = sub.add_parser("service", help="the pm service: one background process per clone serves the site and pushes "
+                                         "Beads data and the records branch every 10 minutes",
+                         description=SERVICE_HELP, formatter_class=argparse.RawDescriptionHelpFormatter
+                         ).add_subparsers(dest="sub", required=True)
+    s = svc.add_parser("install", help="install and start this clone's service (launchd on macOS, systemd on Linux), "
+                                       "or update it; a no-op once installed and current",
+                       description="Install the pm service under the machine's supervisor, which starts it at login "
+                                   "and restarts it after a crash: a launchd agent with KeepAlive on macOS, a systemd "
+                                   "user service on Linux; refused on a machine with neither. The unit runs the pm uv "
+                                   "tool's interpreter (refused unless the tool runs this pm's build: run pm init) "
+                                   "with the current PATH (bd and git must be on it) and serves on $PORT, else the "
+                                   "port it was installed with, else the port in .pm/config.toml; give a second clone "
+                                   "of the repo its own port once with PORT=<n> pm service install. Installing again "
+                                   "rewrites a changed unit and restarts a service on another build. It waits "
+                                   f"{service.RESTART_WAIT} s for the site to answer for this store and fails when it "
+                                   "does not (another clone's service on the port, say). pm init runs it.")
+    s.set_defaults(func=cmd_service_install)
+    s = svc.add_parser("status", help="whether the service is up and its site answers for this store, and its pushes; "
+                                      "non-zero when either needs attention",
+                       description="Print the service's health line (as pm where does), each push step's last "
+                                   "outcome, every push problem and the log's path. Up means the supervisor holds the "
+                                   f"unit and the site answers on its port with {service.SERVE_HEADER} naming this "
+                                   f"store and {service.VERSION_HEADER} naming this pm's build; a push problem is a "
+                                   f"step whose last run failed or that has not succeeded for {pushjob.OVERDUE} s. "
+                                   "Exits non-zero when the service is down, stale or a push needs attention; each "
+                                   "line names the command that fixes it.")
+    s.set_defaults(func=cmd_service_status)
+    s = svc.add_parser("restart", help="restart the service and wait for its site to answer; when it fails, raise an "
+                                       "action for the owner and add a bug task",
+                       description="Restart the installed service, or load it when the supervisor does not hold it, "
+                                   f"then wait {service.RESTART_WAIT} s for the site to answer for this store. The "
+                                   "fix when pm where shows the service down. Refused when it is not installed (run "
+                                   "pm service install); when it fails, read pm service logs, raise an action for the "
+                                   "owner (pm action need) and add a bug task (pm task add).")
+    s.set_defaults(func=cmd_service_restart)
+    s = svc.add_parser("logs", help="print the end of the service's log, <main checkout>/.pm/run/service.log",
+                       description="Print the end of <main checkout>/.pm/run/service.log, where the service writes "
+                                   "stdout and stderr: a line per request, refresh and reply write with its timings, "
+                                   "and any error that stopped it. The push's own log is .pm/run/push.log beside it.")
+    s.add_argument("-n", "--lines", type=int, default=50, help="how many lines (default 50)")
+    s.set_defaults(func=cmd_service_logs)
+    s = svc.add_parser("run", help="the service's process, run by its supervisor: serve the site on localhost:$PORT "
+                                   "and push every 10 minutes",
+                       description="Serve the site on localhost:$PORT (default: port in .pm/config.toml): a page is at "
+                                   "most 10 s behind the records and Beads and states its data's age; an open page "
+                                   "never reloads itself but shows within ~10 s that newer data exists, loaded on "
+                                   "reload. Every 10 minutes, the first 10 after start, run pm push. Exits once "
+                                   ".pm/config.toml pins another pm version, so the supervisor starts the pm uv tool "
+                                   "again. The supervisor runs it; run it by hand only to debug, or on another PORT.")
     s.set_defaults(func=cmd_serve)
 
-    s = sub.add_parser("setup", help="make the clone ready: connect Beads (bd bootstrap), install the git "
-                                     "hooks, check out the records store at <main checkout>/.records if "
-                                     "missing, link this worktree's records/ to it, and add the clone's .git, the store, .beads and "
-                                     "uv's cache to the writable roots of $CODEX_HOME/config.toml, and install the "
-                                     "scheduled pm push (launchd, a systemd user timer or cron); a no-op once set up")
+    s = sub.add_parser("doctor", help="compare every managed piece with what this pm writes, and the clone and "
+                                      "worktree with what pm init makes; report each difference, exit 1 on any")
+    s.set_defaults(func=cmd_doctor)
+
+    s = sub.add_parser("upgrade", help="move the pin in .pm/config.toml to this pm and rewrite every managed piece "
+                                       "as it writes them (the fix pm doctor names for a changed one), removing the "
+                                       "pre-package harness's; writes files and prints the commit to make, never commits")
+    s.add_argument("--to", metavar="X", help="the version to move to; it must be the running pm's (the default)")
+    s.set_defaults(func=cmd_upgrade)
+
+    s = sub.add_parser("uninstall", help="remove pm's pieces from this worktree (hook entries, workflows, .gitignore "
+                                         "block, pm's sections in .beads/hooks, .pm/) and the clone's and machine's "
+                                         "setup (the store checkout, records/ links and sparse checkouts in every "
+                                         "worktree, the pm service, this clone's Codex writable_roots (uv's cache, shared by every clone, stays), pm's lines in .git/info/exclude); keeps the records branch, "
+                                         "records/ on the main branch and Beads; never commits")
+    s.set_defaults(func=cmd_uninstall)
+
+    s = sub.add_parser("init", help="install pm: the repo's files on first install (--site-url sets the public site "
+                                    "link), then this clone, this worktree and the pm service (PORT=<n> sets its "
+                                    "port, and on a first install the config's; PORT=<n> pm service install moves "
+                                    "only the service's); session start runs it; never commits on the code branch",
+                       description="Install pm, doing only what is missing. Repo, on first install only (no "
+                                   ".pm/config.toml yet): write .pm/ (config.toml, README.md, .gitignore), pm's hook "
+                                   "entries in .claude/settings.json and .codex/hooks.json, pm's marked sections in "
+                                   ".beads/hooks/post-checkout and pre-commit, the workflows "
+                                   ".github/workflows/pm-records-{guard,copy}.yml and pm's .gitignore lines; run bd "
+                                   "init when the repo has no .beads/; create the records branch with an empty store "
+                                   "and push it when the remote has none; print the commit to make. After that pm init "
+                                   "leaves the repo's files alone: pm doctor reports a changed or missing piece and pm "
+                                   "upgrade rewrites it. Clone and worktree, every run: install the pm uv tool at this "
+                                   "build when it runs another, connect Beads (bd bootstrap), "
+                                   "install the git hooks (core.hooksPath .beads/hooks), list .pm/store/ and .pm/run/ "
+                                   "in .git/info/exclude, check out the records store at <main "
+                                   "checkout>/.pm/store/records if missing, link this worktree's records/ to it and "
+                                   "keep records/ out of its sparse checkout, add the clone's .git, the store, .beads "
+                                   "and uv's cache to the writable roots of $CODEX_HOME/config.toml and the store to "
+                                   "this worktree's .claude/settings.local.json, then install the pm service (pm "
+                                   "service install). Session start runs it in every worktree; once all is set up it "
+                                   "prints 'already set up'. Refuses a core.hooksPath other than .beads/hooks. Site "
+                                   "port: a new repo's config gets $PORT, else the first free port from 8000 up that "
+                                   "no pm service unit on this machine names; a clone's service serves on $PORT, else "
+                                   "its unit's port, else the config's. Refuses, writing nothing, when another server "
+                                   "holds that port, and names a free one: PORT=<n> pm init. .pm/config.toml, tracked: "
+                                   "version (the pm every session must run; pm upgrade moves it), remote and "
+                                   "main_branch (origin and its default branch), port (the site port) and site_url "
+                                   "(--site-url).")
+    s.add_argument("--session-start", action="store_true",
+                   help="what session start runs, without $PORT: install the pm service only when it is missing, "
+                        "and report an installed one that is stale or down instead of restarting it (pm service "
+                        "restart does)")
     s.add_argument("--site-url", metavar="URL",
-                   help="the site's public base URL (a tunnel to pm serve), written to site_url in .pm/config.toml: "
-                        "pm's printed links use it and replies from its host are accepted; '' clears it")
-    s.set_defaults(func=cmd_setup)
+                   help="the site's public base URL (a tunnel to the pm service), written to site_url in "
+                        ".pm/config.toml for you to commit: every link pm prints (pm record link, pm show, pm where) "
+                        "uses it instead of http://localhost:<port>, and the site accepts the owner's replies from "
+                        "its host besides localhost; '' clears it")
+    s.set_defaults(func=cmd_init)
 
     s = sub.add_parser("push", help="push Beads data (bd dolt push), summarize today and push the records branch; "
-                                    "the scheduled job pm setup installs, not a session command",
+                                    "what the pm service runs every 10 minutes, not a session command",
                        description="Push Beads data with bd dolt push, then summarize today (pm day summarize "
                                    "only when today's activity changed), "
                                    "then push the records branch when the store is "
                                    "ahead of <remote>/records: fetch, rebase onto it if it moved (under "
                                    "the store lock; a rebase that stops is aborted, leaving the store as it was), "
                                    f"push. Each step has a {pushjob.TIMEOUT}s timeout; a second run while one holds "
-                                   "the lock exits at once. Each step's outcome goes to <clone>/.git/pm-push.json "
-                                   "(read by pm show, pm where and the site) and <clone>/.git/pm-push.log, a line per step.")
+                                   "the lock exits at once. Each step's outcome goes to <clone>/.pm/run/push.json "
+                                   "(read by pm show, pm where, pm service status and the site) and "
+                                   "<clone>/.pm/run/push.log, a line per step.")
     s.set_defaults(func=cmd_push)
 
     s = sub.add_parser("where", help="list every location with its state: the store, this checkout, Beads, the "
-                                     "hooks, the Codex sandbox roots, the push schedule and its last run, and the site; 'pm where records' prints only the store's path")
+                                     "hooks, the Codex sandbox roots, the pm service, the last push, and the site; 'pm where records' prints only the store's path")
     s.add_argument("what", nargs="?", choices=["records"], help="print only this location's path")
     s.set_defaults(func=cmd_where)
 
-    s = sub.add_parser("prime", help="pm's rules, then pm setup, pm where and pm show: the context a session starts "
+    s = sub.add_parser("prime", help="pm's rules, then pm init, pm where and pm show: the context a session starts "
                                      "with; the SessionStart hooks run --rules 1 to --rules "
                                      f"{len(hooks.STARTS)} and --state, and an agent may run it by hand")
     part = s.add_mutually_exclusive_group()
@@ -2849,7 +3564,7 @@ def parser() -> argparse.ArgumentParser:
                            f"one hook each on SessionStart and SubagentStart, since Claude Code passes a hook's text "
                            f"inline only up to 10,000 characters")
     part.add_argument("--state", dest="part", action="store_const", const="state",
-                      help="only pm setup, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook")
+                      help="only pm init, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook")
     part.add_argument("--subagent", dest="part", action="store_const", const="subagent",
                       help="only the line naming the Beads agent profile: the last SubagentStart hook, beside the rules chunks")
     s.add_argument("--hook-json", action="store_true", help="read the SessionStart or SubagentStart input on stdin "
@@ -2861,6 +3576,11 @@ def parser() -> argparse.ArgumentParser:
                                  "in the store")
     hook.add_parser("owner-request", help="Stop: block once while the reply asks the owner for something no open "
                                           "need or action of this session covers")
+    s = hook.add_parser("git-post-checkout", help="git post-checkout (pm's section in .beads/hooks/post-checkout): in a "
+                                                  "new worktree, run pm init's clone and worktree half, all but the pm service")
+    s.add_argument("git_args", nargs="*", help="the hook's arguments: previous HEAD, new HEAD, branch flag")
+    hook.add_parser("git-pre-commit", help="git pre-commit (pm's section in .beads/hooks/pre-commit): refuse staged "
+                                           "records/ changes on a code branch, unless a merge is in progress")
 
     s = sub.add_parser("commit", help="commit your hand edits in the store, named by path, on the records branch",
                        description="Commit only the named records, so other sessions' uncommitted edits in the "
@@ -2874,22 +3594,47 @@ def parser() -> argparse.ArgumentParser:
     return ap
 
 
+def hook_git_post_checkout(git_args: list[str]) -> int:
+    """`pm hook git-post-checkout`: in a new worktree (previous HEAD all zeros), run setup_clone. The store's own
+    checkout, which setup_clone itself makes, is skipped. A failure is printed and exits 1, which git reports without
+    undoing the checkout."""
+    if not git_args or set(git_args[0]) != {"0"}:
+        return 0
+    try:
+        cwd = Path.cwd()
+        if Path(store_git(cwd, "rev-parse", "--show-toplevel")).resolve() == store_path(cwd).resolve():
+            return 0
+        print(setup_clone())
+    except (Refuse, RecordError) as e:
+        print(f"pm hook git-post-checkout: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     name = f"{args.cmd} {getattr(args, 'sub', '')}".strip()
-    try:  # every command, hooks included, fails hard without the repo's config or on another pinned version
-        config.load(Path.cwd())
+    try:  # every command, hooks included, fails hard without the repo's config or on another pinned version; pm init
+        # writes a missing one, and pm upgrade moves the pin
+        if args.cmd != "upgrade" and not (args.cmd == "init" and not (config.root(Path.cwd()) / config.REL).is_file()):
+            config.load(Path.cwd())
     except config.ConfigError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     if args.cmd == "prime":  # past the config check, hooks fail open and need no store, so they run before pm looks for one
         return hooks.cmd_prime(args.part, args.hook_json)
+    if args.cmd == "hook" and args.sub == "git-post-checkout":
+        return hook_git_post_checkout(args.git_args)
     if args.cmd == "hook":
         return hooks.HOOKS[args.sub]()
     try:
-        if args.func is cmd_setup:
-            print(cmd_setup(args))
+        if args.func in (cmd_init, cmd_upgrade, cmd_uninstall):
+            print(args.func(args))
             return 0
+        if args.func is cmd_doctor:
+            code, said = cmd_doctor(args)
+            print(said)
+            return code
         if args.func is cmd_push:
             code, said = cmd_push(args, None)  # finds the store itself: a missing store is a recorded failure
             print(said)
@@ -2903,15 +3648,17 @@ def main(argv: list[str] | None = None) -> int:
         if name in WRITES:
             fd = locked(records)
             try:
-                print(args.func(args, records))
+                out = args.func(args, records)
             finally:
                 os.close(fd)
         else:
-            print(args.func(args, records))
+            out = args.func(args, records)
     except (Refuse, RecordError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    return 0
+    code, out = out if isinstance(out, tuple) else (0, out)  # a command with its own exit code returns both
+    print(out)
+    return code
 
 
 if __name__ == "__main__":
