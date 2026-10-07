@@ -58,13 +58,13 @@ def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
 
 
 TODAY_SHOW = "\n".join([  # pm show of a busy day: 2026-10-07 printed 7,085 characters; this one prints more
-    "warning: the scheduled push needs attention (pm where; it runs bin/pm push):",
+    "warning: the pm service's push needs attention (pm service status; pm service logs):",
     "  last run 2026-10-07 01:10 UTC failed: bd dolt push: remote rejected (non-fast-forward)",
     "  overdue: no run for 41 minutes; it runs every 10 minutes",
     "warning: other live sessions hold these tasks; do not start or delegate them:",
     *(f"  yeeef-agents-9va.6{n}.{n}  held by 7f3a9c0{n}, 2h ago, live" for n in range(8)),
     "today 2026-10-07: " + "Auto-summary pages, decision cards and feedback tracking shipped. " * 3,
-    "site: https://pm.example.com (pm serve); a record's page is <site>/<its path under records/, without .md>.html",
+    "site: https://pm.example.com (the pm service); a record's page is <site>/<its path under records/, without .md>.html",
     'feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"',
     *(line for p in range(5) for line in (
         f"project-{p}  yeeef-agents-p{p}  " + "One shared record for agents and the owner, kept current. " * 2,
@@ -334,7 +334,7 @@ def test_stop_fails_open_without_a_transcript_or_git(repo, tmp_path, capsys):
 def test_render_refuses_text_in_progress(repo):
     path = repo.store / "sprints/demo-1.md"
     path.write_text(path.read_text().replace("> Do not write here.\n", "> Do not write here.\n\nHalf done.\n"))
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode == 1
     assert "sprints/demo-1.md:" in res.stderr and "hand-written text in '## Progress'" in res.stderr, res.stderr
     line = int(res.stderr.split("sprints/demo-1.md:")[1].split(":")[0])
@@ -345,21 +345,21 @@ def test_render_refuses_text_in_project_progress(repo):
     path = repo.store / "projects/demo.md"
     path.write_text(path.read_text().replace("> Where are we now, and what's next?\n",
                                              "> Where are we now, and what's next?\n\n### Next\n"))
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode == 1 and "hand-written text in '## Progress'" in res.stderr, res.stderr
 
 
 def test_render_refuses_a_generated_heading_in_a_day(repo):
     path = repo.store / "days/2026-10-01.md"
     path.write_text(path.read_text() + "\n## Decisions await you\n\nNone.\n")
-    res = repo.pm("render")
+    res = repo.pm("check")
     assert res.returncode == 1 and "'## Decisions await you' is a section the page generates" in res.stderr
 
 
 def test_render_accepts_prompt_lines_and_code_in_other_sections(repo):
     path = repo.store / "sprints/demo-1.md"
     path.write_text(path.read_text().replace("- It works.\n", "- It works.\n\n```\n## Progress\n## Docs\n```\n"))
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 def test_stop_reads_an_unstaged_rename_and_a_broken_transcript(repo, tmp_path):

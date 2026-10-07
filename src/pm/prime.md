@@ -61,7 +61,8 @@
 - After an owner reply, do its next step at once. Then close the need.
 - Start the title of a need from a test with "[TEST]". Dismiss it with `bd human dismiss <id>` when the check ends.
 - Do not post status outside the site. The site is the owner's status view.
-- Do not push Beads data or the records branch. The scheduled `pm push` does it.
+- Do not push Beads data or the records branch. The pm service does it.
+- When `pm where` shows the service down, run `pm service restart`. If that fails, raise an action and add a bug task.
 - Examine a subagent's report against the files before you accept it.
 - Link a record only with the URL that `pm record link` prints. Do not build a URL or give a records path.
 - Do not put decisions or plans on a design page.
@@ -75,7 +76,7 @@
 These rules have guards. Obey them so that the guards do not stop you.
 - Write records with `pm` commands. Each `pm` write commits itself on the records branch.
 - Do not commit `records/` on a code branch.
-- Commit each hand edit with `pm commit` before you end your turn.
+- Commit each hand edit with `pm commit` before you end your turn. `pm check` runs the same check without a commit.
 - Give each `pm` write its target with `--sprint` or `--project`.
 - Keep each section and its prompt line. Write "None yet." in an empty section.
 - Use only these blocks: `::: decision`, `::: result`, mermaid. Put a one-line reading under each diagram or large table.
@@ -92,7 +93,7 @@ These rules have guards. Obey them so that the guards do not stop you.
 | `held by <session>, <age>, idle` | Its session wrote nothing for 30 minutes. | `pm task claim` can take it. |
 | `held by <name> without a session` | Someone claimed it outside `pm`. | Leave it, unless the owner tells you to take it. |
 | `[undelivered reply: pm reply read <id>]` | An owner reply did not get to its session. | Run `pm reply read <id>`. Then do its next step. |
-| `warning: the scheduled push needs attention` | The push failed or is late. | Read `pm where` and `.git/pm-push.log`. If you cannot fix it, raise an action and add a bug task. |
+| `warning: the pm service's push needs attention` | The push failed or is late. | Read `pm service status` and `pm service logs`. If you cannot fix it, raise an action and add a bug task. |
 
 ## Planning
 - Write the sprint frame before work starts:

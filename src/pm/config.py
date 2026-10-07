@@ -15,6 +15,7 @@ from pathlib import Path
 from pm import __version__
 
 REL = ".pm/config.toml"
+RUN = ".pm/run"  # runtime state in the main checkout, never committed: the service log, the push state, locks
 INSTALL = 'uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v{v}#subdirectory=pm"'
 KEYS = {"version": str, "remote": str, "main_branch": str, "port": int, "site_url": str}
 REQUIRED = ("version", "remote", "main_branch", "port")
@@ -72,6 +73,11 @@ def load(cwd: Path) -> Config:
                           f"pm upgrade once it exists)")
     return Config(path, data["version"], data["remote"], data["main_branch"], data["port"],
                   data.get("site_url", "").strip().rstrip("/"))
+
+
+def run_dir(main: Path) -> Path:
+    """The clone's runtime-state directory, `<main checkout>/.pm/run`; writers create it."""
+    return main / RUN
 
 
 def write_site_url(cfg: Config, url: str) -> None:

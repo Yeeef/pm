@@ -120,11 +120,11 @@ def design_dates(store: Path, recs: list[Record]) -> dict[str, tuple[str, str]]:
 
 def head_files(store: Path) -> list[Path]:
     """The files whose bytes change whenever the store's HEAD commit does: the worktree's HEAD, the branch's loose
-    ref and packed-refs. Reading them is how pm serve notices a commit without running git."""
+    ref and packed-refs. Reading them is how the pm service notices a commit without running git."""
     gitdir, common = (Path(p) for p in git(store, "rev-parse", "--path-format=absolute", "--git-dir",
                                             "--git-common-dir").split("\n"))
     if not (common / "refs/heads").is_dir():
-        raise RecordError(f"{common} keeps refs in a format other than files (reftable?); pm serve reads refs as files")
+        raise RecordError(f"{common} keeps refs in a format other than files (reftable?); the pm service reads refs as files")
     return [gitdir / "HEAD", common / "refs/heads" / BRANCH, common / "packed-refs"]
 
 

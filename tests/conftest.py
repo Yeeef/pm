@@ -15,11 +15,11 @@ from pm import __version__
 HARNESS = Path(__file__).resolve().parents[2] / "skills/project-management/harness"  # RULES.md
 # pm and the renderer from the package environment the tests run in (make test).
 PM = [str(Path(sys.executable).with_name("pm"))]
-RENDER = [sys.executable, "-m", "pm.render"]
 FAKE_BD = Path(__file__).resolve().parent / "fake_bd.py"
 FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"
 FAKE_SCHED = Path(__file__).resolve().parent / "fake_sched.py"
 FAKE_CLAUDE = Path(__file__).resolve().parent / "fake_claude.py"
+RENDER_PAGES = Path(__file__).resolve().parent / "render_pages.py"
 
 
 def write_config(root: Path, **settings) -> Path:
@@ -35,7 +35,7 @@ def uv_dir(*args: str) -> str:
     return subprocess.run(["uv", "--color", "never", *args], check=True, capture_output=True, text=True).stdout.strip()
 
 
-# HOME is a temp dir in tests, so pm setup writes its schedule there; uv keeps the real cache and Pythons.
+# HOME is a temp dir in tests, so pm service install writes its unit there; uv keeps the real cache and Pythons.
 UV_DIRS = {"UV_CACHE_DIR": uv_dir("cache", "dir"), "UV_PYTHON_INSTALL_DIR": uv_dir("python", "dir")}
 
 SPRINT_TAIL = '''## Design pages
@@ -126,15 +126,15 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
     """`base` with the fake bd and gh first on PATH, bd serving ISSUES from tmp/bd.json and logging calls to
     tmp/bd.log, gh serving PRs from tmp/gh.json (none at first), claude a fake logging to tmp/claude.log; made on first use in `tmp`, so later calls keep
     their state and log. CODEX_HOME is tmp/codex, absent until a test makes it, so no test reads or edits the
-    user's Codex config. HOME is tmp/home and launchctl, systemctl and crontab are fakes logging to tmp/sched.log,
-    so no test installs a real schedule."""
+    user's Codex config. HOME is tmp/home and launchctl and systemctl are fakes logging to tmp/sched.log,
+    so no test installs a real service."""
     bindir = tmp / "bin"
     if not bindir.exists():
         bindir.mkdir()
         (bindir / "bd").symlink_to(FAKE_BD)
         (bindir / "gh").symlink_to(FAKE_GH)
         (bindir / "claude").symlink_to(FAKE_CLAUDE)
-        for tool in ("launchctl", "systemctl", "crontab"):
+        for tool in ("launchctl", "systemctl"):
             (bindir / tool).symlink_to(FAKE_SCHED)
         (tmp / "home").mkdir()
         (tmp / "gh.json").write_text("{}")
@@ -179,6 +179,16 @@ class Repo:
         self.git("worktree", "add", "-q", "-b", branch, str(path))
         return path
 
+    def pages(self, cwd: Path | None = None) -> dict[str, str]:
+        """Every page of the site by path, as the pm service renders it from the records and Beads now."""
+        res = subprocess.run([sys.executable, str(RENDER_PAGES)], cwd=cwd or self.root, env=self.env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr
+        return json.loads(res.stdout)
+
+    def page(self, path: str) -> str:
+        return self.pages()[path]
+
     def store_log(self) -> list[str]:
         return self.git("log", "--format=%s", cwd=self.store).splitlines()
 
@@ -199,7 +209,7 @@ class Repo:
                 f.write(json.dumps([issue_id, fields]) + "\n")
 
     def dolt(self) -> None:
-        """Make the embedded Dolt store pm serve watches: a manifest and a journal that every bd write (fake bd or
+        """Make the embedded Dolt store the pm service watches: a manifest and a journal that every bd write (fake bd or
         set_issue) grows, as Dolt's chunk journal does."""
         (self.noms / "oldgen").mkdir(parents=True)
         (self.noms / "manifest").write_text("5:fake\n")
@@ -235,7 +245,7 @@ def repo(tmp_path: Path) -> Repo:
     r.git("init", "-q", "-b", "main")
     r.git("config", "user.email", "t@example.com")
     r.git("config", "user.name", "t")
-    (root / ".gitignore").write_text("/records\n/.records/\n")
+    (root / ".gitignore").write_text("/records\n/.records/\n/.pm/run/\n")
     write_config(root)
     r.git("add", ".gitignore", ".pm")
     r.git("commit", "-qm", "code")
