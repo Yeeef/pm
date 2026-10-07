@@ -226,3 +226,24 @@ def test_install_restarts_a_current_unit_that_answers_on_another_build(machine, 
     unit = service.unit_file(main, "systemd")
     assert service.install(main, 8123).startswith("updated the pm service")
     assert calls[-1] == ["systemctl", "--user", "restart", unit.name] and world["waited"] == [8123, 8123]
+
+
+def test_free_port_skips_held_ports_and_other_clones_units(monkeypatch):
+    """A new repo's default site port: the first from FIRST_PORT up that nothing holds and no pm unit names."""
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen()
+        start = held.getsockname()[1]
+        monkeypatch.setattr(service, "FIRST_PORT", start)
+        unit = service.unit_file(Path("/elsewhere/other"), service.platform_kind())
+        unit.parent.mkdir(parents=True, exist_ok=True)
+        unit.write_bytes(service.unit_bytes(Path("/elsewhere/other"), service.platform_kind(), "/bin", start + 1,
+                                            Path("/py")))
+        try:
+            assert start + 1 in service.unit_ports()
+            got = service.free_port()
+            assert got >= start + 2 and service.port_free(got)
+            assert not any(service.port_free(p) for p in range(start + 2, got)), "the first free one"
+            assert not service.port_free(start)
+        finally:
+            unit.unlink()

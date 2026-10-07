@@ -18,6 +18,7 @@ import os
 import plistlib
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -143,6 +144,52 @@ def port_for(main: Path, default: int) -> int:
         return int(os.environ["PORT"])
     kind = platform_kind()
     return unit_port(main, kind) if unit_file(main, kind).exists() else default
+
+
+FIRST_PORT = 8000  # a new repo's site port is the first free one from here
+
+
+def port_free(port: int) -> bool:
+    """Whether a server could bind 127.0.0.1:`port` now, as the pm service does."""
+    with socket.socket() as s:
+        try:
+            s.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
+def unit_ports() -> set[int]:
+    """The ports every pm service unit on this machine serves on, this clone's too; a unit that names none is skipped."""
+    kind = platform_kind()
+    out = set()
+    for unit in unit_file(Path("x"), kind).parent.glob("local.pm.*"):
+        found = re.search(rb"PORT(?:</key>\s*<string>|=)(\d+)", unit.read_bytes())
+        if found:
+            out.add(int(found.group(1)))
+    return out
+
+
+def free_port() -> int:
+    """The first port from FIRST_PORT up that is free and no pm service unit on this machine names."""
+    taken = unit_ports()
+    port = FIRST_PORT
+    while port in taken or not port_free(port):
+        port += 1
+    return port
+
+
+def check_port(main: Path, port: int) -> None:
+    """Refuse a site port another server holds; this clone's own pm service on it is fine (pm init run again)."""
+    if port_free(port):
+        return
+    served = answering(port)
+    if served is not None and served[0] and Path(served[0]) == (main / STORE).resolve():
+        return
+    what = (f"the pm service of another store ({served[0]})" if served and served[0]
+            else "a server that is not pm" if served else "a process that does not answer HTTP")
+    raise RecordError(f"the site port :{port} is held by {what}, so the pm service could not serve there; pm init "
+                      f"wrote nothing. Run PORT={free_port()} pm init (a free port), or stop what holds :{port}")
 
 
 def installed(main: Path) -> bool:

@@ -2335,9 +2335,9 @@ def check_hooks_path(top: Path, main: Path) -> None:
                      f"init works only with Beads' hooks path (other hook managers are not supported)")
 
 
-def init_settings(top: Path, site_url: str | None) -> install.Settings:
+def init_settings(top: Path, site_url: str | None, port: int) -> install.Settings:
     """A new repo's settings: the remote origin, which must exist, and its default branch (origin/HEAD), else the
-    branch checked out."""
+    branch checked out; `port` is the site port."""
     remote = "origin"
     if subprocess.run(["git", "remote", "get-url", remote], cwd=top, capture_output=True).returncode != 0:
         raise Refuse(f"this repo has no remote {remote}; pm keeps the records branch and Beads data there, so add it "
@@ -2348,7 +2348,7 @@ def init_settings(top: Path, site_url: str | None) -> install.Settings:
     url = (site_url or "").strip().rstrip("/")
     if url:
         check_site_url(url)
-    return install.Settings(remote, branch, site_url=url)
+    return install.Settings(remote, branch, port, url)
 
 
 def cmd_init(args) -> str:
@@ -2374,8 +2374,8 @@ def cmd_init(args) -> str:
             raise Refuse(f"the main checkout {main} pins pm {pin}, and the pm service and the one pm uv tool follow "
                          f"it; run pm init with pm {pin}, or move main's pin with pm upgrade there first")
     fresh = not (top / config.REL).is_file()
-    if fresh:
-        s = init_settings(top, args.site_url)
+    if fresh:  # the site port: $PORT, else the clone's unit's, else the first free one no pm unit here names
+        s = init_settings(top, args.site_url, service.port_for(main, service.free_port()))
     else:
         c = cfg()
         s = install.Settings(c.remote, c.main_branch, c.port, c.site_url)
@@ -2388,6 +2388,10 @@ def cmd_init(args) -> str:
     why = legacy.store_unsettled(old, s.remote, BRANCH) if old.is_dir() else ""
     if why:  # refused before anything changes; migrate_clone checks again once the old push job is stopped
         raise Refuse(f"pm init moves the records store from {old} to {store}, but {why}; then run pm init again")
+    try:  # the service pm init ends with must be able to serve: refused before anything is written
+        service.check_port(main, s.port if fresh else service.port_for(main, s.port))
+    except RecordError as e:
+        raise Refuse(str(e))
     before = worktree_changes(top)
     out = []
     if fresh:
@@ -3475,8 +3479,8 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_uninstall)
 
     s = sub.add_parser("init", help="install pm: the repo's files on first install (--site-url sets the public site "
-                                    "link), then this clone, this worktree and the pm service; session start runs "
-                                    "it; never commits on the code branch",
+                                    "link), then this clone, this worktree and the pm service (PORT=<n> sets its "
+                                    "port); session start runs it; never commits on the code branch",
                        description="Install pm, doing only what is missing. Repo, on first install only (no "
                                    ".pm/config.toml yet): write .pm/ (config.toml, README.md, .gitignore), pm's hook "
                                    "entries in .claude/settings.json and .codex/hooks.json, pm's marked sections in "
@@ -3493,7 +3497,11 @@ def parser() -> argparse.ArgumentParser:
                                    "and uv's cache to the writable roots of $CODEX_HOME/config.toml and the store to "
                                    "this worktree's .claude/settings.local.json, then install the pm service (pm "
                                    "service install). Session start runs it in every worktree; once all is set up it "
-                                   "prints 'already set up'. Refuses a core.hooksPath other than .beads/hooks.")
+                                   "prints 'already set up'. Refuses a core.hooksPath other than .beads/hooks. Site "
+                                   "port: a new repo's config gets $PORT, else the first free port from 8000 up that "
+                                   "no pm service unit on this machine names; a clone's service serves on $PORT, else "
+                                   "its unit's port, else the config's. Refuses, writing nothing, when another server "
+                                   "holds that port, and names a free one: PORT=<n> pm init.")
     s.add_argument("--site-url", metavar="URL",
                    help="the site's public base URL (a tunnel to the pm service), written to site_url in "
                         ".pm/config.toml for you to commit: every link pm prints (pm record link, pm show, pm where) "

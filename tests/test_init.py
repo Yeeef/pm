@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import subprocess
 import tomllib
@@ -119,7 +120,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     # the repo's pieces, uncommitted: pm never commits on the code branch
     assert git(new_repo, "rev-parse", "HEAD") == head
     cfg = tomllib.loads((new_repo / ".pm/config.toml").read_text())
-    assert cfg == {"version": __version__, "remote": "origin", "main_branch": "main", "port": 8000}
+    assert cfg == {"version": __version__, "remote": "origin", "main_branch": "main", "port": site_port(tmp_path)}
     assert (new_repo / ".pm/.gitignore").read_text() == "store/\nrun/\n"
     for name in ("post-checkout", "pre-commit"):
         assert (new_repo / f".beads/hooks/{name}").read_text() == BEADS_HOOK + section(name)
@@ -224,6 +225,34 @@ def test_init_refuses_before_bd_init_runs(new_repo: Path, tmp_path: Path):
     assert res.returncode != 0 and ".claude/settings.json is not laid out as pm writes JSON" in res.stderr, res.stderr
     assert ["init", "--non-interactive"] not in [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
     assert snapshot(new_repo) == before and git(new_repo, "rev-parse", "HEAD") == head
+
+
+def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, tmp_path: Path):
+    """PORT names a port a server that is not pm holds: pm init refuses before bd init, the records branch or any
+    file, and names a free port; without PORT a new repo's config gets that first free port from 8000 up."""
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen()
+        port = held.getsockname()[1]
+        before = snapshot(new_repo)
+        res = subprocess.run([*PM, "init"], cwd=new_repo, env=dict(env(tmp_path), PORT=str(port)),
+                             capture_output=True, text=True)
+        assert res.returncode == 1, res.stdout
+        said = re.search(rf"the site port :{port} is held by a process that does not answer HTTP, so the pm service "
+                         r"could not serve there; pm init wrote nothing\. Run PORT=(\d+) pm init \(a free port\)",
+                         res.stderr)
+        assert said, res.stderr
+        assert snapshot(new_repo) == before and not (new_repo / ".beads").exists()
+        assert ["init", "--non-interactive"] not in [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
+        assert not git(new_repo, "ls-remote", "--heads", "origin", "records").strip()
+        assert not (tmp_path / "sched.log").exists(), "no service"
+        free = int(said.group(1))
+        assert free >= 8000 and free != port
+        no_port = {k: v for k, v in env(tmp_path).items() if k != "PORT"}
+        res = subprocess.run([*PM, "init"], cwd=new_repo, env=no_port, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert tomllib.loads((new_repo / ".pm/config.toml").read_text())["port"] == free
+    assert f"serving http://localhost:{free} " in res.stdout, res.stdout
 
 
 def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_repo: Path, tmp_path: Path):
