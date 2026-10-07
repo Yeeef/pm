@@ -255,6 +255,7 @@ def drift(main: Path, port: int) -> list[str]:
             out.append(f"{unit} does not run the pm uv tool ({' '.join(want)}); run pm service install")
     with contextlib.suppress(RecordError):
         served = answering(unit_port(main, kind))
+        tool.source()  # a pm not from git has said so above and cannot tell a stale service
         if served and Path(served[0]) == (main / STORE).resolve() and served[1] != tool.running():
             out.append(f"the service on :{unit_port(main, kind)} is stale: {stale(served[1])}")
     return out
@@ -324,6 +325,10 @@ def health(main: Path, store: Path) -> tuple[bool, str]:
     if Path(served[0]) != store.resolve():
         what = f"another store ({served[0]})" if served[0] else "a server that is not pm"
         return False, head + f"down: :{port} is held by {what}; stop it, then run pm service restart"
+    try:
+        tool.source()
+    except RecordError as e:
+        return False, head + f"unchecked: {e}"
     if served[1] != tool.running():
         return False, head + f"stale: {stale(served[1])}"
     return True, head + f"running; the site answers on :{port}"

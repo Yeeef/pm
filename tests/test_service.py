@@ -5,6 +5,7 @@ service."""
 from __future__ import annotations
 
 import http.server
+import json
 import os
 import plistlib
 import re
@@ -17,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, stop_services
+from conftest import PM, TEST_SOURCE, stop_services
 from pm import __version__, push, service, tool
 from pm.records import RecordError
 
@@ -60,7 +61,9 @@ def machine(tmp_path, monkeypatch):
             return res(0)
         raise AssertionError(cmd)
     monkeypatch.setattr(service, "quiet", quiet)
-    # the pm uv tool is this interpreter, and the site comes up at once: test_service_*_end_to_end runs both for real
+    # the pm uv tool is this interpreter, this pm its git build, and the site comes up at once:
+    # test_service_*_end_to_end runs both for real
+    monkeypatch.setattr(tool, "own", lambda: json.dumps(TEST_SOURCE))
     monkeypatch.setattr(tool, "python", lambda: Path(sys.executable))
     monkeypatch.setattr(tool, "current", lambda: Path(sys.executable))
     monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), tool.running()))
@@ -210,9 +213,11 @@ def test_service_stops_once_the_pin_moves(repo):
     srv, port = service_run(repo, "0")
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/style.css") as r:
-            assert r.headers["X-PM-Version"] == tool.running()
+            assert r.headers["X-PM-Version"] == tool.build(__version__, json.dumps(TEST_SOURCE))  # its git build
         cfg = repo.root / ".pm/config.toml"
-        cfg.write_text(cfg.read_text().replace(f'version = "{__version__}"', 'version = "9.9.9"'))
+        moved = cfg.with_suffix(".new")  # replaced whole, as git pull does: the service never reads it half written
+        moved.write_text(cfg.read_text().replace(f'version = "{__version__}"', 'version = "9.9.9"'))
+        moved.replace(cfg)
         out, _ = srv.communicate(timeout=10)
     finally:
         srv.kill()
@@ -221,8 +226,7 @@ def test_service_stops_once_the_pin_moves(repo):
 
 
 # a service on another version, and on this version built from another commit (the live check's stale tool)
-OTHER_BUILDS = ["0.0.1", f"{__version__} from git+https://github.com/Yeeef/yeeef-agents@{'a2ae084' + '0' * 33}"
-                         "#subdirectory=pm"]
+OTHER_BUILDS = ["0.0.1", f"{__version__} at {'a2ae084' + '0' * 33} in pm"]
 
 
 @pytest.mark.parametrize("other", OTHER_BUILDS)

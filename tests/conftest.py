@@ -126,13 +126,29 @@ ISSUES = [
 ]
 
 
+# the git commit the tests' pm says it was built from: pm refuses to install or check the tool from a pm not from git
+TEST_SOURCE = {"url": "https://github.com/Yeeef/yeeef-agents", "subdirectory": "pm",
+               "vcs_info": {"vcs": "git", "commit_id": "c0ffee" + "0" * 34}}
+
+
+def git_build(site: Path) -> None:
+    """A dist-info under `site` naming TEST_SOURCE (PEP 610), which a pm with `site` first on PYTHONPATH reads as its
+    own: the tests' pm, an editable install of this checkout, then counts as a build from git."""
+    dist = site / f"pm-{__version__}.dist-info"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "METADATA").write_text(f"Metadata-Version: 2.1\nName: pm\nVersion: {__version__}\n")
+    (dist / "direct_url.json").write_text(json.dumps(TEST_SOURCE))
+
+
 def install_tool(tools: Path, bindir: Path) -> None:
     """The pm uv tool as `uv tool install` lays it out under UV_TOOL_DIR and UV_TOOL_BIN_DIR, running the pm the
-    tests run, so the service's unit and the hooks' `pm` run this checkout's code."""
-    env_bin = tools / "pm/bin"
+    tests run as the git build git_build names, so the service's unit and the hooks' `pm` run this checkout's code
+    as the build the tests' pm is."""
+    env_bin, site = tools / "pm/bin", tools / "pm/site"
     env_bin.mkdir(parents=True, exist_ok=True)
+    git_build(site)
     for name, target in (("python", sys.executable), ("pm", PM[0])):
-        (env_bin / name).write_text(f'#!/bin/sh\nexec "{target}" "$@"\n')
+        (env_bin / name).write_text(f'#!/bin/sh\nPYTHONPATH="{site}" exec "{target}" "$@"\n')
         (env_bin / name).chmod(0o755)
     bindir.mkdir(parents=True, exist_ok=True)
     if not (bindir / "pm").is_symlink():
@@ -163,7 +179,7 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
     their state and log. CODEX_HOME is tmp/codex, absent until a test makes it, so no test reads or edits the
     user's Codex config. HOME is tmp/home and launchctl and systemctl are fakes logging to tmp/sched.log,
     so no test installs a real service; UV_TOOL_DIR and UV_TOOL_BIN_DIR are under tmp/uv, which holds the pm uv
-    tool (install_tool), so no test reads or installs the user's tools."""
+    tool (install_tool), so no test reads or installs the user's tools; PYTHONPATH makes pm the tool's git build."""
     bindir = tmp / "bin"
     if not bindir.exists():
         bindir.mkdir()
@@ -185,7 +201,7 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
                 CLAUDE_CONFIG_DIR=str(tmp / "claude"), HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "home/.config"),
                 FAKE_SCHED_LOG=str(tmp / "sched.log"), FAKE_SCHED_STATE=str(tmp / "sched.json"),
                 FAKE_CLAUDE_LOG=str(tmp / "claude.log"), UV_TOOL_DIR=str(tmp / "uv/tools"),
-                UV_TOOL_BIN_DIR=str(tmp / "uv/bin"), **UV_DIRS)
+                UV_TOOL_BIN_DIR=str(tmp / "uv/bin"), PYTHONPATH=str(tmp / "uv/tools/pm/site"), **UV_DIRS)
 
 
 class Repo:

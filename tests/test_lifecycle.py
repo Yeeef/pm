@@ -238,6 +238,25 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
         f"[sandbox_workspace_write]\nwritable_roots = [{', '.join(json.dumps(r) for r in kept)}]\n")
 
 
+def test_uninstall_refuses_writable_roots_it_cannot_edit_before_changing_anything(new_repo: Path, tmp_path: Path):
+    """writable_roots spread over lines, one root a line: taking a root out leaves its comma, which is not TOML.
+    Uninstall names the file and says to remove the roots by hand, before it changes anything."""
+    (tmp_path / "codex").mkdir()
+    config = tmp_path / "codex/config.toml"
+    config.write_text(CODEX_USER)
+    assert pm(new_repo, "init").returncode == 0
+    roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
+    spread = "writable_roots = [\n" + "".join(f"  {json.dumps(r)},\n" for r in roots) + "]\n"
+    config.write_text(CODEX_USER.replace("[sandbox_workspace_write]\n", f"[sandbox_workspace_write]\n{spread}"))
+    codex, before, units = config.read_text(), snapshot(new_repo), sched_units(tmp_path)
+    res = pm(new_repo, "uninstall")
+    assert res.returncode == 1, res
+    assert f"editing {config} would leave it invalid TOML (" in res.stderr, res.stderr
+    assert "remove these from its writable_roots by hand: " in res.stderr and json.dumps(roots[0]) in res.stderr
+    assert config.read_text() == codex and snapshot(new_repo) == before and sched_units(tmp_path) == units != []
+    assert (new_repo / ".pm/store/records").is_dir() and (new_repo / "records").is_symlink()
+
+
 def test_uninstall_skips_a_worktree_whose_directory_is_gone(new_repo: Path, tmp_path: Path):
     """A worktree deleted without git worktree remove is still listed (prunable); uninstall skips it."""
     install_everywhere(new_repo, tmp_path)

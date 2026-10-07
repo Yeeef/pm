@@ -7,7 +7,6 @@ from __future__ import annotations
 import http.server
 import json
 import os
-import shutil
 import socket
 import subprocess
 import threading
@@ -311,16 +310,32 @@ def test_init_that_fails_after_writing_names_the_commit_to_make(new_repo: Path, 
     assert err.rstrip().endswith("then fix the error above and run pm init again"), err
 
 
-def test_init_refuses_without_the_pm_uv_tool_it_cannot_install(new_repo: Path, tmp_path: Path):
-    """This pm runs from a local checkout, which has no source to install the tool from: init names the command,
-    before it changes anything."""
-    env(tmp_path)  # makes tmp's fakes, the tool among them
-    shutil.rmtree(tmp_path / "uv/tools/pm")
+def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_repo: Path, tmp_path: Path):
+    """This pm runs from a local checkout (PYTHONPATH no longer names its git build), which cannot install the tool,
+    and the tool, from git, is never its build: init, service install, doctor and where say how to run pm as the
+    tool instead of naming an install that would change nothing, and init says it before it changes anything."""
+    local = {k: v for k, v in env(tmp_path).items() if k != "PYTHONPATH"}  # env() makes tmp's fakes, the tool too
+    said = (f"pm {__version__} here runs from file://", ", not from git, and a local checkout cannot install or check "
+            f'the pm uv tool; run pm as the tool (uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v'
+            f'{__version__}#subdirectory=pm", then pm init), or once with uvx --from "git+')
+
+    def run(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([*PM, *args], cwd=new_repo, env=local, capture_output=True, text=True)
+
     before = snapshot(new_repo)
-    res = pm(new_repo, "init")
-    assert res.returncode == 1, res
-    assert 'was not installed from git; install the tool with uv tool install "git+https://github.com/Yeeef' in res.stderr
+    res = run("init")
+    assert res.returncode == 1 and all(p in res.stderr for p in said), res.stderr
     assert snapshot(new_repo) == before and not (tmp_path / "sched.log").exists(), "no bd init, no service"
+    assert pm(new_repo, "init").returncode == 0, "the same checkout as the tool's git build installs"
+    units = sorted((tmp_path / "home").rglob("*.plist")) + sorted((tmp_path / "home").rglob("*.service"))
+    unit_bytes = [u.read_bytes() for u in units]
+    res = run("service", "install")
+    assert res.returncode == 1 and all(p in res.stderr for p in said), res.stderr
+    assert units and [u.read_bytes() for u in units] == unit_bytes
+    res = run("doctor")
+    assert res.returncode == 1 and all(p in res.stdout for p in said) and "stale" not in res.stdout, res.stdout
+    res = run("where")
+    assert "unchecked: " in res.stdout and all(p in res.stdout for p in said) and "stale" not in res.stdout, res.stdout
 
 
 def test_init_from_a_worktree_refuses_a_main_checkout_without_this_pin(new_repo: Path, tmp_path: Path):

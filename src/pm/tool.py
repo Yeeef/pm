@@ -3,9 +3,11 @@
 `uvx --from "git+…@pm-v<X>#subdirectory=pm" pm init` runs pm from an ephemeral uv cache environment, which
 `uv cache clean` removes; the service and the hooks need a pm that stays. So `pm init` installs the tool from the
 source the running pm came from (PEP 610's direct_url.json: the git URL and commit), unless the tool already runs
-this build, and refuses, naming the command, when it cannot: a pm from a local directory or an index has no
-source to install from. A build is the version and the source it was installed from, so a tool built from another
-commit of the same version is replaced, and the service, which sends its build, is seen as stale. The service's
+this build. A pm from a local directory or an index has no source to install from, and the tool, installed from
+git, never runs its build, so every command that installs or checks the tool or the service refuses to run from
+one, naming the command that runs pm as the tool. A build is the version and the commit and subdirectory it was
+built from, not the URL as typed, so a tool built from another commit of the same version is replaced, and the
+service, which sends its build, is seen as stale, while one commit spelled two ways is one build. The service's
 unit runs the tool's interpreter, whose path stays the same across versions."""
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ import sys
 from pathlib import Path
 
 from pm import __version__
-from .config import INSTALL
+from .config import INSTALL, RELEASE
 from .records import RecordError
 
 NAME = "pm"
@@ -57,7 +59,18 @@ def origin(raw: str | None) -> str | None:
 
 
 def build(version: str, raw: str | None) -> str:
-    """A pm build: its version and the source it was installed from, when it names one."""
+    """A pm build, as pm compares it: its version and, for a git install, the commit and subdirectory it was built
+    from, not the URL, which one commit may be typed as several ways; else the source it names, if any."""
+    info = json.loads(raw) if raw else {}
+    vcs = info.get("vcs_info") or {}
+    if vcs.get("vcs") == "git" and vcs.get("commit_id"):
+        sub = f" in {info['subdirectory']}" if info.get("subdirectory") else ""
+        return f"{version} at {vcs['commit_id']}{sub}"
+    return f"{version} from {info['url']}" if info.get("url") else version
+
+
+def shown(version: str, raw: str | None) -> str:
+    """A pm build as pm names it: its version and the requirement it was installed from, when it names one."""
     src = origin(raw)
     return f"{version} from {src}" if src else version
 
@@ -93,33 +106,43 @@ def path() -> str:
 
 
 def current() -> Path:
-    """The tool's interpreter, refused unless the tool runs this pm's build."""
+    """The tool's interpreter, refused unless the tool runs this pm's build, and unless this pm came from git."""
+    cmd = install_command()
     py = python()
     have = installed(py)
     if have is None or build(*have) != running():
-        what = f"runs pm {build(*have)}" if have else "is not installed"
-        raise RecordError(f"the pm uv tool ({py}) {what}, not pm {running()}; run pm init, or install it with "
-                          f"{install_command()}")
+        what = f"runs pm {shown(*have)}" if have else "is not installed"
+        raise RecordError(f"the pm uv tool ({py}) {what}, not pm {shown(__version__, own())}; run pm init, or "
+                          f"install it with {cmd}")
     return py
 
 
-def source() -> str | None:
-    """The requirement that installs the running pm again, from its direct_url.json; None unless it came from git."""
+def source() -> str:
+    """The requirement that installs the running pm again, from its direct_url.json: its git commit. Refused when it
+    came from elsewhere (a local checkout, an editable install, an index): it cannot install the tool, and the tool,
+    installed from git, never runs its build, so nothing that installs or checks the tool or the service may run."""
     src = origin(own())
-    return src if src and src.startswith("git+") else None
+    if src is None or not src.startswith("git+"):
+        release = RELEASE.format(v=__version__)
+        raise RecordError(f"pm {__version__} here runs from {src or 'an install with no PEP 610 source'}, not from "
+                          "git, and a local checkout cannot install or check the pm uv tool; run pm as the tool "
+                          f"({INSTALL.format(v=__version__)}, then pm init), or once with uvx --from \"{release}\" "
+                          "pm init")
+    return src
 
 
 def install_command() -> str:
-    """The command that installs this pm's build as the tool: from its git commit, else its version's tag."""
-    spec = source()
-    return f'uv tool install --reinstall "{spec}"' if spec else INSTALL.format(v=__version__)
+    """The command that installs this pm's build as the tool, from its git commit; refused as source() is."""
+    return f'uv tool install --reinstall "{source()}"'
 
 
 def ensure() -> str:
     """Install the pm uv tool at this build when it runs another or none, from this pm's source, and check that
     `pm` on PATH is the tool's, which hooks call; empty when it was already current. Refused when the installed
-    tool's source cannot be read (an install from an index), since then pm cannot tell which build it runs."""
+    tool's source cannot be read (an install from an index), since then pm cannot tell which build it runs, and
+    when this pm did not come from git (source())."""
     said = ""
+    spec = source()
     py = python()
     have = installed(py)
     if have is not None and origin(have[1]) is None:
@@ -127,16 +150,11 @@ def ensure() -> str:
                           f"direct_url.json), so pm cannot tell its build; replace it with {install_command()}, "
                           "then run pm init again")
     if have is None or build(*have) != running():
-        spec = source()
-        if spec is None:
-            raise RecordError(f"pm init installs the pm uv tool from the source this pm runs from, but pm "
-                              f"{__version__} here was not installed from git; install the tool with "
-                              f"{INSTALL.format(v=__version__)}, then run pm init again")
         uv("tool", "install", "--reinstall", spec)
         have = installed(py)
         if have is None or build(*have) != running():
             raise RecordError(f"uv tool install --reinstall {spec} left {py} running pm "
-                              f"{build(*have) if have else 'nothing'}, not {running()}")
+                              f"{shown(*have) if have else 'nothing'}, not {shown(__version__, own())}")
         said = f"installed the pm uv tool {__version__} from {spec}"
     want = Path(uv("tool", "dir", "--bin")) / NAME
     found = shutil.which(NAME, path=path())

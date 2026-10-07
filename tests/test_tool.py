@@ -89,14 +89,39 @@ def test_init_installs_the_tool_from_the_git_commit_it_runs_from(uv, tmp_path):
     assert tool.ensure() == "" and not [c for c in uv()[n:] if c[:2] == ["tool", "install"]], "current: no reinstall"
 
 
-def test_init_refuses_a_pm_with_no_git_source_when_the_tool_is_missing(uv, monkeypatch):
-    monkeypatch.setattr(tool.importlib.metadata, "distribution", lambda name: type("D", (), {
-        "read_text": lambda self, f: json.dumps({"url": "file:///src/pm", "dir_info": {"editable": True}})})())
-    with pytest.raises(RecordError, match=r"was not installed from git; install the tool with uv tool install "
-                                          r"\"git\+https://github.com/Yeeef/yeeef-agents@pm-v"):
+@pytest.mark.parametrize("installed", [False, True])
+def test_a_pm_with_no_git_source_refuses_to_install_or_check_the_tool(uv, monkeypatch, installed):
+    """The review's bug: a pm from a local checkout never matched the git-installed tool and named the install
+    command, which changed nothing, since the running pm was still the checkout. It refuses up front, naming how to
+    run pm as the tool, whether or not the tool is installed."""
+    if installed:
         tool.ensure()
-    assert not [c for c in uv() if c[:2] == ["tool", "install"]]
-    with pytest.raises(RecordError, match="is not installed, not pm"):
+    n = len(uv())
+    runs_from(monkeypatch, {"url": "file:///src/pm", "dir_info": {"editable": True}})
+    release = f"git+https://github.com/Yeeef/yeeef-agents@pm-v{__version__}#subdirectory=pm"
+    said = re.escape(f"pm {__version__} here runs from file:///src/pm, not from git, and a local checkout cannot "
+                     f'install or check the pm uv tool; run pm as the tool (uv tool install "{release}", then pm '
+                     f'init), or once with uvx --from "{release}" pm init')
+    for check in (tool.ensure, tool.current, tool.install_command):
+        with pytest.raises(RecordError, match=said):
+            check()
+    assert uv()[n:] == [], "refused before uv runs"
+
+
+def test_one_commit_spelled_another_way_is_one_build(uv, monkeypatch):
+    """A tool installed from a URL typed another way (.git, a trailing slash, case) but the same commit and
+    subdirectory is current: no reinstall, so no service restart; the URL still names the install."""
+    tool.ensure()
+    for url in ("https://github.com/Yeeef/yeeef-agents.git", "https://github.com/Yeeef/yeeef-agents/",
+                "https://GitHub.com/yeeef/Yeeef-Agents"):
+        runs_from(monkeypatch, {**SOURCE, "url": url})
+        n = len(uv())
+        assert tool.ensure() == "" and not [c for c in uv()[n:] if c[:2] == ["tool", "install"]], url
+        assert tool.current()
+        assert tool.install_command() == f'uv tool install --reinstall "{spec({**SOURCE, "url": url})}"'
+    other = {**SOURCE, "subdirectory": "other"}
+    runs_from(monkeypatch, other)
+    with pytest.raises(RecordError, match="not pm"):
         tool.current()
 
 
@@ -129,7 +154,7 @@ def test_init_replaces_a_tool_built_from_another_commit_of_this_version(uv, monk
         tool.current()
     assert tool.ensure() == f"installed the pm uv tool {__version__} from {spec(other)}"
     assert uv()[-3] == ["tool", "install", "--reinstall", spec(other)]
-    assert tool.running() == f"{__version__} from {spec(other)}" and tool.current()
+    assert tool.running() == f"{__version__} at {other['vcs_info']['commit_id']} in pm" and tool.current()
 
 
 def test_init_refuses_a_tool_whose_source_it_cannot_read(uv, tmp_path):

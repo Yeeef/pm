@@ -2620,7 +2620,12 @@ def remove_codex_roots(path: Path, roots: list[str]) -> str:
         elif section.startswith("\nwritable_roots = []"):
             new = text[:header.end()] + section[len("\nwritable_roots = []"):] + text[end:]
             del expected[CODEX_TABLE]["writable_roots"]
-    if tomllib.loads(new) != expected:
+    try:
+        edited = tomllib.loads(new)
+    except tomllib.TOMLDecodeError as e:  # a writable_roots spread over lines, say: its commas stay behind
+        raise Refuse(f"editing {path} would leave it invalid TOML ({e}); remove these from its writable_roots by hand: "
+                     f"{items}")
+    if edited != expected:
         raise Refuse(f"editing {path} would change more than writable_roots; remove these by hand: {items}")
     return new
 
