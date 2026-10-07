@@ -519,6 +519,18 @@ def decision_body(body: str) -> str:
     return body
 
 
+def decision_line(flag: str, value: str) -> str:
+    """One part of a decision given by its flag: one non-empty line that opens no block."""
+    value = value.strip()
+    if not value:
+        raise Refuse(f"{flag} is empty; give it one line")
+    if "\n" in value:
+        raise Refuse(f"{flag} has more than one line; give it one line")
+    if value.startswith(":::"):
+        raise Refuse(f"{flag} starts with ':::', and blocks cannot nest")
+    return value
+
+
 def decision_block(source: str, body: str, until: str | None) -> str:
     extra = ""
     if until is not None:
@@ -539,10 +551,9 @@ def refuse_unread(need: dict) -> None:
 def cmd_decision_add(args, records: Path) -> str:
     """Record a decision; with --need it is the owner's answer to that decision need, which it also closes (bd human
     respond with the same text) unless the owner already closed it."""
-    body = args.text
     repo = load(records)
     rec = decision_target(repo, args)
-    decision_body(body)
+    body = f"{decision_line('--decision', args.decision)}\n{decision_line('--reason', args.reason)}"
     source, need = "agent", None
     if args.need:
         need = human_issue(repo, args.need, "decision")
@@ -685,7 +696,7 @@ def raise_need(args, records: Path, want: str) -> str:
         return (f"raised action {need_id} under {args.parent}; {delivery_hint(need_id)}; once you see the "
                 f"owner has done it: pm action done {need_id} --reason \"<what you saw>\"")
     return (f"raised decision need {need_id} under {args.parent}; {delivery_hint(need_id)}; once the owner "
-            f"answers: pm decision add --need {need_id} --level … --text-file - <<'EOF' (the answer, then EOF) if it "
+            f"answers: pm decision add --need {need_id} --level … --decision '<the answer>' --reason '<why>' if it "
             f"sets a rule, else pm decision close {need_id} --reason \"<why it sets no rule>\" --text-file - <<'EOF' "
             "(the answer, then EOF)")
 
@@ -1910,8 +1921,8 @@ def reply_text(root: Path, issue: dict, replies: list[dict]) -> str:
     if issue["status"] == "closed":
         nxt = "it is closed already; check the reply is handled"
     elif k == "decision":
-        nxt = (f"record the answer: pm decision add --need {iid} --level … --text-file - <<'EOF' (the answer, then "
-               f"EOF) if it sets a rule, else pm decision close {iid} --reason \"<why it sets no rule>\" "
+        nxt = (f"record the answer: pm decision add --need {iid} --level … --decision '<the answer>' "
+               f"--reason '<why>' if it sets a rule, else pm decision close {iid} --reason \"<why it sets no rule>\" "
                "--text-file - <<'EOF' (the answer, then EOF)")
     else:
         nxt = f"check the evidence, then pm action done {iid} --reason \"<what you saw>\", or ask again if it falls short"
@@ -3272,12 +3283,16 @@ def parser() -> argparse.ArgumentParser:
     decision = sub.add_parser("decision", help="decisions: record one, or ask the owner for one").add_subparsers(
         dest="sub", required=True)
     s = decision.add_parser(
-        "add", help="append a decision to a project's or sprint's Decisions; body with --text",
+        "add", help="append a decision to a project's or sprint's Decisions",
         description="Append a ::: decision block, dated today, to the Decisions of the named project or "
-                    "sprint. The body (--text) states the decision and, on the next line, its reason. "
+                    "sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double "
+                    "quotes the shell runs a `code span` as a command). "
                     f"Choosing --level: {LEVEL_RULE}. Source is agent unless --need or --confirmed. With --need, "
-                    "the body is the owner's answer to that decision need: it ends 'Answers `<need-id>`.', and the "
-                    "need is closed with bd human respond and the same text unless the owner already closed it.")
+                    "the decision is the owner's answer to that decision need: the block ends 'Answers "
+                    "`<need-id>`.', and the need is closed with bd human respond and the same text unless the owner "
+                    "already closed it.")
+    s.add_argument("--decision", required=True, metavar="TEXT", help="the decision, in one line")
+    s.add_argument("--reason", required=True, metavar="TEXT", help="why it holds, in one line")
     s.add_argument("--level", choices=["project", "sprint"], help=f"required, no default: {LEVEL_RULE}")
     s.add_argument("--project", metavar="NAME", help="the project record name (with --level project)")
     s.add_argument("--sprint", metavar="ID", help="the sprint's Beads id (with --level sprint)")
@@ -3286,8 +3301,6 @@ def parser() -> argparse.ArgumentParser:
     owner.add_argument("--need", metavar="ID", help="source=owner: the decision answers this decision need, and "
                                                     "closes it if it is open")
     owner.add_argument("--confirmed", action="store_true", help="source=owner: the owner confirmed it")
-    add_text(s, "required: the decision on its first line, its reason on the next; with --need, the owner's "
-                "answer ending 'Answers `<need-id>`.'")
     s.set_defaults(func=cmd_decision_add)
     s = decision.add_parser(
         "need", help="ask the owner for a decision under a sprint or task; its parts as flags",

@@ -109,7 +109,9 @@ def test_sprint_closes_after_its_pr_merges(repo):
 
 # ---------------------------------------------------------------- needs: answer with a decision or close
 
-BODY = "Use the small parser.\nIt is enough for the record set and adds no dependency.\n"
+DECISION = "Use the small parser."
+REASON = "It is enough for the record set and adds no dependency."
+ADD = ("decision", "add", "--level", "project", "--project", "demo")
 TODAY = __import__("datetime").date.today().isoformat()
 
 
@@ -176,14 +178,30 @@ ACTION = "Restart the site on port 8767, which the new proxy expects.\n"
 
 def test_decision_add_need_closes_need_and_records_decision(repo):
     path = repo.records / "projects/demo.md"
-    res = repo.pm("decision", "add", "--need", "demo.1.2", "--level", "project", "--project", "demo", text=BODY)
+    res = repo.pm(*ADD, "--need", "demo.1.2", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
-    text = BODY + "Answers `demo.1.2`."
+    text = f"{DECISION}\n{REASON}\nAnswers `demo.1.2`."
     assert repo.bd_writes() == [["human", "respond", "demo.1.2", f"--response={text}"]]
     assert repo.issues()["demo.1.2"]["status"] == "closed"
     assert path.read_text().split("## Design pages")[0].rstrip().endswith(
         f"::: decision {{source=owner date={TODAY}}}\n{text}\n:::")
     assert repo.pm("check").returncode == 0
+
+
+
+@pytest.mark.parametrize("flags, error", [
+    (("--decision", DECISION), "the following arguments are required: --reason"),
+    (("--decision", f"{DECISION}\nMore.", "--reason", REASON), "--decision has more than one line"),
+    (("--decision", DECISION, "--reason", " "), "--reason is empty"),
+    (("--decision", DECISION, "--reason", "::: result"), "--reason starts with ':::'"),
+])
+def test_decision_add_refuses_a_malformed_part_and_writes_nothing(repo, flags, error):
+    """The decision and its reason are flags, one line each; a malformed one is refused before any write."""
+    heads = repo.store_log()
+    res = repo.pm(*ADD, *flags)
+    assert res.returncode != 0 and error in res.stderr, res.stderr
+    assert repo.bd_writes() == [] and repo.store_log() == heads
+    assert repo.git("status", "--porcelain", cwd=repo.store) == ""
 
 
 ANSWER = "Port 8767."
@@ -373,7 +391,6 @@ def test_concurrent_writes_from_two_worktrees_land_as_separate_commits(repo):
 
 # Every command that once read stdin, with its minimal arguments and a --text it accepts.
 TEXT_COMMANDS = [
-    (["decision", "add", "--level", "sprint", "--sprint", "demo.1"], BODY),
     (["decision", "close", "demo.1.2", "--reason", "sets no rule"], "Small."),
     (["action", "need", "--title", "Q", "--parent", "demo.1"], "Restart the site: the proxy moved."),
     (["doc", "new", "probe", "--title", "Probe", "--project", "demo"], "Body."),
