@@ -9,7 +9,7 @@ dependencies = ["markdown-it-py>=3", "mdit-py-plugins>=0.4", "pyyaml>=6"]
 pm = "pm.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pytest-xdist>=3"]
 
 [build-system]
 requires = ["hatchling"]
