@@ -1940,6 +1940,41 @@ def test_setup_without_codex_home_leaves_codex_alone(clone):
     assert not (clone.parent / "codex").exists()
 
 
+def test_setup_adds_the_store_to_claude_codes_additional_directories(clone):
+    """Keeps the file's other settings; a re-run changes nothing."""
+    (clone.parent / "claude").mkdir()
+    local = clone / ".claude/settings.local.json"
+    local.parent.mkdir()
+    local.write_text(json.dumps({"permissions": {"allow": ["Bash(ls:*)"]}, "model": "x"}))
+    res = setup_in(clone)
+    assert res.returncode == 0, res.stderr
+    store = clone / ".records"
+    assert (f"added {store} to permissions.additionalDirectories in {local}, so Claude Code writes records through "
+            "records/ without asking") in res.stdout.splitlines()
+    assert json.loads(local.read_text()) == {"permissions": {"allow": ["Bash(ls:*)"], "additionalDirectories": [str(store)]},
+                                             "model": "x"}
+    again = setup_in(clone)
+    assert again.returncode == 0 and "additionalDirectories" not in again.stdout
+    assert json.loads(local.read_text())["permissions"]["additionalDirectories"] == [str(store)]
+
+
+def test_setup_without_claude_config_dir_leaves_claude_code_alone(clone):
+    assert setup_in(clone).returncode == 0
+    assert not (clone / ".claude").exists()
+
+
+@pytest.mark.parametrize("text", ["{not json", '{"permissions": {"additionalDirectories": "/x"}}'],
+                         ids=["not-json", "dirs-not-a-list"])
+def test_setup_refuses_claude_settings_it_cannot_read(clone, text):
+    (clone.parent / "claude").mkdir()
+    local = clone / ".claude/settings.local.json"
+    local.parent.mkdir()
+    local.write_text(text)
+    res = setup_in(clone)
+    assert res.returncode != 0 and str(local) in res.stderr
+    assert local.read_text() == text
+
+
 @pytest.mark.parametrize("text", ['model = "unterminated\n', '[sandbox_workspace_write]\nwritable_roots = "/x"\n'],
                          ids=["not-toml", "roots-not-a-list"])
 def test_setup_refuses_codex_config_it_cannot_read(clone, text):

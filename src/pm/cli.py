@@ -2274,6 +2274,9 @@ def cmd_setup(args) -> str:
     else:
         link.symlink_to(store)
         out.append(f"linked {link} -> {store}")
+    claude = setup_claude(top, store)
+    if claude:
+        out.append(claude)
     sched = pushjob.install(store.parent)
     if sched:
         out.append(sched)
@@ -2284,6 +2287,30 @@ def cmd_setup(args) -> str:
     done = "\n".join(out) or f"already set up: {link} -> {store}"
     codex = setup_codex(store.parent)
     return f"{done}\n{codex}" if codex else done
+
+
+def setup_claude(top: Path, store: Path) -> str:
+    """Add the store to permissions.additionalDirectories in this worktree's .claude/settings.local.json, keeping
+    the rest of the file's data: records/ resolves outside the worktree, so without it Claude Code asks before each
+    write through the link. The path is absolute and per machine, so it goes in the local file, not settings.json.
+    Without a Claude Code config dir it does nothing."""
+    if not Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").is_dir():
+        return ""
+    path = top / ".claude/settings.local.json"
+    try:
+        data = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError) as e:
+        raise Refuse(f"cannot parse {path}: {e}; fix it by hand and run {SETUP} again")
+    perms = data.setdefault("permissions", {}) if isinstance(data, dict) else None
+    dirs = perms.setdefault("additionalDirectories", []) if isinstance(perms, dict) else None
+    if not isinstance(dirs, list):
+        raise Refuse(f"{path}: permissions.additionalDirectories is not a list of paths; fix it by hand")
+    if str(store) in dirs:
+        return ""
+    dirs.append(str(store))
+    path.parent.mkdir(exist_ok=True)
+    write_atomic(path, json.dumps(data, indent=2) + "\n")
+    return f"added {store} to permissions.additionalDirectories in {path}, so Claude Code writes records through records/ without asking"
 
 
 def setup_site_url(url: str) -> str:
