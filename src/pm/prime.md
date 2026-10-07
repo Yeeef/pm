@@ -13,7 +13,7 @@ A project lives in two layers. Beads is the work layer: items, holders, status a
 | Work tracking: Beads | What exists, who holds it, its status, what blocks what: epics, tasks, needs. | Agents, through `bd` and `pm` |
 | Record layer: Markdown under `records/` | Why and Context: goals, sprint frames, decisions, findings, designs, reports. | Agents, through `pm` and hand edits that `pm commit` commits |
 | `pm` cli | The orchestration: it writes records, runs the actions that touch both layers, and checks each write. | |
-| `pm` service | One background process per clone (`pm service install`, `status`, `restart`, `logs`). It serves the site from the records and Beads, delivers the owner's replies to the sessions that asked, and every 10 minutes runs `pm push`: it pushes Beads data and the `records` branch and generates the day summary. Sessions push neither. `pm check` checks every record. `pm service --help` holds the service's detail; `pm push --help` the push's. | |
+| `pm` service | One background process per clone (`pm service install`, `status`, `restart`, `logs`). It serves the site from the records and Beads, delivers the owner's replies to the sessions that asked, and syncs pm and beads state. | |
 | Interface | **The owner's interface is the site.** The owner reads status there and answers there. **The agent's interface is `pm` and the records.** | Nobody; it is rendered |
 
 Each fact has one home: Beads holds the status, the records hold the why. Two copies of one fact drift. `pm` wraps an action only when it touches both Beads and a record, or needs a check beyond Beads. Other task work stays plain `bd`.
@@ -45,7 +45,8 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 | Record | Sections |
 |---|---|
 | Project | Goal; Progress (generated); Decisions; Design pages; Outcome (at close) |
-| Sprint | Goal; Scope; Done when; Design pages; Progress (generated); Decisions; Findings; Delivery report, with `### Outcome` and `### Against "Done when"` |
+| Sprint | Goal; Scope; Done when; Design pages; Progress (generated); Decisions; Findings; Delivery report, with `### Outcome` and `### Against "Done when"`. - Outcome: start with `done`, `partial` or `voided`, plus one sentence. A bullet list of what shipped may follow. Only the first paragraph becomes the Beads close reason.
+     - Against "Done when": give each item as met or not, with its evidence: a page, a command, a number.|
 | Design page | Problem; Goals and non-goals; Constraints and key facts; Design (free `###` subsections); Alternatives considered; Prior art (optional); Open questions |
 | Doc | Free |
 | Postmortem | Summary; Timeline; Cost; Root cause; What changed; What would have caught it earlier |
@@ -108,35 +109,32 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - claim a task: `pm task claim <id>`. It records your session and refuses a task that another live session holds. Do not claim with `bd update --claim`. Do not take or brief work that another live session holds.
 - close a task: `pm task close <id> --reason "…"`, never `bd close`. The reason names the commit: HEAD when newer than the task, else `--commit REF`.
 - move a task: `pm task move <id> --to SPRINT_ID`, the reason on stdin, two lines or more. It records the scope change as a decision in the sprint it leaves.
-- close a sprint, in this order:
-  1. Write the full delivery report in the sprint record by hand, then commit it with `pm commit`.
-     - Outcome: start with `done`, `partial` or `voided`, plus one sentence. A bullet list of what shipped may follow. Only the first paragraph becomes the Beads close reason.
-     - Against "Done when": give each item as met or not, with its evidence: a page, a command, a number.
-  2. Typically a sprint is associated with a PR. Push the branch, open the PR and ask the owner to review it with `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`. Stdin holds optional extra context. The review blocks the close until the PR is on main; close it then with `pm action done <id> --reason "merged as <sha>"`.
-  3. Close each other open task with `pm task close`, or move it with `pm task move`.
-  4. `pm sprint close <id>`. It refuses an unwritten report, any open task or review, and a review closed without `merged as <sha>`. It skips a dismissed review, such as a replaced PR's.
-- close a project: Close every sprint. Write Outcome by hand: the results against the goal in numbers, what was learned and what was retired. Link the sprints' delivery reports. Commit it with `pm commit`, then run `pm project close <name>`.
 - need a decision from owner: `pm decision need --title "…" --parent ID` Stdin gives one part per line:
   - one `Question:`;
   - one or more `Fact:`;
   - two or more `Option <label>:`, each with a `Cost:` line under it;
   - one `Default: <label>`, then its reason.
-- need an action from owner: `pm action need --title "…" --parent ID`, under "Actions await you": the owner does a step that only they can do. Examples: run a command, apply a setting. The description on stdin says what to do and why. An action is done: check the evidence, then run `pm action done <id> --reason "<what showed it>"`. It needs no decision.
+- need an action from owner: `pm action need --title "…" --parent ID`. Examples: run a command, apply a setting. The description on stdin says what to do and why. An action is done: check the evidence, then run `pm action done <id> --reason "<what showed it>"`.
+- need a pr review from owner: `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`. Stdin holds optional extra context. The review blocks the sprint close until the PR is on main; close it then with `pm action done <id> --reason "merged as <sha>"`.
 - Read a reply from owner with `pm reply read <id>` first. Each close below refuses while the request holds a reply that has not reached a session.
 - add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`. Stdin gives the decision on its first line and its reason on the next. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
 - close a decision need that sets no rule: `pm decision close <id> --reason "<why>"`. The answer goes on stdin. The answer and the reason stay in Beads, and the need gets the label `no-decision`.
 - add a finding: `pm finding add --sprint ID "<text>"`, as it occurs, with its numbers. A large result table is a `::: result` block in the record.
 - create a design page record: `pm design new <slug> --title "…" --project NAME` writes every section with its prompt line; then edit it by hand and `pm commit`. Put no date in the slug.
 - create a free-form doc record: `pm doc new <slug> --title "…" --bead ID\|--project NAME`, the body on stdin; later edits by hand and `pm commit`.
+- close a sprint: `pm sprint close <id>`. It refuses an unwritten report, any open task or review, and a review closed without `merged as <sha>`. It skips a dismissed review, such as a replaced PR's.
+- close a project: Close every sprint. Write Outcome by hand: the results against the goal in numbers, what was learned and what was retired. Link the sprints' delivery reports. Commit it with `pm commit`, then run `pm project close <name>`.
+
 - create a postmortem: `pm postmortem new <slug> --title "…" --sprint ID\|--project NAME` writes every section; then by hand and `pm commit`. Write it once the incident is fixed, under the sprint it hit.
-- find a link: **Links.** Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.
+- find a link: Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.
 - **Hand edits.** Goal, Scope, Done when, the delivery report, design pages, docs and postmortems are edited by hand in `records/`. Then commit them: `pm commit -m "…" <path>…`. It checks the whole store. With no path, it lists what is uncommitted and commits nothing. `pm check` checks the store without a commit.
 - Keep a small operational fact (a command, a path, a gotcha): `bd remember`; decisions go in records, not there.
 - Report where pm got in your way: `pm feedback add --project NAME`, once, with what happened and what would have helped.
-- check pm service status: `pm service status`; `pm where` shows its line too. When the service is down, run `pm service restart`; if that fails, raise an action and add a bug task. `pm service logs` prints the end of its log.
-- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and its link, and the pm service. Session start runs `pm init --session-start` for the clone and worktree: it installs a missing service, but only reports a stale or down one. A worktree used without a session needs `pm init` by hand. `pm doctor` reports each piece that differs from what pm writes.
+- check pm service status: `pm service status`; `pm service --help`;
+- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and its link, and the pm service. 
 - set the site link or port: `pm init --site-url URL` sets the public site link. `PORT=<n> pm service install` moves this clone's site port; on a first install, run `PORT=<n> pm init`.
 
+Anything not covered by above command reference, please run pm xxx --help to get more context. 
 # Writing to the owner
 
 Obey these rules in chat replies, needs, actions and the records the owner reads:
