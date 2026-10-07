@@ -36,4 +36,4 @@ def test_every_command_fails_on_another_pinned_version(repo, args):
     assert res.stderr == (
         f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {__version__} is running; install the pinned "
         'version with uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v9.9.9#subdirectory=pm" '
-        "(or move the pin with pm upgrade once it exists)\n")
+        f"(or move the pin to {__version__} with pm upgrade)\n")

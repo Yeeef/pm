@@ -42,33 +42,34 @@ def context_of(res, event="SessionStart"):
 @pytest.mark.slow
 def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
     """One hook per rules chunk, then the state, each under Claude Code's per-hook cap, with pm show whole."""
-    assert repo.pm("setup").returncode == 0  # a clone set up once, as bin/pm setup leaves it
+    assert repo.pm("setup").returncode == 0  # a clone set up once, as pm setup leaves it
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(hooks.STARTS) + 1)]
     assert got == hooks.chunks() and got[0].startswith("# pm rules (1 of 4): the introduction; ")
     text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
     ran, _, rest = text.partition("\n\n")
-    assert ran.startswith(f"`bin/pm setup` at session start:\nalready set up: {repo.records} -> {repo.store}\n")
+    assert ran.startswith(f"`pm setup` at session start:\nalready set up: {repo.records} -> {repo.store}\n")
     located, _, rest = rest.partition("\n\n")
-    assert located == "Locations from `bin/pm where` at session start:\n" + repo.pm("where").stdout.strip()
+    assert located == "Locations from `pm where` at session start:\n" + repo.pm("where").stdout.strip()
     assert f"checkout  {repo.root}  branch main, records link set up" in located
     header, _, body = rest.partition("\n\n")
-    assert re.fullmatch(r"Project state from `bin/pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
-                        r"run `bin/pm show` again before stating project state to the owner\.", header)
-    assert body == shown and "Sprint 1: First" in body
+    assert re.fullmatch(r"Project state from `pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
+                        r"run `pm show` again before stating project state to the owner\.", header)
+    minute = lambda s: re.sub(r"\d\d:\d\d UTC", "hh:mm UTC", s)  # a stamp may cross a minute between two calls
+    assert minute(body) == minute(shown) and "Sprint 1: First" in body
     plain = repo.pm("prime")  # by hand: the rules whole and in order, then the state, no envelope
-    assert plain.returncode == 0 and plain.stdout.strip() == hooks.head() + "\n\n" + text
+    assert plain.returncode == 0 and minute(plain.stdout.strip()) == minute(hooks.head() + "\n\n" + text)
 
 
 TODAY_SHOW = "\n".join([  # pm show of a busy day: 2026-10-07 printed 7,085 characters; this one prints more
-    "warning: the scheduled push needs attention (pm where; it runs bin/pm push):",
+    "warning: the pm service's push needs attention (pm service status; pm service logs):",
     "  last run 2026-10-07 01:10 UTC failed: bd dolt push: remote rejected (non-fast-forward)",
     "  overdue: no run for 41 minutes; it runs every 10 minutes",
     "warning: other live sessions hold these tasks; do not start or delegate them:",
     *(f"  yeeef-agents-9va.6{n}.{n}  held by 7f3a9c0{n}, 2h ago, live" for n in range(8)),
     "today 2026-10-07: " + "Auto-summary pages, decision cards and feedback tracking shipped. " * 3,
-    "site: https://pm.example.com (pm serve); a record's page is <site>/<its path under records/, without .md>.html",
+    "site: https://pm.example.com (the pm service); a record's page is <site>/<its path under records/, without .md>.html",
     'feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"',
     *(line for p in range(5) for line in (
         f"project-{p}  yeeef-agents-p{p}  " + "One shared record for agents and the owner, kept current. " * 2,
@@ -129,9 +130,9 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
     assert repo.git("status", "--porcelain", cwd=wt) == ""
     ran, located, rest = text.split("\n\n", 2)
-    assert ran.startswith("`bin/pm setup` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
+    assert ran.startswith("`pm setup` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
     assert f"checkout  {wt}  branch bridge, records link set up" in located
-    assert rest.startswith("Project state from `bin/pm show` at session start, ") and "Sprint 1: First" in rest
+    assert rest.startswith("Project state from `pm show` at session start, ") and "Sprint 1: First" in rest
 
 
 @pytest.mark.slow
@@ -139,7 +140,7 @@ def test_session_start_fails_open_with_one_line(repo):
     (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
     text = context_of(run(STATE, {"cwd": str(repo.root)}, repo.env, repo.root))
     _, located, shown = text.split("\n\n", 2)
-    assert located.startswith("Locations from `bin/pm where` at session start:\n")  # pm where reads no Beads
+    assert located.startswith("Locations from `pm where` at session start:\n")  # pm where reads no Beads
     assert shown.startswith("pm show failed at session start (") and "\n" not in shown
 
 
@@ -228,7 +229,7 @@ def test_stop_blocks_on_a_record_this_session_edited(repo, tmp_path):
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": False}, repo.env, repo.root)
     out = json.loads(res.stdout)
     assert out["decision"] == "block"
-    assert "- records/sprints/demo-1.md" in out["reason"] and "bin/pm commit -m" in out["reason"]
+    assert "- records/sprints/demo-1.md" in out["reason"] and "pm commit -m" in out["reason"]
 
 
 def test_stop_passes_another_sessions_edit(repo, tmp_path):
