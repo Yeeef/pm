@@ -1,7 +1,7 @@
 # pm rules
 
 ## Model
-- Beads holds the work. Records hold the context. `pm` writes records. The site shows both to the owner.
+- Two layers hold a project: Beads is the work layer, and the Markdown records are the record layer. `pm` is the orchestration layer on top of both. The site shows both layers to the owner.
 - Records point at Beads ids. Do not copy a status into a record.
 - `records/` links to one store on the records branch. All sessions and worktrees write in it. Commit only the paths that you edited.
 - Run `pm <noun> --help` for its commands and flags.
