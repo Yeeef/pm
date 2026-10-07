@@ -168,6 +168,51 @@ def stop_services(tmp: Path) -> None:
             pass
 
 
+# What only an `integration` test may start: `make test` runs the rest while agents work, CI runs both sets.
+REMOTE_GIT = {"clone", "fetch", "pull", "push", "ls-remote"}  # a clone, or a remote reached
+HEAVY_PM = {"init", "setup", "upgrade", "uninstall", "doctor", "push", "service"}  # set a clone up, the pm service
+
+
+def integration_only(args) -> str | None:
+    """What the command `args` starts that only an integration test may, or None for a light call."""
+    if isinstance(args, (str, bytes, os.PathLike)) or not args:
+        return None
+    if str(RENDER_PAGES) in map(str, args):
+        return "the whole site rendered (Repo.pages)"
+    name, rest = Path(str(args[0])).name, [str(a) for a in args[1:]]
+    if name == "git":
+        sub = next((a for i, a in enumerate(rest) if not a.startswith("-") and rest[i - 1:i] not in (["-C"], ["-c"])),
+                   "")
+        if sub in REMOTE_GIT:
+            return f"git {sub}"
+        if "--bare" in rest:
+            return "a bare git repo (git --bare)"
+    if name == "pm" and rest:
+        if rest[0] in HEAVY_PM:
+            return f"pm {rest[0]}"
+        if rest[0] == "prime" and "--state" in rest:
+            return "the session-start hook (pm prime --state)"
+    return None
+
+
+@pytest.fixture(autouse=True)
+def light_unless_integration(request, monkeypatch):
+    """Fail a test not marked `integration` once it starts what integration_only names. Autouse fixtures set up
+    first, so this covers the test's other fixtures too; pytest.fail is a BaseException, so no `except` swallows it."""
+    if request.node.get_closest_marker("integration"):
+        return
+    test = request.node.nodeid
+
+    class Light(subprocess.Popen):  # subprocess.run starts its process through subprocess.Popen too
+        def __init__(self, args, *rest, **kwargs):
+            if what := integration_only(args):
+                pytest.fail(f"{test} starts {what}: mark it @pytest.mark.integration, so `make test` leaves it to CI "
+                            "and `make test-full`", pytrace=False)
+            super().__init__(args, *rest, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", Light)
+
+
 @pytest.fixture(autouse=True)
 def no_service_left(tmp_path: Path):
     yield
@@ -350,8 +395,9 @@ def pytest_configure(config):
     (home / "home").mkdir()
     # the tests' git, without the user's global config: new repos and bare remotes start on main
     (home / "home/.gitconfig").write_text("[init]\n\tdefaultBranch = main\n[user]\n\tname = t\n\temail = t@example.com\n")
-    config.addinivalue_line("markers", "slow: starts pm serve, a fresh clone, a remote or the session-start hook; "
-                                       "`make test` skips it, `make test-full` runs it")
+    config.addinivalue_line("markers", "integration: starts the pm service, renders the whole site, sets a clone up, "
+                                       "reaches a git remote or runs the session-start hook; `make test` skips it, "
+                                       "CI and `make test-full` run it")
 
 
 def pytest_unconfigure(config):

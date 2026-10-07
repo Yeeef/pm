@@ -140,7 +140,7 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_service_install_status_restart_and_logs_end_to_end(repo, tmp_path):
     """Under the fake supervisor, which starts the unit's command as launchd or systemd would."""
     status = repo.pm("service", "status")
@@ -173,7 +173,7 @@ def test_service_install_status_restart_and_logs_end_to_end(repo, tmp_path):
     assert ".pm/" not in repo.git("status", "--porcelain"), "the runtime dir is never committed"
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_install_fails_when_the_service_does_not_come_up(repo):
     """Another server holds the port (another clone's service, say): the new one cannot bind, and install says so
     instead of reporting success."""
@@ -192,7 +192,7 @@ def test_install_fails_when_the_service_does_not_come_up(repo):
     assert "give this clone its own port with PORT=<n> pm service install" in res.stderr
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_service_stops_once_the_pin_moves(repo):
     """A pull after pm upgrade moves the pin under a running service: it stops with an error instead of serving the
     old version, and the supervisor's restart then runs the pm uv tool's."""

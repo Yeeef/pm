@@ -18,7 +18,7 @@ from pm import __version__, hooks
 
 GIT_ENV = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
                GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
-pytestmark = pytest.mark.slow  # each test makes a repo with a remote; init starts the service
+pytestmark = pytest.mark.integration  # each test makes a repo with a remote; init starts the service
 
 LAYOUT = ["days", "design", "docs", "postmortems", "projects", "sprints"]
 BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n"
