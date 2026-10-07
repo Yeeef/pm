@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from conftest import PM, write_config
 
 from pm import hooks
@@ -27,25 +29,68 @@ def run(cmd, event, env, cwd):
 
 
 def shown_part(text):
-    """The `pm show` part of the session context, after the rules and the command list."""
+    """The session context after the rules and the command list: `pm setup`, `pm where`, then `pm show`."""
     head = hooks.head()
     assert text.startswith(head) and head.startswith("# pm rules\n")
     return text[len(head):]
 
 
-def test_session_start_injects_rules_and_pm_show(repo):
+def test_session_start_injects_rules_setup_where_and_pm_show(repo):
+    assert repo.pm("setup").returncode == 0  # a clone set up once, as bin/pm setup leaves it
     res = run(SESSION, {"hook_event_name": "SessionStart", "cwd": str(repo.root)}, repo.env, repo.root)
     assert res.returncode == 0, res.stderr
     out = json.loads(res.stdout)["hookSpecificOutput"]
     assert out["hookEventName"] == "SessionStart"
     shown = repo.pm("show").stdout.strip()
-    header, _, body = shown_part(out["additionalContext"]).partition("\n\n")
+    ran, _, rest = shown_part(out["additionalContext"]).partition("\n\n")
+    assert ran.startswith(f"`bin/pm setup` at session start:\nalready set up: {repo.records} -> {repo.store}\n")
+    located, _, rest = rest.partition("\n\n")
+    assert located == "Locations from `bin/pm where` at session start:\n" + repo.pm("where").stdout.strip()
+    assert f"checkout  {repo.root}  branch main, records link set up" in located
+    header, _, body = rest.partition("\n\n")
     assert re.fullmatch(r"Project state from `bin/pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
                         r"run `bin/pm show` again before stating project state to the owner\.", header)
     assert body == shown
     assert "Sprint 1: First" in shown
     plain = repo.pm("prime")  # by hand: the same text, no envelope
     assert plain.returncode == 0 and plain.stdout.strip() == out["additionalContext"]
+
+
+@pytest.mark.parametrize("tracked", [False, True], ids=["no-records", "mains-tracked-copy"])
+def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
+    """Claude Code's worktrees: added with --no-checkout, then reset, so git never runs post-checkout. With main
+    tracking a copy of records/ (and ignoring /records for the link), the reset leaves that copy where the link goes."""
+    if tracked:
+        repo.records.unlink()
+        (repo.records / "sprints").mkdir(parents=True)
+        (repo.records / "sprints/demo-1.md").write_text("copy\n")
+        repo.git("add", "-f", "records")
+        repo.git("commit", "-qm", "copy records")
+        shutil.rmtree(repo.records)
+        repo.records.symlink_to(repo.store)
+    wt = repo.root.parent / "bridge"
+    repo.git("worktree", "add", "-q", "--no-checkout", "-b", "bridge", str(wt))
+    repo.git("reset", "-q", "--hard", cwd=wt)
+    assert (wt / "records").is_dir() == tracked and not (wt / "records").is_symlink()
+    res = run(SESSION, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt)
+    assert res.returncode == 0, res.stderr
+    text = json.loads(res.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
+    assert repo.git("status", "--porcelain", cwd=wt) == ""
+    ran, located, rest = shown_part(text).split("\n\n", 2)
+    assert ran.startswith("`bin/pm setup` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
+    assert f"checkout  {wt}  branch bridge, records link set up" in located
+    assert rest.startswith("Project state from `bin/pm show` at session start, ") and "Sprint 1: First" in rest
+
+
+def test_session_start_setup_fails_open_with_one_line(tmp_path):
+    note = hooks.setup(str(tmp_path), [sys.executable, "-c", "import sys; sys.exit('no records branch')"])
+    assert note == "pm setup failed at session start (no records branch); run `bin/pm setup` by hand.\n\n"
+
+
+def test_session_start_where_fails_open_with_one_line(tmp_path):
+    note = hooks.where(str(tmp_path), [sys.executable, "-c", "import sys; sys.exit('no records store')"])
+    assert note == "pm where failed at session start (no records store); run `bin/pm where` by hand.\n\n"
 
 
 def test_session_start_cuts_long_output_at_a_line(tmp_path):
@@ -61,14 +106,19 @@ def test_session_start_fails_open_with_one_line(repo):
     res = run(SESSION, {"cwd": str(repo.root)}, repo.env, repo.root)
     assert res.returncode == 0
     text = shown_part(json.loads(res.stdout)["hookSpecificOutput"]["additionalContext"])
-    assert text.startswith("pm show failed at session start (") and "\n" not in text
+    _, located, shown = text.split("\n\n", 2)
+    assert located.startswith("Locations from `bin/pm where` at session start:\n")  # pm where reads no Beads
+    assert shown.startswith("pm show failed at session start (") and "\n" not in shown
 
 
 def test_session_context_stays_within_the_cap_with_the_rules(tmp_path, monkeypatch):
     long = "\n".join(f"line {n} " + "x" * 90 for n in range(200))
     monkeypatch.setattr(hooks, "SHOW", [sys.executable, "-c", f"print({long!r})"])
+    monkeypatch.setattr(hooks, "SETUP", [sys.executable, "-c", "print('already set up')"])
+    monkeypatch.setattr(hooks, "WHERE", [sys.executable, "-c", "print('store  .records')"])
     text = hooks.prime(str(tmp_path))
-    assert len(text) <= hooks.CAP and text.endswith(hooks.CUT) and shown_part(text).startswith("Project state")
+    assert len(text) <= hooks.CAP and text.endswith(hooks.CUT)
+    assert shown_part(text).split("\n\n", 2)[2].startswith("Project state")
 
 
 def subcommands():

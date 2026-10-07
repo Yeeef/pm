@@ -23,10 +23,14 @@ from pm.owner_request import hook_owner_request
 
 CAP = 10_000  # Claude Code's additionalContext limit, in characters
 TIMEOUT = 20  # seconds; `pm show` takes about 1 s
+SETUP_TIMEOUT = 6  # seconds; `pm setup` takes 0.4-1.6 s; a fresh clone's Beads bootstrap needs `bin/pm setup` by hand
+WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s. With the others, under the hooks' 30 s timeout
 HEADER = ("Project state from `bin/pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
           "may have changed since; run `bin/pm show` again before stating project state to the owner.\n\n")
 CUT = "\n… cut at the hook's 10,000-character limit; run `bin/pm show` for the rest."
 SHOW = [sys.executable, "-m", "pm.cli", "show", "--refresh-inbox"]
+SETUP = [sys.executable, "-m", "pm.cli", "setup"]
+WHERE = [sys.executable, "-m", "pm.cli", "where"]
 
 
 def rules() -> str:
@@ -50,6 +54,33 @@ def head() -> str:
     return rules() + "\n\n" + commands() + "\n\n"
 
 
+def setup(cwd: str | None, cmd: list[str] | None = None) -> str:
+    """What `pm setup` did, ending in a blank line, or one line saying why it did not run. Session start is the one
+    place setup runs in a new worktree: it changes nothing in a set-up one, and readies one whatever tool created it
+    (a git `post-checkout` hook would miss Claude Code's worktrees, added with --no-checkout and then reset)."""
+    try:
+        res = subprocess.run(cmd or SETUP, cwd=cwd, capture_output=True, text=True, timeout=SETUP_TIMEOUT)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"pm setup did not run at session start ({type(e).__name__}: {e}); run `bin/pm setup` by hand.\n\n"
+    if res.returncode != 0:
+        why = (res.stderr or res.stdout).strip().splitlines()
+        return f"pm setup failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm setup` by hand.\n\n"
+    return f"`bin/pm setup` at session start:\n{res.stdout.strip()}\n\n"
+
+
+def where(cwd: str | None, cmd: list[str] | None = None) -> str:
+    """`pm where` under a heading, ending in a blank line, or one line saying why it did not run: every location and
+    its state, since `pm show` works without the records link and never says it is missing."""
+    try:
+        res = subprocess.run(cmd or WHERE, cwd=cwd, capture_output=True, text=True, timeout=WHERE_TIMEOUT)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"pm where did not run at session start ({type(e).__name__}: {e}); run `bin/pm where` by hand.\n\n"
+    if res.returncode != 0:
+        why = (res.stderr or res.stdout).strip().splitlines()
+        return f"pm where failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm where` by hand.\n\n"
+    return f"Locations from `bin/pm where` at session start:\n{res.stdout.strip()}\n\n"
+
+
 def context(cwd: str | None, cmd: list[str] | None = None, session: str | None = None, cap: int = CAP) -> str:
     """`pm show` under a header, cut at a line to `cap` characters, or one line when it fails. `pm show` runs as the
     starting session, so its warning lists only tasks other live sessions hold, and with --refresh-inbox, which
@@ -71,9 +102,9 @@ def context(cwd: str | None, cmd: list[str] | None = None, session: str | None =
 
 
 def prime(cwd: str | None, session: str | None = None) -> str:
-    """The session context: the rules and the command list, then `pm show`; the whole stays within CAP, so `pm show`
-    gets what the rules and the commands leave."""
-    first = head()
+    """The session context: the rules and the command list, then what `pm setup` did and `pm where`, then `pm show`;
+    the whole stays within CAP, so `pm show` gets what the rest leaves."""
+    first = head() + setup(cwd) + where(cwd)
     return first + context(cwd, session=session, cap=CAP - len(first))
 
 
