@@ -13,7 +13,7 @@ A project lives in two layers. Beads is the work layer: items, holders, status a
 | Work tracking: Beads | What exists, who holds it, its status, what blocks what: epics, tasks, needs. | Agents, through `bd` and `pm` |
 | Record layer: Markdown under `records/` | Why and Context: goals, sprint frames, decisions, findings, designs, reports. | Agents, through `pm` and hand edits that `pm commit` commits |
 | `pm` cli | The orchestration: it writes records, runs the actions that touch both layers, and checks each write. | |
-| `pm` service | One background process per clone (`pm service install`, `status`, `restart`, `logs`). It serves the site from the records and Beads, delivers the owner's replies to the sessions that asked, and syncs pm and beads state. | |
+| `pm` service | One background process per clone (`pm service install`, `status`, `restart`, `logs`). It serves the site from the records and Beads, delivers the owner's replies to the sessions that asked, and every 10 minutes pushes Beads data and the `records` branch. Sessions push neither. | |
 | Interface | **The owner's interface is the site.** The owner reads status there and answers there. **The agent's interface is `pm` and the records.** | Nobody; it is rendered |
 
 Each fact has one home: Beads holds the status, the records hold the why. Two copies of one fact drift. `pm` wraps an action only when it touches both Beads and a record, or needs a check beyond Beads. Other task work stays plain `bd`.
@@ -45,8 +45,7 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 | Record | Sections |
 |---|---|
 | Project | Goal; Progress (generated); Decisions; Design pages; Outcome (at close) |
-| Sprint | Goal; Scope; Done when; Design pages; Progress (generated); Decisions; Findings; Delivery report, with `### Outcome` and `### Against "Done when"`. - Outcome: start with `done`, `partial` or `voided`, plus one sentence. A bullet list of what shipped may follow. Only the first paragraph becomes the Beads close reason.
-     - Against "Done when": give each item as met or not, with its evidence: a page, a command, a number.|
+| Sprint | Goal; Scope; Done when; Design pages; Progress (generated); Decisions; Findings; Delivery report, with `### Outcome` (starts with `done`, `partial` or `voided` and one sentence; a bullet list of what shipped may follow; only the first paragraph becomes the Beads close reason) and `### Against "Done when"` (each item met or not, with its evidence: a page, a command, a number) |
 | Design page | Problem; Goals and non-goals; Constraints and key facts; Design (free `###` subsections); Alternatives considered; Prior art (optional); Open questions |
 | Doc | Free |
 | Postmortem | Summary; Timeline; Cost; Root cause; What changed; What would have caught it earlier |
@@ -124,17 +123,17 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - create a free-form doc record: `pm doc new <slug> --title "…" --bead ID\|--project NAME`, the body on stdin; later edits by hand and `pm commit`.
 - close a sprint: `pm sprint close <id>`. It refuses an unwritten report, any open task or review, and a review closed without `merged as <sha>`. It skips a dismissed review, such as a replaced PR's.
 - close a project: Close every sprint. Write Outcome by hand: the results against the goal in numbers, what was learned and what was retired. Link the sprints' delivery reports. Commit it with `pm commit`, then run `pm project close <name>`.
-
 - create a postmortem: `pm postmortem new <slug> --title "…" --sprint ID\|--project NAME` writes every section; then by hand and `pm commit`. Write it once the incident is fixed, under the sprint it hit.
 - find a link: Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.
 - **Hand edits.** Goal, Scope, Done when, the delivery report, design pages, docs and postmortems are edited by hand in `records/`. Then commit them: `pm commit -m "…" <path>…`. It checks the whole store. With no path, it lists what is uncommitted and commits nothing. `pm check` checks the store without a commit.
 - Keep a small operational fact (a command, a path, a gotcha): `bd remember`; decisions go in records, not there.
 - Report where pm got in your way: `pm feedback add --project NAME`, once, with what happened and what would have helped.
-- check pm service status: `pm service status`; `pm service --help`;
-- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and its link, and the pm service. 
+- check pm service status: `pm service status`; `pm service --help` holds the detail.
+- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and its link, and the pm service.
 - set the site link or port: `pm init --site-url URL` sets the public site link. `PORT=<n> pm service install` moves this clone's site port; on a first install, run `PORT=<n> pm init`.
 
-Anything not covered by above command reference, please run pm xxx --help to get more context. 
+For anything this reference does not cover, run `pm <noun> --help`.
+
 # Writing to the owner
 
 Obey these rules in chat replies, needs, actions and the records the owner reads:
