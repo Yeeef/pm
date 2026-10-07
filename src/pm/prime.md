@@ -10,42 +10,61 @@
 | Object | In Beads | Record |
 |---|---|---|
 | Project: a standing goal of many sprints | epic | `records/projects/<name>.md` |
-| Sprint: goal, scope, done-when; hours to days | child epic of the project | `records/sprints/<project>-<n>.md` |
+| Sprint: one goal; hours to days | child epic of the project | `records/sprints/<project>-<n>.md` |
 | Task: one unit of work, one holder | task under the sprint | none |
-| Need: what waits on the owner, a decision or an action | issue labelled `human` | none |
+| Need: what waits on the owner | issue labelled `human` | none |
 | Decision | none | `::: decision` block in a project or sprint record |
 | Design page: one area, final state | none | `records/design/<name>.md` |
 | Doc: a dated result or explainer | none | `records/docs/<date>-<slug>.md` |
 | Postmortem: a costly incident | none | `records/postmortems/<date>-<slug>.md` |
 | Day page: generated from activity | none | nobody writes it |
 
+| Record | You write by hand; `pm` writes | Generated: never write |
+|---|---|---|
+| Project | Goal, Design pages, Outcome; `pm`: Decisions | Progress, Docs, Postmortems |
+| Sprint | Goal, Scope, Done when, Design pages, Delivery report; `pm`: Decisions, Findings | Progress, Decisions await you, Actions await you, Docs, Postmortems |
+| Design page | Problem, Goals and non-goals, Constraints and key facts, Design, Alternatives considered, Prior art (optional), Open questions | none |
+| Doc | All of it | none |
+| Postmortem | Summary, Timeline, Cost, Root cause, What changed, What would have caught it earlier | none |
+
+| Decisions and needs | Do |
+|---|---|
+| The owner must choose | `pm decision need` |
+| The owner must do a step | `pm action need` |
+| A PR needs review | `pm action need --pr` |
+| An answer sets a rule | `pm decision add --need`, or `--confirmed` for an answer in chat |
+| An answer sets no rule | `pm decision close`. If you are not sure, record a decision. |
+| The action is done | `pm action done`, with the evidence in `--reason` |
+| Decision level | Project if a later sprint must obey it, else sprint |
+| Decision source | Agent, unless it answers a need or the owner confirmed it |
+
+| Question | Where the state lives |
+|---|---|
+| What waits on the owner? | Open `human` issues: Decisions and Actions await you, in `pm show` |
+| What constrains the work? | The project decisions, then the sprint decisions |
+| What is ready to pick up? | `bd ready --exclude-type=epic` |
+| Where does a project or sprint stand? | Its Progress on its page, `pm show`, `pm show --sprint ID` |
+
 ## Core rules
 - Put every change in a task in a sprint. Put work outside a sprint into a small new sprint.
-- Find ready work with `bd ready --exclude-type=epic`.
 - Read the holders and open needs in `pm show` before you take or delegate a task. Do not take work that another live session holds.
 - Read one section of a record with `pm show --record R --section S`, not the whole file.
 - Run `pm show` again before you tell the owner the project state.
 - Claim a task only with `pm task claim`. Do not use `bd update --claim`. Tell a subagent that it holds a task only after the claim succeeds.
 - Close a task with `pm task close`. Do not use `bd close`.
-- A subagent claims and closes its own task with `pm task claim` and `pm task close`.
+- A subagent claims and closes its own task.
 - Record a scope change as a sprint decision. Do not rename a task or rewrite its description for it.
 - Add findings when they occur. Give each result its numbers.
-- Record a decision at project level when a later sprint must obey it. Record it at project level as soon as it applies beyond one sprint.
-- Use owner source only when the decision answers a need or the owner confirmed it.
 - Read the decisions before you ask the owner. Do not ask again about a decided question.
 - When work waits on the owner, raise a need. Then continue other ready work. Do not decide silently.
-- Record an owner answer that sets a rule as a decision. Use `--need` for a need, `--confirmed` for an answer in chat.
-- Close an owner answer that sets no rule with `pm decision close`. If you are not sure, record a decision.
 - The owner's replies and PR merges come into this session as new turns. Do not poll or wait for them.
-- After an owner reply, do its next step at once. Then close the need with `pm decision` or `pm action done`.
-- Close an action with `pm action done` when you see it done. Give the evidence in `--reason`.
+- After an owner reply, do its next step at once. Then close the need.
 - Start the title of a need from a test with "[TEST]". Dismiss it with `bd human dismiss <id>` when the check ends.
 - Do not post status outside the site. The site is the owner's status view.
 - Do not push Beads data or the records branch. The scheduled `pm push` does it.
 - Examine a subagent's report against the files before you accept it.
 - Link a record only with the URL that `pm record link` prints. Do not build a URL or give a records path.
-- Keep one area on each design page. Write its final state, not a history of findings.
-- Do not put decisions or plans on a design page. Put them in the project or sprint record.
+- Do not put decisions or plans on a design page.
 - In a sprint's Design pages, link the sub pages that its work changed.
 - Write a postmortem when an incident costs more than a day, or breaks other sessions or the site.
 - Write "not recorded" for a date or fact that the records do not have. Do not guess.
@@ -55,11 +74,10 @@
 ## Records and reviews
 These rules have guards. Obey them so that the guards do not stop you.
 - Write records with `pm` commands. Each `pm` write commits itself on the records branch.
-- Edit Goal, Scope, Done when, reports, design pages and postmortems by hand. Commit them with `pm commit`.
 - Do not commit `records/` on a code branch.
-- Commit each record that you edit before you end your turn.
+- Commit each hand edit with `pm commit` before you end your turn.
 - Give each `pm` write its target with `--sprint` or `--project`.
-- Do not write in generated sections: Progress, Decisions await you, Actions await you. Keep each section and its prompt line. Write "None yet." in an empty section.
+- Keep each section and its prompt line. Write "None yet." in an empty section.
 - Use only these blocks: `::: decision`, `::: result`, mermaid. Put a one-line reading under each diagram or large table.
 - Start the delivery report's Outcome with done, partial or voided and one sentence.
 - In Against Done when, give each item as met or not, with evidence.
