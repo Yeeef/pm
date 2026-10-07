@@ -51,6 +51,8 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 | Postmortem | Summary; Timeline; Cost; Root cause; What changed; What would have caught it earlier |
 | Day page | all generated |
 
+**The sprint frame.** Goal: what is true when the sprint ends, and why now. Scope: an **In:** and an **Out:** list, at a high level; detail goes in a design page or a doc. Done when: a check and its expected result. The evidence then shows the goal met, or the finding that voids it.
+
 **Blocks.** Use only fenced blocks in a record, e.g.:
 
 - `::: decision {source=owner|agent date=YYYY-MM-DD until="…"}`, which `pm decision add` writes.
@@ -66,7 +68,8 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A date or a fact that the records do not have is "not recorded". Do not guess it.
 - Draw real diagrams (Mermaid, or inline SVG), never ASCII art.
 - Use one term for each concept, and define it once. Use plain table headers.
-- Keep task ids and digests out of the prose.
+- Keep task ids and digests out of the prose. Give the page link, not a file path.
+- Prefer to use bullet points rather than a long paragraph.
 
 ## 4. Invariants
 
@@ -91,8 +94,6 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A day page is generated. Nobody writes one.
 - Session start runs `pm init --session-start`, then injects `pm where` and `pm show` beside `bd prime`. When it says init failed or timed out, run `pm init` by hand. Never run `bd init`, which makes a new database.
 - **Never leave a request only in chat.** Raise a need first for each request that sprint work waits on. Examples: a decision on a sprint's scope or design, a PR review or merge, an action a task waits on.
-- **The sprint frame.** Goal: what is true when the sprint ends, and why now. Scope: an **In:** and an **Out:** list, at a high level; detail goes in a design page. Done when: a check and its expected result, written before the run. The evidence then shows the goal met, or the finding that voids it. For a one-shot or costly run, the expected result is written first, so the run cannot be read backwards.
-- If you are not sure, record a decision. The record check fails on an answered decision need that no decision cites and that has no `no-decision` label.
 
 # How
 
@@ -133,13 +134,3 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - set the site link or port: `pm init --site-url URL` sets the public site link. `PORT=<n> pm service install` moves this clone's site port; on a first install, run `PORT=<n> pm init`.
 
 For anything this reference does not cover, run `pm <noun> --help`.
-
-# Writing to the owner
-
-Obey these rules in chat replies, needs, actions and the records the owner reads:
-- Put the conclusion first.
-- Use 4 bullets or fewer.
-- Do not use ids, hashes or file names unless the owner asks.
-- Give the page link, not a file path.
-- Tell what each number measures.
-- Write one instruction in each sentence.
