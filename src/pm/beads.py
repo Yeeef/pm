@@ -36,7 +36,7 @@ def load_beads(repo: Path) -> dict[str, dict]:
 
 
 # Comments read for open requests, by (issue id, comment count): comments on a request are only ever added, so a
-# long-lived pm serve rereads them (one `bd export`, since bd list carries only the count) only when a count moved.
+# long-lived pm service rereads them (one `bd export`, since bd list carries only the count) only when a count moved.
 def reply_in_beads(beads: dict[str, dict] | None, issue_id: str, rid: str) -> bool:
     """Whether `beads` (a snapshot's issues) already shows site reply `rid` on its card: a comment on the issue ends
     in its REPLY_MARK, or the issue is gone or closed, so its card shows no thread to wait for."""
@@ -125,7 +125,7 @@ ACTION = "action"            # with human: the owner does something, and the age
 NO_DECISION = "no-decision"  # on a closed human decision: answered, and the answer sets no rule to record
 REPLY_AUTHOR = "owner (site reply)"  # the author of the Beads comment that holds a site reply
 PICKED = "picked_up"         # metadata on a human issue: how many of its site replies reached its session
-MERGED = "merged"            # metadata on a review: the merge commit on main pm serve saw for its PR
+MERGED = "merged"            # metadata on a review: the merge commit on main the pm service saw for its PR
 MERGE_REPORTED = "merge_reported"  # metadata on a review: the merge commit that reached its session
 REPLY_MARK = "<!-- pm-reply {} -->"  # the last line of a site reply's comment: its reply id, so a retry never doubles it
 REPLY_ID = re.compile(r"[A-Za-z0-9-]{1,64}")  # a reply id as the site's form sends it: crypto.randomUUID()
@@ -158,14 +158,14 @@ def picked_up(issue: dict) -> int:
 
 
 def merge_waiting(issue: dict) -> str | None:
-    """The merge commit of a review's PR that pm serve saw but that has not reached the session, else None."""
+    """The merge commit of a review's PR that the pm service saw but that has not reached the session, else None."""
     meta = issue.get("metadata") if isinstance(issue.get("metadata"), dict) else {}
     sha = meta.get(MERGED)
     return sha if sha and meta.get(MERGE_REPORTED) != sha else None
 
 
 def site_replies(comments: list[dict]) -> list[dict]:
-    """The owner's site replies among a request's comments, oldest first: those pm serve wrote, by REPLY_AUTHOR. Any
+    """The owner's site replies among a request's comments, oldest first: those the pm service wrote, by REPLY_AUTHOR. Any
     other comment (pm's own as it closes a request, an agent's bd comments add) is no reply."""
     return [c for c in comments if c.get("author") == REPLY_AUTHOR]
 

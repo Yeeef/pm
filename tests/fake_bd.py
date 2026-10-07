@@ -23,6 +23,21 @@ def main_checkout() -> Path:
     return Path(common).parent
 
 
+def embedded_store() -> None:
+    """The embedded Dolt store bd init and bd bootstrap make, which bd context names and the pm service watches."""
+    noms = main_checkout() / ".beads/embeddeddolt/demo/.dolt/noms"
+    if not noms.is_dir():
+        (noms / "oldgen").mkdir(parents=True)
+        (noms / "manifest").write_text("5:fake\n")
+        (noms / "journal").write_text("")
+        # bd's own .beads/.gitignore keeps the database out of git status; here the clone's exclude file does
+        exclude = Path(subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
+                                      capture_output=True, text=True).stdout.strip()) / "info/exclude"
+        exclude.parent.mkdir(exist_ok=True)
+        with open(exclude, "a") as f:
+            f.write("/.beads/embeddeddolt/\n")
+
+
 def save() -> None:
     """Write the issues back; when the test made a Dolt store (Repo.dolt), grow its journal as a Dolt write does."""
     json.dump(issues, open(state_path, "w"))
@@ -146,6 +161,7 @@ elif args[:1] == ["bootstrap"]:
     else:
         (Path.cwd() / ".beads").mkdir(exist_ok=True)
         db.touch()
+        embedded_store()
 elif args[:2] == ["dolt", "push"]:
     print("Pushing to Dolt remote...\nPush complete.")
 elif args[:2] == ["context", "--json"]:
@@ -161,6 +177,30 @@ elif args[:2] == ["config", "set"]:
     common = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
                             capture_output=True, text=True).stdout.strip()
     (Path(common) / f"fake-bd-{args[2]}").write_text(args[3])
+    config = main_checkout() / ".beads/config.yaml"  # bd keeps its config in the tracked config.yaml
+    if config.exists():
+        config.write_text(config.read_text() + f"{args[2]}: {args[3]}\n")
+elif args[:1] == ["init"]:
+    # As bd init does: .beads/ with its config and its git hooks (Beads' marked section), core.hooksPath, the
+    # database, and its SessionStart hook in .claude/settings.json (bd writes JSON with sorted keys). It does not
+    # commit, unlike bd 1.3.1.
+    common = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
+                            capture_output=True, text=True).stdout.strip()
+    (Path.cwd() / ".beads/hooks").mkdir(parents=True)
+    (Path.cwd() / ".beads/config.yaml").write_text("# fake\n")
+    for name in ("post-checkout", "pre-commit"):
+        hook = Path.cwd() / ".beads/hooks" / name
+        hook.write_text("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n"
+                        "# --- END BEADS INTEGRATION v1.3.1 ---\n")
+        hook.chmod(0o755)
+    subprocess.run(["git", "config", "core.hooksPath", str(Path.cwd() / ".beads/hooks")], check=True)
+    (Path(common) / "fake-bd-db").touch()
+    embedded_store()
+    settings = Path.cwd() / ".claude/settings.json"
+    if not settings.exists():
+        settings.parent.mkdir(exist_ok=True)
+        settings.write_text(json.dumps({"hooks": {"SessionStart": [{"hooks": [
+            {"command": "bd prime --hook-json", "type": "command"}], "matcher": ""}]}}, indent=2) + "\n")
 elif args[:2] == ["hooks", "install"] and "--beads" in args:
     subprocess.run(["git", "config", "core.hooksPath", str(Path.cwd() / ".beads/hooks")], check=True)
 else:

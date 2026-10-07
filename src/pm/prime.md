@@ -66,7 +66,7 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 
 **pm is self-contained.** It orchestrates the work, and it gives the context about itself, level by level. `pm prime` prints this file at session start: the model and the procedures. `pm show` prints the state. Each command's `--help` holds that command's, or its subsystem's, detail. This file names a command and its refusals; for more, run `pm <noun> [cmd] --help`.
 
-**Behind both.** `pm serve` serves the site from the records and Beads. A scheduled job runs `pm push`: it pushes Beads data and the `records` branch and generates the day summary. Sessions push neither. `pm render` checks every record. `pm --help` describes each; `pm push --help` holds the push's detail.
+**Behind both.** The pm service, one background process per clone, serves the site from the records and Beads and runs `pm push`: it pushes Beads data and the `records` branch and generates the day summary. Sessions push neither. `pm check` checks every record. When `pm where` shows the service down, run `pm service restart`. If that fails, raise an action and add a bug task. For more about the service (ports, logs, health, stale builds), read `pm service --help`. `pm push --help` holds the push's detail.
 
 ## 4. Working with them
 
@@ -109,7 +109,7 @@ Session start runs `pm setup`, then injects `pm where` and `pm show` beside `bd 
 | `held by <session>, <age>, idle` | Its session wrote nothing for 30 minutes. | `pm task claim` can take it. |
 | `held by <name> without a session` | Someone claimed it outside `pm`. | Leave it, unless the owner tells you to take it. |
 | `[undelivered reply: pm reply read <id>]` | An owner reply did not get to its session. | Run `pm reply read <id>`. Then do its next step. |
-| `warning: the scheduled push needs attention` | The push failed or is late. | Read `pm where` and `.git/pm-push.log`. If you cannot fix it, raise an action and add a bug task. |
+| `warning: the pm service's push needs attention` | The push failed or is late. | Read `pm service status` and `pm service logs`. If you cannot fix it, raise an action and add a bug task. |
 
 ## 6. Projects, sprints and tasks
 
@@ -172,7 +172,7 @@ Session start runs `pm setup`, then injects `pm where` and `pm show` beside `bd 
 - It refuses a record with uncommitted changes, so it never carries an edit in progress. Commit that record with `pm commit -m "…" <path>`, or revert it. Then run the write again.
 - It commits what it wrote on the `records` branch. If the commit fails, it puts its files back and says so.
 
-**Hand edits.** Goal, Scope, Done when, the delivery report, design pages, docs and postmortems are edited by hand in `records/`. Then commit them: `pm commit -m "…" <path>…`. It checks the whole store. With no path, it lists what is uncommitted and commits nothing. `pm render` checks the store without a commit.
+**Hand edits.** Goal, Scope, Done when, the delivery report, design pages, docs and postmortems are edited by hand in `records/`. Then commit them: `pm commit -m "…" <path>…`. It checks the whole store. With no path, it lists what is uncommitted and commits nothing. `pm check` checks the store without a commit.
 
 - A Stop hook (`pm hook stop`) blocks your turn once while records that your tool calls named are uncommitted. Commit or revert them before you hand back. Leave a file that another session is writing.
 
@@ -230,7 +230,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 
 **Owner replies.** The owner replies on the request's card. The site stores the reply as a Beads comment on the request, which stays open.
 
-- `pm serve` pushes the reply at once into the inbox of the Claude Code session that raised the request. It pushes a reviewed PR's merge to main the same way.
+- The pm service pushes the reply at once into the inbox of the Claude Code session that raised the request. It pushes a reviewed PR's merge to main the same way.
 - It arrives as a new turn, or between tool calls when you are busy. Do not poll, and do not start a waiter.
 - Only the site's replies count, never comments by pm or by an agent.
 - A reply that could not be pushed waits: the session had ended, or had no inbox, as in Codex. `pm show` flags it. `pm reply read <id>` prints it and marks it delivered.

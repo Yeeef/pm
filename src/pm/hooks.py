@@ -17,17 +17,18 @@ from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 
+from pm.config import STORE
 from pm.owner_request import hook_owner_request
 
 # ---------------------------------------------------------------- pm prime
 
 CAP = 10_000  # Claude Code's additionalContext limit, in characters
 TIMEOUT = 20  # seconds; `pm show` takes about 1 s
-SETUP_TIMEOUT = 6  # seconds; `pm setup` takes 0.4-1.6 s; a fresh clone's Beads bootstrap needs `bin/pm setup` by hand
+SETUP_TIMEOUT = 6  # seconds; `pm setup` takes 0.4-1.6 s; a fresh clone's Beads bootstrap needs `pm init` by hand
 WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s. With the others, under the hooks' 30 s timeout
-HEADER = ("Project state from `bin/pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
-          "may have changed since; run `bin/pm show` again before stating project state to the owner.\n\n")
-CUT = "\n… cut at the hook's 10,000-character limit; run `bin/pm show` for the rest."
+HEADER = ("Project state from `pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
+          "may have changed since; run `pm show` again before stating project state to the owner.\n\n")
+CUT = "\n… cut at the hook's 10,000-character limit; run `pm show` for the rest."
 SHOW = [sys.executable, "-m", "pm.cli", "show", "--refresh-inbox"]
 SETUP = [sys.executable, "-m", "pm.cli", "setup"]
 WHERE = [sys.executable, "-m", "pm.cli", "where"]
@@ -93,11 +94,11 @@ def setup(cwd: str | None, cmd: list[str] | None = None) -> str:
     try:
         res = subprocess.run(cmd or SETUP, cwd=cwd, capture_output=True, text=True, timeout=SETUP_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"pm setup did not run at session start ({type(e).__name__}: {e}); run `bin/pm setup` by hand.\n\n"
+        return f"pm setup did not run at session start ({type(e).__name__}: {e}); run `pm init` by hand.\n\n"
     if res.returncode != 0:
         why = (res.stderr or res.stdout).strip().splitlines()
-        return f"pm setup failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm setup` by hand.\n\n"
-    return f"`bin/pm setup` at session start:\n{res.stdout.strip()}\n\n"
+        return f"pm setup failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `pm init` by hand.\n\n"
+    return f"`pm setup` at session start:\n{res.stdout.strip()}\n\n"
 
 
 def where(cwd: str | None, cmd: list[str] | None = None) -> str:
@@ -106,11 +107,11 @@ def where(cwd: str | None, cmd: list[str] | None = None) -> str:
     try:
         res = subprocess.run(cmd or WHERE, cwd=cwd, capture_output=True, text=True, timeout=WHERE_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"pm where did not run at session start ({type(e).__name__}: {e}); run `bin/pm where` by hand.\n\n"
+        return f"pm where did not run at session start ({type(e).__name__}: {e}); run `pm where` by hand.\n\n"
     if res.returncode != 0:
         why = (res.stderr or res.stdout).strip().splitlines()
-        return f"pm where failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm where` by hand.\n\n"
-    return f"Locations from `bin/pm where` at session start:\n{res.stdout.strip()}\n\n"
+        return f"pm where failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `pm where` by hand.\n\n"
+    return f"Locations from `pm where` at session start:\n{res.stdout.strip()}\n\n"
 
 
 def context(cwd: str | None, cmd: list[str] | None = None, session: str | None = None, cap: int = CAP) -> str:
@@ -123,10 +124,10 @@ def context(cwd: str | None, cmd: list[str] | None = None, session: str | None =
     try:
         res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT, env=env)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"pm show did not run at session start ({type(e).__name__}: {e}); run `bin/pm show` by hand."
+        return f"pm show did not run at session start ({type(e).__name__}: {e}); run `pm show` by hand."
     if res.returncode != 0:
         why = (res.stderr or res.stdout).strip().splitlines()
-        return f"pm show failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `bin/pm show` by hand."
+        return f"pm show failed at session start ({why[-1] if why else f'exit {res.returncode}'}); run `pm show` by hand."
     text = HEADER.format(at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")) + res.stdout.strip()
     if len(text) > cap:
         text = text[:text.rfind("\n", 0, cap - len(CUT))] + CUT
@@ -197,7 +198,7 @@ def cmd_prime(part: str | int | None, hook_json: bool) -> int:
 # themselves, but Goal, Done when, design pages and delivery reports are edited by hand and committed with
 # `pm commit`; a forgotten one is invisible on the records branch and blocks the next `pm` write to that record.
 #
-# The store is `<main checkout>/.records`, found from the clone's common git dir. When it has uncommitted files, the
+# The store is `<main checkout>/.pm/store/records`, found from the clone's common git dir. When it has uncommitted files, the
 # hook blocks the stop once with a reason naming them. A session commits only its own records, and other sessions
 # write to the same store at the same time, so it blocks only on files this session touched: a dirty file counts when
 # its path under the store (such as `sprints/demo-1.md`) appears in one of this session's tool calls in the transcript
@@ -211,7 +212,7 @@ def cmd_prime(part: str | int | None, hook_json: bool) -> int:
 STOP_REASON = (
     "These records in the store ({store}) have uncommitted changes, and this session's tool calls name them:\n"
     "{files}\n"
-    "Commit the ones you edited with `bin/pm commit -m \"<why>\" <path>...` (paths as listed, under records/), or "
+    "Commit the ones you edited with `pm commit -m \"<why>\" <path>...` (paths as listed, under records/), or "
     "revert them with `git -C {store} checkout -- <path>` (`rm` for a new file). Leave a file you did not edit: "
     "another session is writing it."
 )
@@ -222,9 +223,9 @@ def git(cwd: str | Path | None, *args: str) -> str:
 
 
 def store_of(cwd: str | None) -> Path:
-    """The records store of the clone containing `cwd`: `.records` beside the clone's common .git dir."""
+    """The records store of the clone containing `cwd`: `.pm/store/records` beside the clone's common .git dir."""
     common = Path(git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
-    return common.parent / ".records"
+    return common.parent / STORE
 
 
 def dirty(store: Path) -> list[str]:
@@ -321,4 +322,19 @@ def hook_stop() -> int:
     return 0
 
 
-HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request}
+# ---------------------------------------------------------------- pm hook git-pre-commit
+# Records live on the records branch; a code-branch commit must not edit records/ (main's copy is the copy
+# workflow's). A merge is let through, since merging main brings in the copy. Unlike the runtime hooks, this one
+# refuses: it is the guard.
+
+def hook_git_pre_commit() -> int:
+    if Path(git(None, "rev-parse", "--path-format=absolute", "--git-dir").strip(), "MERGE_HEAD").exists():
+        return 0
+    if git(None, "diff", "--cached", "--name-only", "--", "records/").strip():
+        print("error: this commit edits records/, which only the records branch may change; write records with pm\n"
+              "and unstage these edits: git restore --staged records/", file=sys.stderr)
+        return 1
+    return 0
+
+
+HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request, "git-pre-commit": hook_git_pre_commit}

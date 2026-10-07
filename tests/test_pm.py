@@ -1,5 +1,5 @@
 """The pm flows agents and the owner depend on, end to end against a temp repo and a fake bd: setup, the sprint loop,
-needs and replies, tasks, the shared records store, pm serve and the scheduled push."""
+needs and replies, tasks, the shared records store, the pm service and its push."""
 
 from __future__ import annotations
 
@@ -18,10 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from conftest import write_config, HARNESS, PM, fake_bd_env
-
-sys.path.insert(0, str(HARNESS))
-from pm.beads import reply_body  # noqa: E402
+from conftest import write_config, PM, fake_bd_env
+from pm.beads import reply_body
 
 FRAME = "## Goal\n\nShip the thing.\n\n## Scope\n\n**In:** the thing.\n\n**Out:** other things.\n\n## Done when\n\n- It ships.\n"
 
@@ -102,8 +100,8 @@ def test_sprint_closes_after_its_pr_merges(repo):
     assert res.returncode == 0, res.stderr
     assert committed(repo, ["[SPRINT] demo sprint 1: closed, merged as 8f5c618"])
     assert repo.bd_writes() == [["close", "demo.1", f"--reason=Done: shipped the thing. (records commit {store_head(repo)})"]]
-    assert repo.pm("render").returncode == 0
-    page = (repo.root / "site/sprints/demo-1.html").read_text()
+    assert repo.pm("check").returncode == 0
+    page = repo.page("sprints/demo-1.html")
     assert "<p>Done: shipped the thing.</p>\n<p>Merged as 8f5c618 (PR #12).</p>" in page
 
 
@@ -130,7 +128,7 @@ def test_decision_add_need_closes_need_and_records_decision(repo):
     assert repo.issues()["demo.1.2"]["status"] == "closed"
     assert path.read_text().split("## Design pages")[0].rstrip().endswith(
         f"::: decision {{source=owner date={TODAY}}}\n{text}\n:::")
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 ANSWER = "Port 8767."
@@ -148,7 +146,7 @@ def test_decision_close_closes_small_answer_without_record(repo):
     need = repo.issues()["demo.1.2"]
     assert (need["status"], need["labels"]) == ("closed", ["human", "no-decision"])
     assert repo.store_log() == heads and repo.git("status", "--porcelain", cwd=repo.store) == ""
-    assert repo.pm("render").returncode == 0
+    assert repo.pm("check").returncode == 0
 
 
 # ---------------------------------------------------------------- pm task add
@@ -222,6 +220,14 @@ def bd_writes_in(tmp_path):
     return [c for c in calls if "--json" not in c]
 
 
+def service_line(clone: Path, home: Path, state: str) -> str:
+    """pm where's service line for a clone, on this platform's supervisor as the fakes present it."""
+    name = f"local.pm.{clone.name}.{__import__('hashlib').sha1(str(clone.resolve()).encode()).hexdigest()[:8]}"
+    at = (home / f"Library/LaunchAgents/{name}.plist" if sys.platform == "darwin"
+          else home / f".config/systemd/user/{name}.service")
+    return f"service   {'launchd' if sys.platform == 'darwin' else 'systemd'} {name} ({at})  {state}"
+
+
 @pytest.fixture
 def origin(tmp_path):
     """A clone's origin as this repo was cut over: records split onto the records branch, then untracked on main."""
@@ -232,7 +238,7 @@ def origin(tmp_path):
     git_in(o, "add", "-A")
     git_in(o, "commit", "-qm", "records")
     git_in(o, "subtree", "split", "--prefix=records", "-b", "records")
-    (o / ".gitignore").write_text("/records\n/.records/\n")
+    (o / ".gitignore").write_text("/records\n")
     write_config(o)
     git_in(o, "rm", "-rq", "records")
     git_in(o, "add", ".gitignore", ".pm")
@@ -251,29 +257,22 @@ def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origi
     assert git_in(clone, "config", "core.hooksPath").strip() == str(clone / ".beads/hooks")
     assert git_in(clone, "config", "beads.role").strip() == "maintainer"
     assert (clone / ".beads").stat().st_mode & 0o777 == 0o700
-    assert git_in(clone / ".records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "records"
+    assert git_in(clone / ".pm/store/records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "records"
     assert (clone / "records").is_symlink() and (clone / "records/sprints/demo-1.md").read_text() == "one\n"
     assert git_in(clone, "status", "--porcelain") == ""
     config = (clone / ".git/config").read_text()
     where = subprocess.run([*PM, "where"], cwd=clone,
                            env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
-    assert where[0] == f"store     {clone}/.records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
+    assert where[0] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
     assert where[1] == f"checkout  {clone}  branch main, records link set up"
-    assert schedule_line(clone, tmp_path / "home", "installed") in where
-    assert f"push      {clone}/.git/pm-push.log  no push recorded yet" in where
-    installs = [c for c in sched_calls(tmp_path) if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]]
-    assert len(installs) == 1, sched_calls(tmp_path)
-    if sys.platform == "darwin":
-        plist = __import__("plistlib").loads(Path(installs[0][3]).read_bytes())
-        assert plist["ProgramArguments"] == [str(clone / "bin/pm"), "push"] and plist["WorkingDirectory"] == str(clone)
-        assert plist["StartInterval"] == 600 and plist["StandardErrorPath"] == str(clone / ".git/pm-push.log")
-        assert plist["StandardOutPath"] == "/dev/null", "pm push writes its own log lines"
-    assert f"installed the push schedule: " in res.stdout
+    # pm init installs the service; setup leaves the machine's supervisor alone
+    assert service_line(clone, tmp_path / "home", "not installed; run pm service install") in where
+    assert f"push      {clone}/.pm/run/push.log  no push recorded yet" in where
+    assert not [c for c in sched_calls(tmp_path) if c[1:2] in (["bootstrap"], ["kickstart"]) or c[2:3] in (["enable"], ["restart"])]
     again = setup_in(clone)
     assert again.returncode == 0 and again.stdout.startswith("already set up"), again.stderr
     assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
                                      ["hooks", "install", "--beads"]], "no bd change"
-    assert len([c for c in sched_calls(tmp_path) if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]]) == 1
     assert (clone / ".git/config").read_text() == config
 
 
@@ -289,8 +288,8 @@ def test_write_on_one_branch_is_visible_on_another_without_merge(repo):
     assert repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
     assert repo.git("log", "--format=%s").splitlines() == ["code"]
     assert "- Seen from every branch." in repo.pm("show", "--sprint", "demo.1").stdout
-    assert repo.pm("render").returncode == 0
-    assert "Seen from every branch." in (repo.root / "site/sprints/demo-1.html").read_text()
+    assert repo.pm("check").returncode == 0
+    assert "Seen from every branch." in repo.page("sprints/demo-1.html")
 
 
 def test_concurrent_writes_from_two_worktrees_land_as_separate_commits(repo):
@@ -321,7 +320,7 @@ def test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that
     assert res.returncode == 0, res.stderr
     assert "committed records/sprints/demo-1.md as " in res.stdout
     assert committed(repo, ["Sharpen the sprint 1 goal"])
-    refused(repo, "commit", "-m", "Nothing", "records/sprints/demo-1.md", match=r"error: nothing to commit in .*\.records")
+    refused(repo, "commit", "-m", "Nothing", "records/sprints/demo-1.md", match=r"error: nothing to commit in .*\.pm/store/records")
 
 
 def test_commit_commits_only_its_callers_records_beside_another_sessions_edit(repo):
@@ -353,7 +352,7 @@ SERVE_BEHIND = 10  # seconds a served page may be behind, as pm/site.py has it
 
 
 def asof(page: str) -> float:
-    """The time, in epoch seconds, a page served by pm serve states its data is current as of."""
+    """The time, in epoch seconds, a page served by the pm service states its data is current as of."""
     m = re.search(r'<p class="asof[^"]*" data-asof="([\d.]+)"', page)
     assert m, "the page states no age"
     return float(m.group(1))
@@ -385,13 +384,13 @@ def load(url: str) -> str:
 
 @pytest.mark.slow
 def test_serve_shows_each_change_within_its_stated_age(repo):
-    """pm serve shows a pm write and a Beads change within SERVE_BEHIND s, every page stating data from before a
+    """The pm service shows a pm write and a Beads change within SERVE_BEHIND s, every page stating data from before a
     change it does not show yet, and a failing render as the error."""
     import urllib.error
     import urllib.request
 
     repo.dolt()
-    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         url = re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0)
@@ -427,9 +426,9 @@ def test_serve_shows_each_change_within_its_stated_age(repo):
 
 @pytest.fixture
 def served(repo):
-    """pm serve for the repo's store on a free port; the repo's env carries that PORT from here on."""
+    """The pm service for the repo's store on a free port; the repo's env carries that PORT from here on."""
     repo.dolt()
-    srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
+    srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         port = re.search(r"http://localhost:(\d+)", srv.stdout.readline()).group(1)
@@ -496,18 +495,18 @@ def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
     until_shown(lambda: urllib.request.urlopen(f"{served}/").read().decode(),
                 lambda p: p.count('<span class="replied">not delivered') == 2 and "Merged as abc123." in p, None)
 
-    assert repo.pm("render").returncode == 0  # the static site keeps the slot and shows no form, but the replies
-    static = (repo.root / "site" / "index.html").read_text()
+    assert repo.pm("check").returncode == 0  # the static site keeps the slot and shows no form, but the replies
+    static = repo.page("index.html")
     assert "<!--pm-reply demo.1.2 decision-->" in static and "<form" not in static
     assert "<p>Merged as abc123.</p>" in static and "<!-- pm-reply" not in static
 
 
 @contextlib.contextmanager
 def serving(repo, **env):
-    """pm serve for the repo's store on a free port with `env` added; its URL, then its stderr once it stopped."""
+    """The pm service for the repo's store on a free port with `env` added; its URL, then its stderr once it stopped."""
     log = repo.root.parent / "serve.log"
     with log.open("w") as err:
-        srv = subprocess.Popen([*PM, "serve"], cwd=repo.root,
+        srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                                env=dict(repo.env, PORT="0", **env), stdout=subprocess.PIPE, stderr=err, text=True)
     try:
         yield re.search(r"http://localhost:\d+", srv.stdout.readline()).group(0), log
@@ -580,7 +579,7 @@ def inbox_text(line: dict) -> str:
 
 @pytest.mark.slow
 def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
-    """The three replies lost on 2026-10-06, each pushed by pm serve: several requests raised in one command, one
+    """The three replies lost on 2026-10-06, each pushed by the pm service: several requests raised in one command, one
     raised with its output piped through grep, and a second reply to a request already delivered."""
     with session_inbox() as (inbox, lines):
         env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET=inbox, NEED=NEED)
@@ -687,7 +686,7 @@ def test_a_reviewed_prs_merge_is_pushed_into_the_session_once(repo):
                                     f"next: pm action done demo.1.3 --reason \"merged as {sha}\", then update the "
                                     f"main checkout: {pull_main(repo)}")
         assert repo.issues()["demo.1.3"]["metadata"]["merged"] == sha
-        assert repo.issues()["demo.1.3"]["status"] == "open", "the agent closes the review, not pm serve"
+        assert repo.issues()["demo.1.3"]["status"] == "open", "the agent closes the review, not the pm service"
         with serving(repo) as (url, _):  # a restart: the merge is stored, so it is neither looked up nor pushed again
             until_shown(lambda: load(f"{url}/"), lambda p: "Review PR #7" in p, None)
             deadline = time.time() + 2
@@ -729,7 +728,7 @@ def test_task_claim_refuses_a_task_another_live_session_holds(repo):
     assert claim(repo, "demo.1.2", "sess-a").returncode == 0
 
 
-# ---------------------------------------------------------------- pm push: the scheduled job
+# ---------------------------------------------------------------- pm push: what the service runs
 
 DAY2 = "---\ntype: day\ndate: 2026-10-02\n---\n\n## Today\n\n> What are we chasing today, and why now?\n\nMore.\n"
 
@@ -756,7 +755,7 @@ def remote_records(repo) -> str:
 
 
 def push_state(repo) -> dict:
-    return json.loads((repo.root / ".git/pm-push.json").read_text())
+    return json.loads((repo.root / ".pm/run/push.json").read_text())
 
 
 def move_remote(repo, rel: str, text: str) -> None:
@@ -781,7 +780,7 @@ def test_push_pushes_beads_and_new_records_commits(pushed):
     state = push_state(repo)
     assert state["beads"]["ok"] and state["records"]["ok"] and state["records"]["message"] == "pushed 2 commit(s)", "the day file and its new summary"
     assert state["records"]["last_ok"] == state["records"]["at"]
-    assert len((repo.root / ".git/pm-push.log").read_text().splitlines()) == 6
+    assert len((repo.root / ".pm/run/push.log").read_text().splitlines()) == 6
     assert state["summary"]["message"].startswith("summarized"), "the new day file changed the activity"
 
 
@@ -830,8 +829,8 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     assert res.returncode == 0, res.stderr
     assert summary(repo)["text"] == "Summary 2." and summary(repo)["digest"] != first["digest"]
     assert "started: Ask the owner" in claude_calls(repo)[1]["stdin"]
-    assert repo.pm("render").returncode == 0
-    page = (repo.root / f"site/days/{TODAY}.html").read_text()
+    assert repo.pm("check").returncode == 0
+    page = repo.page(f"days/{TODAY}.html")
     assert re.search(r"<span>generated at \d\d:\d\d</span>.*Summary 2\.", page, re.S), page
-    assert "Summary 2." in (repo.root / "site/index.html").read_text()
+    assert "Summary 2." in repo.page("index.html")
     assert f"today {TODAY}: Summary 2. (generated " in repo.pm("show").stdout
