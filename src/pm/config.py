@@ -54,6 +54,16 @@ def root(cwd: Path) -> Path:
 @functools.cache
 def load(cwd: Path) -> Config:
     """The config of the checkout containing `cwd`, checked against the running pm's version."""
+    c = read(cwd)
+    if c.version != __version__:
+        raise ConfigError(f"this repo pins pm {c.version} in {c.path}, but pm {__version__} is running; install "
+                          f"the pinned version with {INSTALL.format(v=c.version)} (or move the pin to {__version__} "
+                          f"with pm upgrade)")
+    return c
+
+
+def read(cwd: Path) -> Config:
+    """The config of the checkout containing `cwd`, checked for its keys but not its pin: `pm upgrade` moves it."""
     path = root(cwd) / REL
     if not path.is_file():
         raise ConfigError(f"this repo has no {REL} (looked for {path}); create it with pm init")
@@ -68,10 +78,6 @@ def load(cwd: Path) -> Config:
         raise ConfigError(f"{path}: " + "; ".join(filter(None, [
             unknown and f"unknown keys {', '.join(unknown)}", missing and f"missing keys {', '.join(missing)}",
             wrong and "wrong types for " + ", ".join(f"{k} (want {KEYS[k].__name__})" for k in wrong)])))
-    if data["version"] != __version__:
-        raise ConfigError(f"this repo pins pm {data['version']} in {path}, but pm {__version__} is running; install "
-                          f"the pinned version with {INSTALL.format(v=data['version'])} (or move the pin with "
-                          f"pm upgrade once it exists)")
     return Config(path, data["version"], data["remote"], data["main_branch"], data["port"],
                   data.get("site_url", "").strip().rstrip("/"))
 
