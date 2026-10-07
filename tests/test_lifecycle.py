@@ -14,6 +14,7 @@ import pytest
 from pm import __version__
 from test_init import BEADS_HOOK, PM_FILES, env, existing, git, new_repo, pm, section, snapshot  # noqa: F401 (fixtures)
 
+LOCAL_SETTINGS = '{\n  "model": "café"\n}\n'  # non-ASCII: pm rewrites the file around it, byte for byte
 CODEX_USER = '# mine\nmodel = "o3"\n\n[sandbox_workspace_write]\nnetwork_access = true\n'
 
 
@@ -128,7 +129,7 @@ def install_everywhere(repo: Path, tmp: Path) -> Path:
     (tmp / "codex/config.toml").write_text(CODEX_USER)
     (tmp / "claude").mkdir()
     (repo / ".claude").mkdir(exist_ok=True)
-    (repo / ".claude/settings.local.json").write_text('{\n  "model": "x"\n}\n')
+    (repo / ".claude/settings.local.json").write_text(LOCAL_SETTINGS)
     res = pm(repo, "init")
     assert res.returncode == 0, res.stderr
     git(repo, "add", "-A")
@@ -162,14 +163,14 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
         assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() in ("", "false")
     assert sched_units(tmp_path) == [] and loaded(tmp_path) == []
     assert (tmp_path / "codex/config.toml").read_text() == CODEX_USER
-    assert (existing / ".claude/settings.local.json").read_text() == '{\n  "model": "x"\n}\n'
+    assert (existing / ".claude/settings.local.json").read_text() == LOCAL_SETTINGS
     assert not (wt / ".claude/settings.local.json").exists()
     assert not (existing / ".pm").exists() and (existing / ".beads/hooks").is_dir()
     # every byte that is not pm's is as it was, but for the newline pm's block needed after the unterminated last
     # line of .gitignore
     after = snapshot(existing)
     assert after.pop(".gitignore") == before.pop(".gitignore") + b"\n"
-    assert after.pop(".claude/settings.local.json") == b'{\n  "model": "x"\n}\n'
+    assert after.pop(".claude/settings.local.json") == LOCAL_SETTINGS.encode()
     assert after == before
     assert pm(existing, "uninstall").returncode != 0, "with .pm/ gone, pm refuses to run here"
 

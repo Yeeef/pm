@@ -2482,7 +2482,7 @@ def remove_claude(top: Path, store: Path) -> str:
         if not data["permissions"]:
             del data["permissions"]
     if data:
-        write_atomic(path, json.dumps(data, indent=2) + "\n")
+        write_atomic(path, install.dump_json(data))
     else:
         path.unlink()
         with contextlib.suppress(OSError):
@@ -2624,7 +2624,7 @@ def setup_claude(top: Path, store: Path) -> str:
         return ""
     dirs.append(str(store))
     path.parent.mkdir(exist_ok=True)
-    write_atomic(path, json.dumps(data, indent=2) + "\n")
+    write_atomic(path, install.dump_json(data))
     return f"added {store} to permissions.additionalDirectories in {path}, so Claude Code writes records through records/ without asking"
 
 
