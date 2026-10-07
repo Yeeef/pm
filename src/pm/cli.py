@@ -2345,6 +2345,7 @@ def cmd_init(args) -> str:
     else:
         c = cfg()
         s = install.Settings(c.remote, c.main_branch, c.port, c.site_url)
+    before = worktree_changes(top)
     out = []
     try:
         planned = install.plan(top, s)  # read-only: a refusal comes before bd init, which writes and commits
@@ -2367,11 +2368,34 @@ def cmd_init(args) -> str:
     said = service.install(main, service.port_for(main, cfg().port))
     if said:
         out.append(said)
-    if written:
+    after = worktree_changes(top)
+    changed = list(dict.fromkeys(written + [p for p in after if after[p] != before.get(p)]))
+    if changed:  # pm's pieces, and what bd changed meanwhile (bd init's files, the agent profile in .beads/config.yaml)
         branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
-        out.append(f"pm commits nothing on {branch}; commit pm's files there: git add -- {' '.join(written)} && "
-                   f'git commit -m "Install pm {__version__}"')
+        out.append(f"pm commits nothing on {branch}; commit what pm init changed there: git add -- {' '.join(changed)} "
+                   f'&& git commit -m "Install pm {__version__}"')
     return "\n".join(out)
+
+
+def worktree_changes(top: Path) -> dict[str, str]:
+    """Each path git status shows in `top` (untracked files one by one), with its status and, for a file, a hash of
+    its bytes, so a file changed again under the same status still differs."""
+    res = subprocess.run(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=top,
+                         capture_output=True, text=True)  # not store_git: its strip would eat a leading status space
+    if res.returncode != 0:
+        raise Refuse(f"git status failed in {top}: {res.stderr.strip()}")
+    raw = res.stdout
+    out, entries = {}, iter(raw.split("\0"))
+    for e in entries:
+        if not e:
+            continue
+        code, rel = e[:2], e[3:]
+        if code[0] in "RC":
+            next(entries, None)  # a rename's or copy's source path
+        path = top / rel
+        digest = hashlib.sha1(path.read_bytes()).hexdigest() if path.is_file() and not path.is_symlink() else ""
+        out[rel] = f"{code} {digest}"
+    return out
 
 
 def code_top(cwd: Path, store: Path, what: str) -> Path:

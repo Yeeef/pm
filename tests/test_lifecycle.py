@@ -172,6 +172,7 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     after = snapshot(existing)
     assert after.pop(".gitignore") == before.pop(".gitignore") + b"\n"
     assert after.pop(".claude/settings.local.json") == LOCAL_SETTINGS.encode()
+    assert after.pop(".beads/config.yaml") == b"agent.profile: team-maintainer\n", "Beads and its config stay"
     assert after == before
     assert pm(existing, "uninstall").returncode != 0, "with .pm/ gone, pm refuses to run here"
 

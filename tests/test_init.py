@@ -114,7 +114,9 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     status = git(new_repo, "status", "--porcelain", "--untracked-files=all").split("\n")
     untracked = sorted(l[3:] for l in status if l.startswith("?? ") and not l[3:].startswith(".beads/embedded"))
     assert untracked == sorted(PM_FILES + [".beads/config.yaml"])
-    assert f"git add -- {' '.join(PM_FILES)}" in res.stdout and f'git commit -m "Install pm {__version__}"' in res.stdout
+    # the commit to make names every file the run changed: pm's pieces and what bd wrote
+    assert f"git add -- {' '.join(PM_FILES + ['.beads/config.yaml'])} && " in res.stdout, res.stdout
+    assert f'git commit -m "Install pm {__version__}"' in res.stdout
     # the pm service, under the fake supervisor in tmp/home: pm init installs it, pm setup never does
     sched = [json.loads(l) for l in (tmp_path / "sched.log").read_text().splitlines()]
     assert [c for c in sched if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]], sched
@@ -207,6 +209,7 @@ def test_init_keeps_what_is_not_pms(existing: Path, tmp_path: Path):
     assert res.returncode == 0, res.stderr
     calls = [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
     assert ["init", "--non-interactive"] not in calls, "Beads is there; bd init must not run"
+    assert f"git add -- {' '.join(PM_FILES)} .beads/config.yaml && " in res.stdout, "the agent profile bd set is listed"
     for name in ("post-checkout", "pre-commit"):
         assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + section(name) + "\n# mine\necho done\n"
     for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
