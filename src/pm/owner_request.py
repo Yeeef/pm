@@ -25,7 +25,7 @@ import subprocess
 import sys
 import tempfile
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-haiku-5-5"
 BD_TIMEOUT = 10  # seconds; `bd list` takes about 0.6 s
 JUDGE_TIMEOUT = 15  # seconds; the judge takes about 2 s. With BD_TIMEOUT it stays under the 30 s hook timeout
 # Extended thinking off: with it, `claude -p` Haiku took 5 to 36 s per verdict instead of about 2 s. No
