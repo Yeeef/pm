@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import subprocess
 import tomllib
@@ -13,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, fake_bd_env
+from conftest import PM, fake_bd_env, write_config
 from pm import __version__, hooks
 
 GIT_ENV = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
@@ -119,7 +120,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     # the repo's pieces, uncommitted: pm never commits on the code branch
     assert git(new_repo, "rev-parse", "HEAD") == head
     cfg = tomllib.loads((new_repo / ".pm/config.toml").read_text())
-    assert cfg == {"version": __version__, "remote": "origin", "main_branch": "main", "port": 8000}
+    assert cfg == {"version": __version__, "remote": "origin", "main_branch": "main", "port": site_port(tmp_path)}
     assert (new_repo / ".pm/.gitignore").read_text() == "store/\nrun/\n"
     for name in ("post-checkout", "pre-commit"):
         assert (new_repo / f".beads/hooks/{name}").read_text() == BEADS_HOOK + section(name)
@@ -138,7 +139,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     # the commit to make names every file the run changed: pm's pieces and what bd wrote
     assert f"git add -- {' '.join(PM_FILES + ['.beads/config.yaml'])} && " in res.stdout, res.stdout
     assert f'git commit -m "Install pm {__version__}"' in res.stdout
-    # the pm service, under the fake supervisor in tmp/home: pm init installs it, pm setup never does
+    # the pm service, under the fake supervisor in tmp/home: pm init installs it
     sched = [json.loads(l) for l in (tmp_path / "sched.log").read_text().splitlines()]
     assert [c for c in sched if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]], sched
     assert "installed the pm service: " in res.stdout
@@ -226,6 +227,34 @@ def test_init_refuses_before_bd_init_runs(new_repo: Path, tmp_path: Path):
     assert snapshot(new_repo) == before and git(new_repo, "rev-parse", "HEAD") == head
 
 
+def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, tmp_path: Path):
+    """PORT names a port a server that is not pm holds: pm init refuses before bd init, the records branch or any
+    file, and names a free port; without PORT a new repo's config gets that first free port from 8000 up."""
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen()
+        port = held.getsockname()[1]
+        before = snapshot(new_repo)
+        res = subprocess.run([*PM, "init"], cwd=new_repo, env=dict(env(tmp_path), PORT=str(port)),
+                             capture_output=True, text=True)
+        assert res.returncode == 1, res.stdout
+        said = re.search(rf"the site port :{port} is held by a process that does not answer HTTP, so the pm service "
+                         r"could not serve there; pm init wrote nothing\. Run PORT=(\d+) pm init \(a free port\)",
+                         res.stderr)
+        assert said, res.stderr
+        assert snapshot(new_repo) == before and not (new_repo / ".beads").exists()
+        assert ["init", "--non-interactive"] not in [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
+        assert not git(new_repo, "ls-remote", "--heads", "origin", "records").strip()
+        assert not (tmp_path / "sched.log").exists(), "no service"
+        free = int(said.group(1))
+        assert free >= 8000 and free != port
+        no_port = {k: v for k, v in env(tmp_path).items() if k != "PORT"}
+        res = subprocess.run([*PM, "init"], cwd=new_repo, env=no_port, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert tomllib.loads((new_repo / ".pm/config.toml").read_text())["port"] == free
+    assert f"serving http://localhost:{free} " in res.stdout, res.stdout
+
+
 def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_repo: Path, tmp_path: Path):
     """This pm runs from a local checkout (PYTHONPATH no longer names its git build), which cannot install the tool,
     and the tool, from git, is never its build: init, service install, doctor and where say how to run pm as the
@@ -252,3 +281,36 @@ def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_rep
     assert res.returncode == 1 and all(p in res.stdout for p in said) and "stale" not in res.stdout, res.stdout
     res = run("where")
     assert "unchecked: " in res.stdout and all(p in res.stdout for p in said) and "stale" not in res.stdout, res.stdout
+
+
+def test_init_in_a_worktree_sets_it_up_when_mains_pin_differs(repo):
+    """The main checkout pins another pm: the worktree's own setup (records link, sparse checkout) still runs, and
+    only the pm uv tool and the service, which follow main's pin, are refused."""
+    wt = repo.root.parent / "feature"
+    repo.git("worktree", "add", "-q", "--no-checkout", "-b", "feature", str(wt))
+    repo.git("reset", "-q", "--hard", cwd=wt)
+    write_config(repo.root, version="9.9.9")  # main's checkout moved its pin, uncommitted
+    res = repo.pm("init", cwd=wt)
+    assert res.returncode == 1, res.stdout
+    assert f"error: the main checkout {repo.root} pins pm 9.9.9, and the pm service and the one pm uv tool follow it" \
+        in res.stderr and "pm init set up this worktree and left the pm uv tool and the service alone:" in res.stderr
+    assert f"linked {wt / 'records'} -> {repo.store}" in res.stderr, res.stderr
+    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
+    assert "!/records/" in repo.git("sparse-checkout", "list", cwd=wt).split()
+    assert not (repo.root.parent / "sched.log").exists(), "no service"
+
+
+def test_init_in_a_worktree_of_a_branch_without_config_refuses(repo):
+    """A linked worktree on a branch cut before pm was installed: pm init does not install the repo's files there."""
+    wt = repo.worktree("old")
+    repo.git("rm", "-rq", ".pm", cwd=wt)
+    repo.git("commit", "-qm", "before pm", cwd=wt)
+    before = snapshot(wt)
+    res = repo.pm("init", cwd=wt)
+    assert res.returncode == 1, res.stdout
+    assert ("error: this worktree's branch has no .pm/config.toml: it was cut before pm was installed in this repo, "
+            f"and pm init installs the repo's files only in the main checkout; merge the main branch into this one, "
+            f"or run pm init in the main checkout {repo.root}; pm init wrote nothing") in res.stderr, res.stderr
+    assert snapshot(wt) == before and not (wt / "records").exists() and not (wt / ".beads").exists()
+    assert ["init", "--non-interactive"] not in [json.loads(l) for l in repo.log.read_text().splitlines()] \
+        if repo.log.exists() else True

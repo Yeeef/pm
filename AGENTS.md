@@ -37,13 +37,13 @@ A design change edits the sub page it touches to the new state; the trail of fin
 | `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH |
 
 Run `make test` while working. When a change touches what an integration test covers (the service and its site,
-`init`, `setup`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
+`init`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
 Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> --watch`):
 `.github/workflows/pm-tests.yml` runs the light set and the integration set as separate jobs on every PR and push to main.
 `make test-full` (or `ARGS="-k …"`) reproduces a CI failure locally.
 
 A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
-(`pm init`, `setup`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
+(`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
 bare repo), runs `pm push` or the session-start hook (`pm prime` without `--rules` or `--subagent`, also run as
 `python -m pm.cli`). The autouse fixture `light_unless_integration` in `conftest.py` fails an unmarked test that
 starts one of these (`integration_only` names them).
@@ -57,12 +57,12 @@ What the tests are:
   `test_hooks.py`: `pm prime` and `pm hook stop`, run as the runtimes run them (JSON on stdin). `test_owner_request_hook.py`: the owner-request hook against a
   fake judge. `test_owner_request_prompt_live.py`: the judge's accuracy, with the real model.
 - Fixtures (`conftest.py`): `repo` is a temp main checkout with its store at `.pm/store/records` on branch
-  `records` and the `records/` link, as `pm setup` leaves a clone. Its env puts the fakes first on PATH and points
+  `records` and the `records/` link, as `pm init` leaves a clone. Its env puts the fakes first on PATH and points
   `HOME`, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` at temp dirs. `pytest_configure` points the test process's own
   `HOME`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME` at a temp dir too, so git and the pm hooks it
   runs never touch the user's files, and an autouse check fails a test that changes the user's Codex config or
   pm service units. `test_pm.py` adds `served` (a `pm service run` on a free port), `origin` (a cut-over origin,
-  for `pm setup`) and `pushed` (a bare origin plus a second clone, for `pm push`).
+  for `pm init` in a second clone) and `pushed` (a bare origin plus a second clone, for `pm push`).
 - Fakes: `fake_bd.py` serves issues from `$FAKE_BD_STATE` and logs calls to `$FAKE_BD_LOG`; `$FAKE_BD_FAIL`
   makes one call fail until `$FAKE_BD_HEAL` exists, `$FAKE_BD_HOLD` makes one wait. `fake_gh.py` answers
   `gh pr view` from `$FAKE_GH_STATE`. `fake_claude.py` stands in for `claude -p` and logs each call. `fake_sched.py`
@@ -99,6 +99,13 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   `pm hook stop`, each `|| exit 1`) and `.codex/hooks.json`, with `hooks = true` in `.codex/config.toml`. A hook
   change edits both functions; this repo's two files are what `pm init` writes. Hooks fail open on their own
   errors (one line on stderr); a `pm` missing from PATH fails each hook with the shell's error.
+- `pm init` is the one install command. Its repo half (pm's pieces, `bd init`, the records branch) runs only when
+  the worktree has no `.pm/config.toml`; after that `pm doctor` reports and `pm upgrade` rewrites a piece. Its clone
+  half (Beads, the store, the `records/` link, excludes, Codex and Claude Code dirs, the pm uv tool, the service)
+  runs every time: `pm prime --state` runs it (`hooks.INIT`, `pm init --session-start` without `$PORT`) at each
+  session start, within `hooks.INIT_TIMEOUT`; that run installs only a missing service and reports a stale or
+  down one, which a typed `pm init` or `pm service restart` restarts. In a linked worktree, a branch without
+  `.pm/config.toml` is refused, and a main checkout on another pin gets the worktree's setup but no tool or service.
 
 ## The site
 
@@ -123,7 +130,7 @@ A change to setup, the hooks, the site or replies gets a live check besides its 
   (Claude Code's own sequence), or a session started with `claude -w <name>`; a headless `claude -p` session
   checks a write through `records/`. Remove the worktree and its branch afterwards (`git worktree remove`,
   `git branch -D`).
-- A check of `pm init`, `pm setup`, `pm push` or the service runs in a scratch clone of a scratch origin under a
+- A check of `pm init`, `pm push` or the service runs in a scratch clone of a scratch origin under a
   temp directory with `HOME` and `CODEX_HOME` there, as the fixtures do, never on this clone's Beads, store or service;
   never run `bd init`.
 - The live check's command, output and numbers go in the sprint's Findings and its delivery report.

@@ -170,7 +170,7 @@ def stop_services(tmp: Path) -> None:
 
 # What only an `integration` test may start: `make test` runs the rest while agents work, CI runs both sets.
 REMOTE_GIT = {"clone", "fetch", "pull", "push", "ls-remote"}  # a clone, or a remote reached
-HEAVY_PM = {"init", "setup", "upgrade", "uninstall", "doctor", "push", "service"}  # set a clone up, the pm service
+HEAVY_PM = {"init", "upgrade", "uninstall", "doctor", "push", "service"}  # set a clone up, the pm service
 
 
 def integration_only(args) -> str | None:
@@ -180,7 +180,7 @@ def integration_only(args) -> str | None:
     if str(RENDER_PAGES) in map(str, args):
         return "the whole site rendered (Repo.pages)"
     name, rest = Path(str(args[0])).name, [str(a) for a in args[1:]]
-    if rest[:2] == ["-m", "pm.cli"]:  # how pm's hooks and service run pm (hooks.SETUP, the service unit)
+    if rest[:2] == ["-m", "pm.cli"]:  # how pm's hooks and service run pm (hooks.INIT, the service unit)
         name, rest = "pm", rest[2:]
     if name == "git":
         sub = next((a for i, a in enumerate(rest) if not a.startswith("-") and rest[i - 1:i] not in (["-C"], ["-c"])),
@@ -193,7 +193,7 @@ def integration_only(args) -> str | None:
         if rest[0] in HEAVY_PM:
             return f"pm {rest[0]}"
         if rest[0] == "prime" and not {"--rules", "--subagent"} & set(rest):
-            return "the session-start hook (pm prime runs pm setup, where and show)"
+            return "the session-start hook (pm prime runs pm init, where and show)"
     return None
 
 
@@ -221,7 +221,7 @@ def no_service_left(tmp_path: Path):
     stop_services(tmp_path)
 
 
-# The user's files pm writes outside a repo: Codex's config (pm setup's writable roots) and the service units.
+# The user's files pm writes outside a repo: Codex's config (pm init's writable roots) and the service units.
 # pytest_configure points HOME, CODEX_HOME and CLAUDE_CONFIG_DIR at a temp dir for the whole test process, so
 # whatever a test runs with the inherited environment (git and the pm hooks it runs, in-process calls) writes there,
 # never here; each test then checks that nothing here changed.

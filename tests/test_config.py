@@ -38,3 +38,25 @@ def test_every_command_fails_on_another_pinned_version(repo, args):
         f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {__version__} is running; install the pinned "
         'version with uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v9.9.9#subdirectory=pm" '
         f"(or move the pin to {__version__} with pm upgrade)\n")
+
+
+def help_texts(ap) -> list[str]:
+    """`ap`'s --help and that of every command under it, as argparse prints them."""
+    import argparse
+    out = [ap.format_help()]
+    for action in ap._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for sub in action.choices.values():
+                out += help_texts(sub)
+    return out
+
+
+def test_every_config_key_is_named_in_some_commands_help():
+    """pm explains its own config: each key config.KEYS accepts is named, as a word, in the --help of some command
+    that also names .pm/config.toml, so nobody reads pm's source to learn what a key does or which command sets it."""
+    import re
+    from pm import config
+    from pm.cli import parser
+    texts = [t for t in help_texts(parser()) if config.REL in t]
+    missing = [k for k in config.KEYS if not any(re.search(rf"(?<![\w-]){k}(?![\w-])", t) for t in texts)]
+    assert not missing, f"{config.REL} keys no --help names: {', '.join(missing)}"

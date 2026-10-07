@@ -185,7 +185,7 @@ def test_task_close_names_head(repo):
     assert repo.issues()["demo.1.3"]["status"] == "closed"
 
 
-# ---------------------------------------------------------------- the store: pm setup
+# ---------------------------------------------------------------- the store: pm init in a clone
 
 GIT_ENV = dict(__import__("os").environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
                GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
@@ -195,11 +195,17 @@ def git_in(cwd, *args):
     return subprocess.run(["git", *args], cwd=cwd, env=GIT_ENV, check=True, capture_output=True, text=True).stdout
 
 
-def setup_in(cwd, *args):
-    """pm setup with the fake bd, whose calls land in <tmp>/bd.log next to the clone."""
-    return subprocess.run([*PM, "setup", *args], cwd=cwd,
-                          env=fake_bd_env(cwd.parent, GIT_ENV),
-                          capture_output=True, text=True)
+def init_in(cwd, *args):
+    """pm init with the fake bd, whose calls land in <tmp>/bd.log next to the clone, the pm uv tool first on PATH
+    (the hooks pm writes call `pm`) and the service under the fake supervisor on a port free when first asked for."""
+    env = fake_bd_env(cwd.parent, GIT_ENV)
+    port = cwd.parent / "port"
+    if not port.exists():
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port.write_text(str(s.getsockname()[1]))
+    env = dict(env, PATH=f"{env['UV_TOOL_BIN_DIR']}{os.pathsep}{env['PATH']}", PORT=port.read_text())
+    return subprocess.run([*PM, "init", *args], cwd=cwd, env=env, capture_output=True, text=True)
 
 
 def schedule_line(clone: Path, home: Path, state: str) -> str:
@@ -248,10 +254,10 @@ def origin(tmp_path):
 
 
 @pytest.mark.integration
-def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origin):
+def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_service(tmp_path, origin):
     git_in(tmp_path, "clone", "-q", str(origin), "clone")
     clone = tmp_path / "clone"
-    res = setup_in(clone)
+    res = init_in(clone)
     assert res.returncode == 0, res.stderr
     assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
                                      ["hooks", "install", "--beads"]]
@@ -266,11 +272,12 @@ def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origi
                            env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
     assert where[0] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
     assert where[1] == f"checkout  {clone}  branch main, records link set up"
-    # pm init installs the service; setup leaves the machine's supervisor alone
-    assert service_line(clone, tmp_path / "home", "not installed; run pm service install") in where
+    # the clone's half of pm init ends with the service; the repo's files, installed already, stay as they are
+    port = (tmp_path / "port").read_text()
+    assert service_line(clone, tmp_path / "home", f"running; the site answers on :{port}") in where, where
     assert f"push      {clone}/.pm/run/push.log  no push recorded yet" in where
-    assert not [c for c in sched_calls(tmp_path) if c[1:2] in (["bootstrap"], ["kickstart"]) or c[2:3] in (["enable"], ["restart"])]
-    again = setup_in(clone)
+    assert [c for c in sched_calls(tmp_path) if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]]
+    again = init_in(clone)
     assert again.returncode == 0 and again.stdout.startswith("already set up"), again.stderr
     assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
                                      ["hooks", "install", "--beads"]], "no bd change"
