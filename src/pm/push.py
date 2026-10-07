@@ -1,8 +1,8 @@
 """The scheduled push: one job per clone pushes Beads data (`bd dolt push`) and the records branch, so no session
 pushes either. `pm push` is the job; `pm setup` installs its schedule (launchd, a systemd user timer, or cron).
 
-Each run records the outcome of each store's last attempt in a state file under the clone's git dir, outside any
-branch, and appends to a log beside it (pm push is the log's only writer of result lines; the schedulers send only a
+Each run records the outcome of each store's last attempt in a state file in the main checkout's .pm/run, outside
+any branch, and appends to a log beside it (pm push is the log's only writer of result lines; the schedulers send only a
 crash's stderr there); `pm show`, `pm where` and the served site read the state to flag a failed or overdue push.
 """
 
@@ -22,6 +22,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .config import RUN
 from .records import RecordError
 
 INTERVAL = 600            # seconds between scheduled runs
@@ -33,9 +34,9 @@ BRANCH = "records"
 
 
 def files(main: Path) -> tuple[Path, Path, Path]:
-    """The state file, the log and the lock file, in the clone's git dir."""
-    gitdir = main / ".git"
-    return gitdir / "pm-push.json", gitdir / "pm-push.log", gitdir / "pm-push.lock"
+    """The state file, the log and the lock file, in the main checkout's .pm/run (git-ignored by .pm/.gitignore)."""
+    run = main / RUN
+    return run / "push.json", run / "push.log", run / "push.lock"
 
 
 def now() -> datetime:
@@ -49,6 +50,7 @@ def read_state(main: Path) -> dict:
 
 def write_state(main: Path, state: dict) -> None:
     path = files(main)[0]
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=1) + "\n")
     tmp.replace(path)
@@ -120,6 +122,7 @@ def push(main: Path, remote: str, find, summarize) -> tuple[int, str]:
     and what it did, or raises), push the records. `find` returns the store, so a store that cannot be found is that
     step's recorded failure, as is any step that raises; a failed step does not stop the next."""
     log, lock = files(main)[1:]
+    lock.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
     try:
         try:
@@ -282,6 +285,7 @@ def install(main: Path) -> str:
     if done:
         return ""
     name, log, pm = label(main), files(main)[1], main / "bin/pm"
+    log.parent.mkdir(parents=True, exist_ok=True)  # the schedulers append a crash's stderr to it
     path = os.environ.get("PATH", "")
     missing = [t for t in ("uv", "bd", "git") if shutil.which(t, path=path) is None]
     if missing:

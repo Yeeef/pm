@@ -1,4 +1,4 @@
-"""The records store: the `records` branch, checked out once per clone at `<main checkout>/.records`.
+"""The records store: the `records` branch, checked out once per clone at `<main checkout>/.pm/store/records`.
 
 Every worktree finds it through the clone's common git dir, the way `bd` finds its database,
 so a write is visible from every branch and worktree at once.
@@ -12,6 +12,7 @@ import tarfile
 from datetime import date
 from pathlib import Path, PurePosixPath
 
+from .config import STORE
 from .records import Record, RecordError, parse_record
 
 BRANCH = "records"
@@ -30,7 +31,12 @@ def store_path(cwd: Path) -> Path:
     common = Path(git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     if common.name != ".git":
         raise RecordError(f"the clone's git dir {common} is not a .git directory inside a main checkout")
-    return common.parent / ".records"
+    return common.parent / STORE
+
+
+def main_of(store: Path) -> Path:
+    """The main checkout a store belongs to."""
+    return store.parents[len(Path(STORE).parts) - 1]
 
 
 def find_store(cwd: Path) -> Path:
@@ -48,7 +54,7 @@ def find_store(cwd: Path) -> Path:
 def code_root(cwd: Path, store: Path) -> Path:
     """The worktree a command acts on for code commits and the site: cwd's, or the main checkout from inside the store."""
     top = Path(git(cwd, "rev-parse", "--show-toplevel"))
-    return store.parent if top.resolve() == store.resolve() else top
+    return main_of(store) if top.resolve() == store.resolve() else top
 
 
 def commit(store: Path, message: str, paths: list[Path]) -> str:

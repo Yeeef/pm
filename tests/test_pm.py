@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import write_config, HARNESS, PM, RENDER, fake_bd_env, project, sprint
+from conftest import write_config, HARNESS, REAL_RECORDS, PM, RENDER, fake_bd_env, project, sprint
 
 sys.path.insert(0, str(HARNESS))
 from pm.beads import REPLY_MARK, reply_body, reply_in_beads  # noqa: E402
@@ -249,8 +249,7 @@ def test_sprint_open_matches_real_sprint_records():
     import sys
     sys.path.insert(0, str(HARNESS))
     from pm import cli as pm
-    from pm.store import find_store
-    store = find_store(HARNESS)
+    store = REAL_RECORDS.resolve()
     skeleton = lambda t: [l for l in t.splitlines() if l.startswith(("#", ">"))]
     frame = {"Goal": "g", "Scope": "**In:** a\n\n**Out:** b", "Done when": "- d"}
     ours = skeleton(pm.sprint_text("t", "x.1", frame))
@@ -1372,8 +1371,7 @@ def test_design_prompts_match_real_design_pages():
     import sys
     sys.path.insert(0, str(HARNESS))
     from pm import cli as pm
-    from pm.store import find_store
-    store = find_store(HARNESS)
+    store = REAL_RECORDS.resolve()
     real = list((store / "design").glob("*.md"))
     assert real
     for p in real:
@@ -1470,8 +1468,7 @@ def test_postmortem_prompts_match_real_postmortems():
     """Each section of this repo's postmortems carries the prompt line pm postmortem new writes."""
     sys.path.insert(0, str(HARNESS))
     from pm import cli as pm
-    from pm.store import find_store
-    real = list((find_store(HARNESS) / "postmortems").glob("*.md"))
+    real = list((REAL_RECORDS.resolve() / "postmortems").glob("*.md"))
     if not real:  # the first one lands in the shared store only once pm on main reads the type
         pytest.skip("no postmortem in the store yet")
     for p in real:
@@ -1701,7 +1698,7 @@ def origin(tmp_path):
     git_in(o, "add", "-A")
     git_in(o, "commit", "-qm", "records")
     git_in(o, "subtree", "split", "--prefix=records", "-b", "records")
-    (o / ".gitignore").write_text("/records\n/.records/\n")
+    (o / ".gitignore").write_text("/records\n")
     write_config(o)
     git_in(o, "rm", "-rq", "records")
     git_in(o, "add", ".gitignore", ".pm")
@@ -1719,22 +1716,22 @@ def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origi
     assert git_in(clone, "config", "core.hooksPath").strip() == str(clone / ".beads/hooks")
     assert git_in(clone, "config", "beads.role").strip() == "maintainer"
     assert (clone / ".beads").stat().st_mode & 0o777 == 0o700
-    assert git_in(clone / ".records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "records"
+    assert git_in(clone / ".pm/store/records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "records"
     assert (clone / "records").is_symlink() and (clone / "records/sprints/demo-1.md").read_text() == "one\n"
     assert git_in(clone, "status", "--porcelain") == ""
     config = (clone / ".git/config").read_text()
     where = subprocess.run([*PM, "where"], cwd=clone,
                            env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
-    assert where[0] == f"store     {clone}/.records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
+    assert where[0] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
     assert where[1] == f"checkout  {clone}  branch main, records link set up"
     assert schedule_line(clone, tmp_path / "home", "installed") in where
-    assert f"push      {clone}/.git/pm-push.log  no push recorded yet" in where
+    assert f"push      {clone}/.pm/run/push.log  no push recorded yet" in where
     installs = [c for c in sched_calls(tmp_path) if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]]
     assert len(installs) == 1, sched_calls(tmp_path)
     if sys.platform == "darwin":
         plist = __import__("plistlib").loads(Path(installs[0][3]).read_bytes())
         assert plist["ProgramArguments"] == [str(clone / "bin/pm"), "push"] and plist["WorkingDirectory"] == str(clone)
-        assert plist["StartInterval"] == 600 and plist["StandardErrorPath"] == str(clone / ".git/pm-push.log")
+        assert plist["StartInterval"] == 600 and plist["StandardErrorPath"] == str(clone / ".pm/run/push.log")
         assert plist["StandardOutPath"] == "/dev/null", "pm push writes its own log lines"
     assert f"installed the push schedule: " in res.stdout
     again = setup_in(clone)
@@ -1752,13 +1749,13 @@ def test_where_before_setup_names_what_is_missing(tmp_path, origin):
                          env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
     assert res.stdout.splitlines() == [
-        f"store     {clone}/.records  missing; run bin/pm setup",
+        f"store     {clone}/.pm/store/records  missing; run bin/pm setup",
         f"checkout  {clone}  branch main, no records link; run bin/pm setup",
         f"beads     {clone}/.beads  no database; run bin/pm setup",
         "hooks     core.hooksPath unset; run bin/pm setup",
         f"codex     {tmp_path}/codex  missing, so Codex is not used here",
         schedule_line(clone, tmp_path / "home", "missing; run bin/pm setup"),
-        f"push      {clone}/.git/pm-push.log  no push recorded yet",
+        f"push      {clone}/.pm/run/push.log  no push recorded yet",
         f"site      http://localhost:8000 (served by pm serve); pm render writes {clone}/site",
     ]
     res = subprocess.run([*PM, "where", "records"], cwd=clone,
@@ -1813,7 +1810,7 @@ def test_setup_excludes_mains_tracked_copy(tmp_path, origin):
     assert "sparse checkout" in res.stdout
     assert (clone / "records").is_symlink()
     assert git_in(clone, "status", "--porcelain") == ""
-    assert git_in(clone / ".records", "status", "--porcelain") == ""
+    assert git_in(clone / ".pm/store/records", "status", "--porcelain") == ""
 
 
 def test_link_survives_main_starting_to_track_its_copy(tmp_path, origin):
@@ -1836,7 +1833,7 @@ def test_setup_refuses_a_bootstrap_that_does_not_clone_the_remote(tmp_path, orig
                          env=dict(fake_bd_env(tmp_path, GIT_ENV), FAKE_BD_BOOTSTRAP="init"), capture_output=True, text=True)
     assert res.returncode != 0
     assert "error: bd bootstrap would init, not clone the remote's refs/dolt/data: fake" in res.stderr
-    assert bd_writes_in(tmp_path) == [] and not (clone / ".records").exists()
+    assert bd_writes_in(tmp_path) == [] and not (clone / ".pm/store/records").exists()
 
 
 def test_setup_refuses_without_records_branch(tmp_path):
@@ -1845,7 +1842,7 @@ def test_setup_refuses_without_records_branch(tmp_path):
     res = setup_in(tmp_path / "empty")
     assert res.returncode != 0
     assert "error: no records branch here or on origin" in res.stderr
-    assert not (tmp_path / "empty/.records").exists()
+    assert not (tmp_path / "empty/.pm/store/records").exists()
 
 
 # ---------------------------------------------------------------- pm setup: Codex's sandbox roots
@@ -1868,7 +1865,7 @@ def codex_roots(clone):
     """The five paths pm needs, worked out apart from pm: the clone's .git, its store, the store's own git dir
     (git names it after the directory), the Beads dir and uv's cache."""
     uv = subprocess.run(["uv", "--color", "never", "cache", "dir"], check=True, capture_output=True, text=True)
-    paths = (clone / ".git", clone / ".records", clone / ".git/worktrees/-records", clone / ".beads",
+    paths = (clone / ".git", clone / ".pm/store/records", clone / ".git/worktrees/records", clone / ".beads",
              Path(uv.stdout.strip()))
     return ", ".join(json.dumps(str(p.resolve())) for p in paths)
 
@@ -1948,7 +1945,7 @@ def test_setup_adds_the_store_to_claude_codes_additional_directories(clone):
     local.write_text(json.dumps({"permissions": {"allow": ["Bash(ls:*)"]}, "model": "x"}))
     res = setup_in(clone)
     assert res.returncode == 0, res.stderr
-    store = clone / ".records"
+    store = clone / ".pm/store/records"
     assert (f"added {store} to permissions.additionalDirectories in {local}, so Claude Code writes records through "
             "records/ without asking") in res.stdout.splitlines()
     assert json.loads(local.read_text()) == {"permissions": {"allow": ["Bash(ls:*)"], "additionalDirectories": [str(store)]},
@@ -2045,7 +2042,7 @@ def test_need_answered_on_another_branch_does_not_block_writes(repo):
                   cwd=wt)
     assert res.returncode == 0, res.stderr
     assert repo.issues()["demo.1.2"]["status"] == "closed"
-    assert repo.git("ls-files", cwd=wt) == ".gitignore\n.pm/config.toml\n", "the decision is not on the code branch"
+    assert repo.git("ls-files", cwd=wt) == ".gitignore\n.pm/.gitignore\n.pm/config.toml\n", "the decision is not on the code branch"
     res = repo.pm("task", "add", "--sprint", "demo.1", "--title", "Next step")
     assert res.returncode == 0, res.stderr
     assert repo.pm("render").returncode == 0
@@ -2059,7 +2056,7 @@ def test_hand_edit_is_committed_with_pm_commit(repo):
     assert res.returncode == 0, res.stderr
     assert "committed records/sprints/demo-1.md as " in res.stdout
     assert committed(repo, ["Sharpen the sprint 1 goal"])
-    refused(repo, "commit", "-m", "Nothing", "records/sprints/demo-1.md", match=r"error: nothing to commit in .*\.records")
+    refused(repo, "commit", "-m", "Nothing", "records/sprints/demo-1.md", match=r"error: nothing to commit in .*\.pm/store/records")
 
 
 def test_commit_refuses_hand_edit_that_does_not_render(repo):
@@ -2215,13 +2212,13 @@ def test_failed_commit_removes_a_new_record(repo):
 
 
 def test_missing_store_fails_hard_without_falling_back(repo):
-    repo.git("worktree", "remove", "--force", ".records")
+    repo.git("worktree", "remove", "--force", ".pm/store/records")
     repo.records.unlink()
     shutil.copytree(Path(__file__).parent, repo.records)  # a plain records/ in the worktree is never read
     for args in (["show"], ["where", "records"], ["render"]):
         res = repo.pm(*args)
         assert res.returncode != 0
-        assert re.search(r"error: no records store at .*/repo/\.records; set it up with bin/pm setup", res.stderr)
+        assert re.search(r"error: no records store at .*/repo/\.pm/store/records; set it up with bin/pm setup", res.stderr)
     res = subprocess.run([*RENDER, "site"], cwd=repo.root, env=repo.env,
                          capture_output=True, text=True)
     assert res.returncode != 0 and "error: no records store at" in res.stderr
@@ -2246,7 +2243,7 @@ def test_where_lists_every_location_with_its_state(repo):
         f"hooks     {hooks}  post-checkout installed, pre-commit installed",
         f"codex     {repo.root.parent}/codex  missing, so Codex is not used here",
         schedule_line(repo.root, repo.root.parent / "home", "missing; run bin/pm setup"),
-        f"push      {repo.root}/.git/pm-push.log  no push recorded yet",
+        f"push      {repo.root}/.pm/run/push.log  no push recorded yet",
         f"site      http://localhost:8000 (served by pm serve); pm render writes {wt}/site",
     ]
     (hooks / "pre-commit").unlink()
@@ -2259,7 +2256,7 @@ def test_store_on_wrong_branch_is_refused(repo):
     repo.git("checkout", "-q", "-b", "other", cwd=repo.store)
     res = repo.pm("show")
     assert res.returncode != 0
-    assert re.search(r"error: .*\.records is not a worktree on branch records", res.stderr)
+    assert re.search(r"error: .*\.pm/store/records is not a worktree on branch records", res.stderr)
 
 
 SERVE_BEHIND = 10  # seconds a served page may be behind, as pm/site.py has it
@@ -3237,7 +3234,7 @@ def remote_records(repo) -> str:
 
 
 def push_state(repo) -> dict:
-    return json.loads((repo.root / ".git/pm-push.json").read_text())
+    return json.loads((repo.root / ".pm/run/push.json").read_text())
 
 
 def move_remote(repo, rel: str, text: str) -> None:
@@ -3261,7 +3258,7 @@ def test_push_pushes_beads_and_new_records_commits(pushed):
     state = push_state(repo)
     assert state["beads"]["ok"] and state["records"]["ok"] and state["records"]["message"] == "pushed 2 commit(s)", "the day file and its new summary"
     assert state["records"]["last_ok"] == state["records"]["at"]
-    assert len((repo.root / ".git/pm-push.log").read_text().splitlines()) == 6
+    assert len((repo.root / ".pm/run/push.log").read_text().splitlines()) == 6
     assert state["summary"]["message"].startswith("summarized"), "the new day file changed the activity"
 
 
@@ -3297,7 +3294,8 @@ def test_push_rebase_conflict_leaves_store_untouched_and_records_error(pushed):
 def test_push_exits_at_once_while_another_holds_the_lock(pushed):
     import fcntl
     repo = pushed
-    fd = os.open(repo.root / ".git/pm-push.lock", os.O_RDWR | os.O_CREAT)
+    (repo.root / ".pm/run").mkdir()
+    fd = os.open(repo.root / ".pm/run/push.lock", os.O_RDWR | os.O_CREAT)
     fcntl.flock(fd, fcntl.LOCK_EX)
     try:
         res = repo.pm("push")
@@ -3305,7 +3303,7 @@ def test_push_exits_at_once_while_another_holds_the_lock(pushed):
         os.close(fd)
     assert res.returncode == 0 and res.stdout.strip() == "another pm push holds the lock; skipped"
     assert ["dolt", "push"] not in repo.bd_calls()
-    assert not (repo.root / ".git/pm-push.json").exists()
+    assert not (repo.root / ".pm/run/push.json").exists()
 
 
 def test_show_flags_a_failed_or_overdue_push(pushed):
@@ -3313,7 +3311,7 @@ def test_show_flags_a_failed_or_overdue_push(pushed):
     assert not repo.pm("show").stdout.startswith("warning: the scheduled push"), "no flag before the first run"
     repo.env = dict(repo.env, FAKE_BD_FAIL=json.dumps(["dolt", "push"]))
     assert repo.pm("push").returncode == 1
-    log = re.escape(str(repo.root / ".git/pm-push.log"))
+    log = re.escape(str(repo.root / ".pm/run/push.log"))
     lines = repo.pm("show").stdout.splitlines()
     assert lines[0] == "warning: the scheduled push needs attention (pm where; it runs bin/pm push):"
     assert re.fullmatch(r"  beads push failed at \S+: bd dolt push failed: fake bd: failing .* on purpose; log " + log,
@@ -3322,7 +3320,7 @@ def test_show_flags_a_failed_or_overdue_push(pushed):
     state = push_state(repo)
     state["beads"] = dict(state["records"])
     state["records"]["last_ok"] = "2026-01-01T00:00:00+00:00"
-    (repo.root / ".git/pm-push.json").write_text(json.dumps(state))
+    (repo.root / ".pm/run/push.json").write_text(json.dumps(state))
     repo.write("days/2026-10-02.md", DAY2)
     repo.commit("unpushed")
     lines = repo.pm("show").stdout.splitlines()

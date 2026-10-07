@@ -41,12 +41,12 @@ def clone(tmp_path, monkeypatch):
     git(main, "remote", "add", "origin", str(origin))
     git(main, "push", "-q", "origin", "records")
     git(main, "checkout", "-q", "-b", "main")
-    git(main, "worktree", "add", "-q", ".records", "records")
+    git(main, "worktree", "add", "-q", ".pm/store/records", "records")
     git(tmp_path, "clone", "-q", "-b", "records", str(origin), str(other))
     (other / "a.md").write_text("remote\n")
     git(other, "commit", "-qam", "remote")
     git(other, "push", "-q", "origin", "records")
-    store = main / ".records"
+    store = main / ".pm/store/records"
     (store / "a.md").write_text("local\n")
     git(store, "commit", "-qam", "local")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))

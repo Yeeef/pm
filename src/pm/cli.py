@@ -4,7 +4,7 @@ Every write names its target, validates the records branch as its commit will
 leave it (HEAD plus the change, never another session's uncommitted file), and
 writes nothing if the result would not render or if a record it changes has
 uncommitted edits. Records live in
-the store, the `records` branch checked out at `<main checkout>/.records`; each
+the store, the `records` branch checked out at `<main checkout>/.pm/store/records`; each
 write commits there under a lock every worktree shares. Commands that
 also call `bd` run the `bd` step first. Claim tasks with `pm task claim`; finding and linking tasks stay plain `bd`.
 `pm feedback add` appends where pm got in the way to the project's pm feedback doc.
@@ -54,7 +54,7 @@ from pm.site import (SERVE_BEHIND, STATUS_SLOT, STYLE, check_needs_answered, cit
                           fill_replies, fill_status, pr_label, render_page, render_pages, render_record,
                           request_place, sprint_reviews, write_site)
 from pm.store import (BRANCH, SETUP, code_root, commit, committed_records, design_dates, find_store, head_files,
-                           read_files, store_path, uncommitted)
+                           main_of, read_files, store_path, uncommitted)
 from pm.store import git as store_git
 from pm import push as pushjob
 
@@ -1702,7 +1702,7 @@ def cmd_serve(args, records: Path) -> str:
                          f"</h1><p>This page offers a reload once the site has it.</p></main>"), snap
         # The push banner is read on every request, before the digest: the job changes it, not the records.
         if path == "index.html" or path.startswith("projects/"):
-            text = text.replace("</nav>", "</nav>" + pushjob.banner(records.parent, records, cfg().remote), 1)
+            text = text.replace("</nav>", "</nav>" + pushjob.banner(main_of(records), records, cfg().remote), 1)
         # A sent reply stays on its card until the snapshot's Beads data holds its comment, which the thread then shows:
         # a refresh that finds Dolt unchanged keeps an older read under a newer as_of, so the time alone is no proof.
         shown = {i: r for i, r in list(replies.items())
@@ -1854,7 +1854,7 @@ def merged_on_main(root: Path, pr: str) -> str | None:
 
 def pull_main(root: Path) -> str:
     """The command that fast-forwards this clone's main checkout, which hooks, rules and the ~/.claude links read."""
-    return f"git -C {shlex.quote(str(store_path(root).parent))} pull --ff-only {cfg().remote} {cfg().main_branch}"
+    return f"git -C {shlex.quote(str(main_of(store_path(root))))} pull --ff-only {cfg().remote} {cfg().main_branch}"
 
 
 def new_replies(root: Path, issue: dict) -> tuple[list[dict], int]:
@@ -2032,7 +2032,7 @@ def show_data(repo: Repo) -> dict:
         })
     today = date.today().isoformat()
     summary = read_summaries(repo.records).get(today)
-    return {"site": site_url(), "projects": projects, "push": pushjob.flags(repo.records.parent, repo.records, cfg().remote),
+    return {"site": site_url(), "projects": projects, "push": pushjob.flags(main_of(repo.records), repo.records, cfg().remote),
             "today": {"date": today, "page": f"days/{today}.html",
                       "summary": first_sentence(summary_line(summary["text"]), 160) if summary else None,
                       "generated_at": summary["generated_at"] if summary else None}}
@@ -2244,7 +2244,8 @@ def cmd_setup(args) -> str:
     link this worktree's records/ to it, and let Codex's sandbox write the store and commit to it."""
     cwd = Path.cwd()
     store = store_path(cwd)
-    out = setup_beads(store.parent)
+    main = main_of(store)
+    out = setup_beads(main)
     if not store.exists():
         remote = cfg().remote
         if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"],
@@ -2277,7 +2278,7 @@ def cmd_setup(args) -> str:
     claude = setup_claude(top, store)
     if claude:
         out.append(claude)
-    sched = pushjob.install(store.parent)
+    sched = pushjob.install(main)
     if sched:
         out.append(sched)
     if args.site_url is not None:
@@ -2285,7 +2286,7 @@ def cmd_setup(args) -> str:
         if site:
             out.append(site)
     done = "\n".join(out) or f"already set up: {link} -> {store}"
-    codex = setup_codex(store.parent)
+    codex = setup_codex(main)
     return f"{done}\n{codex}" if codex else done
 
 
@@ -2344,7 +2345,7 @@ def codex_home() -> Path:
 
 def codex_roots(main: Path) -> list[str]:
     """The clone's git dir, the store, the store's git dir, the Beads dir and uv's cache, as absolute paths."""
-    store = main / ".records"
+    store = main / config.STORE
     store_gitdir = Path(store_git(store, "rev-parse", "--absolute-git-dir"))
     try:
         res = subprocess.run(["uv", "--color", "never", "cache", "dir"], capture_output=True, text=True)
@@ -2424,7 +2425,7 @@ def cmd_push(args, records: None) -> tuple[int, str]:
             return True, summarize_day(find_store(cwd))
         except (Refuse, RecordError) as e:
             return False, str(e)
-    return pushjob.push(store_path(cwd).parent, cfg().remote, lambda: find_store(cwd), summarize)
+    return pushjob.push(main_of(store_path(cwd)), cfg().remote, lambda: find_store(cwd), summarize)
 
 
 def cmd_where(args, records: Path) -> str:
@@ -2436,7 +2437,7 @@ def where_all() -> str:
     """Every location an agent or the owner needs, each with its state; works before setup, to show what is missing."""
     cwd = Path.cwd()
     store = store_path(cwd)
-    main = store.parent
+    main = main_of(store)
 
     def g(where: Path, *args: str) -> str:
         res = subprocess.run(["git", *args], cwd=where, capture_output=True, text=True)
@@ -2814,7 +2815,7 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_serve)
 
     s = sub.add_parser("setup", help="make the clone ready: connect Beads (bd bootstrap), install the git "
-                                     "hooks, check out the records store at <main checkout>/.records if "
+                                     "hooks, check out the records store at <main checkout>/.pm/store/records if "
                                      "missing, link this worktree's records/ to it, and add the clone's .git, the store, .beads and "
                                      "uv's cache to the writable roots of $CODEX_HOME/config.toml, and install the "
                                      "scheduled pm push (launchd, a systemd user timer or cron); a no-op once set up")
@@ -2831,8 +2832,8 @@ def parser() -> argparse.ArgumentParser:
                                    "ahead of <remote>/records: fetch, rebase onto it if it moved (under "
                                    "the store lock; a rebase that stops is aborted, leaving the store as it was), "
                                    f"push. Each step has a {pushjob.TIMEOUT}s timeout; a second run while one holds "
-                                   "the lock exits at once. Each step's outcome goes to <clone>/.git/pm-push.json "
-                                   "(read by pm show, pm where and the site) and <clone>/.git/pm-push.log, a line per step.")
+                                   "the lock exits at once. Each step's outcome goes to <main checkout>/.pm/run/push.json "
+                                   "(read by pm show, pm where and the site) and <main checkout>/.pm/run/push.log, a line per step.")
     s.set_defaults(func=cmd_push)
 
     s = sub.add_parser("where", help="list every location with its state: the store, this checkout, Beads, the "

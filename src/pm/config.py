@@ -15,6 +15,8 @@ from pathlib import Path
 from pm import __version__
 
 REL = ".pm/config.toml"
+STORE = ".pm/store/records"  # the records store, under the main checkout
+RUN = ".pm/run"  # runtime state under the main checkout: push state, log and lock
 INSTALL = 'uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v{v}#subdirectory=pm"'
 KEYS = {"version": str, "remote": str, "main_branch": str, "port": int, "site_url": str}
 REQUIRED = ("version", "remote", "main_branch", "port")
@@ -46,7 +48,7 @@ def root(cwd: Path) -> Path:
     if res.returncode != 0:
         raise ConfigError(f"{cwd} is not in a git worktree: {(res.stderr or res.stdout).strip()}")
     top, common = (Path(p).resolve() for p in res.stdout.split("\n")[:2])
-    return common.parent if common.name == ".git" and top == common.parent / ".records" else top
+    return common.parent if common.name == ".git" and top == common.parent / STORE else top
 
 
 @functools.cache

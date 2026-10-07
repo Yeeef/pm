@@ -92,7 +92,7 @@ These rules have guards. Obey them so that the guards do not stop you.
 | `held by <session>, <age>, idle` | Its session wrote nothing for 30 minutes. | `pm task claim` can take it. |
 | `held by <name> without a session` | Someone claimed it outside `pm`. | Leave it, unless the owner tells you to take it. |
 | `[undelivered reply: pm reply read <id>]` | An owner reply did not get to its session. | Run `pm reply read <id>`. Then do its next step. |
-| `warning: the scheduled push needs attention` | The push failed or is late. | Read `pm where` and `.git/pm-push.log`. If you cannot fix it, raise an action and add a bug task. |
+| `warning: the scheduled push needs attention` | The push failed or is late. | Read `pm where` and `.pm/run/push.log`. If you cannot fix it, raise an action and add a bug task. |
 
 ## Planning
 - Write the sprint frame before work starts:

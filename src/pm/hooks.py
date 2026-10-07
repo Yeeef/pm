@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 
+from pm.config import STORE
 from pm.owner_request import hook_owner_request
 
 # ---------------------------------------------------------------- pm prime
@@ -167,7 +168,7 @@ def cmd_prime(part: str | None, hook_json: bool) -> int:
 # themselves, but Goal, Done when, design pages and delivery reports are edited by hand and committed with
 # `pm commit`; a forgotten one is invisible on the records branch and blocks the next `pm` write to that record.
 #
-# The store is `<main checkout>/.records`, found from the clone's common git dir. When it has uncommitted files, the
+# The store is `<main checkout>/.pm/store/records`, found from the clone's common git dir. When it has uncommitted files, the
 # hook blocks the stop once with a reason naming them. A session commits only its own records, and other sessions
 # write to the same store at the same time, so it blocks only on files this session touched: a dirty file counts when
 # its path under the store (such as `sprints/demo-1.md`) appears in one of this session's tool calls in the transcript
@@ -192,9 +193,9 @@ def git(cwd: str | Path | None, *args: str) -> str:
 
 
 def store_of(cwd: str | None) -> Path:
-    """The records store of the clone containing `cwd`: `.records` beside the clone's common .git dir."""
+    """The records store of the clone containing `cwd`: `.pm/store/records` beside the clone's common .git dir."""
     common = Path(git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
-    return common.parent / ".records"
+    return common.parent / STORE
 
 
 def dirty(store: Path) -> list[str]:

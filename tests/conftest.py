@@ -13,6 +13,8 @@ import pytest
 from pm import __version__
 
 HARNESS = Path(__file__).resolve().parents[2] / "skills/project-management/harness"  # RULES.md
+# This checkout's records/ link: the real records, wherever this clone keeps its store.
+REAL_RECORDS = Path(__file__).resolve().parents[2] / "records"
 # pm and the renderer from the package environment the tests run in (make test).
 PM = [str(Path(sys.executable).with_name("pm"))]
 RENDER = [sys.executable, "-m", "pm.render"]
@@ -27,6 +29,7 @@ def write_config(root: Path, **settings) -> Path:
     values = {"version": __version__, "remote": "origin", "main_branch": "main", "port": 8000, **settings}
     path = root / ".pm/config.toml"
     path.parent.mkdir(exist_ok=True)
+    (path.parent / ".gitignore").write_text("store/\nrun/\n")
     path.write_text("".join(f"{k} = {v if isinstance(v, int) else json.dumps(v)}\n" for k, v in values.items()))
     return path
 
@@ -151,10 +154,10 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
 
 
 class Repo:
-    """A main checkout on branch main, its store at .records on branch records, and the records link to it."""
+    """A main checkout on branch main, its store at .pm/store/records on branch records, and the records link to it."""
 
     def __init__(self, root: Path, tmp: Path):
-        self.root, self.store, self.records = root, root / ".records", root / "records"
+        self.root, self.store, self.records = root, root / ".pm/store/records", root / "records"
         self.state, self.log = tmp / "bd.json", tmp / "bd.log"
         self.noms = root / ".beads/embeddeddolt/demo/.dolt/noms"  # the Dolt store bd context points at; see dolt()
         self.env = fake_bd_env(tmp, os.environ)
@@ -235,11 +238,11 @@ def repo(tmp_path: Path) -> Repo:
     r.git("init", "-q", "-b", "main")
     r.git("config", "user.email", "t@example.com")
     r.git("config", "user.name", "t")
-    (root / ".gitignore").write_text("/records\n/.records/\n")
+    (root / ".gitignore").write_text("/records\n")
     write_config(root)
     r.git("add", ".gitignore", ".pm")
     r.git("commit", "-qm", "code")
-    r.git("worktree", "add", "-q", "--detach", ".records")
+    r.git("worktree", "add", "-q", "--detach", ".pm/store/records")
     r.git("checkout", "-q", "--orphan", "records", cwd=r.store)
     r.git("rm", "-rqf", ".", cwd=r.store)
     for rel, text in RECORDS.items():
