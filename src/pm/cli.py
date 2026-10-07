@@ -3501,7 +3501,10 @@ def parser() -> argparse.ArgumentParser:
                                    "port: a new repo's config gets $PORT, else the first free port from 8000 up that "
                                    "no pm service unit on this machine names; a clone's service serves on $PORT, else "
                                    "its unit's port, else the config's. Refuses, writing nothing, when another server "
-                                   "holds that port, and names a free one: PORT=<n> pm init.")
+                                   "holds that port, and names a free one: PORT=<n> pm init. .pm/config.toml, tracked: "
+                                   "version (the pm every session must run; pm upgrade moves it), remote and "
+                                   "main_branch (origin and its default branch), port (the site port) and site_url "
+                                   "(--site-url).")
     s.add_argument("--site-url", metavar="URL",
                    help="the site's public base URL (a tunnel to the pm service), written to site_url in "
                         ".pm/config.toml for you to commit: every link pm prints (pm record link, pm show, pm where) "
