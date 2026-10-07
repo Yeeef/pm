@@ -76,11 +76,19 @@ def subcommands():
     return next(a for a in parser()._subparsers._group_actions if a.dest == "cmd").choices
 
 
+def listed_nouns():
+    line = hooks.commands().split("\n")[2]
+    assert line.startswith("`pm` nouns: ") and line.endswith(".")
+    return re.findall(r"`(\w+)`", line[len("`pm` nouns: "):])
+
+
 def test_prime_lists_every_agent_command_from_the_parser():
-    listed = re.findall(r"^- `pm (\S+)`: \S", hooks.commands(), re.M)
+    listed = listed_nouns()
     assert listed == [c for c in subcommands() if c not in {"prime", "hook", "push"}]
     assert "prime" not in listed and "show" in listed
-    assert hooks.commands().endswith("\n\nRun `pm <noun> --help` for its commands and flags.")
+    assert hooks.commands().startswith("## Commands\n\n")
+    assert hooks.commands().endswith("\nRun `pm <noun> --help` for its commands and flags.")
+    assert hooks.commands().count("\n") == 3  # compact: a heading, the nouns, the help pointer
 
 
 def test_prime_lists_a_new_command_without_editing_prime_md(monkeypatch):
@@ -93,7 +101,7 @@ def test_prime_lists_a_new_command_without_editing_prime_md(monkeypatch):
             "frobnicate", help="frobnicate the records; " + "x" * 200)
         return ap
     monkeypatch.setattr(cli, "parser", extended)
-    assert "- `pm frobnicate`: frobnicate the records\n" in hooks.commands()
+    assert listed_nouns()[-1] == "frobnicate"
     assert "frobnicate" not in hooks.rules()
 
 
@@ -129,7 +137,11 @@ def test_subagent_start_envelope(tmp_path):
     assert res.returncode == 0, res.stderr
     out = json.loads(res.stdout)["hookSpecificOutput"]
     assert out["hookEventName"] == "SubagentStart"
-    assert out["additionalContext"].startswith("Beads agent profile: unknown (")
+    text = out["additionalContext"]
+    assert text.startswith("Beads agent profile: unknown (")
+    first, _, rest = text.partition("\n\n")
+    assert "\n" not in first and rest == hooks.rules()  # the rules, no command list, no pm show
+    assert "## Commands" not in text and len(text) <= hooks.CAP
 
 
 # ---------------------------------------------------------------- uncommitted records

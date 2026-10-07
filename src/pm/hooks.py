@@ -35,22 +35,14 @@ def rules() -> str:
 
 
 MACHINERY = {"prime", "hook", "push"}  # what the runtimes and the scheduler call, not agents
-WIDTH = 80  # characters of each command's help in the list
 
 
 def commands() -> str:
-    """pm's commands with their help, read from the argparse parser so the list never drifts from the code."""
+    """pm's agent-facing nouns, read from the argparse parser so the list never drifts from the code."""
     from pm.cli import parser  # lazy: cli imports this module
     sub = next(a for a in parser()._subparsers._group_actions if a.dest == "cmd")
-    lines = ["## Commands", ""]
-    for act in sub._choices_actions:
-        if act.dest in MACHINERY:
-            continue
-        text = re.split(r"; |\. ", act.help or "", maxsplit=1)[0].strip()
-        if len(text) > WIDTH:
-            text = text[:text.rfind(" ", 0, WIDTH - 1)] + "…"
-        lines.append(f"- `pm {act.dest}`: {text}")
-    return "\n".join(lines + ["", "Run `pm <noun> --help` for its commands and flags."])
+    nouns = ", ".join(f"`{act.dest}`" for act in sub._choices_actions if act.dest not in MACHINERY)
+    return f"## Commands\n\n`pm` nouns: {nouns}.\nRun `pm <noun> --help` for its commands and flags."
 
 
 def head() -> str:
@@ -86,7 +78,7 @@ def prime(cwd: str | None, session: str | None = None) -> str:
 
 
 def profile(cwd: str | None, cmd: list[str] | None = None) -> str:
-    """The one line a subagent gets: the active Beads agent profile, or why it could not be read."""
+    """The active Beads agent profile in one line, or why it could not be read."""
     cmd = cmd or ["bd", "config", "get", "agent.profile", "--json"]
     try:
         res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT)
@@ -102,6 +94,11 @@ def profile(cwd: str | None, cmd: list[str] | None = None) -> str:
     return f"Beads agent profile: {value}{note}."
 
 
+def subagent_context(cwd: str | None) -> str:
+    """The subagent context: the Beads profile line, then the rules; no command list and no `pm show`."""
+    return profile(cwd) + "\n\n" + rules()
+
+
 def read_event() -> dict | None:
     """The hook input JSON on stdin, or None when it is not a JSON object."""
     try:
@@ -112,12 +109,12 @@ def read_event() -> dict | None:
 
 
 def cmd_prime(subagent: bool, hook_json: bool) -> int:
-    """`pm prime`: the rules and `pm show`, or with --subagent the one line a subagent gets. With --hook-json it reads
+    """`pm prime`: the rules and `pm show`, or with --subagent the profile line and the rules. With --hook-json it reads
     the SessionStart or SubagentStart input on stdin (cwd, session_id) and prints the envelope Claude Code and Codex
     both read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}."""
     event = (read_event() or {}) if hook_json else {}
     cwd = event.get("cwd")
-    text = profile(cwd) if subagent else prime(cwd, event.get("session_id"))
+    text = subagent_context(cwd) if subagent else prime(cwd, event.get("session_id"))
     if hook_json:
         name = "SubagentStart" if subagent else "SessionStart"
         text = json.dumps({"hookSpecificOutput": {"hookEventName": name, "additionalContext": text}})

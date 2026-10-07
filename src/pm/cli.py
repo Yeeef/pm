@@ -2798,7 +2798,7 @@ def parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("prime", help="pm's rules, then pm show: the context a session starts with; the SessionStart "
                                      "hook runs it, and an agent may run it by hand")
-    s.add_argument("--subagent", action="store_true", help="only the one line a subagent gets: the Beads agent profile")
+    s.add_argument("--subagent", action="store_true", help="what a subagent gets: the Beads agent profile line and the rules, without the command list or pm show")
     s.add_argument("--hook-json", action="store_true", help="read the SessionStart or SubagentStart input on stdin "
                    "and print the hook's JSON envelope, as Claude Code and Codex read it")
 
