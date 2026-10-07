@@ -35,7 +35,7 @@ SERVE_HEADER = "X-PM-Store"  # the service's replies name the store they render,
 VERSION_HEADER = "X-PM-Version"  # and the pm build they run (tool.running), so a probe sees a service left on an old one
 PROBE_TIMEOUT = 1   # seconds a probe of the site may take; pm where runs one at every session start
 RESTART_WAIT = 15   # seconds restart waits for the site to answer
-TOOLS = ("bd", "git")  # what the service runs; install refuses a PATH without them
+TOOLS = ("bd", "git", "uv")  # what the service runs (uv runs the pinned pm); install refuses a PATH without them
 
 
 def label(main: Path) -> str:
@@ -387,8 +387,13 @@ def health(main: Path, store: Path) -> tuple[bool, str]:
         return False, head + "not installed; run pm service install"
     try:
         port = unit_port(main, kind)
+        want = command(tool.python())
     except RecordError as e:
         return False, head + f"broken: {e}"
+    have = unit_command(main, kind)
+    if have != want:  # a pin older than the launcher wrote it to run that pin's own tool: restarting runs that again
+        return False, head + (f"stale: its unit runs {' '.join(have or ['nothing'])}, not the pm uv tool "
+                              f"({' '.join(want)}); run pm service install")
     if not loaded(main, kind):
         return False, head + f"down: {kind} does not hold it; run pm service restart"
     served = answering(port)

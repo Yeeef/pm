@@ -32,7 +32,7 @@ def machine(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "home/.config"))
     bindir = tmp_path / "tools%x"
     bindir.mkdir()
-    for t in ("bd", "git"):
+    for t in ("bd", "git", "uv"):
         (bindir / t).write_text("#!/bin/sh\n")
         (bindir / t).chmod(0o755)
     monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}/usr/bin:/bin")
@@ -322,3 +322,19 @@ def test_install_holds_the_clones_install_lock(machine, monkeypatch):
     assert held == [True]
     with open(main / ".pm/run/install.lock") as f:
         fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)  # released once install returns
+
+
+def test_a_unit_an_old_pin_wrote_for_its_own_tool_is_stale_until_pm_service_install(machine, monkeypatch):
+    """pm 0.1.0, launched with its own uv tool dirs, wrote a unit running that tool; once the pin moves on, the unit
+    keeps restarting 0.1.0, which exits on the new pin. Health (session start, pm where) names the fix: install."""
+    main, calls, world = machine
+    monkeypatch.setattr(sys, "platform", "linux")
+    service.install(main, 8123)
+    unit = service.unit_file(main, "systemd")
+    old = "/data/pm/pins/0.1.0/tools/pm/bin/python"
+    unit.write_text(unit.read_text().replace(f'ExecStart="{sys.executable}"', f'ExecStart="{old}"'))
+    ok, line = service.health(main, main / ".pm/store/records")
+    assert not ok and line.endswith(f"stale: its unit runs {old} -m pm.cli service run, not the pm uv tool "
+                                    f"({sys.executable} -m pm.cli service run); run pm service install"), line
+    assert service.install(main, 8123).startswith("updated the pm service")
+    assert service.health(main, main / ".pm/store/records")[0]

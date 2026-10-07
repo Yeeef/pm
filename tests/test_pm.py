@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from conftest import write_config, PM, fake_bd_env
+from pm import __version__
 from pm.beads import reply_body
 
 FRAME = "## Goal\n\nShip the thing.\n\n## Scope\n\n**In:** the thing.\n\n**Out:** other things.\n\n## Done when\n\n- It ships.\n"
@@ -270,8 +271,9 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
     config = (clone / ".git/config").read_text()
     where = subprocess.run([*PM, "where"], cwd=clone,
                            env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
-    assert where[0] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
-    assert where[1] == f"checkout  {clone}  branch main, records link set up"
+    assert where[0].startswith(f"pm        {__version__}  ")
+    assert where[1] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
+    assert where[2] == f"checkout  {clone}  branch main, records link set up"
     # the clone's half of pm init ends with the service; the repo's files, installed already, stay as they are
     port = (tmp_path / "port").read_text()
     assert service_line(clone, tmp_path / "home", f"running; the site answers on :{port}") in where, where

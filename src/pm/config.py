@@ -1,7 +1,8 @@
 """The repo's pm settings: `.pm/config.toml` in the main checkout, tracked, pinning the pm version every session runs.
 
 Every pm command reads it first and fails hard when it is missing, malformed, or pins a version other than the one
-running; nothing falls back to a default."""
+running; nothing falls back to a default. The pm uv tool runs the pinned version itself (launch.py), so this check
+fails only when that launch did not give the pinned version."""
 
 from __future__ import annotations
 
@@ -17,8 +18,10 @@ from pm import __version__
 REL = ".pm/config.toml"
 STORE = ".pm/store/records"  # the records store, under the main checkout
 RUN = ".pm/run"  # runtime state in the main checkout, never committed: the service log, the push state, locks
-RELEASE = "git+https://github.com/Yeeef/yeeef-agents@pm-v{v}#subdirectory=pm"  # a release's requirement
+REPO = "https://github.com/Yeeef/yeeef-agents"  # where pm's releases are: tag pm-v<version>, the package in pm/
+RELEASE = f"git+{REPO}@pm-v{{v}}#subdirectory=pm"  # a release's requirement
 INSTALL = f'uv tool install "{RELEASE}"'
+LATEST = f'uv tool install --reinstall "git+{REPO}#subdirectory=pm"'  # the newest launcher, from the default branch
 KEYS = {"version": str, "remote": str, "main_branch": str, "port": int, "site_url": str}
 REQUIRED = ("version", "remote", "main_branch", "port")
 
@@ -57,9 +60,9 @@ def load(cwd: Path) -> Config:
     """The config of the checkout containing `cwd`, checked against the running pm's version."""
     c = read(cwd)
     if c.version != __version__:
-        raise ConfigError(f"this repo pins pm {c.version} in {c.path}, but pm {__version__} is running; install "
-                          f"the pinned version with {INSTALL.format(v=c.version)} (or move the pin to {__version__} "
-                          f"with pm upgrade)")
+        raise ConfigError(f"this repo pins pm {c.version} in {c.path}, but pm {__version__} is running, launched "
+                          f"for that pin: release tag pm-v{c.version} at {REPO} builds pm {__version__}; fix the tag, "
+                          f"or move the pin to {__version__} with pm upgrade --to {__version__}")
     return c
 
 

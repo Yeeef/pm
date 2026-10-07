@@ -40,7 +40,7 @@ from pathlib import Path
 
 import yaml
 
-from pm import __version__, config, hooks, install, legacy
+from pm import __version__, config, hooks, install, launch, legacy
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
                            merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
@@ -1490,7 +1490,7 @@ def pin_moved(path: Path) -> str:
         return f"the pm service cannot read its pin in {path} ({e}); stopping"
     if pin != __version__:
         return (f"{path} now pins pm {pin}, but this service runs pm {__version__}; stopping, so the supervisor "
-                f"starts the pm uv tool's version (install it with {config.INSTALL.format(v=pin)} or pm init)")
+                f"starts it again and the pm uv tool runs pm {pin}")
     return ""
 
 
@@ -1513,7 +1513,7 @@ def cmd_serve(args, records: Path) -> str:
     and whether it was delivered, or the error, then among its replies from Beads. Each request,
     refresh and reply write logs one line to stderr: what, total ms, ms waiting for the store lock, in git, rendering,
     and in each bd call. Every look also reads the config's pin again: once it pins another version (a pull after pm
-    upgrade), the service stops with an error, and the supervisor starts the pm uv tool again."""
+    upgrade), the service stops with an error, and the supervisor starts the pm uv tool again, which runs the new pin."""
     import html
     import http.server
     import queue
@@ -2594,7 +2594,8 @@ def cmd_doctor(args) -> tuple[int, str]:
     store = store_path(cwd)
     main = main_of(store)
     top = code_top(cwd, store, "doctor")
-    diffs = [f"repo: {d}; run pm upgrade to rewrite it" for d in install.drift(top, settings_of(cfg()))]
+    fix = f"pm upgrade --to {__version__}"  # the pin: a bare pm upgrade runs the pm uv tool's version
+    diffs = [f"repo: {d}; run {fix} to rewrite it" for d in install.drift(top, settings_of(cfg()))]
     diffs += doctor_setup(top, main, store)
     try:
         repo_found = repo_legacy(top)[1]
@@ -2602,20 +2603,22 @@ def cmd_doctor(args) -> tuple[int, str]:
         repo_found = []
         diffs.append(f"repo: cannot look for the pre-package harness's pieces: {e}")
     codex = codex_home() / "config.toml"
-    diffs += [f"legacy: {d}; run pm upgrade" for d in repo_found]  # pm init leaves an installed repo's files alone
+    diffs += [f"legacy: {d}; run {fix}" for d in repo_found]  # pm init leaves an installed repo's files alone
     diffs += [f"legacy: {d}; run pm init" for d in
               legacy.clone_pieces(main, store, codex_config(codex)[2] if codex.is_file() else [])]
     if diffs:
         return 1, "\n".join(diffs)
-    return 0, f"pm {__version__}: every managed piece and the clone's setup match what pm init makes"
+    return 0, (f"pm {__version__} ({launch.how()}): every managed piece and the clone's setup match what pm init "
+               "makes")
 
 
 def cmd_upgrade(args) -> str:
-    """Move the pin to the running pm and rewrite every managed piece as it writes them; commits nothing."""
+    """Move the pin to the running pm and rewrite every managed piece as it writes them; commits nothing. Without
+    --to it never moves a pin down: the pm uv tool runs a bare pm upgrade at its own version."""
     to = args.to or __version__
     if to != __version__:
-        raise Refuse(f"pm upgrade --to {to} must run pm {to}, but pm {__version__} is running; install it with "
-                     f"{config.INSTALL.format(v=to)}, then run pm upgrade")
+        raise Refuse(f"pm upgrade --to {to} must run pm {to}, but pm {__version__} is running; run it as the pm uv "
+                     f"tool, which launches pm {to}: install the latest with {config.LATEST}")
     cwd = Path.cwd()
     store = store_path(cwd)
     top = code_top(cwd, store, "upgrade")
@@ -2623,6 +2626,11 @@ def cmd_upgrade(args) -> str:
         c = config.read(top)
     except config.ConfigError as e:
         raise Refuse(str(e))
+    have, run = launch.key(c.version), launch.key(__version__)
+    if args.to is None and have is not None and run is not None and have > run:
+        raise Refuse(f"this repo pins pm {c.version}, newer than the running pm {__version__}, and pm upgrade moves "
+                     f"a pin down only when --to names the version; run pm upgrade --to {c.version} to rewrite pm's "
+                     f"pieces at the pin, or install the latest pm uv tool with {config.LATEST}, then pm upgrade")
     try:
         overlay, found = repo_legacy(top)  # the pre-package harness's pieces go too
         planned = install.rewrite(top, settings_of(c), overlay)
@@ -3027,7 +3035,7 @@ def where_all() -> str:
         res = subprocess.run(["git", *args], cwd=where, capture_output=True, text=True)
         return res.stdout.strip() if res.returncode == 0 else ""
 
-    out = []
+    out = [f"pm        {__version__}  {launch.how()}"]
     if not store.is_dir():
         out.append(f"store     {store}  missing; run {SETUP}")
     else:
@@ -3165,7 +3173,8 @@ on Linux ($XDG_CONFIG_HOME/systemd/user/local.pm.<dir>.<hash>.service, ~/.config
 machine with neither there is no service, and install refuses.
 
 Unit: runs the pm uv tool's interpreter (`<tool python> -m pm.cli service run`; pm init installs the
-tool) in the main checkout, with the PATH install ran with (bd and git must be on it) and PORT.
+tool) in the main checkout, with the PATH install ran with (bd, git and uv must be on it) and PORT. The tool
+runs the version the main checkout pins, through uv when it is another.
 
 Port: $PORT, else the installed unit's port, else `port` in {config.REL}. Installing again keeps the unit's
 port. A second clone of the repo on this machine needs its own: PORT=<n> pm service install.
@@ -3178,10 +3187,12 @@ with {service.SERVE_HEADER} naming this clone's store and {service.VERSION_HEADE
 flags a push step that failed or has not succeeded for {pushjob.OVERDUE} s.
 
 Stale build: every {SERVE_CHECK:g} s the service rereads the pin in {config.REL}; once it pins another version (a
-pull after pm upgrade) the service exits and the supervisor starts the pm uv tool again. A service that
-answers on another build than the running pm is stale in pm where, pm service status and pm doctor. Fix:
-pm init (it installs the pm uv tool at this build, then the service); when the tool already runs this
-build, pm service install or pm service restart.
+pull after pm upgrade) the service exits and the supervisor starts the pm uv tool again, which runs the new
+pin. A service that answers on another build than the running pm, the pinned one, is stale in pm where, pm
+service status and pm doctor. Fix: pm init (it installs the pm uv tool at this build unless the tool launched
+it, then the service); when the tool already runs this build, pm service install or pm service restart. A unit
+that runs another interpreter than the pm uv tool's (a pin older than 0.1.2 wrote it to run its own tool) is
+stale there too, and session start leaves it: pm service install rewrites it.
 
 Agents: pm prime carries pm where's service line and push state, and pm show warns when a push needs
 attention. When the service is down, run pm service restart; if that fails, raise an action for the
@@ -3190,7 +3201,9 @@ it and removes its unit."""
 
 
 def parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="pm", description=__doc__.strip().splitlines()[0])
+    ap = argparse.ArgumentParser(prog="pm", description=__doc__.strip().splitlines()[0],
+                                 epilog=f"The pm uv tool runs the pm version the repo pins in {config.REL}, through uv "
+                                        "when it is another; pm where names the version running and why.")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("show", help="compact status of open projects for agents")
@@ -3477,7 +3490,7 @@ def parser() -> argparse.ArgumentParser:
                                    "never reloads itself but shows within ~10 s that newer data exists, loaded on "
                                    "reload. Every 10 minutes, the first 10 after start, run pm push. Exits once "
                                    ".pm/config.toml pins another pm version, so the supervisor starts the pm uv tool "
-                                   "again. The supervisor runs it; run it by hand only to debug, or on another PORT.")
+                                   "again, which runs the new pin. The supervisor runs it; run it by hand only to debug, or on another PORT.")
     s.set_defaults(func=cmd_serve)
 
     s = sub.add_parser("doctor", help="compare every managed piece with what this pm writes, and the clone and "
@@ -3487,7 +3500,10 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("upgrade", help="move the pin in .pm/config.toml to this pm and rewrite every managed piece "
                                        "as it writes them (the fix pm doctor names for a changed one), removing the "
                                        "pre-package harness's; writes files and prints the commit to make, never commits")
-    s.add_argument("--to", metavar="X", help="the version to move to; it must be the running pm's (the default)")
+    s.add_argument("--to", metavar="X", help="the version to move to: the running pm's (the default), or another, "
+                                             "which the pm uv tool runs to make the move; without it pm upgrade "
+                                             "refuses a pin newer than the running pm (--to the pin rewrites the "
+                                             "pieces at it)")
     s.set_defaults(func=cmd_upgrade)
 
     s = sub.add_parser("uninstall", help="remove pm's pieces from this worktree (hook entries, workflows, .gitignore "
@@ -3612,6 +3628,10 @@ def hook_git_post_checkout(git_args: list[str]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    code = launch.launch(argv)  # the pm uv tool runs the repo's pinned version: exec'd, unless it is this one
+    if code is not None:
+        return code
     args = parser().parse_args(argv)
     name = f"{args.cmd} {getattr(args, 'sub', '')}".strip()
     try:  # every command, hooks included, fails hard without the repo's config or on another pinned version; pm init
