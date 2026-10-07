@@ -50,8 +50,9 @@ def commands() -> str:
 
 
 def head() -> str:
-    """What prime prints before `pm show`: the rules and the command list, never cut."""
-    return rules() + "\n\n" + commands() + "\n\n"
+    """The rules and the command list: `pm prime --rules`, never cut. Claude Code caps each hook's additionalContext
+    at CAP, so the rules run as their own SessionStart hook and leave `pm show` its own cap."""
+    return rules() + "\n\n" + commands()
 
 
 def setup(cwd: str | None, cmd: list[str] | None = None) -> str:
@@ -101,11 +102,16 @@ def context(cwd: str | None, cmd: list[str] | None = None, session: str | None =
     return text
 
 
-def prime(cwd: str | None, session: str | None = None) -> str:
-    """The session context: the rules and the command list, then what `pm setup` did and `pm where`, then `pm show`;
-    the whole stays within CAP, so `pm show` gets what the rest leaves."""
-    first = head() + setup(cwd) + where(cwd)
+def state(cwd: str | None, session: str | None = None) -> str:
+    """`pm prime --state`: what `pm setup` did and `pm where`, then `pm show`, all within CAP, so `pm show` gets what
+    the setup and where lines leave and loses its last part first."""
+    first = setup(cwd) + where(cwd)
     return first + context(cwd, session=session, cap=CAP - len(first))
+
+
+def prime(cwd: str | None, session: str | None = None) -> str:
+    """Plain `pm prime`, for a reader by hand: the rules and the command list, then the state."""
+    return head() + "\n\n" + state(cwd, session)
 
 
 def profile(cwd: str | None, cmd: list[str] | None = None) -> str:
@@ -127,7 +133,7 @@ def profile(cwd: str | None, cmd: list[str] | None = None) -> str:
 
 def subagent_context(cwd: str | None) -> str:
     """The subagent context: the Beads profile line, the rules and the command list; no `pm show`."""
-    return profile(cwd) + "\n\n" + rules() + "\n\n" + commands()
+    return profile(cwd) + "\n\n" + head()
 
 
 def read_event() -> dict | None:
@@ -139,15 +145,18 @@ def read_event() -> dict | None:
     return event if isinstance(event, dict) else None
 
 
-def cmd_prime(subagent: bool, hook_json: bool) -> int:
-    """`pm prime`: the rules, the commands and `pm show`, or with --subagent the profile line, the rules and the commands. With --hook-json it reads
-    the SessionStart or SubagentStart input on stdin (cwd, session_id) and prints the envelope Claude Code and Codex
-    both read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}."""
+def cmd_prime(part: str | None, hook_json: bool) -> int:
+    """`pm prime`: the rules, the commands and the state; `part` prints one: "rules" (the rules and the commands),
+    "state" (`pm setup`, `pm where` and `pm show`) or "subagent" (the profile line, the rules and the commands). The
+    SessionStart hooks run "rules" and "state" as two hooks, each under its own CAP. With --hook-json it reads the
+    SessionStart or SubagentStart input on stdin (cwd, session_id) and prints the envelope Claude Code and Codex both
+    read: {"hookSpecificOutput": {"hookEventName": ..., "additionalContext": ...}}."""
     event = (read_event() or {}) if hook_json else {}
-    cwd = event.get("cwd")
-    text = subagent_context(cwd) if subagent else prime(cwd, event.get("session_id"))
+    cwd, session = event.get("cwd"), event.get("session_id")
+    text = {"subagent": lambda: subagent_context(cwd), "rules": head, "state": lambda: state(cwd, session),
+            None: lambda: prime(cwd, session)}[part]()
     if hook_json:
-        name = "SubagentStart" if subagent else "SessionStart"
+        name = "SubagentStart" if part == "subagent" else "SessionStart"
         text = json.dumps({"hookSpecificOutput": {"hookEventName": name, "additionalContext": text}})
     print(text)
     return 0

@@ -16,7 +16,8 @@ from conftest import PM, write_config
 
 from pm import hooks
 
-SESSION = [*PM, "prime", "--hook-json"]
+RULES = [*PM, "prime", "--rules", "--hook-json"]
+STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
 STOP = [*PM, "hook", "stop"]
 
@@ -28,21 +29,22 @@ def run(cmd, event, env, cwd):
 # ---------------------------------------------------------------- session context
 
 
-def shown_part(text):
-    """The session context after the rules and the command list: `pm setup`, `pm where`, then `pm show`."""
-    head = hooks.head()
-    assert text.startswith(head) and head.startswith("# pm rules\n")
-    return text[len(head):]
-
-
-def test_session_start_injects_rules_setup_where_and_pm_show(repo):
-    assert repo.pm("setup").returncode == 0  # a clone set up once, as bin/pm setup leaves it
-    res = run(SESSION, {"hook_event_name": "SessionStart", "cwd": str(repo.root)}, repo.env, repo.root)
+def context_of(res, event="SessionStart"):
     assert res.returncode == 0, res.stderr
     out = json.loads(res.stdout)["hookSpecificOutput"]
-    assert out["hookEventName"] == "SessionStart"
+    assert out["hookEventName"] == event
+    return out["additionalContext"]
+
+
+def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
+    """Two hooks, each under Claude Code's per-hook cap: the rules never cut, then the state with pm show whole."""
+    assert repo.pm("setup").returncode == 0  # a clone set up once, as bin/pm setup leaves it
+    event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
+    rules = context_of(run(RULES, event, repo.env, repo.root))
+    assert rules == hooks.rules() + "\n\n" + hooks.commands() and rules.startswith("# pm rules\n")
+    text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
-    ran, _, rest = shown_part(out["additionalContext"]).partition("\n\n")
+    ran, _, rest = text.partition("\n\n")
     assert ran.startswith(f"`bin/pm setup` at session start:\nalready set up: {repo.records} -> {repo.store}\n")
     located, _, rest = rest.partition("\n\n")
     assert located == "Locations from `bin/pm where` at session start:\n" + repo.pm("where").stdout.strip()
@@ -50,11 +52,55 @@ def test_session_start_injects_rules_setup_where_and_pm_show(repo):
     header, _, body = rest.partition("\n\n")
     assert re.fullmatch(r"Project state from `bin/pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
                         r"run `bin/pm show` again before stating project state to the owner\.", header)
-    # pm show gets what the rest leaves under the cap, cut at a line
-    assert body == shown or (body.endswith(hooks.CUT) and shown.startswith(body[:-len(hooks.CUT)]))
-    assert "Sprint 1: First" in body
-    plain = repo.pm("prime")  # by hand: the same text, no envelope
-    assert plain.returncode == 0 and plain.stdout.strip() == out["additionalContext"]
+    assert body == shown and "Sprint 1: First" in body
+    plain = repo.pm("prime")  # by hand: both, no envelope
+    assert plain.returncode == 0 and plain.stdout.strip() == rules + "\n\n" + text
+
+
+TODAY_SHOW = "\n".join([  # pm show of a busy day: 2026-10-07 printed 7,085 characters; this one prints more
+    "warning: the scheduled push needs attention (pm where; it runs bin/pm push):",
+    "  last run 2026-10-07 01:10 UTC failed: bd dolt push: remote rejected (non-fast-forward)",
+    "  overdue: no run for 41 minutes; it runs every 10 minutes",
+    "warning: other live sessions hold these tasks; do not start or delegate them:",
+    *(f"  yeeef-agents-9va.6{n}.{n}  held by 7f3a9c0{n}, 2h ago, live" for n in range(8)),
+    "today 2026-10-07: " + "Auto-summary pages, decision cards and feedback tracking shipped. " * 3,
+    "site: https://pm.example.com (pm serve); a record's page is <site>/<its path under records/, without .md>.html",
+    'feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"',
+    *(line for p in range(5) for line in (
+        f"project-{p}  yeeef-agents-p{p}  " + "One shared record for agents and the owner, kept current. " * 2,
+        "decisions await you (2):",
+        f"  .{p}1  Choose the store layout for project {p}  (sprint {p}) -> bd show yeeef-agents-p{p}.1",
+        f"  .{p}2  Pick the push schedule for project {p}  (sprint {p}) -> bd show yeeef-agents-p{p}.2",
+        "actions await you (1):",
+        f"  .{p}3  Review PR #{50 + p}  (sprint {p}) -> bd show yeeef-agents-p{p}.3")),
+    *(line for p in range(5) for line in (
+        f"project-{p}  yeeef-agents-p{p}  sprints and decisions:",
+        *(f"  .{p}{s} Sprint {s}: " + "Ship the part of the harness this sprint owns. " * 2 for s in range(3)),
+        *(f"    .{p}{s}.{t}  open  Task {t} of the sprint, with a title of a usual length" for s in range(1) for t in range(4)),
+        "decisions (last 1):",
+        *(f"  2026-10-0{d} agent sprint {p}  " + "A decision body cut to its first hundred characters, as pm show prints it…"
+          for d in range(1)))),
+])
+TODAY_WHERE = "\n".join(f"{k:<9} /home/someone/workspace/yeeef-agents/{k}  " + "state of this location, " * 2
+                        for k in ("store", "checkout", "beads", "hooks", "codex", "claude", "push", "site", "remote",
+                                  "records", "worktree", "summary", "inbox"))
+
+
+def test_session_start_keeps_a_busy_days_pm_show_whole(tmp_path, monkeypatch):
+    """The fixture is today-size: every warning and owner request line reaches the session, and nothing is cut."""
+    assert len(TODAY_SHOW) > 7_085 and len(TODAY_WHERE) > 1_295
+    monkeypatch.setattr(hooks, "SHOW", [sys.executable, "-c", f"print({TODAY_SHOW!r})"])
+    monkeypatch.setattr(hooks, "SETUP", [sys.executable, "-c", f"print({'already set up: ' + 'x' * 260!r})"])
+    monkeypatch.setattr(hooks, "WHERE", [sys.executable, "-c", f"print({TODAY_WHERE!r})"])
+    text = hooks.state(str(tmp_path))
+    assert len(text) <= hooks.CAP and hooks.CUT not in text
+    assert text.endswith(TODAY_SHOW)
+    for line in TODAY_SHOW.splitlines():
+        if line.startswith(("warning:", "  last run", "  overdue", "  yeeef-agents-9va")) or "await you" in line \
+                or "-> bd show" in line:
+            assert line in text.splitlines()
+    rules = hooks.head()
+    assert len(rules) <= hooks.CAP and hooks.CUT not in rules  # the rules hook is never cut
 
 
 @pytest.mark.parametrize("tracked", [False, True], ids=["no-records", "mains-tracked-copy"])
@@ -73,12 +119,10 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     repo.git("worktree", "add", "-q", "--no-checkout", "-b", "bridge", str(wt))
     repo.git("reset", "-q", "--hard", cwd=wt)
     assert (wt / "records").is_dir() == tracked and not (wt / "records").is_symlink()
-    res = run(SESSION, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt)
-    assert res.returncode == 0, res.stderr
-    text = json.loads(res.stdout)["hookSpecificOutput"]["additionalContext"]
+    text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt))
     assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
     assert repo.git("status", "--porcelain", cwd=wt) == ""
-    ran, located, rest = shown_part(text).split("\n\n", 2)
+    ran, located, rest = text.split("\n\n", 2)
     assert ran.startswith("`bin/pm setup` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
     assert f"checkout  {wt}  branch bridge, records link set up" in located
     assert rest.startswith("Project state from `bin/pm show` at session start, ") and "Sprint 1: First" in rest
@@ -104,22 +148,22 @@ def test_session_start_cuts_long_output_at_a_line(tmp_path):
 
 def test_session_start_fails_open_with_one_line(repo):
     (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
-    res = run(SESSION, {"cwd": str(repo.root)}, repo.env, repo.root)
-    assert res.returncode == 0
-    text = shown_part(json.loads(res.stdout)["hookSpecificOutput"]["additionalContext"])
+    text = context_of(run(STATE, {"cwd": str(repo.root)}, repo.env, repo.root))
     _, located, shown = text.split("\n\n", 2)
     assert located.startswith("Locations from `bin/pm where` at session start:\n")  # pm where reads no Beads
     assert shown.startswith("pm show failed at session start (") and "\n" not in shown
 
 
-def test_session_context_stays_within_the_cap_with_the_rules(tmp_path, monkeypatch):
+def test_session_state_stays_within_the_cap_cutting_pm_show_last(tmp_path, monkeypatch):
     long = "\n".join(f"line {n} " + "x" * 90 for n in range(200))
     monkeypatch.setattr(hooks, "SHOW", [sys.executable, "-c", f"print({long!r})"])
     monkeypatch.setattr(hooks, "SETUP", [sys.executable, "-c", "print('already set up')"])
     monkeypatch.setattr(hooks, "WHERE", [sys.executable, "-c", "print('store  .records')"])
-    text = hooks.prime(str(tmp_path))
+    text = hooks.state(str(tmp_path))
     assert len(text) <= hooks.CAP and text.endswith(hooks.CUT)
-    assert shown_part(text).split("\n\n", 2)[2].startswith("Project state")
+    ran, located, rest = text.split("\n\n", 2)
+    assert ran.endswith("already set up") and located.endswith("store  .records")
+    assert rest.startswith("Project state") and "\nline 0 " in rest  # the cut takes the end of pm show
 
 
 def subcommands():
@@ -208,7 +252,7 @@ def test_subagent_start_envelope(tmp_path):
     text = out["additionalContext"]
     assert text.startswith("Beads agent profile: unknown (")
     first, _, rest = text.partition("\n\n")
-    assert "\n" not in first and rest == hooks.rules() + "\n\n" + hooks.commands()  # no pm show
+    assert "\n" not in first and rest == hooks.head()  # no pm show
     assert len(text) <= hooks.CAP
 
 
@@ -337,7 +381,7 @@ def test_session_start_warns_of_tasks_other_live_sessions_hold(repo):
     (Path(repo.env["CLAUDE_CONFIG_DIR"]) / "projects/-repo").mkdir(parents=True)
     (Path(repo.env["CLAUDE_CONFIG_DIR"]) / "projects/-repo/other.jsonl").write_text("{}\n")
     for sid, warned in (("me", True), ("other", False)):
-        res = run(SESSION, {"hook_event_name": "SessionStart", "cwd": str(repo.root), "session_id": sid}, repo.env, repo.root)
+        res = run(STATE, {"hook_event_name": "SessionStart", "cwd": str(repo.root), "session_id": sid}, repo.env, repo.root)
         text = json.loads(res.stdout)["hookSpecificOutput"]["additionalContext"]
         assert ("warning: other live sessions hold these tasks" in text) is warned
 
@@ -349,12 +393,12 @@ def test_session_start_points_the_sessions_open_requests_at_its_current_inbox(re
     repo.set_issue("demo.1.2", labels=["human"], metadata={"session": "me", "inbox": "/old/s", "inbox_host": "h"})
     repo.set_issue("demo.1.1", labels=["human"], metadata={"session": "other", "inbox": "/x/s", "inbox_host": "h"})
     env = dict(repo.env, CLAUDE_CODE_MESSAGING_SOCKET="/new/s")
-    res = run(SESSION, {"hook_event_name": "SessionStart", "cwd": str(repo.root), "session_id": "me"}, env, repo.root)
+    res = run(STATE, {"hook_event_name": "SessionStart", "cwd": str(repo.root), "session_id": "me"}, env, repo.root)
     assert res.returncode == 0, res.stderr
     issues = repo.issues()
     assert issues["demo.1.2"]["metadata"] == {"session": "me", "inbox": "/new/s", "inbox_host": socket.gethostname()}
     assert issues["demo.1.1"]["metadata"]["inbox"] == "/x/s"
     assert [c for c in repo.bd_calls() if c[:1] == ["list"]] == [["list", "--all", "--json"]], "no extra Beads read"
     repo.log.write_text("")
-    run(SESSION, {"hook_event_name": "SessionStart", "cwd": str(repo.root), "session_id": "me"}, env, repo.root)
+    run(STATE, {"hook_event_name": "SessionStart", "cwd": str(repo.root), "session_id": "me"}, env, repo.root)
     assert not [c for c in repo.bd_calls() if c[:1] == ["update"]], "an inbox already current is not rewritten"

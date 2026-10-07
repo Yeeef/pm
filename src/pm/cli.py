@@ -2840,9 +2840,15 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("what", nargs="?", choices=["records"], help="print only this location's path")
     s.set_defaults(func=cmd_where)
 
-    s = sub.add_parser("prime", help="pm's rules, then pm show: the context a session starts with; the SessionStart "
-                                     "hook runs it, and an agent may run it by hand")
-    s.add_argument("--subagent", action="store_true", help="what a subagent gets: the Beads agent profile line and the rules, without the command list or pm show")
+    s = sub.add_parser("prime", help="pm's rules, then pm setup, pm where and pm show: the context a session starts "
+                                     "with; the SessionStart hooks run --rules and --state, and an agent may run it by hand")
+    part = s.add_mutually_exclusive_group()
+    part.add_argument("--rules", dest="part", action="store_const", const="rules",
+                      help="only the rules and the command list, never cut: the first SessionStart hook")
+    part.add_argument("--state", dest="part", action="store_const", const="state",
+                      help="only pm setup, pm where and pm show, cut at a line to 10,000 characters: the second SessionStart hook")
+    part.add_argument("--subagent", dest="part", action="store_const", const="subagent",
+                      help="what a subagent gets: the Beads agent profile line, the rules and the command list, without pm show")
     s.add_argument("--hook-json", action="store_true", help="read the SessionStart or SubagentStart input on stdin "
                    "and print the hook's JSON envelope, as Claude Code and Codex read it")
 
@@ -2874,7 +2880,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
     if args.cmd == "prime":  # past the config check, hooks fail open and need no store, so they run before pm looks for one
-        return hooks.cmd_prime(args.subagent, args.hook_json)
+        return hooks.cmd_prime(args.part, args.hook_json)
     if args.cmd == "hook":
         return hooks.HOOKS[args.sub]()
     try:
