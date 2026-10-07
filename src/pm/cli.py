@@ -2387,7 +2387,10 @@ def cmd_init(args) -> str:
         c = cfg()
         s = install.Settings(c.remote, c.main_branch, c.port, c.site_url)
     old = legacy.old_store(main)
-    why = legacy.store_unsettled(old, s.remote, BRANCH) if old.is_dir() and not store.exists() else ""
+    if old.is_dir() and store.exists():
+        raise Refuse(f"both the old store {old} and the store {store} exist; keep the one holding your records, remove "
+                     f"the other (git worktree remove), and run pm init again")
+    why = legacy.store_unsettled(old, s.remote, BRANCH) if old.is_dir() else ""
     if why:  # refused before anything changes; migrate_clone checks again once the old push job is stopped
         raise Refuse(f"pm init moves the records store from {old} to {store}, but {why}; then run pm init again")
     before = worktree_changes(top)
@@ -2416,6 +2419,11 @@ def init_steps(args, top: Path, main: Path, s: install.Settings, fresh: bool, ou
     if not (top / ".beads").exists():
         bd(top, "init", "--non-interactive")
         out.append("ran bd init: Beads set up its database, its files and its git hooks (and commits them itself)")
+    try:  # the clone first: it can still refuse, and the repo's writes (.gitignore losing /.records/) must not precede it
+        out += [f"legacy: {l}" for l in legacy.migrate_clone(main, main / config.STORE, s.remote, BRANCH,
+                                                            codex_remove)]
+    except RecordError as e:
+        raise Refuse(str(e))
     try:
         overlay, found = repo_legacy(top)  # again: bd init wrote files pm's pieces share
         planned = install.plan(top, s, overlay)
@@ -2429,11 +2437,6 @@ def init_steps(args, top: Path, main: Path, s: install.Settings, fresh: bool, ou
     except install.InstallError as e:
         raise Refuse(str(e))
     out += [f"wrote {rel}" for rel in written if (top / rel).exists()]
-    try:
-        out += [f"legacy: {l}" for l in legacy.migrate_clone(main, main / config.STORE, s.remote, BRANCH,
-                                                            codex_remove)]
-    except RecordError as e:
-        raise Refuse(str(e))
     out.append(setup_clone(None if fresh else args.site_url))
     said = service.install(main, service.port_for(main, cfg().port))
     if said:

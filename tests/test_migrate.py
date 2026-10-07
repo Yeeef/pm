@@ -175,7 +175,8 @@ def test_init_migrates_a_legacy_clone_and_doctor_is_clean(legacy_clone: Path, tm
     main, wt, old, store = legacy_clone, tmp_path / "wt", legacy_clone / ".records", legacy_clone / ".pm/store/records"
     job = old_job(tmp_path, main)
 
-    # the store holds a record not yet committed, then one not yet pushed: refused, nothing changes
+    # the store holds a record not yet committed, then one not yet pushed, then sits off its branch: refused, and
+    # nothing changes
     for change, said in ((lambda: (old / "sprints/a-1.md").write_text("two\n"), "holds uncommitted records"),
                          (lambda: git(old, "commit", "-qam", "two"), "holds 1 commit(s) origin lacks")):
         change()
@@ -184,6 +185,12 @@ def test_init_migrates_a_legacy_clone_and_doctor_is_clean(legacy_clone: Path, tm
         assert res.returncode != 0 and said in res.stderr, res.stderr
         assert snapshot(main) == before and loaded(tmp_path) == sched and all(f.exists() for f in job)
     git(old, "push", "-q", "origin", "records")
+    git(old, "checkout", "-q", "--detach", "HEAD~1")  # a store off its branch may hide commits the remote lacks
+    before = snapshot(main)
+    res = pm(main, "init")
+    assert res.returncode != 0 and "it is not on branch records (HEAD is detached)" in res.stderr, res.stderr
+    assert snapshot(main) == before and all(f.exists() for f in job)
+    git(old, "checkout", "-q", "records")
 
     before = snapshot(main)
     res = pm(main, "init")

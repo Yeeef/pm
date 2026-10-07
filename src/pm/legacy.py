@@ -19,6 +19,7 @@ uncommitted or unpushed records."""
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -205,13 +206,16 @@ def systemd_dir() -> Path:
 
 
 def cron_lines() -> list[str] | None:
-    """The user's crontab lines; None when crontab is not installed or cannot be read."""
+    """The user's crontab lines; None when crontab is not installed. A crontab that cannot be read is refused, so
+    nothing rewrites it from a wrong copy or misses a job in it."""
     res = quiet(["crontab", "-l"])
     if res is None:
         return None
     if res.returncode == 0:
         return res.stdout.splitlines()
-    return [] if "no crontab for" in res.stderr else None
+    if "no crontab for" in res.stderr:
+        return []
+    raise RecordError(f"crontab -l failed: {(res.stderr or res.stdout).strip()}; pm looks there for the old push job")
 
 
 def push_jobs(main: Path) -> list[str]:
@@ -230,7 +234,8 @@ def push_jobs(main: Path) -> list[str]:
 
 
 def remove_push_job(main: Path) -> list[str]:
-    """Stop and remove the old push job wherever it is installed, and its state files; what went."""
+    """Remove the old push job wherever it is installed; what went. The caller holds the job's lock (job_lock), so
+    no run is in progress and one the supervisor starts meanwhile skips."""
     name, out = push_label(main), []
     for kind in push_jobs(main):
         if kind == "launchd":
@@ -244,22 +249,36 @@ def remove_push_job(main: Path) -> list[str]:
             timer = systemd_dir() / f"{name}.timer"
             if timer.exists():
                 checked(["systemctl", "--user", "disable", "--now", timer.name])
+            quiet(["systemctl", "--user", "stop", f"{name}.service"])  # a run the timer started; none while locked
             for s in ("timer", "service"):
                 (systemd_dir() / f"{name}.{s}").unlink(missing_ok=True)
             checked(["systemctl", "--user", "daemon-reload"])
             out.append(f"stopped and removed the old push job: systemd user timer {name}")
         else:
-            lines = cron_lines() or []
+            lines = cron_lines()
+            if lines is None:
+                raise RecordError(f"crontab is gone, so pm cannot remove the old push job's entry {name}")
             checked(["crontab", "-"], input="".join(l + "\n" for l in lines if not l.endswith(f"# {name}")))
             out.append(f"removed the old push job: crontab entry {name}")
+    return out
+
+
+def remove_push_state(main: Path) -> list[str]:
     gitdir = main / ".git"
     gone = [f for f in PUSH_STATE if (gitdir / f).exists()]
     for f in gone:
         (gitdir / f).unlink()
     if gone:
-        out.append(f"removed the old push job's state in {gitdir}: {', '.join(gone)} (the pm service keeps its own in "
-                   f"{main / '.pm/run'})")
-    return out
+        return [f"removed the old push job's state in {gitdir}: {', '.join(gone)} (the pm service keeps its own in "
+                f"{main / '.pm/run'})"]
+    return []
+
+
+def flock(path: Path, flags: int) -> int:
+    """An exclusive lock on `path`, waiting for its holder; the fd to close."""
+    fd = os.open(path, flags)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
 
 
 def store_unsettled(old: Path, remote: str, branch: str) -> str:
@@ -271,10 +290,16 @@ def store_unsettled(old: Path, remote: str, branch: str) -> str:
         return f"git status failed in {old}: {dirty.stderr.strip()}"
     if dirty.stdout.strip():
         return f"it holds uncommitted records; commit them with pm commit or revert them:\n{dirty.stdout.rstrip()}"
+    head = git("symbolic-ref", "--quiet", "HEAD").stdout.strip()
+    if head != f"refs/heads/{branch}":
+        return f"it is not on branch {branch} (HEAD is {head or 'detached'}); check out {branch} there"
+    for state in ("rebase-merge", "rebase-apply", "MERGE_HEAD"):
+        if Path(git("rev-parse", "--path-format=absolute", "--git-path", state).stdout.strip()).exists():
+            return f"a {state.split('-')[0].lower().replace('_head', '')} is in progress there; finish or abort it"
     upstream = f"refs/remotes/{remote}/{branch}"
     if git("rev-parse", "--verify", "--quiet", upstream).returncode != 0:
         return f"{remote} has no {branch} branch here ({upstream}); push it first: git -C {old} push -u {remote} {branch}"
-    ahead = git("rev-list", "--count", f"{upstream}..HEAD").stdout.strip()
+    ahead = git("rev-list", "--count", f"{upstream}..refs/heads/{branch}").stdout.strip()
     if ahead != "0":
         return f"it holds {ahead} commit(s) {remote} lacks; push them first: git -C {old} push {remote} {branch}"
     return ""
@@ -333,8 +358,14 @@ def relink(main: Path, store: Path) -> list[str]:
         dirs = local_settings_dirs(path)
         if dirs and any(names_old(d, old) for d in dirs):
             data = json.loads(path.read_text())
-            new = [str(store) if names_old(d, old) else d for d in dirs]
-            data["permissions"]["additionalDirectories"] = list(dict.fromkeys(new))
+            new, have = [], str(store) in dirs
+            for d in dirs:
+                if not names_old(d, old):
+                    new.append(d)
+                elif not have:
+                    new.append(str(store))
+                    have = True
+            data["permissions"]["additionalDirectories"] = new
             path.write_text(dump_json(data))
             out.append(f"replaced {old} by {store} in {path}")
     return out
@@ -355,17 +386,29 @@ def migrate_clone(main: Path, store: Path, remote: str, branch: str, codex_remov
         why = store_unsettled(old, remote, branch)
         if why:
             raise RecordError(f"pm init moves the records store from {old} to {store}, but {why}; then run pm init again")
-    out += remove_push_job(main)  # before the move: the old job commits and pushes in the store
-    if moving:
-        why = store_unsettled(old, remote, branch)  # the job may have run since the first check
-        if why:
-            raise RecordError(f"the old push job is gone, but the store {old} changed meanwhile: {why}; then run pm "
-                              f"init again")
-        store.parent.mkdir(parents=True, exist_ok=True)
-        res = subprocess.run(["git", "worktree", "move", str(old), str(store)], cwd=main, capture_output=True, text=True)
-        if res.returncode != 0:
-            raise RecordError(f"git worktree move {old} {store} failed: {(res.stderr or res.stdout).strip()}")
-        out.append(f"moved the records store from {old} to {store}")
+    # The old job's lock first (a run in progress holds it; one starting now skips), then the store's, which every old
+    # pm write and the job's push take: in that order, as a run takes them, so neither waits on the other.
+    fds = []
+    try:
+        if push_jobs(main) or moving:
+            fds.append(flock(main / ".git" / PUSH_STATE[1], os.O_RDWR | os.O_CREAT))
+        out += remove_push_job(main)  # before the move: the old job commits and pushes in the store
+        if moving:
+            fds.append(flock(old, os.O_RDONLY))
+            why = store_unsettled(old, remote, branch)  # a run or a session may have written since the first check
+            if why:
+                raise RecordError(f"the old push job is gone, but the store {old} changed meanwhile: {why}; then run "
+                                  f"pm init again")
+            store.parent.mkdir(parents=True, exist_ok=True)
+            res = subprocess.run(["git", "worktree", "move", str(old), str(store)], cwd=main, capture_output=True,
+                                 text=True)
+            if res.returncode != 0:
+                raise RecordError(f"git worktree move {old} {store} failed: {(res.stderr or res.stdout).strip()}")
+            out.append(f"moved the records store from {old} to {store}")
+        out += remove_push_state(main)
+    finally:
+        for fd in fds:
+            os.close(fd)
     out += relink(main, store)
     said = codex_remove([str(old.resolve())])
     if said:
