@@ -4,11 +4,13 @@ design (pm-product: "Git hooks", "Context: hook-only", "The .pm/ directory"), no
 
 from __future__ import annotations
 
+import http.server
 import json
 import os
 import shutil
 import socket
 import subprocess
+import threading
 import tomllib
 from pathlib import Path
 
@@ -140,7 +142,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert "installed the pm service: " in res.stdout
 
     exclude = (new_repo / ".git/info/exclude").read_text()
-    assert exclude.endswith("\n/.pm/store/\n/.pm/run/\n"), exclude
+    assert exclude.endswith("\n/.pm/store/\n/.pm/run/\n/records\n"), exclude
 
     before = snapshot(new_repo)
     again = pm(new_repo, "init")
@@ -174,15 +176,16 @@ def test_init_hooks_set_up_a_new_worktree_and_guard_records(new_repo: Path, tmp_
 
 
 def test_init_keeps_the_store_out_of_a_branch_made_before_pm(new_repo: Path):
-    """A branch made before pm has no .pm/.gitignore; the clone's info/exclude still keeps the store and run state
-    out of git add -A there."""
+    """A branch made before pm has no .pm/.gitignore and no .gitignore block; the clone's info/exclude still keeps
+    the store, the run state and the records/ link out of git add -A there."""
     first = git(new_repo, "rev-parse", "HEAD").strip()
     assert pm(new_repo, "init").returncode == 0
     git(new_repo, "add", "-A")
     git(new_repo, "commit", "-qm", "Install pm")
     git(new_repo, "checkout", "-q", "-b", "old", first)
     assert not (new_repo / ".pm/.gitignore").exists() and (new_repo / ".pm/store/records").is_dir()
-    status = git(new_repo, "status", "--porcelain", "--untracked-files=all", "--", ".pm").strip()
+    assert not (new_repo / ".gitignore").exists() and (new_repo / "records").is_symlink()
+    status = git(new_repo, "status", "--porcelain", "--untracked-files=all", "--", ".pm", "records").strip()
     assert status == "", status
 
 
@@ -288,6 +291,24 @@ def test_init_refuses_before_bd_init_runs(new_repo: Path, tmp_path: Path):
     assert res.returncode != 0 and ".claude/settings.json is not laid out as pm writes JSON" in res.stderr, res.stderr
     assert ["init", "--non-interactive"] not in [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
     assert snapshot(new_repo) == before and git(new_repo, "rev-parse", "HEAD") == head
+
+
+def test_init_that_fails_after_writing_names_the_commit_to_make(new_repo: Path, tmp_path: Path):
+    """The live check's init wrote every piece, then failed on the service and named no commit: a failure after
+    writing still says what it wrote and what to commit, then to fix the error and run init again."""
+    other = http.server.ThreadingHTTPServer(("127.0.0.1", site_port(tmp_path)), http.server.SimpleHTTPRequestHandler)
+    threading.Thread(target=other.serve_forever, daemon=True).start()
+    try:
+        res = pm(new_repo, "init")
+    finally:
+        other.shutdown()
+        other.server_close()
+    assert res.returncode == 1, res
+    err = res.stderr
+    assert err.startswith("error: installed local.pm.repo.") and "the site does not answer for this store" in err, err
+    assert "\nwrote .pm/config.toml\n" in err
+    assert f"git add -- {' '.join(PM_FILES + ['.beads/config.yaml'])} && git commit -m \"Install pm {__version__}\"" in err
+    assert err.rstrip().endswith("then fix the error above and run pm init again"), err
 
 
 def test_init_refuses_without_the_pm_uv_tool_it_cannot_install(new_repo: Path, tmp_path: Path):

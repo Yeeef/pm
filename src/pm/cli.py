@@ -1524,6 +1524,7 @@ def cmd_serve(args, records: Path) -> str:
 
     root = code_root(Path.cwd(), records)
     pin_file = cfg().path  # read again every look: a pull that moves the pin stops this service
+    build = tool.running()  # sent with every reply, so a probe sees a service left on another build
     stopped: list[str] = []  # why the refresher stopped the server
     noms = dolt_store(root)
     token = secrets.token_urlsafe(32)  # embedded in the served pages' reply forms; a POST without it is refused
@@ -1818,7 +1819,7 @@ def cmd_serve(args, records: Path) -> str:
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header(service.SERVE_HEADER, str(records.resolve()))  # lets a probe tell this service apart
-            self.send_header(service.VERSION_HEADER, __version__)
+            self.send_header(service.VERSION_HEADER, build)
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(body)
@@ -2358,7 +2359,7 @@ def init_settings(top: Path, site_url: str | None) -> install.Settings:
 
 def cmd_init(args) -> str:
     """Set up whatever is missing in the repo, then the clone and this worktree. The repo's pieces are written, never
-    committed: the output names the commit to make."""
+    committed: the output names the commit to make, also when a later step fails."""
     cwd = Path.cwd()
     store = store_path(cwd)
     main = main_of(store)
@@ -2388,6 +2389,20 @@ def cmd_init(args) -> str:
         planned = install.plan(top, s)  # read-only: a refusal comes before bd init, which writes and commits
     except install.InstallError as e:
         raise Refuse(str(e))
+    written: list[str] = []
+    try:
+        done = init_steps(args, top, main, s, fresh, out, written)
+    except (Refuse, RecordError) as e:  # a failure after writing still names what to commit, then what to run
+        hint = commit_hint(top, before, written)
+        if not hint:
+            raise
+        raise Refuse("\n".join([str(e), *out, hint, "then fix the error above and run pm init again"])) from e
+    return "\n".join(l for l in (done, commit_hint(top, before, written)) if l)
+
+
+def init_steps(args, top: Path, main: Path, s: install.Settings, fresh: bool, out: list[str],
+               written: list[str]) -> str:
+    """pm init's writes, in order; `out` and `written` say how far it got when one fails."""
     tooled = tool.ensure()  # the service's unit and the hooks run the pm uv tool, not this pm (uvx's, say)
     if tooled:
         out.append(tooled)
@@ -2400,7 +2415,7 @@ def cmd_init(args) -> str:
                            capture_output=True).returncode != 0
                 and not install.remote_has_branch(top, s.remote, BRANCH)):
             out.append(install.create_records_branch(top, s.remote, BRANCH))
-        written = install.write(planned)
+        written += install.write(planned)
     except install.InstallError as e:
         raise Refuse(str(e))
     out += [f"wrote {rel}" for rel in written]
@@ -2408,13 +2423,18 @@ def cmd_init(args) -> str:
     said = service.install(main, service.port_for(main, cfg().port))
     if said:
         out.append(said)
+    return "\n".join(out)
+
+
+def commit_hint(top: Path, before: dict[str, str], written: list[str]) -> str:
+    """The commit to make of what pm init changed in `top` since `before`; empty when nothing changed."""
     after = worktree_changes(top)
     changed = list(dict.fromkeys(written + [p for p in after if after[p] != before.get(p)]))
-    if changed:  # pm's pieces, and what bd changed meanwhile (bd init's files, the agent profile in .beads/config.yaml)
-        branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
-        out.append(f"pm commits nothing on {branch}; commit what pm init changed there: git add -- {' '.join(changed)} "
-                   f'&& git commit -m "Install pm {__version__}"')
-    return "\n".join(out)
+    if not changed:  # pm's pieces, and what bd changed meanwhile (bd init's files, the agent profile in .beads/config.yaml)
+        return ""
+    branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
+    return (f"pm commits nothing on {branch}; commit what pm init changed there: git add -- {' '.join(changed)} "
+            f'&& git commit -m "Install pm {__version__}"')
 
 
 def worktree_changes(top: Path) -> dict[str, str]:
@@ -2692,9 +2712,10 @@ def cmd_uninstall(args) -> str:
     return "\n".join(out) or "pm is not installed here; nothing to remove"
 
 
-# the clone's own state under .pm/, in the common git dir's info/exclude: a branch made before pm has no .pm/.gitignore,
-# and there git add -A would stage the store as an embedded repo
-PM_EXCLUDE = ["/.pm/store/", "/.pm/run/"]
+# the clone's own state under .pm/ and each worktree's records/ link, in the common git dir's info/exclude: a branch
+# made before pm has neither .pm/.gitignore nor pm's .gitignore block, and there git add -A would stage the store as an
+# embedded repo and the link as a file
+PM_EXCLUDE = ["/.pm/store/", "/.pm/run/", "/records"]
 
 
 def exclude_path(main: Path) -> Path:

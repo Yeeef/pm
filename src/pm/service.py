@@ -25,14 +25,12 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from pm import __version__
-
 from . import push, tool
 from .config import STORE, run_dir
 from .records import RecordError
 
 SERVE_HEADER = "X-PM-Store"  # the service's replies name the store they render, so a probe can check who answers
-VERSION_HEADER = "X-PM-Version"  # and the pm version they run, so a probe sees a service left on an old version
+VERSION_HEADER = "X-PM-Version"  # and the pm build they run (tool.running), so a probe sees a service left on an old one
 PROBE_TIMEOUT = 1   # seconds a probe of the site may take; pm where runs one at every session start
 RESTART_WAIT = 15   # seconds restart waits for the site to answer
 TOOLS = ("bd", "git")  # what the service runs; install refuses a PATH without them
@@ -165,8 +163,8 @@ def install(main: Path, port: int) -> str:
     unit, want = unit_file(main, kind), unit_bytes(main, kind, path, port, py)
     changed = not unit.exists() or unit.read_bytes() != want
     up = loaded(main, kind)
-    if not changed and up and answering(port) == (str((main / STORE).resolve()), __version__):
-        return ""  # a unit held but answering on another version (the tool just moved) or not at all is restarted
+    if not changed and up and answering(port) == (str((main / STORE).resolve()), tool.running()):
+        return ""  # a unit held but answering on another build (the tool just moved) or not at all is restarted
     if changed:
         unit.parent.mkdir(parents=True, exist_ok=True)
         unit.write_bytes(want)
@@ -257,7 +255,7 @@ def drift(main: Path, port: int) -> list[str]:
             out.append(f"{unit} does not run the pm uv tool ({' '.join(want)}); run pm service install")
     with contextlib.suppress(RecordError):
         served = answering(unit_port(main, kind))
-        if served and Path(served[0]) == (main / STORE).resolve() and served[1] != __version__:
+        if served and Path(served[0]) == (main / STORE).resolve() and served[1] != tool.running():
             out.append(f"the service on :{unit_port(main, kind)} is stale: {stale(served[1])}")
     return out
 
@@ -285,7 +283,7 @@ def uninstall(main: Path) -> str:
 
 
 def answering(port: int) -> tuple[str, str] | None:
-    """The store the server on `port` renders and the pm version it runs, by SERVE_HEADER and VERSION_HEADER ("" for
+    """The store the server on `port` renders and the pm build it runs, by SERVE_HEADER and VERSION_HEADER ("" for
     one it does not send: what answers is not pm, or a pm too old to say); None when nothing answers. The probe
     fetches style.css, which the service answers without rendering."""
     try:
@@ -298,10 +296,10 @@ def answering(port: int) -> tuple[str, str] | None:
     return headers.get(SERVE_HEADER) or "", headers.get(VERSION_HEADER) or ""
 
 
-def stale(version: str) -> str:
-    """What to say of a service answering for this store on another pm version than this one."""
-    return (f"it runs pm {version or 'older than 0.1.0'}, not the pinned {__version__}: the pm uv tool is on another "
-            f"version; run pm init")
+def stale(build: str) -> str:
+    """What to say of a service answering for this store on another pm build than this one."""
+    return (f"it runs pm {build or 'older than 0.1.0'}, not pm {tool.running()}: the pm uv tool is on another build; "
+            "run pm init")
 
 
 def health(main: Path, store: Path) -> tuple[bool, str]:
@@ -326,7 +324,7 @@ def health(main: Path, store: Path) -> tuple[bool, str]:
     if Path(served[0]) != store.resolve():
         what = f"another store ({served[0]})" if served[0] else "a server that is not pm"
         return False, head + f"down: :{port} is held by {what}; stop it, then run pm service restart"
-    if served[1] != __version__:
+    if served[1] != tool.running():
         return False, head + f"stale: {stale(served[1])}"
     return True, head + f"running; the site answers on :{port}"
 

@@ -63,7 +63,7 @@ def machine(tmp_path, monkeypatch):
     # the pm uv tool is this interpreter, and the site comes up at once: test_service_*_end_to_end runs both for real
     monkeypatch.setattr(tool, "python", lambda: Path(sys.executable))
     monkeypatch.setattr(tool, "current", lambda: Path(sys.executable))
-    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), __version__))
+    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), tool.running()))
     monkeypatch.setattr(service, "wait_up", lambda main, port, done, hint="": world.setdefault("waited", []).append(port))
     return main, calls, world
 
@@ -210,7 +210,7 @@ def test_service_stops_once_the_pin_moves(repo):
     srv, port = service_run(repo, "0")
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/style.css") as r:
-            assert r.headers["X-PM-Version"] == __version__
+            assert r.headers["X-PM-Version"] == tool.running()
         cfg = repo.root / ".pm/config.toml"
         cfg.write_text(cfg.read_text().replace(f'version = "{__version__}"', 'version = "9.9.9"'))
         out, _ = srv.communicate(timeout=10)
@@ -220,26 +220,33 @@ def test_service_stops_once_the_pin_moves(repo):
     assert f"now pins pm 9.9.9, but this service runs pm {__version__}; stopping" in out, out
 
 
-def test_install_restarts_a_current_unit_that_answers_on_another_version(machine, monkeypatch):
-    """The unit's bytes do not change with the tool's version: a held unit answering on another one is restarted."""
+# a service on another version, and on this version built from another commit (the live check's stale tool)
+OTHER_BUILDS = ["0.0.1", f"{__version__} from git+https://github.com/Yeeef/yeeef-agents@{'a2ae084' + '0' * 33}"
+                         "#subdirectory=pm"]
+
+
+@pytest.mark.parametrize("other", OTHER_BUILDS)
+def test_install_restarts_a_current_unit_that_answers_on_another_build(machine, monkeypatch, other):
+    """The unit's bytes do not change with the tool's build: a held unit answering on another one is restarted."""
     main, calls, world = machine
     monkeypatch.setattr(sys, "platform", "linux")
     service.install(main, 8123)
-    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), "0.0.1"))
+    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), other))
     unit = service.unit_file(main, "systemd")
     assert service.install(main, 8123).startswith("updated the pm service")
     assert calls[-1] == ["systemctl", "--user", "restart", unit.name] and world["waited"] == [8123, 8123]
 
 
-def test_health_and_doctor_report_a_service_on_another_version(machine, monkeypatch):
+@pytest.mark.parametrize("other", OTHER_BUILDS)
+def test_health_and_doctor_report_a_service_on_another_build(machine, monkeypatch, other):
     main, calls, world = machine
     monkeypatch.setattr(sys, "platform", "linux")
     service.install(main, 8123)
-    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), "0.0.1"))
+    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), other))
     ok, line = service.health(main, main / ".pm/store/records")
-    assert not ok and line.endswith(f"stale: it runs pm 0.0.1, not the pinned {__version__}: the pm uv tool is on "
-                                    "another version; run pm init"), line
-    assert any("is stale: it runs pm 0.0.1" in d for d in service.drift(main, None))
+    assert not ok and line.endswith(f"stale: it runs pm {other}, not pm {tool.running()}: the pm uv tool is on "
+                                    "another build; run pm init"), line
+    assert any(f"is stale: it runs pm {other}," in d for d in service.drift(main, None))
 
 
 def test_status_flags_a_failed_push(repo):
