@@ -109,6 +109,13 @@ def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new
     assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
                                           "repo: .github/workflows/pm-records-guard.yml: pm's part is missing"]), lines
     assert all(l.endswith("run pm upgrade to rewrite it") for l in lines), lines
+    # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
+    res = pm(new_repo, "init", "--site-url", "pm.example.com")
+    assert res.returncode == 1 and "is not an http(s) base URL" in res.stderr and git(new_repo, "status", "--porcelain") == ""
+    res = pm(new_repo, "init", "--site-url", "https://pm.example.com/")
+    assert res.returncode == 0 and "git add -- .pm/config.toml && " in res.stdout, res.stdout
+    assert tomllib.loads((new_repo / ".pm/config.toml").read_text())["site_url"] == "https://pm.example.com"
+    assert settings.read_bytes() == changed
 
 
 SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of the line doctor reports for it
