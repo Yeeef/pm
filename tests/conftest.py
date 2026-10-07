@@ -15,7 +15,6 @@ import pytest
 
 from pm import __version__
 
-HARNESS = Path(__file__).resolve().parents[2] / "skills/project-management/harness"  # RULES.md
 # This checkout's records/ link: the real records, wherever this clone keeps its store.
 REAL_RECORDS = Path(__file__).resolve().parents[2] / "records"
 # pm and the renderer from the package environment the tests run in (make test).
@@ -208,7 +207,7 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
     """`base` with the fake bd and gh first on PATH, bd serving ISSUES from tmp/bd.json and logging calls to
     tmp/bd.log, gh serving PRs from tmp/gh.json (none at first), claude a fake logging to tmp/claude.log; made on first use in `tmp`, so later calls keep
     their state and log. CODEX_HOME is tmp/codex, absent until a test makes it, so no test reads or edits the
-    user's Codex config. HOME is tmp/home and launchctl and systemctl are fakes logging to tmp/sched.log,
+    user's Codex config. HOME is tmp/home and launchctl, systemctl and crontab are fakes logging to tmp/sched.log,
     so no test installs a real service; UV_TOOL_DIR and UV_TOOL_BIN_DIR are under tmp/uv, which holds the pm uv
     tool (install_tool), so no test reads or installs the user's tools; PYTHONPATH makes pm the tool's git build."""
     bindir = tmp / "bin"
@@ -216,7 +215,7 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
         bindir.mkdir()
         # each runs with this interpreter, whatever python3 the PATH a unit gets holds
         for tool, script in (("bd", FAKE_BD), ("gh", FAKE_GH), ("claude", FAKE_CLAUDE), ("launchctl", FAKE_SCHED),
-                             ("systemctl", FAKE_SCHED)):
+                             ("systemctl", FAKE_SCHED), ("crontab", FAKE_SCHED)):
             (bindir / tool).write_text(f'#!/bin/sh\nFAKE_TOOL={tool} exec "{sys.executable}" "{script}" "$@"\n')
             (bindir / tool).chmod(0o755)
         (tmp / "home").mkdir()
