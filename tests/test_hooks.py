@@ -38,7 +38,7 @@ def context_of(res, event="SessionStart"):
 
 def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
     """Two hooks, each under Claude Code's per-hook cap: the rules never cut, then the state with pm show whole."""
-    assert repo.pm("setup").returncode == 0  # a clone set up once, as bin/pm setup leaves it
+    assert repo.pm("setup").returncode == 0  # a clone set up once, as pm setup leaves it
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     rules = context_of(run(RULES, event, repo.env, repo.root))
     assert rules == hooks.rules() + "\n\n" + hooks.commands() and rules.startswith("# pm rules\n")
@@ -47,11 +47,11 @@ def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
     ran, _, rest = text.partition("\n\n")
     assert ran.startswith(f"`pm setup` at session start:\nalready set up: {repo.records} -> {repo.store}\n")
     located, _, rest = rest.partition("\n\n")
-    assert located == "Locations from `bin/pm where` at session start:\n" + repo.pm("where").stdout.strip()
+    assert located == "Locations from `pm where` at session start:\n" + repo.pm("where").stdout.strip()
     assert f"checkout  {repo.root}  branch main, records link set up" in located
     header, _, body = rest.partition("\n\n")
-    assert re.fullmatch(r"Project state from `bin/pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
-                        r"run `bin/pm show` again before stating project state to the owner\.", header)
+    assert re.fullmatch(r"Project state from `pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
+                        r"run `pm show` again before stating project state to the owner\.", header)
     assert body == shown and "Sprint 1: First" in body
     plain = repo.pm("prime")  # by hand: both, no envelope
     assert plain.returncode == 0 and plain.stdout.strip() == rules + "\n\n" + text
@@ -125,7 +125,7 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     ran, located, rest = text.split("\n\n", 2)
     assert ran.startswith("`pm setup` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
     assert f"checkout  {wt}  branch bridge, records link set up" in located
-    assert rest.startswith("Project state from `bin/pm show` at session start, ") and "Sprint 1: First" in rest
+    assert rest.startswith("Project state from `pm show` at session start, ") and "Sprint 1: First" in rest
 
 
 def test_session_start_setup_fails_open_with_one_line(tmp_path):
@@ -135,7 +135,7 @@ def test_session_start_setup_fails_open_with_one_line(tmp_path):
 
 def test_session_start_where_fails_open_with_one_line(tmp_path):
     note = hooks.where(str(tmp_path), [sys.executable, "-c", "import sys; sys.exit('no records store')"])
-    assert note == "pm where failed at session start (no records store); run `bin/pm where` by hand.\n\n"
+    assert note == "pm where failed at session start (no records store); run `pm where` by hand.\n\n"
 
 
 def test_session_start_cuts_long_output_at_a_line(tmp_path):
@@ -150,7 +150,7 @@ def test_session_start_fails_open_with_one_line(repo):
     (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
     text = context_of(run(STATE, {"cwd": str(repo.root)}, repo.env, repo.root))
     _, located, shown = text.split("\n\n", 2)
-    assert located.startswith("Locations from `bin/pm where` at session start:\n")  # pm where reads no Beads
+    assert located.startswith("Locations from `pm where` at session start:\n")  # pm where reads no Beads
     assert shown.startswith("pm show failed at session start (") and "\n" not in shown
 
 
@@ -279,7 +279,7 @@ def test_stop_blocks_on_a_record_this_session_edited(repo, tmp_path):
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": False}, repo.env, repo.root)
     out = json.loads(res.stdout)
     assert out["decision"] == "block"
-    assert "- records/sprints/demo-1.md" in out["reason"] and "bin/pm commit -m" in out["reason"]
+    assert "- records/sprints/demo-1.md" in out["reason"] and "pm commit -m" in out["reason"]
 
 
 def test_stop_blocks_on_a_new_file_named_in_a_codex_patch(repo, tmp_path):

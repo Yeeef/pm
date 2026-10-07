@@ -87,11 +87,11 @@ REASON = (
     "Your reply asks the owner for something sprint work waits on that no open request of this session covers: "
     "{asks}. Chat requests never reach the owner's site, so the owner may never see them. Raise each one, then end "
     "your reply (it needs no id):\n"
-    "- a decision: bin/pm decision need --title \"...\" --parent <sprint or task id>, stdin with one part per line: "
+    "- a decision: pm decision need --title \"...\" --parent <sprint or task id>, stdin with one part per line: "
     "Question:, Fact:, Option <label>: each with a Cost: line, and Default: <label>;\n"
-    "- an action (run, apply, configure, ...): bin/pm action need --title \"...\" --parent <id>, what to do and why "
+    "- an action (run, apply, configure, ...): pm action need --title \"...\" --parent <id>, what to do and why "
     "on stdin;\n"
-    "- a PR review or merge: bin/pm action need --pr URL --sprint ID --focus \"...\".\n"
+    "- a PR review or merge: pm action need --pr URL --sprint ID --focus \"...\".\n"
     "If no sprint work waits on it, end without the request or make it a plain offer."
 )
 
@@ -99,7 +99,7 @@ REASON = (
 NEEDLESS = (
     "Your reply asks the owner's leave for, or offers, a step you are authorized to take without asking: {asks}. "
     "The owner authorizes working a sprint's tasks, pushing its branch and opening its PR for every sprint. Do the "
-    "step now instead of asking; only the PR review and merge wait on the owner (bin/pm action need --pr URL "
+    "step now instead of asking; only the PR review and merge wait on the owner (pm action need --pr URL "
     "--sprint ID --focus \"...\")."
 )
 

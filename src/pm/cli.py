@@ -2681,7 +2681,7 @@ def codex_roots(main: Path) -> list[str]:
     try:
         res = subprocess.run(["uv", "--color", "never", "cache", "dir"], capture_output=True, text=True)
     except FileNotFoundError:
-        raise Refuse("uv is not installed; bin/pm runs through it")
+        raise Refuse("uv is not installed; pm is a uv tool and needs it")
     if res.returncode != 0 or not res.stdout.strip():
         raise Refuse(f"uv cache dir failed: {res.stderr.strip()}")
     return [str(p.resolve()) for p in (main / ".git", store, store_gitdir, main / ".beads",
