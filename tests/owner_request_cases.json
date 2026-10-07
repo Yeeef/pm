@@ -44,7 +44,7 @@
     {"name": "chat-only approval as a statement", "expect": "block", "open": {},
      "reply": "Everything is in place and the branch is rebased. The PR is now waiting on your approval."},
     {"name": "chat-only action at the end of a long report", "expect": "block", "open": {"cache": "me"},
-     "reply": "Progress today:\n- the store moved to .records and every worktree links it;\n- pm setup runs in the post-checkout hook;\n- the suite passes (212 passed).\nThe Mac still has the old clone, so I am blocked until you run `bin/pm setup` there."},
+     "reply": "Progress today:\n- the store moved to .records and every worktree links it;\n- pm setup runs in the post-checkout hook;\n- the suite passes (212 passed).\nThe Mac still has the old clone, so I am blocked until you run `pm init` there."},
     {"name": "matched merge question about the reviewed PR", "expect": "pass", "open": {"review31": "me"},
      "reply": "CI is green on PR #31. Should I merge it now, or wait for your review?"},
     {"name": "question inside a code block", "expect": "pass", "open": {},

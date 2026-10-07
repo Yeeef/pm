@@ -18,10 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from conftest import write_config, HARNESS, PM, fake_bd_env
-
-sys.path.insert(0, str(HARNESS))
-from pm.beads import reply_body  # noqa: E402
+from conftest import write_config, PM, fake_bd_env
+from pm.beads import reply_body
 
 FRAME = "## Goal\n\nShip the thing.\n\n## Scope\n\n**In:** the thing.\n\n**Out:** other things.\n\n## Done when\n\n- It ships.\n"
 
