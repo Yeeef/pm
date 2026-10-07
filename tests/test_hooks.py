@@ -45,7 +45,7 @@ def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
     assert repo.pm("setup").returncode == 0  # a clone set up once, as bin/pm setup leaves it
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(hooks.STARTS) + 1)]
-    assert got == hooks.chunks() and got[0].startswith("# pm rules (1 of 4): the introduction; ")
+    assert got == hooks.chunks() and got[0].startswith("# pm rules (1 of 2): the introduction; ")
     text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
     ran, _, rest = text.partition("\n\n")
@@ -160,7 +160,7 @@ def test_prime_lists_every_agent_command_from_the_parser():
     assert "prime" not in listed and "show" in listed
     assert hooks.commands().startswith("# Commands\n\n")
     assert hooks.commands().count("\n") == 2  # compact: a heading and the nouns; prime.md points at --help
-    assert "Run `pm <noun> --help` for its commands and flags." in hooks.rules()
+    assert "for more, run `pm <noun> [cmd] --help`." in hooks.rules()  # the pointer the compact list relies on
 
 
 def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
@@ -168,14 +168,14 @@ def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
     their titles are the rules and the command list: nothing lost, nothing twice. A failure here means prime.md
     outgrew its chunks: move a heading in hooks.STARTS, or add one and its hook entries."""
     cs = hooks.chunks()
-    assert len(cs) == len(hooks.STARTS) == 4
+    assert len(cs) == len(hooks.STARTS) == 2
     assert all(len(c) <= hooks.CAP for c in cs), [len(c) for c in cs]
     titles, bodies = zip(*(c.split("\n\n", 1) for c in cs))
     assert "\n\n".join(bodies) == hooks.head()
     assert [b.split("\n", 1)[0] for b in bodies] == list(hooks.STARTS)
     for n, t in enumerate(titles, 1):  # hooks arrive in any order, so each title names its place and its sections
-        assert t.startswith(f"# pm rules ({n} of 4): ") and "\n" not in t
-    assert "Part 2: how — 7. Records" in titles[2] and "Part 3: writing to the owner" in titles[3]
+        assert t.startswith(f"# pm rules ({n} of 2): ") and "\n" not in t
+    assert "What — 1. The layers" in titles[0] and "How; Writing to the owner" in titles[1]
 
 
 def test_hook_entries_run_every_rules_chunk():
