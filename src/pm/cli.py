@@ -2613,7 +2613,7 @@ def parser() -> argparse.ArgumentParser:
                     "taken if the owner does not answer, then its reason. Send it with a quoted heredoc (<<'EOF'), "
                     "so code spans stay. pm writes the description in one Markdown layout and refuses an option "
                     "without a cost, a default that names no option, and a sentence of more than 25 words. Record "
-                    "the answer with pm decision add --need, or close a small answer with pm decision close.")
+                    "the answer with pm decision add --need, or close a small answer with pm decision close. A need a test or live check raises starts its title with \"[TEST]\"; close it with bd human dismiss <id> once the check is done.")
     s.add_argument("--title", required=True)
     s.add_argument("--parent", required=True, metavar="ID", help="the sprint or task the decision belongs to")
     s.set_defaults(func=cmd_decision_need)
@@ -2622,7 +2622,8 @@ def parser() -> argparse.ArgumentParser:
         description="Close the need with bd human respond, the owner's answer and the reason, and label it "
                     "no-decision; on a need the owner already closed, only the label and the reason (as a comment) "
                     "are added, and no answer is needed. An answer that sets a rule is recorded with pm decision add "
-                    "--need instead. If labelling fails, run it again; it does not repeat the reason.")
+                    "--need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not "
+                    "sure, record a decision. If labelling fails, run it again; it does not repeat the reason.")
     s.add_argument("need_id", help="the decision need's Beads id")
     s.add_argument("--reason", required=True, help="why the answer sets no rule, in a sentence")
     s.set_defaults(func=cmd_decision_close)
@@ -2639,7 +2640,7 @@ def parser() -> argparse.ArgumentParser:
                     "close the review with pm action done <id> --reason \"merged as <sha>\"; "
                     "the site's card links the PR, each sprint's record and delivery report, and the design "
                     "pages named with --design plus those the sprints' records list, and shows the focus; stdin "
-                    "then holds optional extra context. Close it with pm action done once you see it done.")
+                    "then holds optional extra context. Close it with pm action done once you see it done. A need a test or live check raises starts its title with \"[TEST]\"; close it with bd human dismiss <id> once the check is done.")
     s.add_argument("--title", help="required without --pr; with --pr, default: Review PR #<n>")
     s.add_argument("--parent", metavar="ID", help="the sprint or task the action belongs to (required without --pr; "
                    "not allowed with it)")
@@ -2679,7 +2680,10 @@ def parser() -> argparse.ArgumentParser:
     design = sub.add_parser("design", help="design pages").add_subparsers(dest="sub", required=True)
     s = design.add_parser("new", help="create records/design/<slug>.md with every template section",
                           description="Create a design page with every section of the template, each with "
-                                      "its prompt line and \"None yet.\"; then edit it by hand.")
+                                      "its prompt line and \"None yet.\"; then edit it by hand. A page covers one "
+                                      "area and holds its final state; decisions and plans go in the project or "
+                                      "sprint record. Put no date in the slug. When a page grows to cover several "
+                                      "areas, split it into sub pages and keep a short summary per area linking them.")
     s.add_argument("slug", help="what the design is, lowercase words joined by '-'")
     s.add_argument("--title", required=True)
     s.add_argument("--project", required=True, metavar="NAME", help="the project the design belongs to")
@@ -2690,7 +2694,7 @@ def parser() -> argparse.ArgumentParser:
                               description="Create a postmortem with every section of the template, each with its "
                                           "prompt line and \"None yet.\"; then write it by hand. Due for an "
                                           "incident that cost more than a day, or broke other sessions or the "
-                                          "owner's view.")
+                                          "owner's view. Write it once the incident is fixed.")
     s.add_argument("slug", help="what broke, lowercase words joined by '-'")
     s.add_argument("--title", required=True)
     target = s.add_mutually_exclusive_group(required=True)
@@ -2699,11 +2703,17 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_postmortem_new)
 
     project = sub.add_parser("project", help="projects").add_subparsers(dest="sub", required=True)
-    s = project.add_parser("open", help="create a project epic and record; Goal on stdin")
+    s = project.add_parser("open", help="create a project epic and record; Goal on stdin",
+                           description="Create a project epic and its record, with the Goal from stdin. The owner "
+                                       "confirms the goal in their own words before you open the project.")
     s.add_argument("name")
     s.add_argument("--title", required=True)
     s.set_defaults(func=cmd_project_open)
-    s = project.add_parser("close", help="close a project epic at the committed records")
+    s = project.add_parser("close", help="close a project epic at the committed records",
+                           description="Close a project epic at the committed records. Close every sprint first. "
+                                       "Write the record's '## Outcome' first, by hand: the results against the goal "
+                                       "in numbers, what was learned, what was retired, and links to the sprints' "
+                                       "delivery reports.")
     s.add_argument("name")
     s.set_defaults(func=cmd_project_close)
 
@@ -2720,7 +2730,8 @@ def parser() -> argparse.ArgumentParser:
                                       "closed with pm action done <id> --reason \"merged as <sha>\" once its PR is on "
                                       "main; it does not ask GitHub. With reviews, it stamps 'Merged as <sha> (PR #N).' "
                                       "into the Outcome after the verdict and commits it on the records branch; the "
-                                      "close reason names the records commit.")
+                                      "close reason names the records commit. Only the Outcome's first paragraph "
+                                      "becomes the close reason.")
     s.add_argument("sprint_id", help="the sprint's Beads id")
     s.set_defaults(func=cmd_sprint_close)
 
@@ -2818,7 +2829,8 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("commit", help="commit your hand edits in the store, named by path, on the records branch",
                        description="Commit only the named records, so other sessions' uncommitted edits in the "
                                    "shared store are left alone. With no path, it lists what is uncommitted and "
-                                   "commits nothing.")
+                                   "commits nothing. A record uses only these fenced blocks: ::: decision, "
+                                   "::: result and ```mermaid; put a one-line reading under each diagram or large table.")
     s.add_argument("-m", "--message", required=True, help="what the hand edit changed")
     s.add_argument("paths", nargs="*", metavar="PATH", help="a record you edited: records/<…>.md, a path in the "
                                                             "store, or relative to it from inside it")
