@@ -2057,10 +2057,28 @@ def show_text(data: dict) -> str:
     if others:
         out.append("warning: other live sessions hold these tasks; do not start or delegate them:")
         out += [f"  {i}  {holder_text(h)}" for i, h in others]
+    # Most important first: `pm prime` cuts the end at its cap, so the task lists and past decisions go last.
+    t = data["today"]
+    out.append(f"today {t['date']}: " + (f"{t['summary']} (generated {t['generated_at']})" if t["summary"]
+                                         else "no summary yet; the scheduled push generates it from today's activity"))
+    out.append(f"site: {data['site']} (pm serve); a record's page is <site>/<its path under records/, without .md>"
+               ".html; pm record link <target> prints one")
+    out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"')
     for p in data["projects"]:
         e = p["bead"]
         sprint_names = {sp["id"]: sp["name"] for sp in p["sprints"]}
         out.append(f"{p['name']}  {e}  {p['goal']}")
+        for k in ("decision", "action"):
+            needs = [n for n in p["needs"] if n["kind"] == k]
+            out.append(f"{k}s await you ({len(needs)}):")
+            out += [f"  {short(n['id'], e)}  {n['title']}{place(n, e, sprint_names)}  -> bd show {n['id']}"
+                    + (f"  [undelivered reply: pm reply read {n['id']}]" if n["replied"] else "") for n in needs]
+        out += [f"feedback: {f['entries']} entries -> {f['url']}" for f in p["feedback"]]
+    for p in data["projects"]:
+        e = p["bead"]
+        if not (p["sprints"] or p["decisions"]):
+            continue
+        out.append(f"{p['name']}  {e}  sprints and decisions:")
         quiet = []
         for sp in p["sprints"]:
             if not sp["tasks"]:
@@ -2087,21 +2105,9 @@ def show_text(data: dict) -> str:
                 out.append(f"  {st:<11}  {short(t['id'], e)}  {t['title']}{tail}")
         if quiet:
             out.append(f"open sprints without tasks: {'; '.join(quiet)}")
-        for k in ("decision", "action"):
-            needs = [n for n in p["needs"] if n["kind"] == k]
-            out.append(f"{k}s await you ({len(needs)}):")
-            out += [f"  {short(n['id'], e)}  {n['title']}{place(n, e, sprint_names)}  -> bd show {n['id']}"
-                    + (f"  [undelivered reply: pm reply read {n['id']}]" if n["replied"] else "") for n in needs]
         if p["decisions"]:
             out.append(f"decisions (last {len(p['decisions'])}):")
             out += [f"  {d['date']} {d['source']} {d['level']}  {d['text']}" for d in p["decisions"]]
-        out += [f"feedback: {f['entries']} entries -> {f['url']}" for f in p["feedback"]]
-    t = data["today"]
-    out.append(f"today {t['date']}: " + (f"{t['summary']} (generated {t['generated_at']})" if t["summary"]
-                                         else "no summary yet; the scheduled push generates it from today's activity"))
-    out.append(f"site: {data['site']} (pm serve); a record's page is <site>/<its path under records/, without .md>"
-               ".html; pm record link <target> prints one")
-    out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"')
     return "\n".join(out)
 
 

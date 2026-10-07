@@ -405,6 +405,8 @@ def test_show_text_and_json(repo):
     assert "  ready        .1.2  Ask the owner  [human decision]" in res.stdout
     assert ("decisions await you (1):\n  .1.2  Ask the owner  (sprint 1)  -> bd show demo.1.2\nactions await you (0):"
             in res.stdout)
+    out = res.stdout  # what matters most first, as `pm prime` cuts the end: site, needs, then sprints, then decisions
+    assert out.index("site: ") < out.index("actions await you") < out.index("Sprint 1: First") < out.index("decisions (last")
     data = json.loads(repo.pm("show", "--json").stdout)
     assert [p["name"] for p in data["projects"]] == ["demo"]
     assert data["projects"][0]["needs"] == [{"id": "demo.1.2", "title": "Ask the owner", "kind": "decision",
@@ -3525,11 +3527,13 @@ def test_show_carries_feedback(repo):
     feedback_env(repo)
     hint = 'feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"'
     out = repo.pm("show").stdout
-    assert out.rstrip().endswith(hint) and "entries ->" not in out          # no doc yet: hint only
+    lines = out.splitlines()
+    assert lines.index(hint) < lines.index("actions await you (0):") and "entries ->" not in out  # near the top
     for text in ("a", "b"):
         assert repo.pm("feedback", "add", "--project", "demo", "--text", text).returncode == 0
     out = repo.pm("show").stdout
     line = f"feedback: 2 entries -> http://localhost:8000/docs/{TODAY}-demo-feedback.html"
-    assert out.count(line) == 1 and out.rstrip().endswith(hint)
+    lines = out.splitlines()
+    assert out.count(line) == 1 and lines.index(hint) < lines.index(line) < next(i for i, l in enumerate(lines) if l.endswith("  sprints and decisions:"))
     data = json.loads(repo.pm("show", "--json").stdout)
     assert data["projects"][0]["feedback"] == [{"entries": 2, "url": line.split("-> ")[1]}]
