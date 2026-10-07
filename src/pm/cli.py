@@ -7,6 +7,7 @@ uncommitted edits. Records live in
 the store, the `records` branch checked out at `<main checkout>/.records`; each
 write commits there under a lock every worktree shares. Commands that
 also call `bd` run the `bd` step first. Claim tasks with `pm task claim`; finding and linking tasks stay plain `bd`.
+`pm feedback add` appends where pm got in the way to the project's pm feedback doc.
 """
 
 from __future__ import annotations
@@ -46,6 +47,7 @@ from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED
                            session_of, show_beads, site_replies, state)
 from pm.records import (NONE_YET, NOT_CLOSED, Record, RecordError, decisions, first_para, headings,
                              insert_entry, outcome, parse_records, project_of, read_records, read_summaries,
+                             summary_line,
                              read_summary, record_texts, report_part, section_range, section_text,
                              summary_path)
 from pm.site import (SERVE_BEHIND, STATUS_SLOT, STYLE, check_needs_answered, cites, dismissed, local_day,
@@ -105,11 +107,19 @@ LEVEL_RULE = ("project if a later sprint must follow it; sprint if it is about t
 DECISION_SHAPE = ("a decision body is the decision on its first line, then its reason on the next line, e.g.:\n"
                   "  Records live on their own branch, in one store every worktree shares.\n"
                   "  A record kept on a code branch is invisible to the other branches until a merge.")
-NEED_SHAPE = ("a decision need's description is the question, then an Options line with the cost of each option, "
-              "then a Default line taken if the owner does not answer, e.g.:\n"
-              "  Which parser should we use?\n"
-              "  Options: small (cheap, no tables); full (a new dependency)\n"
-              "  Default: small, until a record needs tables")
+NEED_SHAPE = ("a decision need's stdin is one part per line: one Question:, one or more Fact:, two or more "
+              "Option <label>: each with a Cost: line under it, and one Default: naming the label taken if the "
+              "owner does not answer, then its reason, e.g.:\n"
+              "  Question: Where does pm keep the public site URL?\n"
+              "  Fact: Today, each clone keeps the URL in its git config.\n"
+              "  Fact: You asked why the URL is not in `.pm/config.toml`.\n"
+              "  Option a: In `.pm/config.toml`. A pm command still writes it.\n"
+              "  Cost: the repo has one URL.\n"
+              "  Option b: In each clone, as today.\n"
+              "  Cost: you must give the URL to each new clone.\n"
+              "  Default: a. All clones then give the same link.")
+NEED_KEY = re.compile(r"(Question|Fact|Cost|Default|Option ([A-Za-z0-9]+)):(.*)")
+SENTENCE_LIMIT = 25  # ASD-STE100: the most words in a descriptive sentence
 ACTION_SHAPE = ("an action's description says what the owner should do and why, e.g.:\n"
                 "  Restart the site on port 8767: the new proxy expects it there.")
 # A request names a PR by its GitHub link or "PR #<n>"; it asks for a review or merge when it also says review, merge
@@ -354,12 +364,13 @@ SUMMARY_TIMEOUT = 180  # seconds the model call may take
 SUMMARY_PROMPT = """You write the "Today" summary at the top of a project-management site's page for {day}.
 Below is everything recorded on {day}: per project, the sprints finished (with their outcome) and opened, the tasks
 finished (with how), started and opened, the requests to the owner raised and closed that day, and the commits to the
-project records. Write 2 to 4 sentences for the owner, who knows no ids or sprint numbers and wants to know what
-shipped. First say what shipped or finished and what it changes for the owner. Then name work in progress only if it
-is notable. Then say what the owner must do, from the requests raised that day and still open, named by the action.
-Name work by what it does. Never write ids, sprint numbers, task numbers or PR numbers. Write in ASD-STE100
-Simplified Technical English: short sentences of at most 20 words, active voice, one meaning for each word, no
-idioms. Do not invent anything that is not below. Output only the summary text, no heading, no list, no preamble.
+project records. Write 2 to 4 Markdown bullets for the owner, each line starting with "- ". The owner knows no ids or
+sprint numbers and wants to know what shipped. Each bullet is one short sentence. Put first what shipped or finished
+and what it changes for the owner. Then name work in progress only if it is notable. Put last what the owner must do,
+from the requests raised that day and still open, named by the action. Name work by what it does. Never write ids,
+sprint numbers, task numbers, PR numbers or other numbers. Write in ASD-STE100 Simplified Technical English: short
+sentences of at most 20 words, active voice, one meaning for each word, no idioms. Do not invent anything that is not
+below. Output only the bullets, no heading, no preamble.
 
 {activity}"""
 
@@ -559,6 +570,90 @@ def cmd_decision_add(args, records: Path) -> str:
     return apply_writes(repo, {rec.path: new}, f"closed need {args.need} and {done}", undo=f"bd reopen {args.need}")
 
 
+def sentences(text: str) -> list[str]:
+    """Split at . ! or ? followed by white space; a code span is one unit, so a period in it ends no sentence."""
+    out, start = [], 0
+    for m in re.finditer(r"(`+).+?\1|[.!?](?=\s)", text):
+        if m.group(1) is None:
+            out.append(text[start:m.end()].strip())
+            start = m.end()
+    return out + ([text[start:].strip()] if text[start:].strip() else [])
+
+
+def words(sentence: str) -> list[str]:
+    """Runs between white space that hold a letter or digit; a code span is one word."""
+    runs = [m.group(0) for m in re.finditer(r"(?:(`+).+?\1|[^\s`]|`)+", sentence)]
+    return [w for w in runs if "`" in w or re.search(r"[^\W_]", w)]
+
+
+def plain(text: str) -> str:
+    """Escape a leading block marker (heading, quote, list item), so a fact stays one plain list item."""
+    text = re.sub(r"^([#>]|[-+*](?=\s|$))", r"\\\1", text)
+    return re.sub(r"^(\d{1,9})(?=[.)](?:\s|$))", r"\1\\", text)
+
+
+def need_markdown(stdin: str) -> str:
+    """A decision need's description in its one layout, from the parts on stdin (NEED_SHAPE)."""
+    question, facts, options, default = [], [], {}, []
+    last = None  # label of the option above that has no cost yet
+    for n, line in enumerate(stdin.splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        m = NEED_KEY.fullmatch(line)
+        if not m:
+            raise Refuse(f"line {n} starts with no known key; each line starts with Question:, Fact:, Option <label>:, "
+                         f"Cost: or Default:; {NEED_SHAPE}")
+        key, label, text = m.group(1), m.group(2), m.group(3).strip()
+        if not text:
+            raise Refuse(f"line {n}: {key}: has no text; {NEED_SHAPE}")
+        if label:
+            if label in options:
+                raise Refuse(f"two options have the label {label}; give each option its own label")
+            options[label] = [text, None]
+            last = label
+        elif key == "Cost":
+            if last is None:
+                raise Refuse(f"line {n}: Cost: follows no option without a cost; put one Cost: line under each "
+                             "Option line")
+            options[last][1], last = text, None
+        else:
+            {"Question": question, "Fact": facts, "Default": default}[key].append(text)
+    if len(question) != 1:
+        raise Refuse(f"give exactly one Question: line; {NEED_SHAPE}")
+    if not facts:
+        raise Refuse(f"give at least one Fact: line, so the owner can decide without other context; {NEED_SHAPE}")
+    if len(options) < 2:
+        raise Refuse(f"give at least two Option lines; a decision needs a choice; {NEED_SHAPE}")
+    for label, (_, cost) in options.items():
+        if cost is None:
+            raise Refuse(f"option {label} has no Cost: line; put its cost on the line under it")
+    if len(default) != 1:
+        raise Refuse(f"give exactly one Default: line, the label of the option taken if the owner does not answer; "
+                     f"{NEED_SHAPE}")
+    choice = re.match(r"[A-Za-z0-9]+", default[0])
+    label = choice.group(0) if choice else default[0].split()[0]
+    if label not in options:
+        raise Refuse(f"Default: {label} names no option; the labels are {', '.join(options)}")
+    rest = default[0][len(label):]
+    parts = [("the question", question[0]), *((f"fact {i}", f) for i, f in enumerate(facts, 1))]
+    for opt, (text, cost) in options.items():
+        parts += [(f"option {opt}", text), (f"the cost of option {opt}", cost)]
+    parts.append(("the default", rest.lstrip(" .,;:")))
+    for part, text in parts:
+        for s in sentences(text):
+            if len(found := words(s)) > SENTENCE_LIMIT:
+                raise Refuse(f'the sentence "{" ".join(found[:6])} …" in {part} has {len(found)} words; the limit is '
+                             f"{SENTENCE_LIMIT} (ASD-STE100); split it")
+    bullets = []
+    for opt, (text, cost) in options.items():
+        first = sentences(text)[0]
+        more = text[len(first):].strip()
+        bullets.append(f"- **({opt}) {first}** " + (f"{more} " if more else "") + f"*Cost:* {cost}")
+    return (f"**Question:** {question[0]}\n\n**Facts:**\n\n" + "".join(f"- {plain(f)}\n" for f in facts)
+            + "\n**Options:**\n\n" + "".join(b + "\n" for b in bullets) + f"\n**Default:** ({label}){rest}")
+
+
 def raise_need(args, records: Path, want: str) -> str:
     """Raise a decision need or an action: a Beads task labelled human (and action, for an action)."""
     title = args.title.strip()
@@ -576,9 +671,7 @@ def raise_need(args, records: Path, want: str) -> str:
     else:
         if not desc:
             raise Refuse(f"the description is empty; pipe it on stdin: {NEED_SHAPE}")
-        for word in ("Options", "Default"):
-            if not re.search(rf"(?mi)^[\s#>*_-]*{word}\b", desc):
-                raise Refuse(f"the description has no '{word}' line; {NEED_SHAPE}")
+        desc = need_markdown(desc)
     repo = load(records)
     parent = repo.beads.get(args.parent)
     if parent is None:
@@ -667,9 +760,10 @@ def delivery_hint(need_id: str) -> str:
 
 
 def raised_by() -> dict:
-    """The issue metadata naming the session that raises a request and its inbox socket, or nothing outside a known
+    """The issue metadata naming the session that raises a request (Claude Code's session id or Codex's thread id,
+    which the owner-request Stop hook matches against its session_id) and its inbox socket, or nothing outside a known
     session. Never the inbox's token: Beads syncs to the remote."""
-    sid = os.environ.get(SESSION_ENV, "").strip()
+    sid = current_session()
     inbox = os.environ.get(INBOX_ENV, "").strip()
     return ({"session": sid} if sid else {}) | ({"inbox": inbox, "inbox_host": socket.gethostname()} if inbox else {})
 
@@ -969,6 +1063,52 @@ def cmd_doc_new(args, records: Path) -> str:
     text = f"---\ntype: doc\ntitle: {yaml_str(title)}\ndate: {day}\n{target}\n---\n\n{body}\n"
     check_planned(repo, {path: text})
     return apply_writes(repo, {path: text}, f"created {rel(repo, path)}")
+
+
+FEEDBACK_ENTRY = re.compile(r"(?m)^### \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC, session `")
+
+
+def feedback_docs(recs: list[Record], project: str) -> list[Record]:
+    """The project's pm feedback docs, docs/<date>-<project>-feedback.md naming the project; more than one is an error
+    for pm feedback add to refuse."""
+    name = re.compile(rf"\d{{4}}-\d{{2}}-\d{{2}}-{re.escape(project)}-feedback\.md")
+    return [r for r in recs if r.type == "doc" and r.meta.get("project") == project and name.fullmatch(r.path.name)]
+
+
+def cmd_feedback_add(args, records: Path) -> str:
+    """Append one entry to the project's pm feedback doc, docs/<date of first use>-<project>-feedback.md, creating it
+    on first use."""
+    text = (args.text if args.text is not None else args.stdin).strip()
+    if not text:
+        raise Refuse("the feedback text is empty; pass --text or pipe it on stdin")
+    sid = (args.session or "").strip() or current_session()
+    if not sid:
+        raise Refuse(f"no agent session: neither {SESSION_ENV} nor {CODEX_SESSION_ENV} is set; name one with --session")
+    repo = load(records)
+    project = repo.project(args.project).name
+    for flag, issue in (("--sprint", args.sprint), ("--task", args.task)):
+        if issue is not None and issue not in repo.beads:
+            raise Refuse(f"{flag} {issue} is not a Beads issue")
+    docs = feedback_docs(repo.recs, project)
+    if len(docs) > 1:
+        raise Refuse(f"project {project} has {len(docs)} feedback docs ({', '.join(rel(repo, r.path) for r in docs)}); "
+                     "merge them into one by hand and commit with pm commit")
+    now = datetime.now(timezone.utc)
+    about = ", ".join(f"{k} `{v}`" for k, v in (("sprint", args.sprint), ("task", args.task)) if v is not None)
+    entry = (f"### {now:%Y-%m-%d %H:%M} UTC, session `{sid}`\n\n" + (f"About {about}.\n\n" if about else "")
+             + f"{text}\n")
+    if docs:
+        path, old = docs[0].path, docs[0].text
+    else:
+        day = date.today().isoformat()
+        path = records / "docs" / f"{day}-{project}-feedback.md"
+        if path.exists():
+            raise Refuse(f"{rel(repo, path)} already exists but does not name project {project}; fix its header by hand")
+        old = (f"---\ntype: doc\ntitle: pm feedback\ndate: {day}\nproject: {project}\n---\n\n"
+               "Where pm got in the way, one entry per `pm feedback add`, newest last.\n")
+    new = old.rstrip("\n") + "\n\n" + entry
+    check_planned(repo, {path: new})
+    return apply_writes(repo, {path: new}, f"added feedback to {rel(repo, path)}")
 
 
 def cmd_design_new(args, records: Path) -> str:
@@ -1879,6 +2019,7 @@ def show_data(repo: Repo) -> dict:
                           for t in tasks if t["status"] != "closed"],
             })
         decisions.sort(key=lambda d: (d["date"], d["order"]))
+        fb = feedback_docs(repo.recs, p.name)
         projects.append({
             "name": p.name, "bead": epic, "title": p.title, "url": f"{site_url()}/{p.out}",
             "goal": first_sentence(section_text(p.body, "Goal")),
@@ -1887,12 +2028,13 @@ def show_data(repo: Repo) -> dict:
                            kind=kind(i), session=session_of(i), replied=reply_waiting(i) or bool(merge_waiting(i)))
                       for i in sorted(owner_tasks(b, epic), key=lambda i: i["id"])],
             "decisions": [{k: v for k, v in d.items() if k != "order"} for d in reversed(decisions[-3:])],
+            "feedback": [{"entries": len(FEEDBACK_ENTRY.findall(r.body)), "url": f"{site_url()}/{r.out}"} for r in fb],
         })
     today = date.today().isoformat()
     summary = read_summaries(repo.records).get(today)
     return {"site": site_url(), "projects": projects, "push": pushjob.flags(repo.records.parent, repo.records, cfg().remote),
             "today": {"date": today, "page": f"days/{today}.html",
-                      "summary": first_sentence(summary["text"], 160) if summary else None,
+                      "summary": first_sentence(summary_line(summary["text"]), 160) if summary else None,
                       "generated_at": summary["generated_at"] if summary else None}}
 
 
@@ -1953,11 +2095,13 @@ def show_text(data: dict) -> str:
         if p["decisions"]:
             out.append(f"decisions (last {len(p['decisions'])}):")
             out += [f"  {d['date']} {d['source']} {d['level']}  {d['text']}" for d in p["decisions"]]
+        out += [f"feedback: {f['entries']} entries -> {f['url']}" for f in p["feedback"]]
     t = data["today"]
     out.append(f"today {t['date']}: " + (f"{t['summary']} (generated {t['generated_at']})" if t["summary"]
                                          else "no summary yet; the scheduled push generates it from today's activity"))
     out.append(f"site: {data['site']} (pm serve); a record's page is <site>/<its path under records/, without .md>"
                ".html; pm record link <target> prints one")
+    out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"')
     return "\n".join(out)
 
 
@@ -2385,8 +2529,8 @@ def cmd_commit(args, records: Path) -> str:
 
 # Commands that read stdin; main reads it before the lock. Others leave stdin unread, so an open one never blocks them.
 READS_STDIN = {"decision add", "decision need", "decision close", "action need", "doc new", "project open",
-               "sprint open", "task add", "task move"}
-WRITES = {"finding add", "decision add", "decision need", "decision close", "action need", "action done",
+               "sprint open", "task add", "task move", "feedback add"}
+WRITES = {"finding add", "feedback add", "decision add", "decision need", "decision close", "action need", "action done",
           "doc new", "design new", "postmortem new", "project open", "sprint open", "sprint close", "task add", "task close",
           "task move", "commit"}
 
@@ -2424,6 +2568,19 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("text", nargs="+")
     s.set_defaults(func=cmd_finding_add)
 
+    feedback = sub.add_parser("feedback", help="feedback on pm itself").add_subparsers(dest="sub", required=True)
+    s = feedback.add_parser(
+        "add", help="append an entry to the project's pm feedback doc; text with --text or on stdin",
+        description="When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say "
+                    "once what happened and what would have helped. Appends a dated entry with this session's id to "
+                    "records/docs/<date of first use>-<project>-feedback.md, creating it on first use.")
+    s.add_argument("--project", required=True, metavar="NAME", help="the project the feedback doc belongs to")
+    s.add_argument("--sprint", metavar="ID", help="the sprint the feedback is about")
+    s.add_argument("--task", metavar="ID", help="the task the feedback is about")
+    s.add_argument("--text", help="the feedback; default: stdin")
+    s.add_argument("--session", metavar="ID", help="the session to record; default: this session's id from the environment")
+    s.set_defaults(func=cmd_feedback_add)
+
     decision = sub.add_parser("decision", help="decisions: record one, or ask the owner for one").add_subparsers(
         dest="sub", required=True)
     s = decision.add_parser(
@@ -2445,9 +2602,12 @@ def parser() -> argparse.ArgumentParser:
     s = decision.add_parser(
         "need", help="ask the owner for a decision under a sprint or task; description on stdin",
         description="Raise a decision need: a Beads task labelled human under a sprint or task. The description "
-                    "on stdin is the question, an Options line with the cost of each option, and a Default line "
-                    "taken if the owner does not answer. Record the answer with pm decision add --need, or close a "
-                    "small answer with pm decision close.")
+                    "comes from stdin, one part per line: one 'Question:', one or more 'Fact:', two or more "
+                    "'Option <label>:' each followed by its 'Cost:' line, and one 'Default:' that names the label "
+                    "taken if the owner does not answer, then its reason. Send it with a quoted heredoc (<<'EOF'), "
+                    "so code spans stay. pm writes the description in one Markdown layout and refuses an option "
+                    "without a cost, a default that names no option, and a sentence of more than 25 words. Record "
+                    "the answer with pm decision add --need, or close a small answer with pm decision close.")
     s.add_argument("--title", required=True)
     s.add_argument("--parent", required=True, metavar="ID", help="the sprint or task the decision belongs to")
     s.set_defaults(func=cmd_decision_need)
@@ -2682,7 +2842,8 @@ def main(argv: list[str] | None = None) -> int:
             print(where_all())
             return 0
         records = find_store(Path.cwd())
-        args.stdin = stdin_text() if name in READS_STDIN else ""
+        reads = name in READS_STDIN and not (name == "feedback add" and args.text is not None)
+        args.stdin = stdin_text() if reads else ""
         if name in WRITES:
             fd = locked(records)
             try:

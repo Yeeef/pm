@@ -244,6 +244,12 @@ def first_para(text: str) -> str:
     return re.sub(r"\s+", " ", text.split("\n\n")[0]).strip()
 
 
+def summary_line(text: str) -> str:
+    """A day summary on one line for lists: its bullets ("- " or "* ") joined with " · ", else its first paragraph."""
+    items = re.findall(r"(?m)^\s*[-*]\s+(.+?)\s*$", text)
+    return " · ".join(items) if items else first_para(text)
+
+
 def outcome(rec: Record) -> str:
     """The delivery report's outcome, or '' while the sprint is not closed."""
     m = re.search(r"^## Delivery report\n(.*?)(?=^## |\Z)", rec.body, re.S | re.M)

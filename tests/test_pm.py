@@ -525,22 +525,70 @@ def test_decision_add_project_appends_owner_decisions(repo):
 
 # ---------------------------------------------------------------- pm decision need, pm action need, answered-need check
 
-NEED = "Which parser should we use?\n\n**Options**\n- Small: cheap.\n- Big: slow.\n\nDefault: small.\n"
+NEED = ("Question: Which parser should we use?\nFact: Records hold no tables yet.\n"
+        "Option small: The small parser.\nCost: no tables.\nOption full: The full parser.\nCost: a new dependency.\n"
+        "Default: small. It is cheap.\n")
 
 
 @pytest.mark.parametrize("args, stdin, match", [
     (["decision", "--title", "Q"], NEED, r"the following arguments are required: --parent"),
     (["decision", "--title", " ", "--parent", "demo.1"], NEED, r"error: --title is empty"),
     (["decision", "--title", "Q", "--parent", "demo.1"], "", r"error: the description is empty; pipe it on stdin: "
-     r"a decision need's description is the question, then an Options line"),
-    (["decision", "--title", "Q", "--parent", "demo.1"], NEED.replace("**Options**", "Choices"), r"error: the description has no 'Options' line"),
-    (["decision", "--title", "Q", "--parent", "demo.1"], NEED.replace("Default: small.", "We lean small."), r"error: the description has no 'Default' line"),
+     r"a decision need's stdin is one part per line"),
     (["decision", "--title", "Q", "--parent", "demo.9"], NEED, r"error: --parent demo.9 is not a Beads issue"),
     (["action", "--title", "Q", "--parent", "demo.1"], "", r"error: the description is empty; pipe it on stdin: "
      r"an action's description says what the owner should do and why"),
 ])
 def test_need_refuses(repo, args, stdin, match):
     refused(repo, args[0], "need", *args[1:], stdin=stdin, match=match)
+
+
+SHAPE = "; a decision need's stdin is one part per line"
+LONG = " ".join(["word"] * 26)
+
+
+@pytest.mark.parametrize("stdin, message", [
+    (NEED.replace("Fact:", "Note:"), "line 2 starts with no known key; each line starts with Question:, Fact:, "
+     "Option <label>:, Cost: or Default:" + SHAPE),
+    (NEED.replace("Option full: The full parser.", "Option full:  "), "line 5: Option full: has no text" + SHAPE),
+    (NEED.replace("Question: Which parser should we use?\n", ""), "give exactly one Question: line" + SHAPE),
+    (NEED + "Question: Again?\n", "give exactly one Question: line" + SHAPE),
+    (NEED.replace("Fact: Records hold no tables yet.\n", ""),
+     "give at least one Fact: line, so the owner can decide without other context" + SHAPE),
+    (NEED.replace("Option full: The full parser.\nCost: a new dependency.\n", ""),
+     "give at least two Option lines; a decision needs a choice" + SHAPE),
+    (NEED.replace("Option full:", "Option small:"), "two options have the label small; give each option its own label"),
+    ("Cost: free.\n" + NEED, "line 1: Cost: follows no option without a cost; put one Cost: line under each Option line"),
+    (NEED.replace("Cost: no tables.\n", "Cost: no tables.\nCost: slow.\n"),
+     "line 5: Cost: follows no option without a cost; put one Cost: line under each Option line"),
+    (NEED.replace("Cost: no tables.\n", ""), "option small has no Cost: line; put its cost on the line under it"),
+    (NEED.replace("Default: small. It is cheap.\n", ""),
+     "give exactly one Default: line, the label of the option taken if the owner does not answer" + SHAPE),
+    (NEED + "Default: full.\n",
+     "give exactly one Default: line, the label of the option taken if the owner does not answer" + SHAPE),
+    (NEED.replace("Default: small.", "Default: tiny."), "Default: tiny names no option; the labels are small, full"),
+    (NEED.replace("Records hold no tables yet.", f"Short one. {LONG}."),
+     'the sentence "word word word word word word …" in fact 1 has 26 words; the limit is 25 (ASD-STE100); '
+     "split it"),
+    (NEED.replace("Records hold no tables yet.", "Need yeeef-agents-9va.38.18 and 1.7 here " + " ".join(["w"] * 21)),
+     'the sentence "Need yeeef-agents-9va.38.18 and 1.7 here w …" in fact 1 has 26 words'),  # ids end no sentence
+    (NEED.replace("Cost: a new", f"Cost: {LONG} a new"),
+     'the sentence "word word word word word word …" in the cost of option full has 29 words'),
+    (NEED.replace("It is cheap.", LONG), 'the sentence "word word word word word word …" in the default has 26 words'),
+])
+def test_decision_need_refuses_a_malformed_stdin(repo, stdin, message):
+    refused(repo, "decision", "need", "--title", "Q", "--parent", "demo.1", stdin=stdin,
+            match="error: " + re.escape(message))
+
+
+@pytest.mark.parametrize("text", [
+    "Run `pm decision need --title x --parent y` with " + " ".join(["w"] * 22) + ".",  # a code span is one word
+    "Split e.g. " + " ".join(["w"] * 24) + " - w.",  # "e.g. " ends a sentence; a lone dash is no word
+])
+def test_decision_need_counts_words_by_the_design_rules(repo, text):
+    res = repo.pm("decision", "need", "--title", "Q", "--parent", "demo.1",
+                  stdin=NEED.replace("Records hold no tables yet.", text))
+    assert res.returncode == 0, res.stderr
 
 
 def test_body_format_refusals_print_the_expected_shape(repo):
@@ -550,8 +598,8 @@ def test_body_format_refusals_print_the_expected_shape(repo):
     assert ("error: the decision body is a single line; a decision body is the decision on its first line, then its "
             "reason on the next line, e.g.:\n  ") in res.stderr
     res = repo.pm("decision", "need", "--title", "Q", "--parent", "demo.1", stdin="Which parser?\nDefault: small.\n")
-    assert "has no 'Options' line; a decision need's description is" in res.stderr
-    assert "\n  Options: " in res.stderr and "\n  Default: " in res.stderr
+    assert "line 1 starts with no known key" in res.stderr and "a decision need's stdin is one part per line" in res.stderr
+    assert "\n  Question: " in res.stderr and "\n  Option a: " in res.stderr and "\n  Default: " in res.stderr
     res = repo.pm("sprint", "open", "demo", "--title", "Third", stdin="## Goal\n\nShip it.\n")
     assert "'## Scope' is missing or empty on stdin; stdin is the sprint's frame, e.g.:\n  ## Goal" in res.stderr
 
@@ -575,15 +623,60 @@ def test_need_refuses_parent_outside_projects(repo):
             match=r"error: --parent stray is not inside a project with a record")
 
 
+NEED_LAYOUT = """**Question:** Which parser should we use?
+
+**Facts:**
+
+- Records hold no tables yet.
+
+**Options:**
+
+- **(small) The small parser.** *Cost:* no tables.
+- **(full) The full parser.** *Cost:* a new dependency.
+
+**Default:** (small). It is cheap."""
+
+
 def test_decision_need_creates_human_task(repo):
     res = repo.pm("decision", "need", "--title", "Pick a parser", "--parent", "demo.1", stdin=NEED)
     assert res.returncode == 0, res.stderr
     assert repo.bd_writes() == [["create", "--type=task", "--parent=demo.1", "--labels=human",
-                                 "--title=Pick a parser", f"--description={NEED.strip()}", "--json"]]
+                                 "--title=Pick a parser", f"--description={NEED_LAYOUT}", "--json"]]
     assert "raised decision need demo.1.3 under demo.1" in res.stdout
     assert "pm decision add --need demo.1.3" in res.stdout and "pm decision close demo.1.3 --reason" in res.stdout
     assert repo.issues()["demo.1.3"]["labels"] == ["human"]
     assert repo.git("status", "--porcelain") == ""
+
+
+def test_decision_need_writes_the_design_layout(repo):
+    """The design's example input gives the design's Markdown: blank lines and indentation in stdin are ignored, an
+    option's first sentence is bold, and code spans stay."""
+    stdin = """
+  Question: Where does pm keep the public site URL?
+
+Fact: Today, each clone keeps the URL in its git config.
+Fact: You asked why the URL is not in `.pm/config.toml`.
+
+Option a: In `.pm/config.toml`. A pm command still writes it.
+Cost: the repo has one URL.
+Option b: In each clone, as today.
+Cost: you must give the URL to each new clone.
+Default: a. All clones then give the same link.
+"""
+    assert repo.pm("decision", "need", "--title", "Site URL", "--parent", "demo.1", stdin=stdin).returncode == 0
+    assert repo.issues()["demo.1.3"]["description"] == """**Question:** Where does pm keep the public site URL?
+
+**Facts:**
+
+- Today, each clone keeps the URL in its git config.
+- You asked why the URL is not in `.pm/config.toml`.
+
+**Options:**
+
+- **(a) In `.pm/config.toml`.** A pm command still writes it. *Cost:* the repo has one URL.
+- **(b) In each clone, as today.** *Cost:* you must give the URL to each new clone.
+
+**Default:** (a). All clones then give the same link."""
 
 
 ACTION = "Restart the site on port 8767, which the new proxy expects.\n"
@@ -988,6 +1081,35 @@ def test_request_cards_and_show_lines_name_the_sprint_and_task_a_request_sits_un
     assert "  .3  Under the project  -> bd show demo.3" in out
 
 
+def test_a_decision_need_card_renders_the_layout_and_an_old_free_text_need_still_renders(repo):
+    """A need raised in the new form shows each block as its own paragraph or list; an old free-text need, raised
+    before the layout, keeps rendering as text."""
+    assert repo.pm("decision", "need", "--title", "Pick a parser", "--parent", "demo.1", stdin=NEED).returncode == 0
+    repo.set_issue("demo.1.2", description="Which parser?\nOptions: small (cheap); full (slow)\nDefault: small")
+    assert repo.pm("render").returncode == 0
+    html = (repo.root / "site/index.html").read_text()
+    card = lambda i: html.split(f'<div class="card need" id="need-{i}">')[1].split('<div class="card')[0]
+    assert ("<p><strong>Question:</strong> Which parser should we use?</p>\n<p><strong>Facts:</strong></p>\n<ul>\n"
+            "<li>Records hold no tables yet.</li>\n</ul>\n<p><strong>Options:</strong></p>\n<ul>\n"
+            "<li><strong>(small) The small parser.</strong> <em>Cost:</em> no tables.</li>\n") in card("demo.1.3")
+    assert "<p><strong>Default:</strong> (small). It is cheap.</p>" in card("demo.1.3")
+    assert "<p>Which parser?\nOptions: small (cheap); full (slow)\nDefault: small</p>" in card("demo.1.2")
+
+
+@pytest.mark.parametrize("fact, item", [
+    ("2026. The year we ship.", "2026. The year we ship."), ("3) Three.", "3) Three."), ("# x.", "# x."),
+    ("> q.", "&gt; q."), ("- dash.", "- dash."), ("+ plus.", "+ plus."), ("* star.", "* star."),
+    ("*Note* the tables.", "<em>Note</em> the tables."), ("-flag stays.", "-flag stays."),
+])
+def test_a_fact_that_starts_with_a_block_marker_renders_as_one_plain_item(repo, fact, item):
+    stdin = NEED.replace("Records hold no tables yet.", fact)
+    assert repo.pm("decision", "need", "--title", "Pick a parser", "--parent", "demo.1", stdin=stdin).returncode == 0
+    assert repo.pm("render").returncode == 0
+    html = (repo.root / "site/index.html").read_text()
+    card = html.split('<div class="card need" id="need-demo.1.3">')[1].split('<div class="card')[0]
+    assert f"<p><strong>Facts:</strong></p>\n<ul>\n<li>{item}</li>\n</ul>" in card
+
+
 def test_site_shows_decisions_and_actions_under_their_own_headings(repo):
     add_action(repo)
     assert repo.pm("render").returncode == 0
@@ -1064,6 +1186,62 @@ def test_doc_new_writes_and_pages_list_it(repo):
     assert sorted(listed("index.html")) == sorted([doc_a, doc_o])
     page = (site / doc_a).read_text()
     assert "Arm B wins: 0.037 vs 0.041." in page and 'href="../projects/demo.html"' in page
+
+
+# ---------------------------------------------------------------- pm feedback add
+
+def feedback_env(repo, sid="sess-1"):
+    env = {k: v for k, v in repo.env.items() if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID")}
+    repo.env = dict(env, CLAUDE_CODE_SESSION_ID=sid) if sid else env
+
+
+@pytest.mark.parametrize("args, stdin, match", [
+    (["--project", "demo"], "", r"error: the feedback text is empty"),
+    (["--project", "demo", "--text", "  "], "", r"error: the feedback text is empty"),
+    (["--text", "x"], "", r"the following arguments are required: --project"),
+    (["--project", "nope", "--text", "x"], "", r"error: no project record named 'nope'"),
+    (["--project", "demo", "--sprint", "demo.9", "--text", "x"], "", r"error: --sprint demo.9 is not a Beads issue"),
+    (["--project", "demo", "--text", "x\n::: verdict\ny\n:::"], "", r"error: the change would not render"),
+])
+def test_feedback_add_refuses(repo, args, stdin, match):
+    feedback_env(repo)
+    refused(repo, "feedback", "add", *args, stdin=stdin, match=match)
+
+
+def test_feedback_add_refuses_without_session(repo):
+    feedback_env(repo, sid=None)
+    refused(repo, "feedback", "add", "--project", "demo", "--text", "x", match=r"error: no agent session")
+
+
+def test_feedback_add_creates_then_appends_one_doc(repo):
+    feedback_env(repo)
+    res = repo.pm("feedback", "add", "--project", "demo", "--sprint", "demo.1", "--task", "demo.1.2",
+                  "--text", "The refusal named no fix.")
+    assert res.returncode == 0, res.stderr
+    feedback_env(repo, "sess-2")
+    assert repo.pm("feedback", "add", "--project", "demo", stdin="No command to list tasks.\n").returncode == 0
+    docs = list((repo.records / "docs").glob("*-feedback.md"))
+    assert [p.name for p in docs] == [f"{TODAY}-demo-feedback.md"]
+    text = docs[0].read_text()
+    assert text.startswith(f"---\ntype: doc\ntitle: pm feedback\ndate: {TODAY}\nproject: demo\n---\n\n")
+    first, second = re.findall(r"(?m)^### \d{4}-\d\d-\d\d \d\d:\d\d UTC, session `(.+?)`$", text), text.split("### ")
+    assert first == ["sess-1", "sess-2"]                                       # newest last
+    assert "About sprint `demo.1`, task `demo.1.2`.\n\nThe refusal named no fix.\n" in second[1]
+    assert second[2].endswith("`sess-2`\n\nNo command to list tasks.\n")      # no About line without --sprint/--task
+    assert repo.store_log()[:2] == [f"pm: added feedback to records/docs/{TODAY}-demo-feedback.md"] * 2
+    assert repo.bd_writes() == []
+    assert repo.pm("render").returncode == 0
+    page = (repo.root / "site" / f"docs/{TODAY}-demo-feedback.html").read_text()
+    assert "The refusal named no fix." in page and "No command to list tasks." in page
+
+
+def test_feedback_add_refuses_two_feedback_docs(repo):
+    feedback_env(repo)
+    (repo.records / "docs").mkdir()
+    for day in ("2026-10-01", "2026-10-02"):
+        repo.write(f"docs/{day}-demo-feedback.md", f"---\ntype: doc\ntitle: pm feedback\ndate: {day}\nproject: demo\n---\n\nx\n")
+    repo.commit()
+    refused(repo, "feedback", "add", "--project", "demo", "--text", "x", match=r"error: project demo has 2 feedback docs")
 
 
 # ---------------------------------------------------------------- design page template and pm design new
@@ -2634,6 +2812,12 @@ def test_a_request_records_its_session_and_inbox_never_the_token(repo):
     assert repo.issues()["demo.1.5"]["metadata"] == {"session": "sess-1"}
 
 
+def test_a_request_raised_in_codex_records_its_thread(repo):
+    repo.env = dict(repo.env, CODEX_THREAD_ID="thread-1")
+    assert repo.pm("decision", "need", "--title", "Parser?", "--parent", "demo.1", stdin=NEED).returncode == 0
+    assert repo.issues()["demo.1.3"]["metadata"] == {"session": "thread-1"}
+
+
 @contextlib.contextmanager
 def session_inbox(path: str | None = None):
     """A stand-in for a Claude Code session's inbox: a Unix socket that collects each JSON line written to it. Its
@@ -3261,6 +3445,28 @@ def test_a_summary_with_html_shows_it_as_text(repo):
     assert "<em>part</em>" in (repo.root / f"site/days/{TODAY}.html").read_text(), "Markdown still renders"
 
 
+def test_a_bullet_summary_renders_a_list_on_the_day_page_and_one_line_in_lists(repo):
+    repo.set_issue("demo.1.2", status="in_progress", started_at=now_z())
+    repo.env = dict(repo.env, FAKE_CLAUDE_OUTPUT="- The parser *ships*.\n- Review the parser change.")
+    assert repo.pm("day", "summarize").returncode == 0
+    assert "Output only the bullets" in claude_calls(repo)[-1]["stdin"]
+    assert repo.pm("render").returncode == 0
+    day = (repo.root / f"site/days/{TODAY}.html").read_text()
+    assert "<ul>\n<li>The parser <em>ships</em>.</li>\n<li>Review the parser change.</li>\n</ul>" in day, day
+    index = (repo.root / "site/index.html").read_text()
+    assert "The parser <em>ships</em>. · Review the parser change." in index
+    assert "- The parser" not in index
+
+
+def test_a_paragraph_summary_still_renders_as_a_paragraph(repo):
+    path = repo.records / f"days/{TODAY}.summary.json"
+    path.write_text(json.dumps({"date": TODAY, "generated_at": now_z().replace("Z", "+00:00"), "digest": "x",
+                                "model": "haiku", "text": "The parser ships. Review it."}))
+    assert repo.pm("render").returncode == 0
+    assert "<p>The parser ships. Review it.</p>" in (repo.root / f"site/days/{TODAY}.html").read_text()
+    assert "The parser ships. Review it." in (repo.root / "site/index.html").read_text()
+
+
 @pytest.mark.parametrize("bad, says", [("{not json", "not valid JSON"), ('{"date": "x"}', "a summary is a JSON object")])
 def test_a_malformed_summary_fails_render_and_commit_naming_the_file(repo, bad, says):
     path = repo.records / f"days/{TODAY}.summary.json"
@@ -3288,3 +3494,42 @@ def test_serve_shows_a_generated_day_page(repo, served):
     repo.set_issue("demo.1.2", status="in_progress", started_at=now_z())
     get = lambda: load(f"{served}/days/{TODAY}.html")
     until_shown(get, lambda p: "STARTED</span> Ask the owner" in p, time.time())
+
+
+def test_feedback_add_ignores_other_docs_named_feedback(repo):
+    feedback_env(repo)
+    (repo.records / "docs").mkdir()
+    other = f"---\ntype: doc\ntitle: Triage\ndate: 2026-10-01\nproject: demo\n---\n\nx\n"
+    repo.write("docs/2026-10-01-triage-demo-feedback.md", other)
+    repo.write("docs/2026-10-01-triage-pm-feedback.md", other)
+    repo.commit()
+    assert repo.pm("feedback", "add", "--project", "demo", "--text", "x").returncode == 0
+    assert (repo.records / f"docs/{TODAY}-demo-feedback.md").exists()
+    assert (repo.records / "docs/2026-10-01-triage-demo-feedback.md").read_text() == other
+
+
+def test_feedback_add_with_text_leaves_stdin_unread(repo):
+    """--text skips stdin, so a pipe that never closes does not hang the command."""
+    feedback_env(repo)
+    proc = subprocess.Popen([*PM, "feedback", "add", "--project", "demo", "--text", "x"],
+                            cwd=repo.root, env=repo.env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True)
+    try:
+        assert proc.wait(timeout=20) == 0, proc.stderr.read()
+    finally:
+        proc.kill()
+        proc.stdin.close()
+
+
+def test_show_carries_feedback(repo):
+    feedback_env(repo)
+    hint = 'feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"'
+    out = repo.pm("show").stdout
+    assert out.rstrip().endswith(hint) and "entries ->" not in out          # no doc yet: hint only
+    for text in ("a", "b"):
+        assert repo.pm("feedback", "add", "--project", "demo", "--text", text).returncode == 0
+    out = repo.pm("show").stdout
+    line = f"feedback: 2 entries -> http://localhost:8000/docs/{TODAY}-demo-feedback.html"
+    assert out.count(line) == 1 and out.rstrip().endswith(hint)
+    data = json.loads(repo.pm("show", "--json").stdout)
+    assert data["projects"][0]["feedback"] == [{"entries": 2, "url": line.split("-> ")[1]}]

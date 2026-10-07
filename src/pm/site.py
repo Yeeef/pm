@@ -18,7 +18,7 @@ from mdit_py_plugins.front_matter import front_matter_plugin
 
 from .beads import (ACTION, HUMAN, NO_DECISION, REPLY_AUTHOR, ancestors, blockers, kind, owner_tasks, picked_up,
                     reply_body, state)
-from .records import (BLOCK_ATTRS, BLOCKS, Record, RecordError, attrs, decisions, first_para, outcome,
+from .records import (BLOCK_ATTRS, BLOCKS, Record, RecordError, attrs, decisions, first_para, outcome, summary_line,
                       project_of, section_text, validate_record)
 
 STYLE = Path(__file__).resolve().parent / "style.css"
@@ -288,7 +288,7 @@ def summary_md(rec: Record) -> str:
 
 def day_today(rec: Record) -> str:
     """A day's Today line for lists: its generated summary, else its hand-written paragraph."""
-    return rec.summary["text"].strip() if rec.summary else first_para(section_text(rec.body, "Today"))
+    return summary_line(rec.summary["text"]) if rec.summary else first_para(section_text(rec.body, "Today"))
 
 
 AWAITING = {
