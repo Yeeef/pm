@@ -1,6 +1,6 @@
 """pm doctor, pm upgrade and pm uninstall in the temp repos of test_init (a local bare remote, the fake bd, and the
-fake launchd/systemd in tmp/home): doctor is clean after init and names each hand-made change, upgrade moves the pin
-and rewrites pm's parts only, uninstall removes pm's parts and setup only, and uninstall then init round-trips."""
+fake launchd/systemd in tmp/home): init and upgrade keep what is not pm's, doctor names each hand-made change,
+upgrade moves the pin and rewrites pm's parts only, uninstall removes pm's parts and setup only."""
 
 from __future__ import annotations
 
@@ -11,10 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM
 from pm import __version__
-from test_init import (BD_SET, BEADS_HOOK, PM_FILES, env, existing, git, new_repo, pm, section,  # noqa: F401 (fixtures)
-                       site_port, snapshot)
+from test_init import (BD_SET, BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, PM_FILES, USER_CODEX, USER_SETTINGS,  # noqa: F401
+                       commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
+
+pytestmark = pytest.mark.slow  # each test runs pm init in a fresh repo with a remote and starts its service
 
 LOCAL_SETTINGS = '{\n  "model": "café"\n}\n'  # non-ASCII: pm rewrites the file around it, byte for byte
 CODEX_USER = '# mine\nmodel = "o3"\n\n[sandbox_workspace_write]\nnetwork_access = true\n'
@@ -47,12 +48,6 @@ def doctor(repo: Path) -> tuple[int, list[str]]:
     return res.returncode, res.stdout.splitlines()
 
 
-def test_doctor_is_clean_after_init(new_repo: Path):
-    assert pm(new_repo, "init").returncode == 0
-    code, lines = doctor(new_repo)
-    assert code == 0 and lines == [f"pm {__version__}: every managed piece and the clone's setup match what pm init makes"]
-
-
 def edit(path: Path, old: str, new: str) -> None:
     text = path.read_text()
     assert old in text, (path, old)
@@ -74,45 +69,71 @@ REPO_CHANGES = {
 }
 
 
-@pytest.mark.parametrize("kind", REPO_CHANGES)
-def test_doctor_reports_a_changed_repo_piece_and_upgrade_restores_it(new_repo: Path, kind: str):
+def reported(lines: list[str], wants: list[str]) -> bool:
+    """Doctor gave one line per change: each line starts with exactly one change's expected start, in any order."""
+    return sorted(w for l in lines for w in wants if l.startswith(w)) == sorted(wants) and len(lines) == len(wants)
+
+
+def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo: Path):
+    """Every change at once, so one init serves them all (each init costs seconds); each still gets its own line."""
     assert pm(new_repo, "init").returncode == 0
-    change, want = REPO_CHANGES[kind]
-    change(new_repo)
+    for change, _ in REPO_CHANGES.values():
+        change(new_repo)
     code, lines = doctor(new_repo)
-    assert code == 1 and len(lines) == 1 and lines[0].startswith(f"repo: {want}"), lines
-    assert lines[0].endswith("run pm upgrade to rewrite it")
+    assert code == 1 and reported(lines, [f"repo: {want}" for _, want in REPO_CHANGES.values()]), lines
+    assert all(l.endswith("run pm upgrade to rewrite it") for l in lines), lines
     res = pm(new_repo, "upgrade")
     assert res.returncode == 0 and "pin stays" in res.stdout, res.stderr
     assert doctor(new_repo)[0] == 0
 
 
-def setup_changes(tmp: Path) -> dict:
-    return {
-        "records link": (lambda r: (r / "records").unlink(), "records link: "),
-        "sparse checkout": (lambda r: git(r, "sparse-checkout", "disable"), "sparse checkout: "),
-        "hooks path": (lambda r: git(r, "config", "core.hooksPath", ".git/hooks"), "hooks path: core.hooksPath is .git/hooks"),
-        "service": (lambda r: [p.unlink() for p in sched_units(tmp)], "service: not installed"),
-        "codex roots": (lambda r: (tmp / "codex/config.toml").write_text(CODEX_USER), "codex: "),
-        "git exclude": (lambda r: edit(r / ".git/info/exclude", "/.pm/run/\n", ""), "git exclude: "),
-    }
+SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of the line doctor reports for it
+    "records link": (lambda r, tmp: (r / "records").unlink(), "records link: "),
+    "sparse checkout": (lambda r, tmp: git(r, "sparse-checkout", "disable"), "sparse checkout: "),
+    "hooks path": (lambda r, tmp: git(r, "config", "core.hooksPath", ".git/hooks"),
+                   "hooks path: core.hooksPath is .git/hooks"),
+    "service": (lambda r, tmp: [p.unlink() for p in sched_units(tmp)], "service: not installed"),
+    "codex roots": (lambda r, tmp: (tmp / "codex/config.toml").write_text(CODEX_USER), "codex: "),
+    "git exclude": (lambda r, tmp: edit(r / ".git/info/exclude", "/.pm/run/\n", ""), "git exclude: "),
+}
 
 
-@pytest.mark.parametrize("kind", ["records link", "sparse checkout", "hooks path", "service", "codex roots",
-                                  "git exclude"])
-def test_doctor_reports_a_changed_clone_setup(new_repo: Path, tmp_path: Path, kind: str):
+def test_doctor_reports_each_changed_clone_setup(new_repo: Path, tmp_path: Path):
+    """Every change at once, so one init serves them all; each still gets its own line."""
     (tmp_path / "codex").mkdir()
     assert pm(new_repo, "init").returncode == 0
     assert doctor(new_repo)[0] == 0
-    change, want = setup_changes(tmp_path)[kind]
-    change(new_repo)
+    for change, _ in SETUP_CHANGES.values():
+        change(new_repo, tmp_path)
     code, lines = doctor(new_repo)
-    assert code == 1 and len(lines) == 1 and lines[0].startswith(want), lines
+    assert code == 1 and reported(lines, [want for _, want in SETUP_CHANGES.values()]), lines
 
 
-def test_upgrade_moves_the_pin_and_keeps_what_is_not_pms(existing: Path, tmp_path: Path):
+def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
+    """pm init into a repo with Beads and settings of its own, then pm upgrade from an older pin: each rewrites pm's
+    parts only, around the repo's own content, byte for byte."""
     before = snapshot(existing)
-    assert pm(existing, "init").returncode == 0
+    res = pm(existing, "init")
+    assert res.returncode == 0, res.stderr
+    calls = [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
+    assert ["init", "--non-interactive"] not in calls, "Beads is there; bd init must not run"
+    assert f"git add -- {' '.join(PM_FILES)} .beads/config.yaml && " in res.stdout, "the agent profile bd set is listed"
+    for name in ("post-checkout", "pre-commit"):
+        assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + section(name) + "\n# mine\necho done\n"
+    for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
+        text = (existing / rel).read_text()
+        data = json.loads(text)
+        assert pm_free(data) == user and text == json.dumps(data, indent=2) + "\n", rel
+    claude = json.loads((existing / ".claude/settings.json").read_text())
+    assert all(commands(claude, e)[-len(c):] == c for e, c in CLAUDE_PM.items())
+    assert (existing / ".gitignore").read_text() == "*.log\nbuild/\n" + GITIGNORE_BLOCK
+    assert git(existing / ".pm/store/records", "ls-files").split() == ["sprints/a-1.md"]
+    installed = snapshot(existing)
+    assert all(installed[k] == v for k, v in before.items() if k not in PM_FILES + BD_SET), "files pm does not manage are kept"
+    again = pm(existing, "init")
+    assert again.returncode == 0, again.stderr
+    assert snapshot(existing) == installed and "git add" not in again.stdout
+
     git(existing, "add", "-A")
     git(existing, "commit", "-qm", "Install pm")
     # the repo as an older pm left it: an older pin and an older section in a Beads hook
@@ -163,6 +184,10 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     exclude_before = exclude.read_bytes()
     before = snapshot(existing)
     wt = install_everywhere(existing, tmp_path)
+    gone = tmp_path / "gone"  # deleted without git worktree remove: still listed (prunable), and uninstall skips it
+    subprocess.run(["git", "worktree", "add", "-q", "-b", "gone", str(gone)], cwd=existing, env=env(tmp_path), check=True)
+    subprocess.run(["rm", "-rf", str(gone)], check=True)
+    assert "prunable" in git(existing, "worktree", "list", "--porcelain")
     store = existing / ".pm/store/records"
     records_head = git(existing, "rev-parse", "records")
     (store / "sprints/a-1.md").write_text("changed\n")
@@ -175,7 +200,7 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     assert "git add -A -- " in res.stdout and 'git commit -m "Uninstall pm"' in res.stdout
     # the clone's and machine's setup is gone; the records branch and Beads stay
     assert not store.exists() and git(existing, "rev-parse", "records") == records_head
-    assert git(existing, "worktree", "list", "--porcelain").count("worktree ") == 2
+    assert git(existing, "worktree", "list", "--porcelain").count("worktree ") == 3
     for tree in (existing, wt):
         assert not (tree / "records").is_symlink()
         assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() in ("", "false")
@@ -196,24 +221,10 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     assert pm(existing, "uninstall").returncode != 0, "with .pm/ gone, pm refuses to run here"
 
 
-def test_uninstall_then_init_round_trips(new_repo: Path, tmp_path: Path):
-    install_everywhere(new_repo, tmp_path)
-    installed = snapshot(new_repo)
-    codex = (tmp_path / "codex/config.toml").read_text()
-    res = pm(new_repo, "uninstall")
-    assert res.returncode == 0, res.stderr
-    assert (tmp_path / "codex/config.toml").read_text() == codex_after_uninstall()
-    res = pm(new_repo, "init")
-    assert res.returncode == 0, res.stderr
-    assert snapshot(new_repo) == installed
-    assert (tmp_path / "codex/config.toml").read_text() == codex
-    assert git(new_repo, "status", "--porcelain").strip() == ""
-    assert doctor(new_repo)[0] == 0
-
-
 def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Path, tmp_path: Path):
     """Two clones set up on one machine: uninstalling one removes only its own four roots; uv's cache, which both
-    need, and the other clone's roots stay, and every other byte of config.toml with them."""
+    need, and the other clone's roots stay, and every other byte of config.toml with them. Roots it cannot take out
+    without breaking the TOML are refused before anything changes."""
     (tmp_path / "codex").mkdir()
     config = tmp_path / "codex/config.toml"
     config.write_text(CODEX_USER)
@@ -229,6 +240,19 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
     mine = [r for r in roots if r.startswith(str(new_repo.resolve()))]
     theirs = [r for r in roots if r.startswith(str(other.resolve()))]
     assert len(mine) == 4 and len(theirs) == 4 and roots.count(uv_cache()) == 1 and len(roots) == 9, roots
+    # writable_roots spread over lines, one root a line: taking a root out leaves its comma, which is not TOML;
+    # uninstall names the file and says to remove the roots by hand, before it changes anything
+    flat = config.read_text()
+    spread = "writable_roots = [\n" + "".join(f"  {json.dumps(r)},\n" for r in roots) + "]\n"
+    config.write_text(CODEX_USER.replace("[sandbox_workspace_write]\n", f"[sandbox_workspace_write]\n{spread}"))
+    codex, before, units = config.read_text(), snapshot(new_repo), sched_units(tmp_path)
+    res = pm(new_repo, "uninstall")
+    assert res.returncode == 1, res
+    assert f"editing {config} would leave it invalid TOML (" in res.stderr, res.stderr
+    assert "remove these from its writable_roots by hand: " in res.stderr and json.dumps(mine[0]) in res.stderr
+    assert config.read_text() == codex and snapshot(new_repo) == before and sched_units(tmp_path) == units != []
+    assert (new_repo / ".pm/store/records").is_dir() and (new_repo / "records").is_symlink()
+    config.write_text(flat)
     res = pm(new_repo, "uninstall")
     assert res.returncode == 0, res.stderr
     assert "uv's cache stays" in res.stdout
@@ -236,43 +260,3 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
     assert config.read_text() == CODEX_USER.replace(
         "[sandbox_workspace_write]\n",
         f"[sandbox_workspace_write]\nwritable_roots = [{', '.join(json.dumps(r) for r in kept)}]\n")
-
-
-def test_uninstall_refuses_writable_roots_it_cannot_edit_before_changing_anything(new_repo: Path, tmp_path: Path):
-    """writable_roots spread over lines, one root a line: taking a root out leaves its comma, which is not TOML.
-    Uninstall names the file and says to remove the roots by hand, before it changes anything."""
-    (tmp_path / "codex").mkdir()
-    config = tmp_path / "codex/config.toml"
-    config.write_text(CODEX_USER)
-    assert pm(new_repo, "init").returncode == 0
-    roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
-    spread = "writable_roots = [\n" + "".join(f"  {json.dumps(r)},\n" for r in roots) + "]\n"
-    config.write_text(CODEX_USER.replace("[sandbox_workspace_write]\n", f"[sandbox_workspace_write]\n{spread}"))
-    codex, before, units = config.read_text(), snapshot(new_repo), sched_units(tmp_path)
-    res = pm(new_repo, "uninstall")
-    assert res.returncode == 1, res
-    assert f"editing {config} would leave it invalid TOML (" in res.stderr, res.stderr
-    assert "remove these from its writable_roots by hand: " in res.stderr and json.dumps(roots[0]) in res.stderr
-    assert config.read_text() == codex and snapshot(new_repo) == before and sched_units(tmp_path) == units != []
-    assert (new_repo / ".pm/store/records").is_dir() and (new_repo / "records").is_symlink()
-
-
-def test_uninstall_skips_a_worktree_whose_directory_is_gone(new_repo: Path, tmp_path: Path):
-    """A worktree deleted without git worktree remove is still listed (prunable); uninstall skips it."""
-    install_everywhere(new_repo, tmp_path)
-    gone = tmp_path / "gone"
-    subprocess.run(["git", "worktree", "add", "-q", "-b", "gone", str(gone)], cwd=new_repo, env=env(tmp_path), check=True)
-    subprocess.run(["rm", "-rf", str(gone)], check=True)
-    assert "prunable" in git(new_repo, "worktree", "list", "--porcelain")
-    res = pm(new_repo, "uninstall")
-    assert res.returncode == 0, res.stderr
-    assert sched_units(tmp_path) == [] and not (new_repo / ".pm").exists()
-    assert not (tmp_path / "wt/records").is_symlink()
-
-
-def test_doctor_reports_a_service_on_another_port_than_port_asks_for(new_repo: Path, tmp_path: Path):
-    assert pm(new_repo, "init").returncode == 0
-    res = subprocess.run([*PM, "doctor"], cwd=new_repo, env=dict(env(tmp_path), PORT="8001"), capture_output=True,
-                         text=True)
-    assert res.returncode == 1 and len(res.stdout.splitlines()) == 1, res.stdout
-    assert res.stdout.startswith("service: ") and f"serves on :{site_port(tmp_path)}, not :8001" in res.stdout

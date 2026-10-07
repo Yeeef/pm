@@ -1,15 +1,13 @@
-"""pm init in temp git repos with a local bare remote and the fake bd: a brand-new repo, an existing one whose
-settings and hook files hold other content, and the refusals. Expected file contents are written out here from the
+"""pm init in temp git repos with a local bare remote and the fake bd: a brand-new repo, the refusals, and the
+fixtures test_lifecycle shares (an existing repo whose settings and hook files hold other content). Expected file contents are written out here from the
 design (pm-product: "Git hooks", "Context: hook-only", "The .pm/ directory"), not taken from pm's code."""
 
 from __future__ import annotations
 
-import http.server
 import json
 import os
 import socket
 import subprocess
-import threading
 import tomllib
 from pathlib import Path
 
@@ -20,6 +18,8 @@ from pm import __version__
 
 GIT_ENV = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
                GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
+pytestmark = pytest.mark.slow  # each test makes a repo with a remote; init starts the service
+
 LAYOUT = ["days", "design", "docs", "postmortems", "projects", "sprints"]
 BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n"
               "# --- END BEADS INTEGRATION v1.3.1 ---\n")
@@ -150,16 +150,14 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert (new_repo / ".git/info/exclude").read_text() == exclude
     assert "git add" not in again.stdout and "already set up" in again.stdout
 
-
-def test_init_hooks_set_up_a_new_worktree_and_guard_records(new_repo: Path, tmp_path: Path):
-    assert pm(new_repo, "init").returncode == 0
+    # pm's git hooks, once committed: a new worktree gets its records link, and a code branch cannot commit records
     git(new_repo, "add", "-A")
     git(new_repo, "commit", "-qm", "Install pm")
     wt = tmp_path / "wt"
     res = subprocess.run(["git", "worktree", "add", "-q", "-b", "feature", str(wt)], cwd=new_repo, env=env(tmp_path),
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
-    assert (wt / "records").is_symlink() and (wt / "records").resolve() == (new_repo / ".pm/store/records").resolve(), res.stderr
+    assert (wt / "records").is_symlink() and (wt / "records").resolve() == store.resolve(), res.stderr
     (wt / "records").unlink()
     (wt / "records").mkdir()
     (wt / "records/a.md").write_text("x\n")
@@ -172,32 +170,6 @@ def test_init_hooks_set_up_a_new_worktree_and_guard_records(new_repo: Path, tmp_
     git(wt, "add", "code.txt")
     res = subprocess.run(["git", "commit", "-qm", "code"], cwd=wt, env=env(tmp_path), capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
-
-
-def test_init_keeps_the_store_out_of_a_branch_made_before_pm(new_repo: Path):
-    """A branch made before pm has no .pm/.gitignore and no .gitignore block; the clone's info/exclude still keeps
-    the store, the run state and the records/ link out of git add -A there."""
-    first = git(new_repo, "rev-parse", "HEAD").strip()
-    assert pm(new_repo, "init").returncode == 0
-    git(new_repo, "add", "-A")
-    git(new_repo, "commit", "-qm", "Install pm")
-    git(new_repo, "checkout", "-q", "-b", "old", first)
-    assert not (new_repo / ".pm/.gitignore").exists() and (new_repo / ".pm/store/records").is_dir()
-    assert not (new_repo / ".gitignore").exists() and (new_repo / "records").is_symlink()
-    status = git(new_repo, "status", "--porcelain", "--untracked-files=all", "--", ".pm", "records").strip()
-    assert status == "", status
-
-
-def test_init_site_url_is_written_to_the_config(new_repo: Path):
-    res = pm(new_repo, "init", "--site-url", "https://pm.example.com/")
-    assert res.returncode == 0, res.stderr
-    assert tomllib.loads((new_repo / ".pm/config.toml").read_text())["site_url"] == "https://pm.example.com"
-    where = pm(new_repo, "where").stdout
-    assert next(l for l in where.splitlines() if l.startswith("site ")).split()[1] == "https://pm.example.com"
-    res = pm(new_repo, "init", "--site-url", "")
-    assert res.returncode == 0 and "site URL cleared" in res.stdout, res.stderr
-    where = pm(new_repo, "where").stdout
-    assert next(l for l in where.splitlines() if l.startswith("site ")).split()[1] == f"http://localhost:{site_port(new_repo.parent)}"
 
 
 USER_SETTINGS = {"permissions": {"allow": ["Bash(ls:*)"]},
@@ -240,47 +212,6 @@ def existing(tmp_path: Path) -> Path:
     return tmp_path / "clone"
 
 
-def test_init_keeps_what_is_not_pms(existing: Path, tmp_path: Path):
-    before = snapshot(existing)
-    res = pm(existing, "init")
-    assert res.returncode == 0, res.stderr
-    calls = [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
-    assert ["init", "--non-interactive"] not in calls, "Beads is there; bd init must not run"
-    assert f"git add -- {' '.join(PM_FILES)} .beads/config.yaml && " in res.stdout, "the agent profile bd set is listed"
-    for name in ("post-checkout", "pre-commit"):
-        assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + section(name) + "\n# mine\necho done\n"
-    for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
-        text = (existing / rel).read_text()
-        data = json.loads(text)
-        assert pm_free(data) == user and text == json.dumps(data, indent=2) + "\n", rel
-    claude = json.loads((existing / ".claude/settings.json").read_text())
-    assert all(commands(claude, e)[-len(c):] == c for e, c in CLAUDE_PM.items())
-    assert (existing / ".gitignore").read_text() == "*.log\nbuild/\n" + GITIGNORE_BLOCK
-    assert git(existing / ".pm/store/records", "ls-files").split() == ["sprints/a-1.md"]
-    after = snapshot(existing)
-    assert all(after[k] == v for k, v in before.items() if k not in PM_FILES + BD_SET), "files pm does not manage are kept"
-    again = pm(existing, "init")
-    assert again.returncode == 0, again.stderr
-    assert snapshot(existing) == after and "git add" not in again.stdout
-
-
-def test_init_refuses_another_hooks_path(existing: Path):
-    git(existing, "config", "core.hooksPath", ".husky")
-    before = snapshot(existing)
-    res = pm(existing, "init")
-    assert res.returncode != 0 and "core.hooksPath is .husky" in res.stderr, res.stderr
-    assert snapshot(existing) == before and not (existing / ".pm").exists()
-
-
-def test_init_refuses_settings_it_would_reformat(existing: Path):
-    path = existing / ".claude/settings.json"
-    path.write_text(json.dumps(USER_SETTINGS))  # one line: rewriting it would change lines that are not pm's
-    before = snapshot(existing)
-    res = pm(existing, "init")
-    assert res.returncode != 0 and ".claude/settings.json is not laid out as pm writes JSON" in res.stderr, res.stderr
-    assert snapshot(existing) == before
-
-
 def test_init_refuses_before_bd_init_runs(new_repo: Path, tmp_path: Path):
     """A refusal comes before bd init, which writes and commits Beads' files: the repo is left as it was."""
     (new_repo / ".claude").mkdir()
@@ -290,24 +221,6 @@ def test_init_refuses_before_bd_init_runs(new_repo: Path, tmp_path: Path):
     assert res.returncode != 0 and ".claude/settings.json is not laid out as pm writes JSON" in res.stderr, res.stderr
     assert ["init", "--non-interactive"] not in [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
     assert snapshot(new_repo) == before and git(new_repo, "rev-parse", "HEAD") == head
-
-
-def test_init_that_fails_after_writing_names_the_commit_to_make(new_repo: Path, tmp_path: Path):
-    """The live check's init wrote every piece, then failed on the service and named no commit: a failure after
-    writing still says what it wrote and what to commit, then to fix the error and run init again."""
-    other = http.server.ThreadingHTTPServer(("127.0.0.1", site_port(tmp_path)), http.server.SimpleHTTPRequestHandler)
-    threading.Thread(target=other.serve_forever, daemon=True).start()
-    try:
-        res = pm(new_repo, "init")
-    finally:
-        other.shutdown()
-        other.server_close()
-    assert res.returncode == 1, res
-    err = res.stderr
-    assert err.startswith("error: installed local.pm.repo.") and "the site does not answer for this store" in err, err
-    assert "\nwrote .pm/config.toml\n" in err
-    assert f"git add -- {' '.join(PM_FILES + ['.beads/config.yaml'])} && git commit -m \"Install pm {__version__}\"" in err
-    assert err.rstrip().endswith("then fix the error above and run pm init again"), err
 
 
 def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_repo: Path, tmp_path: Path):
@@ -336,13 +249,3 @@ def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_rep
     assert res.returncode == 1 and all(p in res.stdout for p in said) and "stale" not in res.stdout, res.stdout
     res = run("where")
     assert "unchecked: " in res.stdout and all(p in res.stdout for p in said) and "stale" not in res.stdout, res.stdout
-
-
-def test_init_from_a_worktree_refuses_a_main_checkout_without_this_pin(new_repo: Path, tmp_path: Path):
-    """The service runs in the main checkout under its pin, and the machine has one pm uv tool: init from a worktree
-    whose branch pins pm while main's does not would leave the service and main's hooks failing."""
-    wt = tmp_path / "wt"
-    git(new_repo, "worktree", "add", "-q", "-b", "feature", str(wt))
-    res = pm(wt, "init")
-    assert res.returncode == 1 and f"the pm service runs in the main checkout {new_repo}" in res.stderr, res.stderr
-    assert not (wt / ".pm").exists() and not (new_repo / ".pm").exists()

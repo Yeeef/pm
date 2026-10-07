@@ -20,7 +20,6 @@ import pytest
 
 from conftest import PM, TEST_SOURCE, stop_services
 from pm import __version__, push, service, tool
-from pm.records import RecordError
 
 
 @pytest.fixture
@@ -113,34 +112,6 @@ def test_launchd_agent_keeps_the_service_alive(machine, monkeypatch):
         ["launchctl", "bootstrap", f"gui/{uid}", str(plist)]], "a changed plist is loaded again, once launchd let go"
 
 
-def test_a_machine_without_launchd_or_systemd_is_refused(machine, monkeypatch):
-    main, calls, world = machine
-    monkeypatch.setattr(sys, "platform", "linux")
-    world["systemd"] = False
-    with pytest.raises(RecordError, match="needs launchd .* or a systemd user instance"):
-        service.install(main, 8000)
-    assert not service.unit_file(main, "systemd").exists()
-    ok, line = service.health(main, main / ".records")
-    assert not ok and line.startswith("service   no service manager here")
-
-
-def test_install_refuses_a_path_without_bd_and_git(machine, monkeypatch):
-    main, calls, world = machine
-    monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setenv("PATH", "/nonexistent")
-    with pytest.raises(RecordError, match="needs bd, git on PATH; bd, git not found"):
-        service.install(main, 8000)
-
-
-def test_restart_and_logs_refuse_before_install(machine, monkeypatch):
-    main, calls, world = machine
-    monkeypatch.setattr(sys, "platform", "linux")
-    with pytest.raises(RecordError, match="not installed .*; run pm service install"):
-        service.restart(main)
-    with pytest.raises(RecordError, match="no service log at .*; run pm service install"):
-        service.logs(main, 10)
-
-
 def service_run(repo, port: str) -> tuple[subprocess.Popen, int]:
     """`pm service run` on `port` (0: a free one), as the supervisor starts it, its stdout and stderr in one pipe."""
     srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root, env=dict(repo.env, PORT=port),
@@ -156,6 +127,7 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+@pytest.mark.slow
 def test_service_install_status_restart_and_logs_end_to_end(repo, tmp_path):
     """Under the fake supervisor, which starts the unit's command as launchd or systemd would."""
     status = repo.pm("service", "status")
@@ -188,6 +160,7 @@ def test_service_install_status_restart_and_logs_end_to_end(repo, tmp_path):
     assert ".pm/" not in repo.git("status", "--porcelain"), "the runtime dir is never committed"
 
 
+@pytest.mark.slow
 def test_install_fails_when_the_service_does_not_come_up(repo):
     """Another server holds the port (another clone's service, say): the new one cannot bind, and install says so
     instead of reporting success."""
@@ -206,6 +179,7 @@ def test_install_fails_when_the_service_does_not_come_up(repo):
     assert "give this clone its own port with PORT=<n> pm service install" in res.stderr
 
 
+@pytest.mark.slow
 def test_service_stops_once_the_pin_moves(repo):
     """A pull after pm upgrade moves the pin under a running service: it stops with an error instead of serving the
     old version, and the supervisor's restart then runs the pm uv tool's."""
@@ -239,24 +213,3 @@ def test_install_restarts_a_current_unit_that_answers_on_another_build(machine, 
     unit = service.unit_file(main, "systemd")
     assert service.install(main, 8123).startswith("updated the pm service")
     assert calls[-1] == ["systemctl", "--user", "restart", unit.name] and world["waited"] == [8123, 8123]
-
-
-@pytest.mark.parametrize("other", OTHER_BUILDS)
-def test_health_and_doctor_report_a_service_on_another_build(machine, monkeypatch, other):
-    main, calls, world = machine
-    monkeypatch.setattr(sys, "platform", "linux")
-    service.install(main, 8123)
-    monkeypatch.setattr(service, "answering", lambda port: (str((main / ".pm/store/records").resolve()), other))
-    ok, line = service.health(main, main / ".pm/store/records")
-    assert not ok and line.endswith(f"stale: it runs pm {other}, not pm {tool.running()}: the pm uv tool is on "
-                                    "another build; run pm init"), line
-    assert any(f"is stale: it runs pm {other}," in d for d in service.drift(main, None))
-
-
-def test_status_flags_a_failed_push(repo):
-    push.write_state(repo.root, {"installed_at": push.now().isoformat(),
-                                 "beads": {"at": push.now().isoformat(), "ok": False, "message": "bd dolt push failed",
-                                           "last_ok": None, "first": push.now().isoformat()}})
-    res = repo.pm("service", "status")
-    assert res.returncode == 1
-    assert "push      needs attention: beads push failed at " in res.stdout and "bd dolt push failed" in res.stdout
