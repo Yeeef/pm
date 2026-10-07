@@ -63,6 +63,7 @@
 - Do not post status outside the site. The site is the owner's status view.
 - Do not push Beads data or the records branch. The pm service does it.
 - When `pm where` shows the service down, run `pm service restart`. If that fails, raise an action and add a bug task.
+- For more about the service (ports, logs, health, stale builds), read `pm service --help`.
 - Examine a subagent's report against the files before you accept it.
 - Link a record only with the URL that `pm record link` prints. Do not build a URL or give a records path.
 - Do not put decisions or plans on a design page.
