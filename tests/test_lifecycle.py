@@ -11,9 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from pm import __version__
 from conftest import PM
-from test_init import BD_SET, BEADS_HOOK, PM_FILES, env, existing, git, new_repo, pm, section, snapshot  # noqa: F401 (fixtures)
+from pm import __version__
+from test_init import (BD_SET, BEADS_HOOK, PM_FILES, env, existing, git, new_repo, pm, section,  # noqa: F401 (fixtures)
+                       site_port, snapshot)
 
 LOCAL_SETTINGS = '{\n  "model": "café"\n}\n'  # non-ASCII: pm rewrites the file around it, byte for byte
 CODEX_USER = '# mine\nmodel = "o3"\n\n[sandbox_workspace_write]\nnetwork_access = true\n'
@@ -169,7 +170,7 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     assert not (existing / ".pm").exists() and (existing / ".beads/hooks").is_dir()
     # every byte that is not pm's is as it was, but for the newline pm's block needed after the unterminated last
     # line of .gitignore
-    after = snapshot(existing)
+    after = {k: v for k, v in snapshot(existing).items() if not k.startswith(".beads/embeddeddolt/")}  # Beads stays
     assert after.pop(".gitignore") == before.pop(".gitignore") + b"\n"
     assert after.pop(".claude/settings.local.json") == LOCAL_SETTINGS.encode()
     assert after.pop(".beads/config.yaml") == before.pop(".beads/config.yaml") + b"agent.profile: team-maintainer\n"
@@ -211,6 +212,5 @@ def test_doctor_reports_a_service_on_another_port_than_port_asks_for(new_repo: P
     assert pm(new_repo, "init").returncode == 0
     res = subprocess.run([*PM, "doctor"], cwd=new_repo, env=dict(env(tmp_path), PORT="8001"), capture_output=True,
                          text=True)
-    assert res.returncode == 1 and res.stdout.splitlines() == [
-        line for line in res.stdout.splitlines() if line.startswith("service: ") and "serves on :8000, not :8001" in line
-    ] and res.stdout, res.stdout
+    assert res.returncode == 1 and len(res.stdout.splitlines()) == 1, res.stdout
+    assert res.stdout.startswith("service: ") and f"serves on :{site_port(tmp_path)}, not :8001" in res.stdout

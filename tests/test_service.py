@@ -4,18 +4,20 @@ service."""
 
 from __future__ import annotations
 
+import http.server
 import os
 import plistlib
 import re
-import shutil
+import socket
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
 
-from conftest import PM
-from pm import push, service
+from conftest import PM, stop_services
+from pm import push, service, tool
 from pm.records import RecordError
 
 
@@ -57,6 +59,10 @@ def machine(tmp_path, monkeypatch):
             return res(0)
         raise AssertionError(cmd)
     monkeypatch.setattr(service, "quiet", quiet)
+    # the pm uv tool is this interpreter, and the site comes up at once: test_service_*_end_to_end runs both for real
+    monkeypatch.setattr(tool, "python", lambda: Path(sys.executable))
+    monkeypatch.setattr(tool, "current", lambda: Path(sys.executable))
+    monkeypatch.setattr(service, "wait_up", lambda main, port, done, hint="": world.setdefault("waited", []).append(port))
     return main, calls, world
 
 
@@ -65,6 +71,7 @@ def test_systemd_unit_runs_this_pm_restarts_it_and_quotes_paths(machine, monkeyp
     monkeypatch.setattr(sys, "platform", "linux")
     said = service.install(main, 8123)
     assert said.startswith("installed the pm service: systemd user service local.pm.main."), said
+    assert world["waited"] == [8123], "install waits for the site to answer"
     unit = service.unit_file(main, "systemd")
     text = unit.read_text()
     assert f"WorkingDirectory={main}\n" in text
@@ -124,27 +131,9 @@ def test_restart_and_logs_refuse_before_install(machine, monkeypatch):
     main, calls, world = machine
     monkeypatch.setattr(sys, "platform", "linux")
     with pytest.raises(RecordError, match="not installed .*; run pm service install"):
-        service.restart(main, main / ".records")
+        service.restart(main)
     with pytest.raises(RecordError, match="no service log at .*; run pm service install"):
         service.logs(main, 10)
-
-
-def test_install_refuses_a_pm_running_from_another_worktree(machine, monkeypatch, tmp_path):
-    main, calls, world = machine
-    monkeypatch.setattr(sys, "platform", "linux")
-    real = Path(shutil.which("git", path="/usr/bin:/usr/local/bin:/opt/homebrew/bin")).parent
-    monkeypatch.setenv("PATH", f"{real}{os.pathsep}{os.environ['PATH']}")  # the fixture's git is a stub
-    subprocess.run(["git", "init", "-q", "-b", "main", str(main)], check=True)
-    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "--allow-empty", "-m", "x"],
-                   cwd=main, check=True)
-    tree = tmp_path / "feature"
-    subprocess.run(["git", "worktree", "add", "-q", "-b", "feature", str(tree)], cwd=main, check=True)
-    monkeypatch.setattr(sys, "prefix", str(tree / "pm/.venv"))
-    with pytest.raises(RecordError, match="inside the worktree .*feature; the service would run that worktree's code"):
-        service.install(main, 8000)
-    assert not service.unit_file(main, "systemd").exists()
-    monkeypatch.setattr(sys, "prefix", str(main / "pm/.venv"))
-    assert service.install(main, 8000).startswith("installed"), "the main checkout's environment is fine"
 
 
 def service_run(repo, port: str, log: Path | None = None) -> tuple[subprocess.Popen, int]:
@@ -157,42 +146,60 @@ def service_run(repo, port: str, log: Path | None = None) -> tuple[subprocess.Po
     return srv, int(re.search(r"http://localhost:(\d+)", srv.stdout.readline()).group(1))
 
 
-def test_service_install_status_restart_and_logs_end_to_end(repo):
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def test_service_install_status_restart_and_logs_end_to_end(repo, tmp_path):
+    """Under the fake supervisor, which starts the unit's command as launchd or systemd would."""
     status = repo.pm("service", "status")
     assert status.returncode == 1 and "not installed; run pm service install" in status.stdout, status
     repo.dolt()
-    probe, port = service_run(repo, "0")  # a free port, then the service is installed on it
-    probe.terminate()
-    probe.wait()
+    port = free_port()
     env = repo.env
     repo.env = dict(env, PORT=str(port))
     res = repo.pm("service", "install")
     assert res.returncode == 0 and res.stdout.startswith("installed the pm service: "), res
     assert f"serving http://localhost:{port}" in res.stdout
     repo.env = env  # the unit carries the port; status and restart read it from there, not from $PORT
+    up = repo.pm("service", "status")
+    assert up.returncode == 0 and up.stdout.splitlines()[0].endswith(f"running; the site answers on :{port}"), up
+    log = repo.root / ".pm/run/service.log"
+    assert f"log       {log} (pm service logs)" in up.stdout
+    restarted = repo.pm("service", "restart")
+    assert restarted.returncode == 0, restarted
+    assert restarted.stdout.splitlines()[-1].endswith(f"running; the site answers on :{port}")
+    assert re.search(rf"^Serving http://localhost:{port}; .*pushing every 10 min$",
+                     repo.pm("service", "logs", "-n", "50").stdout, re.M)
+    link = repo.pm("record", "link", "demo.1")  # no $PORT: links use the port the unit serves on
+    assert link.stdout == f"http://localhost:{port}/sprints/demo-1.html\n", link
+    again = repo.pm("service", "install")
+    assert again.returncode == 0 and again.stdout.startswith("already installed and current"), again
+    stop_services(tmp_path)  # the process dies; nothing restarts it here
     down = repo.pm("service", "status")
     assert down.returncode == 1 and f"down: nothing answers on :{port}; run pm service restart" in down.stdout
     assert repo.pm("where").stdout.count(f"down: nothing answers on :{port}") == 1
-    log = repo.root / ".pm/run/service.log"
-    srv, _ = service_run(repo, str(port), log)
-    try:
-        restarted = repo.pm("service", "restart")
-        assert restarted.returncode == 0, restarted
-        assert restarted.stdout.splitlines()[-1].endswith(f"running; the site answers on :{port}")
-        up = repo.pm("service", "status")
-        assert up.returncode == 0, up
-        assert up.stdout.splitlines()[0].endswith(f"running; the site answers on :{port}")
-        assert f"log       {log} (pm service logs)" in up.stdout
-        assert re.search(rf"^Serving http://localhost:{port}; .*pushing every 10 min$",
-                         repo.pm("service", "logs", "-n", "50").stdout, re.M)
-        link = repo.pm("record", "link", "demo.1")  # no $PORT: links use the port the unit serves on
-        assert link.stdout == f"http://localhost:{port}/sprints/demo-1.html\n", link
-        again = repo.pm("service", "install")
-        assert again.returncode == 0 and again.stdout.startswith("already installed and current"), again
-    finally:
-        srv.terminate()
-        srv.wait()
     assert ".pm/" not in repo.git("status", "--porcelain"), "the runtime dir is never committed"
+
+
+def test_install_fails_when_the_service_does_not_come_up(repo):
+    """Another server holds the port (another clone's service, say): the new one cannot bind, and install says so
+    instead of reporting success."""
+    repo.dolt()
+    other = http.server.ThreadingHTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
+    threading.Thread(target=other.serve_forever, daemon=True).start()
+    port = other.server_address[1]
+    try:
+        res = subprocess.run([*PM, "service", "install"], cwd=repo.root, env=dict(repo.env, PORT=str(port)),
+                             capture_output=True, text=True)
+    finally:
+        other.shutdown()
+    assert res.returncode == 1, res
+    assert f"the site does not answer for this store on :{port}" in res.stderr, res.stderr
+    assert "held by a server that is not pm" in res.stderr
+    assert "give this clone its own port with PORT=<n> pm service install" in res.stderr
 
 
 def test_status_flags_a_failed_push(repo):

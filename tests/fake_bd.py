@@ -34,6 +34,21 @@ def main_checkout() -> Path:
     return Path(common).parent
 
 
+def embedded_store() -> None:
+    """The embedded Dolt store bd init and bd bootstrap make, which bd context names and the pm service watches."""
+    noms = main_checkout() / ".beads/embeddeddolt/demo/.dolt/noms"
+    if not noms.is_dir():
+        (noms / "oldgen").mkdir(parents=True)
+        (noms / "manifest").write_text("5:fake\n")
+        (noms / "journal").write_text("")
+        # bd's own .beads/.gitignore keeps the database out of git status; here the clone's exclude file does
+        exclude = Path(subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
+                                      capture_output=True, text=True).stdout.strip()) / "info/exclude"
+        exclude.parent.mkdir(exist_ok=True)
+        with open(exclude, "a") as f:
+            f.write("/.beads/embeddeddolt/\n")
+
+
 def save() -> None:
     """Write the issues back; when the test made a Dolt store (Repo.dolt), grow its journal as a Dolt write does."""
     json.dump(issues, open(state_path, "w"))
@@ -157,6 +172,7 @@ elif args[:1] == ["bootstrap"]:
     else:
         (Path.cwd() / ".beads").mkdir(exist_ok=True)
         db.touch()
+        embedded_store()
 elif args[:2] == ["dolt", "push"]:
     print("Pushing to Dolt remote...\nPush complete.")
 elif args[:2] == ["context", "--json"]:
@@ -190,6 +206,7 @@ elif args[:1] == ["init"]:
         hook.chmod(0o755)
     subprocess.run(["git", "config", "core.hooksPath", str(Path.cwd() / ".beads/hooks")], check=True)
     (Path(common) / "fake-bd-db").touch()
+    embedded_store()
     settings = Path.cwd() / ".claude/settings.json"
     if not settings.exists():
         settings.parent.mkdir(exist_ok=True)

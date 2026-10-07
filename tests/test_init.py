@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import socket
 import subprocess
 import tomllib
 from pathlib import Path
@@ -41,9 +43,21 @@ def git(cwd: Path, *args: str) -> str:
 
 
 def env(tmp: Path) -> dict[str, str]:
-    """The fake bd's environment, with this pm first on PATH: the git hooks pm init writes call `pm`."""
+    """The fake bd's environment, with the pm uv tool's bin dir first on PATH, as `uv tool update-shell` puts it: the
+    git hooks pm init writes call `pm`."""
     e = fake_bd_env(tmp, GIT_ENV)
-    return dict(e, PATH=f"{Path(PM[0]).parent}{os.pathsep}{e['PATH']}")
+    return dict(e, PATH=f"{e['UV_TOOL_BIN_DIR']}{os.pathsep}{e['PATH']}", PORT=str(site_port(tmp)))
+
+
+def site_port(tmp: Path) -> int:
+    """A port free when first asked for, the same for every call in `tmp`: the service pm init starts serves on it,
+    as a second clone's would, so it never meets the user's own on the config's 8000."""
+    path = tmp / "port"
+    if not path.exists():
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            path.write_text(str(s.getsockname()[1]))
+    return int(path.read_text())
 
 
 def pm(cwd: Path, *args: str) -> subprocess.CompletedProcess:
@@ -162,7 +176,7 @@ def test_init_site_url_is_written_to_the_config(new_repo: Path):
     res = pm(new_repo, "init", "--site-url", "")
     assert res.returncode == 0 and "site URL cleared" in res.stdout, res.stderr
     where = pm(new_repo, "where").stdout
-    assert next(l for l in where.splitlines() if l.startswith("site ")).split()[1] == "http://localhost:8000"
+    assert next(l for l in where.splitlines() if l.startswith("site ")).split()[1] == f"http://localhost:{site_port(new_repo.parent)}"
 
 
 USER_SETTINGS = {"permissions": {"allow": ["Bash(ls:*)"]},
@@ -255,3 +269,15 @@ def test_init_refuses_before_bd_init_runs(new_repo: Path, tmp_path: Path):
     assert res.returncode != 0 and ".claude/settings.json is not laid out as pm writes JSON" in res.stderr, res.stderr
     assert ["init", "--non-interactive"] not in [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
     assert snapshot(new_repo) == before and git(new_repo, "rev-parse", "HEAD") == head
+
+
+def test_init_refuses_without_the_pm_uv_tool_it_cannot_install(new_repo: Path, tmp_path: Path):
+    """This pm runs from a local checkout, which has no source to install the tool from: init names the command,
+    before it changes anything."""
+    env(tmp_path)  # makes tmp's fakes, the tool among them
+    shutil.rmtree(tmp_path / "uv/tools/pm")
+    before = snapshot(new_repo)
+    res = pm(new_repo, "init")
+    assert res.returncode == 1, res
+    assert 'was not installed from git; install the tool with uv tool install "git+https://github.com/Yeeef' in res.stderr
+    assert snapshot(new_repo) == before and not (tmp_path / "sched.log").exists(), "no bd init, no service"

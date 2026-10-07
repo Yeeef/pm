@@ -57,7 +57,7 @@ from pm.store import (BRANCH, SETUP, code_root, commit, committed_records, desig
                            main_of, read_files, store_path, uncommitted)
 from pm.store import git as store_git
 from pm import push as pushjob
-from pm import service
+from pm import service, tool
 
 SPRINT_PROMPTS = {
     "Goal": "> What should be true when this sprint ends, and why now?",
@@ -2351,6 +2351,9 @@ def cmd_init(args) -> str:
         planned = install.plan(top, s)  # read-only: a refusal comes before bd init, which writes and commits
     except install.InstallError as e:
         raise Refuse(str(e))
+    tooled = tool.ensure()  # the service's unit and the hooks run the pm uv tool, not this pm (uvx's, say)
+    if tooled:
+        out.append(tooled)
     if not (top / ".beads").exists():
         bd(top, "init", "--non-interactive")
         out.append("ran bd init: Beads set up its database, its files and its git hooks (and commits them itself)")
@@ -2803,7 +2806,7 @@ def cmd_service_status(args, records: Path) -> tuple[int, str]:
 
 
 def cmd_service_restart(args, records: Path) -> str:
-    return service.restart(service_main(), records)
+    return service.restart(service_main())
 
 
 def cmd_service_logs(args, records: Path) -> str:

@@ -3,11 +3,11 @@ live from the store and Beads and pushes Beads data and the records branch every
 
 `pm service install` puts it under the machine's supervisor, which starts it at login and restarts it after a crash:
 a launchd agent with KeepAlive on macOS, a systemd user service on Linux. A machine with neither has no service, and
-install refuses. The unit runs this pm's interpreter (`python -m pm.cli service run`) with the PATH and the site port
-install ran with, so `PORT=<n> pm service install` gives a second clone of the repo its own port, which installing
-again keeps. The service writes
-its log to `<main checkout>/.pm/run/service.log`; health is the supervisor holding the unit plus the site answering
-on its port for this clone's store."""
+install refuses. The unit runs the pm uv tool's interpreter (`python -m pm.cli service run`; pm init installs the
+tool) with the PATH and the site port install ran with, so `PORT=<n> pm service install` gives a second clone of the
+repo its own port, which installing again keeps. Install waits for the site to answer and fails when it does not.
+The service writes its log to `<main checkout>/.pm/run/service.log`; health is the supervisor holding the unit plus
+the site answering on its port for this clone's store."""
 
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import push
-from .config import run_dir
+from . import push, tool
+from .config import STORE, run_dir
 from .records import RecordError
 
 SERVE_HEADER = "X-PM-Store"  # the service's replies name the store they render, so a probe can check who answers
@@ -79,14 +79,15 @@ def unit_file(main: Path, kind: str) -> Path:
     return d / f"{label(main)}.service"
 
 
-def command() -> list[str]:
-    """What the supervisor runs: this pm's interpreter, so the service runs the pm that installed it."""
-    return [sys.executable, "-m", "pm.cli", "service", "run"]
+def command(py: Path) -> list[str]:
+    """What the supervisor runs: the pm uv tool's interpreter `py`, whose path stays across versions and cache
+    cleans, unlike uvx's environment."""
+    return [str(py), "-m", "pm.cli", "service", "run"]
 
 
-def launchd_job(main: Path, path: str, port: int) -> dict:
+def launchd_job(main: Path, path: str, port: int, py: Path) -> dict:
     log = str(log_path(main))
-    return {"Label": label(main), "ProgramArguments": command(), "WorkingDirectory": str(main), "RunAtLoad": True,
+    return {"Label": label(main), "ProgramArguments": command(py), "WorkingDirectory": str(main), "RunAtLoad": True,
             "KeepAlive": True, "StandardOutPath": log, "StandardErrorPath": log,
             "EnvironmentVariables": {"PATH": path, "PORT": str(port)}}
 
@@ -96,20 +97,20 @@ def unit_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%") + '"'
 
 
-def systemd_unit(main: Path, path: str, port: int) -> str:
+def systemd_unit(main: Path, path: str, port: int, py: Path) -> str:
     log = str(log_path(main)).replace("%", "%%")
     # WorkingDirectory= takes the rest of the line as the path: quotes would be part of it, and systemd then refuses
     # the unit as not absolute.
     return (f"[Unit]\nDescription=pm service for {main}\n\n[Service]\nType=simple\n"
             f"WorkingDirectory={str(main).replace('%', '%%')}\n"
             f"Environment={unit_quote('PATH=' + path)} {unit_quote(f'PORT={port}')}\n"
-            f"ExecStart={' '.join(unit_quote(c) for c in command())}\nRestart=always\nRestartSec=5\n"
+            f"ExecStart={' '.join(unit_quote(c) for c in command(py))}\nRestart=always\nRestartSec=5\n"
             f"StandardOutput=append:{log}\nStandardError=append:{log}\n\n[Install]\nWantedBy=default.target\n")
 
 
-def unit_bytes(main: Path, kind: str, path: str, port: int) -> bytes:
-    return (plistlib.dumps(launchd_job(main, path, port)) if kind == "launchd"
-            else systemd_unit(main, path, port).encode())
+def unit_bytes(main: Path, kind: str, path: str, port: int, py: Path) -> bytes:
+    return (plistlib.dumps(launchd_job(main, path, port, py)) if kind == "launchd"
+            else systemd_unit(main, path, port, py).encode())
 
 
 def loaded(main: Path, kind: str) -> bool:
@@ -146,28 +147,18 @@ def installed(main: Path) -> bool:
     return unit_file(main, platform_kind()).exists()
 
 
-def check_interpreter(main: Path) -> None:
-    """Refuse to install a pm that runs from another worktree's environment (bin/pm in a worktree): the unit would
-    run that worktree's code, and fail at every start once the worktree is gone."""
-    res = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=main, capture_output=True, text=True)
-    prefix = Path(sys.prefix).resolve()
-    for line in res.stdout.splitlines():
-        tree = Path(line.removeprefix("worktree ")).resolve() if line.startswith("worktree ") else None
-        if tree and tree != main.resolve() and prefix.is_relative_to(tree):
-            raise RecordError(f"this pm runs from {prefix}, inside the worktree {tree}; the service would run that "
-                              f"worktree's code. Run pm service install with the installed pm, or from {main}")
-
-
 def install(main: Path, port: int) -> str:
-    """Install this clone's service, or bring an installed one up to date, and start it; empty when it is installed,
-    current and held by the supervisor. Refused unless bd and git resolve on the PATH it runs with."""
+    """Install this clone's service, or bring an installed one up to date, start it and wait until the site answers
+    for this clone's store; empty when it is installed, current and held by the supervisor. Refused unless the pm
+    uv tool runs this version and bd and git resolve on the PATH it runs with; failed when the site does not
+    come up (another clone's service on the port, say)."""
     kind = supervisor()
-    path = os.environ.get("PATH", "")
+    py = tool.current()
+    path = tool.path()
     missing = [t for t in TOOLS if shutil.which(t, path=path) is None]
     if missing:
         raise RecordError(f"the pm service needs {', '.join(TOOLS)} on PATH; {', '.join(missing)} not found in {path}")
-    check_interpreter(main)
-    unit, want = unit_file(main, kind), unit_bytes(main, kind, path, port)
+    unit, want = unit_file(main, kind), unit_bytes(main, kind, path, port, py)
     changed = not unit.exists() or unit.read_bytes() != want
     up = loaded(main, kind)
     if not changed and up:
@@ -196,8 +187,26 @@ def install(main: Path, port: int) -> str:
     state = push.read_state(main)
     if "installed_at" not in state:  # a push that never succeeds is overdue counted from here
         push.write_state(main, {**state, "installed_at": push.now().isoformat()})
+    wait_up(main, port, f"{'updated' if up else 'installed'} {name}",
+            f"if another clone's service holds :{port}, give this clone its own port with PORT=<n> pm service install")
     return (f"{'updated' if up else 'installed'} the pm service: {said}, serving http://localhost:{port} and pushing "
             f"every {push.INTERVAL // 60} min; log {log_path(main)}")
+
+
+def wait_up(main: Path, port: int, done: str, hint: str = "") -> str:
+    """Wait up to RESTART_WAIT seconds for the site to answer on `port` for this clone's store; its health line,
+    or failed naming what answers instead, `hint` and the log."""
+    deadline = time.monotonic() + RESTART_WAIT
+    while True:
+        ok, line = health(main, main / STORE)
+        if ok:
+            return line
+        served = answering(port)
+        if time.monotonic() > deadline or (served is not None and served != str((main / STORE).resolve())):
+            # past the deadline, or another server holds the port, so this clone's service cannot bind it
+            raise RecordError(f"{done}, but the site does not answer for this store on :{port} "
+                              f"({line.split('  ', 1)[-1].strip()}); {hint + '; ' if hint else ''}read pm service logs")
+        time.sleep(0.2)
 
 
 def unit_command(main: Path, kind: str) -> list[str] | None:
@@ -235,8 +244,13 @@ def drift(main: Path, port: int) -> list[str]:
     else:
         if have != port:
             out.append(f"{unit} serves on :{have}, not :{port}; run pm service install")
-    if unit_command(main, kind) != command():
-        out.append(f"{unit} does not run this pm ({' '.join(command())}); run pm service install")
+    try:
+        want = command(tool.current())
+    except RecordError as e:
+        out.append(str(e))
+    else:
+        if unit_command(main, kind) != want:
+            out.append(f"{unit} does not run the pm uv tool ({' '.join(want)}); run pm service install")
     return out
 
 
@@ -308,7 +322,7 @@ def status(main: Path, store: Path, remote: str) -> tuple[int, str]:
     return (0 if ok and not flags else 1), "\n".join(lines)
 
 
-def restart(main: Path, store: Path) -> str:
+def restart(main: Path) -> str:
     """Restart the installed service (load it when the supervisor does not hold it), then wait for the site to answer
     for this store; refused when it is not installed, failed when it does not come up."""
     kind = supervisor()
@@ -322,15 +336,7 @@ def restart(main: Path, store: Path) -> str:
             checked(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(unit)])
     else:
         checked(["systemctl", "--user", "restart", unit.name])
-    port = unit_port(main, kind)
-    deadline = time.monotonic() + RESTART_WAIT
-    while time.monotonic() < deadline:
-        ok, line = health(main, store)
-        if ok:
-            return f"restarted the pm service\n{line}"
-        time.sleep(0.5)
-    raise RecordError(f"restarted {name}, but the site does not answer for this store on :{port} after "
-                      f"{RESTART_WAIT} s ({line.split('  ', 1)[-1]}); read pm service logs")
+    return f"restarted the pm service\n{wait_up(main, unit_port(main, kind), f'restarted {name}')}"
 
 
 def logs(main: Path, lines: int) -> str:

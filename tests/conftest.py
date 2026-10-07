@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -125,24 +126,57 @@ ISSUES = [
 ]
 
 
+def install_tool(tools: Path, bindir: Path) -> None:
+    """The pm uv tool as `uv tool install` lays it out under UV_TOOL_DIR and UV_TOOL_BIN_DIR, running the pm the
+    tests run, so the service's unit and the hooks' `pm` run this checkout's code."""
+    env_bin = tools / "pm/bin"
+    env_bin.mkdir(parents=True, exist_ok=True)
+    for name, target in (("python", sys.executable), ("pm", PM[0])):
+        (env_bin / name).write_text(f'#!/bin/sh\nexec "{target}" "$@"\n')
+        (env_bin / name).chmod(0o755)
+    bindir.mkdir(parents=True, exist_ok=True)
+    if not (bindir / "pm").is_symlink():
+        (bindir / "pm").symlink_to(env_bin / "pm")
+
+
+def stop_services(tmp: Path) -> None:
+    """Stop every process the fake supervisor started under `tmp`."""
+    path = tmp / "sched.json"
+    if not path.exists():
+        return
+    for pid in json.loads(path.read_text()).get("pids", {}).values():
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+
+@pytest.fixture(autouse=True)
+def no_service_left(tmp_path: Path):
+    yield
+    stop_services(tmp_path)
+
+
 def fake_bd_env(tmp: Path, base) -> dict[str, str]:
     """`base` with the fake bd and gh first on PATH, bd serving ISSUES from tmp/bd.json and logging calls to
     tmp/bd.log, gh serving PRs from tmp/gh.json (none at first), claude a fake logging to tmp/claude.log; made on first use in `tmp`, so later calls keep
     their state and log. CODEX_HOME is tmp/codex, absent until a test makes it, so no test reads or edits the
     user's Codex config. HOME is tmp/home and launchctl and systemctl are fakes logging to tmp/sched.log,
-    so no test installs a real service."""
+    so no test installs a real service; UV_TOOL_DIR and UV_TOOL_BIN_DIR are under tmp/uv, which holds the pm uv
+    tool (install_tool), so no test reads or installs the user's tools."""
     bindir = tmp / "bin"
     if not bindir.exists():
         bindir.mkdir()
-        (bindir / "bd").symlink_to(FAKE_BD)
-        (bindir / "gh").symlink_to(FAKE_GH)
-        (bindir / "claude").symlink_to(FAKE_CLAUDE)
-        for tool in ("launchctl", "systemctl"):
-            (bindir / tool).symlink_to(FAKE_SCHED)
+        # each runs with this interpreter, whatever python3 the PATH a unit gets holds
+        for tool, script in (("bd", FAKE_BD), ("gh", FAKE_GH), ("claude", FAKE_CLAUDE), ("launchctl", FAKE_SCHED),
+                             ("systemctl", FAKE_SCHED)):
+            (bindir / tool).write_text(f'#!/bin/sh\nFAKE_TOOL={tool} exec "{sys.executable}" "{script}" "$@"\n')
+            (bindir / tool).chmod(0o755)
         (tmp / "home").mkdir()
         (tmp / "gh.json").write_text("{}")
         (tmp / "bd.json").write_text(json.dumps(ISSUES))
         (tmp / "bd.log").write_text("")
+        install_tool(tmp / "uv/tools", tmp / "uv/bin")
     # a test names its session itself, and its transcripts live under tmp/claude, not the user's
     base = {k: v for k, v in base.items() if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID",
                                                          "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN")}
@@ -150,7 +184,8 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
                 FAKE_BD_LOG=str(tmp / "bd.log"), FAKE_GH_STATE=str(tmp / "gh.json"), CODEX_HOME=str(tmp / "codex"),
                 CLAUDE_CONFIG_DIR=str(tmp / "claude"), HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "home/.config"),
                 FAKE_SCHED_LOG=str(tmp / "sched.log"), FAKE_SCHED_STATE=str(tmp / "sched.json"),
-                FAKE_CLAUDE_LOG=str(tmp / "claude.log"), **UV_DIRS)
+                FAKE_CLAUDE_LOG=str(tmp / "claude.log"), UV_TOOL_DIR=str(tmp / "uv/tools"),
+                UV_TOOL_BIN_DIR=str(tmp / "uv/bin"), **UV_DIRS)
 
 
 class Repo:
@@ -214,7 +249,7 @@ class Repo:
     def dolt(self) -> None:
         """Make the embedded Dolt store the pm service watches: a manifest and a journal that every bd write (fake bd or
         set_issue) grows, as Dolt's chunk journal does."""
-        (self.noms / "oldgen").mkdir(parents=True)
+        (self.noms / "oldgen").mkdir(parents=True, exist_ok=True)  # bd bootstrap may have made it
         (self.noms / "manifest").write_text("5:fake\n")
         (self.noms / "journal").write_text("")
 
