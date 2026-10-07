@@ -41,7 +41,8 @@ INSTRUCTION_LINES = (
 # every command the harness wrote into the runtimes' settings, as git history holds them
 _HOOKS = ("session_context", "owner_request", "uncommitted_records", "reply_wait")
 _BIN = ("prime --hook-json", "prime --rules --hook-json", "prime --state --hook-json", "prime --subagent --hook-json",
-        "hook owner-request || exit 1", "hook stop || exit 1", "hook stop")
+        "hook owner-request || exit 1", "hook stop || exit 1", "hook stop",
+        *(f"prime --rules {n} --hook-json" for n in range(1, 5)))  # bin/pm ran four rules chunks at the end
 HOOK_COMMANDS = frozenset(
     [f'python3 "$CLAUDE_PROJECT_DIR"/skills/project-management/harness/{h}_hook.py' for h in _HOOKS]
     + [f'python3 "$CLAUDE_PROJECT_DIR/skills/project-management/harness/{h}_hook.py"' for h in _HOOKS]

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from test_init import BEADS_HOOK, GITIGNORE_BLOCK, commands, env, git, pm, section, snapshot
+from test_init import BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, commands, env, git, pm, section, snapshot
 
 pytestmark = pytest.mark.slow  # a clone with a remote; init moves the store and starts the service
 
@@ -45,7 +45,8 @@ CLAUDE_SETTINGS = {
     "hooks": {
         "SessionStart": [{"hooks": [hook("bd prime --hook-json"), hook(f"{BIN} prime --rules --hook-json", timeout=30),
                                     hook(f"{BIN} prime --state --hook-json", timeout=30)], "matcher": ""}],
-        "SubagentStart": [{"hooks": [hook(f"{BIN} prime --subagent --hook-json", timeout=15)], "matcher": ""}],
+        "SubagentStart": [{"hooks": [*(hook(f"{BIN} prime --rules {n} --hook-json", timeout=15) for n in range(1, 5)),
+                                     hook(f"{BIN} prime --subagent --hook-json", timeout=15)], "matcher": ""}],
         "PostToolUse": [{"hooks": [hook('python3 "$CLAUDE_PROJECT_DIR"/skills/project-management/harness/'
                                         'reply_wait_hook.py')], "matcher": "Bash"}],
         "PreToolUse": [{"hooks": [hook("./lint.sh")], "matcher": "Bash"}],
@@ -196,7 +197,7 @@ def test_init_migrates_a_legacy_clone_and_doctor_is_clean(legacy_clone: Path, tm
     res = pm(main, "init")
     assert res.returncode == 0, res.stderr
     out = res.stdout
-    for piece in ("CLAUDE.md: the RULES.md import", ".claude/settings.json: 6 hook entries",
+    for piece in ("CLAUDE.md: the RULES.md import", ".claude/settings.json: 10 hook entries",
                   ".codex/hooks.json: 2 hook entries", ".beads/hooks/post-checkout: the unmarked pm code",
                   ".beads/hooks/pre-commit: the unmarked pm code", ".github/workflows/records-guard.yml: renamed to "
                   ".github/workflows/pm-records-guard.yml", ".gitignore: /.records/, site/, /records, "
@@ -207,17 +208,15 @@ def test_init_migrates_a_legacy_clone_and_doctor_is_clean(legacy_clone: Path, tm
     # tracked files: each legacy piece replaced by pm's, every other byte kept
     assert (main / "CLAUDE.md").read_text() == CLAUDE_MD_AFTER and (main / "AGENTS.md").is_symlink()
     claude = json.loads((main / ".claude/settings.json").read_text())
-    assert commands(claude, "SessionStart") == ["bd prime --hook-json", "pm prime --rules --hook-json",
-                                                "pm prime --state --hook-json"]
-    assert commands(claude, "SubagentStart") == ["pm prime --subagent --hook-json"]
-    assert commands(claude, "Stop") == ["pm hook owner-request || exit 1", "pm hook stop || exit 1"]
+    assert commands(claude, "SessionStart") == ["bd prime --hook-json", *CLAUDE_PM["SessionStart"]]
+    assert commands(claude, "SubagentStart") == CLAUDE_PM["SubagentStart"]
+    assert commands(claude, "Stop") == CLAUDE_PM["Stop"]
     assert commands(claude, "PreToolUse") == ["./lint.sh"] and "PostToolUse" not in claude["hooks"]
     assert list(claude["hooks"]) == ["SessionStart", "SubagentStart", "PreToolUse", "Stop"], "events keep their place"
     assert claude["worktree"] == {"bgIsolation": "none"}
     codex = json.loads((main / ".codex/hooks.json").read_text())
-    assert commands(codex, "SessionStart") == ["bd codex-hook SessionStart", "pm prime --rules --hook-json",
-                                               "pm prime --state --hook-json"]
-    assert commands(codex, "Stop") == ["pm hook owner-request || exit 1", "pm hook stop || exit 1"]
+    assert commands(codex, "SessionStart") == ["bd codex-hook SessionStart", *CLAUDE_PM["SessionStart"]]
+    assert commands(codex, "Stop") == CLAUDE_PM["Stop"]
     assert (main / ".beads/hooks/post-checkout").read_text() == BEADS_HOOK + section("post-checkout")
     assert (main / ".beads/hooks/pre-commit").read_text() == BEADS_HOOK + section("pre-commit") + MINE
     assert not any((main / rel).exists() for rel in OLD_WORKFLOWS)

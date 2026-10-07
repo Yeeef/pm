@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -172,6 +174,35 @@ def no_service_left(tmp_path: Path):
     stop_services(tmp_path)
 
 
+# The user's files pm writes outside a repo: Codex's config (pm setup's writable roots) and the service units.
+# pytest_configure points HOME, CODEX_HOME and CLAUDE_CONFIG_DIR at a temp dir for the whole test process, so
+# whatever a test runs with the inherited environment (git and the pm hooks it runs, in-process calls) writes there,
+# never here; each test then checks that nothing here changed.
+# xdist workers start after the controller's pytest_configure, so the user's values come from PM_TESTS_REAL_*.
+REAL = {k: os.environ.get(f"PM_TESTS_REAL_{k}", os.environ.get(k, "")) for k in ("HOME", "CODEX_HOME",
+                                                                                 "XDG_CONFIG_HOME")}
+REAL_HOME = Path(REAL["HOME"])
+REAL_CODEX_CONFIG = Path(REAL["CODEX_HOME"] or REAL_HOME / ".codex") / "config.toml"
+REAL_UNITS = (REAL_HOME / "Library/LaunchAgents",
+              Path(REAL["XDG_CONFIG_HOME"] or REAL_HOME / ".config") / "systemd/user")
+
+
+def real_state() -> tuple:
+    codex = REAL_CODEX_CONFIG.read_bytes() if REAL_CODEX_CONFIG.is_file() else None
+    return codex, sorted(str(p) for d in REAL_UNITS if d.is_dir() for p in d.glob("*pm.*"))
+
+
+REAL_BEFORE = real_state()
+
+
+@pytest.fixture(autouse=True)
+def real_home_untouched():
+    yield
+    after = real_state()
+    assert after[0] == REAL_BEFORE[0], f"a test changed the user's {REAL_CODEX_CONFIG}"
+    assert after[1] == REAL_BEFORE[1], f"a test added or removed the user's pm service units: {after[1]}"
+
+
 def fake_bd_env(tmp: Path, base) -> dict[str, str]:
     """`base` with the fake bd and gh first on PATH, bd serving ISSUES from tmp/bd.json and logging calls to
     tmp/bd.log, gh serving PRs from tmp/gh.json (none at first), claude a fake logging to tmp/claude.log; made on first use in `tmp`, so later calls keep
@@ -311,5 +342,18 @@ def repo(tmp_path: Path) -> Repo:
 
 
 def pytest_configure(config):
+    # before any test module is imported, so module-level environments (test_init's GIT_ENV) get the temp dirs too
+    os.environ.update({f"PM_TESTS_REAL_{k}": v for k, v in REAL.items()})
+    home = config.pm_home = Path(tempfile.mkdtemp(prefix="pm-tests-home-"))
+    os.environ.update(HOME=str(home / "home"), CODEX_HOME=str(home / "codex"), CLAUDE_CONFIG_DIR=str(home / "claude"),
+                      XDG_CONFIG_HOME=str(home / "home/.config"), **UV_DIRS)
+    (home / "home").mkdir()
+    # the tests' git, without the user's global config: new repos and bare remotes start on main
+    (home / "home/.gitconfig").write_text("[init]\n\tdefaultBranch = main\n[user]\n\tname = t\n\temail = t@example.com\n")
     config.addinivalue_line("markers", "slow: starts pm serve, a fresh clone, a remote or the session-start hook; "
                                        "`make test` skips it, `make test-full` runs it")
+
+
+def pytest_unconfigure(config):
+    if hasattr(config, "pm_home"):
+        shutil.rmtree(config.pm_home, ignore_errors=True)

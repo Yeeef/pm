@@ -19,7 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from pm import __version__
+from pm import __version__, hooks
 
 
 class InstallError(Exception):
@@ -153,10 +153,11 @@ def claude_hooks() -> dict[str, dict]:
     """pm's entries in .claude/settings.json, by event: the matcher group pm adds, holding only pm's hooks."""
     def h(command: str, timeout: int) -> dict:
         return {"command": command, "type": "command", "timeout": timeout}
+    def rules(timeout: int) -> list[dict]:
+        return [h(f"pm prime --rules {i} --hook-json", timeout) for i in range(1, len(hooks.STARTS) + 1)]
     return {
-        "SessionStart": {"hooks": [h("pm prime --rules --hook-json", 30), h("pm prime --state --hook-json", 30)],
-                         "matcher": ""},
-        "SubagentStart": {"hooks": [h("pm prime --subagent --hook-json", 15)], "matcher": ""},
+        "SessionStart": {"hooks": [*rules(30), h("pm prime --state --hook-json", 30)], "matcher": ""},
+        "SubagentStart": {"hooks": [*rules(15), h("pm prime --subagent --hook-json", 15)], "matcher": ""},
         "Stop": {"hooks": [h("pm hook owner-request || exit 1", 30), h("pm hook stop || exit 1", 10)]},
     }
 
@@ -165,11 +166,16 @@ def codex_hooks() -> dict[str, dict]:
     """pm's entries in .codex/hooks.json. Codex's SessionStart has no compact event (sprint 34's question)."""
     def h(command: str, status: str, timeout: int) -> dict:
         return {"command": command, "statusMessage": status, "type": "command", "timeout": timeout}
+    def rules(timeout: int) -> list[dict]:
+        n = len(hooks.STARTS)
+        return [h(f"pm prime --rules {i} --hook-json", f"Loading pm rules ({i} of {n})", timeout)
+                for i in range(1, n + 1)]
     return {
-        "SessionStart": {"hooks": [h("pm prime --rules --hook-json", "Loading pm rules", 30),
+        "SessionStart": {"hooks": [*rules(30),
                                    h("pm prime --state --hook-json", "Loading pm setup, pm where and pm show", 30)],
                          "matcher": "startup|resume|clear"},
-        "SubagentStart": {"hooks": [h("pm prime --subagent --hook-json", "Naming the Beads agent profile", 15)]},
+        "SubagentStart": {"hooks": [*rules(15),
+                                    h("pm prime --subagent --hook-json", "Naming the Beads agent profile", 15)]},
         "Stop": {"hooks": [h("pm hook owner-request || exit 1", "Checking for owner requests asked only in chat", 30),
                            h("pm hook stop || exit 1", "Checking for uncommitted records", 10)]},
     }

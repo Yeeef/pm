@@ -2542,7 +2542,10 @@ def doctor_setup(top: Path, main: Path, store: Path) -> list[str]:
         out.append(f"sparse checkout: {top} does not exclude records/; run pm init")
     hooks_path = store_git(main, "config", "--get", "--default=", "core.hooksPath")
     if not hooks_path or (main / hooks_path).resolve() != (main / ".beads/hooks").resolve():
-        out.append(f"hooks path: core.hooksPath is {hooks_path or 'unset'}, not .beads/hooks; run pm init")
+        fix = ("run pm init" if not hooks_path else
+               "pm works only with Beads' hooks path: move any hooks there into .beads/hooks (outside Beads' and "
+               "pm's marked sections), run git config --unset core.hooksPath, then pm init")
+        out.append(f"hooks path: core.hooksPath is {hooks_path or 'unset'}, not .beads/hooks; {fix}")
     out += [f"service: {d}" for d in service.drift(main, service.port_for(main, cfg().port))]
     if codex_home().is_dir() and store.is_dir():
         path = codex_home() / "config.toml"
@@ -3121,6 +3124,43 @@ WRITES = {"finding add", "feedback add", "decision add", "decision need", "decis
           "doc new", "design new", "postmortem new", "project open", "sprint open", "sprint close", "task add", "task close",
           "task move", "commit"}
 
+# `pm service --help`: the service's whole context, which pm prime only points at.
+SERVICE_HELP = f"""\
+The pm service: one supervised background process per clone, `pm service run` in the main checkout. It
+serves the site live from the records store and Beads (a page is at most {SERVE_BEHIND} s behind them), delivers
+the owner's site replies and reviewed PRs' merges (GitHub polled every {MERGE_POLL} s) into the sessions that
+raised them, and pushes Beads data (bd dolt push), today's summary and the records branch every
+{pushjob.INTERVAL} s, the first push {pushjob.INTERVAL} s after it starts. Sessions push neither.
+
+Supervisor: it starts the service at login and again after a crash. A launchd agent with KeepAlive on
+macOS (~/Library/LaunchAgents/local.pm.<dir>.<hash>.plist); a systemd user service with Restart=always
+on Linux ($XDG_CONFIG_HOME/systemd/user/local.pm.<dir>.<hash>.service, ~/.config by default). On a
+machine with neither there is no service, and install refuses.
+
+Unit: runs the pm uv tool's interpreter (`<tool python> -m pm.cli service run`; pm init installs the
+tool) in the main checkout, with the PATH install ran with (bd and git must be on it) and PORT.
+
+Port: $PORT, else the installed unit's port, else `port` in {config.REL}. Installing again keeps the unit's
+port. A second clone of the repo on this machine needs its own: PORT=<n> pm service install.
+
+State and logs, in <main checkout>/{config.RUN}/ (never committed): service.log (pm service logs), push.json
+(each push step's last outcome), push.log (a line per step per run), push.lock (one push at a time).
+
+Health (pm service status, pm where): the supervisor holds the unit, and the site answers on its port
+with {service.SERVE_HEADER} naming this clone's store and {service.VERSION_HEADER} naming this pm's build. Status also
+flags a push step that failed or has not succeeded for {pushjob.OVERDUE} s.
+
+Stale build: every {SERVE_CHECK:g} s the service rereads the pin in {config.REL}; once it pins another version (a
+pull after pm upgrade) the service exits and the supervisor starts the pm uv tool again. A service that
+answers on another build than the running pm is stale in pm where, pm service status and pm doctor. Fix:
+pm init (it installs the pm uv tool at this build, then the service); when the tool already runs this
+build, pm service install or pm service restart.
+
+Agents: pm prime carries pm where's service line and push state, and pm show warns when a push needs
+attention. When the service is down, run pm service restart; if that fails, raise an action for the
+owner (pm action need) and add a bug task (pm task add). pm init installs the service; pm uninstall stops
+it and removes its unit."""
+
 
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="pm", description=__doc__.strip().splitlines()[0])
@@ -3194,7 +3234,7 @@ def parser() -> argparse.ArgumentParser:
                     "taken if the owner does not answer, then its reason. Send it with a quoted heredoc (<<'EOF'), "
                     "so code spans stay. pm writes the description in one Markdown layout and refuses an option "
                     "without a cost, a default that names no option, and a sentence of more than 25 words. Record "
-                    "the answer with pm decision add --need, or close a small answer with pm decision close. A need a test or live check raises starts its title with \"[TEST]\"; close it with bd human dismiss <id> once the check is done.")
+                    "the answer with pm decision add --need, or close a small answer with pm decision close.")
     s.add_argument("--title", required=True)
     s.add_argument("--parent", required=True, metavar="ID", help="the sprint or task the decision belongs to")
     s.set_defaults(func=cmd_decision_need)
@@ -3221,7 +3261,7 @@ def parser() -> argparse.ArgumentParser:
                     "close the review with pm action done <id> --reason \"merged as <sha>\"; "
                     "the site's card links the PR, each sprint's record and delivery report, and the design "
                     "pages named with --design plus those the sprints' records list, and shows the focus; stdin "
-                    "then holds optional extra context. Close it with pm action done once you see it done. A need a test or live check raises starts its title with \"[TEST]\"; close it with bd human dismiss <id> once the check is done.")
+                    "then holds optional extra context. Close it with pm action done once you see it done.")
     s.add_argument("--title", help="required without --pr; with --pr, default: Review PR #<n>")
     s.add_argument("--parent", metavar="ID", help="the sprint or task the action belongs to (required without --pr; "
                    "not allowed with it)")
@@ -3363,24 +3403,44 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_check)
 
     svc = sub.add_parser("service", help="the pm service: one background process per clone serves the site and pushes "
-                                         "Beads data and the records branch every 10 minutes").add_subparsers(
-        dest="sub", required=True)
+                                         "Beads data and the records branch every 10 minutes",
+                         description=SERVICE_HELP, formatter_class=argparse.RawDescriptionHelpFormatter
+                         ).add_subparsers(dest="sub", required=True)
     s = svc.add_parser("install", help="install and start this clone's service (launchd on macOS, systemd on Linux), "
                                        "or update it; a no-op once installed and current",
                        description="Install the pm service under the machine's supervisor, which starts it at login "
                                    "and restarts it after a crash: a launchd agent with KeepAlive on macOS, a systemd "
-                                   "user service on Linux; refused on a machine with neither. It runs this pm with "
-                                   "the current PATH (bd and git must be on it) and serves on $PORT, else the port it "
-                                   "was installed with, else the port in .pm/config.toml; give a second clone of the "
-                                   "repo its own PORT once.")
+                                   "user service on Linux; refused on a machine with neither. The unit runs the pm uv "
+                                   "tool's interpreter (refused unless the tool runs this pm's build: run pm init) "
+                                   "with the current PATH (bd and git must be on it) and serves on $PORT, else the "
+                                   "port it was installed with, else the port in .pm/config.toml; give a second clone "
+                                   "of the repo its own port once with PORT=<n> pm service install. Installing again "
+                                   "rewrites a changed unit and restarts a service on another build. It waits "
+                                   f"{service.RESTART_WAIT} s for the site to answer for this store and fails when it "
+                                   "does not (another clone's service on the port, say). pm init runs it.")
     s.set_defaults(func=cmd_service_install)
     s = svc.add_parser("status", help="whether the service is up and its site answers for this store, and its pushes; "
-                                      "non-zero when either needs attention")
+                                      "non-zero when either needs attention",
+                       description="Print the service's health line (as pm where does), each push step's last "
+                                   "outcome, every push problem and the log's path. Up means the supervisor holds the "
+                                   f"unit and the site answers on its port with {service.SERVE_HEADER} naming this "
+                                   f"store and {service.VERSION_HEADER} naming this pm's build; a push problem is a "
+                                   f"step whose last run failed or that has not succeeded for {pushjob.OVERDUE} s. "
+                                   "Exits non-zero when the service is down, stale or a push needs attention; each "
+                                   "line names the command that fixes it.")
     s.set_defaults(func=cmd_service_status)
     s = svc.add_parser("restart", help="restart the service and wait for its site to answer; when it fails, raise an "
-                                       "action for the owner and add a bug task")
+                                       "action for the owner and add a bug task",
+                       description="Restart the installed service, or load it when the supervisor does not hold it, "
+                                   f"then wait {service.RESTART_WAIT} s for the site to answer for this store. The "
+                                   "fix when pm where shows the service down. Refused when it is not installed (run "
+                                   "pm service install); when it fails, read pm service logs, raise an action for the "
+                                   "owner (pm action need) and add a bug task (pm task add).")
     s.set_defaults(func=cmd_service_restart)
-    s = svc.add_parser("logs", help="print the end of the service's log, <main checkout>/.pm/run/service.log")
+    s = svc.add_parser("logs", help="print the end of the service's log, <main checkout>/.pm/run/service.log",
+                       description="Print the end of <main checkout>/.pm/run/service.log, where the service writes "
+                                   "stdout and stderr: a line per request, refresh and reply write with its timings, "
+                                   "and any error that stopped it. The push's own log is .pm/run/push.log beside it.")
     s.add_argument("-n", "--lines", type=int, default=50, help="how many lines (default 50)")
     s.set_defaults(func=cmd_service_logs)
     s = svc.add_parser("run", help="the service's process, run by its supervisor: serve the site on localhost:$PORT "
@@ -3388,8 +3448,9 @@ def parser() -> argparse.ArgumentParser:
                        description="Serve the site on localhost:$PORT (default: port in .pm/config.toml): a page is at "
                                    "most 10 s behind the records and Beads and states its data's age; an open page "
                                    "never reloads itself but shows within ~10 s that newer data exists, loaded on "
-                                   "reload. Every 10 minutes, the first 10 after start, run pm push. The supervisor "
-                                   "runs it; run it by hand only to debug, or on another PORT.")
+                                   "reload. Every 10 minutes, the first 10 after start, run pm push. Exits once "
+                                   ".pm/config.toml pins another pm version, so the supervisor starts the pm uv tool "
+                                   "again. The supervisor runs it; run it by hand only to debug, or on another PORT.")
     s.set_defaults(func=cmd_serve)
 
     s = sub.add_parser("doctor", help="compare every managed piece with what this pm writes, and the clone and "
@@ -3451,14 +3512,17 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_where)
 
     s = sub.add_parser("prime", help="pm's rules, then pm setup, pm where and pm show: the context a session starts "
-                                     "with; the SessionStart hooks run --rules and --state, and an agent may run it by hand")
+                                     "with; the SessionStart hooks run --rules 1 to --rules "
+                                     f"{len(hooks.STARTS)} and --state, and an agent may run it by hand")
     part = s.add_mutually_exclusive_group()
-    part.add_argument("--rules", dest="part", action="store_const", const="rules",
-                      help="only the rules and the command list, never cut: the first SessionStart hook")
+    part.add_argument("--rules", dest="part", type=int, choices=range(1, len(hooks.STARTS) + 1), metavar="N",
+                      help=f"only chunk N of the rules and the command list, under a title naming its sections: "
+                           f"one hook each on SessionStart and SubagentStart, since Claude Code passes a hook's text "
+                           f"inline only up to 10,000 characters")
     part.add_argument("--state", dest="part", action="store_const", const="state",
-                      help="only pm setup, pm where and pm show, cut at a line to 10,000 characters: the second SessionStart hook")
+                      help="only pm setup, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook")
     part.add_argument("--subagent", dest="part", action="store_const", const="subagent",
-                      help="what a subagent gets: the Beads agent profile line, the rules and the command list, without pm show")
+                      help="only the line naming the Beads agent profile: the last SubagentStart hook, beside the rules chunks")
     s.add_argument("--hook-json", action="store_true", help="read the SessionStart or SubagentStart input on stdin "
                    "and print the hook's JSON envelope, as Claude Code and Codex read it")
 

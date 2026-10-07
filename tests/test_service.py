@@ -70,6 +70,19 @@ def machine(tmp_path, monkeypatch):
     return main, calls, world
 
 
+def test_service_help_holds_the_service_context(capsys):
+    """pm prime only points at `pm service --help`, so the help carries what an agent needs."""
+    from pm.cli import main
+    with pytest.raises(SystemExit):
+        main(["service", "--help"])
+    text = " ".join(capsys.readouterr().out.split())
+    for fact in ("every 600 s, the first push 600 s after it starts", "KeepAlive", "Restart=always",
+                 "PORT=<n> pm service install", "the installed unit's port", "<main checkout>/.pm/run/",
+                 "service.log", "push.json", "X-PM-Store", "X-PM-Version", "Stale build",
+                 "run pm service restart; if that fails, raise an action", "pm uninstall"):
+        assert fact in text, fact
+
+
 def test_systemd_unit_runs_this_pm_restarts_it_and_quotes_paths(machine, monkeypatch):
     main, calls, world = machine
     monkeypatch.setattr(sys, "platform", "linux")

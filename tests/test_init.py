@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from conftest import PM, fake_bd_env
-from pm import __version__
+from pm import __version__, hooks
 
 GIT_ENV = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
                GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
@@ -30,8 +30,9 @@ BD_SET = [".beads/config.yaml"]  # what bd changes when pm init sets the agent p
 GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n"
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
                    "/.claude/settings.local.json\n# --- END PM ---\n")
-CLAUDE_PM = {"SessionStart": ["pm prime --rules --hook-json", "pm prime --state --hook-json"],
-             "SubagentStart": ["pm prime --subagent --hook-json"],
+RULES = [f"pm prime --rules {n} --hook-json" for n in range(1, len(hooks.STARTS) + 1)]  # one hook per rules chunk
+CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
+             "SubagentStart": [*RULES, "pm prime --subagent --hook-json"],
              "Stop": ["pm hook owner-request || exit 1", "pm hook stop || exit 1"]}
 
 
@@ -127,6 +128,8 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert all(commands(claude, e) == c for e, c in CLAUDE_PM.items() if e != "SessionStart")
     codex = json.loads((new_repo / ".codex/hooks.json").read_text())
     assert all(commands(codex, e) == c for e, c in CLAUDE_PM.items())
+    status = [h["statusMessage"] for g in codex["hooks"]["SessionStart"] for h in g["hooks"] if h["command"] in RULES]
+    assert status == [f"Loading pm rules ({n} of {len(RULES)})" for n in range(1, len(RULES) + 1)]
     assert "branches: [main]" in (new_repo / ".github/workflows/pm-records-copy.yml").read_text()
     assert (new_repo / ".gitignore").read_text() == GITIGNORE_BLOCK
     status = git(new_repo, "status", "--porcelain", "--untracked-files=all").split("\n")
