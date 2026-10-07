@@ -247,3 +247,78 @@ def test_free_port_skips_held_ports_and_other_clones_units(monkeypatch):
             assert not service.port_free(start)
         finally:
             unit.unlink()
+
+
+def test_port_free_counts_a_port_in_time_wait_as_free():
+    """The server closes first, so its side of the connection lingers in TIME_WAIT, as after this clone's service
+    stopped: the service binds with SO_REUSEADDR and could serve there, so the port is free."""
+    with socket.socket() as srv:
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", 0))
+        srv.listen()
+        port = srv.getsockname()[1]
+        cli = socket.create_connection(("127.0.0.1", port))
+        conn, _ = srv.accept()
+        conn.close()  # the active close: TIME_WAIT on the server's port
+        cli.close()
+    assert service.port_free(port)
+
+
+def test_check_port_takes_its_own_units_port_where_nothing_answers(tmp_path):
+    """A process holds the port and answers no HTTP: refused, unless this clone's installed unit serves on that port
+    (its own service hung, which install restarts)."""
+    main = tmp_path / "main"
+    main.mkdir()
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen()
+        port = held.getsockname()[1]
+        with pytest.raises(service.RecordError, match="held by a process that does not answer HTTP"):
+            service.check_port(main, port)
+        kind = service.platform_kind()
+        unit = service.unit_file(main, kind)
+        unit.parent.mkdir(parents=True, exist_ok=True)
+        unit.write_bytes(service.unit_bytes(main, kind, "/bin", port + 1, Path("/py")))
+        try:
+            with pytest.raises(service.RecordError, match="does not answer HTTP"):
+                service.check_port(main, port)  # its unit serves on another port
+            unit.write_bytes(service.unit_bytes(main, kind, "/bin", port, Path("/py")))
+            service.check_port(main, port)
+        finally:
+            unit.unlink()
+
+
+def test_unit_ports_skips_a_drop_in_directory():
+    """systemd keeps a unit's overrides in local.pm.<name>.service.d/, which the glob matches too."""
+    kind = service.platform_kind()
+    unit = service.unit_file(Path("/elsewhere/other"), kind)
+    drop_in = unit.parent / f"{unit.name}.d"
+    drop_in.mkdir(parents=True, exist_ok=True)
+    unit.write_bytes(service.unit_bytes(Path("/elsewhere/other"), kind, "/bin", 8765, Path("/py")))
+    try:
+        assert 8765 in service.unit_ports()
+    finally:
+        unit.unlink()
+        drop_in.rmdir()
+
+
+def test_install_holds_the_clones_install_lock(machine, monkeypatch):
+    """Two installs of one clone never overlap: while one runs (here, waiting for the site), the lock is held."""
+    import fcntl
+    main, calls, world = machine
+    monkeypatch.setattr(sys, "platform", "linux")
+    held = []
+
+    def wait_up(main, port, done, hint=""):
+        with open(main / ".pm/run/install.lock") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                held.append(True)
+            else:
+                held.append(False)
+    monkeypatch.setattr(service, "wait_up", wait_up)
+    service.install(main, 8123)
+    assert held == [True]
+    with open(main / ".pm/run/install.lock") as f:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)  # released once install returns

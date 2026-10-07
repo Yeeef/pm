@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, fake_bd_env
+from conftest import PM, fake_bd_env, write_config
 from pm import __version__, hooks
 
 GIT_ENV = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
@@ -281,3 +281,36 @@ def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_rep
     assert res.returncode == 1 and all(p in res.stdout for p in said) and "stale" not in res.stdout, res.stdout
     res = run("where")
     assert "unchecked: " in res.stdout and all(p in res.stdout for p in said) and "stale" not in res.stdout, res.stdout
+
+
+def test_init_in_a_worktree_sets_it_up_when_mains_pin_differs(repo):
+    """The main checkout pins another pm: the worktree's own setup (records link, sparse checkout) still runs, and
+    only the pm uv tool and the service, which follow main's pin, are refused."""
+    wt = repo.root.parent / "feature"
+    repo.git("worktree", "add", "-q", "--no-checkout", "-b", "feature", str(wt))
+    repo.git("reset", "-q", "--hard", cwd=wt)
+    write_config(repo.root, version="9.9.9")  # main's checkout moved its pin, uncommitted
+    res = repo.pm("init", cwd=wt)
+    assert res.returncode == 1, res.stdout
+    assert f"error: the main checkout {repo.root} pins pm 9.9.9, and the pm service and the one pm uv tool follow it" \
+        in res.stderr and "pm init set up this worktree and left the pm uv tool and the service alone:" in res.stderr
+    assert f"linked {wt / 'records'} -> {repo.store}" in res.stderr, res.stderr
+    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
+    assert "!/records/" in repo.git("sparse-checkout", "list", cwd=wt).split()
+    assert not (repo.root.parent / "sched.log").exists(), "no service"
+
+
+def test_init_in_a_worktree_of_a_branch_without_config_refuses(repo):
+    """A linked worktree on a branch cut before pm was installed: pm init does not install the repo's files there."""
+    wt = repo.worktree("old")
+    repo.git("rm", "-rq", ".pm", cwd=wt)
+    repo.git("commit", "-qm", "before pm", cwd=wt)
+    before = snapshot(wt)
+    res = repo.pm("init", cwd=wt)
+    assert res.returncode == 1, res.stdout
+    assert ("error: this worktree's branch has no .pm/config.toml: it was cut before pm was installed in this repo, "
+            f"and pm init installs the repo's files only in the main checkout; merge the main branch into this one, "
+            f"or run pm init in the main checkout {repo.root}; pm init wrote nothing") in res.stderr, res.stderr
+    assert snapshot(wt) == before and not (wt / "records").exists() and not (wt / ".beads").exists()
+    assert ["init", "--non-interactive"] not in [json.loads(l) for l in repo.log.read_text().splitlines()] \
+        if repo.log.exists() else True

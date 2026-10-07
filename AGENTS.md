@@ -92,7 +92,10 @@ A case's label comes from the rule, never from what the judge answers: a miss is
 - `pm init` is the one install command. Its repo half (pm's pieces, `bd init`, the records branch) runs only when
   the worktree has no `.pm/config.toml`; after that `pm doctor` reports and `pm upgrade` rewrites a piece. Its clone
   half (Beads, the store, the `records/` link, excludes, Codex and Claude Code dirs, the pm uv tool, the service)
-  runs every time: `pm prime --state` runs it (`hooks.INIT`) at each session start, within `hooks.INIT_TIMEOUT`.
+  runs every time: `pm prime --state` runs it (`hooks.INIT`, `pm init --session-start` without `$PORT`) at each
+  session start, within `hooks.INIT_TIMEOUT`; that run installs only a missing service and reports a stale or
+  down one, which a typed `pm init` or `pm service restart` restarts. In a linked worktree, a branch without
+  `.pm/config.toml` is refused, and a main checkout on another pin gets the worktree's setup but no tool or service.
 
 ## The site
 

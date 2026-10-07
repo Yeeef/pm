@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, write_config
+from conftest import PM, stop_services, write_config
 
 from pm import hooks
 
@@ -32,12 +32,15 @@ def run(cmd, event, env, cwd):
 
 
 def init_ready(repo):
-    """Session start runs pm init, which needs `pm` on PATH to be the pm uv tool's and installs the pm service (under
-    the fake supervisor): put the tool's bin dir first on PATH, and give the service a free port, never the user's."""
+    """Session start runs pm init, which needs `pm` on PATH to be the pm uv tool's, and installs a missing pm service
+    (under the fake supervisor) on the config's port, since it drops $PORT: put the tool's bin dir first on PATH and
+    install the service once, by hand, on a free port, never the user's."""
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     repo.env = dict(repo.env, PATH=f"{repo.env['UV_TOOL_BIN_DIR']}{os.pathsep}{repo.env['PATH']}", PORT=str(port))
+    first = repo.pm("init")  # a clone set up once, as pm init leaves it
+    assert first.returncode == 0, first.stderr
 
 
 # ---------------------------------------------------------------- session context
@@ -54,8 +57,6 @@ def context_of(res, event="SessionStart"):
 def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     """One hook per rules chunk, then the state, each under Claude Code's per-hook cap, with pm show whole."""
     init_ready(repo)
-    first = repo.pm("init")  # a clone set up once, as pm init leaves it
-    assert first.returncode == 0, first.stderr
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(hooks.STARTS) + 1)]
     assert got == hooks.chunks() and got[0].startswith("# pm rules (1 of 4): the introduction; ")
@@ -137,11 +138,11 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
         repo.git("commit", "-qm", "copy records")
         shutil.rmtree(repo.records)
         repo.records.symlink_to(repo.store)
-    init_ready(repo)
     wt = repo.root.parent / "bridge"
     repo.git("worktree", "add", "-q", "--no-checkout", "-b", "bridge", str(wt))
     repo.git("reset", "-q", "--hard", cwd=wt)
     assert (wt / "records").is_dir() == tracked and not (wt / "records").is_symlink()
+    init_ready(repo)  # after the worktree: main's sparse checkout, which pm init sets, would carry over to it
     text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt))
     assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve(), text
     assert repo.git("status", "--porcelain", cwd=wt) == ""
@@ -149,6 +150,33 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
     assert f"checkout  {wt}  branch bridge, records link set up" in located
     assert rest.startswith("Project state from `pm show` at session start, ") and "Sprint 1: First" in rest
+
+
+def test_session_start_runs_init_without_port(tmp_path, monkeypatch):
+    """$PORT in a session's environment is no request to move the clone's service: session start's init never sees it."""
+    monkeypatch.setenv("PORT", "8123")
+    said = hooks.init(str(tmp_path), [sys.executable, "-c", "import os; print(os.environ.get('PORT', 'unset'))"])
+    assert said == "`pm init` at session start:\nunset\n\n", said
+
+
+@pytest.mark.slow
+def test_session_start_reports_a_down_service_and_a_typed_init_restarts_it(repo, tmp_path):
+    """Session start installs only a missing service: a down one is reported, never restarted within its budget;
+    pm init typed by a person restarts it, on the port its unit serves on although the port's last connections
+    linger in TIME_WAIT."""
+    init_ready(repo)
+    port = int(repo.env["PORT"])
+    repo.env = {k: v for k, v in repo.env.items() if k != "PORT"}
+    stop_services(tmp_path)  # the process dies; the fake supervisor still holds the unit
+    calls = (tmp_path / "sched.log").read_text()
+    text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(repo.root)}, repo.env, repo.root))
+    ran = text.partition("\n\n")[0]
+    assert f"left the installed pm service as it is (session start never restarts it): down: nothing answers on :{port}" \
+        in ran, ran
+    assert (tmp_path / "sched.log").read_text().count("bootstrap") == calls.count("bootstrap"), "no restart"
+    res = repo.pm("init")
+    assert res.returncode == 0 and f"updated the pm service: " in res.stdout, (res.stdout, res.stderr)
+    assert f"serving http://localhost:{port} " in res.stdout
 
 
 @pytest.mark.slow
@@ -188,7 +216,7 @@ def test_pm_init_is_the_one_install_command_and_session_start_runs_it():
     assert "setup" not in subcommands() and "init" in subcommands()
     listing = parser().format_help()
     assert not re.search(r"^ {4}setup\b|[{,]setup[,}]|pm setup", listing, re.M), listing
-    assert hooks.INIT[-1:] == ["init"]
+    assert hooks.INIT[-2:] == ["init", "--session-start"]
     res = subprocess.run([*PM, "setup"], capture_output=True, text=True)
     assert res.returncode == 2 and "invalid choice: 'setup'" in res.stderr, res.stderr
 

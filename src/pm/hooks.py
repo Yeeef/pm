@@ -25,8 +25,9 @@ from pm.owner_request import hook_owner_request
 
 CAP = 10_000  # Claude Code's additionalContext limit, in characters
 TIMEOUT = 20  # seconds; `pm show` takes about 1 s
-# seconds; `pm init` in a set-up clone takes 0.8-0.9 s (tests, 2026-10-07), and one that installs or restarts the pm
-# service waits up to service.RESTART_WAIT (15 s) for its site; a fresh clone's Beads bootstrap needs `pm init` by hand
+# seconds; `pm init` in a set-up clone takes 0.8-0.9 s (tests, 2026-10-07), and one that installs a missing pm service
+# waits up to service.RESTART_WAIT (15 s) for its site (session start never restarts an installed one); a fresh
+# clone's Beads bootstrap needs `pm init` by hand
 INIT_TIMEOUT = 18
 WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s
 BUDGET = 28  # seconds for init, where and show together, under the state hook's 30 s timeout
@@ -34,7 +35,7 @@ HEADER = ("Project state from `pm show` at session start, {at} UTC: a snapshot t
           "may have changed since; run `pm show` again before stating project state to the owner.\n\n")
 CUT = "\n… cut at the hook's 10,000-character limit; run `pm show` for the rest."
 SHOW = [sys.executable, "-m", "pm.cli", "show", "--refresh-inbox"]
-INIT = [sys.executable, "-m", "pm.cli", "init"]
+INIT = [sys.executable, "-m", "pm.cli", "init", "--session-start"]
 WHERE = [sys.executable, "-m", "pm.cli", "where"]
 
 
@@ -95,9 +96,11 @@ def init(cwd: str | None, cmd: list[str] | None = None) -> str:
     """What `pm init` did, ending in a blank line, or one line saying why it did not run. Session start is the one
     place init runs in a new worktree: it changes nothing in a set-up one, and readies one whatever tool created it
     (a git `post-checkout` hook would miss Claude Code's worktrees, added with --no-checkout and then reset). A
-    refusal is named by its error line, the first of its output."""
+    refusal is named by its error line, the first of its output. $PORT is left out: a session's environment is no
+    request to move the clone's service, which `PORT=<n> pm service install` typed by a person is."""
+    env = {k: v for k, v in os.environ.items() if k != "PORT"}
     try:
-        res = subprocess.run(cmd or INIT, cwd=cwd, capture_output=True, text=True, timeout=INIT_TIMEOUT)
+        res = subprocess.run(cmd or INIT, cwd=cwd, capture_output=True, text=True, timeout=INIT_TIMEOUT, env=env)
     except (OSError, subprocess.SubprocessError) as e:
         return f"pm init did not run at session start ({type(e).__name__}: {e}); run `pm init` by hand.\n\n"
     if res.returncode != 0:

@@ -2363,17 +2363,26 @@ def cmd_init(args) -> str:
     if top.resolve() == store.resolve():
         raise Refuse(f"{top} is the records store; run pm init from a code worktree")
     check_hooks_path(top, main)
+    fresh = not (top / config.REL).is_file()
     if top.resolve() != main.resolve():
-        # the service runs in the main checkout, under its pin, with the one pm uv tool the hooks run too
+        if fresh:  # pm's files come from the main branch; a linked worktree without them is on a branch from before
+            raise Refuse(f"this worktree's branch has no {config.REL}: it was cut before pm was installed in this "
+                         f"repo, and pm init installs the repo's files only in the main checkout; merge the main "
+                         f"branch into this one, or run pm init in the main checkout {main}; pm init wrote nothing")
+        # the service runs in the main checkout, under its pin, with the one pm uv tool the hooks run too; this
+        # worktree's setup does not depend on either, so it runs first and only the tool and the service are refused
         try:
             pin = config.read(main).version
         except config.ConfigError as e:
-            raise Refuse(f"the pm service runs in the main checkout {main}, under its branch's pin, and that branch "
-                         f"has none ({e}); run pm init there, or check out a branch there that pins pm {__version__}")
+            pin, why = None, (f"the pm service runs in the main checkout {main}, under its branch's pin, and that "
+                              f"branch has none ({e}); run pm init there, or check out a branch there that pins pm "
+                              f"{__version__}")
+        else:
+            why = (f"the main checkout {main} pins pm {pin}, and the pm service and the one pm uv tool follow it; run "
+                   f"pm init with pm {pin}, or move main's pin with pm upgrade there first")
         if pin != __version__:
-            raise Refuse(f"the main checkout {main} pins pm {pin}, and the pm service and the one pm uv tool follow "
-                         f"it; run pm init with pm {pin}, or move main's pin with pm upgrade there first")
-    fresh = not (top / config.REL).is_file()
+            raise Refuse(f"{why}. pm init set up this worktree and left the pm uv tool and the service alone:\n"
+                         f"{setup_clone()}")
     if fresh:  # the site port: $PORT, else the clone's unit's, else the first free one no pm unit here names
         s = init_settings(top, args.site_url, service.port_for(main, service.free_port()))
     else:
@@ -2388,10 +2397,11 @@ def cmd_init(args) -> str:
     why = legacy.store_unsettled(old, s.remote, BRANCH) if old.is_dir() else ""
     if why:  # refused before anything changes; migrate_clone checks again once the old push job is stopped
         raise Refuse(f"pm init moves the records store from {old} to {store}, but {why}; then run pm init again")
-    try:  # the service pm init ends with must be able to serve: refused before anything is written
-        service.check_port(main, s.port if fresh else service.port_for(main, s.port))
-    except RecordError as e:
-        raise Refuse(str(e))
+    if not (args.session_start and service.installed(main)):  # session start leaves an installed service alone
+        try:  # the service pm init ends with must be able to serve: refused before anything is written
+            service.check_port(main, s.port if fresh else service.port_for(main, s.port))
+        except RecordError as e:
+            raise Refuse(str(e))
     before = worktree_changes(top)
     out = []
     if fresh:
@@ -2444,6 +2454,14 @@ def init_steps(args, top: Path, main: Path, s: install.Settings, fresh: bool, ou
         if site:
             out.append(site)
     out.append(setup_clone())
+    if args.session_start and service.installed(main):
+        # A restart may take service.RESTART_WAIT (15 s) of session start's budget, and parallel session starts
+        # would each make one: session start only reports a stale or down service, and pm service restart fixes it.
+        ok, line = service.health(main, main / config.STORE)
+        if not ok:
+            out.append(f"left the installed pm service as it is (session start never restarts it): "
+                       f"{line.split(')  ', 1)[-1]}")
+        return "\n".join(out)
     said = service.install(main, service.port_for(main, cfg().port))
     if said:
         out.append(said)
@@ -2580,8 +2598,9 @@ def cmd_doctor(args) -> tuple[int, str]:
     diffs += doctor_setup(top, main, store)
     try:
         repo_found = repo_legacy(top)[1]
-    except install.InstallError as e:
-        repo_found = [str(e)]
+    except install.InstallError as e:  # a file pm cannot read: no legacy piece is known, the file needs a hand fix
+        repo_found = []
+        diffs.append(f"repo: cannot look for the pre-package harness's pieces: {e}")
     codex = codex_home() / "config.toml"
     diffs += [f"legacy: {d}; run pm upgrade" for d in repo_found]  # pm init leaves an installed repo's files alone
     diffs += [f"legacy: {d}; run pm init" for d in
@@ -3480,7 +3499,8 @@ def parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("init", help="install pm: the repo's files on first install (--site-url sets the public site "
                                     "link), then this clone, this worktree and the pm service (PORT=<n> sets its "
-                                    "port); session start runs it; never commits on the code branch",
+                                    "port, and on a first install the config's; PORT=<n> pm service install moves "
+                                    "only the service's); session start runs it; never commits on the code branch",
                        description="Install pm, doing only what is missing. Repo, on first install only (no "
                                    ".pm/config.toml yet): write .pm/ (config.toml, README.md, .gitignore), pm's hook "
                                    "entries in .claude/settings.json and .codex/hooks.json, pm's marked sections in "
@@ -3506,6 +3526,10 @@ def parser() -> argparse.ArgumentParser:
                                    "version (the pm every session must run; pm upgrade moves it), remote and "
                                    "main_branch (origin and its default branch), port (the site port) and site_url "
                                    "(--site-url).")
+    s.add_argument("--session-start", action="store_true",
+                   help="what session start runs, without $PORT: install the pm service only when it is missing, "
+                        "and report an installed one that is stale or down instead of restarting it (pm service "
+                        "restart does)")
     s.add_argument("--site-url", metavar="URL",
                    help="the site's public base URL (a tunnel to the pm service), written to site_url in "
                         ".pm/config.toml for you to commit: every link pm prints (pm record link, pm show, pm where) "

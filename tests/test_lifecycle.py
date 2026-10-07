@@ -295,3 +295,14 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
     assert config.read_text() == CODEX_USER.replace(
         "[sandbox_workspace_write]\n",
         f"[sandbox_workspace_write]\nwritable_roots = [{', '.join(json.dumps(r) for r in kept)}]\n")
+
+
+def test_doctor_names_a_settings_file_it_cannot_read_as_a_repo_finding(new_repo: Path):
+    """A settings file that is not JSON hides any pre-package harness piece in it: doctor says it could not look,
+    labelled as the repo finding it is, not as a legacy piece."""
+    assert pm(new_repo, "init").returncode == 0
+    (new_repo / ".claude/settings.json").write_text("{not json")
+    code, lines = doctor(new_repo)
+    assert code == 1 and any(l.startswith("repo: cannot look for the pre-package harness's pieces: .claude/settings.json "
+                                          "is not valid JSON") for l in lines), lines
+    assert not any(l.startswith("legacy: ") for l in lines), lines
