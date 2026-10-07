@@ -27,6 +27,17 @@
 - Write a postmortem when an incident costs more than a day, or breaks other sessions or the site.
 - Get the owner's confirmation of the project goal before you open a project.
 
+## Records and reviews
+These rules have guards. Obey them so that the guards do not stop you.
+- Write records only with `pm`. Each `pm` write commits itself on the records branch.
+- Do not commit `records/` on a code branch.
+- Edit Goal, Scope, Done when, delivery reports and design pages by hand in `records/`. Then commit them with `pm commit`.
+- Commit each record that you edit before you end your turn.
+- Give each `pm` write its target with `--sprint` or `--project`.
+- Do not write in generated sections, such as Progress. Keep each section and its prompt line. Write "None yet." in an empty section.
+- Write the delivery report before you ask for a PR review. Ask for it with `pm action need --pr`.
+- Close a sprint only after its PR is on main.
+
 ## Planning
 - Write the sprint frame before work starts:
   - Goal: what is true at the end, and why now.
