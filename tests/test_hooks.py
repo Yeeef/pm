@@ -39,7 +39,7 @@ def context_of(res, event="SessionStart"):
     return out["additionalContext"]
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_session_start_injects_rules_then_setup_where_and_pm_show(repo):
     """One hook per rules chunk, then the state, each under Claude Code's per-hook cap, with pm show whole."""
     assert repo.pm("setup").returncode == 0  # a clone set up once, as pm setup leaves it
@@ -109,7 +109,7 @@ def test_session_start_keeps_a_busy_days_pm_show_whole(tmp_path, monkeypatch):
     assert all(len(c) <= hooks.CAP for c in hooks.chunks())  # each rules hook, too, reaches the session inline
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 @pytest.mark.parametrize("tracked", [False, True], ids=["no-records", "mains-tracked-copy"])
 def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     """Claude Code's worktrees: added with --no-checkout, then reset, so git never runs post-checkout. With main
@@ -135,7 +135,7 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     assert rest.startswith("Project state from `pm show` at session start, ") and "Sprint 1: First" in rest
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_session_start_fails_open_with_one_line(repo):
     (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
     text = context_of(run(STATE, {"cwd": str(repo.root)}, repo.env, repo.root))

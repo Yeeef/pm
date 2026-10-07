@@ -15,7 +15,7 @@ from pm import __version__
 from test_init import (BD_SET, BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, PM_FILES, USER_CODEX, USER_SETTINGS,  # noqa: F401
                        commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
 
-pytestmark = pytest.mark.slow  # each test runs pm init in a fresh repo with a remote and starts its service
+pytestmark = pytest.mark.integration  # each test runs pm init in a fresh repo with a remote and starts its service
 
 LOCAL_SETTINGS = '{\n  "model": "café"\n}\n'  # non-ASCII: pm rewrites the file around it, byte for byte
 CODEX_USER = '# mine\nmodel = "o3"\n\n[sandbox_workspace_write]\nnetwork_access = true\n'

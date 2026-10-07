@@ -84,6 +84,7 @@ def test_sprint_open_creates_epic_and_record(repo):
     assert text.count("None yet.") == 3 and text.count("\n\nNot closed yet.\n") == 2
 
 
+@pytest.mark.integration
 def test_sprint_closes_after_its_pr_merges(repo):
     """The whole loop: a written report, a review under the sprint, a refusal while the review is open, the review
     closed as merged once the PR is on main, then a close that stamps the merge and names its records commit."""
@@ -246,7 +247,7 @@ def origin(tmp_path):
     return o
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origin):
     git_in(tmp_path, "clone", "-q", str(origin), "clone")
     clone = tmp_path / "clone"
@@ -278,6 +279,7 @@ def test_setup_on_fresh_clone_checks_out_store_and_links_records(tmp_path, origi
 
 # ---------------------------------------------------------------- the store: shared across worktrees
 
+@pytest.mark.integration
 def test_write_on_one_branch_is_visible_on_another_without_merge(repo):
     wt = repo.worktree("feature-x")
     res = repo.pm("finding", "add", "--sprint", "demo.1", "Seen from every branch.", cwd=wt)
@@ -382,7 +384,7 @@ def load(url: str) -> str:
         return e.read().decode()
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_serve_shows_each_change_within_its_stated_age(repo):
     """The pm service shows a pm write and a Beads change within SERVE_BEHIND s, every page stating data from before a
     change it does not show yet, and a failing render as the error."""
@@ -466,7 +468,7 @@ def page_token(url: str, page: str = "") -> str:
     return m.group(1)
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
     """A decision's answer and an action's evidence each land on their own issue, which stays open for the agent;
     each reply is one Beads write, the comment, and no label."""
@@ -515,7 +517,7 @@ def serving(repo, **env):
         srv.wait()
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 @pytest.mark.parametrize("token, form, headers, code, said", [
     ("forged", {"id": "demo.1.2", "text": "Small."}, {}, 403, "no valid token"),
     ("page", {"id": "demo.1.2", "text": "Small."}, {"Host": "evil.example:80"}, 403, "is neither this machine"),
@@ -577,7 +579,7 @@ def inbox_text(line: dict) -> str:
     return line["message"]["content"]
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
     """The three replies lost on 2026-10-06, each pushed by the pm service: several requests raised in one command, one
     raised with its output piped through grep, and a second reply to a request already delivered."""
@@ -616,7 +618,7 @@ def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
     assert "pm reply read" not in repo.pm("show").stdout
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read(repo, served):
     """No socket at the stored inbox: the session ended. The reply stays undelivered, its card says so, pm show
     flags it for the next session, and pm reply read prints it once and marks it delivered."""
@@ -671,7 +673,7 @@ def pull_main(repo) -> str:
     return f"git -C {Path(common).parent} pull --ff-only origin main"
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_a_reviewed_prs_merge_is_pushed_into_the_session_once(repo):
     repo.dolt()
     sha = review_with_origin(repo)
@@ -766,7 +768,7 @@ def move_remote(repo, rel: str, text: str) -> None:
     repo.git("push", "-q", "origin", "records", cwd=repo.other)
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_push_pushes_beads_and_new_records_commits(pushed):
     repo = pushed
     first = repo.pm("push").stdout
@@ -784,7 +786,7 @@ def test_push_pushes_beads_and_new_records_commits(pushed):
     assert state["summary"]["message"].startswith("summarized"), "the new day file changed the activity"
 
 
-@pytest.mark.slow
+@pytest.mark.integration
 def test_push_rebases_onto_a_moved_remote(pushed):
     repo = pushed
     move_remote(repo, "docs/remote.md", "x\n")
@@ -813,6 +815,7 @@ def summary(repo) -> dict:
     return json.loads((repo.records / f"days/{TODAY}.summary.json").read_text())
 
 
+@pytest.mark.integration
 def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     res = repo.pm("day", "summarize")
     assert res.returncode == 0, res.stderr
