@@ -12,7 +12,7 @@ import pytest
 
 from pm import __version__
 
-HARNESS = Path(__file__).resolve().parents[2] / "skills/project-management/harness"  # the hook scripts
+HARNESS = Path(__file__).resolve().parents[2] / "skills/project-management/harness"  # RULES.md
 # pm and the renderer from the package environment the tests run in (make test).
 PM = [str(Path(sys.executable).with_name("pm"))]
 RENDER = [sys.executable, "-m", "pm.render"]

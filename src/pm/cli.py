@@ -2806,6 +2806,8 @@ def parser() -> argparse.ArgumentParser:
                           ).add_subparsers(dest="sub", required=True)
     hook.add_parser("stop", help="Stop: block once while records this session's tool calls name are uncommitted "
                                  "in the store")
+    hook.add_parser("owner-request", help="Stop: block once while the reply asks the owner for something no open "
+                                          "need or action of this session covers")
 
     s = sub.add_parser("commit", help="commit your hand edits in the store, named by path, on the records branch",
                        description="Commit only the named records, so other sessions' uncommitted edits in the "

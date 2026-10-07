@@ -13,7 +13,6 @@ import os
 import shutil
 import statistics
 import subprocess
-import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -21,14 +20,15 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FAKE_BD, HARNESS
+from conftest import FAKE_BD, PM
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("PM_LIVE_TESTS") != "1" or shutil.which("claude") is None,
     reason="live model tests: set PM_LIVE_TESTS=1 (make test-live) with `claude` on PATH",
 )
 
-HOOK = HARNESS / "owner_request_hook.py"
+HOOK = [*PM, "hook", "owner-request"]
+ROOT = Path(__file__).resolve().parents[2]  # this repo: pm needs its .pm/config.toml
 DATA = json.loads((Path(__file__).resolve().parent / "owner_request_cases.json").read_text())
 CASES = {c["name"]: c for c in DATA["cases"]}
 RUNS = int(os.environ.get("PM_LIVE_RUNS", "3"))
@@ -51,8 +51,8 @@ def run_case(case: dict, bindir: Path, tmp: Path) -> tuple[str, float]:
     event = {"session_id": SESSIONS["me"], "hook_event_name": "Stop", "stop_hook_active": False,
              "last_assistant_message": case["reply"]}
     start = time.monotonic()
-    res = subprocess.run([sys.executable, str(HOOK)], input=json.dumps(event), env=env, capture_output=True,
-                         text=True, timeout=60)
+    res = subprocess.run(HOOK, input=json.dumps(event), env=env, cwd=ROOT, capture_output=True, text=True,
+                         timeout=60)
     took = time.monotonic() - start
     assert res.returncode == 0, res.stderr
     if not res.stdout.strip():

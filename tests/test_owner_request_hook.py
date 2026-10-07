@@ -7,15 +7,17 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from conftest import HARNESS, fake_bd_env
+from conftest import PM, fake_bd_env
 
-HOOK = HARNESS / "owner_request_hook.py"
+HOOK = [*PM, "hook", "owner-request"]
+ROOT = Path(__file__).resolve().parents[2]  # this repo: pm needs its .pm/config.toml
 ME, OTHER = "sess-me", "sess-other"
 
 MINE = {"id": "demo-x1.4", "title": "Rename X?", "description": "Options: X, Y. Default: X.", "status": "open",
@@ -38,8 +40,7 @@ def run(tmp_path, reply="Should we rename X?", judged=None, env=None, issues=ISS
     (tmp_path / "bd.json").write_text(json.dumps(issues))
     event = {"session_id": ME, "hook_event_name": "Stop", "stop_hook_active": False,
              "last_assistant_message": reply, **event}
-    return subprocess.run([sys.executable, str(HOOK)], input=json.dumps(event), env=env, capture_output=True,
-                          text=True, timeout=20)
+    return subprocess.run(HOOK, input=json.dumps(event), env=env, cwd=ROOT, capture_output=True, text=True, timeout=20)
 
 
 def bd_calls(tmp_path):
@@ -74,7 +75,7 @@ def test_judge_runs_haiku_without_thinking_settings_or_tools(tmp_path):
         assert args[args.index(flag) + 1] == value
     assert {"--strict-mcp-config", "--no-session-persistence", "--system-prompt"} <= set(args)
     assert call["env"] == {"MAX_THINKING_TOKENS": "0", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
-    assert not Path(call["cwd"]).resolve().is_relative_to(HARNESS.parents[2].resolve())  # no project CLAUDE.md
+    assert not Path(call["cwd"]).resolve().is_relative_to(ROOT.resolve())  # no project CLAUDE.md
 
 
 def test_lists_none_when_the_session_has_no_open_need(tmp_path):
@@ -149,8 +150,16 @@ def test_fails_when_bd_fails(tmp_path):
     assert claude_calls(tmp_path) == []
 
 
+def only_git(tmp_path):
+    """A PATH dir holding only git, which pm needs to find its config."""
+    d = tmp_path / "git-only"
+    d.mkdir()
+    (d / "git").symlink_to(shutil.which("git"))
+    return d
+
+
 def test_fails_without_bd(tmp_path):
-    env = dict(fake_bd_env(tmp_path, os.environ), PATH=str(tmp_path / "empty"))
+    env = dict(fake_bd_env(tmp_path, os.environ), PATH=str(only_git(tmp_path)))
     failed(run(tmp_path, env=env), "bd is not installed")
 
 
@@ -162,7 +171,8 @@ def test_fails_when_claude_fails(tmp_path):
 def test_fails_without_claude(tmp_path):
     env = fake_bd_env(tmp_path, os.environ)
     (tmp_path / "bin" / "claude").unlink()
-    path = f"{tmp_path / 'bin'}{os.pathsep}{Path(sys.executable).parent}"  # the fake bd needs python3
+    # the fake bd needs python3
+    path = os.pathsep.join(map(str, (tmp_path / "bin", Path(sys.executable).parent, only_git(tmp_path))))
     failed(run(tmp_path, env=dict(env, PATH=path)), "claude is not installed")
 
 
@@ -179,5 +189,5 @@ def test_fails_on_input_missing_a_field(tmp_path, event, said):
 
 
 def test_fails_on_input_that_is_not_json(tmp_path):
-    res = subprocess.run([sys.executable, str(HOOK)], input="not json", capture_output=True, text=True)
+    res = subprocess.run(HOOK, input="not json", cwd=ROOT, capture_output=True, text=True)
     failed(res, "not a JSON object")

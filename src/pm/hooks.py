@@ -1,9 +1,10 @@
 """What the runtimes' hooks run: `pm prime` (session and subagent context) and `pm hook <name>` (the other hooks).
 
 Every hook fails open: it exits 0 and says on stderr why it let the event through, because a broken hook must never
-stop a session from starting or an agent from stopping. The one exception runs before any hook: pm's check of the
-repo's .pm/config.toml, which fails hard, so a session never runs a pm other than the one the repo pins. Standard
-library only, so importing it stays cheap."""
+stop a session from starting or an agent from stopping. `pm hook owner-request` (pm.owner_request) instead exits 1
+when its check cannot run, which both runtimes show without blocking the stop. The other exception runs before any
+hook: pm's check of the repo's .pm/config.toml, which fails hard, so a session never runs a pm other than the one the
+repo pins. Standard library only, so importing it stays cheap."""
 
 from __future__ import annotations
 
@@ -15,6 +16,8 @@ import sys
 from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
+
+from pm.owner_request import hook_owner_request
 
 # ---------------------------------------------------------------- pm prime
 
@@ -251,4 +254,4 @@ def hook_stop() -> int:
     return 0
 
 
-HOOKS = {"stop": hook_stop}
+HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request}
