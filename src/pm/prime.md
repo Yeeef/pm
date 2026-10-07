@@ -2,50 +2,49 @@
 
 A project lives in two layers. Beads is the work layer: items, holders, status and dependencies. The Markdown records are the record layer: goals, sprint frames, decisions and findings. `pm` is the orchestration layer on top of both. It writes records, and it runs each project action that touches both layers or needs a check. The site that `pm serve` serves shows both layers to the owner. The owner reads the site; agents read `pm show`.
 
-Each rule has a reason. When a rule and its reason disagree in a new case, follow the reason. Run `pm <noun> --help` for its commands and flags.
+Each rule has a reason. When a rule and its reason disagree in a new case, follow the reason. `pm --help` lists the nouns. Run `pm <noun> --help` for its commands and flags.
 
 ## 1. The objects
 
 | Object | In Beads | Record | What it is |
 |---|---|---|---|
 | Project | epic | `records/projects/<name>.md` | A standing goal that takes more than one sprint. It has no deadline. |
-| Sprint | child epic of the project | `records/sprints/<project>-<n>.md` | A bet with a goal, a scope and a done-when. It takes hours to days, never weeks. It is the point where work goes back to the owner. |
+| Sprint | child epic of the project | `records/sprints/<project>-<n>.md` | One step toward the project's goal, framed by a goal, a scope and a done-when. It takes hours to days, never weeks. Its PR is where work goes back to the owner. |
 | Task | task under the sprint, or a sub-task | none | One unit of work with one holder. |
 | Need | issue labelled `human`; an action also `action` | none | What waits on the owner: a decision only they can make, or a step only they can do. |
-| Decision | none | `::: decision` block in a project or sprint record | A ruling that changes what the team does. |
+| Decision | none | `::: decision` block in a project or sprint record | A ruling that changes what the team does, with its reason. Project level when later sprints must follow it; sprint level when it ends with the sprint. `until` names a known condition to revisit it. |
 | Design page | none | `records/design/<name>.md` | The reference for one area of a design, in its final state. |
 | Doc | none | `records/docs/<date>-<slug>.md` | A free-form result or explainer, tied to a bead or a project. |
 | Postmortem | none | `records/postmortems/<date>-<slug>.md` | A costly incident: timeline, cost, root cause, what changed, what would have caught it earlier. |
 | Day page | none | generated; nobody writes it | What moved on one date, across all projects. |
 
-Records point at Beads ids and never copy a status. The site looks up the status when it builds a page. Two copies of one fact drift.
+Records point at Beads ids and never copy a status. The site looks up the status when it builds a page. Two copies of one fact drift. There is no hand-kept status file.
 
-**Which tool.**
+**Using pm.**
 
 | To do this | Use |
 |---|---|
+| See what is open, who holds what, and what waits on the owner | `pm show`. Session start injects it, stamped with its UTC time: orient from that copy. Other sessions change the state, so run it again before you tell the owner the project state. |
+| See one sprint's frame, findings and tasks | `pm show --sprint ID` |
+| Read one section of a record | `pm show --record <path, sprint id, project name or design slug> --section <name>`. Do not read the whole file for one part. |
 | Find ready work | `bd ready --exclude-type=epic` |
+| Add, claim, close or move a task | `pm task add --sprint ID --title "…"` (description on stdin), `pm task claim <id>`, `pm task close <id> --reason "…"`, `pm task move <id> --to SPRINT_ID` (reason on stdin, two lines or more) |
 | Add a dependency or a sub-task | `bd dep add`, `bd create --parent <task>` |
-| Add, claim, close or move a task | `pm task add`, `pm task claim`, `pm task close`, `pm task move` |
-| Read project state | `pm show`; one sprint with `pm show --sprint ID` |
-| Open or close a project or sprint; add a finding, decision or doc; raise or answer a need | `pm` |
-| Edit Goal, Scope, Done when, a delivery report, an Outcome, a design page or a postmortem | By hand in `records/`, then `pm commit -m "…" <path>…` |
-| Give the owner a link to a record | `pm record link <target>` |
+| Open or close a project or sprint; write a record; raise or answer a need | `pm`; section 2 names the command for each record, section 3 for each need |
+| Edit a record by hand | Edit it in `records/`, then `pm commit -m "…" <path>…` |
+| Give the owner a link to a record | `pm record link <target>`; never a `records/…` path or a URL you built. When it fails, run the command that it names. |
 | Keep a small operational fact (a command, a path, a gotcha) | `bd remember`; decisions go in records, not there |
+| Report where pm got in your way | `pm feedback add --project NAME`, once, with what happened and what would have helped |
 
-`pm` wraps an action only when it touches both Beads and a record, or needs a check beyond Beads. Other task work stays plain `bd`. Do not claim with `bd update --claim` or close with `bd close`. `pm task claim` records your session, and `pm task close` names the commit.
+`pm` wraps an action only when it touches both Beads and a record, or needs a check beyond Beads. Other task work stays plain `bd`.
 
-**Where the state lives.** There is no hand-kept status file.
-
-| Question | Answered by |
-|---|---|
-| What is open across all projects? | The site's root page, or `pm show` |
-| Where does a project or sprint stand? | Its generated Progress on its page, or `pm show --sprint ID` |
-| What waits on the owner? | Open `human` issues: Decisions await you and Actions await you, in `pm show` and on the site |
-| What constrains the work? | The project decisions, then the sprint decisions |
-| What do I pick up next? | `bd ready --exclude-type=epic` |
-
-**Session start.** At each session start, pm runs `pm setup`, then injects `pm where` and `pm show`. They come beside `bd prime`. The `pm show` part carries its UTC time. Orient from it; do not run `pm show` again for that. Other sessions change the state while you work. So run `pm show` again before you tell the owner the project state. Then read the record of the sprint you work on. To read one part of a record, run `pm show --record <path> --section <name>`. Do not read the whole file for one part. A subagent gets the Beads profile line and these rules, but no `pm show`.
+- Do not claim with `bd update --claim` or close with `bd close`. `pm task claim` records your session and refuses a task that another live session holds. `pm task close` names the commit in its reason.
+- Before you start or delegate a task, read its holders and open needs in `pm show`. Do not take or brief work that another live session holds.
+- Claim a task before you start it. Tell a subagent that it holds a task only after the claim succeeds.
+- A subagent shares its session's id. It claims and closes its own task. It gets these rules and the Beads profile line, but no `pm show`.
+- Examine a subagent's report against the files before you accept it.
+- A scope change is a sprint decision. Do not rename a task or rewrite its description for it.
+- Every change has a task in a sprint. Work outside any sprint becomes a small new sprint, so that it shows in Beads.
 
 **Reading pm show.**
 
@@ -63,83 +62,65 @@ Records point at Beads ids and never copy a status. The site looks up the status
 
 - Code branches never commit `records/`. The pre-commit hook and the PR guard refuse it.
 - A GitHub Action copies the store into `main`'s `records/` on each push to `main`.
-- `pm` commits but never pushes. Sessions push neither Beads data nor the `records` branch (section 9).
+- `pm` commits but never pushes. Sessions push neither Beads data nor the `records` branch (section 5).
 - Many sessions write in one store. Commit only the paths that you edited.
 
-**Format.** A record is Markdown with a small header and fixed `##` sections. The header holds ids only, never a status. Each section opens with a `>` prompt line that says what goes there. A record has all its sections from the start. An empty section holds "None yet.". A close-time section holds "Not closed yet.". A generated section holds only its prompt line.
+**Format.** A record is Markdown with a small header and fixed `##` sections. The header holds ids only, never a status. Each section opens with a `>` prompt line that says what goes there. A record has all its sections from the start. An empty section holds "None yet.". A close-time section holds "Not closed yet.". A generated section holds only its prompt line: the site fills Progress from Beads. The site also adds Decisions await you, Actions await you, Docs and Postmortems to pages. Never write a heading with one of these names. The record check (section 5) fails on hand-written text in a generated section.
 
-| Record | Header | Sections |
-|---|---|---|
-| Project | `type: project`, `title`, `bead` | Goal; Progress (generated); Decisions; Design pages; Outcome (at close) |
-| Sprint | `type: sprint`, `title`, `bead` | Goal; Scope; Done when; Design pages; Progress (generated); Decisions; Findings; Delivery report, with `### Outcome` and `### Against "Done when"` |
-| Design page | `type: design`, `title`, `project` | Problem; Goals and non-goals; Constraints and key facts; Design; Alternatives considered; Prior art (optional); Open questions |
-| Doc | `type: doc`, `title`, `date`, `bead` or `project` | Free |
-| Postmortem | `type: postmortem`, `title`, `date`, `sprint` or `project` | Summary; Timeline; Cost; Root cause; What changed; What would have caught it earlier |
+| Record | Sections | Write | Read |
+|---|---|---|---|
+| Project | Goal; Progress (generated); Decisions; Design pages; Outcome (at close) | Open: `pm project open <name> --title "…"`, a one-paragraph Goal on stdin, once the owner confirmed the goal in their own words. Decisions: `pm decision add --level project --project NAME`. Close: close every sprint, then write Outcome by hand, `pm commit` it, and run `pm project close <name>`. Outcome gives the results against the goal in numbers, what was learned and what was retired. It links the sprints' delivery reports. Nothing is deleted: closed projects stay on the site. | `pm show`; `pm show --record NAME --section Decisions` |
+| Sprint | Goal; Scope; Done when; Design pages; Progress (generated); Decisions; Findings; Delivery report, with `### Outcome` and `### Against "Done when"` | Open: `pm sprint open <project> --title "…"`, the frame on stdin as `## Goal`, `## Scope` and `## Done when`, before anything runs. Goal: what is true when the sprint ends, and why now. Scope: an **In:** and an **Out:** list, at a high level; detail goes in a design page. Done when: checkable evidence that the goal is met, or the finding that voids it. For a one-shot or costly run, write the expected result before the run. Findings: `pm finding add "<text>" --sprint ID`, as they occur, with their numbers; a large result table is a `::: result` block. Decisions: `pm decision add --level sprint --sprint ID`. Design pages and the delivery report: by hand, then `pm commit`. Close: section 3, PR review and sprint close. | `pm show --sprint ID`; `pm show --record ID --section Findings` |
+| Design page | Problem; Goals and non-goals; Constraints and key facts; Design (free `###` subsections); Alternatives considered; Prior art (optional); Open questions | `pm design new <slug> --title "…" --project NAME` writes every section with its prompt line; then edit by hand and `pm commit`. Constraints, Alternatives and Open questions may hold "None yet.". An explanation or a reference (an architecture, a data format, "explain step 1") goes here or in a doc. | `pm show --record SLUG --section Design` |
+| Doc | Free | `pm doc new <slug> --title "…" --bead ID\|--project NAME`, the body on stdin; later edits by hand and `pm commit`. | `pm show --record records/docs/<date>-<slug>.md --section <name>` |
+| Postmortem | Summary; Timeline; Cost; Root cause; What changed; What would have caught it earlier | `pm postmortem new <slug> --title "…" --sprint ID\|--project NAME` writes every section; then by hand and `pm commit`. Due when an incident cost more than a day, or broke other sessions or the owner's view. Write it once the incident is fixed, under the sprint it hit. | the same |
+| Day page | all generated | Nobody. The push runs `pm day summarize` (section 5); older day records keep their paragraph as history. | the site |
 
-**Who writes what.**
+Anything the owner must decide or do is a need (section 3), never text in a record.
 
-- By hand, then `pm commit`: Goal, Scope, Done when, Design pages, the delivery report and a project's Outcome.
-- By hand too: design pages, docs and postmortems.
-- With `pm` commands: Decisions and Findings.
-- Never: the generated sections. Progress keeps only its prompt line, and the site fills it from Beads.
-- The site adds Decisions await you and Actions await you to a sprint page. It adds Docs and Postmortems to project and sprint pages. Never write a heading with one of these names.
-- The record check (section 9) fails on hand-written text in a generated section.
+**Every `pm` write.**
+
+- It names its target with `--sprint ID` or `--project NAME`. A repo holds many projects, so pm never infers "the only project" or "the open sprint".
+- It checks the records it writes and those of the issues it changes, as its commit will leave them. Other sessions' uncommitted files are not checked and not relied on.
+- It refuses a record with uncommitted changes, so it never carries an edit in progress. Commit that record with `pm commit -m "…" <path>`, or revert it. Then run the write again.
+- It commits what it wrote on the `records` branch. If the commit fails, it puts its files back and says so.
+- `pm commit` checks the whole store. With no path, it lists what is uncommitted and commits nothing.
+- A Stop hook (`pm hook stop`) blocks your turn once while records that your tool calls named are uncommitted. Commit or revert them before you hand back. Leave a file that another session is writing.
 
 **Blocks.** Use only these fenced blocks in a record.
 
-- `::: decision {source=owner|agent date=YYYY-MM-DD until="…"}`. Give `until` only for a known condition to revisit.
+- `::: decision {source=owner|agent date=YYYY-MM-DD until="…"}`, which `pm decision add` writes.
 - `::: result {title="…"}`: a titled table with a reading line under it.
 - A `` ```mermaid `` diagram, with a one-line reading under it.
 
 Use raw HTML only for what Markdown cannot show, such as a mock-up.
 
-**What goes where.**
-
-- Results and findings go in the sprint's Findings, with their numbers. A large result table is a `::: result` block.
-- An explanation or a reference (an architecture, a data format, "explain step 1") is a design page or a doc.
-- Anything the owner must decide or do is a need (section 3), not text in a record.
-- A date or a fact that the records do not have is "not recorded". Do not guess it.
-- When the repository's own docs are stale, say so on the page. Do not correct them silently.
-
-**Writing a page.** The site gives every page one shared stylesheet; a record never carries its own CSS.
+**Writing style guide.** The site gives every page one shared stylesheet; a record never carries its own CSS.
 
 - Write an engineer's reference: dense, with no marketing and no decoration.
 - Put facts in tables: dimensions, parameters, results. Write formulas out.
 - Give only numbers that evidence backs, and state their scope.
+- A date or a fact that the records do not have is "not recorded". Do not guess it.
+- When the repository's own docs are stale, say so on the page. Do not correct them silently.
 - Draw real diagrams (Mermaid, or inline SVG), never ASCII art.
 - Use one term for each concept, and define it once. Use plain table headers.
 - Keep task ids and digests out of the prose. Put them in an evidence table when you need them.
 
-**Design pages.** A design page holds the final state of one area of a design. It says what the design is, and the key facts, findings and constraints that led to it. It also says which alternatives were not chosen, and why.
+**Design pages.** A design page says what the design is, and which facts, findings and constraints led to it. It also says which alternatives were not chosen, and why.
 
-- Start one with `pm design new <slug> --title "…" --project NAME`. It writes every section with its prompt line.
-- The site requires every section except Prior art. Constraints and key facts, Alternatives considered and Open questions may hold "None yet.".
-- Design has free `###` subsections. The page shows a table of contents of them.
 - When the design changes, edit the page to the new state. Do not add a trail of findings; sprint records keep the findings.
-- Put no date in the name or the header. Git keeps the history, and the site shows the created and updated dates.
 - Decisions and plans stay in the project and sprint records, never on a design page.
+- Put no date in the name or the header. Git keeps the history, and the site shows the created and updated dates.
 - A page covers one area. When it grows to several areas, make each area a sub page. The main page keeps a short summary per area that links its sub page.
 - A sprint's Design pages section links the sub pages that its work changed, not only the main page.
 
-**Docs.** `pm doc new <slug> --title "…" --bead ID|--project NAME` creates `records/docs/<today>-<slug>.md`, with the body from stdin. A doc holds a free-form result or explainer.
-
-**Postmortems.** An incident gets a postmortem when it cost more than a day. It also gets one when it broke other sessions or the owner's view. Write it once the incident is fixed. `pm postmortem new <slug> --title "…" --sprint ID|--project NAME` creates it with every section. Link it to the sprint that it hit.
-
-**Day pages.** The site makes a day page for every date with activity, across all projects. Nobody writes a day record. Its Today summary comes from `pm day summarize`, which runs with the push (section 9). Older day records keep their hand-written paragraph as history.
-
 ## 3. Decisions and needs
 
-**Level.** Record a decision where it governs. It stays there.
+**Level.** Record a decision where it governs, and it stays there. A decision that turns out to apply beyond one sprint moves to the project record as soon as that shows. A choice that is cheap to reverse, and that nobody will ask about, needs no record. The commit message is enough.
 
-- Project: a later sprint must follow it, such as an architecture, a format, a convention or a scope boundary. Record it in the project record when you make it. Move it there as soon as it turns out to apply beyond one sprint.
-- Sprint: it ends with the sprint, such as an approach, a scope cut or what to try first. It stays in the sprint record.
-- Neither: it is cheap to reverse and nobody will ask. The commit message is enough.
+**Body and source.** The body comes on stdin: the decision on its first line, its reason on the next. Without the reason, nobody can tell later if it still holds. When the reason is too long, put it in a doc and link the doc. `--level` has no default. The source is `agent` for your own decisions. It is `owner` only when it answers a need (`--need`) or the owner confirmed it (`--confirmed`).
 
-**Body and source.** The body states the decision and its reason. Without the reason, nobody can tell later if it still holds. When the reason is too long, put it in a doc and link the doc. The source is `agent` for your own decisions. It is `owner` only when it answers a need (`--need`) or the owner confirmed it (`--confirmed`).
-
-Record a decision with `pm decision add --level project|sprint --project NAME|--sprint ID`. The body comes on stdin: the decision on its first line, its reason on the next. `--level` has no default.
-
-**Owner decisions are closed.** Read the Decisions before you ask the owner. Do not ask again about a decided question.
+**Owner decisions are closed.** Read the Decisions, project then sprint, before you ask the owner. Do not ask again about a decided question.
 
 **Needs.** When work waits on the owner, raise a need under the sprint or task. Then continue other ready work. Do not stop, and do not decide silently. The owner reads the need days later, so its description stands alone. A need is one of two kinds, and the site shows each under its own heading.
 
@@ -149,8 +130,8 @@ Record a decision with `pm decision add --level project|sprint --project NAME|--
   - two or more `Option <label>:`, each with a `Cost:` line under it;
   - one `Default: <label>`, then its reason.
 - pm writes the card in one layout. It refuses an option without a cost, a default that names no option, and a sentence over 25 words. Send stdin with a quoted heredoc (`<<'EOF'`), so code spans stay.
-- **Action** (`pm action need --title "…" --parent ID`, under "Actions await you"): the owner does a step that only they can do. Examples: run a command, apply a setting. The description says what to do and why.
-- **PR review** (`pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`): an action of its own form. See section 6.
+- **Action** (`pm action need --title "…" --parent ID`, under "Actions await you"): the owner does a step that only they can do. Examples: run a command, apply a setting. The description on stdin says what to do and why.
+- **PR review** (`pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`): an action of its own form. See PR review and sprint close below.
 - Both commands refuse a request that names a PR and asks to review, merge or approve it without `--pr`.
 - A need that a test or a live check raises starts its title with "[TEST]". Close it with `bd human dismiss <id>` when the check ends.
 
@@ -181,93 +162,13 @@ Record a decision with `pm decision add --level project|sprint --project NAME|--
 - An action is done: check the evidence, then run `pm action done <id> --reason "<what showed it>"`. It needs no decision.
 - Each of these closes refuses while the request holds a reply that has not reached a session. Read it with `pm reply read <id>` first.
 
-## 4. The `pm` CLI
-
-These rules hold for every `pm` write.
-
-- It names its target with `--sprint ID` or `--project NAME`. A repo holds many projects, so pm never infers "the only project" or "the open sprint".
-- It checks what it touches: the records that it writes, and the records of the issues that it changes. It checks them on the `records` branch as its commit will leave them.
-- Other sessions' uncommitted files are not checked and not relied on.
-- It refuses a record with uncommitted changes, so it never carries an edit in progress. Commit that record with `pm commit -m "…" <path>`, or revert it. Then run the write again.
-- It commits what it wrote on the `records` branch. If the commit fails, it puts its files back and says so.
-- `pm commit` checks the whole store as its commit will leave it.
-
-A Stop hook (`pm hook stop`) blocks your turn once while records that your tool calls named are uncommitted. Commit them with `pm commit -m "…" <path>`, or revert them, before you hand back. Leave a file that another session is writing.
-
-| Command | Does |
-|---|---|
-| `pm show [--json]` | Projects, open sprints, tasks and their holders, needs, today and recent decisions, in a few hundred tokens. |
-| `pm show --sprint ID` | One sprint's frame, findings and tasks. |
-| `pm show --record <path> --section <name>` | One section of a record. The record is a path, a sprint id, a project name or a design slug. An unknown section is refused with the record's section names. |
-| `pm record link <target>` | The URL of a record's page on the site. Use only this URL for a record; never a `records/…` path or a URL you built. When it fails, run the command that it names. |
-| `pm setup [--site-url URL]` | Makes a clone ready; see below. |
-| `pm where [records]` | Every location and its state: the store, this checkout, Beads, the hooks, the Codex roots, the push and the site. With `records`, only the store's path. |
-| `pm commit -m "…" <path>…` | Checks and commits only the named hand edits. With no path, it lists what is uncommitted and commits nothing. |
-| `pm render`, `pm serve` | See section 9. |
-| `pm finding add "<text>" --sprint ID` | Adds a bullet to the sprint's Findings. |
-| `pm decision add`, `need`, `close` | See section 3. |
-| `pm action need`, `done` | See sections 3 and 6. |
-| `pm reply read [ID…]` | Prints the replies and merges that did not reach a session, and marks them delivered. It does not wait. |
-| `pm doc new`, `pm design new`, `pm postmortem new` | See section 2. |
-| `pm project open`, `close` | See section 8. |
-| `pm sprint open`, `close` | See section 6. |
-| `pm task add --sprint ID --title "…"` | Creates a task in an open sprint. The description comes on stdin. |
-| `pm task claim <id>` | Claims a task and records your session. It refuses a task that another live session holds. |
-| `pm task close <id> [--reason "…"] [--commit REF]` | Closes a task. The reason names the commit: HEAD if it is newer than the task, or `--commit`. It refuses epics and needs. |
-| `pm task move <id> --to SPRINT_ID` | Moves a task to another open sprint. It writes the scope change as a decision in the sprint it leaves. The reason comes on stdin, on at least two lines. |
-| `pm day summarize` | Writes today's Today summary; the push runs it (section 9). |
-| `pm feedback add --project NAME [--sprint ID] [--task ID]` | Adds an entry to the project's pm feedback doc. |
-
-**`pm setup`.** It makes a clone ready in one command, and does each step only if it is missing:
-
-- It connects Beads with `bd bootstrap` from the remote's `refs/dolt/data`. Never run `bd init`, which makes a new database.
-- It sets the Beads agent profile to `team-maintainer`, so agents may commit.
-- It installs the git hooks, checks out the store, and links this worktree's `records/` to it.
-- It adds the store and the git dirs to the Codex sandbox's writable roots, when Codex is used.
-- It adds the store to Claude Code's `permissions.additionalDirectories`, so writes through `records/` need no prompt.
-- It installs the scheduled push (section 9).
-- `--site-url URL` writes the site's public base URL to `.pm/config.toml`. pm's printed links then use it.
-
-Session start runs `pm setup` each time, so a worktree that an agent works in gets set up. When it fails or times out, session start says so. Then run `pm setup` by hand. A fresh clone's first Beads bootstrap needs `pm setup` by hand. A worktree used without an agent session needs it too.
-
-**pm feedback.** When pm gets in your way, run `pm feedback add` once. Examples: a confusing refusal, a missing command, a rule that cost time. Say what happened and what would have helped. Do not use it for routine use.
-
-## 5. Breaking the work down
-
-1. List what must become true for the goal to be met. An item that needs more than one sprint is a project. An item that fits in a sprint is a sprint.
-2. Split the work along independence, so that projects and sprints run in parallel. Where one feeds another, record the dependency in Beads.
-3. Test each item against the goal. If finishing it would not move the work toward the goal, it is harness: checkers, tools, audits. Build harness only when a named sprint is blocked without it.
-4. Plan one sprint ahead. Choose the next sprint from the last result.
-5. Run the smallest test that can change the decision. If each result leads to the same next step, do not run it.
-
-Every change has a task in a sprint. Work outside any sprint becomes a small new sprint, so that it shows in Beads.
-
-## 6. Sprint lifecycle
-
-**Open** with `pm sprint open <project> --title "…"`. The frame comes on stdin as `## Goal`, `## Scope` and `## Done when`. Write it before anything runs.
-
-- Goal: what is true when the sprint ends, and why now.
-- Scope: an **In:** list and an **Out:** list, at a high level. Put the detail in a design page.
-- Done when: checkable evidence that the goal is met, or the finding that voids it. For a one-shot or costly run, write the expected result before the run. You cannot choose it again after the numbers show.
-
-**Run.**
-
-- Create tasks under the sprint with `pm task add`.
-- Before you start or delegate a task, read its holders and open needs in `pm show`. Do not take or brief work that another live session holds.
-- Claim a task with `pm task claim` before you start it. Tell a subagent that it holds a task only after the claim succeeds.
-- A subagent shares its session's id. It claims and closes its own task.
-- Examine a subagent's report against the files before you accept it.
-- Add findings to the sprint's Findings as they occur, with `pm finding add`. Give each result its numbers.
-- A scope change is a sprint decision. Do not rename a task or rewrite its description for it.
-- Sprint decisions go in the sprint's Decisions. A decision that later sprints must follow goes in the project record.
-
-**Close.** A sprint closes only when its PR is on main, so "done" means delivered to main. `pm sprint close` does not ask GitHub. The open review blocks the close, and you close the review only once the PR is on main.
+**PR review and sprint close.** A sprint closes only when its PR is on main. So "done" means delivered to main. `pm sprint close` does not ask GitHub. The open review blocks the close, and you close the review only once the PR is on main.
 
 1. Write the full delivery report, then commit it with `pm commit`.
    - Outcome: start with `done`, `partial` or `voided`, plus one sentence. A bullet list of what shipped may follow. Only the first paragraph becomes the Beads close reason.
    - A sprint that a finding voided is voided, not failed.
    - Against "Done when": give each item as met or not, with its evidence: a page, a command, a number.
-2. Run the review loop on the whole sprint (section 7). Push the branch and open the PR without asking.
+2. Push the branch and open the PR without asking.
 3. Raise the review with `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`.
    - Every sprint named must be open, with its delivery report written and committed.
    - The review sits under the first sprint named, shows in its Actions await you, and blocks its close.
@@ -281,40 +182,19 @@ Every change has a task in a sprint. Work outside any sprint becomes a small new
    - The epic's close reason names that commit, so the milestone points at the exact state it delivered.
    - A voided sprint with no PR closes with no review and no stamp.
 
-## 7. The implementation cycle
+## 4. Breaking the work down
 
-Scale the cycle to the cost of being wrong. Restartable work gets one review pass. One-shot, costly or irreversible work gets adversarial review and recorded evidence.
+1. List what must become true for the goal to be met. An item that needs more than one sprint is a project. An item that fits in a sprint is a sprint.
+2. Split the work along independence, so that projects and sprints run in parallel. Where one feeds another, record the dependency in Beads.
+3. Test each item against the goal. If finishing it would not move the work toward the goal, it is harness: checkers, tools, audits. Build harness only when a named sprint is blocked without it.
+4. Plan one sprint ahead. Choose the next sprint from the last result.
+5. Run the smallest test that can change the decision. If each result leads to the same next step, do not run it.
 
-- Make small commits. Git history is documentation. Do not leave everything untracked and commit one giant change.
-- Smoke tests between commits check wiring only. They are not completion evidence.
-- A work trunk is a part of a sprint that you can test and review alone, in one pass.
-- Close a work trunk with these steps:
-  - the project's real tests, and the meaningful run that answers the sprint's question;
-  - cleanup of dead code and results;
-  - a review by a fresh-context agent, which sees the change, the intent and the evidence, but not your reasoning;
-  - repeat the review until it finds no correctness problem;
-  - then close the trunk's tasks, each naming the commit.
+## 5. The site, the push and the checks
 
-Commit prefixes: `[SPEC]` specifications, `[FEATURE]` new feature, `[FIX]` bug fix, `[PERF]` performance, `[SPRINT]` sprint boundary.
+This section holds pm's background machinery: setup, the site, the push and the record check.
 
-## 8. Project lifecycle
-
-**Open** with `pm project open <name> --title "…"`, with a one-paragraph Goal on stdin. The owner confirms the goal in their own words before you open the project. Then open the first sprint with `pm sprint open`.
-
-**Pause** when the next sprint depends on something outside the team: an owner decision, hardware, data. Raise the need, and record what would resume the project. Then move to work that does not depend on it.
-
-**Close.**
-
-1. Close every sprint first.
-2. Write the project record's `## Outcome` by hand. Give the results against the goal in numbers, what was learned, and what was retired. Link the sprints' delivery reports.
-3. Commit the record with `pm commit -m "…" <path>`.
-4. Run `pm project close <name>`. It ties the close to that commit.
-
-Nothing is deleted. Closed projects stay on the site.
-
-## 9. The site, the push and the checks
-
-This section holds pm's background machinery: the site, the push and the record check.
+**Setup.** Session start runs `pm setup`, then injects `pm where` and `pm show` beside `bd prime`. `pm setup` makes a clone ready, and does each step only if it is missing. It connects Beads with `bd bootstrap` and sets the Beads profile to `team-maintainer`. It installs the git hooks, checks out the store and links `records/` to it. It adds the store to the sandbox roots of Codex and Claude Code, and installs the push. Never run `bd init`, which makes a new database. When session start says setup failed or timed out, run `pm setup` by hand. A fresh clone's first Beads bootstrap needs that too, as does a worktree used without an agent session. `pm where` shows every location and its state.
 
 **The site.** `pm serve` serves the site on localhost, from the records and Beads.
 
@@ -338,7 +218,7 @@ This section holds pm's background machinery: the site, the push and the record 
 - `pm commit`, `pm render` and `pm serve` check the whole store.
 - When a record fails the check, the site shows that error in place of its pages. Fix the record, not the site.
 
-## 10. The owner's interface
+## 6. The owner's interface
 
 The owner reads status on the site and answers there. Each decision and action card has a reply box (section 3). The owner also does the actions.
 
