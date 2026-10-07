@@ -1,9 +1,20 @@
 # pm rules
 
 ## Model
-- Beads holds the work: projects, sprints, tasks, needs.
-- Records hold the context: goals, decisions, findings, designs. `pm` writes them.
-- The site shows all of it to the owner.
+- Beads holds the work. Records hold the context. `pm` writes records. The site shows both to the owner.
+- Records point at Beads ids. Do not copy a status into a record.
+
+| Object | In Beads | Record |
+|---|---|---|
+| Project: a standing goal of many sprints | epic | `records/projects/<name>.md` |
+| Sprint: goal, scope, done-when; hours to days | child epic of the project | `records/sprints/<project>-<n>.md` |
+| Task: one unit of work, one holder | task under the sprint | none |
+| Need: what waits on the owner, a decision or an action | issue labelled `human` | none |
+| Decision | none | `::: decision` block in a project or sprint record |
+| Design page: one area, final state | none | `records/design/<name>.md` |
+| Doc: a dated result or explainer | none | `records/docs/<date>-<slug>.md` |
+| Postmortem: a costly incident | none | `records/postmortems/<date>-<slug>.md` |
+| Day page: generated from activity | none | nobody writes it |
 
 ## Core rules
 - Put every change in a task in a sprint. Put work outside a sprint into a small new sprint.
