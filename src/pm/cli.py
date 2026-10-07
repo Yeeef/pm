@@ -40,7 +40,7 @@ from pathlib import Path
 
 import yaml
 
-from pm import config, hooks
+from pm import __version__, config, hooks, install
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
                            merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
@@ -2240,8 +2240,13 @@ def setup_beads(main: Path) -> list[str]:
 
 
 def cmd_setup(args) -> str:
-    """Make the clone ready: connect Beads and install the git hooks, check out the store if it is missing,
-    link this worktree's records/ to it, and let Codex's sandbox write the store and commit to it."""
+    return setup_clone(args.site_url)
+
+
+def setup_clone(site_url: str | None) -> str:
+    """Make the clone and this worktree ready, pm init's half that runs every time (and the post-checkout hook's):
+    connect Beads and install the git hooks, check out the store if it is missing, link this worktree's records/ to
+    it, install the clone's background job, and let Codex's sandbox write the store and commit to it."""
     cwd = Path.cwd()
     store = store_path(cwd)
     main = main_of(store)
@@ -2278,16 +2283,85 @@ def cmd_setup(args) -> str:
     claude = setup_claude(top, store)
     if claude:
         out.append(claude)
-    sched = pushjob.install(main)
+    sched = install_service(main)
     if sched:
         out.append(sched)
-    if args.site_url is not None:
-        site = setup_site_url(args.site_url)
+    if site_url is not None:
+        site = setup_site_url(site_url)
         if site:
             out.append(site)
     done = "\n".join(out) or f"already set up: {link} -> {store}"
     codex = setup_codex(main)
     return f"{done}\n{codex}" if codex else done
+
+
+def install_service(main: Path) -> str:
+    """Install the clone's background job if it is missing; "" when it is installed. Today that is the scheduled
+    pm push; the pm service (`pm service install`, task yeeef-agents-9va.51.6) replaces it here."""
+    return pushjob.install(main)
+
+
+def check_hooks_path(top: Path, main: Path) -> None:
+    """Refuse a core.hooksPath other than Beads' .beads/hooks (relative, or this worktree's or the main checkout's
+    absolute path); unset is fine, as pm setup has bd install it. Any other is refused since pm's git hooks live in Beads' hook files."""
+    current = store_git(top, "config", "--get", "--default=", "core.hooksPath")
+    if current and (top / current).resolve() not in ((top / ".beads/hooks").resolve(), (main / ".beads/hooks").resolve()):
+        raise Refuse(f"core.hooksPath is {current}, not .beads/hooks; pm's git hooks live in Beads' hook files, so pm "
+                     f"init works only with Beads' hooks path (other hook managers are not supported)")
+
+
+def init_settings(top: Path, site_url: str | None) -> install.Settings:
+    """A new repo's settings: the remote origin, which must exist, and its default branch (origin/HEAD), else the
+    branch checked out."""
+    remote = "origin"
+    if subprocess.run(["git", "remote", "get-url", remote], cwd=top, capture_output=True).returncode != 0:
+        raise Refuse(f"this repo has no remote {remote}; pm keeps the records branch and Beads data there, so add it "
+                     f"(git remote add {remote} URL) and run pm init again")
+    head = subprocess.run(["git", "symbolic-ref", "--quiet", "--short", f"refs/remotes/{remote}/HEAD"], cwd=top,
+                          capture_output=True, text=True).stdout.strip()
+    branch = head.removeprefix(f"{remote}/") if head else store_git(top, "symbolic-ref", "--short", "HEAD")
+    url = (site_url or "").strip().rstrip("/")
+    if url:
+        check_site_url(url)
+    return install.Settings(remote, branch, site_url=url)
+
+
+def cmd_init(args) -> str:
+    """Set up whatever is missing in the repo, then the clone and this worktree. The repo's pieces are written, never
+    committed: the output names the commit to make."""
+    cwd = Path.cwd()
+    store = store_path(cwd)
+    main = main_of(store)
+    top = Path(store_git(cwd, "rev-parse", "--show-toplevel"))
+    if top.resolve() == store.resolve():
+        raise Refuse(f"{top} is the records store; run pm init from a code worktree")
+    check_hooks_path(top, main)
+    fresh = not (top / config.REL).is_file()
+    if fresh:
+        s = init_settings(top, args.site_url)
+    else:
+        c = cfg()
+        s = install.Settings(c.remote, c.main_branch, c.port, c.site_url)
+    out = []
+    if not (top / ".beads").exists():
+        bd(top, "init", "--non-interactive")
+        out.append("ran bd init: Beads set up its database, its files and its git hooks (and commits them itself)")
+    try:
+        planned = install.plan(top, s)
+        if (subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"], cwd=top,
+                           capture_output=True).returncode != 0
+                and not install.remote_has_branch(top, s.remote, BRANCH)):
+            out.append(install.create_records_branch(top, s.remote, BRANCH))
+        written = install.write(planned)
+    except install.InstallError as e:
+        raise Refuse(str(e))
+    out += [f"wrote {rel}" for rel in written]
+    out.append(setup_clone(None if fresh else args.site_url))
+    if written:
+        branch = store_git(top, "rev-parse", "--abbrev-ref", "HEAD")
+        out.append(f"pm commits nothing on {branch}; commit pm's files there: git add -- {' '.join(written)} && "
+                   f'git commit -m "Install pm {__version__}"')
+    return "\n".join(out)
 
 
 def setup_claude(top: Path, store: Path) -> str:
@@ -2314,14 +2388,18 @@ def setup_claude(top: Path, store: Path) -> str:
     return f"added {store} to permissions.additionalDirectories in {path}, so Claude Code writes records through records/ without asking"
 
 
+def check_site_url(url: str) -> None:
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.path or parts.query or parts.fragment:
+        raise Refuse(f"--site-url {url!r} is not an http(s) base URL like https://pm.example.com")
+
+
 def setup_site_url(url: str) -> str:
     """Store the repo's public site URL as `site_url` in .pm/config.toml ("" removes it), for the owner to commit;
     "" when nothing changed."""
     url = url.strip().rstrip("/")
     if url:
-        parts = urllib.parse.urlsplit(url)
-        if parts.scheme not in ("http", "https") or not parts.hostname or parts.path or parts.query or parts.fragment:
-            raise Refuse(f"--site-url {url!r} is not an http(s) base URL like https://pm.example.com")
+        check_site_url(url)
     old = public_url()
     if url == old:
         return ""
@@ -2824,6 +2902,21 @@ def parser() -> argparse.ArgumentParser:
                         "pm's printed links use it and replies from its host are accepted; '' clears it")
     s.set_defaults(func=cmd_setup)
 
+    s = sub.add_parser("init", help="install pm in this repo, clone and worktree, doing only what is missing; writes "
+                                    "the repo's files and prints the commit to make, never commits on the code branch",
+                       description="Repo: write .pm/ (config.toml, README.md, .gitignore), pm's hook entries in "
+                                   ".claude/settings.json and .codex/hooks.json, pm's marked sections in "
+                                   ".beads/hooks/post-checkout and pre-commit, the workflows "
+                                   ".github/workflows/pm-records-{guard,copy}.yml and pm's .gitignore lines; run bd "
+                                   "init when the repo has no .beads/; create the records branch with an empty store "
+                                   "and push it when the remote has none. Then the clone and worktree: what pm setup "
+                                   "does. Refuses a core.hooksPath other than .beads/hooks. Run it again to restore "
+                                   "a missing piece; it changes nothing that is there.")
+    s.add_argument("--site-url", metavar="URL",
+                   help="the site's public base URL, written to site_url in .pm/config.toml; links use it, else "
+                        "http://localhost:<port>; '' clears it")
+    s.set_defaults(func=cmd_init)
+
     s = sub.add_parser("push", help="push Beads data (bd dolt push), summarize today and push the records branch; "
                                     "the scheduled job pm setup installs, not a session command",
                        description="Push Beads data with bd dolt push, then summarize today (pm day summarize "
@@ -2859,6 +2952,11 @@ def parser() -> argparse.ArgumentParser:
                                  "in the store")
     hook.add_parser("owner-request", help="Stop: block once while the reply asks the owner for something no open "
                                           "need or action of this session covers")
+    s = hook.add_parser("git-post-checkout", help="git post-checkout (pm's section in .beads/hooks/post-checkout): in a "
+                                                  "new worktree, run pm init's clone and worktree half")
+    s.add_argument("git_args", nargs="*", help="the hook's arguments: previous HEAD, new HEAD, branch flag")
+    hook.add_parser("git-pre-commit", help="git pre-commit (pm's section in .beads/hooks/pre-commit): refuse staged "
+                                           "records/ changes on a code branch, unless a merge is in progress")
 
     s = sub.add_parser("commit", help="commit your hand edits in the store, named by path, on the records branch",
                        description="Commit only the named records, so other sessions' uncommitted edits in the "
@@ -2872,21 +2970,42 @@ def parser() -> argparse.ArgumentParser:
     return ap
 
 
+def hook_git_post_checkout(git_args: list[str]) -> int:
+    """`pm hook git-post-checkout`: in a new worktree (previous HEAD all zeros), run setup_clone. The store's own
+    checkout, which setup_clone itself makes, is skipped. A failure is printed and exits 1, which git reports without
+    undoing the checkout."""
+    if not git_args or set(git_args[0]) != {"0"}:
+        return 0
+    try:
+        cwd = Path.cwd()
+        if Path(store_git(cwd, "rev-parse", "--show-toplevel")).resolve() == store_path(cwd).resolve():
+            return 0
+        print(setup_clone(None))
+    except (Refuse, RecordError) as e:
+        print(f"pm hook git-post-checkout: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     name = f"{args.cmd} {getattr(args, 'sub', '')}".strip()
-    try:  # every command, hooks included, fails hard without the repo's config or on another pinned version
-        config.load(Path.cwd())
+    try:  # every command, hooks included, fails hard without the repo's config or on another pinned version; pm init
+        # writes a missing one
+        if not (args.cmd == "init" and not (config.root(Path.cwd()) / config.REL).is_file()):
+            config.load(Path.cwd())
     except config.ConfigError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     if args.cmd == "prime":  # past the config check, hooks fail open and need no store, so they run before pm looks for one
         return hooks.cmd_prime(args.part, args.hook_json)
+    if args.cmd == "hook" and args.sub == "git-post-checkout":
+        return hook_git_post_checkout(args.git_args)
     if args.cmd == "hook":
         return hooks.HOOKS[args.sub]()
     try:
-        if args.func is cmd_setup:
-            print(cmd_setup(args))
+        if args.func in (cmd_setup, cmd_init):
+            print(args.func(args))
             return 0
         if args.func is cmd_push:
             code, said = cmd_push(args, None)  # finds the store itself: a missing store is a recorded failure

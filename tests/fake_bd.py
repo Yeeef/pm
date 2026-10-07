@@ -172,6 +172,26 @@ elif args[:2] == ["config", "set"]:
     common = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
                             capture_output=True, text=True).stdout.strip()
     (Path(common) / f"fake-bd-{args[2]}").write_text(args[3])
+elif args[:1] == ["init"]:
+    # As bd init does: .beads/ with its config and its git hooks (Beads' marked section), core.hooksPath, the
+    # database, and its SessionStart hook in .claude/settings.json (bd writes JSON with sorted keys). It does not
+    # commit, unlike bd 1.3.1.
+    common = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], check=True,
+                            capture_output=True, text=True).stdout.strip()
+    (Path.cwd() / ".beads/hooks").mkdir(parents=True)
+    (Path.cwd() / ".beads/config.yaml").write_text("# fake\n")
+    for name in ("post-checkout", "pre-commit"):
+        hook = Path.cwd() / ".beads/hooks" / name
+        hook.write_text("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n"
+                        "# --- END BEADS INTEGRATION v1.3.1 ---\n")
+        hook.chmod(0o755)
+    subprocess.run(["git", "config", "core.hooksPath", str(Path.cwd() / ".beads/hooks")], check=True)
+    (Path(common) / "fake-bd-db").touch()
+    settings = Path.cwd() / ".claude/settings.json"
+    if not settings.exists():
+        settings.parent.mkdir(exist_ok=True)
+        settings.write_text(json.dumps({"hooks": {"SessionStart": [{"hooks": [
+            {"command": "bd prime --hook-json", "type": "command"}], "matcher": ""}]}}, indent=2) + "\n")
 elif args[:2] == ["hooks", "install"] and "--beads" in args:
     subprocess.run(["git", "config", "core.hooksPath", str(Path.cwd() / ".beads/hooks")], check=True)
 else:

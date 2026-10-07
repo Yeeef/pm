@@ -292,4 +292,19 @@ def hook_stop() -> int:
     return 0
 
 
-HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request}
+# ---------------------------------------------------------------- pm hook git-pre-commit
+# Records live on the records branch; a code-branch commit must not edit records/ (main's copy is the copy
+# workflow's). A merge is let through, since merging main brings in the copy. Unlike the runtime hooks, this one
+# refuses: it is the guard.
+
+def hook_git_pre_commit() -> int:
+    if Path(git(None, "rev-parse", "--path-format=absolute", "--git-dir").strip(), "MERGE_HEAD").exists():
+        return 0
+    if git(None, "diff", "--cached", "--name-only", "--", "records/").strip():
+        print("error: this commit edits records/, which only the records branch may change; write records with pm\n"
+              "and unstage these edits: git restore --staged records/", file=sys.stderr)
+        return 1
+    return 0
+
+
+HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request, "git-pre-commit": hook_git_pre_commit}
