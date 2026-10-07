@@ -2657,7 +2657,7 @@ def cmd_uninstall(args) -> str:
         if dirty:
             raise Refuse(f"the store {store} holds uncommitted records; commit them with pm commit or revert them, "
                          f"then run pm uninstall again:\n{dirty}")
-        roots = codex_roots(main)
+        roots = clone_codex_roots(main)  # uv's cache stays: other clones' setup may have added or need it
     codex_path = codex_home() / "config.toml"
     codex_new = remove_codex_roots(codex_path, roots) if roots and codex_path.exists() else None
     for t in trees:
@@ -2688,7 +2688,7 @@ def cmd_uninstall(args) -> str:
         out.append(excluded)
     if codex_new is not None and codex_new != codex_path.read_text():
         write_atomic(codex_path, codex_new)
-        out.append(f"removed pm's writable_roots from {codex_path}")
+        out.append(f"removed this clone's writable_roots from {codex_path}; uv's cache stays, as other clones share it")
     changed = []
     for path, text in removals:
         if text is None:
@@ -2809,18 +2809,23 @@ def codex_home() -> Path:
     return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
 
-def codex_roots(main: Path) -> list[str]:
-    """The clone's git dir, the store, the store's git dir, the Beads dir and uv's cache, as absolute paths."""
+def clone_codex_roots(main: Path) -> list[str]:
+    """The roots only this clone needs: its git dir, the store, the store's git dir and the Beads dir, as absolute
+    paths."""
     store = main / config.STORE
     store_gitdir = Path(store_git(store, "rev-parse", "--absolute-git-dir"))
+    return [str(p.resolve()) for p in (main / ".git", store, store_gitdir, main / ".beads")]
+
+
+def codex_roots(main: Path) -> list[str]:
+    """The clone's own roots and uv's cache, which every clone on the machine shares."""
     try:
         res = subprocess.run(["uv", "--color", "never", "cache", "dir"], capture_output=True, text=True)
     except FileNotFoundError:
         raise Refuse("uv is not installed; pm is a uv tool and needs it")
     if res.returncode != 0 or not res.stdout.strip():
         raise Refuse(f"uv cache dir failed: {res.stderr.strip()}")
-    return [str(p.resolve()) for p in (main / ".git", store, store_gitdir, main / ".beads",
-                                          Path(res.stdout.strip()))]
+    return clone_codex_roots(main) + [str(Path(res.stdout.strip()).resolve())]
 
 
 def codex_config(path: Path) -> tuple[str, dict, list[str]]:
@@ -3339,7 +3344,7 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("uninstall", help="remove pm's pieces from this worktree (hook entries, workflows, .gitignore "
                                          "block, pm's sections in .beads/hooks, .pm/) and the clone's and machine's "
                                          "setup (the store checkout, records/ links and sparse checkouts in every "
-                                         "worktree, the pm service, Codex roots, pm's lines in .git/info/exclude); keeps the records branch, "
+                                         "worktree, the pm service, this clone's Codex writable_roots (uv's cache, shared by every clone, stays), pm's lines in .git/info/exclude); keeps the records branch, "
                                          "records/ on the main branch and Beads; never commits")
     s.set_defaults(func=cmd_uninstall)
 

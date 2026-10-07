@@ -20,6 +20,17 @@ LOCAL_SETTINGS = '{\n  "model": "café"\n}\n'  # non-ASCII: pm rewrites the file
 CODEX_USER = '# mine\nmodel = "o3"\n\n[sandbox_workspace_write]\nnetwork_access = true\n'
 
 
+def uv_cache() -> str:
+    res = subprocess.run(["uv", "--color", "never", "cache", "dir"], check=True, capture_output=True, text=True)
+    return str(Path(res.stdout.strip()).resolve())
+
+
+def codex_after_uninstall() -> str:
+    """CODEX_USER with uv's cache, the one root uninstall keeps: other clones share it."""
+    return CODEX_USER.replace("[sandbox_workspace_write]\n",
+                              f"[sandbox_workspace_write]\nwritable_roots = [{json.dumps(uv_cache())}]\n")
+
+
 def sched_units(tmp: Path) -> list[Path]:
     home = tmp / "home"
     return sorted(p for d in (home / "Library/LaunchAgents", home / ".config/systemd/user") if d.is_dir()
@@ -169,7 +180,7 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
         assert not (tree / "records").is_symlink()
         assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() in ("", "false")
     assert sched_units(tmp_path) == [] and loaded(tmp_path) == []
-    assert (tmp_path / "codex/config.toml").read_text() == CODEX_USER
+    assert (tmp_path / "codex/config.toml").read_text() == codex_after_uninstall()
     # pm's exclude lines go, byte for byte; the fake bd's own line (its database) stays with Beads
     assert exclude.read_bytes() == exclude_before + b"/.beads/embeddeddolt/\n"
     assert (existing / ".claude/settings.local.json").read_text() == LOCAL_SETTINGS
@@ -191,13 +202,40 @@ def test_uninstall_then_init_round_trips(new_repo: Path, tmp_path: Path):
     codex = (tmp_path / "codex/config.toml").read_text()
     res = pm(new_repo, "uninstall")
     assert res.returncode == 0, res.stderr
-    assert (tmp_path / "codex/config.toml").read_text() == CODEX_USER
+    assert (tmp_path / "codex/config.toml").read_text() == codex_after_uninstall()
     res = pm(new_repo, "init")
     assert res.returncode == 0, res.stderr
     assert snapshot(new_repo) == installed
     assert (tmp_path / "codex/config.toml").read_text() == codex
     assert git(new_repo, "status", "--porcelain").strip() == ""
     assert doctor(new_repo)[0] == 0
+
+
+def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Path, tmp_path: Path):
+    """Two clones set up on one machine: uninstalling one removes only its own four roots; uv's cache, which both
+    need, and the other clone's roots stay, and every other byte of config.toml with them."""
+    (tmp_path / "codex").mkdir()
+    config = tmp_path / "codex/config.toml"
+    config.write_text(CODEX_USER)
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    git(new_repo, "push", "-q", "origin", "main")
+    other = tmp_path / "other"
+    git(tmp_path, "clone", "-q", str(tmp_path / "remote.git"), str(other))
+    res = pm(other, "setup")
+    assert res.returncode == 0, res.stderr
+    roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
+    mine = [r for r in roots if r.startswith(str(new_repo.resolve()))]
+    theirs = [r for r in roots if r.startswith(str(other.resolve()))]
+    assert len(mine) == 4 and len(theirs) == 4 and roots.count(uv_cache()) == 1 and len(roots) == 9, roots
+    res = pm(new_repo, "uninstall")
+    assert res.returncode == 0, res.stderr
+    assert "uv's cache stays" in res.stdout
+    kept = [r for r in roots if r not in mine]
+    assert config.read_text() == CODEX_USER.replace(
+        "[sandbox_workspace_write]\n",
+        f"[sandbox_workspace_write]\nwritable_roots = [{', '.join(json.dumps(r) for r in kept)}]\n")
 
 
 def test_uninstall_skips_a_worktree_whose_directory_is_gone(new_repo: Path, tmp_path: Path):
