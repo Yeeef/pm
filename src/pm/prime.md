@@ -8,20 +8,24 @@
 ## Core rules
 - Put every change in a task in a sprint. Put work outside a sprint into a small new sprint.
 - Read the holders and open needs in `pm show` before you take or delegate a task. Do not take work that another live session holds.
-- Claim a task before you start it. Tell a subagent that it holds a task only after the claim succeeds.
+- Claim a task only with `pm task claim`. Do not use `bd update --claim`. Tell a subagent that it holds a task only after the claim succeeds.
+- Close a task with `pm task close`. Do not use `bd close`.
 - Record a scope change as a sprint decision. Do not rename a task or rewrite its description for it.
 - Add findings when they occur. Give each result its numbers.
 - Record a decision at project level when a later sprint must obey it. Move it to the project when it applies beyond one sprint.
 - Use owner source only when the decision answers a need or the owner confirmed it.
 - Read the decisions before you ask the owner. Do not ask again about a decided question.
+- Push the sprint branch and open its PR without approval. Ask the owner only to review and merge.
 - When work waits on the owner, raise a need. Then continue other ready work. Do not decide silently.
 - Do not add a Beads comment to an open request. The site reads it as an owner reply.
 - Start the title of a need from a test with "[TEST]". Dismiss it when the check ends.
 - Do not post status outside the site. The site is the owner's status view.
+- Do not push Beads data or the records branch. The scheduled `pm push` does it.
 - Examine a subagent's report against the files before you accept it.
 - Link a record only with the URL that `pm record link` prints. Do not build a URL or give a records path.
 - Keep one area on each design page. Write its final state, not a history of findings.
-- When the pm service is down, restart it. If the restart fails, raise an action and add a bug task.
+- Write a postmortem when an incident costs more than a day, or breaks other sessions or the site.
+- Get the owner's confirmation of the project goal before you open a project.
 
 ## Planning
 - Write the sprint frame before work starts:
