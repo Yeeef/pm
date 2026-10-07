@@ -188,7 +188,6 @@ def test_decision_add_need_closes_need_and_records_decision(repo):
     assert repo.pm("check").returncode == 0
 
 
-
 @pytest.mark.parametrize("flags, error", [
     (("--decision", DECISION), "the following arguments are required: --reason"),
     (("--decision", f"{DECISION}\nMore.", "--reason", REASON), "--decision has more than one line"),
