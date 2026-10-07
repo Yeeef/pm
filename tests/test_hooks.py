@@ -143,7 +143,7 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     repo.git("reset", "-q", "--hard", cwd=wt)
     assert (wt / "records").is_dir() == tracked and not (wt / "records").is_symlink()
     text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt))
-    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
+    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve(), text
     assert repo.git("status", "--porcelain", cwd=wt) == ""
     ran, located, rest = text.split("\n\n", 2)
     assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran

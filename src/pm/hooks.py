@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
@@ -24,8 +25,11 @@ from pm.owner_request import hook_owner_request
 
 CAP = 10_000  # Claude Code's additionalContext limit, in characters
 TIMEOUT = 20  # seconds; `pm show` takes about 1 s
-INIT_TIMEOUT = 6  # seconds; `pm init` in a set-up clone takes 0.8-0.9 s (tests, 2026-10-07); a fresh clone's Beads bootstrap needs `pm init` by hand
-WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s. With the others, under the hooks' 30 s timeout
+# seconds; `pm init` in a set-up clone takes 0.8-0.9 s (tests, 2026-10-07), and one that installs or restarts the pm
+# service waits up to service.RESTART_WAIT (15 s) for its site; a fresh clone's Beads bootstrap needs `pm init` by hand
+INIT_TIMEOUT = 18
+WHERE_TIMEOUT = 3  # seconds; `pm where` takes about 0.5 s
+BUDGET = 28  # seconds for init, where and show together, under the state hook's 30 s timeout
 HEADER = ("Project state from `pm show` at session start, {at} UTC: a snapshot to orient by, which other sessions "
           "may have changed since; run `pm show` again before stating project state to the owner.\n\n")
 CUT = "\n… cut at the hook's 10,000-character limit; run `pm show` for the rest."
@@ -116,15 +120,16 @@ def where(cwd: str | None, cmd: list[str] | None = None) -> str:
     return f"Locations from `pm where` at session start:\n{res.stdout.strip()}\n\n"
 
 
-def context(cwd: str | None, cmd: list[str] | None = None, session: str | None = None, cap: int = CAP) -> str:
+def context(cwd: str | None, cmd: list[str] | None = None, session: str | None = None, cap: int = CAP,
+            timeout: float = TIMEOUT) -> str:
     """`pm show` under a header, cut at a line to `cap` characters, or one line when it fails. `pm show` runs as the
     starting session, so its warning lists only tasks other live sessions hold, and with --refresh-inbox, which
     first points the session's open requests at its current inbox socket (a resumed session binds a new one) from
-    the Beads read `pm show` makes anyway. It runs in a subprocess so a hang is cut off at TIMEOUT."""
+    the Beads read `pm show` makes anyway. It runs in a subprocess so a hang is cut off at `timeout`."""
     cmd = cmd or SHOW
     env = dict(os.environ, CLAUDE_CODE_SESSION_ID=session) if session else None
     try:
-        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT, env=env)
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
     except (OSError, subprocess.SubprocessError) as e:
         return f"pm show did not run at session start ({type(e).__name__}: {e}); run `pm show` by hand."
     if res.returncode != 0:
@@ -139,8 +144,10 @@ def context(cwd: str | None, cmd: list[str] | None = None, session: str | None =
 def state(cwd: str | None, session: str | None = None) -> str:
     """`pm prime --state`: what `pm init` did and `pm where`, then `pm show`, all within CAP, so `pm show` gets what
     the init and where lines leave and loses its last part first."""
+    start = time.monotonic()
     first = init(cwd) + where(cwd)
-    return first + context(cwd, session=session, cap=CAP - len(first))
+    left = min(TIMEOUT, max(1.0, BUDGET - (time.monotonic() - start)))  # pm show gets what init and where left
+    return first + context(cwd, session=session, cap=CAP - len(first), timeout=left)
 
 
 def prime(cwd: str | None, session: str | None = None) -> str:
