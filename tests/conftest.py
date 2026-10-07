@@ -283,9 +283,6 @@ class Repo:
         reads = lambda c: c[:1] in (["list"], ["show"]) or c in (["context", "--json"], ["export"]) or (c[:1] == ["comments"] and c[2:] == ["--json"])
         return [c for c in self.bd_calls() if not reads(c)]
 
-    def comments(self, issue_id: str) -> list[str]:
-        return [c["text"] for c in self.issues()[issue_id].get("comments", [])]
-
     def snapshot(self) -> dict[str, bytes]:
         return {p.relative_to(self.root).as_posix(): p.read_bytes()
                 for p in sorted(self.root.rglob("*")) if p.is_file() and ".git" not in p.parts}
@@ -312,3 +309,8 @@ def repo(tmp_path: Path) -> Repo:
     r.commit("records")
     r.records.symlink_to(r.store)
     return r
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: starts pm serve, a fresh clone, a remote or the session-start hook; "
+                                       "`make test` skips it, `make test-full` runs it")

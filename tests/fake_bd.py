@@ -1,30 +1,19 @@
 #!/usr/bin/env python3
 """A stand-in for `bd` in tests: serves issues from $FAKE_BD_STATE (a JSON list) and logs each call to $FAKE_BD_LOG.
-A call whose arguments start with the JSON list in $FAKE_BD_FAIL fails without changing anything, until the path in
-$FAKE_BD_HEAL exists; one whose arguments start with the list in $FAKE_BD_HOLD ([prefix, path]) waits until that path
-exists. Comments are kept as bd 1.3.1 shows them (`bd comments <id> --json`), outside `bd list`; `bd human respond` adds "Response: <text>"."""
+Comments are kept as bd 1.3.1 shows them (`bd comments <id> --json`), outside `bd list`; `bd human respond` adds "Response: <text>"."""
 
 import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 state_path, log_path = os.environ["FAKE_BD_STATE"], os.environ["FAKE_BD_LOG"]
 args = sys.argv[1:]
 with open(log_path, "a") as f:
     f.write(json.dumps(args) + "\n")
-hold, gate = json.loads(os.environ.get("FAKE_BD_HOLD") or "[null, null]")
-while hold and args[:len(hold)] == hold and not os.path.exists(gate):
-    time.sleep(0.02)
 issues = json.load(open(state_path))
 opts = dict(a[2:].split("=", 1) for a in args if a.startswith("--") and "=" in a)
-fail = json.loads(os.environ.get("FAKE_BD_FAIL") or "null")
-heal = os.environ.get("FAKE_BD_HEAL")
-if fail and args[:len(fail)] == fail and not (heal and os.path.exists(heal)):
-    print(f"fake bd: failing {args} on purpose", file=sys.stderr)
-    sys.exit(1)
 
 
 def main_checkout() -> Path:
@@ -167,7 +156,7 @@ elif args[:1] == ["bootstrap"]:
                             capture_output=True, text=True).stdout.strip()
     db = Path(common) / "fake-bd-db"
     if "--dry-run" in args:
-        action = "none" if db.exists() else os.environ.get("FAKE_BD_BOOTSTRAP", "sync")
+        action = "none" if db.exists() else "sync"
         print(json.dumps({"action": action, "beads_dir": str(Path.cwd() / ".beads"), "reason": "fake"}))
     else:
         (Path.cwd() / ".beads").mkdir(exist_ok=True)
