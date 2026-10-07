@@ -2494,7 +2494,10 @@ def doctor_setup(top: Path, main: Path, store: Path) -> list[str]:
         out.append(f"sparse checkout: {top} does not exclude records/; run pm init")
     hooks_path = store_git(main, "config", "--get", "--default=", "core.hooksPath")
     if not hooks_path or (main / hooks_path).resolve() != (main / ".beads/hooks").resolve():
-        out.append(f"hooks path: core.hooksPath is {hooks_path or 'unset'}, not .beads/hooks; run pm init")
+        fix = ("run pm init" if not hooks_path else
+               "pm works only with Beads' hooks path: move any hooks there into .beads/hooks (outside Beads' and "
+               "pm's marked sections), run git config --unset core.hooksPath, then pm init")
+        out.append(f"hooks path: core.hooksPath is {hooks_path or 'unset'}, not .beads/hooks; {fix}")
     out += [f"service: {d}" for d in service.drift(main, service.port_for(main, cfg().port))]
     if codex_home().is_dir() and store.is_dir():
         path = codex_home() / "config.toml"

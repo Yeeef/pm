@@ -91,7 +91,7 @@ SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of
     "records link": (lambda r, tmp: (r / "records").unlink(), "records link: "),
     "sparse checkout": (lambda r, tmp: git(r, "sparse-checkout", "disable"), "sparse checkout: "),
     "hooks path": (lambda r, tmp: git(r, "config", "core.hooksPath", ".git/hooks"),
-                   "hooks path: core.hooksPath is .git/hooks"),
+                   "hooks path: core.hooksPath is .git/hooks, not .beads/hooks; pm works only with Beads' hooks path"),
     "service": (lambda r, tmp: [p.unlink() for p in sched_units(tmp)], "service: not installed"),
     "codex roots": (lambda r, tmp: (tmp / "codex/config.toml").write_text(CODEX_USER), "codex: "),
     "git exclude": (lambda r, tmp: edit(r / ".git/info/exclude", "/.pm/run/\n", ""), "git exclude: "),
