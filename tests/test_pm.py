@@ -2984,8 +2984,9 @@ def test_a_push_that_failed_is_retried_by_the_sweep(repo):
     with session_inbox(path) as (_, lines):
         with serving(repo) as (url, log):
             wait_for(lambda: lines, "the sweep's push")
-            wait_for(lambda: repo.issues()["demo.1.3"]["metadata"].get("picked_up") == "1", "the reply marked")
-            assert "push demo.1.3 (sweep): delivered" in log.read_text()
+            # the sweep logs only after it marked the reply, so the log line is what to wait for
+            wait_for(lambda: "push demo.1.3 (sweep): delivered" in log.read_text(), "the sweep's push logged")
+            assert repo.issues()["demo.1.3"]["metadata"].get("picked_up") == "1"
     assert len(lines) == 1 and "Small." in inbox_text(lines[0])
 
 
