@@ -38,7 +38,7 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 - Every change has a task in a sprint. Work outside any sprint becomes a small new sprint, so that it shows in Beads.
 - A task has one holder, a session. A subagent shares its session's id, so it holds what its session holds.
 - A sprint's frame exists before anything runs. A scope change is a sprint decision, never a task renamed or rewritten.
-- A sprint is done when its PR is on main. A sprint that a finding voided is voided, not failed.
+- A sprint that changes code is done when its PR is on main. A sprint with no code change has no PR; it is done when its report is written. A sprint that a finding voided is voided, not failed.
 - A decision has a source, a date and a reason. Without the reason, nobody can tell later if it still holds.
 - A decision lives where it governs. Project level when later sprints must follow it; sprint level when it ends with the sprint. `until` names only a known condition to revisit it.
 - A choice that is cheap to reverse, and that nobody will ask about, needs no record. The commit message is enough.
@@ -64,7 +64,7 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 
 **The agent's interface is `pm` and the records.** `pm show` gives the state in a few hundred tokens. `pm show --record … --section …` reads one section. Design pages and docs are read as the reference they are. `bd` finds ready work and holds the tasks. Section 5 says how to read; sections 6 to 8 say how to write.
 
-**pm is self-contained.** It orchestrates the work, and it gives the context about itself; there is no skill. The context sits beside the code, so they change together, and it comes level by level. `pm prime` prints this file at session start: the model and the procedures. `pm show` prints the state. Each command's `--help` holds that command's, or its subsystem's, detail. This file names a command and its refusals; for more, run `pm <noun> [cmd] --help`.
+**pm is self-contained.** It orchestrates the work, and it gives the context about itself, level by level. `pm prime` prints this file at session start: the model and the procedures. `pm show` prints the state. Each command's `--help` holds that command's, or its subsystem's, detail. This file names a command and its refusals; for more, run `pm <noun> [cmd] --help`.
 
 **Behind both.** `pm serve` serves the site from the records and Beads. A scheduled job runs `pm push`: it pushes Beads data and the `records` branch and generates the day summary. Sessions push neither. `pm render` checks every record. `pm --help` describes each; `pm push --help` holds the push's detail.
 
@@ -80,7 +80,7 @@ Each fact has one home: Beads holds the status, the records hold the why. Two co
 
 **The sprint frame.** Goal: what is true when the sprint ends, and why now. Scope: an **In:** and an **Out:** list, at a high level; detail goes in a design page. Done when: a check and its expected result, written before the run. The evidence then shows the goal met, or the finding that voids it. For a one-shot or costly run, the expected result is written first, so the run cannot be read backwards.
 
-**Sizing.** A sprint takes hours to days. Longer work is a project of several sprints. Each sprint ends in a PR, so the owner sees work land at that pace.
+**Sizing.** A sprint takes hours to days. Longer work is a project of several sprints. Each sprint that changes code ends in a PR, so the owner sees work land at that pace.
 
 **Why needs go to the site.** Chat ends with the session; the owner reads the site when they have time. A need is tracked in Beads, blocks what waits on it, and its reply reaches the session that raised it. So raise the need, then continue other ready work. Do not stop, and do not decide silently.
 
@@ -127,21 +127,20 @@ Session start runs `pm setup`, then injects `pm where` and `pm show` beside `bd 
 - Close it with `pm task close <id> --reason "…"`, never `bd close`. The reason names the commit: HEAD when newer than the task, else `--commit REF`.
 - Move it with `pm task move <id> --to SPRINT_ID`, the reason on stdin, two lines or more. It records the scope change as a decision in the sprint it leaves.
 
-**Close a sprint.** A sprint closes only when its PR is on main. `pm sprint close` does not ask GitHub. The open review blocks the close, and you close the review only once the PR is on main.
+**Close a sprint.** A sprint that changes code closes only once its PR is on main. A merge into a stacked base is not on main. A sprint with no code change, such as an investigation or a design page, has no PR. It closes after its report and its tasks, whatever its verdict. `pm sprint close` does not ask GitHub. A review under the sprint blocks the close; close the review only once the PR is on main.
 
 1. Write the full delivery report by hand, then commit it with `pm commit`.
    - Outcome: start with `done`, `partial` or `voided`, plus one sentence. A bullet list of what shipped may follow. Only the first paragraph becomes the Beads close reason.
    - Against "Done when": give each item as met or not, with its evidence: a page, a command, a number.
-2. Push the branch and open the PR without asking.
-3. Raise the review: `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]` (section 8). Every sprint named must be open, with its report committed. The review sits under the first sprint named and blocks its close.
+2. With a PR: push the branch and open the PR without asking.
+3. With a PR: raise the review, `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]` (section 8). Every sprint named must be open, with its report committed. The review sits under the first sprint named and blocks its close.
 4. Close each other open task with `pm task close`, or move it with `pm task move`.
-5. Once the PR is on main (section 8 says how you learn it), close the review: `pm action done <review> --reason "merged as <sha>"`. A PR merged into a stacked base is not on main yet.
-6. Fast-forward the main checkout: `git -C <main checkout> pull --ff-only origin main`. Hooks, rules and links read it.
+5. With a PR: once it is on main (section 8 says how you learn it), close the review: `pm action done <review> --reason "merged as <sha>"`.
+6. With a PR: fast-forward the main checkout, `git -C <main checkout> pull --ff-only origin main`. Hooks, rules and links read it.
 7. Run `pm sprint close <id>`.
    - It refuses an unwritten report, any open task or review, and a review closed without `merged as <sha>`. It skips a dismissed review, such as a replaced PR's.
-   - It stamps `Merged as <sha> (PR #N).` into the Outcome after the verdict and commits that on the `records` branch.
-   - The epic's close reason names that commit, so the milestone points at the exact state it delivered.
-   - A voided sprint with no PR closes with no review and no stamp.
+   - With a review, it stamps `Merged as <sha> (PR #N).` into the Outcome after the verdict and commits that on the `records` branch. A sprint with no review gets no stamp.
+   - The epic's close reason names the records commit, so the milestone points at the exact state it delivered.
 
 **Close a project.** Close every sprint. Write Outcome by hand: the results against the goal in numbers, what was learned and what was retired. Link the sprints' delivery reports. Commit it with `pm commit`, then run `pm project close <name>`. Nothing is deleted: closed projects stay on the site.
 
@@ -218,7 +217,6 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - **Action** (`pm action need --title "…" --parent ID`, under "Actions await you"): the owner does a step that only they can do. Examples: run a command, apply a setting. The description on stdin says what to do and why.
 - **PR review** (`pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`): section 6, step 3. Stdin holds optional extra context.
 - Both commands refuse a request that names a PR and asks to review, merge or approve it without `--pr`.
-- A need that a test or a live check raises starts its title with "[TEST]". Close it with `bd human dismiss <id>` when the check ends.
 
 **Never leave a request only in chat.** Raise a need first for each request that sprint work waits on. Examples: a decision on a sprint's scope or design, a PR review or merge, an action a task waits on.
 

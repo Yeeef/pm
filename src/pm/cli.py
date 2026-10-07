@@ -2640,7 +2640,7 @@ def parser() -> argparse.ArgumentParser:
                     "taken if the owner does not answer, then its reason. Send it with a quoted heredoc (<<'EOF'), "
                     "so code spans stay. pm writes the description in one Markdown layout and refuses an option "
                     "without a cost, a default that names no option, and a sentence of more than 25 words. Record "
-                    "the answer with pm decision add --need, or close a small answer with pm decision close. A need a test or live check raises starts its title with \"[TEST]\"; close it with bd human dismiss <id> once the check is done.")
+                    "the answer with pm decision add --need, or close a small answer with pm decision close.")
     s.add_argument("--title", required=True)
     s.add_argument("--parent", required=True, metavar="ID", help="the sprint or task the decision belongs to")
     s.set_defaults(func=cmd_decision_need)
@@ -2667,7 +2667,7 @@ def parser() -> argparse.ArgumentParser:
                     "close the review with pm action done <id> --reason \"merged as <sha>\"; "
                     "the site's card links the PR, each sprint's record and delivery report, and the design "
                     "pages named with --design plus those the sprints' records list, and shows the focus; stdin "
-                    "then holds optional extra context. Close it with pm action done once you see it done. A need a test or live check raises starts its title with \"[TEST]\"; close it with bd human dismiss <id> once the check is done.")
+                    "then holds optional extra context. Close it with pm action done once you see it done.")
     s.add_argument("--title", help="required without --pr; with --pr, default: Review PR #<n>")
     s.add_argument("--parent", metavar="ID", help="the sprint or task the action belongs to (required without --pr; "
                    "not allowed with it)")
