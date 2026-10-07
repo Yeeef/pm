@@ -83,10 +83,12 @@ def setup_changes(tmp: Path) -> dict:
         "hooks path": (lambda r: git(r, "config", "core.hooksPath", ".git/hooks"), "hooks path: core.hooksPath is .git/hooks"),
         "service": (lambda r: [p.unlink() for p in sched_units(tmp)], "service: not installed"),
         "codex roots": (lambda r: (tmp / "codex/config.toml").write_text(CODEX_USER), "codex: "),
+        "git exclude": (lambda r: edit(r / ".git/info/exclude", "/.pm/run/\n", ""), "git exclude: "),
     }
 
 
-@pytest.mark.parametrize("kind", ["records link", "sparse checkout", "hooks path", "service", "codex roots"])
+@pytest.mark.parametrize("kind", ["records link", "sparse checkout", "hooks path", "service", "codex roots",
+                                  "git exclude"])
 def test_doctor_reports_a_changed_clone_setup(new_repo: Path, tmp_path: Path, kind: str):
     (tmp_path / "codex").mkdir()
     assert pm(new_repo, "init").returncode == 0
@@ -145,6 +147,9 @@ def install_everywhere(repo: Path, tmp: Path) -> Path:
 
 
 def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Path):
+    exclude = existing / ".git/info/exclude"
+    exclude.write_text(exclude.read_text() + "*.swp\n")  # a line of the user's after git's own comments
+    exclude_before = exclude.read_bytes()
     before = snapshot(existing)
     wt = install_everywhere(existing, tmp_path)
     store = existing / ".pm/store/records"
@@ -165,6 +170,8 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
         assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() in ("", "false")
     assert sched_units(tmp_path) == [] and loaded(tmp_path) == []
     assert (tmp_path / "codex/config.toml").read_text() == CODEX_USER
+    # pm's exclude lines go, byte for byte; the fake bd's own line (its database) stays with Beads
+    assert exclude.read_bytes() == exclude_before + b"/.beads/embeddeddolt/\n"
     assert (existing / ".claude/settings.local.json").read_text() == LOCAL_SETTINGS
     assert not (wt / ".claude/settings.local.json").exists()
     assert not (existing / ".pm").exists() and (existing / ".beads/hooks").is_dir()

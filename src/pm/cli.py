@@ -2287,6 +2287,9 @@ def setup_clone(site_url: str | None) -> str:
     store = store_path(cwd)
     main = main_of(store)
     out = setup_beads(main)
+    excluded = setup_exclude(main)
+    if excluded:
+        out.append(excluded)
     if not store.exists():
         remote = cfg().remote
         if subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"],
@@ -2478,6 +2481,10 @@ def doctor_setup(top: Path, main: Path, store: Path) -> list[str]:
         missing = [r for r in codex_roots(main) if r not in codex_config(path)[2]]
         if missing:
             out.append(f"codex: {path} lacks writable_roots {', '.join(missing)}; run pm init")
+    path = exclude_path(main)
+    missing = [l for l in PM_EXCLUDE if l not in exclude_lines(path)]
+    if missing:
+        out.append(f"git exclude: {path} lacks {', '.join(missing)}; run pm init")
     if Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").is_dir():
         path = top / ".claude/settings.local.json"
         if str(store) not in claude_dirs(path):
@@ -2656,6 +2663,9 @@ def cmd_uninstall(args) -> str:
     if store.is_dir():
         store_git(main, "worktree", "remove", str(store))
         out.append(f"removed the store checkout {store}; the {BRANCH} branch stays")
+    excluded = remove_exclude(main)
+    if excluded:
+        out.append(excluded)
     if codex_new is not None and codex_new != codex_path.read_text():
         write_atomic(codex_path, codex_new)
         out.append(f"removed pm's writable_roots from {codex_path}")
@@ -2680,6 +2690,45 @@ def cmd_uninstall(args) -> str:
         out.append(f"pm commits nothing on {branch}; commit the removal there: git add -A -- "
                    f"{' '.join(dict.fromkeys(changed))} && git commit -m \"Uninstall pm\"")
     return "\n".join(out) or "pm is not installed here; nothing to remove"
+
+
+# the clone's own state under .pm/, in the common git dir's info/exclude: a branch made before pm has no .pm/.gitignore,
+# and there git add -A would stage the store as an embedded repo
+PM_EXCLUDE = ["/.pm/store/", "/.pm/run/"]
+
+
+def exclude_path(main: Path) -> Path:
+    return main / ".git/info/exclude"  # store_path checked that the common git dir is main's .git
+
+
+def exclude_lines(path: Path) -> list[str]:
+    return path.read_text().splitlines() if path.exists() else []
+
+
+def setup_exclude(main: Path) -> str:
+    """Append the PM_EXCLUDE lines missing from the clone's info/exclude, keeping the rest byte for byte."""
+    path = exclude_path(main)
+    missing = [l for l in PM_EXCLUDE if l not in exclude_lines(path)]
+    if not missing:
+        return ""
+    text = path.read_text() if path.exists() else ""
+    sep = "" if not text or text.endswith("\n") else "\n"
+    write_atomic(path, text + sep + "".join(f"{l}\n" for l in missing))
+    return f"added {', '.join(missing)} to {path}, so no branch stages the clone's pm state"
+
+
+def remove_exclude(main: Path) -> str:
+    """Take the PM_EXCLUDE lines out of the clone's info/exclude, keeping every other byte."""
+    path = exclude_path(main)
+    if not path.exists():
+        return ""
+    lines = path.read_text().splitlines(keepends=True)
+    kept = [l for l in lines if l.rstrip("\r\n") not in PM_EXCLUDE]
+    if kept == lines:
+        return ""
+    gone = [l for l in PM_EXCLUDE if l in exclude_lines(path)]
+    write_atomic(path, "".join(kept))
+    return f"removed {', '.join(gone)} from {path}"
 
 
 def setup_claude(top: Path, store: Path) -> str:
@@ -3269,13 +3318,13 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("uninstall", help="remove pm's pieces from this worktree (hook entries, workflows, .gitignore "
                                          "block, pm's sections in .beads/hooks, .pm/) and the clone's and machine's "
                                          "setup (the store checkout, records/ links and sparse checkouts in every "
-                                         "worktree, the pm service, Codex roots); keeps the records branch, "
+                                         "worktree, the pm service, Codex roots, pm's lines in .git/info/exclude); keeps the records branch, "
                                          "records/ on the main branch and Beads; never commits")
     s.set_defaults(func=cmd_uninstall)
 
     s = sub.add_parser("setup", help="make the clone ready: connect Beads (bd bootstrap), install the git "
-                                     "hooks, check out the records store at <main checkout>/.pm/store/records if "
-                                     "missing, link this worktree's records/ to it, and add the clone's .git, the store, .beads and "
+                                     "hooks, list .pm/store/ and .pm/run/ in .git/info/exclude, check out the records store at "
+                                     "<main checkout>/.pm/store/records if missing, link this worktree's records/ to it, and add the clone's .git, the store, .beads and "
                                      "uv's cache to the writable roots of $CODEX_HOME/config.toml; a no-op once set up")
     s.add_argument("--site-url", metavar="URL",
                    help="the site's public base URL (a tunnel to the pm service), written to site_url in .pm/config.toml: "

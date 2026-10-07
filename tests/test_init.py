@@ -139,10 +139,14 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert [c for c in sched if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]], sched
     assert "installed the pm service: " in res.stdout
 
+    exclude = (new_repo / ".git/info/exclude").read_text()
+    assert exclude.endswith("\n/.pm/store/\n/.pm/run/\n"), exclude
+
     before = snapshot(new_repo)
     again = pm(new_repo, "init")
     assert again.returncode == 0, again.stderr
     assert snapshot(new_repo) == before, "a second run changes nothing"
+    assert (new_repo / ".git/info/exclude").read_text() == exclude
     assert "git add" not in again.stdout and "already set up" in again.stdout
 
 
@@ -167,6 +171,19 @@ def test_init_hooks_set_up_a_new_worktree_and_guard_records(new_repo: Path, tmp_
     git(wt, "add", "code.txt")
     res = subprocess.run(["git", "commit", "-qm", "code"], cwd=wt, env=env(tmp_path), capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
+
+
+def test_init_keeps_the_store_out_of_a_branch_made_before_pm(new_repo: Path):
+    """A branch made before pm has no .pm/.gitignore; the clone's info/exclude still keeps the store and run state
+    out of git add -A there."""
+    first = git(new_repo, "rev-parse", "HEAD").strip()
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    git(new_repo, "checkout", "-q", "-b", "old", first)
+    assert not (new_repo / ".pm/.gitignore").exists() and (new_repo / ".pm/store/records").is_dir()
+    status = git(new_repo, "status", "--porcelain", "--untracked-files=all", "--", ".pm").strip()
+    assert status == "", status
 
 
 def test_init_site_url_is_written_to_the_config(new_repo: Path):
