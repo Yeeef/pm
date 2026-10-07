@@ -300,6 +300,11 @@ def links_old(link: Path, old: Path) -> bool:
     return target == old or (link.parent / target).resolve() == old.resolve()
 
 
+def names_old(entry, old: Path) -> bool:
+    """Whether a path entry is the old store, spelled as given or through a link (/tmp and /private/tmp, say)."""
+    return isinstance(entry, str) and (entry == str(old) or Path(entry).resolve() == old.resolve())
+
+
 def local_settings_dirs(path: Path) -> list | None:
     if not path.is_file():
         return None
@@ -326,10 +331,9 @@ def relink(main: Path, store: Path) -> list[str]:
             out.append(f"relinked {link} -> {store}")
         path = tree / ".claude/settings.local.json"
         dirs = local_settings_dirs(path)
-        if dirs and str(old) in dirs:
+        if dirs and any(names_old(d, old) for d in dirs):
             data = json.loads(path.read_text())
-            new = data["permissions"]["additionalDirectories"]
-            new[new.index(str(old))] = str(store)
+            new = [str(store) if names_old(d, old) else d for d in dirs]
             data["permissions"]["additionalDirectories"] = list(dict.fromkeys(new))
             path.write_text(dump_json(data))
             out.append(f"replaced {old} by {store} in {path}")
@@ -382,7 +386,7 @@ def clone_pieces(main: Path, store: Path, codex_roots: list[str]) -> list[str]:
     for tree in worktrees(main):
         if links_old(tree / "records", old):
             out.append(f"{tree / 'records'} links the old store {old}")
-        if str(old) in (local_settings_dirs(tree / ".claude/settings.local.json") or []):
+        if any(names_old(d, old) for d in local_settings_dirs(tree / ".claude/settings.local.json") or []):
             out.append(f"{tree / '.claude/settings.local.json'} lists the old store {old}")
     if str(old.resolve()) in codex_roots:
         out.append(f"Codex's writable_roots list the old store {old.resolve()}")
