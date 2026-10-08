@@ -1172,7 +1172,7 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     first = summary(repo)
     assert first["text"] == "Summary 1." and first["date"] == TODAY
     call = claude_calls(repo)[0]
-    assert call["args"][:4] == ["-p", "--model", "haiku", "--tools"]
+    assert call["args"][:4] == ["-p", "--model", "claude-haiku-5-5", "--tools"]
     assert "records commit: records [" in call["stdin"], "today's records commits are the activity"
     res = repo.pm("day", "summarize")
     assert res.returncode == 0 and "unchanged" in res.stdout and len(claude_calls(repo)) == 1

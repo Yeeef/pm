@@ -48,7 +48,7 @@ var tree = &command{
 				{
 					name:        "summarize",
 					help:        "generate today's Today summary with claude -p; the pm service runs it",
-					description: "Summarize today's activity (what the day page shows, plus the records committed today) with claude -p --model haiku into records/days/<today>.summary.json, committed on the records branch; the day page shows it as Today, labelled with the time it was generated. Skips when nothing happened today or the activity's digest is unchanged since the last summary. Fails, writing nothing, when claude is missing or fails. The pm service runs it every 10 minutes.",
+					description: "Summarize today's activity (what the day page shows, plus the records committed today) with claude -p --model claude-haiku-5-5 into records/days/<today>.summary.json, committed on the records branch; the day page shows it as Today, labelled with the time it was generated. Skips when nothing happened today or the activity's digest is unchanged since the last summary. Fails, writing nothing, when claude is missing or fails. The pm service runs it every 10 minutes.",
 					args: []arg{
 						{flags: []string{"--dry-run"}, dest: "dry_run", kind: flagTrue, help: "print the summary it would write; write nothing"},
 					},
