@@ -596,14 +596,23 @@ def need_part(part: str, value: str) -> str:
     value = value.strip()
     if not value:
         raise Refuse(f"{part} is empty; {NEED_SHAPE}")
-    if "\n" in value:
+    if len(value.splitlines()) > 1:
         raise Refuse(f"{part} has more than one line; give each part one line")
     return value
 
 
+def need_text(args) -> str:
+    """Every part a decision need's flags give, as given, for checks that run before its layout's."""
+    return "\n".join([*args.question, *args.fact, *(t for o in args.option for t in o),
+                      *(t for c in args.cost for t in c), *(t for d in args.default for t in d)])
+
+
 def need_markdown(args) -> str:
     """A decision need's description in its one layout, from the parts its flags give (NEED_SHAPE)."""
-    question = need_part("--question", args.question)
+    for flag, given in (("--question", args.question), ("--default", args.default)):
+        if len(given) != 1:
+            raise Refuse(f"give exactly one {flag}; {NEED_SHAPE}")
+    question = need_part("--question", args.question[0])
     facts = [need_part("--fact", f) for f in args.fact]
     options, costs = {}, {}
     for label, text in args.option:
@@ -624,7 +633,7 @@ def need_markdown(args) -> str:
     options = {label: (text, costs[label]) for label, text in options.items()}
     if len(options) < 2:
         raise Refuse(f"give at least two --option flags; a decision needs a choice; {NEED_SHAPE}")
-    label, rest = args.default
+    label, rest = args.default[0]
     if label not in options:
         raise Refuse(f"--default {label} names no option; the labels are {', '.join(options)}")
     rest = need_part("--default REASON", rest)
@@ -651,14 +660,16 @@ def raise_need(args, records: Path, want: str) -> str:
     title = args.title.strip()
     if not title:
         raise Refuse("--title is empty")
-    desc = args.stdin if want == "action" else need_markdown(args)
-    text = f"{title}\n{desc}"
+    desc = args.stdin
+    text = f"{title}\n{desc if want == 'action' else need_text(args)}"
     if PR_NAMED.search(text) and REVIEW_ASKED.search(text):
         raise Refuse(f"this asks the owner to review or merge a PR; raise it with the review form, so its card links "
                      f"the PR, the sprints and design pages and its wait wakes on the merge: {REVIEW_FORM}. If it "
                      "only mentions the PR, say what you ask without review, merge or approve")
     if want == "action" and not desc:
         raise Refuse(f"the description is empty; pipe it on stdin: {ACTION_SHAPE}")
+    if want == "decision":
+        desc = need_markdown(args)
     repo = load(records)
     parent = repo.beads.get(args.parent)
     if parent is None:
@@ -3262,7 +3273,7 @@ def parser() -> argparse.ArgumentParser:
                     "layout and refuses fewer than two options, a repeated label, an option without exactly one "
                     "cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with "
                     "pm decision add --need, or close a small answer with pm decision close.")
-    s.add_argument("--question", required=True, metavar="TEXT", help="what the owner decides, as one question")
+    s.add_argument("--question", required=True, action="append", metavar="TEXT", help="what the owner decides, as one question")
     s.add_argument("--fact", required=True, action="append", metavar="TEXT",
                    help="a fact the owner needs to decide; repeat it for each fact")
     s.add_argument("--option", required=True, action="append", nargs=2, metavar=("LABEL", "TEXT"),
@@ -3270,7 +3281,7 @@ def parser() -> argparse.ArgumentParser:
                         "or more")
     s.add_argument("--cost", required=True, action="append", nargs=2, metavar=("LABEL", "TEXT"),
                    help="what the option with this label costs; one for each option")
-    s.add_argument("--default", required=True, nargs=2, metavar=("LABEL", "REASON"),
+    s.add_argument("--default", required=True, action="append", nargs=2, metavar=("LABEL", "REASON"),
                    help="the option taken if the owner does not answer, and why")
     s.add_argument("--title", required=True)
     s.add_argument("--parent", required=True, metavar="ID", help="the sprint or task the decision belongs to")

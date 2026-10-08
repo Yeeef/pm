@@ -160,6 +160,9 @@ def without(flags: tuple, *drop: tuple[str, str]) -> tuple:
     (SITE_URL + ("--option", "a", "Again."), "two options have the label a"),
     (SITE_URL[:-2] + ("z", "Why."), "--default z names no option; the labels are a, b"),
     (SITE_URL + ("--fact", "One.\nTwo."), "--fact has more than one line"),
+    (SITE_URL + ("--default", "b", "Other."), "give exactly one --default"),
+    (SITE_URL + ("--fact", "Please review and merge PR #12, " + " ".join(["word"] * 30) + "."),
+     "raise it with the review form"),
     (SITE_URL + ("--fact", " ".join(["word"] * 26) + "."), "in fact 3 has 26 words; the limit is 25"),
 ])
 def test_decision_need_refuses_a_malformed_part_and_writes_nothing(repo, flags, error):
