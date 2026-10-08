@@ -332,6 +332,10 @@ def test_main_checkout_hook_denies_an_edit_in_the_main_checkout_only(repo):
                       ("records/sprints/demo-1.md", repo.root)):
         res = run(MAIN_CHECKOUT, edit_event(repo, path, cwd=cwd), repo.env, cwd)
         assert res.returncode == 0 and res.stdout == "", (path, res.stdout, res.stderr)
+    # a link from outside into the main checkout (as ~/.claude/CLAUDE.md links a tracked file) passes
+    (repo.root.parent / "global.md").symlink_to(repo.root / ".gitignore")
+    res = run(MAIN_CHECKOUT, edit_event(repo, repo.root.parent / "global.md"), repo.env, repo.root)
+    assert res.returncode == 0 and res.stdout == "", res.stdout
     allowed = dict(repo.env, PM_ALLOW_MAIN_CHECKOUT="1")
     assert run(MAIN_CHECKOUT, edit_event(repo, repo.root / "x.py"), allowed, repo.root).stdout == ""
 

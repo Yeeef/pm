@@ -37,12 +37,15 @@ def main_checkout(cwd: str | Path | None) -> Path | None:
 
 def in_main_tree(cwd: str | Path | None, path: str | Path) -> Path | None:
     """The main checkout's root when `path` (relative to `cwd`) lies in its tree outside every linked worktree of the
-    clone `cwd` is in, else None. `records/` resolves into the store, a linked worktree, so it passes."""
-    p = (Path(cwd or ".") / path).resolve()
+    clone `cwd` is in, else None. The path as named decides whether it is in the main checkout, so a link from outside
+    into it (such as ~/.claude/CLAUDE.md, a link to a tracked file) passes; where it resolves decides whether it is in
+    a linked worktree, so `records/`, a link into the store, passes."""
+    named = Path(os.path.abspath(Path(cwd or os.getcwd()) / path))
+    real = named.resolve()
     trees = [Path(l[len("worktree "):]).resolve()
              for l in git(cwd, "worktree", "list", "--porcelain").splitlines() if l.startswith("worktree ")]
     main, linked = trees[0], trees[1:]
-    if not p.is_relative_to(main) or any(p.is_relative_to(t) for t in linked):
+    if not named.is_relative_to(main) or any(p.is_relative_to(t) for p in (named, real) for t in linked):
         return None
     return main
 
