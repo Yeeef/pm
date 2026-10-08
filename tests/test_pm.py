@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -708,8 +709,8 @@ def test_pm_show_levels_together_print_every_line_pm_show_printed_whole(monkeypa
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "me")
     top = cli.show_text(SHOW_DATA).splitlines()
     projects = [cli.show_project_text(p).splitlines() for p in SHOW_DATA["projects"]]
-    shown = set(top).union(*projects)
-    assert [l for l in OLD_SHOW.splitlines() if l not in shown] == []
+    shown = Counter(top + [l for lines in projects for l in lines])  # counted: a line each project prints once
+    assert Counter(OLD_SHOW.splitlines()) - shown == Counter()
     old_top = OLD_SHOW.split("\nfeedback: when pm gets")[0].splitlines()  # warnings, the day and the site
     assert top[:len(old_top)] == old_top
     for p in SHOW_DATA["projects"]:
