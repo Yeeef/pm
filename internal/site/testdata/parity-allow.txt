@@ -1,0 +1,14 @@
+# The reviewed differences between Python pm's pages and Go pm's, after Normalise (internal/site/parity_test.go).
+# Each entry is a block of `key: value` lines, entries apart by a blank line:
+#   name:   a short name
+#   reason: why Go's page may differ here; reviewed in the PR that adds the entry
+#   pages:  where it applies: corpus:glob ..., corpus being fixtures, constructs or live, glob as Go's path.Match
+#   python: a Go regexp over Python's normalised page
+#   go:     its replacement ($1 for a group), Go's form
+# An entry that matches no page of a corpus it names fails the test, so the list only holds live differences.
+
+name: assignee
+reason: Python's task graph labels a task not done with its bd assignee ("· yeeef"); the work store has no assignee, its holder is a session and never a person (work-store page, Data model), so Go's graph names nobody
+pages: live:projects/*.html live:sprints/*.html
+python: (?m) · [^·\n]+?(&#34;\]:::(?:running|ready|blocked)$)
+go: $1
