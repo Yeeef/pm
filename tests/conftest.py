@@ -15,6 +15,7 @@ import pytest
 
 from pm import __version__
 
+import transcript
 from work_items import items as work_items
 
 # This checkout's records/ link: the real records, wherever this clone keeps its store.
@@ -234,6 +235,21 @@ def no_service_left(tmp_path: Path):
     stop_services(tmp_path)
 
 
+# Each test's Repo.pm calls, written as one transcript per test under $PM_TRANSCRIPTS/<impl> (default
+# pm/.transcripts/<impl>), which a run empties first: the same file from each implementation must be equal.
+TRANSCRIPTS = Path(os.environ.get("PM_TRANSCRIPTS") or Path(__file__).resolve().parents[1] / ".transcripts") / IMPL
+
+
+@pytest.fixture(autouse=True)
+def recorded(request, tmp_path: Path):
+    transcript.start()
+    yield
+    paths = {str(tmp_path): "<tmp>", str(tmp_path.resolve()): "<tmp>", str(request.config.pm_home): "<home>",
+             str(Path(request.config.pm_home).resolve()): "<home>", str(Path(PM[0]).parent): "<pm-bin>",
+             str(REAL_RECORDS.parent): "<checkout>", **{v: f"<{k}>" for k, v in UV_DIRS.items()},
+             tempfile.gettempdir(): "<systmp>", str(Path(tempfile.gettempdir()).resolve()): "<systmp>"}
+    transcript.write(TRANSCRIPTS, request.node.nodeid, paths)
+
 
 def pytest_collection_modifyitems(config, items):
     """Skip a test marked for another implementation, with the mark's reason."""
@@ -312,13 +328,25 @@ class Repo:
         self.noms = root / ".beads/embeddeddolt/demo/.dolt/noms"  # the Dolt store bd context points at; see dolt()
         self.env = fake_bd_env(tmp, os.environ)
         self.base: dict[str, dict] = {}  # the items changes() counts from; the repo fixture marks them once set up
+        self.seeded: set[str] = set()  # ids pm did not mint: a transcript keeps them as they are
+
     def pm(self, *args: str, text: str = "", stdin: str | None = None,
            cwd: Path | None = None) -> subprocess.CompletedProcess:
         """Run pm; a non-empty text goes in as --text. stdin is closed unless given: only `pm hook` reads it, for the
-        hook input JSON."""
+        hook input JSON. The call goes into the test's transcript with the record files it changed and the store
+        export after it."""
         feed = {"stdin": subprocess.DEVNULL} if stdin is None else {"input": stdin}
-        return subprocess.run([*PM, *args, *([f"--text={text}"] if text else [])],
-                              cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
+        argv = [*args, *([f"--text={text}"] if text else [])]
+        before = self.record_files()
+        res = subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
+        after = self.record_files()
+        export = list(self.items().values())
+        transcript.record({
+            "argv": argv, "stdin": stdin, "stdout": res.stdout, "stderr": res.stderr, "exit": res.returncode,
+            "records": {p: after[p].decode(errors="replace") if p in after else None
+                        for p in sorted(before.keys() | after.keys()) if before.get(p) != after.get(p)},
+            "export": export}, roots=[i["id"] for i in export if i["parent"] is None and i["id"] not in self.seeded])
+        return res
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
         return subprocess.run(["git", *args], cwd=cwd or self.root, check=True, capture_output=True, text=True).stdout
@@ -352,6 +380,11 @@ class Repo:
     def write(self, rel: str, text: str) -> None:
         (self.records / rel).write_text(text)
 
+    def record_files(self) -> dict[str, bytes]:
+        """The records store's files by path, its .git aside."""
+        return {p.relative_to(self.store).as_posix(): p.read_bytes() for p in sorted(self.store.rglob("*"))
+                if p.is_file() and ".git" not in p.relative_to(self.store).parts}
+
     # Work data, store-neutral: tests read it as work-store items (work_items.py has the fields), never as bd JSON or
     # bd calls. Seeds are given as the issues bd exports, which the work store imports; set_issue and add_issue
     # are the one place a test writes them.
@@ -366,6 +399,7 @@ class Repo:
     def mark(self) -> None:
         """Count changes() from now on."""
         self.base = self.items()
+        self.seeded |= self.base.keys()
 
     def changes(self) -> dict[str, dict]:
         """What pm changed in the work store since the repo was set up or marked, seeds aside: for each item it made,
@@ -410,6 +444,7 @@ class Repo:
         now = work_items(issues)
         seeded = {i["id"] for i in issues if before.get(i["id"]) != json.dumps(i, sort_keys=True)}
         self.base.update({iid: now[iid] for iid in seeded})
+        self.seeded |= seeded
 
     def dolt(self) -> None:
         """Make the embedded Dolt store the pm service watches: a manifest and a journal that every bd write (fake bd or
@@ -484,6 +519,8 @@ def pytest_configure(config):
                                        "reaches a git remote or runs the session-start hook; `make test` skips it, "
                                        "CI and `make test-full` run it")
     config.addinivalue_line("markers", "impl(*impls, reason): a test for these implementations only (PM_IMPL), and why")
+    if not os.environ.get("PYTEST_XDIST_WORKER"):  # once per run, before any worker writes
+        shutil.rmtree(TRANSCRIPTS, ignore_errors=True)
 
 
 def pytest_unconfigure(config):

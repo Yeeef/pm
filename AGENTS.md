@@ -54,6 +54,12 @@ the repo was set up or `repo.mark()`, without store stamps. Seeds are bd issues,
 written only through `repo.set_issue` and `repo.add_issue`. `repo.bd_calls()` stays for an assertion about Python pm's
 use of bd, under `if IMPL == "python"`.
 
+Each test writes one transcript, `pm/.transcripts/<impl>/<test file>/<test>.json` (or under `$PM_TRANSCRIPTS`; a run
+empties it first): every `repo.pm` call's argv, stdin, stdout, stderr, exit code, changed record files and store
+export, normalised by `tests/transcript.py` (temp and checkout paths, random temp names, commit ids, UUIDs, timestamps,
+durations, ports, minted root ids). The same test's transcript from Python and Go must be equal. Calls that bypass `repo.pm` (a direct `PM`
+subprocess) are not recorded.
+
 A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
 (`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
 bare repo), runs `pm push` or the session-start hook (`pm prime` without `--rules` or `--subagent`, also run as
