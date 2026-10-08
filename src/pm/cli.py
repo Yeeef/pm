@@ -519,6 +519,18 @@ def decision_body(body: str) -> str:
     return body
 
 
+def decision_line(flag: str, value: str) -> str:
+    """One part of a decision given by its flag: one non-empty line that opens no block."""
+    value = value.strip()
+    if not value:
+        raise Refuse(f"{flag} is empty; give it one line")
+    if "\n" in value:
+        raise Refuse(f"{flag} has more than one line; give it one line")
+    if value.startswith(":::"):
+        raise Refuse(f"{flag} starts with ':::', and blocks cannot nest")
+    return value
+
+
 def decision_block(source: str, body: str, until: str | None) -> str:
     extra = ""
     if until is not None:
@@ -539,10 +551,9 @@ def refuse_unread(need: dict) -> None:
 def cmd_decision_add(args, records: Path) -> str:
     """Record a decision; with --need it is the owner's answer to that decision need, which it also closes (bd human
     respond with the same text) unless the owner already closed it."""
-    body = args.text
     repo = load(records)
     rec = decision_target(repo, args)
-    decision_body(body)
+    body = f"{decision_line('--decision', args.decision)}\n{decision_line('--reason', args.reason)}"
     source, need = "agent", None
     if args.need:
         need = human_issue(repo, args.need, "decision")
@@ -685,7 +696,7 @@ def raise_need(args, records: Path, want: str) -> str:
         return (f"raised action {need_id} under {args.parent}; {delivery_hint(need_id)}; once you see the "
                 f"owner has done it: pm action done {need_id} --reason \"<what you saw>\"")
     return (f"raised decision need {need_id} under {args.parent}; {delivery_hint(need_id)}; once the owner "
-            f"answers: pm decision add --need {need_id} --level … --text-file - <<'EOF' (the answer, then EOF) if it "
+            f"answers: pm decision add --need {need_id} --level … --decision '<the answer>' --reason '<why>' if it "
             f"sets a rule, else pm decision close {need_id} --reason \"<why it sets no rule>\" --text-file - <<'EOF' "
             "(the answer, then EOF)")
 
@@ -1920,8 +1931,8 @@ def reply_text(root: Path, issue: dict, replies: list[dict]) -> str:
     if issue["status"] == "closed":
         nxt = "it is closed already; check the reply is handled"
     elif k == "decision":
-        nxt = (f"record the answer: pm decision add --need {iid} --level … --text-file - <<'EOF' (the answer, then "
-               f"EOF) if it sets a rule, else pm decision close {iid} --reason \"<why it sets no rule>\" "
+        nxt = (f"record the answer: pm decision add --need {iid} --level … --decision '<the answer>' "
+               f"--reason '<why>' if it sets a rule, else pm decision close {iid} --reason \"<why it sets no rule>\" "
                "--text-file - <<'EOF' (the answer, then EOF)")
     else:
         nxt = f"check the evidence, then pm action done {iid} --reason \"<what you saw>\", or ask again if it falls short"
@@ -2095,7 +2106,14 @@ def place(need: dict, under: str, names: dict[str, str]) -> str:
     return f"  ({names.get(need['sprint'], short(need['sprint'], under))}{task})"
 
 
+REPLY_HINT = "  [undelivered reply: pm reply read {}]"
+TITLE_CUT = 60  # characters of a request's title in the top level; the project level prints it whole
+
+
 def show_text(data: dict) -> str:
+    """The top level: what an agent must see before it starts work (push failures, tasks other live sessions hold,
+    each open owner request and each undelivered reply), the site, and one line per project naming the
+    command for its level."""
     out = []
     if data["push"]:
         out.append("warning: the pm service's push needs attention (pm service status; pm service logs):")
@@ -2106,27 +2124,36 @@ def show_text(data: dict) -> str:
     if others:
         out.append("warning: other live sessions hold these tasks; do not start or delegate them:")
         out += [f"  {i}  {holder_text(h)}" for i, h in others]
-    # Most important first: `pm prime` cuts the end at its cap, so the task lists and past decisions go last.
-    t = data["today"]
-    out.append(f"today {t['date']}: " + (f"{t['summary']} (generated {t['generated_at']})" if t["summary"]
-                                         else "no summary yet; the pm service generates it from today's activity"))
     out.append(f"site: {data['site']} (the pm service); a record's page is <site>/<its path under records/, without .md>"
                ".html; pm record link <target> prints one")
-    out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"')
+    out.append("projects: pm show --project NAME prints one's sprints, tasks, owner requests and last decisions")
     for p in data["projects"]:
         e = p["bead"]
+        running = sum(sp["state"] == "running" for sp in p["sprints"])
+        out.append(f"  {p['name']}  {e}  {len(p['sprints'])} open sprints, {running} running, "
+                   f"{len(p['needs'])} owner requests")
         sprint_names = {sp["id"]: sp["name"] for sp in p["sprints"]}
-        out.append(f"{p['name']}  {e}  {p['goal']}")
-        for k in ("decision", "action"):
-            needs = [n for n in p["needs"] if n["kind"] == k]
-            out.append(f"{k}s await you ({len(needs)}):")
-            out += [f"  {short(n['id'], e)}  {n['title']}{place(n, e, sprint_names)}  -> bd show {n['id']}"
-                    + (f"  [undelivered reply: pm reply read {n['id']}]" if n["replied"] else "") for n in needs]
-        out += [f"feedback: {f['entries']} entries -> {f['url']}" for f in p["feedback"]]
-    for p in data["projects"]:
-        e = p["bead"]
-        if not (p["sprints"] or p["decisions"]):
-            continue
+        for n in p["needs"]:
+            title = n["title"] if len(n["title"]) <= TITLE_CUT else n["title"][:TITLE_CUT - 1] + "…"
+            out.append(f"    {n['kind']} {short(n['id'], e)}  {title}{place(n, e, sprint_names)}"
+                       + (REPLY_HINT.format(n["id"]) if n["replied"] else ""))
+    return "\n".join(out)
+
+
+def show_project_text(p: dict) -> str:
+    """The project level: the project's goal, its owner requests in full, its feedback, each open sprint with its
+    goal, done-when and open tasks, and its last decisions. `pm show --sprint ID` is the next level."""
+    e = p["bead"]
+    sprint_names = {sp["id"]: sp["name"] for sp in p["sprints"]}
+    out = [f"{p['name']}  {e}  {p['goal']}"]
+    for k in ("decision", "action"):
+        needs = [n for n in p["needs"] if n["kind"] == k]
+        out.append(f"{k}s await you ({len(needs)}):")
+        out += [f"  {short(n['id'], e)}  {n['title']}{place(n, e, sprint_names)}  -> bd show {n['id']}"
+                + (REPLY_HINT.format(n["id"]) if n["replied"] else "") for n in needs]
+    out += [f"feedback: {f['entries']} entries -> {f['url']}" for f in p["feedback"]]
+    out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"')
+    if p["sprints"] or p["decisions"]:
         out.append(f"{p['name']}  {e}  sprints and decisions:")
         quiet = []
         for sp in p["sprints"]:
@@ -2190,17 +2217,25 @@ def record_section(rec: Record, name: str) -> str:
 
 def cmd_show(args, records: Path) -> str:
     if args.record or args.section:
-        if not (args.record and args.section) or args.sprint or args.json:
-            raise Refuse("--record and --section go together, without --sprint or --json")
+        if not (args.record and args.section) or args.sprint or args.project or args.json:
+            raise Refuse("--record and --section go together, without --sprint, --project or --json")
         return record_section(link_target(read_records(records), records, args.record), args.section)
     repo = load(records, working=True)
     if args.sprint:
-        if args.json:
-            raise Refuse("--sprint prints text only; drop --json")
+        if args.json or args.project:
+            raise Refuse("--sprint prints text only, one sprint; drop --json and --project")
         return sprint_detail(repo, args.sprint)
     if args.refresh_inbox:
         refresh_inbox(repo)
     data = show_data(repo)
+    if args.project:
+        if args.json:
+            raise Refuse("--project prints text only; drop --json")
+        found = [p for p in data["projects"] if args.project in (p["name"], p["bead"])]
+        if not found:
+            raise Refuse(f"no open project {args.project!r}; open ones: "
+                         + (", ".join(p["name"] for p in data["projects"]) or "none"))
+        return show_project_text(found[0])
     return json.dumps(data, indent=1) if args.json else show_text(data)
 
 
@@ -3238,8 +3273,14 @@ def parser() -> argparse.ArgumentParser:
                                         "when it is another; pm where names the version running and why.")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("show", help="compact status of open projects for agents")
-    s.add_argument("--json", action="store_true", help="the same data as one JSON object")
+    s = sub.add_parser("show", help="compact status of open projects for agents, level by level",
+                       description="Project state, level by level. Without a flag, the top level: push failures, tasks "
+                                   "other live sessions hold, the site, and per open project a line with each "
+                                   "open owner request and undelivered reply. Each level names the command for the "
+                                   "next: --project, then --sprint, then --record with --section.")
+    s.add_argument("--json", action="store_true", help="every level's data as one JSON object")
+    s.add_argument("--project", metavar="NAME", help="one open project (its name or Beads id): its goal, owner "
+                   "requests in full, feedback, open sprints with their tasks, and last decisions")
     s.add_argument("--sprint", metavar="ID", help="one sprint's frame, findings and tasks")
     s.add_argument("--record", metavar="PATH", help="with --section: the record to read (a path, sprint id, "
                    "project name or design slug)")
@@ -3283,12 +3324,16 @@ def parser() -> argparse.ArgumentParser:
     decision = sub.add_parser("decision", help="decisions: record one, or ask the owner for one").add_subparsers(
         dest="sub", required=True)
     s = decision.add_parser(
-        "add", help="append a decision to a project's or sprint's Decisions; body with --text",
+        "add", help="append a decision to a project's or sprint's Decisions",
         description="Append a ::: decision block, dated today, to the Decisions of the named project or "
-                    "sprint. The body (--text) states the decision and, on the next line, its reason. "
+                    "sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double "
+                    "quotes the shell runs a `code span` as a command). "
                     f"Choosing --level: {LEVEL_RULE}. Source is agent unless --need or --confirmed. With --need, "
-                    "the body is the owner's answer to that decision need: it ends 'Answers `<need-id>`.', and the "
-                    "need is closed with bd human respond and the same text unless the owner already closed it.")
+                    "the decision is the owner's answer to that decision need: the block ends 'Answers "
+                    "`<need-id>`.', and the need is closed with bd human respond and the same text unless the owner "
+                    "already closed it.")
+    s.add_argument("--decision", required=True, metavar="TEXT", help="the decision, in one line")
+    s.add_argument("--reason", required=True, metavar="TEXT", help="why it holds, in one line")
     s.add_argument("--level", choices=["project", "sprint"], help=f"required, no default: {LEVEL_RULE}")
     s.add_argument("--project", metavar="NAME", help="the project record name (with --level project)")
     s.add_argument("--sprint", metavar="ID", help="the sprint's Beads id (with --level sprint)")
@@ -3297,8 +3342,6 @@ def parser() -> argparse.ArgumentParser:
     owner.add_argument("--need", metavar="ID", help="source=owner: the decision answers this decision need, and "
                                                     "closes it if it is open")
     owner.add_argument("--confirmed", action="store_true", help="source=owner: the owner confirmed it")
-    add_text(s, "required: the decision on its first line, its reason on the next; with --need, the owner's "
-                "answer ending 'Answers `<need-id>`.'")
     s.set_defaults(func=cmd_decision_add)
     s = decision.add_parser(
         "need", help="ask the owner for a decision under a sprint or task; its parts as flags",

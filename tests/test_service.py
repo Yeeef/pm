@@ -21,6 +21,8 @@ import pytest
 from conftest import PM, TEST_SOURCE, stop_services
 from pm import __version__, push, service, tool
 
+IN_PROCESS = pytest.mark.impl("python", reason="the service's units in process; Go pm has them as Go unit tests")
+
 
 @pytest.fixture
 def machine(tmp_path, monkeypatch):
@@ -70,6 +72,7 @@ def machine(tmp_path, monkeypatch):
     return main, calls, world
 
 
+@IN_PROCESS
 def test_service_help_holds_the_service_context(capsys):
     """pm prime only points at `pm service --help`, so the help carries what an agent needs."""
     from pm.cli import main
@@ -83,6 +86,7 @@ def test_service_help_holds_the_service_context(capsys):
         assert fact in text, fact
 
 
+@IN_PROCESS
 def test_systemd_unit_runs_this_pm_restarts_it_and_quotes_paths(machine, monkeypatch):
     main, calls, world = machine
     monkeypatch.setattr(sys, "platform", "linux")
@@ -106,6 +110,7 @@ def test_systemd_unit_runs_this_pm_restarts_it_and_quotes_paths(machine, monkeyp
     assert calls[-2:] == [["systemctl", "--user", "daemon-reload"], ["systemctl", "--user", "restart", unit.name]]
 
 
+@IN_PROCESS
 def test_launchd_agent_keeps_the_service_alive(machine, monkeypatch):
     main, calls, world = machine
     monkeypatch.setattr(sys, "platform", "darwin")
@@ -216,6 +221,7 @@ def test_service_stops_once_the_pin_moves(repo):
 OTHER_BUILDS = ["0.0.1", f"{__version__} at {'a2ae084' + '0' * 33} in pm"]
 
 
+@IN_PROCESS
 @pytest.mark.parametrize("other", OTHER_BUILDS)
 def test_install_restarts_a_current_unit_that_answers_on_another_build(machine, monkeypatch, other):
     """The unit's bytes do not change with the tool's build: a held unit answering on another one is restarted."""
@@ -228,6 +234,7 @@ def test_install_restarts_a_current_unit_that_answers_on_another_build(machine, 
     assert calls[-1] == ["systemctl", "--user", "restart", unit.name] and world["waited"] == [8123, 8123]
 
 
+@IN_PROCESS
 def test_free_port_skips_held_ports_and_other_clones_units(monkeypatch):
     """A new repo's default site port: the first from FIRST_PORT up that nothing holds and no pm unit names."""
     with socket.socket() as held:
@@ -249,6 +256,7 @@ def test_free_port_skips_held_ports_and_other_clones_units(monkeypatch):
             unit.unlink()
 
 
+@IN_PROCESS
 def test_port_free_counts_a_port_in_time_wait_as_free():
     """The server closes first, so its side of the connection lingers in TIME_WAIT, as after this clone's service
     stopped: the service binds with SO_REUSEADDR and could serve there, so the port is free."""
@@ -264,6 +272,7 @@ def test_port_free_counts_a_port_in_time_wait_as_free():
     assert service.port_free(port)
 
 
+@IN_PROCESS
 def test_check_port_takes_its_own_units_port_where_nothing_answers(tmp_path):
     """A process holds the port and answers no HTTP: refused, unless this clone's installed unit serves on that port
     (its own service hung, which install restarts)."""
@@ -288,6 +297,7 @@ def test_check_port_takes_its_own_units_port_where_nothing_answers(tmp_path):
             unit.unlink()
 
 
+@IN_PROCESS
 def test_unit_ports_skips_a_drop_in_directory():
     """systemd keeps a unit's overrides in local.pm.<name>.service.d/, which the glob matches too."""
     kind = service.platform_kind()
@@ -302,6 +312,7 @@ def test_unit_ports_skips_a_drop_in_directory():
         drop_in.rmdir()
 
 
+@IN_PROCESS
 def test_install_holds_the_clones_install_lock(machine, monkeypatch):
     """Two installs of one clone never overlap: while one runs (here, waiting for the site), the lock is held."""
     import fcntl
@@ -324,6 +335,7 @@ def test_install_holds_the_clones_install_lock(machine, monkeypatch):
         fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)  # released once install returns
 
 
+@IN_PROCESS
 def test_a_unit_an_old_pin_wrote_for_its_own_tool_is_stale_until_pm_service_install(machine, monkeypatch):
     """pm 0.1.0, launched with its own uv tool dirs, wrote a unit running that tool; once the pin moves on, the unit
     keeps restarting 0.1.0, which exits on the new pin. Health (session start, pm where) names the fix: install."""

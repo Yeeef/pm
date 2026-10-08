@@ -20,6 +20,7 @@ is for them, and nothing here ships: the wheel holds only `src/pm/` (`[tool.hatc
 | `src/pm/config.py` | `.pm/config.toml`: every command fails hard without it or on another pinned version |
 | `src/pm/launch.py` | The launcher: `main()` first runs the repo's pinned version through `uv tool run` when it is not this one |
 | `tests/` | pytest suite, fakes and the live eval (below) |
+| `go.mod`, `cmd/pm`, `internal/…`, `assets.go` | Go pm, the port the `pm-go` design page plans: built and tested on main, run by no repo until the cut-over. `internal/cli/commands.go` holds every command and help text, `internal/hooks` `pm prime` and `pm hook stop`, `internal/work` the item type and store interface; `assets.go` embeds `src/pm/prime.md` and `style.css`, so both implementations read one copy |
 | The pm uv tool | The `pm` on PATH that hooks, agents and the service run; `pm init` installs it from git (`tool.py`). It runs each repo's pinned version (`launch.py`). Run this checkout's code with `uv run --project pm pm …`; this checkout's pin is its own version, so it runs in process |
 | `../.claude/settings.json`, `../.codex/hooks.json` | Where the runtimes wire the hooks (below) |
 | `../.pm/config.toml` | This repo's pm config; its `version` must equal `version` in `pyproject.toml` |
@@ -32,16 +33,36 @@ A design change edits the sub page it touches to the new state; the trail of fin
 | Command | Runs |
 |---|---|
 | `make test` (repo root) | The light set: `pm/tests/run.py -n auto -m "not integration"` in the package environment |
-| `make test-full` (repo root) | Every test but the live eval, the integration ones too (`-n auto`), as CI runs them |
-| `make test-full ARGS="-k serve"` | Only the tests `-k` selects; `ARGS` goes to pytest in `make test` too |
+| `make test-full ARGS="-k serve"` (repo root) | The tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
 | `uv run pytest -q -n auto tests/test_hooks.py` (in `pm/`) | One file, or `-k name` for one test |
 | `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH |
+| `make test-go` (repo root) | Go pm built as released (cgo, stripped) into `pm/.go/pm`, `go vet`, `go test ./...`, then `tests/test_go_parity.py` against Python pm (`PM_GO`; skipped without it). `.github/workflows/pm-go.yml` runs it on macOS and Linux |
 
 Run `make test` while working. When a change touches what an integration test covers (the service and its site,
 `init`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
 Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> --watch`):
 `.github/workflows/pm-tests.yml` runs the light set and the integration set as separate jobs on every PR and push to main.
-`make test-full` (or `ARGS="-k …"`) reproduces a CI failure locally.
+Do not run the whole integration set locally: CI runs it on every PR, and that run is the check. Push, then watch
+it; to reproduce a CI failure, run only the failing tests with `make test-full ARGS="-k …"`.
+
+The suite runs against either implementation (records/design/pm-go.md, Tests): `PM_IMPL=python` (the default) runs
+this checkout's pm, `PM_IMPL=go` the Go binary at `$PM_GO_BIN`. A test for one implementation only is marked
+`@pytest.mark.impl("python", reason="…")` and skipped on the other; today that is a test of Python code in process
+(`pm.hooks`, `pm.service`, `pm.launch`, the parser) or of what Go retires (`tool.py`, `legacy.py`).
+
+A test reads work data as work-store items, never as bd JSON or bd calls: `repo.items()` (for Python, the fake bd's
+issues through `tests/work_items.py`, the work store's bd import mapping), and `repo.changes()`, what pm changed since
+the repo was set up or `repo.mark()`, without store stamps; `repo.unchanged()` is the strict "nothing written" check
+(every item equal, stamps included, and for Python no bd write). Seeds are bd issues, the form the work store imports,
+written only through `repo.set_issue` and `repo.add_issue`. `repo.bd_calls()` stays for an assertion about Python pm's
+use of bd, under `if IMPL == "python"`.
+
+Each test writes one transcript, `pm/.transcripts/<impl>/<test file>/<test>.json` (or under `$PM_TRANSCRIPTS`; a run
+empties it first): every `repo.pm` call's argv, stdin, stdout, stderr, exit code, changed record files and store
+export, normalised by `tests/transcript.py` keeping each value's shape (temp and checkout paths, random temp names,
+commit ids and UUIDs numbered with their length, timestamps and today's date with digits as 0, durations, ports,
+minted root ids). The same test's transcript from Python and Go must be equal. Calls that bypass `repo.pm` (a direct `PM`
+subprocess) are not recorded.
 
 A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
 (`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
@@ -94,6 +115,9 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   cut at a line. 2026-10-07: 4 chunks of 8,447, 5,749, 6,317 and 4,708 characters, 24,872 without titles.
   `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` fails when a chunk outgrows the cap: move a heading in
   `STARTS`, or add one plus its hook entries; `test_hook_entries_run_every_rules_chunk` checks the entries.
+- Until the cut-over a change to a command's arguments or help, `pm prime` or `pm hook stop` lands in both
+  implementations: `cli.py` and `internal/cli/commands.go`, `hooks.py` and `internal/hooks`. `make test-go` fails
+  on any difference.
 - `prime.md` carries only what a user's agents need (owner decision, 2026-10-07). Guidance for developing pm,
   `[TEST]` needs and this repo's checks go here, never in `prime.md` or a `--help` text.
 - Keep `prime.md` and `--help` in step with the code: a refusal `prime.md` names must exist in `cli.py` with that

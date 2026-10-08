@@ -101,8 +101,8 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 **Bodies.** Some commands below take a body: a goal, a frame, a description, a reason, an answer. Give it as a quoted heredoc, `--text-file - <<'EOF'` … `EOF`, or as `--text="…"` for one plain line without backticks, `$` or quotes. pm reads stdin only for `--text-file -`, and only from a heredoc or a pipe; any other stdin is refused at once. Hooks read their JSON input from stdin.
 
 - check current projects state
-  - `pm show`: See an overview of what is open, who holds what, and what waits on the owner. Session start injects it, stamped with its UTC time: orient from that copy. Other sessions change the state, so run it again before you tell the owner the project state.
-  - drill down for more details with `pm show --sprint ID`, and `pm show --record <path, sprint id, project name or design slug> --section <name>`. Do not read the whole file for one part.
+  - `pm show`: the top level. It shows what other live sessions hold, each open owner request and undelivered reply, a failed push, and one line per project. Session start injects it, stamped with its UTC time: orient from that copy. Other sessions change the state, so run it again before you tell the owner the project state.
+  - drill down one level at a time, only as far as your work needs: `pm show --project NAME` (its sprints, tasks and last decisions), then `pm show --sprint ID`, then `pm show --record <path, sprint id, project name or design slug> --section <name>`. Do not read the whole file for one part.
   - Find ready work: `bd ready --exclude-type=epic`
   - See a task, its holder and its needs: `bd show <id>`
   - See every location and its state: `pm where`; `pm where records` prints the store's path.
@@ -120,7 +120,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - need an action from owner: `pm action need --title "…" --parent ID`; body: what to do and why. Examples: run a command, apply a setting. An action is done: check the evidence, then run `pm action done <id> --reason "<what showed it>"`.
 - need a pr review from owner: `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`; body (optional): extra context. The review blocks the sprint close until the PR is on main; close it then with `pm action done <id> --reason "merged as <sha>"`.
 - Read a reply from owner with `pm reply read <id>` first. Each close below refuses while the request holds a reply that has not reached a session.
-- add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`. Body: the decision on its first line, its reason on the next. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
+- add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`, with `--decision '…'` and `--reason '…'`, one line each, in single quotes. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
 - close a decision need that sets no rule: `pm decision close <id> --reason "<why>"`. Body: the answer. The answer and the reason stay in Beads, and the need gets the label `no-decision`.
 - add a finding: `pm finding add --sprint ID "<text>"`, as it occurs, with its numbers. A large result table is a `::: result` block in the record.
 - create a design page record: `pm design new <slug> --title "…" --project NAME` writes every section with its prompt line; then edit it by hand and `pm commit`. Put no date in the slug.
