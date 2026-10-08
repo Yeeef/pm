@@ -585,6 +585,9 @@ def render_record(rec: Record, recs: list[Record], beads: dict[str, dict], dates
     return page(rec, rec.type, rec.title, pre + nav + content, ctx, crumbs)
 
 
+DONE_SPRINTS_SHOWN = 8  # the overview lists every sprint not done, and only this many done ones, latest closed first
+
+
 def render_index(recs: list[Record], beads: dict[str, dict], site_name: str, dates: Dates = None) -> str:
     """Root page: the overview of everything open, across all projects. Design pages are listed by last update,
     newest first (by title within a day), with both dates; without `dates`, by title."""
@@ -606,15 +609,23 @@ def render_index(recs: list[Record], beads: dict[str, dict], site_name: str, dat
     for p in projects:
         out.append(f'<h2><a href="{p.out}">{html.escape(p.title)}</a></h2>')
         sprint_recs = {r.meta["bead"]: r for r in recs if r.type == "sprint"}
+        sprints = [i for i in beads.values() if i.get("parent") == p.meta["bead"] and i.get("issue_type") == "epic"]
+        done_sprints = sorted((i for i in sprints if i["status"] == "closed"),
+                              key=lambda i: i.get("closed_at") or "", reverse=True)
+        shown = ({i["id"] for i in sprints if i["status"] != "closed"}
+                 | {i["id"] for i in done_sprints[:DONE_SPRINTS_SHOWN]})
         rows = []
-        for sp in sorted((i for i in beads.values() if i.get("parent") == p.meta["bead"] and i.get("issue_type") == "epic"),
-                        key=lambda i: i["id"]):
+        for sp in sorted((i for i in sprints if i["id"] in shown), key=lambda i: i["id"]):
             tasks = [t for t in beads.values() if t.get("parent") == sp["id"]]
             done = sum(t["status"] == "closed" for t in tasks)
             rec = sprint_recs.get(sp["id"])
             title = (f'<a href="{rec.out}">{html.escape(sp["title"])}</a>' if rec else html.escape(sp["title"]))
             rows.append(f'<li>{pill(state(sp, beads))} {title}'
                         f'<span class="k">{done} of {len(tasks)} tasks done</span></li>')
+        hidden = len(done_sprints) - DONE_SPRINTS_SHOWN
+        if hidden > 0:
+            rows.append(f'<li><span class="k">{hidden} older done sprints not shown; '
+                        f'<a href="{p.out}">the project page</a> lists every sprint</span></li>')
         out.append(f'<h3>Sprints</h3><ul class="list">{"".join(rows)}</ul>' if rows else "")
         designs = sorted((r for r in recs if r.type == "design" and project_of(r, recs, beads) is p),
                          key=lambda r: r.title)
