@@ -100,8 +100,8 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 **Bodies.** Some commands below take a body: a goal, a frame, a description, a reason, an answer. Give it as a quoted heredoc, `--text-file - <<'EOF'` … `EOF`, or as `--text="…"` for one plain line without backticks, `$` or quotes. pm reads stdin only for `--text-file -`, and only from a heredoc or a pipe; any other stdin is refused at once. Hooks read their JSON input from stdin.
 
 - check current projects state
-  - `pm show`: See an overview of what is open, who holds what, and what waits on the owner. Session start injects it, stamped with its UTC time: orient from that copy. Other sessions change the state, so run it again before you tell the owner the project state.
-  - drill down for more details with `pm show --sprint ID`, and `pm show --record <path, sprint id, project name or design slug> --section <name>`. Do not read the whole file for one part.
+  - `pm show`: the top level. It shows what other live sessions hold, each open owner request and undelivered reply, a failed push, and one line per project. Session start injects it, stamped with its UTC time: orient from that copy. Other sessions change the state, so run it again before you tell the owner the project state.
+  - drill down one level at a time, only as far as your work needs: `pm show --project NAME` (its sprints, tasks and last decisions), then `pm show --sprint ID`, then `pm show --record <path, sprint id, project name or design slug> --section <name>`. Do not read the whole file for one part.
   - Find ready work: `bd ready --exclude-type=epic`
   - See a task, its holder and its needs: `bd show <id>`
   - See every location and its state: `pm where`; `pm where records` prints the store's path.

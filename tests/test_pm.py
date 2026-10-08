@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -585,6 +586,158 @@ def test_serve_shows_each_change_within_its_stated_age(repo):
         srv.wait()
 
 
+# ---------------------------------------------------------------- pm show: its levels
+
+
+def show_holder(sid, live):
+    return {"session": sid, "assignee": "yeeef", "claimed_at": None, "live": live}
+
+
+def show_task(tid, title, state="ready", human=False, kind="task", blocked_by=(), h=None):
+    return {"id": tid, "title": title, "state": state, "status": "in_progress" if h else "open", "human": human,
+            "kind": kind, "blocked_by": list(blocked_by), "holder": h}
+
+
+def show_sprint(sid, name, title, tasks, goal="Ship it.", items=0, done_when="", done=0):
+    return {"id": sid, "name": name, "title": title, "state": "running" if tasks else "ready", "record": None,
+            "url": None, "done": done, "total": done + len(tasks), "goal": goal, "done_when_items": items,
+            "done_when": done_when, "tasks": tasks}
+
+
+def show_need(nid, title, kind, sprint=None, task=None, replied=False):
+    return {"sprint": sprint, "task": task, "id": nid, "title": title, "kind": kind, "session": None, "replied": replied}
+
+
+SHOW_DATA = {
+    "site": "https://pm.example.com",
+    "push": ["records push failed at 2026-10-07T01:10:00+00:00: remote rejected; log /x/push.log",
+             "summary step overdue: last successful step 2026-10-06T23:00:00+00:00, 130 min ago (the pm service pushes every 10 min); log /x/push.log"],
+    "today": {"date": "2026-10-07", "page": "days/2026-10-07.html", "summary": "Levels shipped.",
+              "generated_at": "2026-10-07T20:00:00+00:00"},
+    "projects": [
+        {"name": "alpha", "bead": "pa", "title": "Alpha", "url": "https://pm.example.com/projects/alpha.html",
+         "goal": "Alpha's goal.",
+         "sprints": [
+             show_sprint("pa.1", "sprint 1", "Sprint 1: Running", [
+                 show_task("pa.1.1", "Held elsewhere", state="running", h=show_holder("other-session-1", True)),
+                 show_task("pa.1.2", "Held by me", state="running", h=show_holder("me", True)),
+                 show_task("pa.1.3", "Held idle", state="running", h=show_holder("idle-session", False)),
+                 show_task("pa.1.4", "Claimed without pm", state="running",
+                      h={"session": None, "assignee": "bob", "claimed_at": None, "live": None}),
+                 show_task("pa.1.5", "Blocked one", state="blocked", blocked_by=["pa.1.1", "pa.1.4"]),
+                 show_task("pa.1.6", "Review PR #9", human=True, kind="action"),
+             ], items=3, done=2),
+             show_sprint("pa.2", "sprint 2", "Sprint 2: One-line done-when", [show_task("pa.2.1", "Only task")],
+                    goal="", done_when="It works."),
+             show_sprint("pa.3", "sprint 3", "Sprint 3: Quiet", []),
+             show_sprint("pa.4", "sprint 4", "Sprint 4: Also quiet", []),
+         ],
+         "needs": [show_need("pa.1.6", "Review PR #9", "action", sprint="pa.1"),
+                   show_need("pa.5", "Pick a layout", "decision", replied=True),
+                   show_need("pa.1.7", "Choose a name", "decision", sprint="pa.1", task="pa.1.5", replied=True)],
+         "decisions": [{"date": "2026-10-03", "source": "agent", "level": "sprint 1", "record": "sprints/alpha-1",
+                        "text": "Use flags."},
+                       {"date": "2026-10-01", "source": "owner", "level": "project", "record": "projects/alpha",
+                        "text": "Keep it small."}],
+         "feedback": [{"entries": 4, "url": "https://pm.example.com/docs/2026-10-07-alpha-feedback.html"}]},
+        {"name": "beta", "bead": "pb", "title": "Beta", "url": "https://pm.example.com/projects/beta.html",
+         "goal": "Beta's goal.",
+         "sprints": [show_sprint("pb.1", "sprint 1", "Sprint 1: Beta work",
+                            [show_task("pb.1.1", "Beta task held", state="running", h=show_holder("other-session-2", True))])],
+         "needs": [], "decisions": [], "feedback": []},
+        {"name": "gamma", "bead": "pg", "title": "Gamma", "url": "https://pm.example.com/projects/gamma.html",
+         "goal": "Gamma's goal.", "sprints": [], "needs": [show_need("pg.2", "Run the migration", "action")],
+         "decisions": [], "feedback": []},
+    ],
+}
+
+
+# What pm show printed for SHOW_DATA before it had levels (pm 0.1.2), captured from that version's renderer.
+OLD_SHOW = """\
+warning: the pm service's push needs attention (pm service status; pm service logs):
+  records push failed at 2026-10-07T01:10:00+00:00: remote rejected; log /x/push.log
+  summary step overdue: last successful step 2026-10-06T23:00:00+00:00, 130 min ago (the pm service pushes every 10 min); log /x/push.log
+warning: other live sessions hold these tasks; do not start or delegate them:
+  pa.1.1  held by other-se, ?, live
+  pb.1.1  held by other-se, ?, live
+today 2026-10-07: Levels shipped. (generated 2026-10-07T20:00:00+00:00)
+site: https://pm.example.com (the pm service); a record's page is <site>/<its path under records/, without .md>.html; pm record link <target> prints one
+feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"
+alpha  pa  Alpha's goal.
+decisions await you (2):
+  .5  Pick a layout  -> bd show pa.5  [undelivered reply: pm reply read pa.5]
+  .1.7  Choose a name  (sprint 1, task .1.5)  -> bd show pa.1.7  [undelivered reply: pm reply read pa.1.7]
+actions await you (1):
+  .1.6  Review PR #9  (sprint 1)  -> bd show pa.1.6
+feedback: 4 entries -> https://pm.example.com/docs/2026-10-07-alpha-feedback.html
+beta  pb  Beta's goal.
+decisions await you (0):
+actions await you (0):
+gamma  pg  Gamma's goal.
+decisions await you (0):
+actions await you (1):
+  .2  Run the migration  -> bd show pg.2
+alpha  pa  sprints and decisions:
+Sprint 1: Running  .1  running  2/8 done
+  held by: bob (no session), idle-ses, me, other-se
+  goal: Ship it.
+  done when: 3 items (pm show --sprint pa.1)
+  in_progress  .1.1  Held elsewhere  [held by other-se, ?, live]
+  in_progress  .1.2  Held by me  [held by me, ?, live]
+  in_progress  .1.3  Held idle  [held by idle-ses, ?, idle]
+  in_progress  .1.4  Claimed without pm  [held by bob without a session, ?]
+  blocked      .1.5  Blocked one  (by .1.1, .1.4)
+  ready        .1.6  Review PR #9  [human action]
+Sprint 2: One-line done-when  .2  running  0/1 done
+  done when: It works.
+  ready        .2.1  Only task
+open sprints without tasks: .3 Sprint 3: Quiet; .4 Sprint 4: Also quiet
+decisions (last 2):
+  2026-10-03 agent sprint 1  Use flags.
+  2026-10-01 owner project  Keep it small.
+beta  pb  sprints and decisions:
+Sprint 1: Beta work  .1  running  0/1 done
+  held by: other-se
+  goal: Ship it.
+  in_progress  .1.1  Beta task held  [held by other-se, ?, live]"""
+
+
+def test_pm_show_levels_together_print_every_line_pm_show_printed_whole(monkeypatch):
+    """The top level and the per-project levels together print every line the one-level pm show printed but the day
+    summary, which only --json and the day page carry, and the top level keeps every push failure, task another live session holds, open owner request and undelivered reply."""
+    from pm import cli
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "me")
+    top = cli.show_text(SHOW_DATA).splitlines()
+    projects = [cli.show_project_text(p).splitlines() for p in SHOW_DATA["projects"]]
+    shown = Counter(top + [l for lines in projects for l in lines])  # counted: a line each project prints once
+    old = [l for l in OLD_SHOW.splitlines() if not l.startswith("today ")]
+    assert Counter(old) - shown == Counter() and not any(l.startswith("today ") for l in shown)
+    old_top = old[:old.index(next(l for l in old if l.startswith("feedback: when pm gets")))]  # warnings, the site
+    assert top[:len(old_top)] == old_top
+    for p in SHOW_DATA["projects"]:
+        assert f"  {p['name']}  {p['bead']}  " in "\n".join(top)
+        for n in p["needs"]:
+            line = next(l for l in top if f"{n['kind']} {n['id'].removeprefix(p['bead'])}  " in l)
+            assert line.endswith(f"[undelivered reply: pm reply read {n['id']}]") == n["replied"], line
+    assert "pa.1.2" not in "\n".join(top)  # the task this session holds is no warning
+
+
+def test_pm_show_project_prints_one_project_and_refuses_what_it_cannot(repo):
+    res = repo.pm("show")
+    assert res.returncode == 0, res.stderr
+    assert "projects: pm show --project NAME prints" in res.stdout and "  demo  demo  2 open sprints, " in res.stdout
+    assert "decision .1.2  Ask the owner  (sprint 1)" in res.stdout and "Sprint 1: First" not in res.stdout
+    res = repo.pm("show", "--project", "demo")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.startswith("demo  demo  A demo project.\ndecisions await you (1):\n")
+    assert "Sprint 1: First  .1  " in res.stdout
+    refused(repo, "show", "--project", "old", match=r"no open project 'old'; open ones: demo$")
+    refused(repo, "show", "--project", "demo", "--json", match="--project prints text only; drop --json")
+    refused(repo, "show", "--project", "demo", "--sprint", "demo.1", match="--sprint prints text only, one sprint")
+    refused(repo, "show", "--project", "demo", "--record", "demo", "--section", "Goal",
+            match="--record and --section go together, without --sprint, --project or --json")
+
+
 # ---------------------------------------------------------------- the site: pm serve
 
 
@@ -790,8 +943,9 @@ def test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read(repo
     page = until_shown(lambda: load(f"{served}/"), lambda p: "Small, until tables." in p and "Saving" not in p, None)
     assert "the session that asked is not running" in page
     assert "picked_up" not in repo.issues()["demo.1.3"]["metadata"]
+    assert "decision .1.3  Parser?  (sprint 1)  [undelivered reply: pm reply read demo.1.3]" in repo.pm("show").stdout
     assert "Parser?  (sprint 1)  -> bd show demo.1.3  [undelivered reply: pm reply read demo.1.3]" \
-        in repo.pm("show").stdout
+        in repo.pm("show", "--project", "demo").stdout
     res = repo.pm("reply", "read")  # no ids: this session's open requests
     assert res.returncode == 0, res.stderr
     assert res.stdout.startswith("pm: owner reply to decision demo.1.3 (Parser?), relayed from the site:\n  [")
@@ -997,7 +1151,7 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     page = repo.page(f"days/{TODAY}.html")
     assert re.search(r"<span>generated at \d\d:\d\d</span>.*Summary 2\.", page, re.S), page
     assert "Summary 2." in repo.page("index.html")
-    assert f"today {TODAY}: Summary 2. (generated " in repo.pm("show").stdout
+    assert json.loads(repo.pm("show", "--json").stdout)["today"]["summary"] == "Summary 2."
 
 
 def test_index_lists_every_sprint_not_done_and_only_the_latest_closed_done_ones():
