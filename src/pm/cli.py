@@ -1010,6 +1010,16 @@ def cmd_task_claim(args, records: Path) -> str:
     sid = (args.session or "").strip() or current_session()
     if not sid:
         raise Refuse(f"no agent session: neither {SESSION_ENV} nor {CODEX_SESSION_ENV} is set; name one with --session")
+    root = code_root(Path.cwd(), records)
+    git_dir, common = git(root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir").split("\n")
+    if Path(git_dir).resolve() == Path(common).resolve():  # the main checkout; a linked worktree has its own git dir
+        cfg = config.load(Path.cwd())
+        raise Refuse(f"not claiming {args.task_id} here: {root} is the main checkout; agents change code only in a "
+                     f"worktree of their own. Make one and work there: `git -C {root} fetch {cfg.remote} "
+                     f"{cfg.main_branch} && git -C {root} worktree add -b <branch> {WORKTREES}/<name> "
+                     f"{cfg.remote}/{cfg.main_branch}`, then `cd {root}/{WORKTREES}/<name>` (in Claude Code, the "
+                     f"EnterWorktree tool does the same); pm's post-checkout hook and session start link its records/ "
+                     f"(else run `pm init` there). A subagent works in its parent's worktree.")
     repo = load(records)
     task = open_task(repo, args.task_id)
     h = holder(task)
@@ -2844,6 +2854,7 @@ def cmd_uninstall(args) -> str:
 # made before pm has neither .pm/.gitignore nor pm's .gitignore block, and there git add -A would stage the store as an
 # embedded repo and the link as a file
 PM_EXCLUDE = ["/.pm/store/", "/.pm/run/", "/records"]
+WORKTREES = ".claude/worktrees"  # where `pm task claim` tells agents to make theirs; Claude Code's EnterWorktree uses it too
 
 
 def exclude_path(main: Path) -> Path:
@@ -3497,7 +3508,9 @@ def parser() -> argparse.ArgumentParser:
                                     f"(${SESSION_ENV}, else ${CODEX_SESSION_ENV}) and the time in its metadata "
                                     "(claimed_by, claimed_at). Refuses when another live session holds it: one whose "
                                     f"transcript was written in the last {LIVE_WINDOW // 60} minutes. A subagent "
-                                    "shares its session's id, so it may claim what its session holds.")
+                                    "shares its session's id, so it may claim what its session holds. Refuses in "
+                                    "the main checkout, since agents change code only in a worktree of their own, "
+                                    "and says how to make one.")
     s.add_argument("task_id", help="the task's Beads id")
     s.add_argument("--session", metavar="ID", help="the session to record when no session id is in the environment")
     s.set_defaults(func=cmd_task_claim)

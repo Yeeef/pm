@@ -139,6 +139,10 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   session start, within `hooks.INIT_TIMEOUT`; that run installs only a missing service and reports a stale or
   down one, which a typed `pm init` or `pm service restart` restarts. In a linked worktree, a branch without
   `.pm/config.toml` is refused, and a main checkout on another pin gets the worktree's setup but no tool or service.
+- Agents change code only in a worktree of their own: `pm task claim` refuses in the main checkout (the worktree whose
+  git dir is the common one) and prints how to make one under `.claude/worktrees/`.
+  Nothing else enforces it: this repo keeps Claude Code's `bgIsolation` at `"none"`, since its worktree isolation refuses
+  record edits from a background session.
 
 ## The site
 

@@ -324,7 +324,7 @@ var tree = &command{
 				{
 					name:        "claim",
 					help:        "claim a task for this agent session",
-					description: "Claim an open task with bd update --claim and record the session ($CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) and the time in its metadata (claimed_by, claimed_at). Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds.",
+					description: "Claim an open task with bd update --claim and record the session ($CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) and the time in its metadata (claimed_by, claimed_at). Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one.",
 					args: []arg{
 						{dest: "task_id", required: true, kind: value, help: "the task's Beads id"},
 						{flags: []string{"--session"}, dest: "session", metavar: []string{"ID"}, kind: value, help: "the session to record when no session id is in the environment"},

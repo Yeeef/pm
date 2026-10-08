@@ -75,6 +75,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 
 - Split the work along independence, so that projects and sprints run in parallel. Where one feeds another, record the dependency in Beads.
 - Records point at Beads ids and never copy a status. The site looks up the status when it builds a page. There is no hand-kept status file.
+- **Change code only in a worktree of your own**, never in the main checkout or another session's worktree, so sessions never mix edits, branches or stashes. Read-only work and records writes may run anywhere: `records/` is the shared store. A subagent works in its parent's worktree. `pm task claim` in the main checkout is refused with how to make a worktree.
 - Every change has a task in a sprint. Work outside any sprint becomes a small new sprint, so that it shows in Beads.
 - A task has one holder, a session. A subagent shares its session's id, so it holds what its session holds.
 - A sprint's frame exists before anything runs. A scope change is a sprint decision, never a task renamed or rewritten.
@@ -108,7 +109,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - open a project: `pm project open <name> --title "…"`; body: a one-paragraph Goal, once the owner confirmed the goal in their own words.
 - open a sprint: `pm sprint open <project> --title "…"`; body: the frame as `## Goal`, `## Scope` and `## Done when`. It refuses a frame with a required section missing.
 - open tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. Dependencies and sub-tasks are plain `bd`: `bd dep add`, `bd create --parent <task>`.
-- claim a task: `pm task claim <id>`. It records your session and refuses a task that another live session holds. Do not claim with `bd update --claim`. Do not take or brief work that another live session holds.
+- claim a task: `pm task claim <id>`, from your own worktree. It records your session and refuses a task that another live session holds, or a claim from the main checkout. Do not claim with `bd update --claim`. Do not take or brief work that another live session holds.
 - close a task: `pm task close <id> --reason "…"`, never `bd close`. The reason names the commit: HEAD when newer than the task, else `--commit REF`.
 - move a task: `pm task move <id> --to SPRINT_ID`; body: the reason, two lines or more. It records the scope change as a decision in the sprint it leaves.
 - need a decision from owner: `pm decision need --title "…" --parent ID`, with each part as a flag, one line each, in single quotes:
