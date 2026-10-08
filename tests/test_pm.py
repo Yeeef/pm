@@ -854,8 +854,8 @@ def transcript(repo, sid: str, age_s: float, where: str = "-repo") -> None:
     os.utime(p, (t, t))
 
 
-def claim(repo, task: str, sid: str | None, *extra: str, cwd: Path | None = None, **env):
-    env = dict(repo.env, **({"CLAUDE_CODE_SESSION_ID": sid} if sid else {}), **env)
+def claim(repo, task: str, sid: str | None, *extra: str, cwd: Path | None = None):
+    env = dict(repo.env, **({"CLAUDE_CODE_SESSION_ID": sid} if sid else {}))
     return subprocess.run([*PM, "task", "claim", task, *extra], cwd=cwd or repo.root, env=env,
                           capture_output=True, text=True)
 
@@ -869,11 +869,9 @@ def test_task_claim_refuses_in_the_main_checkout_and_says_how_to_make_a_worktree
         assert f"not claiming demo.1.2 here: {main} is the main checkout; agents change code only in a worktree of " \
                f"their own" in res.stderr
         assert f"git -C {main} fetch origin main && git -C {main} worktree add -b <branch> .claude/worktrees/<name> " \
-               f"origin/main" in res.stderr and "PM_ALLOW_MAIN_CHECKOUT=1" in res.stderr
+               f"origin/main" in res.stderr
     assert not repo.bd_writes()
     assert claim(repo, "demo.1.2", "sess-a", cwd=repo.worktree("feature")).returncode == 0
-    # the owner's escape hatch
-    assert claim(repo, "demo.1.2", "sess-a", PM_ALLOW_MAIN_CHECKOUT="1").returncode == 0
 
 
 def test_task_claim_refuses_a_task_another_live_session_holds(repo):

@@ -75,7 +75,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 
 - Split the work along independence, so that projects and sprints run in parallel. Where one feeds another, record the dependency in Beads.
 - Records point at Beads ids and never copy a status. The site looks up the status when it builds a page. There is no hand-kept status file.
-- **Change code only in a worktree of your own**, never in the main checkout or another session's worktree, so sessions never mix edits, branches or stashes. Read-only work and records writes may run anywhere: `records/` is the shared store. A subagent works in its parent's worktree. `pm task claim`, a commit and a Claude Code edit in the main checkout are refused with how to make a worktree.
+- **Change code only in a worktree of your own**, never in the main checkout or another session's worktree, so sessions never mix edits, branches or stashes. Read-only work and records writes may run anywhere: `records/` is the shared store. A subagent works in its parent's worktree. `pm task claim` in the main checkout is refused with how to make a worktree.
 - Every change has a task in a sprint. Work outside any sprint becomes a small new sprint, so that it shows in Beads.
 - A task has one holder, a session. A subagent shares its session's id, so it holds what its session holds.
 - A sprint's frame exists before anything runs. A scope change is a sprint decision, never a task renamed or rewritten.

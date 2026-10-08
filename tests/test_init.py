@@ -34,8 +34,7 @@ GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to 
 RULES = [f"pm prime --rules {n} --hook-json" for n in range(1, len(hooks.STARTS) + 1)]  # one hook per rules chunk
 CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
              "SubagentStart": [*RULES, "pm prime --subagent --hook-json"],
-             "Stop": ["pm hook owner-request || exit 1", "pm hook stop || exit 1"],
-             "PreToolUse": ["pm hook main-checkout || exit 1"]}  # Claude Code only: Codex edits with apply_patch
+             "Stop": ["pm hook owner-request || exit 1", "pm hook stop || exit 1"]}
 
 
 def section(name: str) -> str:
@@ -128,10 +127,8 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     claude = json.loads((new_repo / ".claude/settings.json").read_text())
     assert commands(claude, "SessionStart") == ["bd prime --hook-json", *CLAUDE_PM["SessionStart"]]
     assert all(commands(claude, e) == c for e, c in CLAUDE_PM.items() if e != "SessionStart")
-    assert [g["matcher"] for g in claude["hooks"]["PreToolUse"]] == ["Edit|Write|MultiEdit|NotebookEdit"]
     codex = json.loads((new_repo / ".codex/hooks.json").read_text())
-    assert all(commands(codex, e) == c for e, c in CLAUDE_PM.items() if e != "PreToolUse")
-    assert "PreToolUse" not in codex["hooks"]
+    assert all(commands(codex, e) == c for e, c in CLAUDE_PM.items())
     status = [h["statusMessage"] for g in codex["hooks"]["SessionStart"] for h in g["hooks"] if h["command"] in RULES]
     assert status == [f"Loading pm rules ({n} of {len(RULES)})" for n in range(1, len(RULES) + 1)]
     assert "branches: [main]" in (new_repo / ".github/workflows/pm-records-copy.yml").read_text()

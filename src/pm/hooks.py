@@ -18,7 +18,6 @@ from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 
-from pm import config, worktree
 from pm.config import STORE
 from pm.owner_request import hook_owner_request
 
@@ -341,13 +340,6 @@ def hook_stop() -> int:
 # refuses: it is the guard.
 
 def hook_git_pre_commit() -> int:
-    if worktree.agent() and not worktree.allowed():  # the owner's own terminal sets no session id, so it commits
-        main = worktree.main_checkout(None)
-        if main:
-            cfg = config.load(Path.cwd())
-            print("error: an agent session may not commit in the main checkout. "
-                  + worktree.howto(main, cfg.remote, cfg.main_branch), file=sys.stderr)
-            return 1
     if Path(git(None, "rev-parse", "--path-format=absolute", "--git-dir").strip(), "MERGE_HEAD").exists():
         return 0
     if git(None, "diff", "--cached", "--name-only", "--", "records/").strip():
@@ -357,34 +349,4 @@ def hook_git_pre_commit() -> int:
     return 0
 
 
-# ---------------------------------------------------------------- pm hook main-checkout
-# Claude Code's PreToolUse on its file-editing tools: agents change code only in a worktree of their own, so an edit
-# to a file in the main checkout's tree, outside every linked worktree, is denied with the how-to. records/ resolves
-# into the store, a linked worktree, so records edits pass. Edits through the shell are not seen here; the pre-commit
-# hook refuses their commit.
-
-def hook_main_checkout() -> int:
-    event = read_event()
-    if event is None:
-        print("pm hook main-checkout: hook input is not JSON; letting the edit through", file=sys.stderr)
-        return 0
-    tool = event.get("tool_input")
-    path = (tool.get("file_path") or tool.get("notebook_path")) if isinstance(tool, dict) else None
-    if not isinstance(path, str) or not path or worktree.allowed():
-        return 0
-    try:
-        main = worktree.in_main_tree(event.get("cwd"), path)
-    except (OSError, subprocess.SubprocessError) as e:
-        print(f"pm hook main-checkout: git failed ({type(e).__name__}); letting the edit through", file=sys.stderr)
-        return 0
-    if main is None:
-        return 0
-    cfg = config.load(Path.cwd())
-    reason = f"{path} is in the main checkout. " + worktree.howto(main, cfg.remote, cfg.main_branch)
-    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                                             "permissionDecisionReason": reason}}))
-    return 0
-
-
-HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request, "git-pre-commit": hook_git_pre_commit,
-         "main-checkout": hook_main_checkout}
+HOOKS = {"stop": hook_stop, "owner-request": hook_owner_request, "git-pre-commit": hook_git_pre_commit}

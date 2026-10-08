@@ -211,7 +211,7 @@ def test_init_migrates_a_legacy_clone_and_doctor_is_clean(legacy_clone: Path, tm
     assert commands(claude, "SessionStart") == ["bd prime --hook-json", *CLAUDE_PM["SessionStart"]]
     assert commands(claude, "SubagentStart") == CLAUDE_PM["SubagentStart"]
     assert commands(claude, "Stop") == CLAUDE_PM["Stop"]
-    assert commands(claude, "PreToolUse") == ["./lint.sh", *CLAUDE_PM["PreToolUse"]] and "PostToolUse" not in claude["hooks"]
+    assert commands(claude, "PreToolUse") == ["./lint.sh"] and "PostToolUse" not in claude["hooks"]
     assert list(claude["hooks"]) == ["SessionStart", "SubagentStart", "PreToolUse", "Stop"], "events keep their place"
     assert claude["worktree"] == {"bgIsolation": "none"}
     codex = json.loads((main / ".codex/hooks.json").read_text())

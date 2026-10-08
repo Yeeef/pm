@@ -396,10 +396,6 @@ def repo(tmp_path: Path) -> Repo:
 def pytest_configure(config):
     # before any test module is imported, so module-level environments (test_init's GIT_ENV) get the temp dirs too
     os.environ.update({f"PM_TESTS_REAL_{k}": v for k, v in REAL.items()})
-    # a test runs as the owner's terminal, whatever session runs pytest: an agent session id would make the
-    # pre-commit hook refuse the tests' commits in their main checkouts; a test that needs one sets it
-    for k in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "PM_ALLOW_MAIN_CHECKOUT"):
-        os.environ.pop(k, None)
     home = config.pm_home = Path(tempfile.mkdtemp(prefix="pm-tests-home-"))
     os.environ.update(HOME=str(home / "home"), CODEX_HOME=str(home / "codex"), CLAUDE_CONFIG_DIR=str(home / "claude"),
                       XDG_CONFIG_HOME=str(home / "home/.config"), XDG_DATA_HOME=str(home / "home/.local/share"),

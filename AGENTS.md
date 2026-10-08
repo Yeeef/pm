@@ -10,8 +10,7 @@ is for them, and nothing here ships: the wheel holds only `src/pm/` (`[tool.hatc
 | Path | Holds |
 |---|---|
 | `src/pm/cli.py` | The commands and their `--help` texts; `parser()` builds the argparse tree |
-| `src/pm/hooks.py` | `pm prime` (SessionStart and SubagentStart context), `pm hook stop` (uncommitted records), `pm hook main-checkout` and `git-pre-commit` |
-| `src/pm/worktree.py` | Agents change code only in a worktree of their own: finding the main checkout, the how-to every refusal prints, `PM_ALLOW_MAIN_CHECKOUT` |
+| `src/pm/hooks.py` | `pm prime` (SessionStart and SubagentStart context) and `pm hook stop` (uncommitted records) |
 | `src/pm/owner_request.py` | `pm hook owner-request`: the Haiku judge, its prompt and `claude -p` arguments |
 | `src/pm/prime.md` | The rules `pm prime` prints; the only prose the package ships to agents |
 | `src/pm/records.py`, `store.py`, `beads.py` | Record parsing and checks, the store (the `records` worktree and its lock), `bd` calls |
@@ -106,8 +105,7 @@ A case's label comes from the rule, never from what the judge answers: a miss is
 - `pm init` writes the hook entries (`claude_hooks()` and `codex_hooks()` in `install.py`) into
   `.claude/settings.json` (SessionStart: `pm prime --rules N --hook-json` for each chunk, then `--state
   --hook-json`; SubagentStart: the same chunks, then `--subagent --hook-json`; Stop: `pm hook owner-request` then
-  `pm hook stop`, each `|| exit 1`; PreToolUse on `Edit|Write|MultiEdit|NotebookEdit`: `pm hook main-checkout || exit 1`,
-  Claude Code only) and `.codex/hooks.json`, with `hooks = true` in `.codex/config.toml`. A hook
+  `pm hook stop`, each `|| exit 1`) and `.codex/hooks.json`, with `hooks = true` in `.codex/config.toml`. A hook
   change edits both functions; this repo's two files are what `pm init` writes. Hooks fail open on their own
   errors (one line on stderr); a `pm` missing from PATH fails each hook with the shell's error.
 - `pm init` is the one install command. Its repo half (pm's pieces, `bd init`, the records branch) runs only when
@@ -117,11 +115,9 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   session start, within `hooks.INIT_TIMEOUT`; that run installs only a missing service and reports a stale or
   down one, which a typed `pm init` or `pm service restart` restarts. In a linked worktree, a branch without
   `.pm/config.toml` is refused, and a main checkout on another pin gets the worktree's setup but no tool or service.
-- The main-checkout guard: `pm task claim` refuses in the main checkout, the pre-commit hook refuses a commit there
-  from an agent session (`CLAUDE_CODE_SESSION_ID` or `CODEX_THREAD_ID` set; the owner's terminal sets neither), the
-  post-checkout hook warns an agent that switches its branch, and `pm hook main-checkout` denies a Claude Code edit
-  to a file there. `PM_ALLOW_MAIN_CHECKOUT=1` lets each through. `conftest.py` drops the session ids from the test
-  process, so a test's commits run as the owner's; a test that needs one sets it.
+- Agents change code only in a worktree of their own: `pm task claim` refuses in the main checkout (the worktree whose
+  git dir is the common one) and prints how to make one under `.claude/worktrees/`, which `PM_EXCLUDE` keeps out of
+  `git status`. Nothing else enforces it; Claude Code's background sessions get their own worktree by default.
 
 ## The site
 

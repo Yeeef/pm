@@ -159,15 +159,11 @@ def claude_hooks() -> dict[str, dict]:
         "SessionStart": {"hooks": [*rules(30), h("pm prime --state --hook-json", 30)], "matcher": ""},
         "SubagentStart": {"hooks": [*rules(15), h("pm prime --subagent --hook-json", 15)], "matcher": ""},
         "Stop": {"hooks": [h("pm hook owner-request || exit 1", 30), h("pm hook stop || exit 1", 10)]},
-        "PreToolUse": {"hooks": [h("pm hook main-checkout || exit 1", 10)],
-                       "matcher": "Edit|Write|MultiEdit|NotebookEdit"},
     }
 
 
 def codex_hooks() -> dict[str, dict]:
-    """pm's entries in .codex/hooks.json. Codex's SessionStart has no compact event (sprint 34's question). No
-    PreToolUse main-checkout entry: `pm hook main-checkout` reads Claude Code's edit tools' input, and Codex edits
-    files through apply_patch, so for Codex the pre-commit hook is the guard."""
+    """pm's entries in .codex/hooks.json. Codex's SessionStart has no compact event (sprint 34's question)."""
     def h(command: str, status: str, timeout: int) -> dict:
         return {"command": command, "statusMessage": status, "type": "command", "timeout": timeout}
     def rules(timeout: int) -> list[dict]:
