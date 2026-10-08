@@ -354,12 +354,13 @@ def yaml_str(s: str) -> str:
 
 # ---------------------------------------------------------------- commands: writes
 
-SUMMARY_MODEL = "haiku"
+SUMMARY_MODEL = "claude-haiku-5-5"
 SUMMARY_TIMEOUT = 180  # seconds the model call may take
 SUMMARY_PROMPT = """You write the "Today" summary at the top of a project-management site's page for {day}.
 Below is everything recorded on {day}: per project, the sprints finished (with their outcome) and opened, the tasks
 finished (with how), started and opened, the requests to the owner raised and closed that day, and the commits to the
-project records. Write 2 to 4 Markdown bullets for the owner, each line starting with "- ". The owner knows no ids or
+project records. Write Markdown bullets for the owner, each line starting with "- ": one bullet for each distinct
+result, with no upper limit. Put the steps of one piece of work in one bullet. The owner knows no ids or
 sprint numbers and wants to know what shipped. Each bullet is one short sentence. Put first what shipped or finished
 and what it changes for the owner. Then name work in progress only if it is notable. Put last what the owner must do,
 from the requests raised that day and still open, named by the action. Name work by what it does. Never write ids,
