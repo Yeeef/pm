@@ -20,6 +20,7 @@ is for them, and nothing here ships: the wheel holds only `src/pm/` (`[tool.hatc
 | `src/pm/config.py` | `.pm/config.toml`: every command fails hard without it or on another pinned version |
 | `src/pm/launch.py` | The launcher: `main()` first runs the repo's pinned version through `uv tool run` when it is not this one |
 | `tests/` | pytest suite, fakes and the live eval (below) |
+| `go.mod`, `cmd/pm`, `internal/…`, `assets.go` | Go pm, the port the `pm-go` design page plans: built and tested on main, run by no repo until the cut-over. `internal/cli/commands.go` holds every command and help text, `internal/hooks` `pm prime` and `pm hook stop`, `internal/work` the item type and store interface; `assets.go` embeds `src/pm/prime.md` and `style.css`, so both implementations read one copy |
 | The pm uv tool | The `pm` on PATH that hooks, agents and the service run; `pm init` installs it from git (`tool.py`). It runs each repo's pinned version (`launch.py`). Run this checkout's code with `uv run --project pm pm …`; this checkout's pin is its own version, so it runs in process |
 | `../.claude/settings.json`, `../.codex/hooks.json` | Where the runtimes wire the hooks (below) |
 | `../.pm/config.toml` | This repo's pm config; its `version` must equal `version` in `pyproject.toml` |
@@ -35,6 +36,7 @@ A design change edits the sub page it touches to the new state; the trail of fin
 | `make test-full ARGS="-k serve"` (repo root) | The tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
 | `uv run pytest -q -n auto tests/test_hooks.py` (in `pm/`) | One file, or `-k name` for one test |
 | `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH |
+| `make test-go` (repo root) | Go pm built as released (cgo, stripped) into `pm/.go/pm`, `go vet`, `go test ./...`, then `tests/test_go_parity.py` against Python pm (`PM_GO`; skipped without it). `.github/workflows/pm-go.yml` runs it on macOS and Linux |
 
 Run `make test` while working. When a change touches what an integration test covers (the service and its site,
 `init`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
@@ -113,6 +115,9 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   cut at a line. 2026-10-07: 4 chunks of 8,447, 5,749, 6,317 and 4,708 characters, 24,872 without titles.
   `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` fails when a chunk outgrows the cap: move a heading in
   `STARTS`, or add one plus its hook entries; `test_hook_entries_run_every_rules_chunk` checks the entries.
+- Until the cut-over a change to a command's arguments or help, `pm prime` or `pm hook stop` lands in both
+  implementations: `cli.py` and `internal/cli/commands.go`, `hooks.py` and `internal/hooks`. `make test-go` fails
+  on any difference.
 - `prime.md` carries only what a user's agents need (owner decision, 2026-10-07). Guidance for developing pm,
   `[TEST]` needs and this repo's checks go here, never in `prime.md` or a `--help` text.
 - Keep `prime.md` and `--help` in step with the code: a refusal `prime.md` names must exist in `cli.py` with that
