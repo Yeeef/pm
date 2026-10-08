@@ -113,9 +113,59 @@ BODY = "Use the small parser.\nIt is enough for the record set and adds no depen
 TODAY = __import__("datetime").date.today().isoformat()
 
 
-NEED = ("Question: Which parser should we use?\nFact: Records hold no tables yet.\n"
-        "Option small: The small parser.\nCost: no tables.\nOption full: The full parser.\nCost: a new dependency.\n"
-        "Default: small. It is cheap.\n")
+NEED = ("--question", "Which parser should we use?", "--fact", "Records hold no tables yet.",
+        "--option", "small", "The small parser.", "--cost", "small", "no tables.",
+        "--option", "full", "The full parser.", "--cost", "full", "a new dependency.",
+        "--default", "small", "It is cheap.")
+
+
+
+SITE_URL = ("--question", "Where does pm keep the public site URL?",
+            "--fact", "Today, each clone keeps the URL in its git config.",
+            "--fact", "You asked why the URL is not in `.pm/config.toml`.",
+            "--option", "a", "In `.pm/config.toml`. A pm command still writes it.", "--cost", "a", "the repo has one URL.",
+            "--option", "b", "In each clone, as today.", "--cost", "b", "you must give the URL to each new clone.",
+            "--default", "a", "All clones then give the same link.")
+
+
+def test_decision_need_writes_its_flags_in_the_one_layout(repo):
+    """The design page's example, given as flags, becomes the description that page shows."""
+    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "demo.1", *SITE_URL)
+    assert res.returncode == 0, res.stderr
+    assert repo.issues()["demo.1.3"]["description"] == (
+        "**Question:** Where does pm keep the public site URL?\n\n**Facts:**\n\n"
+        "- Today, each clone keeps the URL in its git config.\n- You asked why the URL is not in `.pm/config.toml`.\n\n"
+        "**Options:**\n\n- **(a) In `.pm/config.toml`.** A pm command still writes it. *Cost:* the repo has one URL.\n"
+        "- **(b) In each clone, as today.** *Cost:* you must give the URL to each new clone.\n\n"
+        "**Default:** (a). All clones then give the same link.")
+
+
+def without(flags: tuple, *drop: tuple[str, str]) -> tuple:
+    """flags without each named (flag, first value), e.g. without(SITE_URL, ("--option", "b")) drops --option b."""
+    out, i = [], 0
+    while i < len(flags):
+        n = next(j for j in range(i + 1, len(flags) + 1) if j == len(flags) or flags[j].startswith("--"))
+        if (flags[i], flags[i + 1]) not in drop:
+            out += flags[i:n]
+        i = n
+    return tuple(out)
+
+
+@pytest.mark.parametrize("flags, error", [
+    (without(SITE_URL, ("--question", "Where does pm keep the public site URL?")), "the following arguments are required: --question"),
+    (without(SITE_URL, ("--option", "b"), ("--cost", "b")), "give at least two --option flags"),
+    (without(SITE_URL, ("--cost", "a")), "option a has no cost; add --cost a"),
+    (SITE_URL + ("--cost", "c", "more."), "--cost c names no option; the labels are a, b"),
+    (SITE_URL + ("--cost", "a", "more."), "option a has two --cost flags"),
+    (SITE_URL + ("--option", "a", "Again."), "two options have the label a"),
+    (SITE_URL[:-2] + ("z", "Why."), "--default z names no option; the labels are a, b"),
+    (SITE_URL + ("--fact", "One.\nTwo."), "--fact has more than one line"),
+    (SITE_URL + ("--fact", " ".join(["word"] * 26) + "."), "in fact 3 has 26 words; the limit is 25"),
+])
+def test_decision_need_refuses_a_malformed_part_and_writes_nothing(repo, flags, error):
+    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "demo.1", *flags)
+    assert res.returncode != 0 and error in res.stderr, res.stderr
+    assert repo.bd_writes() == [] and "demo.1.3" not in repo.issues()
 
 
 ACTION = "Restart the site on port 8767, which the new proxy expects.\n"
@@ -593,9 +643,8 @@ def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
     """The three replies lost on 2026-10-06, each pushed by the pm service: several requests raised in one command, one
     raised with its output piped through grep, and a second reply to a request already delivered."""
     with session_inbox() as (inbox, lines):
-        env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET=inbox, NEED=NEED)
-        pm = shlex.join(PM)
-        raise_ = f'printf %s "$NEED" | {pm} decision need --parent demo.1'
+        env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET=inbox)
+        raise_ = shlex.join([*PM, "decision", "need", *NEED, "--parent", "demo.1"])
         script = (f"{raise_} --title A >/dev/null && {raise_} --title B >/dev/null && "
                   f"{raise_} --title C | grep -o 'raised decision need [^ ;]*'")
         res = subprocess.run(["bash", "-c", script], cwd=repo.root, env=env, capture_output=True, text=True)
@@ -632,7 +681,7 @@ def test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read(repo
     """No socket at the stored inbox: the session ended. The reply stays undelivered, its card says so, pm show
     flags it for the next session, and pm reply read prints it once and marks it delivered."""
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET="/nonexistent/pm/s")
-    assert repo.pm("decision", "need", "--title", "Parser?", "--parent", "demo.1", stdin=NEED).returncode == 0
+    assert repo.pm("decision", "need", "--title", "Parser?", "--parent", "demo.1", *NEED).returncode == 0
     until_shown(lambda: load(f"{served}/"), lambda p: 'value="demo.1.3"' in p, time.time())
     assert post_reply(served, {"token": page_token(served), "id": "demo.1.3", "text": "Small, until tables."})[0] == 303
     page = until_shown(lambda: load(f"{served}/"), lambda p: "Small, until tables." in p and "Saving" not in p, None)
