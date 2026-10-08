@@ -96,14 +96,15 @@ type Deps struct {
 // snapshot is what the service serves: the records and work items read at asOf or later, so current as of then; err
 // when they do not render. cache holds each page rendered from them.
 type snapshot struct {
-	asOf      time.Time
-	stamp, fp string
-	items     map[string]*work.Item
-	order     []*work.Item
-	pages     Pages
-	err       string
-	mu        *gosync.Mutex
-	cache     map[string]rendered
+	asOf       time.Time
+	stamp, fp  string
+	items      map[string]*work.Item
+	order      []*work.Item
+	pages      Pages
+	err        string
+	readFailed bool // err is a failure to stamp, open or read, not a render error
+	mu         *gosync.Mutex
+	cache      map[string]rendered
 }
 
 type rendered struct {
@@ -140,6 +141,7 @@ type server struct {
 	done                  chan struct{} // closed when Run returns: every loop ends
 	serveCheck, mergePoll time.Duration // ServeCheck and MergePoll as Run started
 	logMu                 gosync.Mutex
+	storeMu               gosync.Mutex // one open at a time in this process: the loops never open the store together
 	gh                    bool
 }
 
@@ -149,10 +151,12 @@ func (s *server) logf(format string, a ...any) {
 	fmt.Fprintf(s.d.Log, format+"\n", a...)
 }
 
-// withStore opens the work store under the gate, runs fn and closes the store at once; it logs the open's wait when
-// it is slow, so the log shows contention on the gate.
+// withStore opens the work store under the gate, runs fn and closes the store at once; it logs how long the open
+// waited (the gate) and how long the store was held.
 func (s *server) withStore(what string, fn func(Store) error) error {
 	t := time.Now()
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
 	st, err := s.d.Open()
 	if err != nil {
 		return fmt.Errorf("opening the work store for %s: %w", what, err)
@@ -216,8 +220,10 @@ func Run(d Deps) error {
 	s.snap.Store(s.refresh(nil)) // the first load has data to serve
 	pending, err := Pending(d.Spool)
 	if err != nil {
+		ln.Close()
 		return err
 	}
+	go s.writer()               // before the pending replies are queued, so any number of them fits
 	for _, e := range pending { // replies a crash or kill left pending
 		s.mu.Lock()
 		s.replies[e.ID] = Reply{State: "saving", Text: e.Text, RID: e.RID}
@@ -228,7 +234,6 @@ func Run(d Deps) error {
 		s.logf("note: gh is not installed, so the pm service does not watch reviews' PRs for their merge")
 	}
 	go s.refresher(srv)
-	go s.writer()
 	go s.ticker()
 	go s.syncer()
 	go s.collector()
@@ -300,63 +305,77 @@ func (s *server) refresher(srv *http.Server) {
 // read. The read takes no lock, so a writer never delays it; between a pm write's steps the records and the items
 // may not render together (a need closed before its decision is written), so a read that fails is repeated under
 // the records store's shared lock, which a pm write holds exclusively across its steps: an error shown is a real one.
+//
+// The repeat takes the gate first and the records lock second, the order every pm command that writes both stores
+// takes them, so the two never deadlock. A failure to stamp, open or read is not a render error: it is served, and
+// the next look tries again even when nothing moved.
 func (s *server) refresh(old *snapshot) *snapshot {
 	now := time.Now()
 	stamp, serr := s.d.Site.Stamp()
 	fp, ferr := s.d.Fingerprint()
-	if serr == nil && ferr == nil && old != nil && stamp == old.stamp && fp == old.fp {
+	if serr == nil && ferr == nil && old != nil && !old.readFailed && stamp == old.stamp && fp == old.fp {
 		next := *old
 		next.asOf = now
 		return &next
 	}
 	start := time.Now()
-	snap := s.read(old, now, stamp, fp, errors.Join(serr, ferr))
-	var lock time.Duration
-	if snap.err != "" {
-		t := time.Now()
-		fd, err := syscall.Open(s.d.Records, syscall.O_RDONLY, 0)
-		if err == nil {
-			if syscall.Flock(fd, syscall.LOCK_SH) == nil {
-				lock = time.Since(t)
-				snap = s.read(old, now, stamp, fp, errors.Join(serr, ferr))
-			}
-			syscall.Close(fd)
-		}
-	}
-	s.logf("refresh total=%dms lock=%dms", time.Since(start).Milliseconds(), lock.Milliseconds())
-	return snap
-}
-
-func (s *server) read(old *snapshot, asOf time.Time, stamp, fp string, stampErr error) *snapshot {
-	snap := &snapshot{asOf: asOf, stamp: stamp, fp: fp, mu: &gosync.Mutex{}, cache: map[string]rendered{}}
-	if stampErr != nil {
-		snap.err = "error: " + stampErr.Error()
+	snap := &snapshot{asOf: now, stamp: stamp, fp: fp, mu: &gosync.Mutex{}, cache: map[string]rendered{}}
+	fail := func(err error) *snapshot {
+		snap.err, snap.readFailed = "error: "+err.Error(), true
+		s.logf("refresh total=%dms failed: %v", time.Since(start).Milliseconds(), err)
 		return snap
 	}
+	if err := errors.Join(serr, ferr); err != nil {
+		return fail(err)
+	}
 	var items []work.Item
-	if old != nil && old.err == "" && fp == old.fp {
+	var err error
+	if old != nil && old.err == "" && fp == old.fp { // only the records moved
 		for _, it := range old.order {
 			items = append(items, *it)
 		}
-	} else if err := s.withStore("snapshot", func(st Store) error {
-		var err error
+	} else if err = s.withStore("snapshot", func(st Store) error {
 		items, err = st.Items()
 		return err
 	}); err != nil {
-		snap.err = "error: " + err.Error()
-		return snap
+		return fail(err)
+	}
+	pages, err := s.d.Site.Load(items)
+	var lock time.Duration
+	if err != nil {
+		err = s.withStore("snapshot under the records lock", func(st Store) error {
+			fd, err := syscall.Open(s.d.Records, syscall.O_RDONLY, 0)
+			if err != nil {
+				return err
+			}
+			defer syscall.Close(fd)
+			t := time.Now()
+			if err := syscall.Flock(fd, syscall.LOCK_SH); err != nil {
+				return err
+			}
+			lock = time.Since(t)
+			if items, err = st.Items(); err != nil {
+				return err
+			}
+			pages, err = s.d.Site.Load(items)
+			if err != nil {
+				snap.err = "error: " + err.Error() // a render error: served until the records or the store move
+			}
+			return nil
+		})
+		if err != nil {
+			return fail(err)
+		}
 	}
 	snap.items = map[string]*work.Item{}
 	for i := range items {
 		snap.items[items[i].ID] = &items[i]
 		snap.order = append(snap.order, &items[i])
 	}
-	pages, err := s.d.Site.Load(items)
-	if err != nil {
-		snap.err = "error: " + err.Error()
-		return snap
+	if snap.err == "" {
+		snap.pages = pages
 	}
-	snap.pages = pages
+	s.logf("refresh total=%dms lock=%dms", time.Since(start).Milliseconds(), lock.Milliseconds())
 	return snap
 }
 
@@ -508,15 +527,22 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 
 var replyID = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
 
+// MaxReply is the largest reply body the service takes, form encoding included.
+const MaxReply = 1 << 20
+
 // post takes a reply from a card's form: checked, spooled, and back to the card, which shows it saving.
 func (s *server) post(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/reply" {
 		s.reply(w, 404, "text/plain; charset=utf-8", []byte("only /reply takes a POST\n"))
 		return
 	}
-	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	raw, err := io.ReadAll(io.LimitReader(r.Body, MaxReply+1))
 	if err != nil {
 		s.reply(w, 400, "text/plain; charset=utf-8", []byte("refused: the body could not be read\n"))
+		return
+	}
+	if len(raw) > MaxReply { // refused whole, never stored cut short
+		s.reply(w, 413, "text/plain; charset=utf-8", []byte(fmt.Sprintf("refused: the reply is over %d bytes\n", MaxReply)))
 		return
 	}
 	form, _ := url.ParseQuery(strings.ToValidUTF8(string(raw), "�"))

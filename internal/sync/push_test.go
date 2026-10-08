@@ -27,10 +27,10 @@ func TestARunRecordsEachStepAndFlagsAFailure(t *testing.T) {
 		t.Fatal(d)
 	}
 	steps := []Step{{"work", func() (bool, string) { return true, "pushed 2 commits" }},
-		{"summary", func() (bool, string) { return false, "claude is missing" }},
+		{"summary", func() (bool, string) { panic("claude is missing") }},
 		{"records", func() (bool, string) { return true, "up to date with origin/records" }}}
 	code, out, err := Push(main, steps)
-	want := "2026-10-08T10:00:00+00:00 work ok: pushed 2 commits\n2026-10-08T10:00:00+00:00 summary error: claude is " +
+	want := "2026-10-08T10:00:00+00:00 work ok: pushed 2 commits\n2026-10-08T10:00:00+00:00 summary error: panic: claude is " +
 		"missing\n2026-10-08T10:00:00+00:00 records ok: up to date with origin/records"
 	if err != nil || code != 1 || out != want {
 		t.Fatalf("%d %v\n%s", code, err, out)
@@ -40,7 +40,7 @@ func TestARunRecordsEachStepAndFlagsAFailure(t *testing.T) {
 		t.Fatalf("log %q", data)
 	}
 	flags, _ := Flags(main, "", "origin")
-	if len(flags) != 1 || flags[0] != "summary step failed at 2026-10-08T10:00:00+00:00: claude is missing; log "+log {
+	if len(flags) != 1 || flags[0] != "summary step failed at 2026-10-08T10:00:00+00:00: panic: claude is missing; log "+log {
 		t.Fatal(flags)
 	}
 	banner, _ := Banner(main, "", "origin")
@@ -48,7 +48,7 @@ func TestARunRecordsEachStepAndFlagsAFailure(t *testing.T) {
 		t.Fatal(banner)
 	}
 	d, _ := Describe(main)
-	if len(d) != 4 || d[1] != "push      summary error at 2026-10-08T10:00:00+00:00: claude is missing" {
+	if len(d) != 4 || d[1] != "push      summary error at 2026-10-08T10:00:00+00:00: panic: claude is missing" {
 		t.Fatal(d)
 	}
 	steps[1].Run = func() (bool, string) { return true, "summarized" }
@@ -111,6 +111,9 @@ func git(t *testing.T, dir string, args ...string) string {
 }
 
 func TestPushRecordsPushesRebasesAndReports(t *testing.T) {
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(k, "t") // the rebase commits; a CI runner has no git identity
+	}
 	tmp := t.TempDir()
 	origin, store, other := filepath.Join(tmp, "origin.git"), filepath.Join(tmp, "store"), filepath.Join(tmp, "other")
 	git(t, tmp, "init", "-q", "--bare", origin)

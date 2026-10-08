@@ -76,12 +76,14 @@ func resolvePath(p string) string {
 	return filepath.Clean(p)
 }
 
-// runService runs pm service install, status, restart and logs. pm service run needs the work store and the site
-// renderer, which Go pm does not have until the install sprint wires them (internal/service.Run takes both).
+// runService runs pm service status and logs. pm service run needs the work store and the site renderer, which Go
+// pm does not have until the install sprint wires them (internal/service.Run takes both); until then install and
+// restart refuse too, since the unit they start would run that refusal under KeepAlive or Restart=always.
 func runService(sub string, p *Parsed, here string, stdout io.Writer) error {
-	if sub == "run" {
-		return &refusal{"pm service run needs the work store and the site, which Go pm does not wire yet; Python pm " +
-			"runs it until the cut-over"}
+	switch sub {
+	case "run", "install", "restart":
+		return &refusal{fmt.Sprintf("pm service %s: Go pm's service needs the work store and the site, which Go pm "+
+			"does not wire yet; Python pm runs the service until the cut-over", sub)}
 	}
 	cfg, err := config.Load(here)
 	if err != nil {
@@ -91,25 +93,7 @@ func runService(sub string, p *Parsed, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	var out string
-	switch sub {
-	case "install":
-		port, err := service.PortFor(main, int(cfg.Port))
-		if err != nil {
-			return &refusal{err.Error()}
-		}
-		exe, err := service.Exe()
-		if err != nil {
-			return err
-		}
-		if out, err = service.Install(main, port, exe); err != nil {
-			return err
-		}
-		if out == "" {
-			_, line := service.Health(main)
-			out = "already installed and current\n" + line
-		}
-	case "status":
+	if sub == "status" {
 		code, said, err := service.Status(main, cfg.Remote)
 		if err != nil {
 			return err
@@ -119,18 +103,14 @@ func runService(sub string, p *Parsed, here string, stdout io.Writer) error {
 			return &exitCode{code}
 		}
 		return nil
-	case "restart":
-		if out, err = service.Restart(main); err != nil {
-			return err
-		}
-	case "logs":
-		n, _ := strconv.Atoi(p.Get("lines")) // parse checked it is an int
-		if p.Get("lines") == "" {
-			n = 50
-		}
-		if out, err = service.Logs(main, n); err != nil {
-			return err
-		}
+	}
+	n := 50
+	if v := p.Get("lines"); v != "" {
+		n, _ = strconv.Atoi(v) // parse checked it is an int
+	}
+	out, err := service.Logs(main, n)
+	if err != nil {
+		return err
 	}
 	fmt.Fprintln(stdout, out)
 	return nil

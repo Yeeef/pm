@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	gosync "sync"
 	"testing"
 	"time"
 
@@ -406,6 +407,46 @@ func TestARenderErrorIsServedAsTheErrorAndTakesNoReply(t *testing.T) {
 	s.site.mu.Unlock()
 	if loads < 3 { // the first good load, then a failed read and its repeat under the records lock
 		t.Fatalf("a failed read is not repeated under the lock: %d loads", loads)
+	}
+}
+
+func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *testing.T) {
+	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
+	failing := true
+	var mu gosync.Mutex
+	open := func() (Store, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if failing {
+			return nil, errors.New("the gate timed out")
+		}
+		return w.Open()
+	}
+	main := t.TempDir()
+	fakeBin(t, map[string]string{"gh": fakeGH})
+	quick(t)
+	os.MkdirAll(filepath.Join(main, ".pm/store/records"), 0o755)
+	s := &served{t: t, w: w, site: &fakeSite{}, main: main, pin: filepath.Join(main, ".pm/config.toml"),
+		spool: filepath.Join(main, SpoolName), out: &syncBuffer{}, log: &syncBuffer{}, done: make(chan error, 1)}
+	s.setPin(Version())
+	go func() {
+		s.done <- Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Pin: s.pin,
+			Spool: s.spool, WorkDir: main, Open: open, Fingerprint: w.Fingerprint, Site: s.site,
+			Summarize: func() (bool, string) { return true, "" }, Style: []byte("x"), Out: s.out, Log: s.log})
+	}()
+	eventually(t, "serving", func() bool { return strings.Contains(s.out.String(), "Serving http://localhost:") })
+	s.base = "http://127.0.0.1:" + regexp.MustCompile(`localhost:(\d+);`).FindStringSubmatch(s.out.String())[1]
+	t.Cleanup(func() { s.stop() })
+	if resp, body := s.get("/"); resp.StatusCode != 500 || !strings.Contains(body, "the gate timed out") {
+		t.Fatalf("%d %s", resp.StatusCode, body)
+	}
+	mu.Lock()
+	failing = false
+	mu.Unlock()
+	eventually(t, "served once the store opens, with nothing moved", func() bool { resp, _ := s.get("/"); return resp.StatusCode == 200 })
+	big := url.Values{"token": {s.token()}, "id": {"p-1.2.1"}, "text": {strings.Repeat("x", MaxReply)}}
+	if code, _, body := s.post(big, ""); code != 413 || !strings.HasPrefix(body, "refused: the reply is over ") {
+		t.Fatalf("%d %q", code, body)
 	}
 }
 

@@ -267,7 +267,7 @@ func Push(main string, steps []Step) (int, string, error) {
 	var lines []string
 	for _, s := range steps {
 		at := iso(Now())
-		ok, said := s.Run()
+		ok, said := runStep(s)
 		prev, _ := state.step(s.Name)
 		first := prev.First
 		if first == "" {
@@ -302,6 +302,17 @@ func Push(main string, steps []Step) (int, string, error) {
 		}
 	}
 	return code, strings.Join(lines, "\n"), nil
+}
+
+// runStep runs one step; a panic is that step's recorded failure, as an exception is in Python's push, and does not
+// stop the next step.
+func runStep(s Step) (ok bool, said string) {
+	defer func() {
+		if r := recover(); r != nil {
+			ok, said = false, fmt.Sprintf("panic: %v", r)
+		}
+	}()
+	return s.Run()
 }
 
 // unpushed is the records commits not on <remote>/records as of the last fetch; -1 without it.
