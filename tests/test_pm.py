@@ -703,15 +703,16 @@ Sprint 1: Beta work  .1  running  0/1 done
 
 
 def test_pm_show_levels_together_print_every_line_pm_show_printed_whole(monkeypatch):
-    """The top level and the per-project levels together print every line the one-level pm show printed, and the
-    top level keeps every push failure, task another live session holds, open owner request and undelivered reply."""
+    """The top level and the per-project levels together print every line the one-level pm show printed but the day
+    summary, which only --json and the day page carry, and the top level keeps every push failure, task another live session holds, open owner request and undelivered reply."""
     from pm import cli
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "me")
     top = cli.show_text(SHOW_DATA).splitlines()
     projects = [cli.show_project_text(p).splitlines() for p in SHOW_DATA["projects"]]
     shown = Counter(top + [l for lines in projects for l in lines])  # counted: a line each project prints once
-    assert Counter(OLD_SHOW.splitlines()) - shown == Counter()
-    old_top = OLD_SHOW.split("\nfeedback: when pm gets")[0].splitlines()  # warnings, the day and the site
+    old = [l for l in OLD_SHOW.splitlines() if not l.startswith("today ")]
+    assert Counter(old) - shown == Counter() and not any(l.startswith("today ") for l in shown)
+    old_top = old[:old.index(next(l for l in old if l.startswith("feedback: when pm gets")))]  # warnings, the site
     assert top[:len(old_top)] == old_top
     for p in SHOW_DATA["projects"]:
         assert f"  {p['name']}  {p['bead']}  " in "\n".join(top)
@@ -1150,7 +1151,7 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     page = repo.page(f"days/{TODAY}.html")
     assert re.search(r"<span>generated at \d\d:\d\d</span>.*Summary 2\.", page, re.S), page
     assert "Summary 2." in repo.page("index.html")
-    assert f"today {TODAY}: Summary 2. (generated " in repo.pm("show").stdout
+    assert json.loads(repo.pm("show", "--json").stdout)["today"]["summary"] == "Summary 2."
 
 
 def test_index_lists_every_sprint_not_done_and_only_the_latest_closed_done_ones():

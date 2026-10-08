@@ -2102,7 +2102,7 @@ TITLE_CUT = 60  # characters of a request's title in the top level; the project 
 
 def show_text(data: dict) -> str:
     """The top level: what an agent must see before it starts work (push failures, tasks other live sessions hold,
-    each open owner request and each undelivered reply), the day and the site, and one line per project naming the
+    each open owner request and each undelivered reply), the site, and one line per project naming the
     command for its level."""
     out = []
     if data["push"]:
@@ -2114,9 +2114,6 @@ def show_text(data: dict) -> str:
     if others:
         out.append("warning: other live sessions hold these tasks; do not start or delegate them:")
         out += [f"  {i}  {holder_text(h)}" for i, h in others]
-    t = data["today"]
-    out.append(f"today {t['date']}: " + (f"{t['summary']} (generated {t['generated_at']})" if t["summary"]
-                                         else "no summary yet; the pm service generates it from today's activity"))
     out.append(f"site: {data['site']} (the pm service); a record's page is <site>/<its path under records/, without .md>"
                ".html; pm record link <target> prints one")
     out.append("projects: pm show --project NAME prints one's sprints, tasks, owner requests and last decisions")
@@ -3267,7 +3264,7 @@ def parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("show", help="compact status of open projects for agents, level by level",
                        description="Project state, level by level. Without a flag, the top level: push failures, tasks "
-                                   "other live sessions hold, the day, the site, and per open project a line with each "
+                                   "other live sessions hold, the site, and per open project a line with each "
                                    "open owner request and undelivered reply. Each level names the command for the "
                                    "next: --project, then --sprint, then --record with --section.")
     s.add_argument("--json", action="store_true", help="every level's data as one JSON object")
