@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from conftest import PM, integration_only, write_config
+from work_items import items as work_items
 
 from pm import __version__, hooks
 from pm.cli import parser
@@ -267,3 +268,41 @@ def normalised(text: str) -> str:
 def test_help(repo, argv):
     py, go = run(repo, "python", *argv, "--help"), run(repo, "go", *argv, "--help")
     assert (go[0], normalised(go[1]), go[2]) == (py[0], normalised(py[1]), py[2])
+
+
+# ---------------------------------------------------------------- the work store's import from bd
+
+BD_FIXTURE = Path(__file__).resolve().parent.parent / "internal/work/testdata"
+
+
+def present(v):
+    """v without what is absent: None, "" and empty lists and objects are dropped at every level. Python's mapper
+    gives every field (null where it does not apply); pm export leaves such a field out."""
+    if isinstance(v, dict):
+        return {k: present(x) for k, x in v.items() if x not in (None, "", [], {})}
+    if isinstance(v, list):
+        return [present(x) for x in v]
+    return v
+
+
+@pytest.mark.integration  # pm init, though with --import-bd Go pm only imports
+def test_import_bd_agrees_with_the_python_mapper(repo):
+    """Go pm's pm init --import-bd, read back with pm export, gives the items that work_items.py (the neutral tests'
+    mapping of bd issues) gives for the same export. On the fixture, or on a real export with the records store it
+    goes with: PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=<pm where records>."""
+    export = Path(os.environ.get("PM_BD_EXPORT") or BD_FIXTURE / "bd-export.jsonl")
+    records = Path(os.environ.get("PM_BD_RECORDS") or BD_FIXTURE / "records")
+    for kind in ("projects", "sprints"):
+        (repo.store / kind).mkdir(exist_ok=True)
+        for f in (records / kind).glob("*.md"):
+            shutil.copy(f, repo.store / kind / f.name)
+    code, out, err = run(repo, "go", "init", "--import-bd", str(export))
+    assert (code, err) == (0, ""), err
+    code, out, err = run(repo, "go", "export")
+    assert (code, err) == (0, ""), err
+    go = {i["id"]: present(i) for i in map(json.loads, out.splitlines())}
+    py = {i: present(x) for i, x in work_items(list(map(json.loads, export.read_text().splitlines()))).items()}
+    assert sorted(go) == sorted(py)
+    assert [i for i in py if go[i] != py[i]] == []
+    code, _, err = run(repo, "go", "init", "--import-bd", str(export))
+    assert code == 1 and "an import goes into an empty store only" in err
