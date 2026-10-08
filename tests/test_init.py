@@ -145,7 +145,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert "installed the pm service: " in res.stdout
 
     exclude = (new_repo / ".git/info/exclude").read_text()
-    assert exclude.endswith("\n/.pm/store/\n/.pm/run/\n/records\n/.claude/worktrees/\n"), exclude
+    assert exclude.endswith("\n/.pm/store/\n/.pm/run/\n/records\n"), exclude
 
     before = snapshot(new_repo)
     again = pm(new_repo, "init")

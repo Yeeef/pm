@@ -2815,12 +2815,11 @@ def cmd_uninstall(args) -> str:
     return "\n".join(out) or "pm is not installed here; nothing to remove"
 
 
-# the clone's own state under .pm/, each worktree's records/ link and the agents' worktrees `pm task claim` tells them
-# to make under .claude/worktrees/, in the common git dir's info/exclude: a branch
+# the clone's own state under .pm/ and each worktree's records/ link, in the common git dir's info/exclude: a branch
 # made before pm has neither .pm/.gitignore nor pm's .gitignore block, and there git add -A would stage the store as an
 # embedded repo and the link as a file
-WORKTREES = ".claude/worktrees"  # Claude Code's EnterWorktree uses it too
-PM_EXCLUDE = ["/.pm/store/", "/.pm/run/", "/records", f"/{WORKTREES}/"]
+PM_EXCLUDE = ["/.pm/store/", "/.pm/run/", "/records"]
+WORKTREES = ".claude/worktrees"  # where `pm task claim` tells agents to make theirs; Claude Code's EnterWorktree uses it too
 
 
 def exclude_path(main: Path) -> Path:

@@ -116,8 +116,8 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   down one, which a typed `pm init` or `pm service restart` restarts. In a linked worktree, a branch without
   `.pm/config.toml` is refused, and a main checkout on another pin gets the worktree's setup but no tool or service.
 - Agents change code only in a worktree of their own: `pm task claim` refuses in the main checkout (the worktree whose
-  git dir is the common one) and prints how to make one under `.claude/worktrees/`, which `PM_EXCLUDE` keeps out of
-  `git status`. Nothing else enforces it; Claude Code's background sessions get their own worktree by default.
+  git dir is the common one) and prints how to make one under `.claude/worktrees/`.
+  Nothing else enforces it; Claude Code's background sessions get their own worktree by default.
 
 ## The site
 
