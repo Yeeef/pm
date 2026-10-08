@@ -98,6 +98,10 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   `[TEST]` needs and this repo's checks go here, never in `prime.md` or a `--help` text.
 - Keep `prime.md` and `--help` in step with the code: a refusal `prime.md` names must exist in `cli.py` with that
   wording, and a flag named in either must parse. `test_pm.py` asserts refusal texts; grep it before rewording one.
+- pm reads stdin only for `--text-file -`, and only from a heredoc or pipe (`read_text_file()` refuses any other
+  stdin at once, since an agent's shell may hold it open as a socket or tty that never ends); hooks read their JSON
+  input from stdin. Every body command takes `--text` and `--text-file` through `add_text()`. Docs, `--help` texts
+  and hints give a body with `--text-file - <<'EOF'`, or `--text="…"` for one plain line; never `--text "…"`.
 - `pm init` writes the hook entries (`claude_hooks()` and `codex_hooks()` in `install.py`) into
   `.claude/settings.json` (SessionStart: `pm prime --rules N --hook-json` for each chunk, then `--state
   --hook-json`; SubagentStart: the same chunks, then `--subagent --hook-json`; Stop: `pm hook owner-request` then

@@ -97,31 +97,33 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 
 # How
 
+**Bodies.** Some commands below take a body: a goal, a frame, a description, a reason, an answer. Give it as a quoted heredoc, `--text-file - <<'EOF'` … `EOF`, or as `--text="…"` for one plain line without backticks, `$` or quotes. pm reads stdin only for `--text-file -`, and only from a heredoc or a pipe; any other stdin is refused at once. Hooks read their JSON input from stdin.
+
 - check current projects state
   - `pm show`: See an overview of what is open, who holds what, and what waits on the owner. Session start injects it, stamped with its UTC time: orient from that copy. Other sessions change the state, so run it again before you tell the owner the project state.
   - drill down for more details with `pm show --sprint ID`, and `pm show --record <path, sprint id, project name or design slug> --section <name>`. Do not read the whole file for one part.
   - Find ready work: `bd ready --exclude-type=epic`
   - See a task, its holder and its needs: `bd show <id>`
   - See every location and its state: `pm where`; `pm where records` prints the store's path.
-- open a project: `pm project open <name> --title "…"`, a one-paragraph Goal on stdin, once the owner confirmed the goal in their own words.
-- open a sprint: `pm sprint open <project> --title "…"`, the frame on stdin as `## Goal`, `## Scope` and `## Done when`. It refuses a frame with a required section missing.
-- open tasks: `pm task add --sprint ID --title "…"`, the description on stdin. Dependencies and sub-tasks are plain `bd`: `bd dep add`, `bd create --parent <task>`.
+- open a project: `pm project open <name> --title "…"`; body: a one-paragraph Goal, once the owner confirmed the goal in their own words.
+- open a sprint: `pm sprint open <project> --title "…"`; body: the frame as `## Goal`, `## Scope` and `## Done when`. It refuses a frame with a required section missing.
+- open tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. Dependencies and sub-tasks are plain `bd`: `bd dep add`, `bd create --parent <task>`.
 - claim a task: `pm task claim <id>`. It records your session and refuses a task that another live session holds. Do not claim with `bd update --claim`. Do not take or brief work that another live session holds.
 - close a task: `pm task close <id> --reason "…"`, never `bd close`. The reason names the commit: HEAD when newer than the task, else `--commit REF`.
-- move a task: `pm task move <id> --to SPRINT_ID`, the reason on stdin, two lines or more. It records the scope change as a decision in the sprint it leaves.
+- move a task: `pm task move <id> --to SPRINT_ID`; body: the reason, two lines or more. It records the scope change as a decision in the sprint it leaves.
 - need a decision from owner: `pm decision need --title "…" --parent ID`, with each part as a flag, one line each, in single quotes:
   - one `--question '…'`;
   - one or more `--fact '…'`;
   - two or more `--option LABEL '<what it does>'`, each with its `--cost LABEL '<what it costs>'`;
   - one `--default LABEL '<why>'`.
-- need an action from owner: `pm action need --title "…" --parent ID`. Examples: run a command, apply a setting. The description on stdin says what to do and why. An action is done: check the evidence, then run `pm action done <id> --reason "<what showed it>"`.
-- need a pr review from owner: `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`. Stdin holds optional extra context. The review blocks the sprint close until the PR is on main; close it then with `pm action done <id> --reason "merged as <sha>"`.
+- need an action from owner: `pm action need --title "…" --parent ID`; body: what to do and why. Examples: run a command, apply a setting. An action is done: check the evidence, then run `pm action done <id> --reason "<what showed it>"`.
+- need a pr review from owner: `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`; body (optional): extra context. The review blocks the sprint close until the PR is on main; close it then with `pm action done <id> --reason "merged as <sha>"`.
 - Read a reply from owner with `pm reply read <id>` first. Each close below refuses while the request holds a reply that has not reached a session.
-- add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`. Stdin gives the decision on its first line and its reason on the next. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
-- close a decision need that sets no rule: `pm decision close <id> --reason "<why>"`. The answer goes on stdin. The answer and the reason stay in Beads, and the need gets the label `no-decision`.
+- add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`. Body: the decision on its first line, its reason on the next. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
+- close a decision need that sets no rule: `pm decision close <id> --reason "<why>"`. Body: the answer. The answer and the reason stay in Beads, and the need gets the label `no-decision`.
 - add a finding: `pm finding add --sprint ID "<text>"`, as it occurs, with its numbers. A large result table is a `::: result` block in the record.
 - create a design page record: `pm design new <slug> --title "…" --project NAME` writes every section with its prompt line; then edit it by hand and `pm commit`. Put no date in the slug.
-- create a free-form doc record: `pm doc new <slug> --title "…" --bead ID\|--project NAME`, the body on stdin; later edits by hand and `pm commit`.
+- create a free-form doc record: `pm doc new <slug> --title "…" --bead ID\|--project NAME`; body: the doc's text, or `--text-file PATH` to read a file; later edits by hand and `pm commit`.
 - close a sprint: `pm sprint close <id>`. It refuses an unwritten report, any open task or review, and a review closed without `merged as <sha>`. It skips a dismissed review, such as a replaced PR's.
 - close a project: Close every sprint. Write Outcome by hand: the results against the goal in numbers, what was learned and what was retired. Link the sprints' delivery reports. Commit it with `pm commit`, then run `pm project close <name>`.
 - create a postmortem: `pm postmortem new <slug> --title "…" --sprint ID\|--project NAME` writes every section; then by hand and `pm commit`. Write it once the incident is fixed, under the sprint it hit.

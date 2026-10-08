@@ -291,9 +291,13 @@ class Repo:
         self.noms = root / ".beads/embeddeddolt/demo/.dolt/noms"  # the Dolt store bd context points at; see dolt()
         self.env = fake_bd_env(tmp, os.environ)
 
-    def pm(self, *args: str, stdin: str = "", cwd: Path | None = None) -> subprocess.CompletedProcess:
-        return subprocess.run([*PM, *args],
-                              cwd=cwd or self.root, env=self.env, input=stdin, capture_output=True, text=True)
+    def pm(self, *args: str, text: str = "", stdin: str | None = None,
+           cwd: Path | None = None) -> subprocess.CompletedProcess:
+        """Run pm; a non-empty text goes in as --text. stdin is closed unless given: only `pm hook` reads it, for the
+        hook input JSON."""
+        feed = {"stdin": subprocess.DEVNULL} if stdin is None else {"input": stdin}
+        return subprocess.run([*PM, *args, *([f"--text={text}"] if text else [])],
+                              cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
         return subprocess.run(["git", *args], cwd=cwd or self.root, check=True, capture_output=True, text=True).stdout

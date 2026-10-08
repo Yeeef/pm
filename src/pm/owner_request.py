@@ -89,8 +89,8 @@ REASON = (
     "your reply (it needs no id):\n"
     "- a decision: pm decision need --title \"...\" --parent <sprint or task id> --question '...' --fact '...' "
     "--option <label> '...' --cost <label> '...' (two or more options) --default <label> '<why>';\n"
-    "- an action (run, apply, configure, ...): pm action need --title \"...\" --parent <id>, what to do and why "
-    "on stdin;\n"
+    "- an action (run, apply, configure, ...): pm action need --title \"...\" --parent <id> --text-file - <<'EOF', "
+    "then what to do and why, then EOF;\n"
     "- a PR review or merge: pm action need --pr URL --sprint ID --focus \"...\".\n"
     "If no sprint work waits on it, end without the request or make it a plain offer."
 )
