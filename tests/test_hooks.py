@@ -73,7 +73,7 @@ def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     assert re.fullmatch(r"Project state from `pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
                         r"run `pm show` again before stating project state to the owner\.", header)
     minute = lambda s: re.sub(r"\d\d:\d\d UTC", "hh:mm UTC", s)  # a stamp may cross a minute between two calls
-    assert minute(body) == minute(shown) and "Sprint 1: First" in body
+    assert minute(body) == minute(shown) and "decision .1.2  Ask the owner  (sprint 1)" in body
     plain = repo.pm("prime")  # by hand: the rules whole and in order, then the state, no envelope
     assert plain.returncode == 0 and minute(plain.stdout.strip()) == minute(hooks.head() + "\n\n" + text)
 
@@ -149,7 +149,8 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     ran, located, rest = text.split("\n\n", 2)
     assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
     assert f"checkout  {wt}  branch bridge, records link set up" in located
-    assert rest.startswith("Project state from `pm show` at session start, ") and "Sprint 1: First" in rest
+    assert rest.startswith("Project state from `pm show` at session start, ")
+    assert "decision .1.2  Ask the owner  (sprint 1)" in rest
 
 
 def test_session_start_runs_init_without_port(tmp_path, monkeypatch):
