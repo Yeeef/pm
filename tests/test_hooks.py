@@ -86,7 +86,7 @@ TODAY_SHOW = "\n".join([  # pm show of a busy day: 2026-10-07 printed 7,085 char
     *(f"  yeeef-agents-9va.6{n}.{n}  held by 7f3a9c0{n}, 2h ago, live" for n in range(8)),
     "today 2026-10-07: " + "Auto-summary pages, decision cards and feedback tracking shipped. " * 3,
     "site: https://pm.example.com (the pm service); a record's page is <site>/<its path under records/, without .md>.html",
-    'feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"',
+    'feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"',
     *(line for p in range(5) for line in (
         f"project-{p}  yeeef-agents-p{p}  " + "One shared record for agents and the owner, kept current. " * 2,
         "decisions await you (2):",

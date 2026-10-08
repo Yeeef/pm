@@ -26,6 +26,7 @@ import secrets
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -108,6 +109,7 @@ LEVEL_RULE = ("project if a later sprint must follow it; sprint if it is about t
 DECISION_SHAPE = ("a decision body is the decision on its first line, then its reason on the next line, e.g.:\n"
                   "  Records live on their own branch, in one store every worktree shares.\n"
                   "  A record kept on a code branch is invisible to the other branches until a merge.")
+TEXT_FORMS = "--text or --text-file - <<'EOF'"  # the two ways to give a body, as refusals name them
 NEED_SHAPE = ("a decision need takes its parts as flags, one line each: one --question, one or more --fact, two or "
               "more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON naming "
               "the option taken if the owner does not answer. Put each value in single quotes, so code spans stay, e.g.:\n"
@@ -127,7 +129,7 @@ ACTION_SHAPE = ("an action's description says what the owner should do and why, 
 PR_NAMED = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/pull/\d+|\bPR\s*#\d+", re.I)
 REVIEW_ASKED = re.compile(r"\b(review|merg|approv)\w*", re.I)
 REVIEW_FORM = 'pm action need --pr URL --sprint ID --focus "…" [--design SLUG]'
-FRAME_SHAPE = ("stdin is the sprint's frame, e.g.:\n"
+FRAME_SHAPE = ("--text is the sprint's frame, e.g.:\n"
                "  ## Goal\n  Ship the parser, because the site needs tables.\n"
                "  ## Scope\n  **In:** the parser and its tests.\n  **Out:** the site's styling.\n"
                "  ## Done when\n  - make test passes with a table record.")
@@ -264,12 +266,6 @@ def locked(records: Path):
     return fd
 
 
-def stdin_text() -> str:
-    """stdin, read whole; main reads it before taking the store lock, so a caller that leaves stdin open blocks only
-    its own command, never another session's write. Commands get it as args.stdin."""
-    return "" if sys.stdin.isatty() else sys.stdin.read().strip()
-
-
 def rel(repo: Repo, path: Path) -> str:
     return "records/" + path.resolve().relative_to(repo.records.resolve()).as_posix()
 
@@ -286,14 +282,14 @@ def first_sentence(text: str, limit: int = 110) -> str:
 
 
 def parse_sections(text: str, allowed: list[str]) -> dict[str, str]:
-    """Split stdin like '## Goal\\n...\\n## Scope\\n...' into section bodies."""
+    """Split --text like '## Goal\\n...\\n## Scope\\n...' into section bodies."""
     parts = re.split(r"(?m)^## (.+?)\s*$", text)
     if parts[0].strip():
-        raise Refuse(f"text before the first section heading; start stdin with '## {allowed[0]}'; {FRAME_SHAPE}")
+        raise Refuse(f"text before the first section heading; start --text with '## {allowed[0]}'; {FRAME_SHAPE}")
     out = {}
     for name, body in zip(parts[1::2], parts[2::2]):
         if name not in allowed:
-            raise Refuse(f"unknown section '## {name}' on stdin; allowed: {', '.join(allowed)}; {FRAME_SHAPE}")
+            raise Refuse(f"unknown section '## {name}' in --text; allowed: {', '.join(allowed)}; {FRAME_SHAPE}")
         out[name] = body.strip()
     return out
 
@@ -515,7 +511,7 @@ def decision_target(repo: Repo, args) -> Record:
 
 def decision_body(body: str) -> str:
     if not body:
-        raise Refuse(f"the decision body is empty; pipe it on stdin: {DECISION_SHAPE}")
+        raise Refuse(f"the decision body is empty; pass it with {TEXT_FORMS}: {DECISION_SHAPE}")
     if len([l for l in body.splitlines() if l.strip()]) < 2:
         raise Refuse(f"the decision body is a single line; {DECISION_SHAPE}")
     if re.search(r"(?m)^:::", body):
@@ -543,7 +539,7 @@ def refuse_unread(need: dict) -> None:
 def cmd_decision_add(args, records: Path) -> str:
     """Record a decision; with --need it is the owner's answer to that decision need, which it also closes (bd human
     respond with the same text) unless the owner already closed it."""
-    body = args.stdin
+    body = args.text
     repo = load(records)
     rec = decision_target(repo, args)
     decision_body(body)
@@ -660,14 +656,14 @@ def raise_need(args, records: Path, want: str) -> str:
     title = args.title.strip()
     if not title:
         raise Refuse("--title is empty")
-    desc = args.stdin
+    desc = args.text if want == "action" else ""
     text = f"{title}\n{desc if want == 'action' else need_text(args)}"
     if PR_NAMED.search(text) and REVIEW_ASKED.search(text):
         raise Refuse(f"this asks the owner to review or merge a PR; raise it with the review form, so its card links "
                      f"the PR, the sprints and design pages and its wait wakes on the merge: {REVIEW_FORM}. If it "
                      "only mentions the PR, say what you ask without review, merge or approve")
     if want == "action" and not desc:
-        raise Refuse(f"the description is empty; pipe it on stdin: {ACTION_SHAPE}")
+        raise Refuse(f"the description is empty; pass it with {TEXT_FORMS}: {ACTION_SHAPE}")
     if want == "decision":
         desc = need_markdown(args)
     repo = load(records)
@@ -689,8 +685,9 @@ def raise_need(args, records: Path, want: str) -> str:
         return (f"raised action {need_id} under {args.parent}; {delivery_hint(need_id)}; once you see the "
                 f"owner has done it: pm action done {need_id} --reason \"<what you saw>\"")
     return (f"raised decision need {need_id} under {args.parent}; {delivery_hint(need_id)}; once the owner "
-            f"answers: pm decision add --need {need_id} --level … with the answer as the body if it sets a rule, else "
-            f"pm decision close {need_id} --reason \"<why it sets no rule>\" with the answer on stdin")
+            f"answers: pm decision add --need {need_id} --level … --text-file - <<'EOF' (the answer, then EOF) if it "
+            f"sets a rule, else pm decision close {need_id} --reason \"<why it sets no rule>\" --text-file - <<'EOF' "
+            "(the answer, then EOF)")
 
 
 SESSION_ENV = "CLAUDE_CODE_SESSION_ID"  # Claude Code exports it to every command a session runs
@@ -811,7 +808,7 @@ def raise_review(args, records: Path) -> str:
     focus = args.focus.strip()
     if not focus:
         raise Refuse("--focus is empty; say what to look at first: the risky changes and the open choices")
-    extra = args.stdin
+    extra = args.text
     repo = load(records)
     sprints = list(dict.fromkeys(args.sprint))
     # A sprint closes only once its PR merges, so every sprint a PR under review delivers is open, and its delivery
@@ -871,7 +868,7 @@ def cmd_decision_close(args, records: Path) -> str:
     the owner already closed with bd human respond only gets the reason, as a comment, and the label. The label comes
     last, so a failure leaves a closed need the render check still flags, and running the command again finishes it
     without repeating the reason."""
-    answer = args.stdin
+    answer = args.text
     why = (args.reason or "").strip()
     if not why:
         raise Refuse("--reason is empty; say why the answer sets no rule")
@@ -883,7 +880,7 @@ def cmd_decision_close(args, records: Path) -> str:
     if need["status"] == "closed" and dismissed(need):
         raise Refuse(f"need {args.need_id} was dismissed, so it has no answer to mark")
     if need["status"] != "closed" and not answer:
-        raise Refuse("the answer is empty; pipe the owner's answer on stdin, as they gave it")
+        raise Refuse(f"the answer is empty; pass the owner's answer, as they gave it, with {TEXT_FORMS}")
     refuse_unread(need)
     note = f"No decision record: {why}"
     beads = {**repo.beads, args.need_id: {**need, "status": "closed", "labels": labels + [NO_DECISION],
@@ -938,7 +935,7 @@ def cmd_task_add(args, records: Path) -> str:
     title = args.title.strip()
     if not title:
         raise Refuse("--title is empty")
-    desc = args.stdin
+    desc = args.text
     repo = load(records)
     open_sprint(repo, args.sprint)
     planned_id = "pm-planned-task"
@@ -1015,7 +1012,7 @@ def cmd_task_claim(args, records: Path) -> str:
 
 
 def cmd_task_move(args, records: Path) -> str:
-    reason = args.stdin
+    reason = args.text
     repo = load(records)
     task = open_task(repo, args.task_id)
     source = task.get("parent")
@@ -1041,9 +1038,9 @@ def cmd_doc_new(args, records: Path) -> str:
     title = args.title.strip()
     if not title:
         raise Refuse("--title is empty")
-    body = args.stdin
+    body = args.text
     if not body:
-        raise Refuse("the doc body is empty; pipe it on stdin")
+        raise Refuse(f"the doc body is empty; pass it with {TEXT_FORMS}")
     repo = load(records)
     if args.bead is not None:
         if args.bead not in repo.beads:
@@ -1076,9 +1073,9 @@ def feedback_docs(recs: list[Record], project: str) -> list[Record]:
 def cmd_feedback_add(args, records: Path) -> str:
     """Append one entry to the project's pm feedback doc, docs/<date of first use>-<project>-feedback.md, creating it
     on first use."""
-    text = (args.text if args.text is not None else args.stdin).strip()
+    text = args.text
     if not text:
-        raise Refuse("the feedback text is empty; pass --text or pipe it on stdin")
+        raise Refuse(f"the feedback text is empty; pass it with {TEXT_FORMS}")
     sid = (args.session or "").strip() or current_session()
     if not sid:
         raise Refuse(f"no agent session: neither {SESSION_ENV} nor {CODEX_SESSION_ENV} is set; name one with --session")
@@ -1151,9 +1148,9 @@ def cmd_project_open(args, records: Path) -> str:
     title = args.title.strip()
     if not title:
         raise Refuse("--title is empty")
-    goal = args.stdin
+    goal = args.text
     if not goal:
-        raise Refuse("Goal is empty; pipe the project's goal on stdin")
+        raise Refuse(f"Goal is empty; pass the project's goal with {TEXT_FORMS}")
     repo = load(records)
     path = records / "projects" / f"{args.name}.md"
     if path.exists() or any(r.type == "project" and r.name == args.name for r in repo.recs):
@@ -1178,10 +1175,10 @@ def cmd_sprint_open(args, records: Path) -> str:
     title = args.title.strip()
     if not title:
         raise Refuse("--title is empty")
-    frame = parse_sections(args.stdin, FRAME)
+    frame = parse_sections(args.text, FRAME)
     for name in FRAME:
         if not frame.get(name):
-            raise Refuse(f"'## {name}' is missing or empty on stdin; {FRAME_SHAPE}")
+            raise Refuse(f"'## {name}' is missing or empty in --text; {FRAME_SHAPE}")
     scope = re.match(r"(?s)\*\*In:\*\*(.*?)\*\*Out:\*\*(.*)", frame["Scope"])
     if not scope or not scope.group(1).strip() or not scope.group(2).strip():
         raise Refuse(f"Scope needs a non-empty **In:** list followed by a non-empty **Out:** list; {FRAME_SHAPE}")
@@ -1913,8 +1910,9 @@ def reply_text(root: Path, issue: dict, replies: list[dict]) -> str:
     if issue["status"] == "closed":
         nxt = "it is closed already; check the reply is handled"
     elif k == "decision":
-        nxt = (f"record the answer: pm decision add --need {iid} --level … with it as the body if it sets a rule, "
-               f"else pm decision close {iid} --reason \"<why it sets no rule>\" with the answer on stdin")
+        nxt = (f"record the answer: pm decision add --need {iid} --level … --text-file - <<'EOF' (the answer, then "
+               f"EOF) if it sets a rule, else pm decision close {iid} --reason \"<why it sets no rule>\" "
+               "--text-file - <<'EOF' (the answer, then EOF)")
     else:
         nxt = f"check the evidence, then pm action done {iid} --reason \"<what you saw>\", or ask again if it falls short"
         if review_pr(issue):
@@ -2104,7 +2102,7 @@ def show_text(data: dict) -> str:
                                          else "no summary yet; the pm service generates it from today's activity"))
     out.append(f"site: {data['site']} (the pm service); a record's page is <site>/<its path under records/, without .md>"
                ".html; pm record link <target> prints one")
-    out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text "…"')
+    out.append('feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"')
     for p in data["projects"]:
         e = p["bead"]
         sprint_names = {sp["id"]: sp["name"] for sp in p["sprints"]}
@@ -3149,9 +3147,6 @@ def cmd_commit(args, records: Path) -> str:
 
 # ---------------------------------------------------------------- entry point
 
-# Commands that read stdin; main reads it before the lock. Others leave stdin unread, so an open one never blocks them.
-READS_STDIN = {"decision add", "decision close", "action need", "doc new", "project open",
-               "sprint open", "task add", "task move", "feedback add"}
 WRITES = {"finding add", "feedback add", "decision add", "decision need", "decision close", "action need", "action done",
           "doc new", "design new", "postmortem new", "project open", "sprint open", "sprint close", "task add", "task close",
           "task move", "commit"}
@@ -3197,6 +3192,35 @@ owner (pm action need) and add a bug task (pm task add). pm init installs the se
 it and removes its unit."""
 
 
+def add_text(s: argparse.ArgumentParser, what: str) -> None:
+    """The body of a command: --text for one plain line, --text-file PATH, or --text-file - for a quoted heredoc on
+    stdin (main reads it). Without either the body is ""."""
+    g = s.add_mutually_exclusive_group()
+    g.add_argument("--text-file", metavar="PATH",
+                   help=f"{what}; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF")
+    g.add_argument("--text", default="", type=str.strip,
+                   help="the same body inline, for one plain line only; several lines, backticks, $ or quotes go in "
+                        "--text-file")
+
+
+def read_text_file(path: str) -> str:
+    """The body --text-file names. `-` reads stdin, but only a pipe or a file (a heredoc is one): an agent's shell may
+    hold stdin open as a socket or tty that never ends, so anything else is refused without reading."""
+    if path == "-":
+        try:
+            mode = os.fstat(0).st_mode
+        except OSError:
+            mode = 0
+        if not (stat.S_ISFIFO(mode) or stat.S_ISREG(mode)):
+            raise Refuse("--text-file - reads stdin, which here is not a pipe or a file; pass the body with a quoted "
+                         "heredoc: pm … --text-file - <<'EOF' … EOF")
+        return sys.stdin.buffer.read().decode("utf-8").strip()
+    try:
+        return Path(path).read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        raise Refuse(f"--text-file {path}: no such file")
+
+
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="pm", description=__doc__.strip().splitlines()[0],
                                  epilog=f"The pm uv tool runs the pm version the repo pins in {config.REL}, through uv "
@@ -3234,23 +3258,23 @@ def parser() -> argparse.ArgumentParser:
 
     feedback = sub.add_parser("feedback", help="feedback on pm itself").add_subparsers(dest="sub", required=True)
     s = feedback.add_parser(
-        "add", help="append an entry to the project's pm feedback doc; text with --text or on stdin",
+        "add", help="append an entry to the project's pm feedback doc; the text with --text",
         description="When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say "
                     "once what happened and what would have helped. Appends a dated entry with this session's id to "
                     "records/docs/<date of first use>-<project>-feedback.md, creating it on first use.")
     s.add_argument("--project", required=True, metavar="NAME", help="the project the feedback doc belongs to")
     s.add_argument("--sprint", metavar="ID", help="the sprint the feedback is about")
     s.add_argument("--task", metavar="ID", help="the task the feedback is about")
-    s.add_argument("--text", help="the feedback; default: stdin")
+    add_text(s, "required: what happened and what would have helped")
     s.add_argument("--session", metavar="ID", help="the session to record; default: this session's id from the environment")
     s.set_defaults(func=cmd_feedback_add)
 
     decision = sub.add_parser("decision", help="decisions: record one, or ask the owner for one").add_subparsers(
         dest="sub", required=True)
     s = decision.add_parser(
-        "add", help="append a decision to a project's or sprint's Decisions; body on stdin",
+        "add", help="append a decision to a project's or sprint's Decisions; body with --text",
         description="Append a ::: decision block, dated today, to the Decisions of the named project or "
-                    "sprint. The body on stdin states the decision and, on the next line, its reason. "
+                    "sprint. The body (--text) states the decision and, on the next line, its reason. "
                     f"Choosing --level: {LEVEL_RULE}. Source is agent unless --need or --confirmed. With --need, "
                     "the body is the owner's answer to that decision need: it ends 'Answers `<need-id>`.', and the "
                     "need is closed with bd human respond and the same text unless the owner already closed it.")
@@ -3262,6 +3286,8 @@ def parser() -> argparse.ArgumentParser:
     owner.add_argument("--need", metavar="ID", help="source=owner: the decision answers this decision need, and "
                                                     "closes it if it is open")
     owner.add_argument("--confirmed", action="store_true", help="source=owner: the owner confirmed it")
+    add_text(s, "required: the decision on its first line, its reason on the next; with --need, the owner's "
+                "answer ending 'Answers `<need-id>`.'")
     s.set_defaults(func=cmd_decision_add)
     s = decision.add_parser(
         "need", help="ask the owner for a decision under a sprint or task; its parts as flags",
@@ -3287,7 +3313,7 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--parent", required=True, metavar="ID", help="the sprint or task the decision belongs to")
     s.set_defaults(func=cmd_decision_need)
     s = decision.add_parser(
-        "close", help="close a decision need whose answer sets no rule, with no decision record; the answer on stdin",
+        "close", help="close a decision need whose answer sets no rule, with no decision record; the answer with --text",
         description="Close the need with bd human respond, the owner's answer and the reason, and label it "
                     "no-decision; on a need the owner already closed, only the label and the reason (as a comment) "
                     "are added, and no answer is needed. An answer that sets a rule is recorded with pm decision add "
@@ -3295,21 +3321,22 @@ def parser() -> argparse.ArgumentParser:
                     "sure, record a decision. If labelling fails, run it again; it does not repeat the reason.")
     s.add_argument("need_id", help="the decision need's Beads id")
     s.add_argument("--reason", required=True, help="why the answer sets no rule, in a sentence")
+    add_text(s, "the owner's answer, as they gave it; required unless the owner already closed the need")
     s.set_defaults(func=cmd_decision_close)
 
     action = sub.add_parser("action", help="actions: ask the owner to do something (run, apply), or to review a PR (--pr)"
                             ).add_subparsers(dest="sub", required=True)
     s = action.add_parser(
         "need", help="ask the owner to do something under a sprint or task, or to review a PR (--pr); "
-                     "description on stdin",
+                     "description with --text",
         description="Raise an action: a Beads task labelled human and action under a sprint or task. The "
-                    "description on stdin says what to do and why. With --pr it is a PR review instead: every sprint "
+                    "description (--text) says what to do and why. With --pr it is a PR review instead: every sprint "
                     "named must be open with its delivery report written (Outcome and 'Against \"Done when\"') and "
                     "committed; the review goes under the first and blocks its close until the PR merges and you "
                     "close the review with pm action done <id> --reason \"merged as <sha>\"; "
                     "the site's card links the PR, each sprint's record and delivery report, and the design "
-                    "pages named with --design plus those the sprints' records list, and shows the focus; stdin "
-                    "then holds optional extra context. Close it with pm action done once you see it done.")
+                    "pages named with --design plus those the sprints' records list, and shows the focus; "
+                    "--text then holds optional extra context. Close it with pm action done once you see it done.")
     s.add_argument("--title", help="required without --pr; with --pr, default: Review PR #<n>")
     s.add_argument("--parent", metavar="ID", help="the sprint or task the action belongs to (required without --pr; "
                    "not allowed with it)")
@@ -3319,6 +3346,7 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--focus", help="with --pr: what to look at first: risky changes, open choices")
     s.add_argument("--design", action="append", metavar="SLUG",
                    help="with --pr: a design page behind the PR (repeatable, optional)")
+    add_text(s, "without --pr, required: what the owner should do and why; with --pr, optional extra context")
     s.set_defaults(func=cmd_action_need)
     s = action.add_parser("done", help="close an action once you see the owner did it")
     s.add_argument("need_id", help="the action's Beads id")
@@ -3338,12 +3366,13 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_reply_read)
 
     doc = sub.add_parser("doc", help="free-form dated docs").add_subparsers(dest="sub", required=True)
-    s = doc.add_parser("new", help="create records/docs/<today>-<slug>.md; body on stdin")
+    s = doc.add_parser("new", help="create records/docs/<today>-<slug>.md; body with --text")
     s.add_argument("slug", help="what the doc is for, lowercase words joined by '-'")
     s.add_argument("--title", required=True)
     target = s.add_mutually_exclusive_group(required=True)
     target.add_argument("--bead", metavar="ID", help="the sprint or task the doc belongs to")
     target.add_argument("--project", metavar="NAME", help="the project the doc belongs to")
+    add_text(s, "required: the doc's Markdown body")
     s.set_defaults(func=cmd_doc_new)
 
     design = sub.add_parser("design", help="design pages").add_subparsers(dest="sub", required=True)
@@ -3372,11 +3401,12 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_postmortem_new)
 
     project = sub.add_parser("project", help="projects").add_subparsers(dest="sub", required=True)
-    s = project.add_parser("open", help="create a project epic and record; Goal on stdin",
-                           description="Create a project epic and its record, with the Goal from stdin. The owner "
+    s = project.add_parser("open", help="create a project epic and record; Goal with --text",
+                           description="Create a project epic and its record, with the Goal from --text. The owner "
                                        "confirms the goal in their own words before you open the project.")
     s.add_argument("name")
     s.add_argument("--title", required=True)
+    add_text(s, "required: the project's Goal")
     s.set_defaults(func=cmd_project_open)
     s = project.add_parser("close", help="close a project epic at the committed records",
                            description="Close a project epic at the committed records. Close every sprint first. "
@@ -3387,10 +3417,11 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_project_close)
 
     sprint = sub.add_parser("sprint", help="sprints").add_subparsers(dest="sub", required=True)
-    s = sprint.add_parser("open", help="create a sprint epic and record; frame on stdin "
-                                       "('## Goal', '## Scope' with **In:**/**Out:**, '## Done when')")
+    s = sprint.add_parser("open", help="create a sprint epic and record; frame with "
+                                       "--text ('## Goal', '## Scope' with **In:**/**Out:**, '## Done when')")
     s.add_argument("project", help="project record name, e.g. pm-harness")
     s.add_argument("--title", required=True)
+    add_text(s, "required: the frame, '## Goal', '## Scope' and '## Done when' sections")
     s.set_defaults(func=cmd_sprint_open)
     s = sprint.add_parser("close", help="close a sprint epic once its report is written, every task is closed and "
                                         "each PR review is closed as merged",
@@ -3405,9 +3436,10 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_sprint_close)
 
     task = sub.add_parser("task", help="tasks inside open sprints").add_subparsers(dest="sub", required=True)
-    s = task.add_parser("add", help="create a task in an open sprint; description on stdin (optional)")
+    s = task.add_parser("add", help="create a task in an open sprint; description with --text (optional)")
     s.add_argument("--sprint", required=True, metavar="ID", help="the open sprint's Beads id")
     s.add_argument("--title", required=True)
+    add_text(s, "optional: the task's description")
     s.set_defaults(func=cmd_task_add)
     s = task.add_parser("close", help="close a task with a reason naming its commit",
                         description="Close a non-epic task with bd close. The reason ends with "
@@ -3426,12 +3458,13 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("task_id", help="the task's Beads id")
     s.add_argument("--session", metavar="ID", help="the session to record when no session id is in the environment")
     s.set_defaults(func=cmd_task_claim)
-    s = task.add_parser("move", help="move a task to another open sprint; reason on stdin",
+    s = task.add_parser("move", help="move a task to another open sprint; reason with --text",
                         description="Move an open task to another open sprint with bd update --parent and "
                                     "record the scope change as a source=agent decision in the sprint it "
-                                    "leaves. The reason on stdin states why, on at least two lines.")
+                                    "leaves. The reason (--text) states why, on at least two lines.")
     s.add_argument("task_id", help="the task's Beads id")
     s.add_argument("--to", required=True, metavar="SPRINT_ID", help="the open sprint the task moves to")
+    add_text(s, "required: why the task moves, on at least two lines")
     s.set_defaults(func=cmd_task_move)
 
     record = sub.add_parser("record", help="records on the served site").add_subparsers(dest="sub", required=True)
@@ -3656,6 +3689,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "hook":
         return hooks.HOOKS[args.sub]()
     try:
+        if getattr(args, "text_file", None) is not None:  # before the store lock, so a slow pipe holds no lock
+            args.text = read_text_file(args.text_file)
         if args.func in (cmd_init, cmd_upgrade, cmd_uninstall):
             print(args.func(args))
             return 0
@@ -3671,8 +3706,6 @@ def main(argv: list[str] | None = None) -> int:
             print(where_all())
             return 0
         records = find_store(Path.cwd())
-        reads = name in READS_STDIN and not (name == "feedback add" and args.text is not None)
-        args.stdin = stdin_text() if reads else ""
         if name in WRITES:
             fd = locked(records)
             try:

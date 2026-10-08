@@ -31,11 +31,11 @@ def committed(repo, messages):
             and repo.git("status", "--porcelain") == "")
 
 
-def refused(repo, *args, stdin="", match):
+def refused(repo, *args, text="", match):
     """Run a command that must refuse: non-zero exit, the message, no file and no Beads change."""
     heads = lambda: [repo.git("rev-parse", "HEAD", cwd=d) for d in (repo.root, repo.store)]
     before, head = repo.snapshot(), heads()
-    res = repo.pm(*args, stdin=stdin)
+    res = repo.pm(*args, text=text)
     assert res.returncode != 0, res.stdout
     assert re.search(match, res.stderr), res.stderr
     assert repo.snapshot() == before
@@ -70,7 +70,7 @@ def store_head(repo):
 
 
 def test_sprint_open_creates_epic_and_record(repo):
-    res = repo.pm("sprint", "open", "demo", "--title", "Third: the end", stdin=FRAME)
+    res = repo.pm("sprint", "open", "demo", "--title", "Third: the end", text=FRAME)
     assert res.returncode == 0, res.stderr
     assert repo.bd_writes() == [["create", "--type=epic", "--parent=demo", "--title=Sprint 3: Third: the end", "--json"]]
     assert repo.issues()["demo.3"]["parent"] == "demo"
@@ -176,7 +176,7 @@ ACTION = "Restart the site on port 8767, which the new proxy expects.\n"
 
 def test_decision_add_need_closes_need_and_records_decision(repo):
     path = repo.records / "projects/demo.md"
-    res = repo.pm("decision", "add", "--need", "demo.1.2", "--level", "project", "--project", "demo", stdin=BODY)
+    res = repo.pm("decision", "add", "--need", "demo.1.2", "--level", "project", "--project", "demo", text=BODY)
     assert res.returncode == 0, res.stderr
     text = BODY + "Answers `demo.1.2`."
     assert repo.bd_writes() == [["human", "respond", "demo.1.2", f"--response={text}"]]
@@ -193,7 +193,7 @@ def test_decision_close_closes_small_answer_without_record(repo):
     """A small answer closes the need with the answer and the reason, labelled no-decision, and writes no record;
     the render accepts it although no decision cites it."""
     heads = repo.store_log()
-    res = repo.pm("decision", "close", "demo.1.2", "--reason", "It picks a port and sets no rule.", stdin=ANSWER)
+    res = repo.pm("decision", "close", "demo.1.2", "--reason", "It picks a port and sets no rule.", text=ANSWER)
     assert res.returncode == 0, res.stderr
     assert repo.bd_writes() == [
         ["human", "respond", "demo.1.2", f"--response={ANSWER}\n\nNo decision record: It picks a port and sets no rule."],
@@ -208,7 +208,7 @@ def test_decision_close_closes_small_answer_without_record(repo):
 
 
 def test_task_add_creates_task_in_sprint(repo):
-    res = repo.pm("task", "add", "--sprint", "demo.1", "--title", "Write the parser", stdin="Small and fast.\n")
+    res = repo.pm("task", "add", "--sprint", "demo.1", "--title", "Write the parser", text="Small and fast.\n")
     assert res.returncode == 0, res.stderr
     assert repo.bd_writes() == [["create", "--type=task", "--parent=demo.1", "--title=Write the parser",
                                  "--description=Small and fast.", "--json"]]
@@ -369,6 +369,90 @@ def test_concurrent_writes_from_two_worktrees_land_as_separate_commits(repo):
     assert "- From feature-a." in text and "- From feature-b." in text
     for rev in ("HEAD", "HEAD~1"):
         assert repo.git("show", "--name-only", "--format=", rev, cwd=repo.store).split() == ["sprints/demo-1.md"]
+
+
+# Every command that once read stdin, with its minimal arguments and a --text it accepts.
+TEXT_COMMANDS = [
+    (["decision", "add", "--level", "sprint", "--sprint", "demo.1"], BODY),
+    (["decision", "close", "demo.1.2", "--reason", "sets no rule"], "Small."),
+    (["action", "need", "--title", "Q", "--parent", "demo.1"], "Restart the site: the proxy moved."),
+    (["doc", "new", "probe", "--title", "Probe", "--project", "demo"], "Body."),
+    (["project", "open", "fresh", "--title", "Fresh"], "Why we do it."),
+    (["sprint", "open", "demo", "--title", "Third"], FRAME),
+    (["task", "add", "--sprint", "demo.1", "--title", "T"], "Small and fast."),
+    (["task", "move", "demo.1.2", "--to", "demo.2"], "Moved on.\nIt fits sprint 2."),
+    (["feedback", "add", "--project", "demo"], "The refusal named no fix."),
+]
+
+
+@pytest.mark.parametrize("with_text", [False, True], ids=["no-text", "text"])
+@pytest.mark.parametrize("args, text", TEXT_COMMANDS, ids=[" ".join(a[:2]) for a, _ in TEXT_COMMANDS])
+def test_no_command_waits_on_an_open_stdin(repo, tmp_path, args, text, with_text):
+    """Sprint 60: in Claude Code the shell's stdin is a socket that never closes, so a pm that read stdin hung
+    forever. pm reads stdin only for --text-file -: each command returns, with its output or a refusal, while stdin
+    stays open."""
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")  # feedback add names its session
+    out, err = tmp_path / "out", tmp_path / "err"
+    cmd = [*PM, *args, *([f"--text={text}"] if with_text else [])]
+    with out.open("w") as o, err.open("w") as e:
+        proc = subprocess.Popen(cmd, cwd=repo.root, env=repo.env, stdin=subprocess.PIPE, stdout=o, stderr=e)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pytest.fail(f"pm {' '.join(args)} still waits on its open stdin after 5 s")
+        finally:
+            proc.kill()
+            proc.stdin.close()
+    said = err.read_text()
+    if with_text or args[:2] == ["task", "add"]:
+        assert proc.returncode == 0 and out.read_text(), said
+    else:
+        assert proc.returncode == 1 and re.match(r"error: .*--text", said), said
+
+
+def run_task_add(repo, *args, stdin, given=None):
+    """pm task add with the given stdin (a pipe written with `given` and closed, if given); it must return in 5 s."""
+    proc = subprocess.Popen([*PM, "task", "add", "--sprint", "demo.1", "--title", "T", *args], cwd=repo.root,
+                            env=repo.env, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        out, err = proc.communicate(given, timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        pytest.fail("pm task add --text-file still waits after 5 s")
+    return proc.returncode, out, err
+
+
+def test_text_file_dash_reads_a_heredoc(repo):
+    """A quoted heredoc is a pipe written and closed: its body comes through whole, quotes, backticks and $ kept."""
+    body = "Parse `x`, it's $5 (or \"more\").\nSecond line )."
+    code, _, err = run_task_add(repo, "--text-file", "-", stdin=subprocess.PIPE, given=body + "\n")
+    assert code == 0, err
+    assert repo.bd_writes()[-1][-2] == f"--description={body}"
+
+
+def test_text_file_dash_refuses_a_socket_at_once(repo):
+    """Claude Code's shell stdin is a socket that never closes: --text-file - refuses it without reading."""
+    ours, theirs = socket.socketpair()
+    try:
+        code, _, err = run_task_add(repo, "--text-file", "-", stdin=theirs)
+    finally:
+        ours.close()
+        theirs.close()
+    assert code == 1 and err.startswith("error: --text-file - reads stdin, which here is not a pipe or a file; pass "
+                                        "the body with a quoted heredoc: pm … --text-file - <<'EOF' … EOF"), err
+    assert repo.bd_writes() == []
+
+
+def test_text_file_reads_a_file_and_refuses_with_text(repo, tmp_path):
+    path = tmp_path / "body.md"
+    path.write_text("From a file.\n", encoding="utf-8")
+    refused(repo, "task", "add", "--sprint", "demo.1", "--title", "T", "--text-file", str(path), text="x",
+            match=r"argument --text: not allowed with argument --text-file")
+    refused(repo, "task", "add", "--sprint", "demo.1", "--title", "T", "--text-file", str(tmp_path / "none"),
+            match=r"error: --text-file .*/none: no such file")
+    code, _, err = run_task_add(repo, "--text-file", str(path), stdin=subprocess.DEVNULL)
+    assert code == 0, err
+    assert repo.bd_writes()[-1][-2] == "--description=From a file."
 
 
 def test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that_does(repo):
@@ -534,7 +618,7 @@ def page_token(url: str, page: str = "") -> str:
 def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
     """A decision's answer and an action's evidence each land on their own issue, which stays open for the agent;
     each reply is one Beads write, the comment, and no label."""
-    assert repo.pm("action", "need", "--title", "Restart the site", "--parent", "demo.1", stdin=ACTION).returncode == 0
+    assert repo.pm("action", "need", "--title", "Restart the site", "--parent", "demo.1", text=ACTION).returncode == 0
     day = until_shown(lambda: urllib.request.urlopen(f"{served}/days/2026-10-01.html").read().decode(),
                       lambda p: p.count('<form class="reply" method="post" action="/reply"') == 2, time.time())
     assert '<input type="hidden" name="id" value="demo.1.2">' in day

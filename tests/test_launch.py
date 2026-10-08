@@ -89,6 +89,15 @@ def test_another_pin_execs_uv_with_the_pins_commit_and_passes_stdin_stdout_and_t
                              "tool_dir": fakes.env["UV_TOOL_DIR"], "path0": fakes.env["PATH"].split(os.pathsep)[0]}]
 
 
+def test_a_launched_text_file_body_reaches_the_pinned_pm_unread_by_the_launcher(fakes):
+    write_config(fakes.root, version="9.9.9")
+    keep(fakes, "9.9.9")
+    args = ["feedback", "add", "--project", "demo", "--text-file", "-"]
+    res = fakes.pm(*args, stdin="line one\n`code` $x\n")
+    assert res.returncode == 0, res.stderr
+    assert [(c["argv"][-len(args):], c["stdin"]) for c in calls(fakes)] == [(args, "line one\n`code` $x\n")]
+
+
 def test_the_first_launch_of_a_pin_resolves_its_tag_builds_it_once_then_keeps_the_commit(fakes):
     write_config(fakes.root, version="9.9.9")
     env = dict(fakes.env, FAKE_LS_REMOTE=f"aaaa\trefs/tags/pm-v9.9.9\n{SHA}\trefs/tags/pm-v9.9.9^{{}}\n")
