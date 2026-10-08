@@ -13,6 +13,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -138,17 +140,43 @@ func (c *command) parse(args []string, fs *pflag.FlagSet) (*Parsed, bool, error)
 	var joined, unknown []string
 	for i := 0; i < len(args); i++ {
 		t := args[i]
-		long := strings.HasPrefix(t, "--")
-		switch {
-		case t == "--":
+		if t == "--" {
 			joined = append(joined, args[i:]...)
-			i = len(args)
+			break
+		}
+		long := strings.HasPrefix(t, "--")
+		if long { // argparse takes an unambiguous prefix of a long option (allow_abbrev)
+			name, value, eq := strings.Cut(t, "=")
+			if !known[name] {
+				var matches []string
+				for f := range known {
+					if strings.HasPrefix(f, "--") && strings.HasPrefix(f, name) {
+						matches = append(matches, f)
+					}
+				}
+				sort.Slice(matches, func(x, y int) bool { return c.flagOrder(matches[x]) < c.flagOrder(matches[y]) })
+				if len(matches) > 1 {
+					return nil, false, &usageError{c, fmt.Sprintf("ambiguous option: %s could match %s", t,
+						strings.Join(matches, ", "))}
+				}
+				if len(matches) == 1 {
+					t = matches[0]
+					if eq {
+						t += "=" + value
+					}
+				}
+			}
+		}
+		switch {
 		case pairs[t]:
 			if i+2 >= len(args) {
 				return nil, false, &usageError{c, fmt.Sprintf("argument %s: expected 2 arguments", c.byFlag(t).name())}
 			}
 			joined = append(joined, t+"="+args[i+1]+pairSep+args[i+2])
 			i += 2
+		case len(t) > 1 && t[0] == '-' && (negativeNumber.MatchString(t) || strings.Contains(t, " ")) &&
+			!known[strings.SplitN(t, "=", 2)[0]] && (long || !known[t[:2]]):
+			joined = append(joined, notOption+t) // a value that starts with '-', as argparse reads it
 		case long && !known[strings.SplitN(t, "=", 2)[0]], !long && len(t) > 1 && t[0] == '-' && !known[t[:2]]:
 			unknown = append(unknown, t)
 		default:
@@ -164,6 +192,7 @@ func (c *command) parse(args []string, fs *pflag.FlagSet) (*Parsed, bool, error)
 			return nil
 		}
 		a := c.byFlag("--" + f.Name)
+		v = strings.TrimPrefix(v, notOption)
 		if a.group > 0 {
 			if other, ok := seen[a.group]; ok && other != a {
 				return &usageError{c, fmt.Sprintf("argument %s: not allowed with argument %s", a.name(), other.name())}
@@ -176,12 +205,14 @@ func (c *command) parse(args []string, fs *pflag.FlagSet) (*Parsed, bool, error)
 		case flagConst:
 			p.values[a.dest] = []string{a.constant}
 		case appendValue:
-			if err := c.check(a, v); err != nil {
+			v, err := c.check(a, v)
+			if err != nil {
 				return err
 			}
 			p.values[a.dest] = append(p.values[a.dest], v)
 		default:
-			if err := c.check(a, v); err != nil {
+			v, err := c.check(a, v)
+			if err != nil {
 				return err
 			}
 			p.values[a.dest] = []string{v}
@@ -195,7 +226,10 @@ func (c *command) parse(args []string, fs *pflag.FlagSet) (*Parsed, bool, error)
 		return nil, false, c.flagError(err)
 	}
 	// positionals, in order: each takes what its nargs allows, the ones after it keeping what they need
-	rest := fs.Args()
+	var rest []string
+	for _, v := range fs.Args() {
+		rest = append(rest, strings.TrimPrefix(v, notOption))
+	}
 	var missing []string
 	var positionals []*arg
 	for i := range c.args {
@@ -223,12 +257,15 @@ func (c *command) parse(args []string, fs *pflag.FlagSet) (*Parsed, bool, error)
 			missing = append(missing, a.name())
 			continue
 		}
+		var values []string
 		for _, v := range rest[:take] {
-			if err := c.check(a, v); err != nil {
+			v, err := c.check(a, v)
+			if err != nil {
 				return nil, false, err
 			}
+			values = append(values, v)
 		}
-		p.values[a.dest] = rest[:take]
+		p.values[a.dest] = values
 		rest = rest[take:]
 	}
 	for _, a := range c.args {
@@ -256,19 +293,39 @@ func (c *command) parse(args []string, fs *pflag.FlagSet) (*Parsed, bool, error)
 	return p, false, nil
 }
 
-// check is argparse's check of one value as it is consumed: its type, then its choices.
-func (c *command) check(a *arg, v string) error {
+// check is argparse's check of one value as it is consumed: its type (an int is converted, as int() reads " +01 "),
+// then its choices. It returns the value as converted.
+func (c *command) check(a *arg, v string) (string, error) {
+	given := v
 	if a.isInt {
-		if _, err := strconv.Atoi(v); err != nil {
-			return &usageError{c, fmt.Sprintf("argument %s: invalid int value: %s", a.name(), quote(v))}
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil {
+			return "", &usageError{c, fmt.Sprintf("argument %s: invalid int value: %s", a.name(), quote(given))}
 		}
+		v = strconv.Itoa(n)
 	}
 	if a.choices != nil && !contains(a.choices, v) {
-		return &usageError{c, fmt.Sprintf("argument %s: invalid choice: %s (choose from %s)", a.name(), quote(v),
-			quoteAll(a.choices))}
+		return "", &usageError{c, fmt.Sprintf("argument %s: invalid choice: %s (choose from %s)", a.name(),
+			quote(given), quoteAll(a.choices))}
 	}
-	return nil
+	return v, nil
 }
+
+// flagOrder is where an option string comes in argparse's table: -h and --help first, then the arguments in order.
+func (c *command) flagOrder(flag string) int {
+	for i, a := range c.args {
+		if contains(a.flags, flag) {
+			return i
+		}
+	}
+	return -1
+}
+
+// notOption marks a value that starts with '-' but that argparse reads as a value (a negative number, or text with a
+// space), so that pflag does not take it for an option; parse removes it again.
+const notOption = "\x01"
+
+var negativeNumber = regexp.MustCompile(`^-\d+$|^-\d*\.\d+$`)
 
 func quoteAll(list []string) string {
 	q := make([]string, len(list))

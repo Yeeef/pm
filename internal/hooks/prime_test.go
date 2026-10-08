@@ -58,7 +58,7 @@ func fakeSelf(t *testing.T, script string) {
 func TestContextCutsAtALineToTheCapacity(t *testing.T) {
 	fakeSelf(t, `i=0; while [ $i -lt 100 ]; do echo "line $i of pm show"; i=$((i+1)); done`)
 	now := time.Date(2026, 10, 8, 4, 5, 0, 0, time.UTC)
-	text, err := Context(nil, "", 600, 5*time.Second, "5", now)
+	text, err := Context(nil, "", 600, 5*time.Second, "5", func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestFailuresNameOneLine(t *testing.T) {
 		t.Errorf("where: got %q, want %q", wh, want)
 	}
 	fakeSelf(t, `exit 4`)
-	show, _ := Context(nil, "", Cap, 5*time.Second, "5", time.Now())
+	show, _ := Context(nil, "", Cap, 5*time.Second, "5", time.Now)
 	if want := "pm show failed at session start (exit 4); run `pm show` by hand."; show != want {
 		t.Errorf("show: got %q, want %q", show, want)
 	}
@@ -98,7 +98,7 @@ func TestFailuresNameOneLine(t *testing.T) {
 func TestATimeoutIsNamedAsPythonNamesIt(t *testing.T) {
 	fakeSelf(t, `sleep 5`)
 	exe, _ := Self()
-	show, _ := Context(nil, "", Cap, 100*time.Millisecond, "0.1", time.Now())
+	show, _ := Context(nil, "", Cap, 100*time.Millisecond, "0.1", time.Now)
 	want := "pm show did not run at session start (TimeoutExpired: Command '['" + exe +
 		"', 'show', '--refresh-inbox']' timed out after 0.1 seconds); run `pm show` by hand."
 	if show != want {

@@ -7,6 +7,7 @@ package hooks
 // lets the stop through, so it never loops. Prints {"decision": "block", "reason": ...} to block, nothing otherwise.
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -118,15 +119,46 @@ func ToolInputs(entry *pyjson.Object) ([]string, error) {
 
 // Touched is the paths among paths that some tool call in the transcript names. Lines that name none are not parsed.
 func Touched(transcript string, paths []string) ([]string, error) {
-	data, err := os.ReadFile(transcript)
+	f, err := os.Open(transcript)
 	if err != nil {
 		return nil, err
 	}
-	// Python reads the file as text: invalid UTF-8 replaced, universal newlines
-	text := strings.ToValidUTF8(string(data), string(utf8.RuneError))
-	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
+	defer f.Close()
 	found := map[string]bool{}
+	r := bufio.NewReader(f)
+	for {
+		raw, rerr := r.ReadString('\n')
+		if rerr != nil && rerr != io.EOF {
+			return nil, rerr
+		}
+		if raw == "" {
+			break
+		}
+		if err := scanLines(raw, paths, found); err != nil {
+			return nil, err
+		}
+		if rerr == io.EOF {
+			break
+		}
+	}
+	var mine []string
+	for _, p := range paths {
+		if found[p] {
+			mine = append(mine, p)
+		}
+	}
+	return mine, nil
+}
+
+// scanLines marks the paths that the tool calls on these lines name. raw ends at a newline or the file's end; read as
+// Python reads text (invalid UTF-8 replaced, a lone \r ending a line too), it can hold more than one line.
+func scanLines(raw string, paths []string, found map[string]bool) error {
+	text := strings.ToValidUTF8(raw, string(utf8.RuneError))
+	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
 	for _, line := range strings.SplitAfter(text, "\n") {
+		if line == "" {
+			continue
+		}
 		var hits []string
 		for _, p := range paths {
 			if !found[p] && strings.Contains(line, p) {
@@ -146,7 +178,7 @@ func Touched(transcript string, paths []string) ([]string, error) {
 		}
 		calls, err := ToolInputs(entry)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		for _, p := range hits {
 			for _, c := range calls {
@@ -157,13 +189,7 @@ func Touched(transcript string, paths []string) ([]string, error) {
 			}
 		}
 	}
-	var mine []string
-	for _, p := range paths {
-		if found[p] {
-			mine = append(mine, p)
-		}
-	}
-	return mine, nil
+	return nil
 }
 
 // StopReason is the block reason for this stop, or "" to let it through; what it lets through for an error it says on

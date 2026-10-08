@@ -72,8 +72,8 @@ def bin_with(tmp_path, name, script):
     return d
 
 
-@pytest.mark.parametrize("case", ["conservative", "team-maintainer", "unset", "failing", "silent", "missing",
-                                  "no-cwd"])
+@pytest.mark.parametrize("case", ["conservative", "team-maintainer", "unset", "failing", "silent", "not-json",
+                                  "extra-data", "missing", "no-cwd"])
 @pytest.mark.parametrize("hook_json", [False, True])
 def test_prime_subagent(repo, tmp_path, case, hook_json):
     env, event = dict(repo.env), {"cwd": str(repo.root), "hook_event_name": "SubagentStart"}
@@ -85,6 +85,10 @@ def test_prime_subagent(repo, tmp_path, case, hook_json):
         env["PATH"] = f"{bin_with(tmp_path, 'bd', 'echo no database here >&2; exit 3')}{os.pathsep}{env['PATH']}"
     elif case == "silent":
         env["PATH"] = f"{bin_with(tmp_path, 'bd', 'exit 0')}{os.pathsep}{env['PATH']}"
+    elif case == "not-json":
+        env["PATH"] = f"{bin_with(tmp_path, 'bd', 'echo; echo No database found')}{os.pathsep}{env['PATH']}"
+    elif case == "extra-data":
+        env["PATH"] = f"{bin_with(tmp_path, 'bd', 'echo {\\"value\\": 1} more')}{os.pathsep}{env['PATH']}"
     elif case == "missing":  # a PATH with git alone
         only_git = tmp_path / "bin-git"
         only_git.mkdir()
@@ -129,6 +133,12 @@ def test_config_check_names_unknown_missing_and_mistyped_keys(repo):
     (repo.root / ".pm/config.toml").write_text('version = "x"\nport = "8000"\nextra = 1\nzeta = true\nremote = 5\n')
     code, _, err = same(repo, "prime", "--rules", "1", env=dict(repo.env, PM_LAUNCHED="x"))  # Python's launcher: no launch
     assert code == 1 and "unknown keys extra, zeta; missing keys main_branch; wrong types for port" in err
+
+
+def test_config_check_names_a_key_made_a_table(repo):
+    (repo.root / ".pm/config.toml").write_text('version.a = 1\nremote = "origin"\nmain_branch = "main"\nport = 8000\n')
+    code, _, err = same(repo, "prime", "--rules", "1", env=dict(repo.env, PM_LAUNCHED="x"))
+    assert code == 1 and "wrong types for version (want str)" in err
 
 
 def test_config_check_refuses_another_pin(repo):
@@ -206,10 +216,19 @@ def test_stop_lets_the_stop_through(repo, tmp_path, case):
     ["nope"], ["task"], ["task", "close"], ["doc", "new", "x", "--title", "t"], ["prime", "--rules", "1", "--state"],
     ["prime", "--rules", "9"], ["where", "nope"], ["finding", "add", "--sprint"], ["show", "--bogus"],
     ["prime", "--rules", "x"], ["decision", "add", "--decision", "d", "--reason", "r", "--level", "x"],
+    ["prime", "--rules", "1", "--s"], ["where", "- a b"], ["where", "-5"], ["where", "-x"],
 ])
 def test_argument_errors(repo, args):
     code, _, err = same(repo, *args)
     assert code == 2 and ": error: " in err
+
+
+@pytest.mark.parametrize("args", [["--rules", "1", "--hook"], ["--rules", "01"], ["--rules", " +2", "--hook-js"],
+                                  ["--subagent", "--hook"]])
+def test_arguments_as_argparse_reads_them(repo, args):
+    """Abbreviated options and an int given as int() reads it."""
+    code, out, _ = same(repo, "prime", *args, event="")
+    assert code == 0 and out
 
 
 # ---------------------------------------------------------------- --help

@@ -6,6 +6,7 @@
 package hooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -204,7 +205,7 @@ func Where(cwd *string) (string, error) {
 
 // Context is pm show under a header, cut at a line to capacity characters, or one line when it fails. It runs as the
 // starting session, with --refresh-inbox.
-func Context(cwd *string, session string, capacity int, wait time.Duration, waitText string, now time.Time) (string, error) {
+func Context(cwd *string, session string, capacity int, wait time.Duration, waitText string, now func() time.Time) (string, error) {
 	argv, err := self("show", "--refresh-inbox")
 	if err != nil {
 		return "", err
@@ -224,7 +225,7 @@ func Context(cwd *string, session string, capacity int, wait time.Duration, wait
 		}
 		return fmt.Sprintf("pm show failed at session start (%s); run `pm show` by hand.", line), nil
 	}
-	text := []rune(fmt.Sprintf(header, now.UTC().Format("2006-01-02 15:04")) + config.PyStrip(res.Stdout))
+	text := []rune(fmt.Sprintf(header, now().UTC().Format("2006-01-02 15:04")) + config.PyStrip(res.Stdout))
 	if len(text) > capacity {
 		at := rfindNewline(text, capacity-utf8.RuneCountInString(cut))
 		if at < 0 { // Python's text[:-1]
@@ -274,7 +275,7 @@ func State(cwd *string, session string) (string, error) {
 		leftText = pyjson.FloatRepr(left)
 	}
 	show, err := Context(cwd, session, Cap-utf8.RuneCountInString(first), time.Duration(left*float64(time.Second)),
-		leftText, time.Now())
+		leftText, time.Now)
 	if err != nil {
 		return "", err
 	}
@@ -323,16 +324,44 @@ func Profile(cwd *string) string {
 	return fmt.Sprintf("Beads agent profile: %s%s.", pyjson.Str(value), note)
 }
 
-// decodeError is json.loads's JSONDecodeError for text: exact for output with no JSON value in it (bd printed nothing
-// or only whitespace, so json.loads expects a value at its end), Go's reason otherwise.
+// decodeError is json.loads's JSONDecodeError for text, as Python words it when bd prints no JSON value at all
+// ("Expecting value": nothing, or text that starts no value, such as a message) or a value followed by more
+// ("Extra data"); for JSON broken inside a value it gives Go's reason.
 func decodeError(text string, err error) *proc.Error {
-	if strings.Trim(text, " \t\n\r") != "" {
-		return &proc.Error{Type: "JSONDecodeError", Msg: err.Error()}
+	rs := []rune(text)
+	skip := func(i int) int {
+		for i < len(rs) && strings.ContainsRune(" \t\n\r", rs[i]) {
+			i++
+		}
+		return i
 	}
-	pos := len(text)
-	line := strings.Count(text, "\n") + 1
-	col := pos - strings.LastIndex(text, "\n")
-	return &proc.Error{Type: "JSONDecodeError", Msg: fmt.Sprintf("Expecting value: line %d column %d (char %d)", line, col, pos)}
+	at := func(msg string, pos int) *proc.Error {
+		line := strings.Count(string(rs[:pos]), "\n") + 1
+		col := pos + 1
+		for i := pos - 1; i >= 0; i-- {
+			if rs[i] == '\n' {
+				col = pos - i
+				break
+			}
+		}
+		return &proc.Error{Type: "JSONDecodeError", Msg: fmt.Sprintf("%s: line %d column %d (char %d)", msg, line, col, pos)}
+	}
+	pos := skip(0)
+	rest := string(rs[pos:])
+	startsValue := strings.ContainsAny(rest[:min(1, len(rest))], "{[\"0123456789") ||
+		(strings.HasPrefix(rest, "-") && (len(rest) > 1 && rest[1] >= '0' && rest[1] <= '9' || strings.HasPrefix(rest, "-Infinity")))
+	for _, lit := range []string{"true", "false", "null", "NaN", "Infinity"} {
+		startsValue = startsValue || strings.HasPrefix(rest, lit)
+	}
+	if !startsValue {
+		return at("Expecting value", pos)
+	}
+	dec := json.NewDecoder(strings.NewReader(text))
+	var v any
+	if dec.Decode(&v) == nil { // a whole value, then more than whitespace
+		return at("Extra data", skip(utf8.RuneCountInString(text[:dec.InputOffset()])))
+	}
+	return &proc.Error{Type: "JSONDecodeError", Msg: err.Error()}
 }
 
 // subscriptError is the TypeError of data["value"] on a JSON value that is not an object.
@@ -409,27 +438,23 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 		if err != nil {
 			return err
 		}
-		var session string
-		if pyjson.Truthy(event.Get("session_id")) {
-			s, err := eventString(event, "session_id")
-			if err != nil {
-				return err
-			}
-			session = *s
-		}
-		switch {
-		case part.Subagent:
+		if part.Subagent {
 			text = Profile(cwd)
-		case part.State:
+		} else {
+			var session string // only pm show reads it
+			if pyjson.Truthy(event.Get("session_id")) {
+				s, err := eventString(event, "session_id")
+				if err != nil {
+					return err
+				}
+				session = *s
+			}
 			if text, err = State(cwd, session); err != nil {
 				return err
 			}
-		default:
-			state, err := State(cwd, session)
-			if err != nil {
-				return err
+			if !part.State {
+				text = Head(nouns) + "\n\n" + text
 			}
-			text = Head(nouns) + "\n\n" + state
 		}
 	}
 	if hookJSON {

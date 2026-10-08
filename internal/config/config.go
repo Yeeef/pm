@@ -127,11 +127,15 @@ func Read(cwd string) (Config, error) {
 			missing = append(missing, k)
 		}
 	}
-	for _, key := range meta.Keys() { // in file order, as the Python dict keeps them
-		if len(key) != 1 {
+	// top-level keys in file order, as the Python dict keeps them; a dotted key (version.a = 1) makes its first part a
+	// table, which Keys() lists only under the dotted name
+	listed := map[string]bool{}
+	for _, key := range meta.Keys() {
+		k := key[0]
+		if listed[k] {
 			continue
 		}
-		k := key[0]
+		listed[k] = true
 		if want, ok := keys[k]; ok && pyType(data[k]) != want {
 			wrong = append(wrong, fmt.Sprintf("%s (want %s)", k, want))
 		}

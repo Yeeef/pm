@@ -302,6 +302,18 @@ func TypeName(v any) string {
 	return fmt.Sprintf("%T", v)
 }
 
+// pyPrintable is Python's str.isprintable() for one character: not a control, format, surrogate, private-use,
+// unassigned or separator character, the space excepted.
+func pyPrintable(r rune) bool {
+	if r == ' ' {
+		return true
+	}
+	if unicode.In(r, unicode.Cc, unicode.Cf, unicode.Cs, unicode.Co, unicode.Zl, unicode.Zp, unicode.Zs) {
+		return false
+	}
+	return unicode.In(r, unicode.L, unicode.M, unicode.N, unicode.P, unicode.S)
+}
+
 // StrRepr is Python's repr() of a str.
 func StrRepr(s string) string {
 	quote := '\''
@@ -321,9 +333,9 @@ func StrRepr(s string) string {
 			b.WriteString(`\r`)
 		case r == '\t':
 			b.WriteString(`\t`)
-		case r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0):
+		case r < 0x20 || (r >= 0x7f && r <= 0xff && !pyPrintable(r)):
 			fmt.Fprintf(&b, `\x%02x`, r)
-		case r > 0x7f && !unicode.IsPrint(r):
+		case r > 0xff && !pyPrintable(r):
 			if r > 0xffff {
 				fmt.Fprintf(&b, `\U%08x`, r)
 			} else {

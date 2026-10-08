@@ -82,18 +82,23 @@ func Run(argv []string, o Options) (Result, error) {
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
-		return Result{out.String(), errb.String(), 0}, nil
+		return Result{text(out), text(errb), 0}, nil
 	case errors.As(err, &exit):
 		code := exit.ExitCode()
 		if ws, ok := exit.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 			code = -int(ws.Signal()) // Python's returncode for a signalled child
 		}
-		return Result{out.String(), errb.String(), code}, nil
+		return Result{text(out), text(errb), code}, nil
 	case errors.Is(err, fs.ErrPermission):
 		return Result{}, &Error{"PermissionError", "[Errno 13] Permission denied: " + Repr(argv[0])}
 	default:
 		return Result{}, &Error{"OSError", err.Error()}
 	}
+}
+
+// text is captured output as text=True gives it: universal newlines, \r\n and \r read as \n.
+func text(b bytes.Buffer) string {
+	return strings.ReplaceAll(strings.ReplaceAll(b.String(), "\r\n", "\n"), "\r", "\n")
 }
 
 // dirError is the error Python's child raises when it cannot change into dir, or nil.
