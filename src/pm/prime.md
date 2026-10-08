@@ -109,11 +109,11 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - claim a task: `pm task claim <id>`. It records your session and refuses a task that another live session holds. Do not claim with `bd update --claim`. Do not take or brief work that another live session holds.
 - close a task: `pm task close <id> --reason "…"`, never `bd close`. The reason names the commit: HEAD when newer than the task, else `--commit REF`.
 - move a task: `pm task move <id> --to SPRINT_ID`, the reason on stdin, two lines or more. It records the scope change as a decision in the sprint it leaves.
-- need a decision from owner: `pm decision need --title "…" --parent ID` Stdin gives one part per line:
-  - one `Question:`;
-  - one or more `Fact:`;
-  - two or more `Option <label>:`, each with a `Cost:` line under it;
-  - one `Default: <label>`, then its reason.
+- need a decision from owner: `pm decision need --title "…" --parent ID`, with each part as a flag, one line each, in single quotes:
+  - one `--question '…'`;
+  - one or more `--fact '…'`;
+  - two or more `--option LABEL '<what it does>'`, each with its `--cost LABEL '<what it costs>'`;
+  - one `--default LABEL '<why>'`.
 - need an action from owner: `pm action need --title "…" --parent ID`. Examples: run a command, apply a setting. The description on stdin says what to do and why. An action is done: check the evidence, then run `pm action done <id> --reason "<what showed it>"`.
 - need a pr review from owner: `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`. Stdin holds optional extra context. The review blocks the sprint close until the PR is on main; close it then with `pm action done <id> --reason "merged as <sha>"`.
 - Read a reply from owner with `pm reply read <id>` first. Each close below refuses while the request holds a reply that has not reached a session.

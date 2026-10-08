@@ -108,18 +108,16 @@ LEVEL_RULE = ("project if a later sprint must follow it; sprint if it is about t
 DECISION_SHAPE = ("a decision body is the decision on its first line, then its reason on the next line, e.g.:\n"
                   "  Records live on their own branch, in one store every worktree shares.\n"
                   "  A record kept on a code branch is invisible to the other branches until a merge.")
-NEED_SHAPE = ("a decision need's stdin is one part per line: one Question:, one or more Fact:, two or more "
-              "Option <label>: each with a Cost: line under it, and one Default: naming the label taken if the "
-              "owner does not answer, then its reason, e.g.:\n"
-              "  Question: Where does pm keep the public site URL?\n"
-              "  Fact: Today, each clone keeps the URL in its git config.\n"
-              "  Fact: You asked why the URL is not in `.pm/config.toml`.\n"
-              "  Option a: In `.pm/config.toml`. A pm command still writes it.\n"
-              "  Cost: the repo has one URL.\n"
-              "  Option b: In each clone, as today.\n"
-              "  Cost: you must give the URL to each new clone.\n"
-              "  Default: a. All clones then give the same link.")
-NEED_KEY = re.compile(r"(Question|Fact|Cost|Default|Option ([A-Za-z0-9]+)):(.*)")
+NEED_SHAPE = ("a decision need takes its parts as flags, one line each: one --question, one or more --fact, two or "
+              "more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON naming "
+              "the option taken if the owner does not answer. Put each value in single quotes, so code spans stay, e.g.:\n"
+              "  pm decision need --title 'Where the site URL lives' --parent ID \\\n"
+              "    --question 'Where does pm keep the public site URL?' \\\n"
+              "    --fact 'Today, each clone keeps the URL in its git config.' \\\n"
+              "    --fact 'You asked why the URL is not in `.pm/config.toml`.' \\\n"
+              "    --option a 'In `.pm/config.toml`. A pm command still writes it.' --cost a 'the repo has one URL.' \\\n"
+              "    --option b 'In each clone, as today.' --cost b 'you must give the URL to each new clone.' \\\n"
+              "    --default a 'All clones then give the same link.'")
 SENTENCE_LIMIT = 25  # ASD-STE100: the most words in a descriptive sentence
 ACTION_SHAPE = ("an action's description says what the owner should do and why, e.g.:\n"
                 "  Restart the site on port 8767: the new proxy expects it there.")
@@ -593,54 +591,56 @@ def plain(text: str) -> str:
     return re.sub(r"^(\d{1,9})(?=[.)](?:\s|$))", r"\1\\", text)
 
 
-def need_markdown(stdin: str) -> str:
-    """A decision need's description in its one layout, from the parts on stdin (NEED_SHAPE)."""
-    question, facts, options, default = [], [], {}, []
-    last = None  # label of the option above that has no cost yet
-    for n, line in enumerate(stdin.splitlines(), 1):
-        line = line.strip()
-        if not line:
-            continue
-        m = NEED_KEY.fullmatch(line)
-        if not m:
-            raise Refuse(f"line {n} starts with no known key; each line starts with Question:, Fact:, Option <label>:, "
-                         f"Cost: or Default:; {NEED_SHAPE}")
-        key, label, text = m.group(1), m.group(2), m.group(3).strip()
-        if not text:
-            raise Refuse(f"line {n}: {key}: has no text; {NEED_SHAPE}")
-        if label:
-            if label in options:
-                raise Refuse(f"two options have the label {label}; give each option its own label")
-            options[label] = [text, None]
-            last = label
-        elif key == "Cost":
-            if last is None:
-                raise Refuse(f"line {n}: Cost: follows no option without a cost; put one Cost: line under each "
-                             "Option line")
-            options[last][1], last = text, None
-        else:
-            {"Question": question, "Fact": facts, "Default": default}[key].append(text)
-    if len(question) != 1:
-        raise Refuse(f"give exactly one Question: line; {NEED_SHAPE}")
-    if not facts:
-        raise Refuse(f"give at least one Fact: line, so the owner can decide without other context; {NEED_SHAPE}")
+def need_part(part: str, value: str) -> str:
+    """One part of a decision need, given by its flag: one non-empty line."""
+    value = value.strip()
+    if not value:
+        raise Refuse(f"{part} is empty; {NEED_SHAPE}")
+    if len(value.splitlines()) > 1:
+        raise Refuse(f"{part} has more than one line; give each part one line")
+    return value
+
+
+def need_text(args) -> str:
+    """Every part a decision need's flags give, as given, for checks that run before its layout's."""
+    return "\n".join([*args.question, *args.fact, *(t for o in args.option for t in o),
+                      *(t for c in args.cost for t in c), *(t for d in args.default for t in d)])
+
+
+def need_markdown(args) -> str:
+    """A decision need's description in its one layout, from the parts its flags give (NEED_SHAPE)."""
+    for flag, given in (("--question", args.question), ("--default", args.default)):
+        if len(given) != 1:
+            raise Refuse(f"give exactly one {flag}; {NEED_SHAPE}")
+    question = need_part("--question", args.question[0])
+    facts = [need_part("--fact", f) for f in args.fact]
+    options, costs = {}, {}
+    for label, text in args.option:
+        if not re.fullmatch(r"[A-Za-z0-9]+", label):
+            raise Refuse(f"the option label {label!r} is not letters and digits only, e.g. a, b or keep")
+        if label in options:
+            raise Refuse(f"two options have the label {label}; give each option its own label")
+        options[label] = need_part(f"--option {label}", text)
+    for label, cost in args.cost:
+        if label not in options:
+            raise Refuse(f"--cost {label} names no option; the labels are {', '.join(options)}")
+        if label in costs:
+            raise Refuse(f"option {label} has two --cost flags; give each option one cost")
+        costs[label] = need_part(f"--cost {label}", cost)
+    for label in options:
+        if label not in costs:
+            raise Refuse(f"option {label} has no cost; add --cost {label} '<what it costs>'")
+    options = {label: (text, costs[label]) for label, text in options.items()}
     if len(options) < 2:
-        raise Refuse(f"give at least two Option lines; a decision needs a choice; {NEED_SHAPE}")
-    for label, (_, cost) in options.items():
-        if cost is None:
-            raise Refuse(f"option {label} has no Cost: line; put its cost on the line under it")
-    if len(default) != 1:
-        raise Refuse(f"give exactly one Default: line, the label of the option taken if the owner does not answer; "
-                     f"{NEED_SHAPE}")
-    choice = re.match(r"[A-Za-z0-9]+", default[0])
-    label = choice.group(0) if choice else default[0].split()[0]
+        raise Refuse(f"give at least two --option flags; a decision needs a choice; {NEED_SHAPE}")
+    label, rest = args.default[0]
     if label not in options:
-        raise Refuse(f"Default: {label} names no option; the labels are {', '.join(options)}")
-    rest = default[0][len(label):]
-    parts = [("the question", question[0]), *((f"fact {i}", f) for i, f in enumerate(facts, 1))]
+        raise Refuse(f"--default {label} names no option; the labels are {', '.join(options)}")
+    rest = need_part("--default REASON", rest)
+    parts = [("the question", question), *((f"fact {i}", f) for i, f in enumerate(facts, 1))]
     for opt, (text, cost) in options.items():
         parts += [(f"option {opt}", text), (f"the cost of option {opt}", cost)]
-    parts.append(("the default", rest.lstrip(" .,;:")))
+    parts.append(("the default", rest))
     for part, text in parts:
         for s in sentences(text):
             if len(found := words(s)) > SENTENCE_LIMIT:
@@ -651,8 +651,8 @@ def need_markdown(stdin: str) -> str:
         first = sentences(text)[0]
         more = text[len(first):].strip()
         bullets.append(f"- **({opt}) {first}** " + (f"{more} " if more else "") + f"*Cost:* {cost}")
-    return (f"**Question:** {question[0]}\n\n**Facts:**\n\n" + "".join(f"- {plain(f)}\n" for f in facts)
-            + "\n**Options:**\n\n" + "".join(b + "\n" for b in bullets) + f"\n**Default:** ({label}){rest}")
+    return (f"**Question:** {question}\n\n**Facts:**\n\n" + "".join(f"- {plain(f)}\n" for f in facts)
+            + "\n**Options:**\n\n" + "".join(b + "\n" for b in bullets) + f"\n**Default:** ({label}). {rest}")
 
 
 def raise_need(args, records: Path, want: str) -> str:
@@ -661,18 +661,15 @@ def raise_need(args, records: Path, want: str) -> str:
     if not title:
         raise Refuse("--title is empty")
     desc = args.stdin
-    text = f"{title}\n{desc}"
+    text = f"{title}\n{desc if want == 'action' else need_text(args)}"
     if PR_NAMED.search(text) and REVIEW_ASKED.search(text):
         raise Refuse(f"this asks the owner to review or merge a PR; raise it with the review form, so its card links "
                      f"the PR, the sprints and design pages and its wait wakes on the merge: {REVIEW_FORM}. If it "
                      "only mentions the PR, say what you ask without review, merge or approve")
-    if want == "action":
-        if not desc:
-            raise Refuse(f"the description is empty; pipe it on stdin: {ACTION_SHAPE}")
-    else:
-        if not desc:
-            raise Refuse(f"the description is empty; pipe it on stdin: {NEED_SHAPE}")
-        desc = need_markdown(desc)
+    if want == "action" and not desc:
+        raise Refuse(f"the description is empty; pipe it on stdin: {ACTION_SHAPE}")
+    if want == "decision":
+        desc = need_markdown(args)
     repo = load(records)
     parent = repo.beads.get(args.parent)
     if parent is None:
@@ -3153,7 +3150,7 @@ def cmd_commit(args, records: Path) -> str:
 # ---------------------------------------------------------------- entry point
 
 # Commands that read stdin; main reads it before the lock. Others leave stdin unread, so an open one never blocks them.
-READS_STDIN = {"decision add", "decision need", "decision close", "action need", "doc new", "project open",
+READS_STDIN = {"decision add", "decision close", "action need", "doc new", "project open",
                "sprint open", "task add", "task move", "feedback add"}
 WRITES = {"finding add", "feedback add", "decision add", "decision need", "decision close", "action need", "action done",
           "doc new", "design new", "postmortem new", "project open", "sprint open", "sprint close", "task add", "task close",
@@ -3267,14 +3264,25 @@ def parser() -> argparse.ArgumentParser:
     owner.add_argument("--confirmed", action="store_true", help="source=owner: the owner confirmed it")
     s.set_defaults(func=cmd_decision_add)
     s = decision.add_parser(
-        "need", help="ask the owner for a decision under a sprint or task; description on stdin",
-        description="Raise a decision need: a Beads task labelled human under a sprint or task. The description "
-                    "comes from stdin, one part per line: one 'Question:', one or more 'Fact:', two or more "
-                    "'Option <label>:' each followed by its 'Cost:' line, and one 'Default:' that names the label "
-                    "taken if the owner does not answer, then its reason. Send it with a quoted heredoc (<<'EOF'), "
-                    "so code spans stay. pm writes the description in one Markdown layout and refuses an option "
-                    "without a cost, a default that names no option, and a sentence of more than 25 words. Record "
-                    "the answer with pm decision add --need, or close a small answer with pm decision close.")
+        "need", help="ask the owner for a decision under a sprint or task; its parts as flags",
+        description="Raise a decision need: a Beads task labelled human under a sprint or task. Its parts are "
+                    "flags, one line each, and stdin is not read: one --question, one or more --fact, two or more "
+                    "--option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON that "
+                    "names the option taken if the owner does not answer. Put each value in single quotes: in double "
+                    "quotes the shell runs a `code span` as a command. pm writes the description in one Markdown "
+                    "layout and refuses fewer than two options, a repeated label, an option without exactly one "
+                    "cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with "
+                    "pm decision add --need, or close a small answer with pm decision close.")
+    s.add_argument("--question", required=True, action="append", metavar="TEXT", help="what the owner decides, as one question")
+    s.add_argument("--fact", required=True, action="append", metavar="TEXT",
+                   help="a fact the owner needs to decide; repeat it for each fact")
+    s.add_argument("--option", required=True, action="append", nargs=2, metavar=("LABEL", "TEXT"),
+                   help="a choice: its label (letters and digits) and what it does; repeat it for each option, two "
+                        "or more")
+    s.add_argument("--cost", required=True, action="append", nargs=2, metavar=("LABEL", "TEXT"),
+                   help="what the option with this label costs; one for each option")
+    s.add_argument("--default", required=True, action="append", nargs=2, metavar=("LABEL", "REASON"),
+                   help="the option taken if the owner does not answer, and why")
     s.add_argument("--title", required=True)
     s.add_argument("--parent", required=True, metavar="ID", help="the sprint or task the decision belongs to")
     s.set_defaults(func=cmd_decision_need)
