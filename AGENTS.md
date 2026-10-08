@@ -43,6 +43,17 @@ Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> -
 Do not run the whole integration set locally: CI runs it on every PR, and that run is the check. Push, then watch
 it; to reproduce a CI failure, run only the failing tests with `make test-full ARGS="-k …"`.
 
+The suite runs against either implementation (records/design/pm-go.md, Tests): `PM_IMPL=python` (the default) runs
+this checkout's pm, `PM_IMPL=go` the Go binary at `$PM_GO_BIN`. A test for one implementation only is marked
+`@pytest.mark.impl("python", reason="…")` and skipped on the other; today that is a test of Python code in process
+(`pm.hooks`, `pm.service`, `pm.launch`, the parser) or of what Go retires (`tool.py`, `legacy.py`).
+
+A test reads work data as work-store items, never as bd JSON or bd calls: `repo.items()` (for Python, the fake bd's
+issues through `tests/work_items.py`, the work store's bd import mapping), and `repo.changes()`, what pm changed since
+the repo was set up or `repo.mark()`, without store stamps. Seeds are bd issues, the form the work store imports,
+written only through `repo.set_issue` and `repo.add_issue`. `repo.bd_calls()` stays for an assertion about Python pm's
+use of bd, under `if IMPL == "python"`.
+
 A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
 (`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
 bare repo), runs `pm push` or the session-start hook (`pm prime` without `--rules` or `--subagent`, also run as

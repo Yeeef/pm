@@ -17,6 +17,8 @@ import pytest
 from conftest import PM, write_config
 from pm import __version__, config, launch
 
+IN_PROCESS = pytest.mark.impl("python", reason="runs Python pm's launcher or CLI in process")
+
 FAKE_UV = '''#!{py}
 import json, os, sys
 stdin = "" if "--help" in sys.argv else sys.stdin.read()
@@ -178,6 +180,7 @@ def test_a_pm_run_by_an_old_pin_reaches_the_launcher_without_its_tool_dirs(fakes
     assert (call["launched"], call["tool_dir"], call["path0"]) == ("9.9.9", None, env["PATH"].split(os.pathsep)[0])
 
 
+@IN_PROCESS
 def test_a_launched_pms_children_get_no_markers_so_a_pm_they_run_launches_the_pin(fakes, monkeypatch):
     """The launched pm 9.9.9 takes the markers out of its environment; a `pm` its git hooks or `claude -p` run in
     the same repo reaches the launcher, which launches 9.9.9 again instead of running itself at its own version."""
@@ -208,6 +211,7 @@ def test_a_kept_commit_file_without_a_sha_is_resolved_again(fakes):
     assert [p.name for p in path.parent.iterdir()] == ["commit"], "the temp file went"
 
 
+@IN_PROCESS
 @pytest.mark.parametrize("slow", ["git", "uv"])
 def test_a_tag_that_does_not_resolve_or_build_in_time_fails_hard(fakes, monkeypatch, slow):
     """git ls-remote and the first build run with a timeout, and git never prompts for credentials."""
@@ -229,6 +233,7 @@ def test_a_tag_that_does_not_resolve_or_build_in_time_fails_hard(fakes, monkeypa
     assert launch.kept("9.9.9") is None
 
 
+@IN_PROCESS
 def test_upgrade_without_to_never_moves_a_newer_pin_down(fakes, monkeypatch, capsys):
     """A bare pm upgrade runs at the pm uv tool's version; in a repo pinned newer it refuses, naming what works."""
     path = write_config(fakes.root, version="9.9.9")
@@ -245,6 +250,7 @@ def test_upgrade_without_to_never_moves_a_newer_pin_down(fakes, monkeypatch, cap
     assert path.read_text() == before and calls(fakes) == []
 
 
+@IN_PROCESS
 def test_upgrade_runs_in_process_unless_it_names_another_version(tmp_path):
     write_config(tmp_path, version="9.9.9")
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)

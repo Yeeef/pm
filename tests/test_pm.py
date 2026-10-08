@@ -19,9 +19,11 @@ from pathlib import Path
 
 import pytest
 
-from conftest import write_config, PM, fake_bd_env
+from conftest import write_config, IMPL, PM, fake_bd_env
 from pm import __version__
 from pm.beads import reply_body
+
+IN_PROCESS = pytest.mark.impl("python", reason="renders with Python pm's code in process")
 
 FRAME = "## Goal\n\nShip the thing.\n\n## Scope\n\n**In:** the thing.\n\n**Out:** other things.\n\n## Done when\n\n- It ships.\n"
 
@@ -33,7 +35,7 @@ def committed(repo, messages):
 
 
 def refused(repo, *args, text="", match):
-    """Run a command that must refuse: non-zero exit, the message, no file and no Beads change."""
+    """Run a command that must refuse: non-zero exit, the message, no file and no work-store change."""
     heads = lambda: [repo.git("rev-parse", "HEAD", cwd=d) for d in (repo.root, repo.store)]
     before, head = repo.snapshot(), heads()
     res = repo.pm(*args, text=text)
@@ -41,7 +43,7 @@ def refused(repo, *args, text="", match):
     assert re.search(match, res.stderr), res.stderr
     assert repo.snapshot() == before
     assert heads() == head
-    assert repo.bd_writes() == []
+    assert repo.changes() == {}
     return res
 
 
@@ -73,10 +75,11 @@ def store_head(repo):
 def test_sprint_open_creates_epic_and_record(repo):
     res = repo.pm("sprint", "open", "demo", "--title", "Third: the end", text=FRAME)
     assert res.returncode == 0, res.stderr
-    assert repo.bd_writes() == [["create", "--type=epic", "--parent=demo", "--title=Sprint 3: Third: the end", "--json"]]
-    assert repo.issues()["demo.3"]["parent"] == "demo"
-    # After the create it reads only the new epic, not every issue again.
-    assert [c for c in repo.bd_calls() if c[:1] in (["list"], ["show"])] == [["list", "--all", "--json"], ["show", "demo.3", "--json"]]
+    assert repo.changes() == {"demo.3": {"id": "demo.3", "type": "sprint", "title": "Sprint 3: Third: the end",
+                                         "status": "open", "number": 3, "parent": "demo"}}
+    assert repo.items()["demo.3"]["parent"] == "demo"
+    if IMPL == "python":  # After the create it reads only the new epic from bd, not every issue again.
+        assert [c for c in repo.bd_calls() if c[:1] in (["list"], ["show"])] == [["list", "--all", "--json"], ["show", "demo.3", "--json"]]
     text = (repo.records / "sprints/demo-3.md").read_text()
     assert text.startswith('---\ntype: sprint\ntitle: "Third: the end"\nbead: demo.3\n---\n')
     assert "Ship the thing." in text and "**Out:** other things." in text and "- It ships." in text
@@ -94,15 +97,16 @@ def test_sprint_closes_after_its_pr_merges(repo):
     report(repo, "Done: shipped the thing.")
     res = repo.pm("action", "need", "--pr", PR, "--sprint", "demo.1", "--focus", "F")
     assert res.returncode == 0, res.stderr
-    assert repo.issues()["demo.1.3"]["parent"] == "demo.1" and "under demo.1;" in res.stdout
-    repo.log.write_text("")
+    assert repo.items()["demo.1.3"]["parent"] == "demo.1" and "under demo.1;" in res.stdout
+    repo.mark()
     refused(repo, "sprint", "close", "demo.1", match=r"open tasks in the sprint: demo.1.3 \(open\)")
     assert repo.pm("action", "done", "demo.1.3", "--reason", f"merged as {SHA}").returncode == 0
-    repo.log.write_text("")
+    repo.mark()
     res = repo.pm("sprint", "close", "demo.1")
     assert res.returncode == 0, res.stderr
     assert committed(repo, ["[SPRINT] demo sprint 1: closed, merged as 8f5c618"])
-    assert repo.bd_writes() == [["close", "demo.1", f"--reason=Done: shipped the thing. (records commit {store_head(repo)})"]]
+    assert repo.changes() == {"demo.1": {"status": "closed", "resolution": "done", "close_reason":
+                                         f"Done: shipped the thing. (records commit {store_head(repo)})"}}
     assert repo.pm("check").returncode == 0
     page = repo.page("sprints/demo-1.html")
     assert "<p>Done: shipped the thing.</p>\n<p>Merged as 8f5c618 (PR #12).</p>" in page
@@ -135,7 +139,7 @@ def test_decision_need_writes_its_flags_in_the_one_layout(repo):
     """The design page's example, given as flags, becomes the description that page shows."""
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "demo.1", *SITE_URL)
     assert res.returncode == 0, res.stderr
-    assert repo.issues()["demo.1.3"]["description"] == (
+    assert repo.items()["demo.1.3"]["description"] == (
         "**Question:** Where does pm keep the public site URL?\n\n**Facts:**\n\n"
         "- Today, each clone keeps the URL in its git config.\n- You asked why the URL is not in `.pm/config.toml`.\n\n"
         "**Options:**\n\n- **(a) In `.pm/config.toml`.** A pm command still writes it. *Cost:* the repo has one URL.\n"
@@ -171,7 +175,7 @@ def without(flags: tuple, *drop: tuple[str, str]) -> tuple:
 def test_decision_need_refuses_a_malformed_part_and_writes_nothing(repo, flags, error):
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "demo.1", *flags)
     assert res.returncode != 0 and error in res.stderr, res.stderr
-    assert repo.bd_writes() == [] and "demo.1.3" not in repo.issues()
+    assert repo.changes() == {} and "demo.1.3" not in repo.items()
 
 
 ACTION = "Restart the site on port 8767, which the new proxy expects.\n"
@@ -182,8 +186,9 @@ def test_decision_add_need_closes_need_and_records_decision(repo):
     res = repo.pm(*ADD, "--need", "demo.1.2", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
     text = f"{DECISION}\n{REASON}\nAnswers `demo.1.2`."
-    assert repo.bd_writes() == [["human", "respond", "demo.1.2", f"--response={text}"]]
-    assert repo.issues()["demo.1.2"]["status"] == "closed"
+    assert repo.changes() == {"demo.1.2": {"status": "closed", "resolution": "answered", "close_reason": "Responded",
+                                           "comments": [{"kind": "note", "author": "t", "text": f"Response: {text}"}]}}
+    assert repo.items()["demo.1.2"]["status"] == "closed"
     assert path.read_text().split("## Design pages")[0].rstrip().endswith(
         f"::: decision {{source=owner date={TODAY}}}\n{text}\n:::")
     assert repo.pm("check").returncode == 0
@@ -200,7 +205,7 @@ def test_decision_add_refuses_a_malformed_part_and_writes_nothing(repo, flags, e
     heads = repo.store_log()
     res = repo.pm(*ADD, *flags)
     assert res.returncode != 0 and error in res.stderr, res.stderr
-    assert repo.bd_writes() == [] and repo.store_log() == heads
+    assert repo.changes() == {} and repo.store_log() == heads
     assert repo.git("status", "--porcelain", cwd=repo.store) == ""
 
 
@@ -213,11 +218,12 @@ def test_decision_close_closes_small_answer_without_record(repo):
     heads = repo.store_log()
     res = repo.pm("decision", "close", "demo.1.2", "--reason", "It picks a port and sets no rule.", text=ANSWER)
     assert res.returncode == 0, res.stderr
-    assert repo.bd_writes() == [
-        ["human", "respond", "demo.1.2", f"--response={ANSWER}\n\nNo decision record: It picks a port and sets no rule."],
-        ["update", "demo.1.2", "--add-label=no-decision"]]
-    need = repo.issues()["demo.1.2"]
-    assert (need["status"], need["labels"]) == ("closed", ["human", "no-decision"])
+    assert repo.changes() == {"demo.1.2": {
+        "status": "closed", "resolution": "no-decision", "close_reason": "Responded", "comments": [
+            {"kind": "note", "author": "t",
+             "text": f"Response: {ANSWER}\n\nNo decision record: It picks a port and sets no rule."}]}}
+    need = repo.items()["demo.1.2"]
+    assert (need["status"], need["type"], need["resolution"], need["labels"]) == ("closed", "need", "no-decision", [])
     assert repo.store_log() == heads and repo.git("status", "--porcelain", cwd=repo.store) == ""
     assert repo.pm("check").returncode == 0
 
@@ -228,23 +234,24 @@ def test_decision_close_closes_small_answer_without_record(repo):
 def test_task_add_creates_task_in_sprint(repo):
     res = repo.pm("task", "add", "--sprint", "demo.1", "--title", "Write the parser", text="Small and fast.\n")
     assert res.returncode == 0, res.stderr
-    assert repo.bd_writes() == [["create", "--type=task", "--parent=demo.1", "--title=Write the parser",
-                                 "--description=Small and fast.", "--json"]]
+    assert repo.changes() == {"demo.1.3": {"id": "demo.1.3", "type": "task", "title": "Write the parser",
+                                           "description": "Small and fast.", "status": "open", "parent": "demo.1"}}
     assert "created task demo.1.3 in sprint demo.1" in res.stdout
-    assert repo.issues()["demo.1.3"]["parent"] == "demo.1"
+    assert repo.items()["demo.1.3"]["parent"] == "demo.1"
     assert repo.git("status", "--porcelain") == ""
+    repo.mark()
     res = repo.pm("task", "add", "--sprint", "demo.2", "--title", "No description")
     assert res.returncode == 0, res.stderr
-    assert repo.bd_writes()[-1] == ["create", "--type=task", "--parent=demo.2", "--title=No description", "--json"]
+    assert repo.changes() == {"demo.2.1": {"id": "demo.2.1", "type": "task", "title": "No description",
+                                           "status": "open", "parent": "demo.2"}}
 
 
 # ---------------------------------------------------------------- pm task close
 
 def add_task(repo, issue_id="demo.1.3", **fields):
-    issues = json.loads(repo.state.read_text()) + [dict(
+    repo.add_issue(dict(
         {"id": issue_id, "title": "Write the parser", "status": "in_progress", "issue_type": "task",
-         "parent": "demo.1", "created_at": "2026-10-01T12:00:00Z", "started_at": "2026-10-01T12:00:00Z"}, **fields)]
-    repo.state.write_text(json.dumps(issues))
+         "parent": "demo.1", "created_at": "2026-10-01T12:00:00Z", "started_at": "2026-10-01T12:00:00Z"}, **fields))
 
 
 def test_task_close_names_head(repo):
@@ -253,8 +260,9 @@ def test_task_close_names_head(repo):
     res = repo.pm("task", "close", "demo.1.3", "--reason", "Parser written.")
     assert res.returncode == 0, res.stderr
     assert res.stderr == ""
-    assert repo.bd_writes() == [["close", "demo.1.3", f"--reason=Parser written. (commit {head})"]]
-    assert repo.issues()["demo.1.3"]["status"] == "closed"
+    assert repo.changes() == {"demo.1.3": {"status": "closed", "resolution": "done", "holder": None,
+                                           "close_reason": f"Parser written. (commit {head})"}}
+    assert repo.items()["demo.1.3"]["status"] == "closed"
 
 
 # ---------------------------------------------------------------- the store: pm init in a clone
@@ -444,7 +452,7 @@ def test_text_file_dash_reads_a_heredoc(repo):
     body = "Parse `x`, it's $5 (or \"more\").\nSecond line )."
     code, _, err = run_task_add(repo, "--text-file", "-", stdin=subprocess.PIPE, given=body + "\n")
     assert code == 0, err
-    assert repo.bd_writes()[-1][-2] == f"--description={body}"
+    assert repo.items()["demo.1.3"]["description"] == body
 
 
 def test_text_file_dash_refuses_a_socket_at_once(repo):
@@ -457,7 +465,7 @@ def test_text_file_dash_refuses_a_socket_at_once(repo):
         theirs.close()
     assert code == 1 and err.startswith("error: --text-file - reads stdin, which here is not a pipe or a file; pass "
                                         "the body with a quoted heredoc: pm … --text-file - <<'EOF' … EOF"), err
-    assert repo.bd_writes() == []
+    assert repo.changes() == {}
 
 
 def test_text_file_reads_a_file_and_refuses_with_text(repo, tmp_path):
@@ -469,7 +477,7 @@ def test_text_file_reads_a_file_and_refuses_with_text(repo, tmp_path):
             match=r"error: --text-file .*/none: no such file")
     code, _, err = run_task_add(repo, "--text-file", str(path), stdin=subprocess.DEVNULL)
     assert code == 0, err
-    assert repo.bd_writes()[-1][-2] == "--description=From a file."
+    assert repo.items()["demo.1.3"]["description"] == "From a file."
 
 
 def test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that_does(repo):
@@ -702,6 +710,7 @@ Sprint 1: Beta work  .1  running  0/1 done
   in_progress  .1.1  Beta task held  [held by other-se, ?, live]"""
 
 
+@IN_PROCESS
 def test_pm_show_levels_together_print_every_line_pm_show_printed_whole(monkeypatch):
     """The top level and the per-project levels together print every line the one-level pm show printed but the day
     summary, which only --json and the day page carry, and the top level keeps every push failure, task another live session holds, open owner request and undelivered reply."""
@@ -792,23 +801,24 @@ def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
                       lambda p: p.count('<form class="reply" method="post" action="/reply"') == 2, time.time())
     assert '<input type="hidden" name="id" value="demo.1.2">' in day
     token = page_token(served, "days/2026-10-01.html")
-    repo.log.write_text("")
+    repo.mark()
 
     for issue_id, text in (("demo.1.2", "-Pick small.\r\nBecause tables can wait."), ("demo.1.3", "Merged as abc123.")):
         code, where, _ = post_reply(served, {"token": token, "id": issue_id, "text": text},
                                     {"Referer": f"{served}/days/2026-10-01.html"})
         assert (code, where) == (303, f"/days/2026-10-01.html#need-{issue_id}")
     deadline = time.monotonic() + 10  # the comments are written in the background
-    while len(repo.bd_writes()) < 2 and time.monotonic() < deadline:
+    while len(repo.changes()) < 2 and time.monotonic() < deadline:
         time.sleep(0.05)
-    issues = repo.issues()
+    items = repo.items()
     for issue_id, text in (("demo.1.2", "-Pick small.\nBecause tables can wait."), ("demo.1.3", "Merged as abc123.")):
-        assert [(c["author"], reply_body(c["text"])) for c in issues[issue_id]["comments"]] == [("owner (site reply)",
-                                                                                                text)]
-        assert re.fullmatch(r"(?s).*\n\n<!-- pm-reply [0-9a-f-]{36} -->", issues[issue_id]["comments"][0]["text"])
-        assert issues[issue_id]["labels"] == ["human"] + (["action"] if issue_id == "demo.1.3" else [])
-        assert issues[issue_id]["status"] == "open"
-    assert [c[:3] for c in repo.bd_writes()] == [["comments", "add", "demo.1.2"], ["comments", "add", "demo.1.3"]]
+        assert [(c["kind"], c["author"], reply_body(c["text"])) for c in items[issue_id]["comments"]] == [
+            ("reply", "owner", text)]
+        assert re.fullmatch(r"(?s).*\n\n<!-- pm-reply [0-9a-f-]{36} -->", items[issue_id]["comments"][0]["text"])
+        assert (items[issue_id]["type"], items[issue_id]["need"]["kind"], items[issue_id]["labels"]) == (
+            "need", "action" if issue_id == "demo.1.3" else "decision", [])
+        assert items[issue_id]["status"] == "open"
+    assert {i: list(c) for i, c in repo.changes().items()} == {"demo.1.2": ["comments"], "demo.1.3": ["comments"]}
     until_shown(lambda: urllib.request.urlopen(f"{served}/").read().decode(),
                 lambda p: p.count('<span class="replied">not delivered') == 2 and "Merged as abc123." in p, None)
 
@@ -841,7 +851,7 @@ def test_reply_is_refused_without_the_token_or_from_another_host(repo, served, t
     form = dict(form, token=page_token(served) if token == "page" else token)
     res = post_reply(served, form, headers)
     assert res[0] == code and said in res[2]
-    assert repo.bd_writes() == []
+    assert repo.changes() == {}
 
 
 @contextlib.contextmanager
@@ -915,7 +925,7 @@ def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
         wait_for(lambda: len(lines) == 1, "the first reply pushed")
         assert inbox_text(lines[0]).startswith("pm: owner reply to decision demo.1.3 (A), relayed from the site:\n")
         assert "First answer." in inbox_text(lines[0]) and "pm decision add --need demo.1.3" in inbox_text(lines[0])
-        wait_for(lambda: repo.issues()["demo.1.3"]["metadata"].get("picked_up") == "1", "the reply marked delivered")
+        wait_for(lambda: repo.items()["demo.1.3"]["need"]["delivered"] == 1, "the reply marked delivered")
         for issue_id, text in (("demo.1.4", "Answer to B."), ("demo.1.5", "Answer to C."),
                                ("demo.1.3", "On second thought, no.")):
             reply(issue_id, text)
@@ -925,7 +935,7 @@ def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
             ["demo.1.4", "demo.1.5", "demo.1.3"]
         assert "Answer to B." in texts[0] and "Answer to C." in texts[1]
         assert "On second thought, no." in texts[2] and "First answer." not in texts[2], "no reply delivered twice"
-        wait_for(lambda: repo.issues()["demo.1.3"]["metadata"].get("picked_up") == "2", "the second reply marked")
+        wait_for(lambda: repo.items()["demo.1.3"]["need"]["delivered"] == 2, "the second reply marked")
         page = until_shown(lambda: load(f"{served}/"), lambda p: "On second thought, no." in p
                            and "Reply saved" not in p, None)
         assert "delivered to the agent&#x27;s session" in page or "delivered to the agent's session" in page
@@ -942,7 +952,7 @@ def test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read(repo
     assert post_reply(served, {"token": page_token(served), "id": "demo.1.3", "text": "Small, until tables."})[0] == 303
     page = until_shown(lambda: load(f"{served}/"), lambda p: "Small, until tables." in p and "Saving" not in p, None)
     assert "the session that asked is not running" in page
-    assert "picked_up" not in repo.issues()["demo.1.3"]["metadata"]
+    assert repo.items()["demo.1.3"]["need"]["delivered"] == 0
     assert "decision .1.3  Parser?  (sprint 1)  [undelivered reply: pm reply read demo.1.3]" in repo.pm("show").stdout
     assert "Parser?  (sprint 1)  -> bd show demo.1.3  [undelivered reply: pm reply read demo.1.3]" \
         in repo.pm("show", "--project", "demo").stdout
@@ -950,26 +960,25 @@ def test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read(repo
     assert res.returncode == 0, res.stderr
     assert res.stdout.startswith("pm: owner reply to decision demo.1.3 (Parser?), relayed from the site:\n  [")
     assert "Small, until tables." in res.stdout
-    assert repo.issues()["demo.1.3"]["metadata"]["picked_up"] == "1"
+    assert repo.items()["demo.1.3"]["need"]["delivered"] == 1
     assert "pm reply read" not in repo.pm("show").stdout
     assert repo.pm("reply", "read", "demo.1.3").stdout == "nothing undelivered on demo.1.3\n"
-    repo.log.write_text("")  # refused() checks that nothing at all was written to Beads
+    repo.mark()  # refused() checks that nothing at all changed in the work store
     refused(repo, "reply", "read", "demo.1.1", match=r"demo.1.1 is not a request to the owner")
     repo.env.pop("CLAUDE_CODE_SESSION_ID")
     refused(repo, "reply", "read", match=r"name the requests to read")
 
 
 REVIEWED_PR = "https://github.com/o/r/pull/7"
+REVIEW = {"pr": REVIEWED_PR, "sprints": ["demo.1"], "focus": "f", "designs": []}
 
 
 def review_with_origin(repo) -> str:
     """An open review of REVIEWED_PR under demo.1, and an origin remote whose main is one commit ahead:
     the sha returned."""
-    issues = json.loads(repo.state.read_text()) + [
-        {"id": "demo.1.3", "title": "Review PR #7", "status": "open", "issue_type": "task", "parent": "demo.1",
-         "labels": ["human", "action"], "created_at": "2026-10-01T12:00:00Z",
-         "metadata": {"review": {"pr": REVIEWED_PR, "sprints": ["demo.1"], "focus": "f", "designs": []}}}]
-    repo.state.write_text(json.dumps(issues))
+    repo.add_issue({"id": "demo.1.3", "title": "Review PR #7", "status": "open", "issue_type": "task",
+                    "parent": "demo.1", "labels": ["human", "action"], "created_at": "2026-10-01T12:00:00Z",
+                    "metadata": {"review": REVIEW}})
     origin = repo.root.parent / "origin.git"
     repo.git("init", "-q", "--bare", "-b", "main", str(origin))
     repo.git("remote", "add", "origin", str(origin))
@@ -994,16 +1003,16 @@ def test_a_reviewed_prs_merge_is_pushed_into_the_session_once(repo):
     sha = review_with_origin(repo)
     repo.set_pr(REVIEWED_PR, "MERGED", sha)
     with session_inbox() as (inbox, lines):
-        repo.set_issue("demo.1.3", metadata={**repo.issues()["demo.1.3"]["metadata"], "session": "sess-1",
-                                             "inbox": inbox, "inbox_host": socket.gethostname()})
+        repo.set_issue("demo.1.3", metadata={"review": REVIEW, "session": "sess-1", "inbox": inbox,
+                                             "inbox_host": socket.gethostname()})
         with serving(repo):
             wait_for(lambda: lines, "the merge pushed")
-            wait_for(lambda: repo.issues()["demo.1.3"]["metadata"].get("merge_reported") == sha, "the merge marked")
+            wait_for(lambda: repo.items()["demo.1.3"]["need"]["review"]["merge_reported"] == sha, "the merge marked")
         assert inbox_text(lines[0]) == (f"pm: PR #7 of review demo.1.3 (Review PR #7) merged to main as {sha}\n"
                                     f"next: pm action done demo.1.3 --reason \"merged as {sha}\", then update the "
                                     f"main checkout: {pull_main(repo)}")
-        assert repo.issues()["demo.1.3"]["metadata"]["merged"] == sha
-        assert repo.issues()["demo.1.3"]["status"] == "open", "the agent closes the review, not the pm service"
+        assert repo.items()["demo.1.3"]["need"]["review"]["merged"] == sha
+        assert repo.items()["demo.1.3"]["status"] == "open", "the agent closes the review, not the pm service"
         with serving(repo) as (url, _):  # a restart: the merge is stored, so it is neither looked up nor pushed again
             until_shown(lambda: load(f"{url}/"), lambda p: "Review PR #7" in p, None)
             deadline = time.time() + 2
@@ -1033,14 +1042,14 @@ def claim(repo, task: str, sid: str | None, *extra: str):
 def test_task_claim_refuses_a_task_another_live_session_holds(repo):
     repo.set_issue("demo.1.2", labels=[])
     assert claim(repo, "demo.1.2", "sess-a").returncode == 0
-    i = repo.issues()["demo.1.2"]
-    assert i["status"] == "in_progress" and i["metadata"]["claimed_by"] == "sess-a"
+    i = repo.items()["demo.1.2"]
+    assert i["status"] == "open" and i["holder"]["session"] == "sess-a"
     transcript(repo, "sess-a", 60, where="-other-worktree")
-    repo.log.write_text("")
+    repo.mark()
     res = claim(repo, "demo.1.2", "sess-b")
     assert res.returncode == 1
     assert "held by live session sess-a" in res.stderr and "last 30 minutes" in res.stderr
-    assert not repo.bd_writes()
+    assert not repo.changes()
     # the same session (a subagent shares it) may claim again
     assert claim(repo, "demo.1.2", "sess-a").returncode == 0
 
@@ -1092,7 +1101,8 @@ def test_push_pushes_beads_and_new_records_commits(pushed):
     repo.commit("a day")
     res = repo.pm("push")
     assert res.returncode == 0, res.stdout + res.stderr
-    assert ["dolt", "push"] in repo.bd_calls()
+    if IMPL == "python":  # Python pm pushes Beads with bd; Go pm syncs its own store
+        assert ["dolt", "push"] in repo.bd_calls()
     assert remote_records(repo) == repo.git("rev-parse", "HEAD", cwd=repo.store).strip()
     state = push_state(repo)
     assert state["beads"]["ok"] and state["records"]["ok"] and state["records"]["message"] == "pushed 2 commit(s)", "the day file and its new summary"
@@ -1154,6 +1164,7 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     assert json.loads(repo.pm("show", "--json").stdout)["today"]["summary"] == "Summary 2."
 
 
+@IN_PROCESS
 def test_index_lists_every_sprint_not_done_and_only_the_latest_closed_done_ones():
     from pm.records import Record
     from pm.site import DONE_SPRINTS_SHOWN, render_index

@@ -9,10 +9,13 @@ import pytest
 from conftest import write_config
 from pm import __version__
 
+PYTHON_ONLY = pytest.mark.impl("python", reason="checks Python pm's package version or parser in process")
+
 # prime's parts share one config check; --subagent is the one that starts no pm setup (a light test may not)
 COMMANDS = [("show",), ("where",), ("prime", "--subagent"), ("hook", "stop")]
 
 
+@PYTHON_ONLY
 def test_version_has_one_source():
     import tomllib
     from pathlib import Path
@@ -53,6 +56,7 @@ def help_texts(ap) -> list[str]:
     return out
 
 
+@PYTHON_ONLY
 def test_every_config_key_is_named_in_some_commands_help():
     """pm explains its own config: each key config.KEYS accepts is named, as a word, in the --help of some command
     that also names .pm/config.toml, so nobody reads pm's source to learn what a key does or which command sets it."""

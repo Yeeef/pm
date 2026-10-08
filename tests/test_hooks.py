@@ -18,6 +18,8 @@ from conftest import PM, stop_services, write_config
 
 from pm import hooks
 
+IN_PROCESS = pytest.mark.impl("python", reason="checks Python pm's hooks module or parser in process")
+
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
 STOP = [*PM, "hook", "stop"]
@@ -109,6 +111,7 @@ TODAY_WHERE = "\n".join(f"{k:<9} /home/someone/workspace/yeeef-agents/{k}  " + "
                                   "records", "worktree", "summary", "inbox"))
 
 
+@IN_PROCESS
 def test_session_start_keeps_a_busy_days_pm_show_whole(tmp_path, monkeypatch):
     """The fixture is today-size: every warning and owner request line reaches the session, and nothing is cut."""
     assert len(TODAY_SHOW) > 7_085 and len(TODAY_WHERE) > 1_295
@@ -153,6 +156,7 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     assert "decision .1.2  Ask the owner  (sprint 1)" in rest
 
 
+@IN_PROCESS
 def test_session_start_runs_init_without_port(tmp_path, monkeypatch):
     """$PORT in a session's environment is no request to move the clone's service: session start's init never sees it."""
     monkeypatch.setenv("PORT", "8123")
@@ -201,6 +205,7 @@ def listed_nouns():
     return re.findall(r"`(\w+)`", line[len("`pm` nouns: "):])
 
 
+@IN_PROCESS
 def test_prime_lists_every_agent_command_from_the_parser():
     listed = listed_nouns()
     assert listed == [c for c in subcommands() if c not in {"prime", "hook", "push"}]
@@ -210,6 +215,7 @@ def test_prime_lists_every_agent_command_from_the_parser():
     assert "for more, run `pm <noun> [cmd] --help`." in hooks.rules()  # the pointer the compact list relies on
 
 
+@IN_PROCESS
 def test_pm_init_is_the_one_install_command_and_session_start_runs_it():
     """No `pm setup`: pm --help lists init only, and the session-start state hook runs pm init (the worktree test
     above shows it setting up a new worktree)."""
@@ -222,6 +228,7 @@ def test_pm_init_is_the_one_install_command_and_session_start_runs_it():
     assert res.returncode == 2 and "invalid choice: 'setup'" in res.stderr, res.stderr
 
 
+@IN_PROCESS
 def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
     """Each chunk reaches the session inline (a hook over CAP arrives as a 2 KB preview), and the chunks without
     their titles are the rules and the command list: nothing lost, nothing twice. A failure here means prime.md
