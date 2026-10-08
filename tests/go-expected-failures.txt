@@ -1,0 +1,114 @@
+# Tests expected to fail on Go pm (PM_IMPL=go), one per line: <test file>::<test name with its parameters>.
+# Under PM_IMPL=go, conftest marks each xfail(strict=True), so a listed test that passes fails the run until it
+# leaves this list. The list only shrinks: a test that newly fails on Go is a regression to fix, never a new entry.
+# test_go_expected_failures.py fails on an entry naming a test function its file no longer has.
+
+test_config.py::test_every_command_fails_on_another_pinned_version[args0]
+test_config.py::test_every_command_fails_on_another_pinned_version[args1]
+test_config.py::test_every_command_fails_on_another_pinned_version[args2]
+test_config.py::test_every_command_fails_on_another_pinned_version[args3]
+test_config.py::test_every_command_fails_without_a_config[args0]
+test_config.py::test_every_command_fails_without_a_config[args1]
+test_config.py::test_every_command_fails_without_a_config[args2]
+test_config.py::test_every_command_fails_without_a_config[args3]
+test_hooks.py::test_session_start_fails_open_with_one_line
+test_hooks.py::test_session_start_injects_rules_then_init_where_and_pm_show
+test_hooks.py::test_session_start_reports_a_down_service_and_a_typed_init_restarts_it
+test_hooks.py::test_session_start_sets_up_a_worktree_post_checkout_skipped[mains-tracked-copy]
+test_hooks.py::test_session_start_sets_up_a_worktree_post_checkout_skipped[no-records]
+test_hooks.py::test_stop_blocks_on_a_record_this_session_edited
+test_hooks.py::test_stop_passes_another_sessions_edit
+test_hooks.py::test_stop_passes_when_stop_hook_active
+test_init.py::test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool
+test_init.py::test_init_bootstraps_a_brand_new_repo
+test_init.py::test_init_in_a_worktree_of_a_branch_without_config_refuses
+test_init.py::test_init_in_a_worktree_sets_it_up_when_mains_pin_differs
+test_init.py::test_init_refuses_a_held_site_port_before_writing_anything
+test_init.py::test_init_refuses_before_bd_init_runs
+test_launch.py::test_a_kept_commit_file_without_a_sha_is_resolved_again
+test_launch.py::test_a_launched_text_file_body_reaches_the_pinned_pm_unread_by_the_launcher
+test_launch.py::test_a_pin_older_than_the_launcher_keeps_its_own_uv_tool_dirs_and_gets_no_markers
+test_launch.py::test_a_pin_whose_release_cannot_be_fetched_fails_hard_naming_the_tag_and_the_command
+test_launch.py::test_a_pin_with_no_release_tag_fails_hard
+test_launch.py::test_a_pm_launched_for_another_repos_pin_still_launches_this_repos_pin
+test_launch.py::test_a_pm_launched_for_its_pin_that_runs_another_version_fails_instead_of_launching_again
+test_launch.py::test_a_pm_run_by_an_old_pin_reaches_the_launcher_without_its_tool_dirs
+test_launch.py::test_a_repo_pinned_to_this_version_runs_in_process_with_no_uv_call
+test_launch.py::test_another_pin_execs_uv_with_the_pins_commit_and_passes_stdin_stdout_and_the_exit_code
+test_launch.py::test_the_first_launch_of_a_pin_resolves_its_tag_builds_it_once_then_keeps_the_commit
+test_launch.py::test_the_new_tool_runs_pm_0_1_0_in_a_repo_pinned_to_it
+test_lifecycle.py::test_doctor_names_a_settings_file_it_cannot_read_as_a_repo_finding
+test_lifecycle.py::test_doctor_reports_each_changed_clone_setup
+test_lifecycle.py::test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it
+test_lifecycle.py::test_init_and_upgrade_keep_what_is_not_pms
+test_lifecycle.py::test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade
+test_lifecycle.py::test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots
+test_lifecycle.py::test_uninstall_removes_pms_parts_and_setup_only
+test_owner_request_hook.py::test_blocks_a_needless_ask_even_when_an_open_need_matches
+test_owner_request_hook.py::test_blocks_a_request_matching_no_open_need_of_this_session[None]
+test_owner_request_hook.py::test_blocks_a_request_matching_no_open_need_of_this_session[demo-x1.5]
+test_owner_request_hook.py::test_fails_when_claude_fails
+test_owner_request_hook.py::test_passes_a_request_matching_this_sessions_need
+test_owner_request_hook.py::test_passes_without_reading_anything[event0]
+test_owner_request_hook.py::test_passes_without_reading_anything[event1]
+test_pm.py::test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read
+test_pm.py::test_a_reviewed_prs_merge_is_pushed_into_the_session_once
+test_pm.py::test_commit_commits_only_its_callers_records_beside_another_sessions_edit
+test_pm.py::test_concurrent_writes_from_two_worktrees_land_as_separate_commits
+test_pm.py::test_day_summarize_skips_unchanged_activity_and_regenerates_on_change
+test_pm.py::test_decision_add_need_closes_need_and_records_decision
+test_pm.py::test_decision_add_refuses_a_malformed_part_and_writes_nothing[flags0-the following arguments are required: --reason]
+test_pm.py::test_decision_add_refuses_a_malformed_part_and_writes_nothing[flags1---decision has more than one line]
+test_pm.py::test_decision_add_refuses_a_malformed_part_and_writes_nothing[flags2---reason is empty]
+test_pm.py::test_decision_add_refuses_a_malformed_part_and_writes_nothing[flags3---reason starts with ':::']
+test_pm.py::test_decision_close_closes_small_answer_without_record
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags0-the following arguments are required: --question]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags1-give at least two --option flags]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags10-in fact 3 has 26 words; the limit is 25]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags2-option a has no cost; add --cost a]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags3---cost c names no option; the labels are a, b]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags4-option a has two --cost flags]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags5-two options have the label a]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags6---default z names no option; the labels are a, b]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags7---fact has more than one line]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags8-give exactly one --default]
+test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags9-raise it with the review form]
+test_pm.py::test_decision_need_writes_its_flags_in_the_one_layout
+test_pm.py::test_every_reply_is_pushed_into_the_session_that_asked
+test_pm.py::test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_service
+test_pm.py::test_no_command_waits_on_an_open_stdin[action need-no-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[action need-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[decision close-no-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[decision close-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[doc new-no-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[doc new-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[feedback add-no-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[feedback add-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[project open-no-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[project open-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[sprint open-no-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[sprint open-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[task add-no-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[task add-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[task move-no-text]
+test_pm.py::test_no_command_waits_on_an_open_stdin[task move-text]
+test_pm.py::test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that_does
+test_pm.py::test_pm_show_project_prints_one_project_and_refuses_what_it_cannot
+test_pm.py::test_push_pushes_beads_and_new_records_commits
+test_pm.py::test_push_rebases_onto_a_moved_remote
+test_pm.py::test_reply_is_refused_without_the_token_or_from_another_host[forged-form0-headers0-403-no valid token]
+test_pm.py::test_reply_is_refused_without_the_token_or_from_another_host[page-form1-headers1-403-is neither this machine]
+test_pm.py::test_reply_on_a_card_is_stored_on_its_issue_as_one_comment
+test_pm.py::test_serve_shows_each_change_within_its_stated_age
+test_pm.py::test_sprint_closes_after_its_pr_merges
+test_pm.py::test_sprint_open_creates_epic_and_record
+test_pm.py::test_task_add_creates_task_in_sprint
+test_pm.py::test_task_claim_refuses_a_task_another_live_session_holds
+test_pm.py::test_task_close_names_head
+test_pm.py::test_text_file_dash_reads_a_heredoc
+test_pm.py::test_text_file_dash_refuses_a_socket_at_once
+test_pm.py::test_text_file_reads_a_file_and_refuses_with_text
+test_pm.py::test_write_on_one_branch_is_visible_on_another_without_merge
+test_service.py::test_install_fails_when_the_service_does_not_come_up
+test_service.py::test_service_install_status_restart_and_logs_end_to_end
+test_service.py::test_service_stops_once_the_pin_moves

@@ -251,11 +251,26 @@ def recorded(request, tmp_path: Path):
     transcript.write(TRANSCRIPTS, request.node.nodeid, paths)
 
 
+GO_EXPECTED_FAILURES = Path(__file__).resolve().parent / "go-expected-failures.txt"
+
+
+def go_expected_failures() -> set[str]:
+    """The tests expected to fail on Go pm, as <test file>::<test name>: the list's lines without comments."""
+    lines = GO_EXPECTED_FAILURES.read_text().splitlines()
+    return {line for line in lines if line.strip() and not line.startswith("#")}
+
+
 def pytest_collection_modifyitems(config, items):
-    """Skip a test marked for another implementation, with the mark's reason."""
+    """Skip a test marked for another implementation, with the mark's reason. Under PM_IMPL=go, a test on the
+    expected-failures list must fail: a listed test that passes fails the run (strict xfail), so the list only
+    shrinks."""
+    expected = go_expected_failures() if IMPL == "go" else set()
     for item in items:
         if (mark := item.get_closest_marker("impl")) and IMPL not in mark.args:
             item.add_marker(pytest.mark.skip(reason=f"only for {', '.join(mark.args)}: {mark.kwargs['reason']}"))
+        elif f"{item.path.name}::{item.name}" in expected:
+            item.add_marker(pytest.mark.xfail(strict=True, reason=f"listed in {GO_EXPECTED_FAILURES.name}: Go pm "
+                                                                    "does not pass it yet; remove it once it passes"))
 
 
 # The user's files pm writes outside a repo: Codex's config (pm init's writable roots) and the service units.

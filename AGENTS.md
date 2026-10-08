@@ -37,6 +37,7 @@ A design change edits the sub page it touches to the new state; the trail of fin
 | `uv run pytest -q -n auto tests/test_hooks.py` (in `pm/`) | One file, or `-k name` for one test |
 | `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH |
 | `make test-go` (repo root) | Go pm built as released (cgo, stripped) into `pm/.go/pm`, `go vet` and `go test ./...` with `-tags gms_pure_go` (Dolt needs it), then `tests/test_go_parity.py` against Python pm (`PM_GO`; skipped without it). `.github/workflows/pm-go.yml` runs it on macOS and Linux. The bd import's round trip and its agreement with `tests/work_items.py` run on `internal/work/testdata`; `PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=$(pm where records)` runs both on a real export |
+| `make test-go-suite` (repo root) | The whole shared suite on Go pm (`PM_IMPL=go`), each test on `tests/go-expected-failures.txt` a strict xfail, so a listed test that passes fails the run until it leaves the list (it only shrinks); then `tests/compare_transcripts.py` runs the tests that pass on Go on Python pm and diffs their transcripts. `pm-go.yml` runs it after `make test-go` |
 
 Run `make test` while working. When a change touches what an integration test covers (the service and its site,
 `init`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
