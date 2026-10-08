@@ -1,0 +1,15 @@
+[Unit]
+Description=pm service for /pm-test/my clone%x&<y> café
+
+[Service]
+Type=simple
+WorkingDirectory=/pm-test/my clone%%x&<y> café
+Environment="PATH=/opt/tools%%x:/a \"q\" b:/c\\d:/usr/bin" "PORT=65535"
+ExecStart="/opt/p m/pm & <bin>" "service" "run" "it's \"%%h\" \\ x"
+Restart=always
+RestartSec=5
+StandardOutput=append:/pm-test/my clone%%x&<y> café/.pm/run/service.log
+StandardError=append:/pm-test/my clone%%x&<y> café/.pm/run/service.log
+
+[Install]
+WantedBy=default.target

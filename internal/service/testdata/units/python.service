@@ -1,0 +1,15 @@
+[Unit]
+Description=pm service for /pm-test/yeeef-agents
+
+[Service]
+Type=simple
+WorkingDirectory=/pm-test/yeeef-agents
+Environment="PATH=/home/u/.local/bin:/usr/bin:/bin" "PORT=8000"
+ExecStart="/home/u/.local/share/uv/tools/pm/bin/python" "-m" "pm.cli" "service" "run"
+Restart=always
+RestartSec=5
+StandardOutput=append:/pm-test/yeeef-agents/.pm/run/service.log
+StandardError=append:/pm-test/yeeef-agents/.pm/run/service.log
+
+[Install]
+WantedBy=default.target

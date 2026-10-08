@@ -1,0 +1,8 @@
+[
+ {"name": "plain", "main": "/pm-test/clone", "path": "/usr/bin:/bin", "port": 8123,
+  "argv": ["/home/u/.local/bin/pm", "service", "run"]},
+ {"name": "python", "main": "/pm-test/yeeef-agents", "path": "/home/u/.local/bin:/usr/bin:/bin", "port": 8000,
+  "argv": ["/home/u/.local/share/uv/tools/pm/bin/python", "-m", "pm.cli", "service", "run"]},
+ {"name": "quoting", "main": "/pm-test/my clone%x&<y> café", "path": "/opt/tools%x:/a \"q\" b:/c\\d:/usr/bin",
+  "port": 65535, "argv": ["/opt/p m/pm & <bin>", "service", "run", "it's \"%h\" \\ x"]}
+]
