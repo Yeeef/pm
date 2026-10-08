@@ -998,3 +998,21 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     assert re.search(r"<span>generated at \d\d:\d\d</span>.*Summary 2\.", page, re.S), page
     assert "Summary 2." in repo.page("index.html")
     assert f"today {TODAY}: Summary 2. (generated " in repo.pm("show").stdout
+
+
+def test_index_lists_every_sprint_not_done_and_only_the_latest_closed_done_ones():
+    from pm.records import Record
+    from pm.site import DONE_SPRINTS_SHOWN, render_index
+    project = Record(Path("p.md"), "projects/p", {"type": "project", "bead": "p", "title": "P"}, "")
+    beads = {"p": {"id": "p", "title": "P", "issue_type": "epic", "status": "open"}}
+    for n in range(12):  # done sprints d00..d11, d11 closed last
+        beads[f"p.d{n:02}"] = {"id": f"p.d{n:02}", "parent": "p", "issue_type": "epic", "status": "closed",
+                               "title": f"done-{n:02}", "closed_at": f"2026-10-{n + 1:02}T00:00:00Z"}
+    for n, status in enumerate(["open", "in_progress", "open"]):
+        beads[f"p.o{n}"] = {"id": f"p.o{n}", "parent": "p", "issue_type": "epic", "status": status,
+                            "title": f"live-{n}"}
+    page = render_index([project], beads, "site")
+    assert DONE_SPRINTS_SHOWN == 8
+    assert all(f"live-{n}" in page for n in range(3))
+    assert [n for n in range(12) if f"done-{n:02}" in page] == list(range(4, 12))
+    assert "4 older done sprints not shown" in page
