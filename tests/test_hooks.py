@@ -306,3 +306,76 @@ def test_stop_passes_when_stop_hook_active(repo, tmp_path):
     t = claude_transcript(tmp_path / "t.jsonl", {"command": "sed -i '' s/a/b/ records/sprints/demo-1.md"})
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": True}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == ""
+
+
+# ---------------------------------------------------------------- the main checkout: agents change code in a worktree
+
+MAIN_CHECKOUT = [*PM, "hook", "main-checkout"]
+
+
+def edit_event(repo, path, cwd=None) -> dict:
+    return {"hook_event_name": "PreToolUse", "cwd": str(cwd or repo.root), "tool_name": "Edit",
+            "tool_input": {"file_path": str(path), "old_string": "a", "new_string": "b"}}
+
+
+def test_main_checkout_hook_denies_an_edit_in_the_main_checkout_only(repo):
+    wt = repo.worktree("feature")
+    res = run(MAIN_CHECKOUT, edit_event(repo, repo.root / "pm/x.py"), repo.env, repo.root)
+    out = json.loads(res.stdout)["hookSpecificOutput"]
+    assert res.returncode == 0 and out["hookEventName"] == "PreToolUse" and out["permissionDecision"] == "deny"
+    assert f"{repo.root / 'pm/x.py'} is in the main checkout. {repo.root.resolve()} is the main checkout" in \
+        out["permissionDecisionReason"] and "worktree add -b <branch>" in out["permissionDecisionReason"]
+    # a session in a worktree reaching into the main checkout by absolute path is denied too
+    assert "deny" in run(MAIN_CHECKOUT, edit_event(repo, repo.root / "x.py", cwd=wt), repo.env, wt).stdout
+    for path, cwd in ((wt / "x.py", wt), (repo.root / "records/sprints/demo-1.md", repo.root),
+                      (repo.store / "sprints/demo-1.md", repo.root), (repo.root.parent / "elsewhere.txt", repo.root),
+                      ("records/sprints/demo-1.md", repo.root)):
+        res = run(MAIN_CHECKOUT, edit_event(repo, path, cwd=cwd), repo.env, cwd)
+        assert res.returncode == 0 and res.stdout == "", (path, res.stdout, res.stderr)
+    allowed = dict(repo.env, PM_ALLOW_MAIN_CHECKOUT="1")
+    assert run(MAIN_CHECKOUT, edit_event(repo, repo.root / "x.py"), allowed, repo.root).stdout == ""
+
+
+def committer(repo, tmp_path):
+    """pm's pre-commit section as pm init installs it, with the pm under test first on PATH."""
+    from pm import install
+    hooks_dir = tmp_path / "githooks"
+    hooks_dir.mkdir()
+    (hooks_dir / "pre-commit").write_text(install.git_hook_apply("pre-commit", "pre-commit")(None))
+    (hooks_dir / "pre-commit").chmod(0o755)
+    repo.git("config", "core.hooksPath", str(hooks_dir))
+    path = f"{Path(PM[0]).parent}{os.pathsep}{repo.env['PATH']}"
+
+    def commit(cwd, **env):
+        (cwd / "code.txt").write_text(f"{env}\n")
+        subprocess.run(["git", "add", "code.txt"], cwd=cwd, check=True)
+        return subprocess.run(["git", "commit", "-qm", "change"], cwd=cwd, capture_output=True, text=True,
+                              env=dict(repo.env, PATH=path, **env))
+    return commit
+
+
+def test_pre_commit_refuses_an_agent_commit_in_the_main_checkout(repo, tmp_path):
+    commit = committer(repo, tmp_path)
+    wt = repo.worktree("feature")
+    head = repo.git("rev-parse", "HEAD").strip()
+    res = commit(repo.root, CLAUDE_CODE_SESSION_ID="sess-a")
+    assert res.returncode == 1 and "error: an agent session may not commit in the main checkout." in res.stderr
+    assert "worktree add -b <branch> .claude/worktrees/<name> origin/main" in res.stderr
+    assert repo.git("rev-parse", "HEAD").strip() == head
+    assert commit(repo.root, CODEX_THREAD_ID="t-1").returncode == 1
+    assert commit(wt, CLAUDE_CODE_SESSION_ID="sess-a").returncode == 0  # its own worktree
+    assert commit(repo.root, CLAUDE_CODE_SESSION_ID="sess-a", PM_ALLOW_MAIN_CHECKOUT="1").returncode == 0
+    assert commit(repo.root).returncode == 0  # the owner's terminal: no session id
+    assert repo.git("rev-list", "--count", f"{head}..HEAD").strip() == "2"
+
+
+def test_post_checkout_warns_an_agent_that_switches_the_main_checkouts_branch(repo):
+    head = repo.git("rev-parse", "HEAD").strip()
+    agent = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-a")
+    switch = [*PM, "hook", "git-post-checkout", head, head, "1"]
+    res = subprocess.run(switch, cwd=repo.root, env=agent, capture_output=True, text=True)
+    assert res.returncode == 0 and "warning: an agent session switched the main checkout's branch." in res.stderr
+    for cmd, cwd, env in ((switch, repo.root, repo.env), (switch[:-1] + ["0"], repo.root, agent),
+                          (switch, repo.root, dict(agent, PM_ALLOW_MAIN_CHECKOUT="1"))):
+        res = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+        assert res.returncode == 0 and res.stderr == "", res.stderr

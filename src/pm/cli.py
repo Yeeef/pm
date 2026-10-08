@@ -41,7 +41,7 @@ from pathlib import Path
 
 import yaml
 
-from pm import __version__, config, hooks, install, launch, legacy
+from pm import __version__, config, hooks, install, launch, legacy, worktree
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
                            merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
@@ -999,6 +999,10 @@ def cmd_task_claim(args, records: Path) -> str:
     sid = (args.session or "").strip() or current_session()
     if not sid:
         raise Refuse(f"no agent session: neither {SESSION_ENV} nor {CODEX_SESSION_ENV} is set; name one with --session")
+    main = worktree.main_checkout(code_root(Path.cwd(), records))
+    if main and not worktree.allowed():
+        cfg = config.load(Path.cwd())
+        raise Refuse(f"not claiming {args.task_id} here: " + worktree.howto(main, cfg.remote, cfg.main_branch))
     repo = load(records)
     task = open_task(repo, args.task_id)
     h = holder(task)
@@ -2805,10 +2809,11 @@ def cmd_uninstall(args) -> str:
     return "\n".join(out) or "pm is not installed here; nothing to remove"
 
 
-# the clone's own state under .pm/ and each worktree's records/ link, in the common git dir's info/exclude: a branch
+# the clone's own state under .pm/, each worktree's records/ link and the agents' worktrees the main-checkout refusals
+# tell them to make under .claude/worktrees/, in the common git dir's info/exclude: a branch
 # made before pm has neither .pm/.gitignore nor pm's .gitignore block, and there git add -A would stage the store as an
 # embedded repo and the link as a file
-PM_EXCLUDE = ["/.pm/store/", "/.pm/run/", "/records"]
+PM_EXCLUDE = ["/.pm/store/", "/.pm/run/", "/records", f"/{worktree.DIR}/"]
 
 
 def exclude_path(main: Path) -> Path:
@@ -3454,7 +3459,10 @@ def parser() -> argparse.ArgumentParser:
                                     f"(${SESSION_ENV}, else ${CODEX_SESSION_ENV}) and the time in its metadata "
                                     "(claimed_by, claimed_at). Refuses when another live session holds it: one whose "
                                     f"transcript was written in the last {LIVE_WINDOW // 60} minutes. A subagent "
-                                    "shares its session's id, so it may claim what its session holds.")
+                                    "shares its session's id, so it may claim what its session holds. Refuses in "
+                                    "the main checkout, since agents change code only in a worktree of their own, "
+                                    f"and says how to make one; {worktree.ALLOW}=1 claims there when the owner asks "
+                                    "for that.")
     s.add_argument("task_id", help="the task's Beads id")
     s.add_argument("--session", metavar="ID", help="the session to record when no session id is in the environment")
     s.set_defaults(func=cmd_task_claim)
@@ -3633,11 +3641,16 @@ def parser() -> argparse.ArgumentParser:
                                  "in the store")
     hook.add_parser("owner-request", help="Stop: block once while the reply asks the owner for something no open "
                                           "need or action of this session covers")
+    hook.add_parser("main-checkout", help="Claude Code PreToolUse on Edit, Write, MultiEdit and NotebookEdit: deny a "
+                                          f"file in the main checkout's tree outside every linked worktree, unless "
+                                          f"{worktree.ALLOW}=1")
     s = hook.add_parser("git-post-checkout", help="git post-checkout (pm's section in .beads/hooks/post-checkout): in a "
-                                                  "new worktree, run pm init's clone and worktree half, all but the pm service")
+                                                  "new worktree, run pm init's clone and worktree half, all but the pm "
+                                                  "service; warn an agent session that switches the main checkout's branch")
     s.add_argument("git_args", nargs="*", help="the hook's arguments: previous HEAD, new HEAD, branch flag")
-    hook.add_parser("git-pre-commit", help="git pre-commit (pm's section in .beads/hooks/pre-commit): refuse staged "
-                                           "records/ changes on a code branch, unless a merge is in progress")
+    hook.add_parser("git-pre-commit", help="git pre-commit (pm's section in .beads/hooks/pre-commit): refuse an agent "
+                                           f"session's commit in the main checkout, unless {worktree.ALLOW}=1, and "
+                                           "staged records/ changes on a code branch, unless a merge is in progress")
 
     s = sub.add_parser("commit", help="commit your hand edits in the store, named by path, on the records branch",
                        description="Commit only the named records, so other sessions' uncommitted edits in the "
@@ -3654,7 +3667,17 @@ def parser() -> argparse.ArgumentParser:
 def hook_git_post_checkout(git_args: list[str]) -> int:
     """`pm hook git-post-checkout`: in a new worktree (previous HEAD all zeros), run setup_clone. The store's own
     checkout, which setup_clone itself makes, is skipped. A failure is printed and exits 1, which git reports without
-    undoing the checkout."""
+    undoing the checkout. A branch switch in the main checkout by an agent session gets a warning: git cannot undo it
+    from here, and the commit that would follow is refused by the pre-commit hook."""
+    if git_args[2:3] == ["1"] and set(git_args[0]) != {"0"} and worktree.agent() and not worktree.allowed():
+        try:
+            main = worktree.main_checkout(None)
+        except (OSError, subprocess.SubprocessError):
+            main = None
+        if main:
+            cfg = config.load(Path.cwd())
+            print("warning: an agent session switched the main checkout's branch. "
+                  + worktree.howto(main, cfg.remote, cfg.main_branch), file=sys.stderr)
     if not git_args or set(git_args[0]) != {"0"}:
         return 0
     try:
