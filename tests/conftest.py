@@ -15,10 +15,24 @@ import pytest
 
 from pm import __version__
 
+import transcript
+from work_items import items as work_items
+
 # This checkout's records/ link: the real records, wherever this clone keeps its store.
 REAL_RECORDS = Path(__file__).resolve().parents[2] / "records"
-# pm and the renderer from the package environment the tests run in (make test).
-PM = [str(Path(sys.executable).with_name("pm"))]
+# The pm the tests run: PM_IMPL=python (the default) runs pm from the package environment the tests run in (make
+# test); PM_IMPL=go runs the Go binary at $PM_GO_BIN. A test for one implementation only is marked with it and the
+# reason: @pytest.mark.impl("python", reason="…"). The renderer (Repo.pages) is Python's either way.
+IMPL = os.environ.get("PM_IMPL", "python")
+if IMPL == "python":
+    PM = [str(Path(sys.executable).with_name("pm"))]
+elif IMPL == "go":
+    if not os.access(os.environ.get("PM_GO_BIN", ""), os.X_OK):
+        raise RuntimeError(f"PM_IMPL=go runs the Go pm at $PM_GO_BIN, which is not an executable: "
+                           f"{os.environ.get('PM_GO_BIN')!r}")
+    PM = [os.environ["PM_GO_BIN"]]
+else:
+    raise RuntimeError(f"PM_IMPL={IMPL!r}: give python or go")
 FAKE_BD = Path(__file__).resolve().parent / "fake_bd.py"
 FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"
 FAKE_SCHED = Path(__file__).resolve().parent / "fake_sched.py"
@@ -221,6 +235,29 @@ def no_service_left(tmp_path: Path):
     stop_services(tmp_path)
 
 
+# Each test's Repo.pm calls, written as one transcript per test under $PM_TRANSCRIPTS/<impl> (default
+# pm/.transcripts/<impl>), which a run empties first: the same file from each implementation must be equal.
+TRANSCRIPTS = Path(os.environ.get("PM_TRANSCRIPTS") or Path(__file__).resolve().parents[1] / ".transcripts") / IMPL
+
+
+@pytest.fixture(autouse=True)
+def recorded(request, tmp_path: Path):
+    transcript.start()
+    yield
+    paths = {str(tmp_path): "<tmp>", str(tmp_path.resolve()): "<tmp>", str(request.config.pm_home): "<home>",
+             str(Path(request.config.pm_home).resolve()): "<home>", str(Path(PM[0]).parent): "<pm-bin>",
+             str(REAL_RECORDS.parent): "<checkout>", **{v: f"<{k}>" for k, v in UV_DIRS.items()},
+             tempfile.gettempdir(): "<systmp>", str(Path(tempfile.gettempdir()).resolve()): "<systmp>"}
+    transcript.write(TRANSCRIPTS, request.node.nodeid, paths)
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip a test marked for another implementation, with the mark's reason."""
+    for item in items:
+        if (mark := item.get_closest_marker("impl")) and IMPL not in mark.args:
+            item.add_marker(pytest.mark.skip(reason=f"only for {', '.join(mark.args)}: {mark.kwargs['reason']}"))
+
+
 # The user's files pm writes outside a repo: Codex's config (pm init's writable roots) and the service units.
 # pytest_configure points HOME, CODEX_HOME and CLAUDE_CONFIG_DIR at a temp dir for the whole test process, so
 # whatever a test runs with the inherited environment (git and the pm hooks it runs, in-process calls) writes there,
@@ -290,14 +327,31 @@ class Repo:
         self.state, self.log = tmp / "bd.json", tmp / "bd.log"
         self.noms = root / ".beads/embeddeddolt/demo/.dolt/noms"  # the Dolt store bd context points at; see dolt()
         self.env = fake_bd_env(tmp, os.environ)
+        self.base: dict[str, dict] = {}  # the items changes() counts from; the repo fixture marks them once set up
+        self.seeded: set[str] = set()  # ids pm did not mint: a transcript keeps them as they are
+        self.bd_mark = 0  # the fake bd's calls before the mark, which unchanged() leaves out
 
     def pm(self, *args: str, text: str = "", stdin: str | None = None,
            cwd: Path | None = None) -> subprocess.CompletedProcess:
         """Run pm; a non-empty text goes in as --text. stdin is closed unless given: only `pm hook` reads it, for the
-        hook input JSON."""
+        hook input JSON. The call goes into the test's transcript with the record files it changed and the store
+        export after it."""
         feed = {"stdin": subprocess.DEVNULL} if stdin is None else {"input": stdin}
-        return subprocess.run([*PM, *args, *([f"--text={text}"] if text else [])],
-                              cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
+        argv = [*args, *([f"--text={text}"] if text else [])]
+        before = self.record_files()
+        res = subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
+        after = self.record_files()
+        try:
+            export = sorted(self.items().values(), key=lambda i: i["id"])
+        except subprocess.CalledProcessError as e:  # a pm whose export fails here (no config, say): that is the record
+            export = f"pm export failed ({e.returncode}): {e.stderr}"
+        transcript.record({
+            "argv": argv, "stdin": stdin, "stdout": res.stdout, "stderr": res.stderr, "exit": res.returncode,
+            "records": {p: after[p].decode(errors="replace") if p in after else None
+                        for p in sorted(before.keys() | after.keys()) if before.get(p) != after.get(p)},
+            "export": export}, roots=[i["id"] for i in export if isinstance(export, list) and i["parent"] is None
+                                      and i["id"] not in self.seeded])
+        return res
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
         return subprocess.run(["git", *args], cwd=cwd or self.root, check=True, capture_output=True, text=True).stdout
@@ -331,18 +385,80 @@ class Repo:
     def write(self, rel: str, text: str) -> None:
         (self.records / rel).write_text(text)
 
-    def issues(self) -> dict[str, dict]:
-        return {i["id"]: i for i in json.loads(self.state.read_text())}
+    def record_files(self) -> dict[str, bytes]:
+        """The records store's files by path, its .git aside."""
+        return {p.relative_to(self.store).as_posix(): p.read_bytes() for p in sorted(self.store.rglob("*"))
+                if p.is_file() and ".git" not in p.relative_to(self.store).parts}
+
+    # Work data, store-neutral: tests read it as work-store items (work_items.py has the fields), never as bd JSON or
+    # bd calls. Seeds are given as the issues bd exports, which the work store imports; set_issue and add_issue
+    # are the one place a test writes them.
+
+    def items(self) -> dict[str, dict]:
+        """Every work-store item by id, as `pm export` gives them: for Python pm, the fake bd's issues mapped."""
+        if IMPL == "python":
+            return work_items(json.loads(self.state.read_text()))
+        res = subprocess.run([*PM, "export"], cwd=self.root, env=self.env, capture_output=True, text=True, check=True)
+        return {i["id"]: i for i in map(json.loads, res.stdout.splitlines())}
+
+    def mark(self) -> None:
+        """Count changes() from now on."""
+        self.base = self.items()
+        self.seeded |= self.base.keys()
+        self.bd_mark = len(self.bd_calls()) if IMPL == "python" else 0
+
+    def unchanged(self) -> bool:
+        """Nothing at all changed in the work store since the repo was set up or marked, seeds aside: every item
+        equal, stamps included; for Python pm also no bd write, a no-op one included."""
+        reads = lambda c: (c[:1] in (["list"], ["show"]) or c in (["context", "--json"], ["export"])
+                           or (c[:1] == ["comments"] and c[2:] == ["--json"]))
+        writes = [c for c in self.bd_calls()[self.bd_mark:] if not reads(c)] if IMPL == "python" else []
+        return self.items() == self.base and writes == []
+
+    def changes(self) -> dict[str, dict]:
+        """What pm changed in the work store since the repo was set up or marked, seeds aside: for each item it made,
+        its non-empty fields; for each it changed, the fields that differ. Store stamps (created_at, updated_at,
+        started_at, closed_at, claimed_at) and comment ids are left out; a test that cares asserts them itself."""
+        after = self.items()
+        assert self.base.keys() <= after.keys(), f"items gone from the store: {sorted(self.base.keys() - after.keys())}"
+        out = {}
+        for iid, item in after.items():
+            new = unstamped(item)
+            old = unstamped(self.base[iid]) if iid in self.base else None
+            diff = ({k: v for k, v in new.items() if v not in (None, "", [])} if old is None
+                    else {k: v for k, v in new.items() if old[k] != v})
+            if diff:
+                out[iid] = diff
+        return out
 
     def set_issue(self, issue_id: str, **fields) -> None:
-        issues = json.loads(self.state.read_text())
-        for i in issues:
-            if i["id"] == issue_id:
-                i.update(fields)
-        self.state.write_text(json.dumps(issues))
+        """Seed: change an issue's bd fields."""
+        def update(issues):
+            for i in issues:
+                if i["id"] == issue_id:
+                    i.update(fields)
+        self.seed(update)
         if self.noms.is_dir():
             with open(self.noms / "journal", "a") as f:
                 f.write(json.dumps([issue_id, fields]) + "\n")
+
+    def add_issue(self, issue: dict) -> None:
+        """Seed: add an issue as bd exports it."""
+        self.seed(lambda issues: issues.append(dict(issue)))
+
+    def seed(self, edit) -> None:
+        """Apply a seed edit to the fake bd's issues, and its items to the base changes() counts from, so a seed is
+        no change of pm's."""
+        if IMPL != "python":
+            raise NotImplementedError(f"PM_IMPL={IMPL}: no way yet to seed Go pm's work store")
+        issues = json.loads(self.state.read_text())
+        before = {i["id"]: json.dumps(i, sort_keys=True) for i in issues}
+        edit(issues)
+        self.state.write_text(json.dumps(issues))
+        now = work_items(issues)
+        seeded = {i["id"] for i in issues if before.get(i["id"]) != json.dumps(i, sort_keys=True)}
+        self.base.update({iid: now[iid] for iid in seeded})
+        self.seeded |= seeded
 
     def dolt(self) -> None:
         """Make the embedded Dolt store the pm service watches: a manifest and a journal that every bd write (fake bd or
@@ -359,15 +475,24 @@ class Repo:
         path.write_text(json.dumps(prs))
 
     def bd_calls(self) -> list[list[str]]:
+        """The calls Python pm made to the fake bd: only for an assertion about Python pm's use of bd."""
         return [json.loads(l) for l in self.log.read_text().splitlines()]
-
-    def bd_writes(self) -> list[list[str]]:
-        reads = lambda c: c[:1] in (["list"], ["show"]) or c in (["context", "--json"], ["export"]) or (c[:1] == ["comments"] and c[2:] == ["--json"])
-        return [c for c in self.bd_calls() if not reads(c)]
 
     def snapshot(self) -> dict[str, bytes]:
         return {p.relative_to(self.root).as_posix(): p.read_bytes()
                 for p in sorted(self.root.rglob("*")) if p.is_file() and ".git" not in p.parts}
+
+
+STAMPS = {"created_at", "updated_at", "started_at", "closed_at", "claimed_at"}
+
+
+def unstamped(item: dict) -> dict:
+    """An item without the store's stamps and its comments' ids, for Repo.changes()."""
+    out = {k: v for k, v in item.items() if k not in STAMPS}
+    if out["holder"]:
+        out["holder"] = {k: v for k, v in out["holder"].items() if k not in STAMPS}
+    out["comments"] = [{k: v for k, v in c.items() if k not in STAMPS and k != "id"} for c in out["comments"]]
+    return out
 
 
 @pytest.fixture
@@ -390,6 +515,7 @@ def repo(tmp_path: Path) -> Repo:
         (r.store / rel).write_text(text)
     r.commit("records")
     r.records.symlink_to(r.store)
+    r.mark()
     return r
 
 
@@ -406,6 +532,9 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: starts the pm service, renders the whole site, sets a clone up, "
                                        "reaches a git remote or runs the session-start hook; `make test` skips it, "
                                        "CI and `make test-full` run it")
+    config.addinivalue_line("markers", "impl(*impls, reason): a test for these implementations only (PM_IMPL), and why")
+    if not os.environ.get("PYTEST_XDIST_WORKER"):  # once per run, before any worker writes
+        shutil.rmtree(TRANSCRIPTS, ignore_errors=True)
 
 
 def pytest_unconfigure(config):

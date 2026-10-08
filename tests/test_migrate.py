@@ -15,7 +15,8 @@ import pytest
 
 from test_init import BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, commands, env, git, pm, section, snapshot
 
-pytestmark = pytest.mark.integration  # a clone with a remote; init moves the store and starts the service
+pytestmark = [pytest.mark.integration,  # a clone with a remote; init moves the store and starts the service
+              pytest.mark.impl("python", reason="the move off the pre-package harness, which Go pm retires with legacy.py")]
 
 CLAUDE_MD = """# CLAUDE.md
 

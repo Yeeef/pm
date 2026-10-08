@@ -15,6 +15,8 @@ from conftest import PM
 from pm import __version__, launch, tool
 from pm.records import RecordError
 
+pytestmark = pytest.mark.impl("python", reason="the pm uv tool, which Go pm retires with tool.py")
+
 FAKE_UV = '''#!{py}
 import json, os, shutil, sys
 from pathlib import Path
