@@ -50,14 +50,16 @@ this checkout's pm, `PM_IMPL=go` the Go binary at `$PM_GO_BIN`. A test for one i
 
 A test reads work data as work-store items, never as bd JSON or bd calls: `repo.items()` (for Python, the fake bd's
 issues through `tests/work_items.py`, the work store's bd import mapping), and `repo.changes()`, what pm changed since
-the repo was set up or `repo.mark()`, without store stamps. Seeds are bd issues, the form the work store imports,
+the repo was set up or `repo.mark()`, without store stamps; `repo.unchanged()` is the strict "nothing written" check
+(every item equal, stamps included, and for Python no bd write). Seeds are bd issues, the form the work store imports,
 written only through `repo.set_issue` and `repo.add_issue`. `repo.bd_calls()` stays for an assertion about Python pm's
 use of bd, under `if IMPL == "python"`.
 
 Each test writes one transcript, `pm/.transcripts/<impl>/<test file>/<test>.json` (or under `$PM_TRANSCRIPTS`; a run
 empties it first): every `repo.pm` call's argv, stdin, stdout, stderr, exit code, changed record files and store
-export, normalised by `tests/transcript.py` (temp and checkout paths, random temp names, commit ids, UUIDs, timestamps,
-durations, ports, minted root ids). The same test's transcript from Python and Go must be equal. Calls that bypass `repo.pm` (a direct `PM`
+export, normalised by `tests/transcript.py` keeping each value's shape (temp and checkout paths, random temp names,
+commit ids and UUIDs numbered with their length, timestamps and today's date with digits as 0, durations, ports,
+minted root ids). The same test's transcript from Python and Go must be equal. Calls that bypass `repo.pm` (a direct `PM`
 subprocess) are not recorded.
 
 A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up

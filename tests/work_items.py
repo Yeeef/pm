@@ -53,8 +53,9 @@ def item(issue: dict, by_id: dict[str, dict]) -> dict:
     labels = set(issue.get("labels") or [])
     bd_type = issue["issue_type"]
     if bd_type == "epic":
-        if parent and by_id.get(parent, {}).get("issue_type") != "epic":
-            raise MapError(f"{iid}: an epic under {parent}, which is no epic")
+        up = by_id.get(parent, {}) if parent else {}
+        if parent and (up.get("issue_type") != "epic" or up.get("parent")):
+            raise MapError(f"{iid}: an epic under {parent}, which is no project")
         kind = "sprint" if parent else "project"
     elif bd_type in ("task", "bug"):
         kind = "need" if "human" in labels else "task"
@@ -109,7 +110,9 @@ def need(issue: dict, meta: dict, labels: set[str]) -> dict:
     kind = "review" if "review" in meta else "action" if "action" in labels else "decision"
     review = None
     if kind == "review":
-        review = {"pr": None, "sprints": [], "designs": [], "focus": None, **meta["review"],
+        if odd := set(meta["review"]) - {"pr", "sprints", "designs", "focus"}:
+            raise MapError(f"{issue['id']}: unknown review keys {sorted(odd)}")
+        review ={"pr": None, "sprints": [], "designs": [], "focus": None, **meta["review"],
                   "merged": meta.get("merged"), "merge_reported": meta.get("merge_reported")}
         if issue.get("external_ref") not in (None, review["pr"]):
             raise MapError(f"{issue['id']}: external_ref {issue['external_ref']} is not the review's PR {review['pr']}")

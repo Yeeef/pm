@@ -43,7 +43,7 @@ def refused(repo, *args, text="", match):
     assert re.search(match, res.stderr), res.stderr
     assert repo.snapshot() == before
     assert heads() == head
-    assert repo.changes() == {}
+    assert repo.unchanged()
     return res
 
 
@@ -175,10 +175,22 @@ def without(flags: tuple, *drop: tuple[str, str]) -> tuple:
 def test_decision_need_refuses_a_malformed_part_and_writes_nothing(repo, flags, error):
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "demo.1", *flags)
     assert res.returncode != 0 and error in res.stderr, res.stderr
-    assert repo.changes() == {} and "demo.1.3" not in repo.items()
+    assert repo.unchanged() and "demo.1.3" not in repo.items()
 
 
 ACTION = "Restart the site on port 8767, which the new proxy expects.\n"
+
+
+def assert_answered(repo, need_id, resolution, text):
+    """The only change is the need closed with `resolution` and one new comment holding the answer `text`. How the
+    store keeps the answer is the implementation's: bd's `human respond` writes "Response: <text>" as the git user."""
+    change = repo.changes()
+    assert list(change) == [need_id] and set(change[need_id]) <= {"status", "resolution", "close_reason", "comments"}
+    assert (change[need_id]["status"], change[need_id]["resolution"]) == ("closed", resolution)
+    assert len(change[need_id]["comments"]) == 1 and change[need_id]["comments"][0]["text"].endswith(text)
+    if IMPL == "python":
+        assert change == {need_id: {"status": "closed", "resolution": resolution, "close_reason": "Responded",
+                                    "comments": [{"kind": "note", "author": "t", "text": f"Response: {text}"}]}}
 
 
 def test_decision_add_need_closes_need_and_records_decision(repo):
@@ -186,8 +198,7 @@ def test_decision_add_need_closes_need_and_records_decision(repo):
     res = repo.pm(*ADD, "--need", "demo.1.2", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
     text = f"{DECISION}\n{REASON}\nAnswers `demo.1.2`."
-    assert repo.changes() == {"demo.1.2": {"status": "closed", "resolution": "answered", "close_reason": "Responded",
-                                           "comments": [{"kind": "note", "author": "t", "text": f"Response: {text}"}]}}
+    assert_answered(repo, "demo.1.2", "answered", text)
     assert repo.items()["demo.1.2"]["status"] == "closed"
     assert path.read_text().split("## Design pages")[0].rstrip().endswith(
         f"::: decision {{source=owner date={TODAY}}}\n{text}\n:::")
@@ -205,7 +216,7 @@ def test_decision_add_refuses_a_malformed_part_and_writes_nothing(repo, flags, e
     heads = repo.store_log()
     res = repo.pm(*ADD, *flags)
     assert res.returncode != 0 and error in res.stderr, res.stderr
-    assert repo.changes() == {} and repo.store_log() == heads
+    assert repo.unchanged() and repo.store_log() == heads
     assert repo.git("status", "--porcelain", cwd=repo.store) == ""
 
 
@@ -218,10 +229,7 @@ def test_decision_close_closes_small_answer_without_record(repo):
     heads = repo.store_log()
     res = repo.pm("decision", "close", "demo.1.2", "--reason", "It picks a port and sets no rule.", text=ANSWER)
     assert res.returncode == 0, res.stderr
-    assert repo.changes() == {"demo.1.2": {
-        "status": "closed", "resolution": "no-decision", "close_reason": "Responded", "comments": [
-            {"kind": "note", "author": "t",
-             "text": f"Response: {ANSWER}\n\nNo decision record: It picks a port and sets no rule."}]}}
+    assert_answered(repo, "demo.1.2", "no-decision", f"{ANSWER}\n\nNo decision record: It picks a port and sets no rule.")
     need = repo.items()["demo.1.2"]
     assert (need["status"], need["type"], need["resolution"], need["labels"]) == ("closed", "need", "no-decision", [])
     assert repo.store_log() == heads and repo.git("status", "--porcelain", cwd=repo.store) == ""
@@ -465,7 +473,7 @@ def test_text_file_dash_refuses_a_socket_at_once(repo):
         theirs.close()
     assert code == 1 and err.startswith("error: --text-file - reads stdin, which here is not a pipe or a file; pass "
                                         "the body with a quoted heredoc: pm … --text-file - <<'EOF' … EOF"), err
-    assert repo.changes() == {}
+    assert repo.unchanged()
 
 
 def test_text_file_reads_a_file_and_refuses_with_text(repo, tmp_path):
@@ -851,7 +859,7 @@ def test_reply_is_refused_without_the_token_or_from_another_host(repo, served, t
     form = dict(form, token=page_token(served) if token == "page" else token)
     res = post_reply(served, form, headers)
     assert res[0] == code and said in res[2]
-    assert repo.changes() == {}
+    assert repo.unchanged()
 
 
 @contextlib.contextmanager
@@ -1049,7 +1057,7 @@ def test_task_claim_refuses_a_task_another_live_session_holds(repo):
     res = claim(repo, "demo.1.2", "sess-b")
     assert res.returncode == 1
     assert "held by live session sess-a" in res.stderr and "last 30 minutes" in res.stderr
-    assert not repo.changes()
+    assert repo.unchanged()
     # the same session (a subagent shares it) may claim again
     assert claim(repo, "demo.1.2", "sess-a").returncode == 0
 

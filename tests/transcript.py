@@ -2,32 +2,36 @@
 the test compare equal when they behave the same.
 
 A call holds its argv (without the pm binary), stdin, stdout, stderr, exit code, the record files it changed (path to
-new text, null when removed) and the store export after it. The normaliser replaces what differs between two runs:
-the temp and checkout paths and random temp names, git commit ids and UUIDs, timestamps, durations, ports, and root
-ids pm minted (in order of appearance; the seeded ids are kept)."""
+new text, null when removed) and the store export after it. The normaliser replaces what differs between two runs,
+keeping its shape so a difference in format still shows: the temp and checkout paths and random temp names, git
+commit ids and UUIDs (numbered by first appearance, with their length), timestamps and today's date (each digit as
+0), durations and ports (the number only), and root ids pm minted (in order of appearance; the seeded ids are kept)."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import re
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 CALLS: list[dict] = []
 ROOTS: list[str] = []
+IDS: dict[str, str] = {}  # each commit id or UUID seen, by its placeholder
 
 TEMP_NAME = re.compile(r"(<systmp>/[\w.-]*?)[a-z0-9_]{8}(?![\w.-])")  # tempfile.mkdtemp's 8 random characters
 UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
 # a commit id, or a digest cut like one; with a digit, so a word like "defaced" stays (1 in 27 short ids is digits only)
 SHA = re.compile(r"\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b")
 TIME = re.compile(r"\b\d{4}-\d\d-\d\d[T ]\d\d:\d\d(?::\d\d(?:\.\d+)?)?(?:Z|[+-]\d\d:?\d\d)?")
-DURATION = re.compile(r"\b\d+(?:\.\d+)?(?: ?(?:ms|s|min)|[mhd])\b")
+DURATION = re.compile(r"\b\d+(?:\.\d+)?(?= ?(?:ms|s|min)\b|[mhd]\b)")
 PORT = re.compile(r"(?:(?<=localhost:)|(?<=127\.0\.0\.1:)|(?<= :))\d{2,5}\b")
 
 
 def start() -> None:
     CALLS.clear()
     ROOTS.clear()
+    IDS.clear()
 
 
 def record(call: dict, roots: list[str]) -> None:
@@ -35,9 +39,23 @@ def record(call: dict, roots: list[str]) -> None:
     ROOTS.extend(r for r in roots if r not in ROOTS)
 
 
+def numbered(kind: str):
+    """A substitution giving each distinct id `<kind><length>-<n>`, n counting this kind's ids by first appearance."""
+    def sub(m: re.Match) -> str:
+        if m.group(0) not in IDS:
+            n = 1 + sum(p.startswith(f"<{kind}") for p in IDS.values())
+            IDS[m.group(0)] = f"<{kind}{len(m.group(0))}-{n}>"
+        return IDS[m.group(0)]
+    return sub
+
+
+def zeroed(m: re.Match) -> str:
+    return re.sub(r"\d", "0", m.group(0))
+
+
 def normalise(value, paths: dict[str, str]):
     """`value` with, in each string, each path in `paths` (longest first) and each minted root id replaced by its
-    placeholder, then random temp names, UUIDs, commit ids, timestamps, durations and ports."""
+    placeholder, then random temp names, UUIDs, commit ids, timestamps, today's date, durations and ports."""
     if isinstance(value, dict):
         return {normalise(k, paths): normalise(v, paths) for k, v in value.items()}
     if isinstance(value, list):
@@ -49,10 +67,12 @@ def normalise(value, paths: dict[str, str]):
     for n, root in enumerate(ROOTS, 1):
         value = re.sub(rf"(?<![\w-]){re.escape(root)}(?![\w-])", f"<root-{n}>", value)
     value = TEMP_NAME.sub(r"\1<random>", value)
-    value = UUID.sub("<uuid>", value)
-    value = SHA.sub("<sha>", value)
-    value = TIME.sub("<time>", value)
-    value = DURATION.sub("<duration>", value)
+    value = UUID.sub(numbered("uuid"), value)
+    value = SHA.sub(numbered("sha"), value)
+    value = TIME.sub(zeroed, value)
+    for today in {date.today().isoformat(), datetime.now(timezone.utc).date().isoformat()}:
+        value = value.replace(today, "0000-00-00")
+    value = DURATION.sub("0", value)
     return PORT.sub("<port>", value)
 
 

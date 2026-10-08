@@ -329,6 +329,7 @@ class Repo:
         self.env = fake_bd_env(tmp, os.environ)
         self.base: dict[str, dict] = {}  # the items changes() counts from; the repo fixture marks them once set up
         self.seeded: set[str] = set()  # ids pm did not mint: a transcript keeps them as they are
+        self.bd_mark = 0  # the fake bd's calls before the mark, which unchanged() leaves out
 
     def pm(self, *args: str, text: str = "", stdin: str | None = None,
            cwd: Path | None = None) -> subprocess.CompletedProcess:
@@ -340,12 +341,16 @@ class Repo:
         before = self.record_files()
         res = subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
         after = self.record_files()
-        export = list(self.items().values())
+        try:
+            export = sorted(self.items().values(), key=lambda i: i["id"])
+        except subprocess.CalledProcessError as e:  # a pm whose export fails here (no config, say): that is the record
+            export = f"pm export failed ({e.returncode}): {e.stderr}"
         transcript.record({
             "argv": argv, "stdin": stdin, "stdout": res.stdout, "stderr": res.stderr, "exit": res.returncode,
             "records": {p: after[p].decode(errors="replace") if p in after else None
                         for p in sorted(before.keys() | after.keys()) if before.get(p) != after.get(p)},
-            "export": export}, roots=[i["id"] for i in export if i["parent"] is None and i["id"] not in self.seeded])
+            "export": export}, roots=[i["id"] for i in export if isinstance(export, list) and i["parent"] is None
+                                      and i["id"] not in self.seeded])
         return res
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
@@ -400,6 +405,15 @@ class Repo:
         """Count changes() from now on."""
         self.base = self.items()
         self.seeded |= self.base.keys()
+        self.bd_mark = len(self.bd_calls()) if IMPL == "python" else 0
+
+    def unchanged(self) -> bool:
+        """Nothing at all changed in the work store since the repo was set up or marked, seeds aside: every item
+        equal, stamps included; for Python pm also no bd write, a no-op one included."""
+        reads = lambda c: (c[:1] in (["list"], ["show"]) or c in (["context", "--json"], ["export"])
+                           or (c[:1] == ["comments"] and c[2:] == ["--json"]))
+        writes = [c for c in self.bd_calls()[self.bd_mark:] if not reads(c)] if IMPL == "python" else []
+        return self.items() == self.base and writes == []
 
     def changes(self) -> dict[str, dict]:
         """What pm changed in the work store since the repo was set up or marked, seeds aside: for each item it made,
