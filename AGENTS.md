@@ -32,8 +32,7 @@ A design change edits the sub page it touches to the new state; the trail of fin
 | Command | Runs |
 |---|---|
 | `make test` (repo root) | The light set: `pm/tests/run.py -n auto -m "not integration"` in the package environment |
-| `make test-full` (repo root) | Every test but the live eval, the integration ones too (`-n auto`), as CI runs them |
-| `make test-full ARGS="-k serve"` | Only the tests `-k` selects; `ARGS` goes to pytest in `make test` too |
+| `make test-full ARGS="-k serve"` (repo root) | The tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
 | `uv run pytest -q -n auto tests/test_hooks.py` (in `pm/`) | One file, or `-k name` for one test |
 | `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH |
 
@@ -41,7 +40,8 @@ Run `make test` while working. When a change touches what an integration test co
 `init`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
 Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> --watch`):
 `.github/workflows/pm-tests.yml` runs the light set and the integration set as separate jobs on every PR and push to main.
-`make test-full` (or `ARGS="-k …"`) reproduces a CI failure locally.
+Do not run the whole integration set locally: CI runs it on every PR, and that run is the check. Push, then watch
+it; to reproduce a CI failure, run only the failing tests with `make test-full ARGS="-k …"`.
 
 A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
 (`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
