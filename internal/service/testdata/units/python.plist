@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/home/u/.local/bin:/usr/bin:/bin</string>
+		<key>PORT</key>
+		<string>8000</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>local.pm.yeeef-agents.4a42438d</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/home/u/.local/share/uv/tools/pm/bin/python</string>
+		<string>-m</string>
+		<string>pm.cli</string>
+		<string>service</string>
+		<string>run</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/pm-test/yeeef-agents/.pm/run/service.log</string>
+	<key>StandardOutPath</key>
+	<string>/pm-test/yeeef-agents/.pm/run/service.log</string>
+	<key>WorkingDirectory</key>
+	<string>/pm-test/yeeef-agents</string>
+</dict>
+</plist>

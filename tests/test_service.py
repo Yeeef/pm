@@ -130,6 +130,20 @@ def test_launchd_agent_keeps_the_service_alive(machine, monkeypatch):
         ["launchctl", "bootstrap", f"gui/{uid}", str(plist)]], "a changed plist is loaded again, once launchd let go"
 
 
+UNITS = Path(__file__).resolve().parent.parent / "internal/service/testdata/units"
+
+
+@IN_PROCESS
+@pytest.mark.parametrize("kind,ext", [("launchd", "plist"), ("systemd", "service")])
+def test_unit_files_equal_the_files_go_pm_is_held_to(monkeypatch, kind, ext):
+    """Go pm's unit test holds its unit files to these files, written by this code; this holds Python's to the same, so
+    both write the same unit for the same inputs (the clone, PATH, port and command)."""
+    for c in json.loads((UNITS / "cases.json").read_text()):
+        monkeypatch.setattr(service, "command", lambda py, argv=c["argv"]: argv)
+        want = (UNITS / f"{c['name']}.{ext}").read_bytes()
+        assert service.unit_bytes(Path(c["main"]), kind, c["path"], c["port"], Path("unused")) == want, c["name"]
+
+
 def service_run(repo, port: str) -> tuple[subprocess.Popen, int]:
     """`pm service run` on `port` (0: a free one), as the supervisor starts it, its stdout and stderr in one pipe."""
     srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root, env=dict(repo.env, PORT=port),

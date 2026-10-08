@@ -459,9 +459,12 @@ func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	root.SetErr(stderr)
 	err := root.Execute()
 	var ue *usageError
+	var ec *exitCode
 	switch {
 	case err == nil:
 		return 0
+	case errors.As(err, &ec):
+		return ec.code
 	case errors.As(err, &ue):
 		fmt.Fprintf(stderr, "usage: %s\n%s: error: %s\n", ue.cmd.usage(), ue.cmd.prog(), ue.msg)
 		return 2
@@ -511,6 +514,8 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return hooks.CmdPrime(part, p.Get("hook_json") == "true", Nouns(), stdin, stdout)
 	case "hook stop":
 		return hooks.HookStop(stdin, stdout, stderr)
+	case "service install", "service status", "service restart", "service logs", "service run":
+		return runService(strings.TrimPrefix(name, "service "), p, here, stdout)
 	}
 	return &refusal{fmt.Sprintf("pm %s is not in Go pm yet; Python pm runs it until the cut-over", name)}
 }

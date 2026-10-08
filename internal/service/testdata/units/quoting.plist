@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/tools%x:/a "q" b:/c\d:/usr/bin</string>
+		<key>PORT</key>
+		<string>65535</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>local.pm.my clone%x&amp;&lt;y&gt; café.c1f9650a</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/p m/pm &amp; &lt;bin&gt;</string>
+		<string>service</string>
+		<string>run</string>
+		<string>it's "%h" \ x</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/pm-test/my clone%x&amp;&lt;y&gt; café/.pm/run/service.log</string>
+	<key>StandardOutPath</key>
+	<string>/pm-test/my clone%x&amp;&lt;y&gt; café/.pm/run/service.log</string>
+	<key>WorkingDirectory</key>
+	<string>/pm-test/my clone%x&amp;&lt;y&gt; café</string>
+</dict>
+</plist>
