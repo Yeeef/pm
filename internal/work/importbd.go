@@ -388,14 +388,8 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 		if c.Author == siteReply {
 			cm.Kind, cm.Author = Reply, "owner"
 		}
-		it.Comments = append(it.Comments, cm)
+		it.Comments = append(it.Comments, cm) // in bd's order, which the store keeps
 	}
-	slices.SortStableFunc(it.Comments, func(a, b Comment) int {
-		if c := a.CreatedAt.Compare(b.CreatedAt); c != 0 {
-			return c
-		}
-		return strings.Compare(a.ID, b.ID)
-	})
 
 	if it.Type != Need {
 		if meta.Session != "" || meta.Inbox != "" || meta.InboxHost != "" || meta.PickedUp != nil ||

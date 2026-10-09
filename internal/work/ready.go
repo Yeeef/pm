@@ -101,7 +101,7 @@ func (x *Index) Ready(id string, live func(session string) bool) bool {
 		return false
 	}
 	for _, a := range x.Ancestors(id) {
-		if x.byID[a].Status != Open {
+		if p := x.byID[a]; p == nil || p.Status != Open { // a missing ancestor: Check fails such a store
 			return false
 		}
 	}
@@ -119,7 +119,7 @@ func (x *Index) ReadyTasks(live func(session string) bool) []Item {
 	}
 	sprintOf := func(id string) int {
 		for _, a := range x.Ancestors(id) {
-			if s := x.byID[a]; s.Type == Sprint {
+			if s := x.byID[a]; s != nil && s.Type == Sprint {
 				return s.Number
 			}
 		}

@@ -13,7 +13,7 @@ import (
 // The gate: an exclusive kernel flock on <main checkout>/.pm/run/work.lock that a pm process takes before it opens the
 // store and keeps until it closes it, for reads too, because the engine's own lock is exclusive for readers as well.
 // Processes queue on it in the kernel. A waiter that times out fails hard, naming the lock file. Every open appends
-// its wait to <main checkout>/.pm/run/work-gate.log: the evidence for moving to a store the service holds (pm-go
+// its wait, a timed-out one too (timeout=1), to <main checkout>/.pm/run/work-gate.log: the evidence for moving to a store the service holds (pm-go
 // page, Store sharing between the CLI and the service).
 
 const (
@@ -80,8 +80,13 @@ func takeGate(runDir string, timeout time.Duration) (*gate, time.Duration, error
 		default:
 			abandoned = true
 		}
-		return nil, time.Since(start), fmt.Errorf("work store gate %s: another pm process held it for over %s; "+
-			"see which with lsof %s", path, timeout, path)
+		wait := time.Since(start)
+		err := fmt.Errorf("work store gate %s: another pm process held it for over %s; see which with lsof %s", path,
+			timeout, path)
+		if lerr := logLine(runDir, wait, " timeout=1"); lerr != nil {
+			err = fmt.Errorf("%w (and %v)", err, lerr)
+		}
+		return nil, wait, err
 	}
 }
 
@@ -96,9 +101,12 @@ func flock(f *os.File) error {
 }
 
 // logWait appends one line for this open: when, which process, how long it waited, and its command line.
-func logWait(runDir string, wait time.Duration) error {
-	line := fmt.Sprintf("%s pid=%d wait_ms=%.1f argv=%q\n", time.Now().UTC().Format(time.RFC3339), os.Getpid(),
-		float64(wait.Microseconds())/1000, strings.Join(os.Args, " "))
+func logWait(runDir string, wait time.Duration) error { return logLine(runDir, wait, "") }
+
+// logLine is logWait's line, with extra fields (" timeout=1" for a wait that gave up).
+func logLine(runDir string, wait time.Duration, extra string) error {
+	line := fmt.Sprintf("%s pid=%d wait_ms=%.1f%s argv=%q\n", time.Now().UTC().Format(time.RFC3339), os.Getpid(),
+		float64(wait.Microseconds())/1000, extra, strings.Join(os.Args, " "))
 	f, err := os.OpenFile(filepath.Join(runDir, GateLogFile), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("work store gate log: %w", err)

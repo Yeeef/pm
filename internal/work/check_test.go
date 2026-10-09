@@ -54,6 +54,8 @@ func TestCheckRefusesEachImpossibleState(t *testing.T) {
 		{P + ".1.6", func(it *Item) { it.Need.Kind = Review }, "review need without review fields"},
 		{P + ".1.6", func(it *Item) { review(it); it.Need.Kind = Action }, "action need with review fields"},
 		{P + ".1.6", func(it *Item) { review(it); it.Need.Review.PR = "" }, "without a PR"},
+		{P + ".1.6", func(it *Item) { review(it); it.Need.Review.Sprints = []string{P + ".1", P + ".1"} },
+			"repeated review sprint"},
 		{P + ".1.6", func(it *Item) { it.Need.RaisedBy = &RaisedBy{} }, "raised_by"},
 		{P + ".1.6", func(it *Item) { it.Need.Delivered = -1 }, "below 0"},
 		{P, func(it *Item) { it.Parent = P + ".1" }, "project with parent"},

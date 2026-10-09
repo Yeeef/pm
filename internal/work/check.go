@@ -163,6 +163,15 @@ func checkNeed(it *Item) error {
 	if n.Review != nil && n.Review.PR == "" {
 		return itemError(id, "is a review need without a PR")
 	}
+	if n.Review != nil {
+		for _, list := range [][]string{n.Review.Sprints, n.Review.Designs} {
+			for i, v := range list {
+				if v == "" || slices.Contains(list[:i], v) {
+					return itemError(id, "has an empty or repeated review sprint or design %q", v)
+				}
+			}
+		}
+	}
 	if n.RaisedBy != nil && n.RaisedBy.Session == "" {
 		return itemError(id, "is raised by no session but has raised_by")
 	}

@@ -343,11 +343,47 @@ func TestTheGateSerialisesOpensAndLogsEachWait(t *testing.T) {
 	d2.Shutdown()
 	log := string(must(os.ReadFile(filepath.Join(o.RunDir, GateLogFile))))
 	lines := strings.Split(strings.TrimSpace(log), "\n")
-	if len(lines) != 2 || !strings.Contains(lines[1], fmt.Sprintf("pid=%d", os.Getpid())) {
-		t.Fatalf("gate log, one line per open:\n%s", log)
+	// One line per open: the create, the timed-out wait, the open that waited for the shutdown.
+	if len(lines) != 3 || !strings.Contains(lines[1], " timeout=1 ") || strings.Contains(lines[2], " timeout=1 ") ||
+		!strings.Contains(lines[2], fmt.Sprintf("pid=%d", os.Getpid())) {
+		t.Fatalf("gate log:\n%s", log)
 	}
-	var ms float64
-	if _, err := fmt.Sscanf(lines[1][strings.Index(lines[1], "wait_ms="):], "wait_ms=%f", &ms); err != nil || ms < 150 {
-		t.Fatalf("the second open waited %v ms (%v)", ms, err)
+	for i, least := range map[int]float64{1: 300, 2: 150} {
+		var ms float64
+		if _, err := fmt.Sscanf(lines[i][strings.Index(lines[i], "wait_ms="):], "wait_ms=%f", &ms); err != nil ||
+			ms < least {
+			t.Fatalf("line %d waited %v ms (%v)", i, ms, err)
+		}
+	}
+}
+
+func TestCommentsKeepTheirOrderWithinASecond(t *testing.T) {
+	dir := t.TempDir()
+	o := Options{Dir: filepath.Join(dir, "work"), RunDir: filepath.Join(dir, "run"), Prefix: "demo",
+		Now: func() time.Time { return at }}
+	d := must(CreateStore(o))
+	defer d.Shutdown()
+	_, _, task, need := seed(t, d)
+	var want []string
+	for i := range 5 {
+		c := must(d.Comment(task.ID, Note, "s1", fmt.Sprint(i)))
+		want = append(want, c.ID)
+	}
+	var got []string
+	for _, c := range get(t, d, task.ID).Comments {
+		got = append(got, c.ID)
+	}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("comments came back as %v, written as %v", got, want)
+	}
+	must(d.Comment(need.ID, Note, "s1", "first"))
+	if err := d.Answer(need.ID, "second"); err != nil {
+		t.Fatal(err)
+	}
+	if cs := get(t, d, need.ID).Comments; cs[0].Text != "first" || cs[1].Text != "second" {
+		t.Fatalf("%+v", cs)
+	}
+	if err := d.Import(nil, "nothing"); err == nil {
+		t.Fatal("imported no items")
 	}
 }

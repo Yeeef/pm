@@ -77,11 +77,12 @@ var schema = []string{
 	`CREATE TABLE comments (
 		id VARCHAR(64) NOT NULL PRIMARY KEY,
 		item_id VARCHAR(128) NOT NULL,
+		pos INT NOT NULL,
 		kind VARCHAR(5) NOT NULL,
 		author VARCHAR(255) NOT NULL,
 		text TEXT NOT NULL,
 		created_at DATETIME NOT NULL,
-		KEY comments_item (item_id),
+		UNIQUE KEY comments_item_pos (item_id, pos),
 		CONSTRAINT comments_item_fk FOREIGN KEY (item_id) REFERENCES items (id),
 		CHECK (kind IN ('reply','note'))
 	)`,

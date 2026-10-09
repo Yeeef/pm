@@ -320,7 +320,7 @@ func load(q querier) ([]Item, error) {
 	if targetErr != nil {
 		return nil, targetErr
 	}
-	r, err := q.QueryContext(ctx, "SELECT id, item_id, kind, author, text, created_at FROM comments ORDER BY created_at, id")
+	r, err := q.QueryContext(ctx, "SELECT id, item_id, kind, author, text, created_at FROM comments ORDER BY item_id, pos")
 	if err != nil {
 		return nil, fmt.Errorf("work store: %w", err)
 	}
@@ -478,12 +478,9 @@ func (d *Dolt) write(msg string, fn change) error {
 		if err != nil {
 			return err
 		}
-		had := map[string]map[string]bool{} // each item's comment ids before the change
+		had := map[string][]Comment{} // each item's comments before the change
 		for _, it := range items {
-			had[it.ID] = map[string]bool{}
-			for _, c := range it.Comments {
-				had[it.ID][c.ID] = true
-			}
+			had[it.ID] = slices.Clone(it.Comments)
 		}
 		changed, err := fn(x)
 		if err != nil {
@@ -510,8 +507,9 @@ func (d *Dolt) write(msg string, fn change) error {
 }
 
 // writeRows writes the changed items' rows: each items row upserted, parents before children; then each item's
-// labels, blockers and review targets replaced, and its new comments added. Comments are append-only.
-func writeRows(tx *sql.Tx, all, changed []Item, had map[string]map[string]bool) error {
+// labels, blockers and review targets replaced, and its new comments added. Comments are append-only: an item's
+// comments before the change must stay, unchanged and in order, at the head of its list.
+func writeRows(tx *sql.Tx, all, changed []Item, had map[string][]Comment) error {
 	x, err := NewIndex(all)
 	if err != nil {
 		return err
@@ -525,16 +523,11 @@ func writeRows(tx *sql.Tx, all, changed []Item, had map[string]map[string]bool) 
 	}
 	for _, it := range order {
 		before := had[it.ID]
-		kept := 0
-		for _, c := range it.Comments {
-			if before[c.ID] {
-				kept++
-			}
+		if len(it.Comments) < len(before) || !slices.EqualFunc(before, it.Comments[:len(before)],
+			func(a, b Comment) bool { return a == b }) {
+			return itemError(it.ID, "lost or changed a comment; comments are append-only")
 		}
-		if kept != len(before) {
-			return itemError(it.ID, "lost a comment; comments are append-only")
-		}
-		if err := writeLists(tx, &it, before); err != nil {
+		if err := writeLists(tx, &it, len(before)); err != nil {
 			return err
 		}
 	}
@@ -594,9 +587,9 @@ func upsertItem(tx *sql.Tx, it *Item) error {
 	return nil
 }
 
-// writeLists replaces an item's labels, blockers and review targets with its own, and adds the comments that were not
-// there before.
-func writeLists(tx *sql.Tx, it *Item, before map[string]bool) error {
+// writeLists replaces an item's labels, blockers and review targets with its own, and adds its comments from position
+// kept on, each with its position in the item's list.
+func writeLists(tx *sql.Tx, it *Item, kept int) error {
 	exec := func(q string, args ...any) error {
 		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
 			return fmt.Errorf("work store: write %s: %w", it.ID, err)
@@ -628,12 +621,10 @@ func writeLists(tx *sql.Tx, it *Item, before map[string]bool) error {
 			}
 		}
 	}
-	for _, c := range it.Comments {
-		if before[c.ID] {
-			continue
-		}
-		if err := exec("INSERT INTO comments (id, item_id, kind, author, text, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-			c.ID, it.ID, string(c.Kind), c.Author, c.Text, c.CreatedAt.UTC()); err != nil {
+	for pos := kept; pos < len(it.Comments); pos++ {
+		c := it.Comments[pos]
+		if err := exec("INSERT INTO comments (id, item_id, pos, kind, author, text, created_at) "+
+			"VALUES (?, ?, ?, ?, ?, ?, ?)", c.ID, it.ID, pos, string(c.Kind), c.Author, c.Text, c.CreatedAt.UTC()); err != nil {
 			return err
 		}
 	}
@@ -643,6 +634,9 @@ func writeLists(tx *sql.Tx, it *Item, before map[string]bool) error {
 // Import writes items into an empty store as one transaction and one Dolt commit (pm init --import-bd). It refuses a
 // store that holds any item, and items that fail Check.
 func (d *Dolt) Import(items []Item, msg string) error {
+	if len(items) == 0 {
+		return errors.New("work store: an import of no items")
+	}
 	return d.write(msg, func(x *Index) ([]Item, error) {
 		if len(x.items) > 0 {
 			return nil, fmt.Errorf("work store: it holds %d items already; an import goes into an empty store only",
