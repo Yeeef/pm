@@ -1191,8 +1191,9 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
 @IN_PROCESS
 def test_site_lists_open_work_that_sits_in_no_sprint():
     """A task filed directly under a project shows on its project page and the overview; a task with no parent on the
-    overview only, with no project; a task under a sprint, a need under the project and a closed task nowhere. In
-    process: the work store refuses an open item with no parent, so the repo fixture cannot seed one; bd allows it."""
+    overview only, with no project, a need with no parent too; a task under a sprint, a need under the project and a
+    closed task nowhere; an overview with none has no section. In process: the work store refuses an open item with
+    no parent, so the repo fixture cannot seed one; bd allows it."""
     from conftest import ISSUES, RECORDS
     from pm.records import parse_record
     from pm.site import render_index, render_record
@@ -1205,17 +1206,21 @@ def test_site_lists_open_work_that_sits_in_no_sprint():
               {"id": "demo.5", "title": "Closed under project", "status": "closed", "issue_type": "task",
                "parent": "demo"},
               {"id": "demo.1.3", "title": "In a sprint", "status": "open", "issue_type": "task", "parent": "demo.1"},
-              {"id": "orphan", "title": "No parent at all", "status": "open", "issue_type": "bug"}]:
+              {"id": "orphan", "title": "No parent at all", "status": "open", "issue_type": "bug"},
+              {"id": "orphan-need", "title": "A need with no parent", "status": "open", "issue_type": "task",
+               "labels": ["human"]}]:
         beads[i["id"]] = {"created_at": "2026-10-01T12:00:00Z", **i}
     table = lambda page: re.search(r'id="not-in-a-sprint">Not in a sprint</h\d>\n(.*?)</table>', page, re.S).group(1)
     rows = lambda page: re.findall(r"<tr><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td></tr>", table(page))
     assert rows(render_index(recs, beads, "site")) == [
         ("demo.3", "task", "Loose under project", '<a href="projects/demo.html">Demo</a>'),
-        ("orphan", "bug", "No parent at all", "—")]
+        ("orphan", "bug", "No parent at all", "—"),
+        ("orphan-need", "task", "A need with no parent", "—")]
     demo, old = sorted(recs, key=lambda r: r.rel)
     assert rows(render_record(demo, recs, beads)) == [
         ("demo.3", "task", "Loose under project", '<a href="../projects/demo.html">Demo</a>')]
     assert "Not in a sprint" not in render_record(old, recs, beads)
+    assert "Not in a sprint" not in render_index(recs, {i["id"]: dict(i) for i in ISSUES}, "site")
 
 
 @IN_PROCESS
