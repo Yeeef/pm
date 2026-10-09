@@ -529,6 +529,12 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		}
 	case "service install", "service status", "service restart", "service logs", "service run":
 		return runService(strings.TrimPrefix(name, "service "), p, here, stdout, stderr)
+	case "push":
+		cfg, err := config.Load(here)
+		if err != nil {
+			return err
+		}
+		return cmdPush(cfg, here, stdout)
 	case "check":
 		return cmdCheck(here, stdout)
 	case "where":
