@@ -19,7 +19,9 @@ name for itself when it runs a Python pin, "the pm uv tool (pm X)" in Python and
 line in pm show names, `bd show` in Python and `pm show` in Go; pm decision close's undo, bd's label removal in
 Python and pm decision add --need in Go; and the comment that
 holds the answer a need closes with (pm decision add --need, pm decision close), which Python pm's `bd human respond`
-writes as a note "Response: <text>" by the git user and Go pm's work store as a reply by the owner (work.Answer)."""
+writes as a note "Response: <text>" by the git user and Go pm's work store as a reply by the owner (work.Answer);
+and the texts that name where an item lives, Beads in Python and the work store in Go (GO_WORDING): refusals, record
+check errors and the Progress prompt lines of a new record."""
 
 from __future__ import annotations
 
@@ -60,6 +62,18 @@ RULES = [(_PM / "src/pm/prime.md").read_text(encoding="utf-8").strip(), (_PM / "
 # the launcher running a Python pin: Python's pm uv tool, Go's installed pm (INSTALLED_PM has run first)
 PIN_RUNNER = re.compile(r"which (?:<the installed pm> \(pm (\S+)\)|pm (\S+)) runs through uv")
 SHOW_ITEM = re.compile(r"-> (?:bd|pm) show ")  # pm show's need lines: the command that shows the need
+# Python pm's words for where an item lives, and Go pm's
+GO_WORDING = [
+    ("is not a Beads issue", "is not in the work store"),
+    ("is not labelled human, so it is not a need", "is not a need"),
+    ("is labelled human, so it is a need", "is a need"),
+    ("is not a Beads epic", "is not a sprint in the work store"),
+    ("(a Beads issue labelled human)", "(a need in the work store)"),
+    ("not found in Beads", "not found in the work store"),
+    ("which is generated from Beads when", "which is generated from the work store when"),
+    ("Generated from Beads when the page is rendered.", "Generated from the work store when the page is rendered."),
+    ("Generated from Beads and the sprint\n> records when", "Generated from the work store and the\n> sprint records when"),
+]
 UNDO = re.compile(r"; (?:undo with: bd update (\S+) --remove-label=no-decision|if it sets a rule after all, record it "
                   r"with pm decision add --need (\S+), which marks the need answered)")
 
@@ -120,6 +134,8 @@ def normalise(value, paths: dict[str, str]):
         value = value.replace(rules, "<prime.md>")
     value = PIN_RUNNER.sub(lambda m: f"which <the launcher, pm {m.group(1) or m.group(2)}> runs through uv", value)
     value = SHOW_ITEM.sub("-> <show the item> ", value)
+    for python, go in GO_WORDING:
+        value = value.replace(python, go)
     value = UNDO.sub(lambda m: f"; <undo no-decision on {m.group(1) or m.group(2)}>", value)
     return PORT.sub("<port>", value)
 

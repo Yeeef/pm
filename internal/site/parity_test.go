@@ -135,6 +135,7 @@ func TestPagesEqualPythonsAfterNormalisation(t *testing.T) {
 		py := readResult(t, filepath.Join(dir, "pages.json"))
 		items := loadItems(t, filepath.Join(dir, "items.json"))
 		pages, err := goPages(dir, items, siteName(t, dir))
+		py.Error = goError(py.Error)
 		if py.Error != nil || err != nil {
 			if py.Error == nil || err == nil || err.Error() != *py.Error {
 				t.Errorf("%s: Python's error %v, Go's %v", name, deref(py.Error), err)
@@ -192,7 +193,7 @@ func TestCheckEqualsPythons(t *testing.T) {
 		} else {
 			got = fmt.Sprintf("%d pages", pages)
 		}
-		if py.Error != nil {
+		if py.Error = goError(py.Error); py.Error != nil {
 			want = "error: " + *py.Error
 		} else {
 			want = string(py.Pages) + " pages"
@@ -229,6 +230,19 @@ func reference(t *testing.T) struct{ Cites [][3]json.RawMessage } {
 		t.Fatal(err)
 	}
 	return ref
+}
+
+// errorWording is Python pm's words in a render or check error for where an item lives, Beads, and Go pm's.
+var errorWording = strings.NewReplacer("not found in Beads", "not found in the work store",
+	"which is generated from Beads when", "which is generated from the work store when")
+
+// goError is Python's error in Go's wording.
+func goError(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	r := errorWording.Replace(*s)
+	return &r
 }
 
 func deref(s *string) any {

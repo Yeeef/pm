@@ -99,9 +99,19 @@ def go_strings() -> list[str]:
     return out
 
 
-# Refusals Go pm words for the work store where Python pm names a bd command: Python's part, Go's.
+# Refusals Go pm words for the work store where Python pm names a bd command or Beads: Python's part, Go's.
 GO_WORDING = {"is not in a sprint with a record; set its sprint with bd update --parent":
-              "is not in a sprint with a record, so no sprint can record the scope change"}
+              "is not in a sprint with a record, so no sprint can record the scope change",
+              "is not a Beads issue": "is not in the work store",
+              "is not a Beads epic": "is not a sprint in the work store",
+              "; undo the Beads step with:": "; undo the work-store step with:",
+              "is not a request to the owner (a Beads issue labelled":
+              "is not a request to the owner (a need in the work store)",
+              "is not labelled human, so it is not a need; record your own decision with pm decision add "
+              "without --need":
+              "is not a need; record your own decision with pm decision add without --need",
+              "is labelled human, so it is a need; answer a decision with pm decision add --need":
+              "is a need; answer a decision with pm decision add --need"}
 
 
 def test_every_ported_refusal_text_is_in_go_source():

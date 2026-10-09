@@ -345,6 +345,29 @@ GO_HELP = [
      'only the resolution no-decision and the reason (as a comment) are set,'),
     ('If labelling fails, run it again;',
      'If setting the resolution fails, run it again;'),
+    # the pm on PATH is Go's release binary, which pm init copies into the bin dir, not the pm uv tool
+    ("Unit: runs the pm uv tool's interpreter (`<tool python> -m pm.cli service run`; pm init installs the tool) in "
+     "the main checkout, with the PATH install ran with (bd, git and uv must be on it) and PORT. The tool runs the "
+     "version the main checkout pins, through uv when it is another.",
+     "Unit: runs the installed pm (`<bin dir>/pm service run`, the bin dir $PM_BIN_DIR, else ~/.local/bin; pm init "
+     "copies pm there) in the main checkout, with the PATH install ran with (git must be on it, and uv for a "
+     "Python pin) and PORT. The installed pm runs the version the main checkout pins: another Go version's release binary, a Python version "
+     "through uv."),
+    ("the supervisor starts the pm uv tool again, which runs the new pin.",
+     "the supervisor starts the installed pm again, which runs the new pin."),
+    ("Fix: pm init (it installs the pm uv tool at this build unless the tool launched it, then the service); when "
+     "the tool already runs this build, pm service install or pm service restart. A unit that runs another "
+     "interpreter than the pm uv tool's (a pin older than 0.1.2 wrote it to run its own tool) is stale there too",
+     "Fix: pm init (it copies this pm into the bin dir when another is there, then installs the service); when the "
+     "installed pm already is this build, pm service install or pm service restart. A unit that runs another "
+     "program than the installed pm (Python pm's unit runs the pm uv tool's interpreter) is stale there too"),
+    ("or another, which the pm uv tool runs to make the move;",
+     "or another, which the installed pm launches to make the move;"),
+    ("this clone's Codex writable_roots (uv's cache, shared by every clone, stays), pm's lines in .git/info/exclude); "
+     "keeps the records branch, records/ on the main branch and Beads; never commits",
+     "this clone's Codex writable_roots, pm's lines in .git/info/exclude, the work store (refused while it holds what "
+     "the remote lacks)); keeps the records branch, records/ on the main branch and the remote's work store "
+     "(refs/pm/work); never commits"),
 ]
 
 

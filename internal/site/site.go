@@ -187,7 +187,7 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 	for _, r := range sprints {
 		b := items.Get(r.Bead())
 		if b == nil {
-			return "", errorf("%s: bead %s not found in Beads", r.Rel, r.Bead())
+			return "", errorf("%s: bead %s not found in the work store", r.Rel, r.Bead())
 		}
 		report, err := records.Outcome(r)
 		if err != nil {
@@ -370,7 +370,7 @@ func dayActivity(day string, items *Items, under string, recs []*Record, frm *Re
 		}
 	}
 	if out == nil {
-		return `<p class="empty">No sprint activity in Beads on this day.</p>`
+		return `<p class="empty">No sprint activity in the work store on this day.</p>`
 	}
 	return strings.Join(out, "")
 }
@@ -674,12 +674,12 @@ func awaiting(cards []card, prompt bool) string {
 		}
 		quote := ""
 		if prompt {
-			which := ", without <code>action</code>"
+			which := "decision needs"
 			if k.kind == "action" {
-				which = " and <code>action</code>"
+				which = "action and PR review needs"
 			}
-			quote = "<blockquote><p>" + k.what + " Generated from Beads: open issues labelled <code>human</code>" +
-				which + ".</p></blockquote>\n"
+			quote = "<blockquote><p>" + k.what + " Generated from the work store: open " + which +
+				".</p></blockquote>\n"
 		}
 		out = append(out, `<h2 id="`+k.anchor+`">`+k.heading+"</h2>\n"+quote+b)
 	}
@@ -834,7 +834,7 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 		}
 		generated := awaiting(cards, true)
 		generated += "\n<h2 id=\"sprints\">Sprints</h2>\n<blockquote><p>Which sprints moved today, and what changed? " +
-			"Generated from Beads: tasks opened, started or closed on this date.</p></blockquote>\n"
+			"Generated from the work store: tasks opened, started or closed on this date.</p></blockquote>\n"
 		for _, p := range projects {
 			generated += "<h3>" + esc(p.Title()) + "</h3>" + dayActivity(day, items, p.Bead(), recs, rec)
 		}

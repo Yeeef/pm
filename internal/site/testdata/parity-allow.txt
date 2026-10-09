@@ -18,3 +18,21 @@ reason: a decision need's card names the shell command that answers it; Python p
 pages: fixtures:*.html fixtures:*/*.html constructs:*.html constructs:*/*.html live:*.html live:*/*.html
 python: <code>bd human respond ([^<]+)</code>
 go: <code>pm reply add $1</code>
+
+name: awaiting-decisions-source
+reason: the Decisions await you prompt names where its cards come from: Python pm's Beads issues labelled human without action, Go pm's work store, whose needs have a kind instead of labels (work-store page, Data model)
+pages: fixtures:*.html fixtures:*/*.html constructs:*.html constructs:*/*.html live:*.html live:*/*.html
+python: Generated from Beads: open issues labelled <code>human</code>, without <code>action</code>\.
+go: Generated from the work store: open decision needs.
+
+name: awaiting-actions-source
+reason: the Actions await you prompt names where its cards come from: Python pm's Beads issues labelled human and action, Go pm's work store, whose action and PR review needs it shows (work-store page, Data model)
+pages: fixtures:*.html fixtures:*/*.html constructs:*.html constructs:*/*.html live:*.html live:*/*.html
+python: Generated from Beads: open issues labelled <code>human</code> and <code>action</code>\.
+go: Generated from the work store: open action and PR review needs.
+
+name: day-sprints-source
+reason: a day page's Sprints section names where its activity comes from: Beads in Python pm, the work store in Go pm
+pages: fixtures:days/*.html constructs:days/*.html live:days/*.html
+python: (Generated from|No sprint activity in) Beads(: tasks opened| on this day)
+go: $1 the work store$2

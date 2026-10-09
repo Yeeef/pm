@@ -10,7 +10,7 @@ var (
 			"> details go in a design page.",
 		"Done when":    "> What evidence will show the goal is met?",
 		"Design pages": "> Where is the detail?",
-		"Progress": "> Where is the sprint now? Generated from Beads when the page is rendered.\n" +
+		"Progress": "> Where is the sprint now? Generated from the work store when the page is rendered.\n" +
 			"> Do not write here.",
 		"Decisions": "> What did we choose inside this sprint, and why?",
 		"Findings": "> What did we learn that changes the design, the plan, or how we work? Add\n" +
@@ -21,8 +21,8 @@ var (
 	}
 	ProjectPrompts = map[string]string{
 		"Goal": "> Why do we do it? What is it? What outcome do we expect?",
-		"Progress": "> Where are we now, and what's next? Generated from Beads and the sprint\n" +
-			"> records when the page is rendered. Do not write here.",
+		"Progress": "> Where are we now, and what's next? Generated from the work store and the\n" +
+			"> sprint records when the page is rendered. Do not write here.",
 		"Decisions":    "> What constrains every future sprint? Sprint-only choices live in the sprint\n> record.",
 		"Design pages": "> Where is the detail?",
 		"Outcome": "> Written when the project closes: what was achieved against the goal, what\n" +

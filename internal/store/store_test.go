@@ -170,7 +170,7 @@ func TestApplyCommitsOrRestores(t *testing.T) {
 	err := Apply(store, []Write{{p, "changed"}, {filepath.Join(store, "docs/new.md"), "new"}}, "edit", "bd delete x", "pm: ")
 	if err == nil || !strings.HasPrefix(err.Error(), "committing failed: git add -A -- projects/demo.md docs/new.md failed in ") ||
 		!strings.HasSuffix(err.Error(), "; restored records/projects/demo.md, records/docs/new.md to the state before this "+
-			"write; undo the Beads step with: bd delete x") {
+			"write; undo the work-store step with: bd delete x") {
 		t.Errorf("Apply with a failing commit: %v", err)
 	}
 	if b, _ := os.ReadFile(p); string(b) != project+"more\n" {

@@ -74,7 +74,7 @@ func TestCheckRendersEveryPageWithTheWorkStoresItems(t *testing.T) {
 	}
 
 	OpenWork = func(string) (work.Store, error) { return worktest.New(nil), nil }
-	if err := cmdCheck(root, &out); err == nil || err.Error() != "projects/demo: bead demo not found in Beads" {
+	if err := cmdCheck(root, &out); err == nil || err.Error() != "projects/demo: bead demo not found in the work store" {
 		t.Errorf("a record whose item is missing: %v", err)
 	}
 }
