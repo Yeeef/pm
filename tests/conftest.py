@@ -313,7 +313,8 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
     their state and log. CODEX_HOME is tmp/codex, absent until a test makes it, so no test reads or edits the
     user's Codex config. HOME is tmp/home and launchctl, systemctl and crontab are fakes logging to tmp/sched.log,
     so no test installs a real service; UV_TOOL_DIR and UV_TOOL_BIN_DIR are under tmp/uv, which holds the pm uv
-    tool (install_tool), so no test reads or installs the user's tools; PYTHONPATH makes pm the tool's git build."""
+    tool (install_tool), so no test reads or installs the user's tools; PYTHONPATH makes pm the tool's git build.
+    For Go pm, tmp/home/.local/bin/pm, second on PATH, links the Go binary instead of the uv tool."""
     bindir = tmp / "bin"
     if not bindir.exists():
         bindir.mkdir()
@@ -326,11 +327,17 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
         (tmp / "gh.json").write_text("{}")
         (tmp / "bd.json").write_text(json.dumps(ISSUES))
         (tmp / "bd.log").write_text("")
-        install_tool(tmp / "uv/tools", tmp / "uv/bin")
+        if IMPL == "go":  # Go pm installed as install.sh and pm init put it: the binary at $HOME/.local/bin/pm
+            (tmp / "home/.local/bin").mkdir(parents=True)
+            (tmp / "home/.local/bin/pm").symlink_to(PM[0])
+        else:
+            install_tool(tmp / "uv/tools", tmp / "uv/bin")
     # a test names its session itself, and its transcripts live under tmp/claude, not the user's
     base = {k: v for k, v in base.items() if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID",
                                                          "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN")}
-    return dict(base, PATH=f"{bindir}{os.pathsep}{base['PATH']}", FAKE_BD_STATE=str(tmp / "bd.json"),
+    path = f"{bindir}{os.pathsep}{tmp / 'home/.local/bin'}{os.pathsep}{base['PATH']}" if IMPL == "go" else \
+        f"{bindir}{os.pathsep}{base['PATH']}"
+    return dict(base, PATH=path, FAKE_BD_STATE=str(tmp / "bd.json"),
                 FAKE_BD_LOG=str(tmp / "bd.log"), FAKE_GH_STATE=str(tmp / "gh.json"), CODEX_HOME=str(tmp / "codex"),
                 CLAUDE_CONFIG_DIR=str(tmp / "claude"), HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "home/.config"),
                 XDG_DATA_HOME=str(tmp / "home/.local/share"),
