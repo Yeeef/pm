@@ -119,12 +119,13 @@ commit, no release PR, and no file holds `X`: `.github/workflows/pm-release.yml`
 
 | Job | Does |
 |---|---|
-| `version` | Takes `X` from the tag. A Python `X` (below 0.2.0) builds nothing and succeeds; a Go `X` must name a commit on main |
+| `version` | Takes `X` from the tag. A Python `X` (below 0.2.0) builds nothing and succeeds; a Go `X` must name a commit on main, unless it is a pre-release |
 | `build` | `release/build.sh dist pm-v<X>` natively on `macos-14` (darwin-arm64) and `ubuntu-22.04` (linux-amd64), cgo needing native runners; checks the tarball holds one `pm` whose `pm version` prints `X` |
 | `release` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets, `--prerelease` when `X` has a `-` suffix |
 
-- Cut a release candidate as `pm-v<X>-rc.<n>` (a GitHub pre-release); the launcher treats it as Go version `X`'s
-  pre-release, so a repo can pin it to try it.
+- Cut a release candidate as `pm-v<X>-rc.<n>` (a GitHub pre-release), on any commit, a PR's included, to check the
+  release build before the PR merges; the launcher treats it as Go version `X`'s pre-release, so a repo can pin it to
+  try it.
 - Never move or recreate a release tag, and never rebuild a release's assets: launchers keep each binary's sha256
   in `<data dir>/pm/pins/<X>/sha256` and fail hard when a later download differs.
 - Moving a repo's pin is a separate, ordinary PR once the release exists (`pm upgrade --to X`, merged any way).
