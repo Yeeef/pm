@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -58,8 +59,8 @@ def save() -> None:
 def comment(issue_id: str, text: str, author: str = "t") -> None:
     for i in issues:
         if i["id"] == issue_id:
-            i["comments"] = i.get("comments", []) + [{"issue_id": issue_id, "author": author, "text": text,
-                                                      "created_at": "2026-10-03T12:00:00Z"}]
+            i["comments"] = i.get("comments", []) + [{"id": str(uuid.uuid4()), "issue_id": issue_id, "author": author,
+                                                      "text": text, "created_at": "2026-10-03T12:00:00Z"}]
 
 
 def flag(name: str) -> str | None:

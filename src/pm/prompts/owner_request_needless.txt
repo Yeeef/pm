@@ -1,0 +1,1 @@
+Your reply asks the owner's leave for, or offers, a step you are authorized to take without asking: {asks}. The owner authorizes working a sprint's tasks, pushing its branch and opening its PR for every sprint. Do the step now instead of asking; only the PR review and merge wait on the owner (pm action need --pr URL --sprint ID --focus "...").

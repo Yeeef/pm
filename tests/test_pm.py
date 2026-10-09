@@ -159,7 +159,7 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
 def test_sprint_closes_after_its_pr_merges(repo):
     """The whole loop: a written report, a review under the sprint, a refusal while the review is open, the review
     closed as merged once the PR is on main, then a close that stamps the merge and names its records commit."""
-    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed")
+    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
     report(repo, "Done: shipped the thing.")
     res = repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F")
     assert res.returncode == 0, res.stderr
@@ -1073,6 +1073,52 @@ REVIEWED_PR = "https://github.com/o/r/pull/7"
 REVIEW = {"pr": REVIEWED_PR, "sprints": ["repo-demo.1"], "focus": "f", "designs": []}
 
 
+def test_reply_read_prints_each_undelivered_reply_and_merge_once(repo):
+    """Without the pm service: a site reply and a merge the service saw wait on this session's requests. A close
+    refuses while a reply waits; pm reply read prints each with what to do next, marks it delivered, and prints it
+    no more."""
+    stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    reply = {"id": "6f1c0e2a-1b2c-4d3e-8f40-5a6b7c8d9e0f", "issue_id": "repo-demo.1.3", "author": "owner (site reply)",
+             "text": "Small, until tables.\n\n<!-- pm-reply 0b6c7c1e-2d3f-4a5b-9c6d-7e8f9a0b1c2d -->",
+             "created_at": "2026-10-03T12:00:00Z"}
+    repo.add_issue({"id": "repo-demo.1.3", "title": "Parser?", "status": "open", "issue_type": "task",
+                    "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": "sess-1"},
+                    "comments": [reply], **stamps})
+    repo.add_issue({"id": "repo-demo.1.4", "title": "Review PR #7", "status": "open", "issue_type": "task",
+                    "parent": "repo-demo.1", "labels": ["human", "action"], "external_ref": REVIEWED_PR,
+                    "metadata": {"review": REVIEW, "session": "sess-1", "merged": SHA}, **stamps})
+    repo.mark()
+    refused(repo, *ADD, "--need", "repo-demo.1.3", "--decision", DECISION, "--reason", REASON,
+            match=r"repo-demo.1.3 holds a site reply not delivered yet; read it with pm reply read repo-demo.1.3")
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
+    res = repo.pm("reply", "read")  # no ids: this session's open requests
+    assert res.returncode == 0, res.stderr
+    assert res.stdout == (
+        "pm: owner reply to decision repo-demo.1.3 (Parser?), relayed from the site:\n"
+        "  [2026-10-03T12:00:00Z] Small, until tables.\n"
+        "next: record the answer: pm decision add --need repo-demo.1.3 --level … --decision '<the answer>' --reason "
+        "'<why>' if it sets a rule, else pm decision close repo-demo.1.3 --reason \"<why it sets no rule>\" "
+        "--text-file - <<'EOF' (the answer, then EOF)\n"
+        f"pm: PR #7 of review repo-demo.1.4 (Review PR #7) merged to main as {SHA}\n"
+        f"next: pm action done repo-demo.1.4 --reason \"merged as {SHA}\", then update the main checkout: "
+        f"{pull_main(repo)}\n")
+    items = repo.items()
+    assert {i: list(c) for i, c in repo.changes().items()} == {"repo-demo.1.3": ["need"], "repo-demo.1.4": ["need"]}
+    assert items["repo-demo.1.3"]["need"]["delivered"] == 1
+    assert items["repo-demo.1.4"]["need"]["review"]["merge_reported"] == SHA
+    res = repo.pm("reply", "read", "repo-demo.1.3", "repo-demo.1.4")
+    assert res.stdout == "nothing undelivered on repo-demo.1.3, repo-demo.1.4\n", res.stderr
+    repo.mark()
+    refused(repo, "reply", "read", "repo-demo.1.1", match=r"repo-demo.1.1 is not a request to the owner")
+    repo.env.pop("CLAUDE_CODE_SESSION_ID")
+    refused(repo, "reply", "read", match=r"name the requests to read")
+    res = repo.pm(*ADD, "--need", "repo-demo.1.3", "--decision", DECISION, "--reason", REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.items()["repo-demo.1.3"]["status"] == "closed"
+    # the answer the close recorded is no reply of the owner's to deliver
+    assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
+
+
 def review_with_origin(repo) -> str:
     """An open review of REVIEWED_PR under repo-demo.1, and an origin remote whose main is one commit ahead:
     the sha returned."""
@@ -1268,7 +1314,8 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     assert "records commit: records [" in call["stdin"], "today's records commits are the activity"
     res = repo.pm("day", "summarize")
     assert res.returncode == 0 and "unchanged" in res.stdout and len(claude_calls(repo)) == 1
-    repo.set_issue("repo-demo.1.2", status="in_progress", started_at=now_z())
+    repo.set_issue("repo-demo.1.2", status="in_progress", started_at=now_z(),
+                   metadata={"claimed_by": "sess-x", "claimed_at": now_z()})
     res = repo.pm("day", "summarize")
     assert res.returncode == 0, res.stderr
     assert summary(repo)["text"] == "Summary 2." and summary(repo)["digest"] != first["digest"]

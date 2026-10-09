@@ -14,6 +14,7 @@ type agentCommand func(e *env, p *Parsed) (string, error)
 // agentCommands is the commands Go pm runs on the records and the work store, by name.
 var agentCommands = map[string]agentCommand{
 	"show":           cmdShow,
+	"day summarize":  cmdDaySummarize,
 	"record link":    cmdRecordLink,
 	"commit":         cmdCommit,
 	"task add":       cmdTaskAdd,
@@ -29,6 +30,12 @@ var agentCommands = map[string]agentCommand{
 	"project close":  cmdProjectClose,
 	"sprint open":    cmdSprintOpen,
 	"sprint close":   cmdSprintClose,
+	"decision add":   cmdDecisionAdd,
+	"decision need":  cmdDecisionNeed,
+	"decision close": cmdDecisionClose,
+	"action need":    cmdActionNeed,
+	"action done":    cmdActionDone,
+	"reply read":     cmdReplyRead,
 }
 
 // writes is the commands that write records: each runs under the records store's lock, taken after the work store's

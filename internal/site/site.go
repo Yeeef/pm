@@ -114,8 +114,8 @@ func sprintsOf(items *Items, project string) []*Item {
 
 func utcDate(t time.Time) string { return t.UTC().Format("2006-01-02") }
 
-// localDay is the local calendar date of a timestamp; "" for none.
-func localDay(t time.Time) string {
+// LocalDay is the local calendar date of a timestamp; "" for none.
+func LocalDay(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
@@ -350,13 +350,13 @@ func dayActivity(day string, items *Items, under string, recs []*Record, frm *Re
 	var out []string
 	for _, sp := range sprintsOf(items, under) {
 		var rows []string
-		if localDay(sp.CreatedAt) == day {
+		if LocalDay(sp.CreatedAt) == day {
 			rows = append(rows, `<li><span class="pill queued">OPENED</span> this sprint</li>`)
 		}
 		moved := false
 		for _, t := range items.Children(sp.ID) {
 			for _, v := range dayVerbs {
-				if localDay(v.at(t)) == day {
+				if LocalDay(v.at(t)) == day {
 					rows = append(rows, `<li><span class="pill `+v.class+`">`+strings.ToUpper(v.verb)+"</span> "+
 						esc(t.Title)+` <span class="k">`+esc(t.ID)+"</span></li>")
 					moved = true
@@ -364,7 +364,7 @@ func dayActivity(day string, items *Items, under string, recs []*Record, frm *Re
 				}
 			}
 		}
-		if moved || localDay(sp.CreatedAt) == day {
+		if moved || LocalDay(sp.CreatedAt) == day {
 			out = append(out, `<section class="card"><h4>`+pill(State(sp, items))+sprintTitle(sp.ID, sp.Title, recs, frm)+
 				`</h4><ul class="list">`+strings.Join(rows, "")+"</ul></section>")
 		}
@@ -389,10 +389,10 @@ func activityDays(recs []*Record, items *Items) map[string]bool {
 			continue
 		}
 		for _, sp := range sprintsOf(items, p.Bead()) {
-			days[localDay(sp.CreatedAt)] = true
+			days[LocalDay(sp.CreatedAt)] = true
 			for _, t := range items.Children(sp.ID) {
 				for _, v := range dayVerbs {
-					days[localDay(v.at(t))] = true
+					days[LocalDay(v.at(t))] = true
 				}
 			}
 		}

@@ -18,7 +18,10 @@ PORTED = {
     "cmd_finding_add", "cmd_feedback_add", "cmd_doc_new", "cmd_design_new", "cmd_postmortem_new", "cmd_project_open",
     "cmd_project_close", "cmd_sprint_open", "cmd_sprint_close", "require_committed", "open_sprint", "open_task",
     "cmd_task_add", "cmd_task_close", "cmd_task_claim", "cmd_task_move", "cmd_show", "record_section", "link_target",
-    "cmd_record_link", "cmd_commit",
+    "cmd_record_link", "cmd_commit", "summarize_one", "ask_model",
+    "decision_target", "decision_line", "decision_block", "refuse_unread", "cmd_decision_add", "need_part",
+    "need_markdown", "raise_need", "cmd_action_need", "raise_review", "human_issue",
+    "cmd_decision_close", "cmd_action_done", "cmd_reply_read",
 }
 
 GO_STRING = r'"(?:[^"\\\n]|\\.)*"|`[^`]*`'

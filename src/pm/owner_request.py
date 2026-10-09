@@ -25,6 +25,8 @@ import subprocess
 import sys
 import tempfile
 
+from pm import prompt
+
 MODEL = "claude-haiku-5-5"
 BD_TIMEOUT = 10  # seconds; `bd list` takes about 0.6 s
 JUDGE_TIMEOUT = 15  # seconds; the judge takes about 2 s. With BD_TIMEOUT it stays under the 30 s hook timeout
@@ -35,73 +37,13 @@ JUDGE_ENV = {"MAX_THINKING_TOKENS": "0", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFF
 JUDGE_ARGS = ["claude", "-p", "--model", MODEL, "--setting-sources", "", "--strict-mcp-config", "--tools", "",
               "--no-session-persistence", "--output-format", "text"]
 
-SYSTEM = """\
-You check the final reply an AI coding agent writes to its owner at the end of a turn. Rule: when the reply asks \
-the owner for something that planned work waits on, that request must already be raised as an open request on the \
-owner's site, because a request asked only in chat never reaches the owner.
-
-Step 1. List every sentence of the reply that addresses the owner with a question, an instruction, or a statement \
-that something waits on the owner. Include every question mark sentence aimed at the owner.
-
-Step 2. Give each one a kind:
-- "decision": asks the owner to decide or choose something about the work: its scope or design, an approach or \
-option, whether, when or how to do, ship, merge or drop something, or leave to go ahead. "Should I merge the PR now \
-or wait for review?", "Option A or B?", "Which approach do you prefer?" and "OK to \
-proceed?" are decisions. A question that lays out options for the work and asks the owner to pick is always \
-a decision, however politely it is put.
-- "review": asks the owner to review, approve or merge a PR or change.
-- "action": asks the owner to do something only they can: run a command, apply or change a setting, provide a key, \
-access or file, restart or install something.
-- "clarification": asks what the owner just said or meant ("By 'the hook', do you mean the Stop hook or the \
-SessionStart hook?").
-- "offer": an optional offer the owner may take or leave, that nothing waits on: extra work the task or sprint is \
-complete without ("If you want a live check too, tell me", "I can also add a test if you'd like").
-- "suggestion": a possible next step that nothing waits on.
-- "authorized": asks leave for, or offers, a step the agent is authorized to take without asking: doing the \
-sprint's or task's own work, committing, pushing a branch, opening a PR. Asking about it is needless; the agent \
-should just do it. Merging a PR, or anything else the owner reviews, is never authorized: a sentence that asks \
-or offers to merge, or asks the owner to review or merge, is "decision" or "review", not "authorized".
-An offer or suggestion is judged by its subject, not its wording. When it offers to do something the task or \
-sprint cannot finish or close without, it is a request, however politely or optionally it is put ("if you want", \
-"I can", "happy to"): "authorized" when the step is one of the authorized ones above; else "decision" (merging \
-or shipping a PR, a step the close requires, picking one of several designs), or "review" for a PR review.
-- "not asked": the sentence quotes, lists or describes a request, question or example without asking it of the \
-owner now (test cases, examples, what a need asks, "I raised a need on X"), it is text inside a code block, \
-command output or a log, or it is the agent's own plan ("I'll check its work before I tell you it's done").
-
-Step 3. For each decision, review or action, find the OPEN REQUESTS entry that asks the owner for the same thing \
-(the same decision, the same PR, the same action), even in other words. An open review of a PR covers every \
-request about reviewing, approving or merging that PR, including whether or when to merge it; when only one PR \
-review is open, a request about "the PR" means that PR. An id written in the reply is not a match \
-by itself: only an entry in the list can match. When the list is "(none)", nothing matches.
-
-Answer with one JSON object and nothing else:
-{"items": [{"quote": "<the sentence, at most 150 characters>", "kind": "<kind>", "match": "<id of the matching \
-open request, or null>"}]}
-Answer {"items": []} when no sentence addresses the owner."""
+SYSTEM = prompt("owner_request_system")
 
 ASKS = {"decision", "review", "action"}  # kinds that block unless an open request matches
 AUTHORIZED = "authorized"  # a needless ask: blocks even when an open request matches
 
-REASON = (
-    "Your reply asks the owner for something sprint work waits on that no open request of this session covers: "
-    "{asks}. Chat requests never reach the owner's site, so the owner may never see them. Raise each one, then end "
-    "your reply (it needs no id):\n"
-    "- a decision: pm decision need --title \"...\" --parent <sprint or task id> --question '...' --fact '...' "
-    "--option <label> '...' --cost <label> '...' (two or more options) --default <label> '<why>';\n"
-    "- an action (run, apply, configure, ...): pm action need --title \"...\" --parent <id> --text-file - <<'EOF', "
-    "then what to do and why, then EOF;\n"
-    "- a PR review or merge: pm action need --pr URL --sprint ID --focus \"...\".\n"
-    "If no sprint work waits on it, end without the request or make it a plain offer."
-)
-
-
-NEEDLESS = (
-    "Your reply asks the owner's leave for, or offers, a step you are authorized to take without asking: {asks}. "
-    "The owner authorizes working a sprint's tasks, pushing its branch and opening its PR for every sprint. Do the "
-    "step now instead of asking; only the PR review and merge wait on the owner (pm action need --pr URL "
-    "--sprint ID --focus \"...\")."
-)
+REASON = prompt("owner_request_reason")  # {asks}: the requests no open request covers
+NEEDLESS = prompt("owner_request_needless")  # {asks}: the needless asks
 
 
 class HookError(Exception):
