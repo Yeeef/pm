@@ -21,8 +21,8 @@ import (
 //
 // TestBenchLoad: 10 processes, each connecting, loading every item and disconnecting, timed inside the process; the
 // median and the spread. TestBenchWriters: 8 processes at once, each making 20 writes (a comment on one of 3 shared
-// items, a new connection per write, as 20 pm commands would), all 160 checked after, with the wall time, the retries
-// and the most attempts one write took. Without PM_BENCH_STORE both skip. The copy is served by a host in this test
+// items, a new connection per write, as 20 pm commands would), all 160 checked after, with the wall time and what a
+// write waited for the store's write lock, on average and at most. Without PM_BENCH_STORE both skip. The copy is served by a host in this test
 // process; the store it was copied from is never opened.
 
 const benchChild = "PM_BENCH_CHILD" // set in a child: what it runs, "load" or "write <n> <id>,<id>,<id>"
@@ -75,7 +75,8 @@ func benchRun(what string) {
 			fail(err)
 		}
 	}
-	json.NewEncoder(os.Stdout).Encode(map[string]any{"retries": Attempts.Retries.Load(), "max": Attempts.Max.Load()})
+	json.NewEncoder(os.Stdout).Encode(map[string]any{"writes": Waits.Writes.Load(), "waited": Waits.Total.Load(),
+		"max": Waits.Max.Load()})
 }
 
 // benchStore serves a copy of $PM_BENCH_STORE, skipping without it.
@@ -152,9 +153,9 @@ func TestBenchWriters(t *testing.T) {
 	}
 	wg.Wait()
 	took := time.Since(start)
-	var retries, most float64
+	var writes, waited, most float64
 	for _, r := range results {
-		retries, most = retries+r["retries"], max(most, r["max"])
+		writes, waited, most = writes+r["writes"], waited+r["waited"], max(most, r["max"])
 	}
 	seen := map[string]int{}
 	for _, it := range must(d.Get(ids...)) {
@@ -173,6 +174,7 @@ func TestBenchWriters(t *testing.T) {
 	if landed != 160 {
 		t.Errorf("%d of 160 writes landed once", landed)
 	}
-	t.Logf("8 processes x 20 writes: %d of 160 landed in %s; %v retries, at most %v attempts for one write (bound %d)",
-		landed, took.Round(time.Millisecond), retries, most, WriteAttempts)
+	t.Logf("8 processes x 20 writes: %d of 160 landed in %s; a write waited %s for the write lock on average, at most %s",
+		landed, took.Round(time.Millisecond), time.Duration(waited/max(writes, 1)).Round(time.Microsecond),
+		time.Duration(most).Round(time.Microsecond))
 }

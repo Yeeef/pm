@@ -202,11 +202,11 @@ func (d *Dolt) SyncContext(c context.Context) (SyncResult, error) {
 
 // fetch brings the remote's branch into the store's remote-tracking branch, and says whether the remote holds one.
 func (d *Dolt) fetch() (bool, error) {
-	if _, err := d.conn.ExecContext(d.opCtx(), "CALL DOLT_FETCH(?)", remote); err != nil {
+	if err := d.remoteCall(d.opCtx(), "CALL DOLT_FETCH(?)", remote); err != nil {
 		return false, fmt.Errorf("work store: fetch from the remote: %w", err)
 	}
 	var n int
-	if err := d.conn.QueryRowContext(d.opCtx(), "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
+	if err := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
 		"remotes/"+remoteHead).Scan(&n); err != nil {
 		return false, fmt.Errorf("work store: %w", err)
 	}
@@ -215,7 +215,7 @@ func (d *Dolt) fetch() (bool, error) {
 
 // count is the number of commits in a dolt_log range such as "main..origin/main".
 func (d *Dolt) count(q querier, rng string) (int, error) {
-	rows, err := q.QueryContext(d.opCtx(), "SELECT COUNT(*) FROM dolt_log(?)", rng)
+	rows, err := q.QueryContext(ctx, "SELECT COUNT(*) FROM dolt_log(?)", rng)
 	if err != nil {
 		return 0, fmt.Errorf("work store: %w", err)
 	}
@@ -233,7 +233,7 @@ func (d *Dolt) count(q querier, rng string) (int, error) {
 // store yet.
 func (d *Dolt) ahead() (int, error) {
 	var n int
-	if err := d.conn.QueryRowContext(d.opCtx(), "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
+	if err := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
 		"remotes/"+remoteHead).Scan(&n); err != nil {
 		return 0, fmt.Errorf("work store: %w", err)
 	}
@@ -246,7 +246,7 @@ func (d *Dolt) ahead() (int, error) {
 // head is the store's HEAD commit.
 func (d *Dolt) head() (string, error) {
 	var h string
-	if err := d.conn.QueryRowContext(d.opCtx(), "SELECT HASHOF('HEAD')").Scan(&h); err != nil {
+	if err := d.conn.QueryRowContext(ctx, "SELECT HASHOF('HEAD')").Scan(&h); err != nil {
 		return "", fmt.Errorf("work store: %w", err)
 	}
 	return h, nil
@@ -255,25 +255,22 @@ func (d *Dolt) head() (string, error) {
 // hashOf is the commit a ref names.
 func (d *Dolt) hashOf(ref string) (string, error) {
 	var h string
-	if err := d.conn.QueryRowContext(d.opCtx(), "SELECT HASHOF(?)", ref).Scan(&h); err != nil {
+	if err := d.conn.QueryRowContext(ctx, "SELECT HASHOF(?)", ref).Scan(&h); err != nil {
 		return "", fmt.Errorf("work store: %w", d.broken(err))
 	}
 	return h, nil
 }
 
-// pullAttempts bounds how often a pull starts again: its merge lost to a concurrent write, or main moved under its
-// fast-forward.
-const pullAttempts = WriteAttempts
-
 // pull fetches and, when the store is behind, merges the remote's branch. It never resets main, since other sessions'
 // writes may land on it meanwhile: it checks the remote's head first (its schema version and every invariant, read on
-// the revision database work/<hash>), so a fast-forward, which Dolt applies at once as a compare-and-swap of main,
-// needs no undo; a 3-way merge runs in one write transaction (Dolt merges each cell, pm resolves each conflicted items
+// the revision database work/<hash>), so a fast-forward, which Dolt applies at once, needs no undo; a 3-way merge runs
+// in one write transaction under the store's write lock (Dolt merges each cell, pm resolves each conflicted items
 // row by the merge rules, keeps this side's write stamp, clears the holder of every closed item, checks every
-// invariant and the blocked_by cycles, sets a fresh write stamp, and commits) that lands whole or rolls back. A merge
-// that loses to a concurrent write, or a fast-forward that finds main moved, starts the pull again.
+// invariant and the blocked_by cycles, sets a fresh write stamp, and commits) that lands whole or rolls back. Only the
+// fetch is bounded by the operation's context: the local merge runs to its end, since a merge cut partway could split
+// Dolt's fast-forward (the head moved, the working set not), and the write lock keeps it from racing a local write.
 func (d *Dolt) pull() (SyncResult, error) {
-	has, err := d.fetch() // once: a merge that starts again lost to a local write, not to the remote
+	has, err := d.fetch()
 	if err != nil || !has {
 		return SyncResult{}, err
 	}
@@ -288,51 +285,54 @@ func (d *Dolt) pull() (SyncResult, error) {
 		return SyncResult{}, fmt.Errorf("work store: pull: the remote's head %s: %w; the store stays as it was",
 			theirs, err)
 	}
-	for attempt := 1; ; attempt++ {
-		res, again, err := d.merge(theirs)
-		if err == nil || !again {
-			return res, err
-		}
-		if attempt == pullAttempts {
-			return SyncResult{}, fmt.Errorf("work store: pull: %v, %d times; the store stays as it was; run pm sync "+
-				"again", err, pullAttempts)
-		}
-		time.Sleep(backoff(attempt))
-	}
+	return d.merge(theirs)
 }
 
-// merge merges the checked remote head theirs into main; again is whether a failure starts it again.
-func (d *Dolt) merge(theirs string) (res SyncResult, again bool, err error) {
+// merge merges the checked remote head theirs into main, under the store's write lock.
+func (d *Dolt) merge(theirs string) (res SyncResult, err error) {
+	what := "pm: merge " + remoteHead
+	unlock, err := d.lockWrites(what)
+	if err != nil {
+		return res, err
+	}
+	defer unlock()
 	behind, err := d.count(d.conn, branch+".."+theirs)
 	if err != nil || behind == 0 {
-		return res, false, err
+		return res, err
 	}
 	res.Pulled = behind
-	tx, err := d.conn.BeginTx(d.opCtx(), nil)
+	tx, err := d.conn.BeginTx(ctx, nil)
 	if err != nil {
-		return res, false, fmt.Errorf("work store: %w", d.broken(err))
+		return res, fmt.Errorf("work store: %w", d.broken(err))
 	}
 	defer d.conn.ExecContext(ctx, "SET @@dolt_allow_commit_conflicts = 0")
-	fail := func(err error) (SyncResult, bool, error) {
+	fail := func(err error) (SyncResult, error) {
 		_ = tx.Rollback()
 		if retryable(err) {
-			return SyncResult{}, true, err
+			err = errors.New("it conflicted with a write that did not take the store's write lock (a SQL client past pm?)")
 		}
-		// A fast-forward moved main at once, to the head checked before the merge; the rest rolled back.
-		if h, herr := d.hashOf(branch); herr == nil && h == theirs {
-			return SyncResult{}, false, fmt.Errorf("work store: pull: %w; main had fast-forwarded to the remote's "+
-				"checked head %s, which stays", d.broken(err), theirs)
+		// A fast-forward moves main at once, to the head checked before the merge; the rest rolled back.
+		switch h, herr := d.hashOf(branch); {
+		case herr != nil:
+			return SyncResult{}, fmt.Errorf("work store: pull: %w; whether main fast-forwarded to the remote's checked "+
+				"head %s is unknown (%v): check with pm show", d.broken(err), theirs, herr)
+		case h == theirs:
+			return SyncResult{}, fmt.Errorf("work store: pull: %w; main had fast-forwarded to the remote's checked "+
+				"head %s, which stays", d.broken(err), theirs)
 		}
-		return SyncResult{}, false, fmt.Errorf("work store: pull: %w; the store stays as it was", d.broken(err))
+		return SyncResult{}, fmt.Errorf("work store: pull: %w; the store stays as it was", d.broken(err))
 	}
-	if _, err := tx.ExecContext(d.opCtx(), "SET @@dolt_allow_commit_conflicts = 1"); err != nil {
+	if err := clean(tx, what); err != nil {
 		return fail(err)
 	}
-	if _, err := tx.ExecContext(d.opCtx(), "CALL DOLT_MERGE('--no-commit', ?)", theirs); err != nil {
+	if _, err := tx.ExecContext(ctx, "SET @@dolt_allow_commit_conflicts = 1"); err != nil {
+		return fail(err)
+	}
+	if _, err := tx.ExecContext(ctx, "CALL DOLT_MERGE('--no-commit', ?)", theirs); err != nil {
 		return fail(err)
 	}
 	var version int
-	if err := tx.QueryRowContext(d.opCtx(), "SELECT version FROM schema_version WHERE one = 1").Scan(&version); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE one = 1").Scan(&version); err != nil {
 		return fail(fmt.Errorf("read the merged schema version: %w", err))
 	}
 	if version > SchemaVersion {
@@ -342,7 +342,7 @@ func (d *Dolt) merge(theirs string) (res SyncResult, again bool, err error) {
 	if res.Resolved, res.Overrides, err = resolveConflicts(tx); err != nil {
 		return fail(err)
 	}
-	if _, err := tx.ExecContext(d.opCtx(), `UPDATE items SET holder_session = NULL, holder_host = NULL,
+	if _, err := tx.ExecContext(ctx, `UPDATE items SET holder_session = NULL, holder_host = NULL,
 		holder_claimed_at = NULL WHERE status = 'closed' AND holder_session IS NOT NULL`); err != nil {
 		return fail(err)
 	}
@@ -350,18 +350,18 @@ func (d *Dolt) merge(theirs string) (res SyncResult, again bool, err error) {
 		return fail(err)
 	}
 	var merging bool
-	if err := tx.QueryRowContext(d.opCtx(), "SELECT is_merging FROM dolt_merge_status").Scan(&merging); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT is_merging FROM dolt_merge_status").Scan(&merging); err != nil {
 		return fail(err)
 	}
 	var changed int
-	if err := tx.QueryRowContext(d.opCtx(), "SELECT COUNT(*) FROM dolt_status").Scan(&changed); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_status").Scan(&changed); err != nil {
 		return fail(err)
 	}
 	if merging || changed > 0 { // a 3-way merge; a fast-forward moved main already and commits nothing
 		if err := setStamp(tx); err != nil {
 			return fail(err)
 		}
-		if _, err := tx.ExecContext(d.opCtx(), "CALL DOLT_COMMIT('-A', '--allow-empty', '-m', ?)",
+		if _, err := tx.ExecContext(ctx, "CALL DOLT_COMMIT('-A', '--allow-empty', '-m', ?)",
 			fmt.Sprintf("pm: merge %d commits from %s", behind, remoteHead)); err != nil {
 			return fail(err)
 		}
@@ -369,13 +369,13 @@ func (d *Dolt) merge(theirs string) (res SyncResult, again bool, err error) {
 	if err := tx.Commit(); err != nil {
 		return fail(err)
 	}
-	return res, false, nil
+	return res, nil
 }
 
 // checkHead checks the commit h, read on the revision database work/<h>: its schema version is not newer than this
 // pm's, and its items hold every invariant.
 func (d *Dolt) checkHead(h string) (err error) {
-	if _, err := d.conn.ExecContext(d.opCtx(), "USE `"+dbName+"/"+h+"`"); err != nil {
+	if _, err := d.conn.ExecContext(ctx, "USE `"+dbName+"/"+h+"`"); err != nil {
 		return d.broken(err)
 	}
 	defer func() {
@@ -384,7 +384,7 @@ func (d *Dolt) checkHead(h string) (err error) {
 		}
 	}()
 	var version int
-	if err := d.conn.QueryRowContext(d.opCtx(), "SELECT version FROM schema_version WHERE one = 1").Scan(&version); err != nil {
+	if err := d.conn.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE one = 1").Scan(&version); err != nil {
 		return fmt.Errorf("read its schema version: %w", d.broken(err))
 	}
 	if version > SchemaVersion {
@@ -546,7 +546,7 @@ func (d *Dolt) push(from string) error {
 	if from != branch {
 		spec = from + ":" + branch
 	}
-	_, err := d.conn.ExecContext(c, "CALL DOLT_PUSH(?, ?)", remote, spec)
+	err := d.remoteCall(c, "CALL DOLT_PUSH(?, ?)", remote, spec)
 	switch {
 	case err == nil:
 		return nil
@@ -635,8 +635,8 @@ func (d *Dolt) createShared(n New) (Item, error) {
 			}
 		}
 		if err := d.mergeCAS(); err != nil {
-			return Item{}, fmt.Errorf("work store: create %s: it is on the remote, but merging it here failed (%w); "+
-				"the next sync brings it", it.ID, err)
+			return Item{}, fmt.Errorf("work store: create %s: the item %s is on the remote, but merging it into this "+
+				"store failed (%w); do not create it again: the next sync (pm sync) brings it", it.ID, it.ID, err)
 		}
 		return it, d.dropCAS()
 	}
@@ -662,8 +662,8 @@ func (d *Dolt) onBranch(b string, fn func() (Item, error)) (it Item, head string
 	return it, head, err
 }
 
-// mergeCAS merges pm-cas into main in one write transaction, keeping this side's write stamp on a conflict and
-// setting a fresh one; a merge that loses to a concurrent write runs again.
+// mergeCAS merges pm-cas into main in one write transaction under the store's write lock, keeping this side's write
+// stamp on a conflict and setting a fresh one.
 func (d *Dolt) mergeCAS() error {
 	return d.inTx(fmt.Sprintf("pm: merge %s", casBranch), true, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, "SET @@dolt_allow_commit_conflicts = 1"); err != nil {

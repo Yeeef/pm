@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	mrand "math/rand/v2"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -30,6 +29,7 @@ import (
 // fresh read. Every read is one read-only transaction and checks the invariants too, failing hard naming the item.
 type Dolt struct {
 	o    Options
+	sock string // the service's socket, which remoteCall dials again
 	db   *sql.DB
 	conn *sql.Conn
 	// pushFn, when a test sets it, runs each push in push's place, given the real push.
@@ -56,20 +56,12 @@ const (
 	dbName = "work"
 	// ConnectTimeout bounds the connect to the service's socket.
 	ConnectTimeout = 2 * time.Second
-	// WriteAttempts bounds how often a write that loses to concurrent writes runs (Concurrent writers); the 8 x 20
-	// writes benchmark sets it.
-	WriteAttempts = 100
 )
 
 var (
 	ctx = context.Background()
 	// ErrNoStore is a service with no work database yet: pm init's setup makes it.
 	ErrNoStore = errors.New("this clone has no work store yet: run pm init")
-	// backoff is the wait before attempt n+1 of a write: random, from 5 ms doubling to 200 ms.
-	backoff = func(n int) time.Duration {
-		top := min(200*time.Millisecond, 5*time.Millisecond<<min(n, 6))
-		return time.Duration(mrand.Int64N(int64(top))) + time.Millisecond
-	}
 )
 
 // dialConfig is how dial connects: the client's options, whether it selects the work database, and the version
@@ -147,7 +139,7 @@ func dial(sock string, c dialConfig) (*Dolt, error) {
 		db.Close()
 		return nil, notAnswering(sock)
 	}
-	d := &Dolt{o: Options{Prefix: c.prefix, Now: c.now}, db: db, conn: conn}
+	d := &Dolt{o: Options{Prefix: c.prefix, Now: c.now}, sock: sock, db: db, conn: conn}
 	fail := func(err error) (*Dolt, error) {
 		d.Shutdown()
 		return nil, err
@@ -221,8 +213,8 @@ func serialization(err error) bool {
 	return false
 }
 
-// retryable is whether a write's failure leaves nothing written and means only that it lost a race, so the whole
-// write runs again from a fresh read: Dolt's serialization failure, or its "dataset head is not ancestor of commit"
+// retryable is whether a write's failure leaves nothing written and means only that it lost a race with a write
+// outside the write lock: Dolt's serialization failure, or its "dataset head is not ancestor of commit"
 // (ErrMergeNeeded), which a commit gets when a fast-forward moved the branch under it. Dolt returns ErrMergeNeeded
 // only from inside its root update's compare-and-swap (store/datas database_common.go: FastForward, doCommit,
 // doCommitWithWorkingSet), before it writes the new root, so nothing of that commit landed.
@@ -320,34 +312,85 @@ func setStamp(tx *sql.Tx) error {
 	return nil
 }
 
-// Attempts counts the writes of this process, the attempts they took beyond the first, and the most attempts one write
-// took: what the concurrency benchmark reports, and the evidence for WriteAttempts.
-var Attempts struct{ Writes, Retries, Max atomic.Int64 }
+// WriteLockWait bounds a write's wait for the store's write lock: a write that waits that long fails hard, naming
+// it, and writes nothing. A variable so the tests can shorten it.
+var WriteLockWait = 60 * time.Second
 
-// inTx runs fn in one transaction that ends in a Dolt commit with msg; on any error nothing lands. A write that
-// changed no row (a claim again by its holder within one second) makes no Dolt commit and sets no stamp. With
-// stamped, the write sets the write stamp, and one that loses to a concurrent write (Dolt's serialization failure)
-// runs again from the start, fn's fresh read included, at most WriteAttempts times in all.
+// Waits counts this process's writes, the time they waited for the write lock and the longest wait, in nanoseconds:
+// what the concurrency benchmark reports.
+var Waits struct{ Writes, Total, Max atomic.Int64 }
+
+// lockWrites takes the store's write lock (lock.go) for the write what, waiting at most WriteLockWait; the returned
+// func releases it.
+func (d *Dolt) lockWrites(what string) (func(), error) {
+	start := time.Now()
+	if _, err := d.conn.ExecContext(ctx, "CALL pm_lock(?)", int64(WriteLockWait/time.Second)); err != nil {
+		var me *mysql.MySQLError
+		if errors.As(err, &me) && strings.Contains(me.Message, errLockTimeout.Error()) {
+			return nil, fmt.Errorf("work store: %s waited %s for the store's write lock, which another write holds; "+
+				"nothing was written: run the command again, and see pm service logs if it recurs",
+				strings.TrimPrefix(what, "pm: "), WriteLockWait)
+		}
+		return nil, fmt.Errorf("work store: take the write lock: %w", d.procError(err))
+	}
+	waited := time.Since(start).Nanoseconds()
+	Waits.Writes.Add(1)
+	Waits.Total.Add(waited)
+	for m := Waits.Max.Load(); waited > m && !Waits.Max.CompareAndSwap(m, waited); {
+		m = Waits.Max.Load()
+	}
+	return func() { _, _ = d.conn.ExecContext(ctx, "CALL pm_unlock()") }, nil
+}
+
+// clean refuses a working set that differs from main's head at the start of a write, under the write lock: no pm
+// write leaves one, so it is a change outside pm or a merge cut short (Dolt's fast-forward moves the head and the
+// working set in two steps), which the write's DOLT_COMMIT('-A') would commit as if it were its own, a silent revert.
+func clean(tx *sql.Tx, what string) error {
+	rows, err := tx.QueryContext(ctx, "SELECT table_name FROM dolt_status ORDER BY table_name")
+	if err != nil {
+		return fmt.Errorf("work store: %w", err)
+	}
+	defer rows.Close()
+	var tables []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return fmt.Errorf("work store: %w", err)
+		}
+		tables = append(tables, t)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("work store: %w", err)
+	}
+	if len(tables) > 0 {
+		return fmt.Errorf("work store: %s found the store's working set differing from its head in %s, which no pm "+
+			"write leaves (a change outside pm, or a merge cut short); nothing was written. Look at it with any MySQL "+
+			"client on the pm service's socket (SELECT * FROM dolt_diff_<table>), and drop it there with CALL "+
+			"DOLT_RESET('--hard'), which keeps every commit", strings.TrimPrefix(what, "pm: "), strings.Join(tables, ", "))
+	}
+	return nil
+}
+
+// inTx runs fn in one transaction that ends in a Dolt commit with msg, under the store's write lock; on any error
+// nothing lands. A write that changed no row (a claim again by its holder within one second) makes no Dolt commit and
+// sets no stamp. With stamped, the write sets the write stamp: the lock makes pm's writes run one at a time, and the
+// stamp turns a write that raced one outside the lock (a SQL client past pm) into Dolt's serialization failure, which
+// fails the write hard, rather than into a broken invariant.
 func (d *Dolt) inTx(msg string, stamped bool, fn func(tx *sql.Tx) error) error {
 	if d.conn == nil {
 		return errors.New("work store: closed")
 	}
-	Attempts.Writes.Add(1)
-	for attempt := 1; ; attempt++ {
-		err := d.txOnce(msg, stamped, fn)
-		if err == nil || !stamped || !retryable(err) {
-			for m := Attempts.Max.Load(); int64(attempt) > m && !Attempts.Max.CompareAndSwap(m, int64(attempt)); {
-				m = Attempts.Max.Load()
-			}
-			return err
-		}
-		if attempt == WriteAttempts {
-			return fmt.Errorf("work store: %s lost to concurrent writes %d times; nothing was written; run the command "+
-				"again", strings.TrimPrefix(msg, "pm: "), WriteAttempts)
-		}
-		Attempts.Retries.Add(1)
-		time.Sleep(backoff(attempt))
+	unlock, err := d.lockWrites(msg)
+	if err != nil {
+		return err
 	}
+	defer unlock()
+	err = d.txOnce(msg, stamped, fn)
+	if retryable(err) {
+		return fmt.Errorf("work store: %s conflicted with a write that did not take the store's write lock (a SQL "+
+			"client past pm?); nothing was written: run the command again", strings.TrimPrefix(msg, "pm: "))
+	}
+	return err
 }
 
 func (d *Dolt) txOnce(msg string, stamped bool, fn func(tx *sql.Tx) error) error {
@@ -358,6 +401,9 @@ func (d *Dolt) txOnce(msg string, stamped bool, fn func(tx *sql.Tx) error) error
 	fail := func(err error) error {
 		_ = tx.Rollback()
 		return d.broken(err)
+	}
+	if err := clean(tx, msg); err != nil {
+		return fail(err)
 	}
 	if err := fn(tx); err != nil {
 		return fail(err)
@@ -386,6 +432,25 @@ func (d *Dolt) txOnce(msg string, stamped bool, fn func(tx *sql.Tx) error) error
 			return err
 		}
 		return fmt.Errorf("work store: commit: %w", d.broken(err))
+	}
+	return nil
+}
+
+// remoteCall runs a statement that reaches the git remote (DOLT_FETCH, DOLT_PUSH) on a connection of its own, bounded
+// by c. go-sql-driver drops a connection whose context ends mid-statement; dropping this one leaves d's connection,
+// and the write lock or transaction it may hold, as they were, so the outcome can still be checked. (The server may
+// still finish the dropped statement: Dolt kills its git once it sees the connection gone.)
+func (d *Dolt) remoteCall(c context.Context, q string, args ...any) error {
+	side, err := dial(d.sock, dialConfig{withDB: true})
+	if err != nil {
+		return err
+	}
+	defer side.Shutdown()
+	if _, err := side.conn.ExecContext(c, q, args...); err != nil {
+		if c.Err() != nil {
+			return fmt.Errorf("%w (%v)", c.Err(), err)
+		}
+		return err
 	}
 	return nil
 }

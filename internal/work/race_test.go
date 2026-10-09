@@ -10,18 +10,16 @@ import (
 	"time"
 )
 
-// The sync and the compare-and-swap racing the clone's own sessions, which write while the service merges: every
-// write lands exactly once or fails by losing WriteAttempts times, and a pull either lands or leaves the store as
-// it was. And two clones that each migrate a v2 store to v3 on their own still merge.
+// The sync and the compare-and-swap racing the clone's own sessions, which write while the service merges: under the
+// store's fair write lock every write, every pull and every create lands, at any cadence of the writers, none
+// starved. And two clones that each migrate a v2 store to v3 on their own still merge.
 
 // B pulls (a fast-forward when B's writers have not written yet, else a 3-way merge) while 3 of B's sessions write in
-// a tight loop, 25 writes each. (Writers that never stop can starve a pull: it then fails after WriteAttempts merges,
-// leaving the store as it was, and the next sync lands it.)
+// a tight loop until the pull is done.
 func TestPullRacingLocalWriters(t *testing.T) {
 	x := newPair(t)
 	var mu sync.Mutex
 	var writeErrs []string
-	starved := 0 // pulls that lost WriteAttempts times to the writers: fail-safe, counted
 	var seq atomic.Int64
 	landed := map[string]bool{}
 	const rounds = 3 // one of each: no wait, 5 ms and 10 ms before the pull
@@ -39,7 +37,7 @@ func TestPullRacingLocalWriters(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				for range 25 { // bounded, so the pull races them but is not starved for the length of the test
+				for {
 					select {
 					case <-stop:
 						return
@@ -61,10 +59,7 @@ func TestPullRacingLocalWriters(t *testing.T) {
 		x.b.fresh()
 		x.b.do(func(d *Dolt) {
 			if _, err := d.Sync(); err != nil {
-				if !strings.Contains(err.Error(), "the store stays as it was") {
-					t.Errorf("a pull racing local writers: %v", err)
-				}
-				starved++
+				t.Errorf("a pull racing local writers: %v", err)
 			}
 		})
 		x.b.synced = time.Now()
@@ -94,8 +89,7 @@ func TestPullRacingLocalWriters(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d of B's writes landed once each; %d of %d pulls lost to the writers every time", len(landed), starved,
-		rounds)
+	t.Logf("%d of B's writes landed once each; %d pulls landed", len(landed), rounds)
 }
 
 // B's child creates through its service (pm_create: pull, mint on pm-cas, push, merge pm-cas into main) while one

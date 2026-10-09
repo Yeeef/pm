@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -16,7 +17,13 @@ import (
 func newStore(t *testing.T) (*Dolt, *served) {
 	t.Helper()
 	clock := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	return serve(t, Options{Prefix: "demo", Now: func() time.Time { clock = clock.Add(time.Second); return clock }})
+	var mu sync.Mutex // the host's sessions read it at once
+	return serve(t, Options{Prefix: "demo", Now: func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		clock = clock.Add(time.Second)
+		return clock
+	}})
 }
 
 // must is v, panicking (failing the test) on err.

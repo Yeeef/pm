@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -49,6 +50,7 @@ func bareRemote(t *testing.T) string {
 type clone struct {
 	t      *testing.T
 	o      Options
+	mu     sync.Mutex
 	clock  time.Time
 	s      *served
 	synced time.Time // when the clone last read the remote
@@ -68,7 +70,12 @@ func (c *clone) fresh() {
 
 func newClone(t *testing.T, clock time.Time) *clone {
 	c := &clone{t: t, clock: clock}
-	c.o = Options{Prefix: "demo", Now: func() time.Time { c.clock = c.clock.Add(time.Second); return c.clock }}
+	c.o = Options{Prefix: "demo", Now: func() time.Time { // the clone's sessions read it at once
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.clock = c.clock.Add(time.Second)
+		return c.clock
+	}}
 	c.s = host(t, shortMain(t), c.o, Ops{})
 	return c
 }

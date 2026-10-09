@@ -76,6 +76,7 @@ type Host struct {
 	holder string        // the operation in the slot, and since when
 	since  time.Time
 	gcMu   sync.Mutex // one garbage collection at a time; it takes no slot (GC)
+	writes writeLock  // the store's write lock (lock.go)
 	closed bool
 }
 
@@ -189,6 +190,9 @@ func (h *Host) listen() error {
 		return fmt.Errorf("work store: the engine's provider is a %T, not Dolt's", gms.Analyzer.Catalog.DbProvider)
 	}
 	line := gmssql.Schema{{Name: "line", Type: types.LongText}}
+	h.writes.alive = h.alive
+	p.Register(gmssql.ExternalStoredProcedureDetails{Name: "pm_lock", Function: h.procLock})
+	p.Register(gmssql.ExternalStoredProcedureDetails{Name: "pm_unlock", Function: h.procUnlock})
 	p.Register(gmssql.ExternalStoredProcedureDetails{Name: "pm_sync", Schema: line, Function: h.procSync})
 	p.Register(gmssql.ExternalStoredProcedureDetails{Name: "pm_setup", Schema: line, Function: h.procSetup})
 	p.Register(gmssql.ExternalStoredProcedureDetails{Name: "pm_create", Schema: gmssql.Schema{{Name: "item",
@@ -260,10 +264,13 @@ func (h *Host) client(withDB bool) (*Dolt, error) {
 	return dial(h.sock, dialConfig{prefix: filepath.Base(h.o.Main), now: h.o.Now, withDB: withDB})
 }
 
-// op runs the operation name in the host's operation slot, on a connection of the host's own, within timeout of now
-// (or c's deadline, if sooner), the wait for the slot included. A caller still waiting at its bound fails hard,
-// naming the operation in the slot; an operation still running at its bound is stopped (Dolt kills the git it runs
-// under the query's context) and fails, freeing the slot.
+// op runs the operation name in the host's operation slot, on a connection of the host's own, bounded by timeout from
+// now (or c's deadline, if sooner), the wait for the slot included. A caller still waiting at its bound fails hard,
+// naming the operation in the slot. What the bound stops is the operation's fetch and push (remoteCall): the client
+// drops their connection, the operation fails and frees the slot. The server may still finish the dropped statement,
+// until Dolt kills its git, so a dying fetch or push can overlap the next operation's; no other step is cut, and a
+// local merge in progress runs to its end, past the bound (Dolt's fast-forward is two root updates, and a merge cut
+// between them would leave the working set behind the head).
 func (h *Host) op(c context.Context, name string, timeout time.Duration, withDB bool, fn func(d *Dolt) error) error {
 	c, cancel := context.WithTimeout(c, timeout)
 	defer cancel()
@@ -348,6 +355,35 @@ func (h *Host) Mark() (string, error) {
 	}
 	defer d.Shutdown()
 	return d.Mark()
+}
+
+// alive is whether the server still has the session: its connection has not dropped.
+func (h *Host) alive(session uint32) bool {
+	if h.srv == nil {
+		return true
+	}
+	found := false
+	_ = h.srv.SessionManager().Iter(func(s gmssql.Session) (bool, error) {
+		found = s.ID() == session
+		return found, nil
+	})
+	return found
+}
+
+// procLock is CALL pm_lock(seconds): the store's write lock for the calling connection, waiting at most seconds.
+func (h *Host) procLock(c *gmssql.Context, seconds int64) (gmssql.RowIter, error) {
+	if err := h.writes.lock(c.Session.ID(), time.Duration(seconds)*time.Second, c.Done()); err != nil {
+		return nil, fmt.Errorf("pm_lock: %w", err)
+	}
+	return nil, nil
+}
+
+// procUnlock is CALL pm_unlock(): the calling connection releases the store's write lock.
+func (h *Host) procUnlock(c *gmssql.Context) (gmssql.RowIter, error) {
+	if err := h.writes.unlock(c.Session.ID()); err != nil {
+		return nil, fmt.Errorf("pm_unlock: %w", err)
+	}
+	return nil, nil
 }
 
 func lineRows(lines []string) gmssql.RowIter {
