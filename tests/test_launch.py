@@ -1,16 +1,25 @@
 """The launcher (pm/launch.py): the pm uv tool runs each repo's pinned version through `uv tool run`. A fake `uv`
 first on PATH logs each call with the markers it got; a fake `git` answers `ls-remote` and passes every other call to
-git; the integration test runs a real older release, built by real uv from this clone's own tag."""
+git; the integration test runs a real older release, built by real uv from this clone's own tag. A Go pin (0.2.0 and
+up) runs its release binary instead: `release` serves Go releases on 127.0.0.1 through PM_RELEASE_URL, each tarball
+holding a fake pm script that prints its argv, markers and stdin."""
 
 from __future__ import annotations
 
+import hashlib
+import http.server
+import io
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -260,6 +269,162 @@ def test_upgrade_runs_in_process_unless_it_names_another_version(tmp_path):
     assert launch.target(["upgrade", "--to=0.1.88"], tmp_path, {}) == "0.1.88"
     assert launch.target(["upgrade", "--to", __version__], tmp_path, {}) is None
     assert launch.target(["show"], tmp_path / "nowhere", {}) is None  # no repo: the config check says so
+
+
+# A Go release's fake pm: prints how it was run and exits with the code the release was built with.
+FAKE_GO_PM = '''#!/bin/sh
+echo "argv0=$0"
+for a in "$@"; do echo "arg=$a"; done
+echo "launched=$PM_LAUNCHED launcher=$PM_LAUNCHER"
+echo "stdin=$(cat)"
+exit {code}
+'''
+# The asset this machine runs: a Go release's only macOS binary is arm64, which an Apple silicon Mac runs even when
+# the tests' Python is x86_64 under Rosetta
+PLATFORM = "darwin-arm64" if sys.platform == "darwin" else f"linux-{'amd64' if platform.machine() == 'x86_64' else '?'}"
+FIX = "; check the network and the release, then run pm again, or move the pin with pm upgrade"
+
+
+@pytest.fixture
+def release(fakes, tmp_path):
+    """Go releases under `root` (one pm-v<X> dir each), served on 127.0.0.1 through PM_RELEASE_URL (given with a
+    trailing slash, which the launcher strips); `requests` logs each path asked for."""
+    root, requests = tmp_path / "releases", []
+    root.mkdir()
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(root), **kwargs)
+
+        def do_GET(self):
+            requests.append(self.path)
+            super().do_GET()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_port}"
+    fakes.env = dict(fakes.env, PM_RELEASE_URL=url + "/")
+    yield SimpleNamespace(root=root, url=url, requests=requests)
+    server.shutdown()
+    server.server_close()
+
+
+def tarball(path: Path, files: dict[str, bytes]) -> str:
+    """Write a gzip tar holding `files`, each mode 0755; its sha256."""
+    with tarfile.open(path, "w:gz") as tf:
+        for name, body in files.items():
+            info = tarfile.TarInfo(name)
+            info.size, info.mode = len(body), 0o755
+            tf.addfile(info, io.BytesIO(body))
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def publish(release, version: str, code: int = 0) -> tuple[Path, str]:
+    """Release pm-v<version>: this platform's tarball holding a fake pm that exits `code`, and SHA256SUMS listing it
+    beside another platform's; the tarball and its sha256."""
+    d = release.root / f"pm-v{version}"
+    d.mkdir()
+    tar = d / f"pm-{version}-{PLATFORM}.tar.gz"
+    sha = tarball(tar, {"pm": FAKE_GO_PM.format(code=code).encode()})
+    (d / "SHA256SUMS").write_text(f"{'0' * 64}  pm-{version}-plan9-amd64.tar.gz\n{sha}  {tar.name}\n")
+    return tar, sha
+
+
+def go_pin(repo, version: str) -> Path:
+    return Path(repo.env["XDG_DATA_HOME"]) / "pm/pins" / version
+
+
+def test_a_go_pin_downloads_checks_and_keeps_its_release_binary_then_execs_it(fakes, release):
+    """The first launch of a Go pin fetches SHA256SUMS and this platform's tarball, keeps the checked binary and the
+    tarball's sha256, and execs the binary: its stdout, stdin and exit code are the run's, with the markers set."""
+    write_config(fakes.root, version="0.2.0")
+    tar, sha = publish(release, "0.2.0", code=7)
+    res = fakes.pm("show", "--project", "a b", stdin="the input")
+    pin = go_pin(fakes, "0.2.0")
+    assert (res.returncode, res.stderr) == (7, "")
+    assert res.stdout == (f"argv0={pin / 'pm'}\narg=show\narg=--project\narg=a b\n"
+                          f"launched=0.2.0 launcher={__version__}\nstdin=the input\n")
+    assert release.requests == ["/pm-v0.2.0/SHA256SUMS", f"/pm-v0.2.0/{tar.name}"]
+    assert sorted(p.name for p in pin.iterdir()) == ["pm", "sha256"], "no temp file is left"
+    assert (pin / "pm").read_text() == FAKE_GO_PM.format(code=7) and (pin / "pm").stat().st_mode & 0o777 == 0o755
+    assert (pin / "sha256").read_text() == sha + "\n"
+    assert calls(fakes) == [], "no uv and no git ls-remote"
+
+
+def test_a_kept_go_binary_runs_with_no_request(fakes, release):
+    write_config(fakes.root, version="0.2.0")
+    publish(release, "0.2.0")
+    assert fakes.pm("show").returncode == 0
+    release.requests.clear()
+    shutil.rmtree(release.root / "pm-v0.2.0")  # the release is gone; the kept binary does not need it
+    res = fakes.pm("show")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.startswith(f"argv0={go_pin(fakes, '0.2.0') / 'pm'}\narg=show\n")
+    assert release.requests == []
+
+
+def test_a_pre_release_pin_is_a_go_pin(fakes, release):
+    write_config(fakes.root, version="0.2.0-rc.1")
+    publish(release, "0.2.0-rc.1")
+    res = fakes.pm("show")
+    assert res.returncode == 0, res.stderr
+    assert "launched=0.2.0-rc.1" in res.stdout.splitlines()[2]
+    assert release.requests[0] == "/pm-v0.2.0-rc.1/SHA256SUMS" and calls(fakes) == []
+
+
+@pytest.mark.parametrize("broken", ["mismatch", "missing", "unlisted", "not-one-pm"])
+def test_a_go_release_that_cannot_be_fetched_or_checked_fails_hard_and_keeps_nothing(fakes, release, broken):
+    """A tarball that does not match its SHA256SUMS line, a tarball the release lacks (404), a SHA256SUMS with no
+    line for it, a tarball not holding just `pm`: each fails hard naming the release and the URL; nothing is kept."""
+    write_config(fakes.root, version="0.2.0")
+    tar, sha = publish(release, "0.2.0")
+    sums = tar.with_name("SHA256SUMS")
+    base, url = f"{release.url}/pm-v0.2.0", f"{release.url}/pm-v0.2.0/{tar.name}"
+    head = "error: this repo pins pm 0.2.0, but release pm-v0.2.0"
+    if broken == "mismatch":
+        sums.write_text(f"{'1' * 64}  {tar.name}\n")
+        want = f"{head} could not be checked: {url} has sha256 {sha}, but SHA256SUMS says {'1' * 64}{FIX}\n"
+    elif broken == "missing":
+        tar.unlink()
+        want = f"{head} could not be downloaded: {url}: HTTP 404{FIX}\n"
+    elif broken == "unlisted":
+        sums.write_text(f"{sha}  pm-0.2.0-plan9-amd64.tar.gz\n")
+        want = f"{head} could not be checked: {base}/SHA256SUMS has no line for {tar.name}{FIX}\n"
+    else:
+        sha = tarball(tar, {"pm": b"#!/bin/sh\n", "extra": b""})
+        sums.write_text(f"{sha}  {tar.name}\n")
+        want = f"{head} could not be unpacked: {url} is not a gzip tar holding one file pm{FIX}\n"
+    res = fakes.pm("show")
+    assert (res.returncode, res.stdout, res.stderr) == (1, "", want)
+    assert not go_pin(fakes, "0.2.0").exists() and calls(fakes) == []
+
+
+def test_a_go_release_that_differs_from_the_kept_sha256_fails_hard(fakes, release):
+    """The binary is gone but its sha256 is kept: a release is never rebuilt, so a download that differs fails."""
+    write_config(fakes.root, version="0.2.0")
+    tar, sha = publish(release, "0.2.0")
+    kept = go_pin(fakes, "0.2.0") / "sha256"
+    kept.parent.mkdir(parents=True)
+    kept.write_text("2" * 64 + "\n")
+    res = fakes.pm("show")
+    assert (res.returncode, res.stdout) == (1, "")
+    assert res.stderr == (
+        f"error: this repo pins pm 0.2.0, but release pm-v0.2.0 changed since this machine first downloaded it: "
+        f"{release.url}/pm-v0.2.0/{tar.name} has sha256 {sha}, but {kept} keeps {'2' * 64}; a release is never "
+        "rebuilt, so check where it came from before you delete that file\n")
+    assert [p.name for p in kept.parent.iterdir()] == ["sha256"] and kept.read_text() == "2" * 64 + "\n"
+
+
+@pytest.mark.integration  # pm upgrade is integration_only's, though this one reaches no remote
+def test_upgrade_to_a_go_version_launches_its_release_binary(fakes, release):
+    publish(release, "0.2.0")
+    res = fakes.pm("upgrade", "--to", "0.2.0")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.splitlines()[1:4] == ["arg=upgrade", "arg=--to", "arg=0.2.0"]
+    assert (go_pin(fakes, "0.2.0") / "pm").exists() and calls(fakes) == []
 
 
 def git_common_dir() -> str:
