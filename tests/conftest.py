@@ -402,10 +402,11 @@ class Repo:
             else:
                 self.known = self.items()
                 export = sorted(self.known.values(), key=lambda i: i["id"])
-            if isinstance(export, str) and self.unread is None:
-                self.unread = self.known  # check_unread holds the store to it at teardown
+                self.unread = None  # reading resumed: what the store holds now is read, after this call's own writes
         except subprocess.CalledProcessError as e:  # a pm whose export fails here (no config, say): that is the record
             export = f"pm export failed ({e.returncode}): {e.stderr}"
+        if isinstance(export, str) and self.unread is None:
+            self.unread = self.known  # check_unread holds the store to it at teardown
         transcript.record({
             "argv": argv, "stdin": stdin, "stdout": res.stdout, "stderr": res.stderr, "exit": res.returncode,
             "records": {p: after[p].decode(errors="replace") if p in after else None
@@ -510,6 +511,9 @@ class Repo:
         try:
             now = self.items()
         except subprocess.CalledProcessError:  # no service answers: start the per-test one
+            if self.service is not None:  # one stopping (its pin moved, say): let it exit first
+                self.service.wait(timeout=30)
+                self.service = None
             self.start_service()
             now = self.items()
         assert now == self.unread, "a command wrote the work store while the transcript could not read it"
