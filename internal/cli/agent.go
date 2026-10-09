@@ -244,20 +244,8 @@ const (
 	sessionEnv      = "CLAUDE_CODE_SESSION_ID" // Claude Code exports it to every command a session runs
 	codexSessionEnv = "CODEX_THREAD_ID"        // Codex exports it to every command a thread runs
 	inboxEnv        = "CLAUDE_CODE_MESSAGING_SOCKET"
-	liveWindow      = 30 * 60 // seconds: a session is live while its transcript was written this recently
+	liveWindow      = int(LiveWindow / time.Second) // seconds, as refusals name it
 )
-
-// currentSession is this command's agent session: Claude Code's session id, else Codex's thread id, else "".
-func currentSession() string {
-	for _, name := range []string{sessionEnv, codexSessionEnv} {
-		if sid := config.PyStrip(os.Getenv(name)); sid != "" {
-			return sid
-		}
-	}
-	return ""
-}
-
-var sessionID = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`) // Python's [\w-]+
 
 func homeDir() string {
 	if h := os.Getenv("HOME"); h != "" {
@@ -272,36 +260,6 @@ func codexHome() string {
 		return h
 	}
 	return filepath.Join(homeDir(), ".codex")
-}
-
-// transcripts is the session's transcript files: Claude Code's <config>/projects/<project dir>/<id>.jsonl and Codex's
-// $CODEX_HOME/sessions/**/rollout-*-<id>.jsonl.
-func transcripts(sid string) []string {
-	if !sessionID.MatchString(sid) {
-		return nil
-	}
-	claude := os.Getenv("CLAUDE_CONFIG_DIR")
-	if claude == "" {
-		claude = filepath.Join(homeDir(), ".claude")
-	}
-	out, _ := filepath.Glob(filepath.Join(claude, "projects", "*", sid+".jsonl"))
-	filepath.WalkDir(filepath.Join(codexHome(), "sessions"), func(p string, d os.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasPrefix(d.Name(), "rollout-") && strings.HasSuffix(d.Name(), "-"+sid+".jsonl") {
-			out = append(out, p)
-		}
-		return nil
-	})
-	return out
-}
-
-// live says a session is live: one of its transcripts was modified within liveWindow.
-func live(sid string) bool {
-	for _, p := range transcripts(sid) {
-		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()).Seconds() < liveWindow {
-			return true
-		}
-	}
-	return false
 }
 
 // holder is who holds an item, as pm show gives it: the session pm task claim recorded, when, and whether it is live.
@@ -370,31 +328,6 @@ func (e *env) body(p *Parsed) (string, error) {
 		return config.PyStrip(p.Get("text")), nil
 	}
 	return readTextFile(path[len(path)-1], e.stdin)
-}
-
-// readTextFile is the body --text-file names. "-" reads stdin, but only a pipe or a file (a heredoc is one): an
-// agent's shell may hold stdin open as a socket or tty that never ends, so anything else is refused without reading.
-func readTextFile(path string, stdin io.Reader) (string, error) {
-	if path == "-" {
-		st, err := os.Stdin.Stat()
-		if err != nil || !(st.Mode()&os.ModeNamedPipe != 0 || st.Mode().IsRegular()) {
-			return "", refuse("--text-file - reads stdin, which here is not a pipe or a file; pass the body with a " +
-				"quoted heredoc: pm … --text-file - <<'EOF' … EOF")
-		}
-		b, err := io.ReadAll(stdin)
-		if err != nil {
-			return "", err
-		}
-		return config.PyStrip(string(b)), nil
-	}
-	b, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", refuse("--text-file %s: no such file", path)
-	}
-	if err != nil {
-		return "", err
-	}
-	return config.PyStrip(string(b)), nil
 }
 
 var sentenceEnd = regexp.MustCompile(`^(.+?[.!?])(\s|$)`)

@@ -1224,12 +1224,12 @@ def test_site_lists_open_work_that_sits_in_no_sprint():
     recs = [parse_record(Path(rel), rel.removesuffix(".md"), text) for rel, text in RECORDS.items()
             if rel.startswith("projects/")]
     beads = {i["id"]: dict(i) for i in ISSUES}
-    for i in [{"id": "demo.3", "title": "Loose under project", "status": "open", "issue_type": "task", "parent": "demo"},
-              {"id": "demo.4", "title": "Need under project", "status": "open", "issue_type": "task", "parent": "demo",
+    for i in [{"id": "repo-demo.3", "title": "Loose under project", "status": "open", "issue_type": "task", "parent": "repo-demo"},
+              {"id": "repo-demo.4", "title": "Need under project", "status": "open", "issue_type": "task", "parent": "repo-demo",
                "labels": ["human"]},
-              {"id": "demo.5", "title": "Closed under project", "status": "closed", "issue_type": "task",
-               "parent": "demo"},
-              {"id": "demo.1.3", "title": "In a sprint", "status": "open", "issue_type": "task", "parent": "demo.1"},
+              {"id": "repo-demo.5", "title": "Closed under project", "status": "closed", "issue_type": "task",
+               "parent": "repo-demo"},
+              {"id": "repo-demo.1.3", "title": "In a sprint", "status": "open", "issue_type": "task", "parent": "repo-demo.1"},
               {"id": "orphan", "title": "No parent at all", "status": "open", "issue_type": "bug"},
               {"id": "orphan-need", "title": "A need with no parent", "status": "open", "issue_type": "task",
                "labels": ["human"]}]:
@@ -1237,12 +1237,12 @@ def test_site_lists_open_work_that_sits_in_no_sprint():
     table = lambda page: re.search(r'id="not-in-a-sprint">Not in a sprint</h\d>\n(.*?)</table>', page, re.S).group(1)
     rows = lambda page: re.findall(r"<tr><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td></tr>", table(page))
     assert rows(render_index(recs, beads, "site")) == [
-        ("demo.3", "task", "Loose under project", '<a href="projects/demo.html">Demo</a>'),
         ("orphan", "bug", "No parent at all", "—"),
-        ("orphan-need", "task", "A need with no parent", "—")]
+        ("orphan-need", "task", "A need with no parent", "—"),
+        ("repo-demo.3", "task", "Loose under project", '<a href="projects/demo.html">Demo</a>')]
     demo, old = sorted(recs, key=lambda r: r.rel)
     assert rows(render_record(demo, recs, beads)) == [
-        ("demo.3", "task", "Loose under project", '<a href="../projects/demo.html">Demo</a>')]
+        ("repo-demo.3", "task", "Loose under project", '<a href="../projects/demo.html">Demo</a>')]
     assert "Not in a sprint" not in render_record(old, recs, beads)
     assert "Not in a sprint" not in render_index(recs, {i["id"]: dict(i) for i in ISSUES}, "site")
 

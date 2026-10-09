@@ -197,6 +197,9 @@ func (c *storeCall) text() (string, bool, error) {
 func readTextFile(path string, stdin io.Reader) (string, error) {
 	if path != "-" {
 		b, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("--text-file %s: no such file", path)
+		}
 		if err != nil {
 			return "", fmt.Errorf("--text-file %s: %w", path, err)
 		}
