@@ -1268,7 +1268,8 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     assert "records commit: records [" in call["stdin"], "today's records commits are the activity"
     res = repo.pm("day", "summarize")
     assert res.returncode == 0 and "unchanged" in res.stdout and len(claude_calls(repo)) == 1
-    repo.set_issue("repo-demo.1.2", status="in_progress", started_at=now_z())
+    repo.set_issue("repo-demo.1.2", status="in_progress", started_at=now_z(),
+                   metadata={"claimed_by": "sess-x", "claimed_at": now_z()})
     res = repo.pm("day", "summarize")
     assert res.returncode == 0, res.stderr
     assert summary(repo)["text"] == "Summary 2." and summary(repo)["digest"] != first["digest"]

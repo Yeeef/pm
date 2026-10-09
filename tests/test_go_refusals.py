@@ -18,7 +18,7 @@ PORTED = {
     "cmd_finding_add", "cmd_feedback_add", "cmd_doc_new", "cmd_design_new", "cmd_postmortem_new", "cmd_project_open",
     "cmd_project_close", "cmd_sprint_open", "cmd_sprint_close", "require_committed", "open_sprint", "open_task",
     "cmd_task_add", "cmd_task_close", "cmd_task_claim", "cmd_task_move", "cmd_show", "record_section", "link_target",
-    "cmd_record_link", "cmd_commit",
+    "cmd_record_link", "cmd_commit", "summarize_one", "ask_model",
 }
 
 GO_STRING = r'"(?:[^"\\\n]|\\.)*"|`[^`]*`'
