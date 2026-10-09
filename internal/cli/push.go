@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	pmsync "github.com/Yeeef/yeeef-agents/pm/internal/sync"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/store"
+	pmsync "github.com/Yeeef/pm/internal/sync"
 )
 
 // cmdPush is pm push: one run of the steps the pm service syncs every 10 minutes (the work store's sync, today's

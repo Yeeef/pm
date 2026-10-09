@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // showObj is a JSON object built in Go, its keys in order.

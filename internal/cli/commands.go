@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/hooks"
 )
 
 // chunkNumbers is pm prime --rules's choices: 1 to the number of rules chunks.

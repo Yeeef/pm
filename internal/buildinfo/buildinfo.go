@@ -1,5 +1,5 @@
 // Package buildinfo names the pm build: the release build (release/build.sh) sets Version from the release tag
-// pm-v<X> with -ldflags "-X github.com/Yeeef/yeeef-agents/pm/internal/buildinfo.Version=<X>". No version is written
+// pm-v<X> with -ldflags "-X github.com/Yeeef/pm/internal/buildinfo.Version=<X>". No version is written
 // in Go source: a release is a tag on a main commit.
 package buildinfo
 

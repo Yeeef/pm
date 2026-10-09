@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm"
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
+	"github.com/Yeeef/pm"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
+	"github.com/Yeeef/pm/internal/records"
 )
 
 // What the pm service adds to the pages: each is rendered when first asked for from one read of the records and

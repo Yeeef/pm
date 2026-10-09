@@ -11,7 +11,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // A header value's Python type, as pyyaml's safe_load (YAML 1.1) gives it. go.yaml.in/yaml/v3 reads YAML 1.2, where

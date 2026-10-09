@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
+	"github.com/Yeeef/pm/internal/records"
 )
 
 // The expected headings are what Python's records.headings() (markdown-it, commonmark + html + table) gives.

@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // Error is a command that did not run to an exit status: Python's OSError subclasses and subprocess.TimeoutExpired.

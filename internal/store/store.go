@@ -21,8 +21,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/records"
 )
 
 const (

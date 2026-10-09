@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // served is a running Run on a free port with the fake site and store, its main checkout in a temp dir.

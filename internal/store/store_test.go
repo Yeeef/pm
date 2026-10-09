@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
+	"github.com/Yeeef/pm/internal/records"
 )
 
 // clone is a main checkout on main with its store at .pm/store/records on branch records, as pm init leaves a clone

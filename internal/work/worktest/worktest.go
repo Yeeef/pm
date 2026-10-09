@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // Store holds the items; every write fails.

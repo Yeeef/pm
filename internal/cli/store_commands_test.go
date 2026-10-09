@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // The work-store commands of the work-store page's Commands table, run as pm runs them (parse, open the store, run,

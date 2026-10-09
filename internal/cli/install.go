@@ -12,14 +12,14 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/install"
-	"github.com/Yeeef/yeeef-agents/pm/internal/launch"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/install"
+	"github.com/Yeeef/pm/internal/launch"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/store"
 )
 
 // pm init, pm doctor, pm upgrade, pm uninstall and the git hooks. Python source: cmd_init, init_steps, cmd_doctor,

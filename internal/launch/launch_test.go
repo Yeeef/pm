@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/buildinfo"
 )
 
 // TestMain doubles as the launcher under test: with LAUNCH_HELPER set, the test binary is pm's main, so the exec

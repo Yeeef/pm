@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
+	"github.com/Yeeef/pm/internal/config"
 )
 
 // SplitLines is Python's str.splitlines(): it breaks at \n, \r\n, \r, \v, \f, \x1c-\x1e, \x85,   and  , and

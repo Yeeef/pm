@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Yeeef/yeeef-agents/pm"
+	"github.com/Yeeef/pm"
 )
 
 func TestParseJudgedTakesTheSpanFromTheFirstToTheLastBrace(t *testing.T) {

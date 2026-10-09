@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	pmsync "github.com/Yeeef/yeeef-agents/pm/internal/sync"
+	pmsync "github.com/Yeeef/pm/internal/sync"
 )
 
 // The supervisor's tools as recorders: each call is a line in $FAKE_LOG, and what is loaded or active a line in

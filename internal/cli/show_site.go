@@ -3,8 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/service"
 )
 
 // showPort is Python's port(): $PORT for one run, else the installed service's port, else the config's.

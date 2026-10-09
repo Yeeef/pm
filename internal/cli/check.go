@@ -6,10 +6,10 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
-	"github.com/Yeeef/yeeef-agents/pm/internal/site"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/site"
+	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // OpenWork opens the clone's work store under the main checkout: the embedded Dolt store, taken under its gate and

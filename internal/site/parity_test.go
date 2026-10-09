@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // The parity corpus: Python pm's pages and check results, written by pm/tests/go_parity_corpus.py into $PM_PARITY

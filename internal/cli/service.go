@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/service"
 )
 
 // exitCode is a command that printed its output and exits with code, as pm service status does.

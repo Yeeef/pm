@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // fakeWork is the work store's data, shared by every open of a fakeStore, with the gate's rule checked: no two opens

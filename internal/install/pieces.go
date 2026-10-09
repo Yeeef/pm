@@ -27,9 +27,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/hooks"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // Error is a piece that cannot be written without changing what is not pm's, or a setup step refused; nothing was

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/cli"
-	"github.com/Yeeef/yeeef-agents/pm/internal/launch"
+	"github.com/Yeeef/pm/internal/cli"
+	"github.com/Yeeef/pm/internal/launch"
 )
 
 func main() {

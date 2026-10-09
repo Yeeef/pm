@@ -16,9 +16,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 const stopReason = "These records in the store (%[1]s) have uncommitted changes, and this session's tool calls name them:\n" +

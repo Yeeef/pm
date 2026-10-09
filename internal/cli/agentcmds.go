@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
+	"github.com/Yeeef/pm/internal/store"
 )
 
 // agentCommand is the body of a command that runs against the records store: what it prints, or why it refused.

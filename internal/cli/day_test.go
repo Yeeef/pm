@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 const dayProject = "---\ntype: project\ntitle: Demo\nbead: repo-demo\n---\n\n## Goal\n\nA demo.\n"

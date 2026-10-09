@@ -27,7 +27,7 @@ out=$(cd "$out" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 (cd "$root/pm" && CGO_ENABLED=1 go build -trimpath -tags gms_pure_go \
-  -ldflags "-s -w -X github.com/Yeeef/yeeef-agents/pm/internal/buildinfo.Version=$version" -o "$work/pm" ./cmd/pm)
+  -ldflags "-s -w -X github.com/Yeeef/pm/internal/buildinfo.Version=$version" -o "$work/pm" ./cmd/pm)
 chmod 0755 "$work/pm"
 tarball="$out/pm-$version-$(cd "$root/pm" && go env GOOS)-$(cd "$root/pm" && go env GOARCH).tar.gz"
 # COPYFILE_DISABLE: macOS tar would add an AppleDouble ._pm member beside pm

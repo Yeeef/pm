@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	pmsync "github.com/Yeeef/yeeef-agents/pm/internal/sync"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
+	pmsync "github.com/Yeeef/pm/internal/sync"
 )
 
 const (

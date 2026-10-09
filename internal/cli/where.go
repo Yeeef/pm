@@ -10,15 +10,15 @@ import (
 	"syscall"
 
 	"github.com/BurntSushi/toml"
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/install"
-	"github.com/Yeeef/yeeef-agents/pm/internal/launch"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	pmsync "github.com/Yeeef/yeeef-agents/pm/internal/sync"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/install"
+	"github.com/Yeeef/pm/internal/launch"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/store"
+	pmsync "github.com/Yeeef/pm/internal/sync"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // cmdWhere is pm where: with records, the store's path alone, for scripts; without, every location with its state.

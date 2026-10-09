@@ -22,8 +22,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/hooks"
 )
 
 type kind int

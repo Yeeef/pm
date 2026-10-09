@@ -25,11 +25,11 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
-	pmsync "github.com/Yeeef/yeeef-agents/pm/internal/sync"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/pyjson"
+	pmsync "github.com/Yeeef/pm/internal/sync"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 var (
