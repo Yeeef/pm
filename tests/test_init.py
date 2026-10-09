@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, fake_bd_env, write_config
+from conftest import IMPL, PM, fake_bd_env, write_config
 from pm import __version__, hooks
 
 GIT_ENV = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
@@ -28,6 +28,9 @@ PM_FILES = [".pm/config.toml", ".pm/README.md", ".pm/.gitignore", ".claude/setti
             ".beads/hooks/post-checkout", ".beads/hooks/pre-commit", ".github/workflows/pm-records-guard.yml",
             ".github/workflows/pm-records-copy.yml", ".gitignore"]
 BD_SET = [".beads/config.yaml"]  # what bd changes when pm init sets the agent profile
+# Go pm runs no bd (the pm-go page, "What pm init installs"): its work store replaces bd init, bd bootstrap and the
+# Beads agent profile, so no Beads file changes, and a new repo's hook files hold pm's section alone
+BD_WRITES = BD_SET if IMPL == "python" else []
 GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n"
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
                    "/.claude/settings.local.json\n# --- END PM ---\n")
@@ -108,8 +111,14 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     head = git(new_repo, "rev-parse", "HEAD")
     res = pm(new_repo, "init")
     assert res.returncode == 0, res.stderr
-    calls = [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
-    assert calls[0] == ["init", "--non-interactive"]
+    if IMPL == "python":
+        calls = [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
+        assert calls[0] == ["init", "--non-interactive"]
+        beads_hook = BEADS_HOOK  # bd init wrote Beads' section
+    else:  # the work store, created and pushed to the remote's refs/pm/work, takes bd init's place
+        assert git(new_repo, "ls-remote", "origin", "refs/pm/work").strip()
+        assert "created the work store at " in res.stdout, res.stdout
+        beads_hook = "#!/usr/bin/env sh\n"  # pm's new hook file: no Beads section
     # the records branch: an orphan holding the empty layout, on the remote and checked out as the store
     assert git(new_repo, "ls-remote", "--heads", "origin", "records").strip()
     assert git(new_repo, "ls-tree", "-r", "--name-only", "origin/records").split() == [f"{d}/.gitkeep" for d in LAYOUT]
@@ -123,9 +132,10 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert cfg == {"version": __version__, "remote": "origin", "main_branch": "main", "port": site_port(tmp_path)}
     assert (new_repo / ".pm/.gitignore").read_text() == "store/\nrun/\n"
     for name in ("post-checkout", "pre-commit"):
-        assert (new_repo / f".beads/hooks/{name}").read_text() == BEADS_HOOK + section(name)
+        assert (new_repo / f".beads/hooks/{name}").read_text() == beads_hook + section(name)
     claude = json.loads((new_repo / ".claude/settings.json").read_text())
-    assert commands(claude, "SessionStart") == ["bd prime --hook-json", *CLAUDE_PM["SessionStart"]]
+    bd_prime = ["bd prime --hook-json"] if IMPL == "python" else []  # bd init's own hook entry
+    assert commands(claude, "SessionStart") == [*bd_prime, *CLAUDE_PM["SessionStart"]]
     assert all(commands(claude, e) == c for e, c in CLAUDE_PM.items() if e != "SessionStart")
     codex = json.loads((new_repo / ".codex/hooks.json").read_text())
     assert all(commands(codex, e) == c for e, c in CLAUDE_PM.items())
@@ -135,9 +145,9 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert (new_repo / ".gitignore").read_text() == GITIGNORE_BLOCK
     status = git(new_repo, "status", "--porcelain", "--untracked-files=all").split("\n")
     untracked = sorted(l[3:] for l in status if l.startswith("?? ") and not l[3:].startswith(".beads/embedded"))
-    assert untracked == sorted(PM_FILES + [".beads/config.yaml"])
+    assert untracked == sorted(PM_FILES + BD_WRITES)
     # the commit to make names every file the run changed: pm's pieces and what bd wrote
-    assert f"git add -- {' '.join(PM_FILES + ['.beads/config.yaml'])} && " in res.stdout, res.stdout
+    assert f"git add -- {' '.join(PM_FILES + BD_WRITES)} && " in res.stdout, res.stdout
     assert f'git commit -m "Install pm {__version__}"' in res.stdout
     # the pm service, under the fake supervisor in tmp/home: pm init installs it
     sched = [json.loads(l) for l in (tmp_path / "sched.log").read_text().splitlines()]
@@ -255,6 +265,8 @@ def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, t
     assert f"serving http://localhost:{free} " in res.stdout, res.stdout
 
 
+@pytest.mark.impl("python", reason="the pm uv tool and a pm run from a local checkout are Python pm's (tool.py); Go pm "
+                 "installs its own binary in the bin dir, from wherever it runs")
 def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_repo: Path, tmp_path: Path):
     """This pm runs from a local checkout (PYTHONPATH no longer names its git build), which cannot install the tool,
     and the tool, from git, is never its build: init, service install, doctor and where say how to run pm as the

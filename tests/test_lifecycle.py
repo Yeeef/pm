@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM
+from conftest import IMPL, PM
 from pm import __version__
-from test_init import (BD_SET, BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, PM_FILES, USER_CODEX, USER_SETTINGS,  # noqa: F401
+from test_init import (BD_SET, BD_WRITES, BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, PM_FILES, USER_CODEX, USER_SETTINGS,  # noqa: F401
                        commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
 
 pytestmark = pytest.mark.integration  # each test runs pm init in a fresh repo with a remote and starts its service
@@ -28,8 +28,17 @@ def uv_cache() -> str:
     return str(Path(res.stdout.strip()).resolve())
 
 
+# Go pm needs no uv, so its roots are the clone's own five: .git, the records store and its git dir, the work store
+# and .pm/run, which holds the work store's gate (the pm-go page, Open question 12); Python pm's four (.git, the store,
+# its git dir, .beads) and uv's cache, which every clone shares
+CLONE_ROOTS, SHARED_ROOTS = (4, 1) if IMPL == "python" else (5, 0)
+
+
 def codex_after_uninstall() -> str:
-    """CODEX_USER with uv's cache, the one root uninstall keeps: other clones share it."""
+    """CODEX_USER with uv's cache, the one root uninstall keeps: other clones share it. Go pm adds no uv cache, so
+    uninstall leaves CODEX_USER as it was."""
+    if IMPL == "go":
+        return CODEX_USER
     return CODEX_USER.replace("[sandbox_workspace_write]\n",
                               f"[sandbox_workspace_write]\nwritable_roots = [{json.dumps(uv_cache())}]\n")
 
@@ -148,7 +157,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     assert res.returncode == 0, res.stderr
     calls = [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
     assert ["init", "--non-interactive"] not in calls, "Beads is there; bd init must not run"
-    assert f"git add -- {' '.join(PM_FILES)} .beads/config.yaml && " in res.stdout, "the agent profile bd set is listed"
+    assert f"git add -- {' '.join(PM_FILES + BD_WRITES)} && " in res.stdout, "the agent profile bd set is listed"
     for name in ("post-checkout", "pre-commit"):
         assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + section(name) + "\n# mine\necho done\n"
     for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
@@ -244,7 +253,7 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     assert sched_units(tmp_path) == [] and loaded(tmp_path) == []
     assert (tmp_path / "codex/config.toml").read_text() == codex_after_uninstall()
     # pm's exclude lines go, byte for byte; the fake bd's own line (its database) stays with Beads
-    assert exclude.read_bytes() == exclude_before + b"/.beads/embeddeddolt/\n"
+    assert exclude.read_bytes() == exclude_before + (b"/.beads/embeddeddolt/\n" if IMPL == "python" else b"")
     assert (existing / ".claude/settings.local.json").read_text() == LOCAL_SETTINGS
     assert not (wt / ".claude/settings.local.json").exists()
     assert not (existing / ".pm").exists() and (existing / ".beads/hooks").is_dir()
@@ -253,13 +262,14 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     after = {k: v for k, v in snapshot(existing).items() if not k.startswith(".beads/embeddeddolt/")}  # Beads stays
     assert after.pop(".gitignore") == before.pop(".gitignore") + b"\n"
     assert after.pop(".claude/settings.local.json") == LOCAL_SETTINGS.encode()
-    assert after.pop(".beads/config.yaml") == before.pop(".beads/config.yaml") + b"agent.profile: team-maintainer\n"
+    profile = b"agent.profile: team-maintainer\n" if IMPL == "python" else b""  # Go pm sets no Beads profile
+    assert after.pop(".beads/config.yaml") == before.pop(".beads/config.yaml") + profile
     assert after == before
     assert pm(existing, "uninstall").returncode != 0, "with .pm/ gone, pm refuses to run here"
 
 
 def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Path, tmp_path: Path):
-    """Two clones set up on one machine: uninstalling one removes only its own four roots; uv's cache, which both
+    """Two clones set up on one machine: uninstalling one removes only its own roots (CLONE_ROOTS); uv's cache, which both
     need, and the other clone's roots stay, and every other byte of config.toml with them. Roots it cannot take out
     without breaking the TOML are refused before anything changes."""
     (tmp_path / "codex").mkdir()
@@ -280,7 +290,8 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
     roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
     mine = [r for r in roots if r.startswith(str(new_repo.resolve()))]
     theirs = [r for r in roots if r.startswith(str(other.resolve()))]
-    assert len(mine) == 4 and len(theirs) == 4 and roots.count(uv_cache()) == 1 and len(roots) == 9, roots
+    assert len(mine) == len(theirs) == CLONE_ROOTS and roots.count(uv_cache()) == SHARED_ROOTS, roots
+    assert len(roots) == 2 * CLONE_ROOTS + SHARED_ROOTS, roots
     # writable_roots spread over lines, one root a line: taking a root out leaves its comma, which is not TOML;
     # uninstall names the file and says to remove the roots by hand, before it changes anything
     flat = config.read_text()
@@ -296,7 +307,8 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
     config.write_text(flat)
     res = pm(new_repo, "uninstall")
     assert res.returncode == 0, res.stderr
-    assert "uv's cache stays" in res.stdout
+    assert "uv's cache stays" in res.stdout if IMPL == "python" else f"removed this clone's writable_roots from {config}" \
+        in res.stdout, res.stdout
     kept = [r for r in roots if r not in mine]
     assert config.read_text() == CODEX_USER.replace(
         "[sandbox_workspace_write]\n",

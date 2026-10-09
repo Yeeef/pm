@@ -7,11 +7,13 @@ keeping its shape so a difference in format still shows: the temp and checkout p
 commit ids and UUIDs (numbered by first appearance, with their length), timestamps and today's date (each digit as
 0), durations and ports (the number only), and root ids pm minted (in order of appearance; the seeded ids are kept).
 Some things differ by design until the cut-over, and each becomes one form: pm where's work-layer line, where Python pm
-names Beads and Go pm its work store; pm push's work-layer step, Python pm's bd dolt push and Go pm's work-store sync;
-the pm service's log, whose timing lines name each one's store, so only its Serving lines are kept; pm service
-status's gc line, which only Go pm's service has (it collects the work store); and the comment that holds the answer a
-need closes with (pm decision add --need, pm decision close), which Python pm's `bd human respond` writes as a note
-"Response: <text>" by the git user and Go pm's work store as a reply by the owner (work.Answer)."""
+names Beads and Go pm its work store; the lines pm init prints as it connects the clone to its work layer,
+Python pm's bd bootstrap, .beads mode, beads.role and agent profile, Go pm's work store cloned, created, pointed
+at or pushed to the remote (both dropped); pm push's work-layer step, Python pm's bd dolt push and Go pm's
+work-store sync; the pm service's log, whose timing lines name each one's store, so only its Serving lines are
+kept; pm service status's gc line, which only Go pm's service has (it collects the work store); and the comment that
+holds the answer a need closes with (pm decision add --need, pm decision close), which Python pm's `bd human respond`
+writes as a note "Response: <text>" by the git user and Go pm's work store as a reply by the owner (work.Answer)."""
 
 from __future__ import annotations
 
@@ -33,6 +35,11 @@ TIME = re.compile(r"\b\d{4}-\d\d-\d\d[T ]\d\d:\d\d(?::\d\d(?:\.\d+)?)?(?:Z|[+-]\
 DURATION = re.compile(r"\b\d+(?:\.\d+)?(?= ?(?:ms|s|min)\b|[mhd]\b)")
 PORT = re.compile(r"(?:(?<=localhost:)|(?<=127\.0\.0\.1:)|(?<= :))\d{2,5}\b")
 WORK_LAYER = re.compile(r"(?m)^(?:beads     |work      )\S.*$")  # pm where: Python's Beads line, Go's work-store line
+# pm init: Python pm's Beads setup lines, Go pm's work-store setup lines (install.SetupWork)
+WORK_SETUP = re.compile(r"(?m)^(?:set up the Beads database \(.*|made .* private \(0700\), as bd asks"
+                        r"|set beads\.role to maintainer|set the Beads agent profile to team-maintainer"
+                        r"|cloned the work store from .*|created the work store at .*|pointed the work store .*"
+                        r"|pushed the work store to .*)\n")
 WORK_PUSH = re.compile(r"(?m)^(\S+) (?:beads|work) (ok|error): .*$")  # pm push: bd dolt push, or the work store's sync
 SERVED_LAYER = re.compile(r"; (?:Beads reread when \S+ changes|Beads reread every look \(Dolt server\)|"
                           r"the work store reread when it changes);")  # the service's Serving line
@@ -85,6 +92,7 @@ def normalise(value, paths: dict[str, str]):
         value = value.replace(today, "0000-00-00")
     value = DURATION.sub("0", value)
     value = WORK_LAYER.sub("<work layer: Beads or the work store>", value)
+    value = WORK_SETUP.sub("", value)
     value = WORK_PUSH.sub(r"\1 <work layer: bd dolt push or the work store's sync> \2", value)
     value = SERVED_LAYER.sub("; <work layer> reread when it changes;", value)
     value = GC_LINE.sub("", value)

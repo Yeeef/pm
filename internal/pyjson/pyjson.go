@@ -141,6 +141,85 @@ func write(b *bytes.Buffer, v any, ascii bool) {
 	}
 }
 
+// DumpsIndent is json.dumps(v, indent=indent, ensure_ascii=ascii): one item a line, nested by indent spaces, "," at
+// each line's end and ": " after a key; an empty list or object stays [] or {}.
+func DumpsIndent(v any, indent int, ascii bool) string {
+	var b bytes.Buffer
+	writeIndent(&b, v, strings.Repeat(" ", indent), "\n", ascii)
+	return b.String()
+}
+
+func writeIndent(b *bytes.Buffer, v any, step, nl string, ascii bool) {
+	inner := nl + step
+	switch t := v.(type) {
+	case []any:
+		if len(t) == 0 {
+			b.WriteString("[]")
+			return
+		}
+		b.WriteByte('[')
+		for i, e := range t {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			b.WriteString(inner)
+			writeIndent(b, e, step, inner, ascii)
+		}
+		b.WriteString(nl)
+		b.WriteByte(']')
+	case *Object:
+		if len(t.Keys) == 0 {
+			b.WriteString("{}")
+			return
+		}
+		b.WriteByte('{')
+		for i, k := range t.Keys {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			b.WriteString(inner)
+			b.WriteString(String(k, ascii))
+			b.WriteString(": ")
+			writeIndent(b, t.Values[k], step, inner, ascii)
+		}
+		b.WriteString(nl)
+		b.WriteByte('}')
+	default:
+		write(b, v, ascii)
+	}
+}
+
+// NewObject is an empty object.
+func NewObject() *Object { return &Object{Values: map[string]any{}} }
+
+// Has is `key in d`.
+func (o *Object) Has(key string) bool {
+	_, ok := o.Values[key]
+	return ok
+}
+
+// Set is d[key] = value: a new key goes last, an existing one keeps its place.
+func (o *Object) Set(key string, value any) {
+	if !o.Has(key) {
+		o.Keys = append(o.Keys, key)
+	}
+	o.Values[key] = value
+}
+
+// Delete is del d[key]; an absent key is left alone.
+func (o *Object) Delete(key string) {
+	if !o.Has(key) {
+		return
+	}
+	delete(o.Values, key)
+	for i, k := range o.Keys {
+		if k == key {
+			o.Keys = append(o.Keys[:i:i], o.Keys[i+1:]...)
+			break
+		}
+	}
+}
+
 // Number is how json.dumps writes a number json.loads read from this text: an int keeps its digits, a float is
 // Python's repr of it.
 func Number(n json.Number) string {

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, stop_services, write_config
+from conftest import IMPL, PM, stop_services, write_config
 
 from pm import hooks
 
@@ -187,7 +187,10 @@ def test_session_start_reports_a_down_service_and_a_typed_init_restarts_it(repo,
 @pytest.mark.integration
 def test_session_start_fails_open_with_one_line(repo):
     init_ready(repo)
-    (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
+    if IMPL == "python":
+        (repo.state).write_text("not json")  # the fake bd now fails, so pm show fails
+    else:  # Go pm show reads its work store, which is gone
+        shutil.rmtree(repo.root / ".pm/store/work")
     text = context_of(run(STATE, {"cwd": str(repo.root)}, repo.env, repo.root))
     _, located, shown = text.split("\n\n", 2)
     assert located.startswith("Locations from `pm where` at session start:\n")  # pm where reads no Beads

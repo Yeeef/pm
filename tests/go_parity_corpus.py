@@ -14,7 +14,8 @@ work-store items, mapped from the bd issues by work_items.py, in bd's order), `m
 
 OUT/reference.json holds Python's results for the scanning code that replaces its lookaround regexes, YAML 1.1 quoting
 and header typing, on a table of inputs plus every header value of every corpus. The Go tests (internal/site,
-internal/records) read OUT through $PM_PARITY.
+internal/records) read OUT through $PM_PARITY. OUT/install.json holds Python's managed pieces and Codex config edits on
+a table of inputs, for internal/install.
 """
 
 from __future__ import annotations
@@ -261,6 +262,101 @@ def insert(text: str, section: str, entry: str) -> str | None:
         return "error: " + str(e)
 
 
+# install_reference's inputs: the settings, and each managed file's texts (None: absent), mostly from test_init's
+# fixtures: Beads' hook file with the repo's own lines, settings files of the user's, an unterminated .gitignore, an
+# older pm's parts, and the broken forms pm refuses
+INSTALL_SETTINGS = [("origin", "main", 8123, ""), ("upstream", "trunk", 8000, "https://pm.example.com")]
+BEADS_HOOK = "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n"
+USER_SETTINGS = {"permissions": {"allow": ["Bash(ls:*)"]}, "model": "café",
+                 "hooks": {"SessionStart": [{"hooks": [{"command": "bd prime --hook-json", "type": "command"}],
+                                             "matcher": ""}],
+                           "PreToolUse": [{"hooks": [{"command": "./lint.sh", "type": "command"}], "matcher": "Bash"}],
+                           "Stop": [{"hooks": [{"command": "pm hook stop", "type": "command"},
+                                               {"command": "./mine.sh", "type": "command"}]}]}}
+INSTALL_TEXTS = {
+    "settings": [None, "", "{}\n", json.dumps(USER_SETTINGS, indent=2, ensure_ascii=False) + "\n",
+                 json.dumps(USER_SETTINGS) + "\n", "{not json", "[]\n", '{\n  "hooks": []\n}\n',
+                 json.dumps({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "pm hook stop || exit 1"}]}]},
+                             "n": 1.0, "big": 10 ** 20}, indent=2) + "\n"],
+    "hook": [None, "", "#!/usr/bin/env sh\n", BEADS_HOOK, BEADS_HOOK + "\n# mine\necho done\n",
+             BEADS_HOOK.rstrip("\n"), "#!/bin/sh\necho mine",
+             BEADS_HOOK + '# --- BEGIN PM v0.0.1 ---\npm hook git-pre-commit "$@" || exit $?\n# --- END PM ---\nmine\n',
+             BEADS_HOOK + "# --- BEGIN PM v0.0.1 ---\nno end\n"],
+    "gitignore": [None, "", "*.log\nbuild/", "*.log\n", "# --- BEGIN PM ---\n/records/\n# --- END PM ---\nkeep\n",
+                  "# --- BEGIN PM ---\nno end\n"],
+    "whole": [None, "", "old\n"],
+}
+CODEX_TEXTS = ["", "# mine\nmodel = \"o3\"\n", "# mine\nmodel = \"o3\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
+               "[sandbox_workspace_write]\nwritable_roots = [\"/x\"]\n",
+               "[sandbox_workspace_write]  # sandbox\nwritable_roots = [ ]\n\n[other]\na = 1\n",
+               "sandbox_workspace_write.network_access = true\n", "[sandbox_workspace_write]\nwritable_roots = \"x\"\n",
+               "[sandbox_workspace_write]\nwritable_roots = [\n  \"/x\",\n  \"/a\",\n]\n", "not toml ["]
+
+
+def install_reference(out: Path) -> None:
+    """OUT/install.json: Python pm's pieces on each input text (present, apply, remove, and pm doctor's line for the
+    file alone), plan, drift, rewrite and removals on a tree of each settings, and the Codex config edits, which
+    internal/install's tests hold Go pm's equal to, byte for byte. A refusal is "error: <message>"."""
+    import tempfile
+
+    from pm import install
+
+    def attempt(fn, *args):
+        try:
+            return fn(*args)
+        except (install.InstallError, cli.Refuse) as e:
+            return "error: " + str(e)
+
+    kinds = {".claude/settings.json": "settings", ".codex/hooks.json": "settings", ".beads/hooks/post-checkout": "hook",
+             ".beads/hooks/pre-commit": "hook", ".gitignore": "gitignore"}
+    pieces, trees = [], []
+    for n, (remote, main, port, site) in enumerate(INSTALL_SETTINGS):
+        s = install.Settings(remote, main, port, site)
+        for piece in install.pieces(s):
+            for text in INSTALL_TEXTS[kinds.get(piece.rel, "whole")]:
+                with tempfile.TemporaryDirectory() as top:
+                    if text is not None:
+                        (Path(top) / piece.rel).parent.mkdir(parents=True, exist_ok=True)
+                        (Path(top) / piece.rel).write_text(text)
+                    drift = [l for l in attempt(install.drift, Path(top), s) if l.startswith(piece.rel + ":")]
+                pieces.append({"settings": n, "rel": piece.rel, "text": text, "present": attempt(piece.present, text),
+                               "apply": attempt(piece.apply, text),
+                               "remove": None if text is None else attempt(piece.remove, text), "drift": drift})
+        for case in range(3):  # nothing; the user's files; the user's files with pm installed by this pm
+            with tempfile.TemporaryDirectory() as tmp:
+                top = Path(tmp)
+                files = {} if case == 0 else {".claude/settings.json": INSTALL_TEXTS["settings"][3],
+                                              ".beads/hooks/pre-commit": INSTALL_TEXTS["hook"][4],
+                                              ".gitignore": "*.log\nbuild/", ".pm/README.md": "old\n"}
+                for rel, text in files.items():
+                    (top / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (top / rel).write_text(text)
+                if case == 2:
+                    install.write(install.rewrite(top, s))
+                    files = {p.relative_to(top).as_posix(): p.read_text() for p in top.rglob("*") if p.is_file()}
+                rel = lambda planned: [[piece.rel, new] for piece, _, _, new in planned]
+                trees.append({"settings": n, "files": files, "plan": rel(install.plan(top, s)),
+                              "drift": install.drift(top, s), "rewrite": rel(install.rewrite(top, s)),
+                              "removals": [[p.relative_to(top).as_posix(), t] for p, t in install.removals(top, s)]})
+    roots = [["/a b/.git", "/é/store"], ["/x"]]
+    codex_add, codex_remove = [], []
+    for text in CODEX_TEXTS:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            path.write_text(text)
+            for missing in roots:
+                def add():  # pm init adds only what is missing, and nothing when nothing is
+                    t, data, have = cli.codex_config(path)
+                    add = [r for r in missing if r not in have]
+                    return cli.add_codex_roots(path, t, data, have, add) if add else t
+                codex_add.append({"text": text, "roots": missing, "result": attempt(add)})
+                codex_remove.append({"text": text, "roots": missing,
+                                     "result": attempt(cli.remove_codex_roots, path, missing)})
+    (out / "install.json").write_text(json.dumps({
+        "version": install.__version__, "settings": INSTALL_SETTINGS, "pieces": pieces, "trees": trees,
+        "codex_add": codex_add, "codex_remove": codex_remove}, ensure_ascii=False))
+
+
 def main(argv: list[str]) -> int:
     out = Path(argv[0]).resolve()
     shutil.rmtree(out, ignore_errors=True)
@@ -278,6 +374,7 @@ def main(argv: list[str]) -> int:
         live(out)
         stores.append(out / "live" / "records")
     reference(out, stores)
+    install_reference(out)
     return 0
 
 

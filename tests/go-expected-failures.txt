@@ -3,23 +3,3 @@
 # leaves this list. The list only shrinks: a test that passed on Go and fails now is a regression to fix, never a
 # new entry; only a new test of a command Go pm does not have yet joins it.
 # test_go_expected_failures.py fails on an entry naming a test function its file no longer has.
-
-test_hooks.py::test_session_start_fails_open_with_one_line
-test_hooks.py::test_session_start_injects_rules_then_init_where_and_pm_show
-test_hooks.py::test_session_start_reports_a_down_service_and_a_typed_init_restarts_it
-test_hooks.py::test_session_start_sets_up_a_worktree_post_checkout_skipped[mains-tracked-copy]
-test_hooks.py::test_session_start_sets_up_a_worktree_post_checkout_skipped[no-records]
-test_init.py::test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool
-test_init.py::test_init_bootstraps_a_brand_new_repo
-test_init.py::test_init_in_a_worktree_of_a_branch_without_config_refuses
-test_init.py::test_init_in_a_worktree_sets_it_up_when_mains_pin_differs
-test_init.py::test_init_refuses_a_held_site_port_before_writing_anything
-test_init.py::test_init_refuses_before_bd_init_runs
-test_lifecycle.py::test_doctor_names_a_settings_file_it_cannot_read_as_a_repo_finding
-test_lifecycle.py::test_doctor_reports_each_changed_clone_setup
-test_lifecycle.py::test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it
-test_lifecycle.py::test_init_and_upgrade_keep_what_is_not_pms
-test_lifecycle.py::test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade
-test_lifecycle.py::test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots
-test_lifecycle.py::test_uninstall_removes_pms_parts_and_setup_only
-test_pm.py::test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_service

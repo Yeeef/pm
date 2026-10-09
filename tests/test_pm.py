@@ -417,11 +417,15 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
     clone = tmp_path / "clone"
     res = init_in(clone)
     assert res.returncode == 0, res.stderr
-    assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
-                                     ["hooks", "install", "--beads"]]
+    if IMPL == "python":
+        assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
+                                         ["hooks", "install", "--beads"]]
+        assert git_in(clone, "config", "beads.role").strip() == "maintainer"
+        assert (clone / ".beads").stat().st_mode & 0o777 == 0o700
+    else:  # Go pm's work store takes bd bootstrap's place: the remote had none, so pm init made it and pushed it
+        assert git_in(clone, "ls-remote", "origin", "refs/pm/work").strip()
+        assert f"created the work store at {clone}/.pm/store/work and pushed it to origin's refs/pm/work" in res.stdout
     assert git_in(clone, "config", "core.hooksPath").strip() == str(clone / ".beads/hooks")
-    assert git_in(clone, "config", "beads.role").strip() == "maintainer"
-    assert (clone / ".beads").stat().st_mode & 0o777 == 0o700
     assert git_in(clone / ".pm/store/records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "records"
     assert (clone / "records").is_symlink() and (clone / "records/sprints/demo-1.md").read_text() == "one\n"
     assert git_in(clone, "status", "--porcelain") == ""
@@ -438,8 +442,9 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
     assert [c for c in sched_calls(tmp_path) if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]]
     again = init_in(clone)
     assert again.returncode == 0 and again.stdout.startswith("already set up"), again.stderr
-    assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
-                                     ["hooks", "install", "--beads"]], "no bd change"
+    if IMPL == "python":
+        assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
+                                         ["hooks", "install", "--beads"]], "no bd change"
     assert (clone / ".git/config").read_text() == config
 
 

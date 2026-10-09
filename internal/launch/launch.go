@@ -224,6 +224,9 @@ func lookPath(name string, env []string) (string, bool) {
 // IsLaunched is whether this pm was launched for its own version: the pm that launched it is another version.
 func IsLaunched() bool { return marks[Launched] == buildinfo.Version }
 
+// LauncherVersion is the version of the pm that launched this one ($PM_LAUNCHER as Scrub took it); "" when none did.
+func LauncherVersion() string { return marks[Launcher] }
+
 // How is how the running pm was chosen, for pm where and pm doctor.
 func How() string {
 	if !IsLaunched() {

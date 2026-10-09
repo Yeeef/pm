@@ -10,7 +10,8 @@ from pathlib import Path
 
 PM = Path(__file__).resolve().parents[1]
 CLI = PM / "src/pm/cli.py"
-GO_SOURCES = [*sorted((PM / "internal/cli").glob("*.go")), *sorted((PM / "internal/store").glob("*.go"))]
+GO_SOURCES = [*sorted((PM / "internal/cli").glob("*.go")), *sorted((PM / "internal/store").glob("*.go")),
+              *sorted((PM / "internal/install").glob("*.go"))]
 
 # The Python functions behind the commands Go pm runs, and the helpers whose refusals they raise.
 PORTED = {
@@ -22,6 +23,9 @@ PORTED = {
     "decision_target", "decision_line", "decision_block", "refuse_unread", "cmd_decision_add", "need_part",
     "need_markdown", "raise_need", "cmd_action_need", "raise_review", "human_issue",
     "cmd_decision_close", "cmd_action_done", "cmd_reply_read",
+    # pm init's, upgrade's and uninstall's refusals that Go pm keeps; the Beads, uv and legacy ones it drops by design
+    "cmd_upgrade", "cmd_uninstall", "code_top", "check_site_url", "check_hooks_path", "codex_config", "add_codex_roots",
+    "remove_codex_roots", "claude_dirs", "setup_claude",
 }
 
 GO_STRING = r'"(?:[^"\\\n]|\\.)*"|`[^`]*`'
