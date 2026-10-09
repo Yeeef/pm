@@ -525,6 +525,11 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return runService(strings.TrimPrefix(name, "service "), p, here, stdout)
 	case "check":
 		return cmdCheck(here, stdout)
+	case "where":
+		return cmdWhere(p, here, stdout)
+	}
+	if cmd, ok := agentCommands[name]; ok {
+		return runAgent(name, cmd, p, here, stdin, stdout, stderr)
 	}
 	return &refusal{fmt.Sprintf("pm %s is not in Go pm yet; Python pm runs it until the cut-over", name)}
 }
