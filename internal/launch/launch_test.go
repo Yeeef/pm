@@ -271,6 +271,26 @@ func TestScrubTakesTheMarksAndAnOldPinsToolDirs(t *testing.T) {
 	}
 }
 
+// Markers hands the launcher's markers to a child that is this same pm (the session-start pm init), and only when
+// this pm was launched: such a child runs as the pin itself, and without them would take the bin dir from the launcher.
+func TestMarkersAreThoseScrubTookAndNoneUnlaunched(t *testing.T) {
+	dataDir(t)
+	defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
+	buildinfo.Version = "0.3.0"
+	t.Setenv(Launched, "0.3.0")
+	t.Setenv(Launcher, "0.2.0")
+	Scrub()
+	if got := strings.Join(Markers(), " "); got != Launched+"=0.3.0 "+Launcher+"=0.2.0" {
+		t.Fatalf("launched: %q", got)
+	}
+	os.Unsetenv(Launched)
+	os.Unsetenv(Launcher)
+	Scrub()
+	if got := Markers(); got != nil {
+		t.Fatalf("not launched: %q", got)
+	}
+}
+
 // helper runs the test binary as a launcher of version in repo.
 func helper(t *testing.T, version, repo string, env ...string) (string, error) {
 	t.Helper()

@@ -187,6 +187,39 @@ func TestInstallBinary(t *testing.T) {
 	}
 }
 
+// The pm uv tool's link in the bin dir gives way to the Go binary, and the uv tool stays: repos pinned to Python pm
+// run their pin through it, and their service units run its interpreter.
+func TestInstallBinaryReplacesTheUVToolsLinkAndKeepsTheTool(t *testing.T) {
+	bin, tools := t.TempDir(), t.TempDir()
+	t.Setenv("PM_BIN_DIR", bin)
+	t.Setenv("UV_TOOL_DIR", tools)
+	old := buildinfo.Version
+	buildinfo.Version = "9.9.9"
+	t.Cleanup(func() { buildinfo.Version = old })
+	tool := filepath.Join(tools, "pm/bin/pm")
+	if err := os.MkdirAll(filepath.Dir(tool), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tool, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(tool, filepath.Join(bin, "pm")); err != nil {
+		t.Fatal(err)
+	}
+	said, err := InstallBinary()
+	want := "replaced the pm uv tool's link " + filepath.Join(bin, "pm") + "; the uv tool stays installed for repos " +
+		"pinned to Python pm; installed pm 9.9.9 at " + filepath.Join(bin, "pm")
+	if err != nil || said != want {
+		t.Fatalf("got %q, %v", said, err)
+	}
+	if st, err := os.Lstat(filepath.Join(bin, "pm")); err != nil || !st.Mode().IsRegular() {
+		t.Fatalf("the bin-dir pm is not a file: %v", err)
+	}
+	if b, err := os.ReadFile(tool); err != nil || string(b) != "#!/bin/sh\n" {
+		t.Fatalf("the uv tool's pm changed: %q, %v", b, err)
+	}
+}
+
 // The clone's exclude lines: added once after the user's own, then removed byte for byte.
 func TestExcludeRoundTrip(t *testing.T) {
 	main := t.TempDir()

@@ -227,6 +227,15 @@ func IsLaunched() bool { return marks[Launched] == buildinfo.Version }
 // LauncherVersion is the version of the pm that launched this one ($PM_LAUNCHER as Scrub took it); "" when none did.
 func LauncherVersion() string { return marks[Launcher] }
 
+// Markers are the launcher's markers as NAME=value, for a child that is this same pm doing part of this command's
+// work (the session-start pm init); none when this pm was not launched. Other children never get them.
+func Markers() []string {
+	if !IsLaunched() {
+		return nil
+	}
+	return []string{Launched + "=" + marks[Launched], Launcher + "=" + marks[Launcher]}
+}
+
 // How is how the running pm was chosen, for pm where and pm doctor.
 func How() string {
 	if !IsLaunched() {

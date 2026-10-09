@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -136,7 +137,11 @@ func Download(version string) error {
 			want, fix)
 	}
 	keptSum := filepath.Join(dir, "sha256")
-	if b, err := os.ReadFile(keptSum); err == nil && config.PyStrip(string(b)) != got {
+	b, err := os.ReadFile(keptSum)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err // a kept sha256 that cannot be read is no check passed
+	}
+	if err == nil && config.PyStrip(string(b)) != got {
 		return fmt.Errorf("%s changed since this machine first downloaded it: %s has sha256 %s, but %s keeps %s; a "+
 			"release is never rebuilt, so check where it came from before you delete that file", head, tarURL, got,
 			keptSum, config.PyStrip(string(b)))

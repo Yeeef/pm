@@ -41,8 +41,11 @@ func uvToolLink(bin string) bool {
 }
 
 // InstallBinary puts this pm in the bin dir, config.BinPath(), which hooks, agents and the service unit run: copied
-// there atomically when nothing is there or another binary is, after uninstalling the pm uv tool whose link it is. A
-// pm a Go launcher launched leaves the bin dir to the launcher. What it did, "" when the bin-dir pm is this one.
+// there atomically when nothing is there or another binary is. When the bin-dir pm is the pm uv tool's link, the copy
+// replaces the link and the uv tool stays installed: a repo still pinned to Python pm runs its pin through it (a
+// launched Python pm checks the tool, and its service unit runs the tool's interpreter), so uninstalling it would break
+// every such clone on the machine. A pm a Go launcher launched leaves the bin dir to the launcher. What it did, "" when
+// the bin-dir pm is this one.
 func InstallBinary() (string, error) {
 	if launchedByGo() {
 		return "", nil
@@ -62,14 +65,8 @@ func InstallBinary() (string, error) {
 	}
 	var said []string
 	if uvToolLink(bin) {
-		res, err := proc.Run([]string{"uv", "tool", "uninstall", "pm"}, proc.Options{})
-		if err != nil {
-			return "", err
-		}
-		if res.Code != 0 {
-			return "", refuse("uv tool uninstall pm failed: %s", config.PyStrip(res.Stderr+res.Stdout))
-		}
-		said = append(said, "uninstalled the pm uv tool (uv tool uninstall pm)")
+		said = append(said, fmt.Sprintf("replaced the pm uv tool's link %s; the uv tool stays installed for repos pinned "+
+			"to Python pm", bin))
 	}
 	if err := copyAtomic(me, bin); err != nil {
 		return "", err

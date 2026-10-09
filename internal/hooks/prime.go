@@ -16,6 +16,7 @@ import (
 
 	"github.com/Yeeef/yeeef-agents/pm"
 	"github.com/Yeeef/yeeef-agents/pm/internal/config"
+	"github.com/Yeeef/yeeef-agents/pm/internal/launch"
 	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
 	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
 )
@@ -161,7 +162,10 @@ func Init(cwd *string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	res, err := proc.Run(argv, proc.Options{Cwd: cwd, Env: envWithout("PORT"), Timeout: initTimeout * time.Second,
+	// The child is this binary for the same pin: a pm a launcher launched passes its markers on, so pm init knows the
+	// launcher owns the bin dir and leaves it alone (the markers are out of this process's environment by now).
+	env := append(envWithout("PORT"), launch.Markers()...)
+	res, err := proc.Run(argv, proc.Options{Cwd: cwd, Env: env, Timeout: initTimeout * time.Second,
 		TimeoutText: fmt.Sprint(initTimeout)})
 	if e, ok := err.(*proc.Error); ok {
 		return fmt.Sprintf("pm init did not run at session start (%s: %s); run `pm init` by hand.\n\n", e.Type, e.Msg), nil
