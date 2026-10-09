@@ -311,7 +311,7 @@ def launch(argv: list[str]) -> int | None:
             except OSError as e:
                 raise LaunchError(f"this repo pins pm {version}, but {path} could not run: {e.strerror}; delete it "
                                   "to download it again")
-        cmd =["uv", "--quiet", "tool", "run", "--from", requirement(commit(version, env)), "pm", *argv]
+        cmd = ["uv", "--quiet", "tool", "run", "--from", requirement(commit(version, env)), "pm", *argv]
         try:
             os.execvpe("uv", cmd, env)
         except FileNotFoundError:
