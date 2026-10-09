@@ -291,7 +291,8 @@ func DesignDates(store string, recs []*records.Record, today string) (map[string
 }
 
 // Uncommitted is those of paths that differ from HEAD in the store (modified, staged, removed or untracked), as store
-// paths.
+// paths. It takes no optional lock: the pm service runs it every time the records move (design-page dates), and git
+// status's opportunistic index.lock would fail a pm commit running at that moment.
 func Uncommitted(store string, paths []string) ([]string, error) {
 	if len(paths) == 0 {
 		return nil, nil // with no pathspec, git status would list every change in the store
@@ -300,7 +301,8 @@ func Uncommitted(store string, paths []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, errOut, err := run(store, append([]string{"status", "--porcelain", "--untracked-files=all", "-z", "--"}, ns...)...)
+	out, errOut, err := run(store, append([]string{"--no-optional-locks", "status", "--porcelain", "--untracked-files=all",
+		"-z", "--"}, ns...)...)
 	if err != nil {
 		return nil, fmt.Errorf("git status failed in %s: %s", store, records.Strip(errOut))
 	}
