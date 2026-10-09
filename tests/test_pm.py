@@ -829,11 +829,13 @@ def test_pm_show_project_prints_one_project_and_refuses_what_it_cannot(repo):
 def test_sprints_list_in_natural_id_order_on_the_overview_the_project_page_and_pm_show(repo):
     """Beads ids order by their numbers, not as text: .9, .39, .100, where text order puts .100 before .39."""
     from conftest import sprint
-    for n in (100, 39, 9):
-        repo.add_issue({"id": f"demo.{n}", "title": f"Sprint {n}: Number {n}", "status": "open",
-                        "issue_type": "epic", "parent": "demo", "created_at": "2026-10-01T12:00:00Z"})
-        repo.write(f"sprints/demo-{n}.md", sprint(f"Number {n}", f"demo.{n}"))
+    for n in (100, 39, 9):  # each sprint's record first: the work store imports a sprint only with its record
+        repo.write(f"sprints/demo-{n}.md", sprint(f"Number {n}", f"repo-demo.{n}"))
     repo.commit("sprints 9, 39 and 100")
+    for n in (100, 39, 9):
+        repo.add_issue({"id": f"repo-demo.{n}", "title": f"Sprint {n}: Number {n}", "status": "open",
+                        "issue_type": "epic", "parent": "repo-demo", "created_at": "2026-10-01T12:00:00Z",
+                        "updated_at": "2026-10-01T12:00:00Z"})
     titles = ("Number 9", "Number 39", "Number 100")
     in_order = lambda text: -1 < text.index(titles[0]) < text.index(titles[1]) < text.index(titles[2])
     pages = repo.pages()
