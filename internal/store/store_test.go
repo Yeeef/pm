@@ -159,7 +159,10 @@ func TestApplyCommitsOrRestores(t *testing.T) {
 	if err := Apply(store, []Write{{p, project + "more\n"}}, "edit", "", "pm: "); err != nil {
 		t.Fatal(err)
 	}
-	if got := sh(t, store, "git log -1 --format=%s", "git status --porcelain"); got != "" {
+	if got := sh(t, store, "git log -1 --format=%s"); got != "pm: edit" {
+		t.Errorf("Apply committed %q", got)
+	}
+	if got := sh(t, store, "git status --porcelain"); got != "" {
 		t.Errorf("after Apply the store is dirty: %q", got)
 	}
 	gitdir := sh(t, store, "git rev-parse --absolute-git-dir")
@@ -175,6 +178,21 @@ func TestApplyCommitsOrRestores(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(store, "docs/new.md")); !os.IsNotExist(err) {
 		t.Errorf("a new file stays after a failed write: %v", err)
+	}
+}
+
+func TestApplyNeverOverwritesARecordItCannotRead(t *testing.T) {
+	_, store := clone(t)
+	p := filepath.Join(store, "projects/demo.md")
+	os.Chmod(p, 0)
+	defer os.Chmod(p, 0o644)
+	err := Apply(store, []Write{{p, "changed"}}, "edit", "", "pm: ")
+	if err == nil || !strings.HasSuffix(err.Error(), "; no record was changed") {
+		t.Errorf("Apply on an unreadable record: %v", err)
+	}
+	os.Chmod(p, 0o644)
+	if b, _ := os.ReadFile(p); string(b) != project {
+		t.Errorf("the record changed: %q", b)
 	}
 }
 

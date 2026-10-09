@@ -316,7 +316,7 @@ func Uncommitted(store string, paths []string) ([]string, error) {
 // Lock holds an exclusive lock on the store, shared by every worktree, across a write and its commit; Unlock releases
 // it.
 func Lock(store string) (unlock func(), err error) {
-	fd, err := syscall.Open(store, syscall.O_RDONLY, 0)
+	fd, err := syscall.Open(store, syscall.O_RDONLY|syscall.O_CLOEXEC, 0) // git children must not hold the lock
 	if err != nil {
 		return nil, &fs.PathError{Op: "open", Path: store, Err: err}
 	}
@@ -451,7 +451,12 @@ func Apply(store string, writes []Write, message, undo, prefix string) error {
 	existed := map[string]bool{}
 	for _, w := range writes {
 		b, err := os.ReadFile(w.Path)
-		existed[w.Path] = err == nil
+		switch {
+		case err == nil:
+			existed[w.Path] = true
+		case !errors.Is(err, fs.ErrNotExist): // a record that cannot be read is never overwritten
+			return &Refusal{fmt.Sprintf("writing %s failed: %s; no record was changed%s", w.Path, oserror(err), hint)}
+		}
 		before = append(before, Write{w.Path, string(b)})
 	}
 	var written []Write

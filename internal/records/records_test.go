@@ -62,7 +62,7 @@ func TestHeaderValuesTypeAsPyyamlDoes(t *testing.T) {
 		json.Unmarshal(c[1], &want)
 		meta, err := parseHeader("k: "+value, "x")
 		if want == nil {
-			if err == nil && meta["k"].Kind != KindStr {
+			if err == nil {
 				t.Errorf("k: %q gives %v on Go; pyyaml fails", value, meta["k"])
 			}
 			continue

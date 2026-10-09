@@ -273,7 +273,11 @@ func resolveTimestamp(s string) (Value, error) {
 		out += "+00:00"
 	case m[8] != "":
 		tzh, tzm := atoi(m[10]), atoi(m[11])
-		out += fmt.Sprintf("%s%02d:%02d", m[9], tzh, tzm)
+		sign := m[9]
+		if tzh == 0 && tzm == 0 {
+			sign = "+" // Python prints a zero offset as +00:00
+		}
+		out += fmt.Sprintf("%s%02d:%02d", sign, tzh, tzm)
 	}
 	return Value{Kind: KindDatetime, Str: out, Truthy: true}, nil
 }
