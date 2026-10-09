@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
 	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
 	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
 	"github.com/Yeeef/yeeef-agents/pm/internal/service"
@@ -313,20 +314,28 @@ func Sparse(top string) ([]string, error) {
 	return strings.Fields(res.Stdout), nil
 }
 
-// HooksDir is where the clone's git hooks live: Beads' .beads/hooks in the main checkout, which pm's sections join.
-func HooksDir(main string) string { return filepath.Join(main, ".beads", "hooks") }
+// HooksDir is where the clone's git hooks live: pm's own .pm/hooks in the main checkout.
+func HooksDir(main string) string { return filepath.Join(main, filepath.FromSlash(HooksRel)) }
 
-// CheckHooksPath refuses a core.hooksPath other than .beads/hooks (relative, or this worktree's or the main checkout's
-// absolute path); unset is fine, as pm init sets it.
+// beadsHooksDir is Beads' hook directory, where Python pm 0.1.x pointed core.hooksPath; pm init and pm upgrade move it.
+func beadsHooksDir(dir string) string { return filepath.Join(dir, ".beads", "hooks") }
+
+// hooksPathIs is whether core.hooksPath, as set in top, names dir under this worktree or the main checkout.
+func hooksPathIs(top, main, current string, dir func(string) string) bool {
+	at := Resolve(join(top, current))
+	return at == Resolve(dir(top)) || at == Resolve(dir(main))
+}
+
+// CheckHooksPath refuses a core.hooksPath other than .pm/hooks (relative, or this worktree's or the main checkout's
+// absolute path); unset is fine, as pm init sets it, and so is Beads' .beads/hooks, which pm init moves to .pm/hooks.
 func CheckHooksPath(top, main string) error {
 	current, err := GitConfig(top, "core.hooksPath")
 	if err != nil || current == "" {
 		return err
 	}
-	at := Resolve(join(top, current))
-	if at != Resolve(filepath.Join(top, ".beads", "hooks")) && at != Resolve(HooksDir(main)) {
-		return refuse("core.hooksPath is %s, not .beads/hooks; pm's git hooks live in Beads' hook files, so pm init "+
-			"works only with Beads' hooks path (other hook managers are not supported)", current)
+	if !hooksPathIs(top, main, current, HooksDir) && !hooksPathIs(top, main, current, beadsHooksDir) {
+		return refuse("core.hooksPath is %s, not .pm/hooks; pm's git hooks live in its own hook files, so pm init "+
+			"works only with pm's hooks path (other hook managers are not supported)", current)
 	}
 	return nil
 }
@@ -339,8 +348,8 @@ func join(base, p string) string {
 	return filepath.Join(base, p)
 }
 
-// SetupHooksPath points core.hooksPath at the main checkout's .beads/hooks when it is unset or names another
-// checkout's, as bd hooks install did for Python pm.
+// SetupHooksPath points core.hooksPath at the main checkout's .pm/hooks when it is unset, names another checkout's, or
+// names Beads' .beads/hooks, where Python pm 0.1.x had bd hooks install point it; the hook files there stay.
 func SetupHooksPath(main string) (string, error) {
 	current, err := GitConfig(main, "core.hooksPath")
 	if err != nil {
@@ -352,6 +361,9 @@ func SetupHooksPath(main string) (string, error) {
 	}
 	if _, err := Git(main, "config", "core.hooksPath", hooks); err != nil {
 		return "", err
+	}
+	if current != "" && hooksPathIs(main, main, current, beadsHooksDir) {
+		return fmt.Sprintf("moved the git hooks off Beads' %s: core.hooksPath=%s", current, hooks), nil
 	}
 	return "installed the git hooks: core.hooksPath=" + hooks, nil
 }
@@ -483,12 +495,17 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	}
 	if hp == "" || Resolve(join(main, hp)) != Resolve(HooksDir(main)) {
 		fix, shown := "run pm init", "unset"
-		if hp != "" {
+		switch {
+		case hp == "":
+		case hooksPathIs(main, main, hp, beadsHooksDir):
+			shown = hp + " (Beads' hooks)"
+			fix = "run pm upgrade --to " + buildinfo.Version + " to move it"
+		default:
 			shown = hp
-			fix = "pm works only with Beads' hooks path: move any hooks there into .beads/hooks (outside Beads' and " +
-				"pm's marked sections), run git config --unset core.hooksPath, then pm init"
+			fix = "pm works only with its own hooks path: move any hooks there into .pm/hooks (outside pm's marked " +
+				"sections), run git config --unset core.hooksPath, then pm init"
 		}
-		out = append(out, fmt.Sprintf("hooks path: core.hooksPath is %s, not .beads/hooks; %s", shown, fix))
+		out = append(out, fmt.Sprintf("hooks path: core.hooksPath is %s, not .pm/hooks; %s", shown, fix))
 	}
 	work, err := WorkDrift(main, remote)
 	if err != nil {

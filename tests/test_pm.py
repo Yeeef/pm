@@ -439,7 +439,8 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
     else:  # Go pm's work store takes bd bootstrap's place: the remote had none, so pm init made it and pushed it
         assert git_in(clone, "ls-remote", "origin", "refs/pm/work").strip()
         assert f"created the work store at {clone}/.pm/store/work and pushed it to origin's refs/pm/work" in res.stdout
-    assert git_in(clone, "config", "core.hooksPath").strip() == str(clone / ".beads/hooks")
+    hooks = ".beads/hooks" if IMPL == "python" else ".pm/hooks"  # Go pm's git hooks are its own (the work-store page)
+    assert git_in(clone, "config", "core.hooksPath").strip() == str(clone / hooks)
     assert git_in(clone / ".pm/store/records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "records"
     assert (clone / "records").is_symlink() and (clone / "records/sprints/demo-1.md").read_text() == "one\n"
     assert git_in(clone, "status", "--porcelain") == ""

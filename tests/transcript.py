@@ -11,7 +11,9 @@ names Beads and Go pm its work store; the lines pm init prints as it connects th
 Python pm's bd bootstrap, .beads mode, beads.role and agent profile, Go pm's work store cloned, created, pointed
 at or pushed to the remote (both dropped); pm push's work-layer step, Python pm's bd dolt push and Go pm's
 work-store sync; the pm service's log, whose timing lines name each one's store, so only its Serving lines are
-kept; pm service status's gc line, which only Go pm's service has (it collects the work store); and the comment that
+kept; pm service status's gc line, which only Go pm's service has (it collects the work store); the git hooks
+directory core.hooksPath names, Beads' .beads/hooks in Python and pm's own .pm/hooks in Go; the installed pm that
+pm init's refusal names, Python's pm uv tool and Go's release binary; and the comment that
 holds the answer a need closes with (pm decision add --need, pm decision close), which Python pm's `bd human respond`
 writes as a note "Response: <text>" by the git user and Go pm's work store as a reply by the owner (work.Answer)."""
 
@@ -44,6 +46,10 @@ WORK_PUSH = re.compile(r"(?m)^(\S+) (?:beads|work) (ok|error): .*$")  # pm push:
 SERVED_LAYER = re.compile(r"; (?:Beads reread when \S+ changes|Beads reread every look \(Dolt server\)|"
                           r"the work store reread when it changes);")  # the service's Serving line
 GC_LINE = re.compile(r"(?m)^gc        .*\n")  # pm service status: Go pm's collection of its work store
+# core.hooksPath as pm init sets it and pm where shows it: Beads' .beads/hooks in Python, pm's own .pm/hooks in Go
+HOOKS_DIR = re.compile(r"(?<=/)(?:\.beads|\.pm)/hooks\b")
+# the pm on PATH, in pm init's refusal: Python's pm uv tool, Go's installed release binary
+INSTALLED_PM = re.compile(r"\bthe (?:one pm uv tool|pm uv tool|installed pm)\b")
 
 
 def start() -> None:
@@ -96,6 +102,8 @@ def normalise(value, paths: dict[str, str]):
     value = WORK_PUSH.sub(r"\1 <work layer: bd dolt push or the work store's sync> \2", value)
     value = SERVED_LAYER.sub("; <work layer> reread when it changes;", value)
     value = GC_LINE.sub("", value)
+    value = HOOKS_DIR.sub("<pm's git hooks dir>", value)
+    value = INSTALLED_PM.sub("<the installed pm>", value)
     return PORT.sub("<port>", value)
 
 
