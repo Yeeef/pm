@@ -2,7 +2,7 @@
 # Build Go pm's release tarball for this machine: pm/release/build.sh OUT_DIR [pm-v<X> | <X>]
 #
 # A release is a tag pm-v<X> on a main commit (pm/AGENTS.md, Releasing pm): the version comes from the tag given, or
-# else from the tag on HEAD (git describe --exact-match --match 'pm-v*'); an untagged build is "dev". No version is
+# else from the tag on HEAD (git describe --tags --exact-match --match 'pm-v*': lightweight tags too); an untagged build is "dev". No version is
 # written in any file. The binary is built as the release workflow and make go-build build it (cgo for gozstd,
 # -tags gms_pure_go for Dolt, stripped) with buildinfo.Version stamped, and packed as OUT_DIR/pm-<X>-<os>-<arch>.tar.gz:
 # a gzip tar holding the one regular file pm, mode 0755. It prints the tarball's path.
@@ -13,7 +13,7 @@ out=$1
 root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 if [ $# -eq 2 ]; then
   version=${2#pm-v}
-elif tag=$(git -C "$root" describe --exact-match --match 'pm-v*' HEAD 2>/dev/null); then
+elif tag=$(git -C "$root" describe --tags --exact-match --match 'pm-v*' HEAD 2>/dev/null); then
   version=${tag#pm-v}
 else
   version=dev
