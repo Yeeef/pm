@@ -129,7 +129,7 @@ var tree = &command{
 				{
 					name:        "close",
 					help:        "close a decision need whose answer sets no rule, with no decision record; the answer with --text",
-					description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the label and the reason (as a comment) are added, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. If labelling fails, run it again; it does not repeat the reason.",
+					description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. If setting the resolution fails, run it again; it does not repeat the reason.",
 					groups:      []bool{false},
 					args: []arg{
 						{dest: "need_id", required: true, kind: value, help: "the decision need's id"},

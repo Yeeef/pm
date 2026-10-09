@@ -348,8 +348,26 @@ func join(base, p string) string {
 	return filepath.Join(base, p)
 }
 
+// hooksReady is whether the main checkout holds pm's hook files in .pm/hooks. core.hooksPath is the clone's, so it
+// moves there only then: a pin moved in another worktree, or a worktree pinned to Go pm while main still pins Python
+// pm, would otherwise point every worktree at hooks that are not there, and git would run none.
+func hooksReady(main string) bool {
+	for _, name := range GitHooks {
+		if !executable(filepath.Join(HooksDir(main), name)) {
+			return false
+		}
+	}
+	return true
+}
+
+func executable(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.Mode().IsRegular() && st.Mode()&0o111 != 0
+}
+
 // SetupHooksPath points core.hooksPath at the main checkout's .pm/hooks when it is unset, names another checkout's, or
-// names Beads' .beads/hooks, where Python pm 0.1.x had bd hooks install point it; the hook files there stay.
+// names Beads' .beads/hooks, where Python pm 0.1.x had bd hooks install point it; the hook files there stay. It leaves
+// Beads' path, whose files hold pm's section too, until the main checkout holds pm's hook files (hooksReady).
 func SetupHooksPath(main string) (string, error) {
 	current, err := GitConfig(main, "core.hooksPath")
 	if err != nil {
@@ -358,6 +376,9 @@ func SetupHooksPath(main string) (string, error) {
 	hooks := HooksDir(main)
 	if current != "" && Resolve(join(main, current)) == Resolve(hooks) {
 		return "", nil
+	}
+	if current != "" && hooksPathIs(main, main, current, beadsHooksDir) && !hooksReady(main) {
+		return "", nil // Beads' hooks run pm's section until main has its own
 	}
 	if _, err := Git(main, "config", "core.hooksPath", hooks); err != nil {
 		return "", err
@@ -500,6 +521,10 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 		case hooksPathIs(main, main, hp, beadsHooksDir):
 			shown = hp + " (Beads' hooks)"
 			fix = "run pm upgrade --to " + buildinfo.Version + " to move it"
+			if !hooksReady(main) && Resolve(top) != Resolve(main) { // pm upgrade in main writes them, then moves it
+				fix = "the main checkout " + main + " has no pm hooks in .pm/hooks yet; once it pins Go pm (merge the " +
+					"pin, then pull main there), run pm init there to move it"
+			}
 		default:
 			shown = hp
 			fix = "pm works only with its own hooks path: move any hooks there into .pm/hooks (outside pm's marked " +

@@ -121,7 +121,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - need a pr review from owner: `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`; body (optional): extra context. The review blocks the sprint close until the PR is on main; close it then with `pm action done <id> --reason "merged as <sha>"`.
 - Read a reply from owner with `pm reply read <id>` first. Each close below refuses while the request holds a reply that has not reached a session.
 - add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`, with `--decision '…'` and `--reason '…'`, one line each, in single quotes. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
-- close a decision need that sets no rule: `pm decision close <id> --reason "<why>"`. Body: the answer. The answer and the reason stay in the work store, and the need gets the label `no-decision`.
+- close a decision need that sets no rule: `pm decision close <id> --reason "<why>"`. Body: the answer. The answer and the reason stay in the work store, and the need's resolution is `no-decision`.
 - add a finding: `pm finding add --sprint ID "<text>"`, as it occurs, with its numbers. A large result table is a `::: result` block in the record.
 - create a design page record: `pm design new <slug> --title "…" --project NAME` writes every section with its prompt line; then edit it by hand and `pm commit`. Put no date in the slug.
 - create a free-form doc record: `pm doc new <slug> --title "…" --bead ID\|--project NAME`; body: the doc's text, or `--text-file PATH` to read a file; later edits by hand and `pm commit`.

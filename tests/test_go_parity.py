@@ -341,6 +341,10 @@ GO_HELP = [
      '(.pm/hooks/post-checkout)'),
     ("(pm's section in .beads/hooks/pre-commit)",
      '(.pm/hooks/pre-commit)'),
+    ('only the label and the reason (as a comment) are added,',
+     'only the resolution no-decision and the reason (as a comment) are set,'),
+    ('If labelling fails, run it again;',
+     'If setting the resolution fails, run it again;'),
 ]
 
 
