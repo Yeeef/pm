@@ -2,6 +2,7 @@ package work
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -377,6 +378,29 @@ func TestMergeAddAddFailsHard(t *testing.T) {
 	failedSync(t, x.b, "both sides added item "+ia.ID)
 }
 
+// rawPush commits stmts on A by SQL, past pm's checks (a state an older or broken pm could push), and pushes.
+func (x *pair) rawPush(t *testing.T, stmts ...string) {
+	t.Helper()
+	x.a.do(func(d *Dolt) {
+		if err := d.inTx("test: raw", func(tx *sql.Tx) error { return execAll(tx, stmts) }); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.pushNow(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// A pull that would fast-forward (B has nothing of its own) onto a remote state that fails pm's checks: the branch
+// moves outside the transaction, so the failure resets it to the pre-pull commit.
+func TestPullFastForwardThatFailsItsCheckResets(t *testing.T) {
+	x := newPair(t)
+	x.rawPush(t, "INSERT INTO blocked_by VALUES ('"+x.t1.ID+"', '"+x.t2.ID+"'), ('"+x.t2.ID+"', '"+x.t1.ID+"')")
+	failedSync(t, x.b, "blocked_by cycle")
+	x.rawPush(t, "DELETE FROM blocked_by", fmt.Sprintf("UPDATE schema_version SET version = %d", SchemaVersion+1))
+	failedSync(t, x.b, fmt.Sprintf("the remote's schema is version %d, newer than this pm's", SchemaVersion+1))
+}
+
 func TestMergeCycleAcrossClonesFailsHard(t *testing.T) {
 	x := newPair(t)
 	x.a.do(func(d *Dolt) { must(0, d.DepAdd(x.t1.ID, x.t2.ID)) })
@@ -455,7 +479,7 @@ func TestCreateFailsAfterThreeRejectedPushes(t *testing.T) {
 			return push()
 		}
 		_, err := d.Create(New{Type: Task, Parent: x.s.ID, Title: "B"})
-		if err == nil || !strings.Contains(err.Error(), "on each of 3 attempts") {
+		if err == nil || !strings.Contains(err.Error(), "no push landed in 3 attempts, the last: the remote moved") {
 			t.Fatal(err)
 		}
 		// Each attempt pulled what A pushed, so the store moved; but B's own item is nowhere.

@@ -237,9 +237,10 @@ func (d *Dolt) head() (string, error) {
 }
 
 // pull fetches and, when the store is behind, merges the remote's branch in one transaction: Dolt merges each cell,
-// pm resolves each conflicted items row by the merge rules, clears the holder of every closed item (close beats
-// claim), checks every invariant and the blocked_by cycles, and commits. Any failure rolls the transaction back, and
-// the store stays at its pre-pull commit.
+// pm refuses a schema newer than its own, resolves each conflicted items row by the merge rules, clears the holder of
+// every closed item (close beats claim), checks every invariant and the blocked_by cycles, and commits. Any failure
+// rolls the transaction back and resets the branch to its pre-pull commit: a fast-forward moves the branch outside
+// the transaction (Dolt's FastForward commits the working set at once), so the rollback alone would keep it.
 func (d *Dolt) pull() (SyncResult, error) {
 	var res SyncResult
 	has, err := d.fetch()
@@ -251,12 +252,21 @@ func (d *Dolt) pull() (SyncResult, error) {
 		return res, err
 	}
 	res.Pulled = behind
+	pre, err := d.head()
+	if err != nil {
+		return res, err
+	}
 	tx, err := d.conn.BeginTx(ctx, nil)
 	if err != nil {
 		return res, fmt.Errorf("work store: %w", err)
 	}
+	defer d.conn.ExecContext(ctx, "SET @@dolt_allow_commit_conflicts = 0")
 	fail := func(err error) (SyncResult, error) {
 		_ = tx.Rollback()
+		if rerr := d.reset(pre); rerr != nil {
+			return SyncResult{}, fmt.Errorf("work store: pull: %w; and the reset to the pre-pull commit %s failed: %v",
+				err, pre, rerr)
+		}
 		return SyncResult{}, fmt.Errorf("work store: pull: %w; the store stays at its pre-pull commit", err)
 	}
 	if _, err := tx.ExecContext(ctx, "SET @@dolt_allow_commit_conflicts = 1"); err != nil {
@@ -264,6 +274,14 @@ func (d *Dolt) pull() (SyncResult, error) {
 	}
 	if _, err := tx.ExecContext(ctx, "CALL DOLT_MERGE('--no-commit', ?)", remoteHead); err != nil {
 		return fail(err)
+	}
+	var version int
+	if err := tx.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE one = 1").Scan(&version); err != nil {
+		return fail(fmt.Errorf("read the merged schema version: %w", err))
+	}
+	if version > SchemaVersion {
+		return fail(fmt.Errorf("the remote's schema is version %d, newer than this pm's %d: run pm upgrade", version,
+			SchemaVersion))
 	}
 	if res.Resolved, res.Overrides, err = resolveConflicts(tx); err != nil {
 		return fail(err)
@@ -425,8 +443,8 @@ func (d *Dolt) pushNow() error {
 	return d.push()
 }
 
-// push is DOLT_PUSH of the branch, bounded by PushTimeout; a non-fast-forward rejection is errRemoteMoved and a
-// timeout errPushTimeout.
+// push is DOLT_PUSH of the branch, bounded by PushTimeout; a non-fast-forward rejection is errRemoteMoved, a timeout
+// errPushTimeout, and any other failure an error whose outcome is unknown too (the remote ref may have moved).
 func (d *Dolt) push() error {
 	c, cancel := context.WithTimeout(ctx, PushTimeout)
 	defer cancel()
@@ -453,8 +471,9 @@ func (d *Dolt) reset(c string) error {
 // createShared is Create on a store with a remote: the compare-and-swap of the work-store page's Ids section, so two
 // clones never mint the same child id or sprint number. It pulls, notes HEAD as C0, mints and commits the item, and
 // pushes; a push the remote rejects as non-fast-forward resets to C0 and starts again, up to casAttempts in all. A
-// push that times out fetches: the remote at the new commit means the create landed; elsewhere, reset and retry; a
-// failing fetch resets and fails, the outcome unknown. With the remote unreachable, a create refuses.
+// push that times out or fails otherwise fetches: the new commit in the remote's history means the create landed;
+// else reset and retry; a failing fetch resets and fails, the outcome unknown. With the remote unreachable, the pull
+// fails and a create refuses.
 func (d *Dolt) createShared(n New) (Item, error) {
 	fail := func(c0 string, err error) (Item, error) {
 		if rerr := d.reset(c0); rerr != nil {
@@ -462,6 +481,7 @@ func (d *Dolt) createShared(n New) (Item, error) {
 		}
 		return Item{}, err
 	}
+	var last error
 	for range casAttempts {
 		if _, err := d.pull(); err != nil {
 			return Item{}, fmt.Errorf("work store: create: a child id is minted only against the remote: %w", err)
@@ -475,6 +495,7 @@ func (d *Dolt) createShared(n New) (Item, error) {
 			return Item{}, err
 		}
 		err = d.pushNow()
+		last = err
 		switch {
 		case err == nil:
 			return it, nil
@@ -483,7 +504,7 @@ func (d *Dolt) createShared(n New) (Item, error) {
 				return Item{}, err
 			}
 			continue
-		case errors.Is(err, errPushTimeout):
+		default: // a timeout, or another failure: whether the push landed is unknown
 			made, herr := d.head()
 			if herr != nil {
 				return fail(c0, herr)
@@ -493,21 +514,21 @@ func (d *Dolt) createShared(n New) (Item, error) {
 					"outcome is unknown; the store is back at its pre-create commit, and the next sync brings the item "+
 					"back if the push landed", it.ID, err, ferr))
 			}
-			var at string
-			if qerr := d.conn.QueryRowContext(ctx, "SELECT HASHOF(?)", remoteHead).Scan(&at); qerr != nil {
+			// Landed when the remote's history holds the new commit: another clone may have pushed on top since.
+			var landed int
+			if qerr := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_log(?) WHERE commit_hash = ?",
+				remoteHead, made).Scan(&landed); qerr != nil {
 				return fail(c0, qerr)
 			}
-			if at == made {
+			if landed > 0 {
 				return it, nil
 			}
 			if err := d.reset(c0); err != nil {
 				return Item{}, err
 			}
 			continue
-		default:
-			return fail(c0, fmt.Errorf("work store: create %s: %w; nothing was created", it.ID, err))
 		}
 	}
-	return Item{}, fmt.Errorf("work store: create: %v on each of %d attempts; nothing was created", errRemoteMoved,
-		casAttempts)
+	return Item{}, fmt.Errorf("work store: create: no push landed in %d attempts, the last: %v; nothing was created",
+		casAttempts, last)
 }
