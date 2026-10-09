@@ -1,0 +1,41 @@
+<a><p class="asof behind" data-asof="1760000000.123" data-page="abcd">Data as of 04:53:20 (13 s ago); other sessions are writing, so it is behind</p>
+<script>(() => {
+const el = document.currentScript.previousElementSibling, behind = 10, key = "pm-scroll:" + location.pathname;
+let newer = false, gone = false;
+function reload() {
+  const draft = [...document.querySelectorAll("textarea")].some(t => t.value.trim());
+  if (draft && !confirm("Reload and discard the reply you have not sent?")) return;
+  try { sessionStorage.setItem(key, String(scrollY)); } catch (e) {}
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  location.reload();
+}
+let saved = null;
+try { saved = sessionStorage.getItem(key); sessionStorage.removeItem(key); } catch (e) {}
+if (saved !== null) addEventListener("load", () => scrollTo(0, +saved));
+function show() {
+  const asof = +el.dataset.asof, age = Math.max(0, Math.round(Date.now() / 1000 - asof));
+  const at = new Date(asof * 1000).toLocaleTimeString([], {hour12: false});
+  el.classList.toggle("behind", !newer && age > behind);
+  el.textContent = `Data as of ${at}` + (newer ? "; newer data exists, reload to see it" : ` (${age} s ago)`) +
+    (gone ? "; the server is not answering" : !newer && age > behind ? "; other sessions are writing, so it is behind" : "");
+  if (newer && !document.querySelector(".newer")) {
+    document.body.insertAdjacentHTML("afterbegin", '<a class="newer" href="">Newer data: reload</a>');
+    document.querySelector(".newer").onclick = e => { e.preventDefault(); reload(); };
+  }
+}
+async function poll() {
+  try {
+    const r = await fetch("/version?page=" + encodeURIComponent(location.pathname), {cache: "no-store"});
+    const v = await r.json();
+    gone = false;
+    if (v.page === el.dataset.page) el.dataset.asof = v.asof;
+    else newer = true;
+  } catch (e) { gone = true; }
+  show();
+  setTimeout(poll, 2000);
+}
+show(); setInterval(show, 1000); setTimeout(poll, 2000);
+})();</script><div class="reply-item"><p class="k replied">Saving your reply…</p><p>Hi <em>there</em></p>
+</div><form class="reply" method="post" action="/reply" data-text="" onsubmit="const t = this.elements.text.value, r = this.elements.rid; if (!r.value || this.dataset.text !== t) { r.value = crypto.randomUUID(); this.dataset.text = t; }"><input type="hidden" name="token" value="tok&#x27;en"><input type="hidden" name="id" value="x-1"><input type="hidden" name="rid" value=""><textarea name="text" rows="3" required placeholder="Your answer: the option you choose, or what you want instead"></textarea><button type="submit">Send reply</button></form><div class="reply-item"><p class="k replied">Reply saved; not delivered: the session that asked is not running, the next one will see it.</p><p>Ok.</p>
+</div><form class="reply" method="post" action="/reply" data-text="" onsubmit="const t = this.elements.text.value, r = this.elements.rid; if (!r.value || this.dataset.text !== t) { r.value = crypto.randomUUID(); this.dataset.text = t; }"><input type="hidden" name="token" value="tok&#x27;en"><input type="hidden" name="id" value="x-2"><input type="hidden" name="rid" value=""><textarea name="text" rows="3" required placeholder="The evidence that it is done: a command's output, a link"></textarea><button type="submit">Send reply</button></form><p class="k failed">Your reply was not stored: it&#x27;s &lt;bad&gt; Its text is back in the box; send it again.</p><form class="reply" method="post" action="/reply" data-text="a &quot;b&quot; &#x27;c&#x27; &lt;d&gt;" onsubmit="const t = this.elements.text.value, r = this.elements.rid; if (!r.value || this.dataset.text !== t) { r.value = crypto.randomUUID(); this.dataset.text = t; }"><input type="hidden" name="token" value="tok&#x27;en"><input type="hidden" name="id" value="x&amp;3"><input type="hidden" name="rid" value="r-3"><textarea name="text" rows="3" required placeholder="The evidence that it is done: a command's output, a link">a &quot;b&quot; &#x27;c&#x27; &lt;d&gt;</textarea><button type="submit">Send reply</button></form><div class="reply-item"><p class="k replied">Reply saved; not delivered yet: the session that asked is not running, or the push failed and the pm service tries again; the next session sees it.</p><p>x</p>
+</div><form class="reply" method="post" action="/reply" data-text="" onsubmit="const t = this.elements.text.value, r = this.elements.rid; if (!r.value || this.dataset.text !== t) { r.value = crypto.randomUUID(); this.dataset.text = t; }"><input type="hidden" name="token" value="tok&#x27;en"><input type="hidden" name="id" value="x-4"><input type="hidden" name="rid" value=""><textarea name="text" rows="3" required placeholder="Your answer: the option you choose, or what you want instead"></textarea><button type="submit">Send reply</button></form></a>

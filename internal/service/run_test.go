@@ -572,9 +572,10 @@ func TestTheServiceStopsOnceThePinMoves(t *testing.T) {
 }
 
 func TestSyncStepsSyncTheStoreUnderTheGateSummarizeAndPushTheRecords(t *testing.T) {
-	w := newFakeWork()
+	w, log := newFakeWork(), &syncBuffer{}
+	w.syncWarnings = []string{"warning: demo-1.1: the claim by s1 (t1) was overridden by the later claim of s2 (t2)"}
 	s := &server{d: Deps{Main: t.TempDir(), Records: filepath.Join(t.TempDir(), "none"), Remote: "origin",
-		Open: w.Open, Summarize: func() (bool, string) { return true, "summarized" }, Log: io.Discard}}
+		Open: w.Open, Summarize: func() (bool, string) { return true, "summarized" }, Log: log}}
 	var names, said []string
 	for _, step := range s.SyncSteps() {
 		ok, line := step.Run()
@@ -585,6 +586,9 @@ func TestSyncStepsSyncTheStoreUnderTheGateSummarizeAndPushTheRecords(t *testing.
 	}
 	if strings.Join(names, ",") != "work,summary,records" || said[0] != "up to date" || w.syncs != 1 || w.open {
 		t.Fatalf("steps %v said %v; syncs %d, open %v", names, said, w.syncs, w.open)
+	}
+	if !strings.Contains(log.String(), "\n"+w.syncWarnings[0]+"\n") && !strings.HasPrefix(log.String(), w.syncWarnings[0]+"\n") {
+		t.Fatalf("the overridden claim is not in the service log:\n%s", log.String())
 	}
 }
 
