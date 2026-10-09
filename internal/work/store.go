@@ -21,7 +21,7 @@ type Store interface {
 	Close(id, reason string, resolution Resolution, session string) error
 	// SetResolution sets a closed item's resolution (pm decision close marks a closed need no-decision).
 	SetResolution(id string, resolution Resolution) error
-	// Move gives a task a new parent; its id stays.
+	// Move gives a task or a need a new parent; its id stays.
 	Move(id, parent string) error
 
 	// Claim makes h the holder, as a compare-and-set in one transaction: it succeeds when the item has no holder, is
@@ -58,7 +58,8 @@ type New struct {
 
 // NeedUpdate is the need fields the pm service and pm reply read move.
 type NeedUpdate struct {
-	Delivered           *int
-	ReviewMerged        *string
-	ReviewMergeReported *string
+	RaisedInbox, RaisedHost *string // the raising session's inbox now (pm show --refresh-inbox); a need it raised only
+	Delivered               *int
+	ReviewMerged            *string
+	ReviewMergeReported     *string
 }

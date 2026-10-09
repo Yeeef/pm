@@ -138,6 +138,9 @@ func Attrs(info string) map[string]string {
 const (
 	pyW = `[\p{L}\p{N}_]`
 	pyS = `[\t\n\v\f\r \x1c-\x1f\x85\p{Z}]`
+
+	// PyS is Python's \s for other packages' patterns.
+	PyS = pyS
 )
 
 var (

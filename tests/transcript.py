@@ -5,7 +5,9 @@ A call holds its argv (without the pm binary), stdin, stdout, stderr, exit code,
 new text, null when removed) and the store export after it. The normaliser replaces what differs between two runs,
 keeping its shape so a difference in format still shows: the temp and checkout paths and random temp names, git
 commit ids and UUIDs (numbered by first appearance, with their length), timestamps and today's date (each digit as
-0), durations and ports (the number only), and root ids pm minted (in order of appearance; the seeded ids are kept)."""
+0), durations and ports (the number only), and root ids pm minted (in order of appearance; the seeded ids are kept).
+One line differs by design until the cut-over: pm where's work-layer line, where Python pm names Beads and Go pm its
+work store; each becomes one placeholder."""
 
 from __future__ import annotations
 
@@ -26,6 +28,7 @@ SHA = re.compile(r"\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b")
 TIME = re.compile(r"\b\d{4}-\d\d-\d\d[T ]\d\d:\d\d(?::\d\d(?:\.\d+)?)?(?:Z|[+-]\d\d:?\d\d)?")
 DURATION = re.compile(r"\b\d+(?:\.\d+)?(?= ?(?:ms|s|min)\b|[mhd]\b)")
 PORT = re.compile(r"(?:(?<=localhost:)|(?<=127\.0\.0\.1:)|(?<= :))\d{2,5}\b")
+WORK_LAYER = re.compile(r"(?m)^(?:beads     |work      )\S.*$")  # pm where: Python's Beads line, Go's work-store line
 
 
 def start() -> None:
@@ -73,6 +76,7 @@ def normalise(value, paths: dict[str, str]):
     for today in {date.today().isoformat(), datetime.now(timezone.utc).date().isoformat()}:
         value = value.replace(today, "0000-00-00")
     value = DURATION.sub("0", value)
+    value = WORK_LAYER.sub("<work layer: Beads or the work store>", value)
     return PORT.sub("<port>", value)
 
 
@@ -88,5 +92,8 @@ def write(directory: Path, nodeid: str, paths: dict[str, str]) -> Path:
     path = directory / Path(file).stem / f"{name(test)}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     data = normalise({"test": nodeid, "calls": CALLS}, paths)
+    for call in data["calls"]:  # by normalised id: a minted root id sorts apart from the seeds by its placeholder
+        if isinstance(call["export"], list):
+            call["export"].sort(key=lambda i: i["id"])
     path.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
     return path

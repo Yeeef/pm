@@ -436,20 +436,6 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 	return it, nil
 }
 
-// Export writes items as pm export prints them: one JSON object per line, in the order given.
-func Export(w io.Writer, items []Item) error {
-	bw := bufio.NewWriter(w)
-	for _, it := range items {
-		b, err := json.Marshal(it)
-		if err != nil {
-			return err
-		}
-		bw.Write(b)
-		bw.WriteByte('\n')
-	}
-	return bw.Flush()
-}
-
 // ReadBDRecords reads the project and sprint records' names and item ids (the bead: line of each record's header)
 // from a records store, for FromBD. Two records of one item fail; a record without an item id names none.
 func ReadBDRecords(records string) (BDRecords, error) {

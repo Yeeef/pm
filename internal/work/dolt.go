@@ -220,7 +220,8 @@ func execAll(tx *sql.Tx, stmts []string) error {
 	return nil
 }
 
-// inTx runs fn in one transaction that ends in a Dolt commit with msg; on any error nothing lands.
+// inTx runs fn in one transaction that ends in a Dolt commit with msg; on any error nothing lands. A write that
+// changed no row (a claim again by its holder within one second) makes no Dolt commit.
 func (d *Dolt) inTx(msg string, fn func(tx *sql.Tx) error) error {
 	if d.conn == nil {
 		return errors.New("work store: closed")
@@ -232,6 +233,14 @@ func (d *Dolt) inTx(msg string, fn func(tx *sql.Tx) error) error {
 	if err := fn(tx); err != nil {
 		_ = tx.Rollback()
 		return err
+	}
+	var changed int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_status").Scan(&changed); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("work store: %w", err)
+	}
+	if changed == 0 {
+		return tx.Rollback()
 	}
 	if _, err := tx.ExecContext(ctx, "CALL DOLT_COMMIT('-Am', ?)", msg); err != nil {
 		_ = tx.Rollback()
@@ -801,11 +810,12 @@ func (d *Dolt) SetResolution(id string, resolution Resolution) error {
 	})
 }
 
-// Move gives a task a new parent; its id stays.
+// Move gives a task or a need a new parent (pm task move takes any open item that is no project or sprint); its id
+// stays.
 func (d *Dolt) Move(id, parent string) error {
 	return d.update("move", id, func(it *Item, _ *Index) error {
-		if it.Type != Task {
-			return itemError(id, "is a %s; only a task moves", it.Type)
+		if it.Type != Task && it.Type != Need {
+			return itemError(id, "is a %s; only a task or a need moves", it.Type)
 		}
 		it.Parent = parent
 		return nil
@@ -913,6 +923,17 @@ func (d *Dolt) UpdateNeed(id string, u NeedUpdate) error {
 	return d.update("update need", id, func(it *Item, _ *Index) error {
 		if it.Need == nil {
 			return itemError(id, "is a %s, not a need", it.Type)
+		}
+		if u.RaisedInbox != nil || u.RaisedHost != nil {
+			if it.Need.RaisedBy == nil {
+				return itemError(id, "was raised by no session, so it has no inbox")
+			}
+			if u.RaisedInbox != nil {
+				it.Need.RaisedBy.Inbox = *u.RaisedInbox
+			}
+			if u.RaisedHost != nil {
+				it.Need.RaisedBy.Host = *u.RaisedHost
+			}
 		}
 		if u.Delivered != nil {
 			it.Need.Delivered = *u.Delivered

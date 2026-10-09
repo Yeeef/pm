@@ -13,10 +13,11 @@ import (
 )
 
 // OpenWork opens the clone's work store under the main checkout: the embedded Dolt store, taken under its gate and
-// released by Shutdown. Tests set a fake (worktest).
+// released by Shutdown. A root id it mints takes the repo name as its prefix: the main checkout's directory name.
+// Tests set a fake (worktest).
 var OpenWork = func(main string) (work.Store, error) {
 	dir, run := work.Locations(main)
-	return work.OpenStore(work.Options{Dir: dir, RunDir: run})
+	return work.OpenStore(work.Options{Dir: dir, RunDir: run, Prefix: filepath.Base(main)})
 }
 
 // cmdCheck is pm check: every record renders with the work store's items, writing nothing.

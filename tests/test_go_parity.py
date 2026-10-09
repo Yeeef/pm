@@ -4,11 +4,11 @@ with the same environment; each test compares stdout, stderr and the exit code.
 
 PM_GO names the Go binary, built with buildinfo.Version set to this pm's version (the parity CI job builds it); without
 PM_GO this module is skipped. The reference help layout is Python 3.13's argparse (3.12 prints `-n LINES, --lines
-LINES`), so the parity job runs Python 3.13. COLUMNS is set wide so that argparse wraps no line, as Go pm never does.
+LINES`), so the parity job runs Python 3.13. COLUMNS is set wide so that argparse wraps no line: Go pm wraps the usage
+line as argparse does, but no help text.
 
-What the outputs cannot share yet: `pm prime --state` and plain `pm prime` run `pm init`, `pm where` and `pm show`,
-which Go pm does not have yet; they are compared where those three fail at the config check, in a directory outside
-any git repo."""
+What the outputs cannot share yet: `pm prime --state` and plain `pm prime` run `pm init`, which Go pm does not have
+yet; they are compared where it fails at the config check, in a directory outside any git repo."""
 
 from __future__ import annotations
 

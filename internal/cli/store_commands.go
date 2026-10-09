@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/Yeeef/yeeef-agents/pm/internal/config"
 	"github.com/Yeeef/yeeef-agents/pm/internal/work"
 )
 
@@ -197,10 +198,13 @@ func (c *storeCall) text() (string, bool, error) {
 func readTextFile(path string, stdin io.Reader) (string, error) {
 	if path != "-" {
 		b, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("--text-file %s: no such file", path)
+		}
 		if err != nil {
 			return "", fmt.Errorf("--text-file %s: %w", path, err)
 		}
-		return strings.TrimSpace(string(b)), nil
+		return config.PyStrip(string(b)), nil
 	}
 	if f, ok := stdin.(*os.File); ok {
 		st, err := f.Stat()
@@ -213,7 +217,7 @@ func readTextFile(path string, stdin io.Reader) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("--text-file -: %w", err)
 	}
-	return strings.TrimSpace(string(b)), nil
+	return config.PyStrip(string(b)), nil
 }
 
 // item is the item with this id, refused when it is missing or not of type want.
