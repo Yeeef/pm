@@ -43,13 +43,14 @@ case $os-$arch in
 esac
 asset=pm-$version-$platform.tar.gz
 
-# fetch URL FILE [ACCEPT TOKEN]: the body of GET URL into FILE; with a token, sent to URL's host alone (curl sends a -H
-# header to that host only, not to the host a redirect names). What curl or wget says goes to $tmp/err, for reason.
+# fetch URL FILE [ACCEPT TOKEN]: the body of GET URL into FILE; with a token, sent to URL's host alone (curl 7.58 and
+# later drop an Authorization header on a redirect to another host) and given on stdin, so no process list shows it.
+# What curl or wget says goes to $tmp/err, for reason.
 if command -v curl >/dev/null 2>&1; then
   fetch() {
     if [ $# -eq 4 ]; then
-      curl -fsSL --connect-timeout 10 --max-time 300 -H "Authorization: Bearer $4" -H "Accept: $3" -o "$2" "$1" \
-        2>"$tmp/err"
+      printf 'header = "Authorization: Bearer %s"\n' "$4" |
+        curl --config - -fsSL --connect-timeout 10 --max-time 300 -H "Accept: $3" -o "$2" "$1" 2>"$tmp/err"
     else
       curl -fsSL --connect-timeout 10 --max-time 300 -o "$2" "$1" 2>"$tmp/err"
     fi
