@@ -23,7 +23,7 @@ is for them, and nothing here ships: the wheel holds only `src/pm/` (`[tool.hatc
 | `go.mod`, `cmd/pm`, `internal/…`, `assets.go` | Go pm, the port the `pm-go` design page plans: built and tested on main, run by no repo until the cut-over. `internal/cli/commands.go` holds every command and help text, `internal/hooks` `pm prime` and `pm hook stop`, `internal/work` the work store on embedded Dolt (schema, invariant checks, ids, ready and blocked, the gate, the bd import and `pm export`), whose two Go-only commands, `pm export` and `pm init --import-bd FILE` (the import only, so far), stay out of the argparse tree in `internal/cli/work.go`; `internal/work/worktest` a read-only fake store, `internal/records` record parsing and checks, `internal/store` the records store, `internal/site` the pages; `internal/service` the pm service (`service.Run` against a `Store` and a `Site` interface, its unit files and lifecycle; Go pm's `pm service status` and `logs` run, while `run`, `install` and `restart` refuse until the work store and site are wired), `internal/sync` the push steps and their state; `internal/service/testdata/units` holds Python's unit files, which Go's and Python's tests both compare against; `assets.go` embeds `src/pm/prime.md` and `style.css`, so both implementations read one copy |
 | The pm uv tool | The `pm` on PATH that hooks, agents and the service run; `pm init` installs it from git (`tool.py`). It runs each repo's pinned version (`launch.py`). Run this checkout's code with `uv run --project pm pm …`; this checkout's pin is its own version, so it runs in process |
 | `../.claude/settings.json`, `../.codex/hooks.json` | Where the runtimes wire the hooks (below) |
-| `../.pm/config.toml` | This repo's pm config; its `version` must equal `version` in `pyproject.toml` |
+| `../.pm/config.toml` | This repo's pm config; its `version` must equal `version` in `pyproject.toml`, except at a release's first commit (Releasing pm) |
 | `../records/design/pm-harness.md` | The harness design; one sub page per area (`pm-cli.md`, `owner-request-hook.md`, `records-store.md`, `site-replies.md`, …) |
 
 A design change edits the sub page it touches to the new state; the trail of findings stays in the sprint record.
@@ -77,7 +77,8 @@ What the tests are:
   writes what it says. `test_config.py`: the config check. `test_launch.py`: the
   launcher against a fake `uv` (logs argv, stdin and the `PM_LAUNCHED` markers) and a fake `git ls-remote`; its
   integration test builds release 0.1.0 with real uv from this clone's tag `pm-v0.1.0` (the release URL rewritten
-  to this clone, so nothing reaches GitHub) and runs `pm show` in a repo pinned to it. A test that pins another
+  to this clone, so nothing reaches GitHub) and runs `pm show` in a repo pinned to it; another runs the release
+  procedure (Releasing pm) through real git hooks and real uv against a scratch origin. A test that pins another
   version and does not test the launch sets `PM_LAUNCHED=<pin>`, as a launched pm has it, or it would reach GitHub. `test_service.py`: the service's units in process and
   `pm service` end to end. `test_tool.py`: the pm uv tool. `test_init.py`, `test_lifecycle.py`, `test_migrate.py`:
   `pm init`, `doctor`, `upgrade` and `uninstall` on temp clones, and the move off the pre-package harness.
@@ -94,6 +95,28 @@ What the tests are:
   makes one call fail until `$FAKE_BD_HEAL` exists, `$FAKE_BD_HOLD` makes one wait. `fake_gh.py` answers
   `gh pr view` from `$FAKE_GH_STATE`. `fake_claude.py` stands in for `claude -p` and logs each call. `fake_sched.py`
   stands in for `launchctl`, `systemctl` and `crontab`.
+
+## Releasing pm
+
+A release is tag `pm-v<X>` on the commit whose `pyproject.toml` says `X`. The pre-commit hook runs the pm uv tool,
+which launches the repo's pin and resolves its tag with `git ls-remote` (`launch.commit()`): a commit that moves the
+pin to a version with no tag yet is refused. So the tag comes before the pin, in two commits on one branch from main:
+
+| Step | Does | The pre-commit hook runs |
+|---|---|---|
+| 1. Commit A | `version` in `pm/pyproject.toml` to `X`, `uv lock --project pm`; the pin stays at the old version | the old release, in process or from its tag |
+| 2. Tag A | `git tag -a pm-v<X> -m "pm <X>: …" <A>`, `git push origin pm-v<X>` (the push sends A too) | |
+| 3. Commit B | `uv run --project pm pm upgrade` (never launched, so this checkout's pm `X` moves the pin and rewrites the Beads hook markers); commit the files it names | pm `X`, built from A |
+| 4. PR | push the branch, open the PR, CI green; the owner merges it with a merge commit | |
+
+- Never commit with `--no-verify`: the hook at B is the check that the tag builds the pinned pm.
+- Never move or recreate a release tag: launchers keep its commit in `<data dir>/pm/pins/<X>/commit` and never
+  resolve it again.
+- Merge with a merge commit, never squash or rebase (GitHub allows all three here): either rewrites A, and main
+  would then hold no commit the tag names.
+- At A, `make test` fails the tests that run pm in this repo, such as `test_owner_request_hook.py`: this checkout's
+  pm is `X` and launches the old pin. Test at B, and push the branch only after B, so CI runs on B.
+- `test_a_release_tags_before_it_pins_so_both_commits_pass_the_hook` (`test_launch.py`) runs these steps.
 
 ## The judge and its live eval
 

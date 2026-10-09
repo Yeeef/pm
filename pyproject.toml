@@ -1,6 +1,6 @@
 [project]
 name = "pm"
-version = "0.1.2"
+version = "0.1.3"
 description = "Project records CLI: Beads for the work, Markdown records for the context, a rendered site for the owner."
 requires-python = ">=3.12"
 dependencies = ["markdown-it-py>=3", "mdit-py-plugins>=0.4", "pyyaml>=6"]

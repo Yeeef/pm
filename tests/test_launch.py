@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, write_config
-from pm import __version__, config, launch
+from conftest import PM, fake_bd_env, write_config
+from pm import __version__, config, install, launch
 
 IN_PROCESS = pytest.mark.impl("python", reason="runs Python pm's launcher or CLI in process")
 
@@ -299,3 +299,71 @@ def test_the_new_tool_runs_pm_0_1_0_in_a_repo_pinned_to_it(repo, tmp_path):
     where = repo.pm("where")
     assert where.returncode == 0, where.stderr
     assert not where.stdout.startswith("pm        ")  # 0.1.0's pm where, which names no version line
+
+
+@pytest.mark.integration
+@pytest.mark.impl("python", reason="the launcher is Python pm's")
+def test_a_release_tags_before_it_pins_so_both_commits_pass_the_hook(tmp_path):
+    """pm/AGENTS.md, Releasing pm: commit A sets the package version and keeps the old pin, so the pm uv tool runs the
+    pre-commit hook in process; with tag pm-v<new> on A in origin, commit B moves the pin and the hook launches A's pm.
+    Commit B without the tag is refused, so the hook does run the launcher. Real git hooks and real uv; the release
+    URL is rewritten to a scratch origin, so nothing reaches GitHub."""
+    old = __version__
+    new = ".".join([*old.split(".")[:-1], str(int(old.split(".")[-1]) + 1)])
+    origin, work = tmp_path / "origin.git", tmp_path / "work"
+    run = lambda *a, cwd=work, **kw: subprocess.run(a, cwd=cwd, env=env, capture_output=True, text=True, **kw)
+    bindir = tmp_path / "rewrite"
+    bindir.mkdir()
+    (bindir / "uv").write_text(REWRITE.format(py=sys.executable, repo=config.REPO, local=f"file://{origin}",
+                                              real=shutil.which("uv"), name="uv"))
+    (bindir / "uv").chmod(0o755)
+    (bindir / "pm").symlink_to(PM[0])  # the pm uv tool, at the old version: this checkout's pm
+    env = {k: v for k, v in fake_bd_env(tmp_path, os.environ).items() if k != "PYTHONPATH"}  # it would shadow A's pm
+    # git runs a hook with its exec dir first on PATH, so the launcher's git ls-remote is rewritten by git's config
+    env.update(PATH=f"{bindir}{os.pathsep}{env['PATH']}", GIT_CONFIG_COUNT="1",
+               GIT_CONFIG_KEY_0=f"url.file://{origin}.insteadOf", GIT_CONFIG_VALUE_0=config.REPO)
+    kept = Path(env["XDG_DATA_HOME"]) / "pm/pins" / new / "commit"
+
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)], check=True)
+    run("git", "clone", "-q", str(origin), str(work), cwd=tmp_path, check=True)
+    for k, v in (("user.email", "t@example.com"), ("user.name", "t"), ("core.hooksPath", ".beads/hooks")):
+        run("git", "config", k, v, check=True)
+    src = Path(__file__).resolve().parents[1]  # the package as this checkout has it, at the old version
+    for rel in ["pyproject.toml", *(p.relative_to(src).as_posix() for p in (src / "src/pm").rglob("*")
+                                    if p.is_file() and "__pycache__" not in p.parts)]:
+        (work / "pm" / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src / rel, work / "pm" / rel)
+    write_config(work, version=old)
+    hook = work / ".beads/hooks/pre-commit"  # pm's section, as pm init writes it into a new hook file
+    hook.parent.mkdir(parents=True)
+    hook.write_text(install.SHEBANG + install.git_hook_section("pre-commit"))
+    hook.chmod(0o755)
+    run("git", "add", "-A", check=True)
+    assert run("git", "commit", "-qm", f"pm {old}").returncode == 0
+    run("git", "push", "-q", "origin", "main", check=True)
+
+    # commit A: the package version only; the pin stays at the old version
+    run("git", "checkout", "-qb", "release", check=True)
+    pyproject = work / "pm/pyproject.toml"
+    pyproject.write_text(pyproject.read_text().replace(f'version = "{old}"', f'version = "{new}"', 1))
+    run("git", "add", "-A", check=True)
+    assert run("git", "ls-remote", str(origin), f"refs/tags/pm-v{new}").stdout == ""
+    res = run("git", "commit", "-qm", f"pm {new}: the package version")
+    assert res.returncode == 0, res.stderr
+    a = run("git", "rev-parse", "HEAD", check=True).stdout.strip()
+    assert not kept.exists()  # the old pm ran the hook in process
+
+    # commit B: the pin moves; without the tag the launcher cannot run the new pm, and the hook refuses the commit
+    write_config(work, version=new)
+    run("git", "add", "-A", check=True)
+    res = run("git", "commit", "-qm", f"pm {new}: pin it")
+    assert res.returncode != 0
+    assert f"release tag pm-v{new} was not found at {config.REPO} (no such tag)" in res.stderr, res.stderr
+    assert run("git", "rev-parse", "HEAD", check=True).stdout.strip() == a
+
+    run("git", "tag", "-a", f"pm-v{new}", "-m", f"pm {new}", a, check=True)
+    run("git", "push", "-q", "origin", f"pm-v{new}", check=True)
+    res = run("git", "commit", "-qm", f"pm {new}: pin it")
+    assert res.returncode == 0, res.stderr
+    assert run("git", "rev-parse", "HEAD~1", check=True).stdout.strip() == a
+    assert kept.read_text().strip() == a  # the hook ran the new pm, built from the tag's commit
