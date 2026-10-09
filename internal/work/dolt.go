@@ -58,7 +58,7 @@ const (
 	ConnectTimeout = 2 * time.Second
 	// WriteAttempts bounds how often a write that loses to concurrent writes runs (Concurrent writers); the 8 x 20
 	// writes benchmark sets it.
-	WriteAttempts = 20
+	WriteAttempts = 100
 )
 
 var (
