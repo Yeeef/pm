@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -66,5 +67,38 @@ func TestGCKeepsEveryItem(t *testing.T) {
 	defer r.Shutdown()
 	if after := must(r.Items()); !reflect.DeepEqual(after, before) {
 		t.Fatalf("gc changed the items:\n%v\n%v", before, after)
+	}
+}
+
+// The pm service bounds its sync, which holds the gate: a sync whose context is done stops, pushes nothing and leaves
+// the store's items as they were; the next sync with time left pushes what it did not. (A context done before Dolt
+// first reached the remote would kill the git init of its remote cache, which no later sync repairs: the service
+// checks its context before it starts a sync.)
+func TestSyncContextStopsOnceItsContextIsDone(t *testing.T) {
+	d, _ := newStore(t)
+	seed(t, d)
+	defer d.Shutdown()
+	bare := bareRemote(t)
+	if err := d.AddRemote(bare); err != nil {
+		t.Fatal(err)
+	}
+	must(d.SyncContext(context.Background()))
+	pushed := gitRun(t, bare, "rev-parse", RemoteRef)
+	must(d.Create(New{Type: Project, Title: "Later"}))
+	before := must(d.Items())
+	c, cancel := context.WithCancel(context.Background())
+	cancel()
+	// Dolt kills the git it runs under the query's context
+	if _, err := d.SyncContext(c); err == nil || !strings.Contains(err.Error(), "context canceled") {
+		t.Fatalf("a sync under a done context: %v", err)
+	}
+	if now := gitRun(t, bare, "rev-parse", RemoteRef); now != pushed {
+		t.Fatalf("pushed under a done context: %s, was %s", now, pushed)
+	}
+	if after := must(d.Items()); !reflect.DeepEqual(after, before) {
+		t.Fatal("the items moved")
+	}
+	if r := must(d.SyncContext(context.Background())); r.Pushed != 1 {
+		t.Fatalf("the next sync did not push the later commit: %+v", r)
 	}
 }

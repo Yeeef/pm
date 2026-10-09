@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, TEST_SOURCE, stop_services
+from conftest import IMPL, PM, TEST_SOURCE, stop_services
 from pm import __version__, push, service, tool
 
 IN_PROCESS = pytest.mark.impl("python", reason="the service's units in process; Go pm has them as Go unit tests")
@@ -219,7 +219,8 @@ def test_service_stops_once_the_pin_moves(repo):
     srv, port = service_run(repo, "0")
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/style.css") as r:
-            assert r.headers["X-PM-Version"] == tool.build(__version__, json.dumps(TEST_SOURCE))  # its git build
+            build = __version__ if IMPL == "go" else tool.build(__version__, json.dumps(TEST_SOURCE))
+            assert r.headers["X-PM-Version"] == build  # Go pm's version, stamped at build; Python pm's git build
         cfg = repo.root / ".pm/config.toml"
         moved = cfg.with_suffix(".new")  # replaced whole, as git pull does: the service never reads it half written
         moved.write_text(cfg.read_text().replace(f'version = "{__version__}"', 'version = "9.9.9"'))

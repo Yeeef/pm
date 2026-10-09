@@ -19,6 +19,7 @@ import (
 	"github.com/Yeeef/yeeef-agents/pm/internal/service"
 	"github.com/Yeeef/yeeef-agents/pm/internal/site"
 	"github.com/Yeeef/yeeef-agents/pm/internal/store"
+	pmsync "github.com/Yeeef/yeeef-agents/pm/internal/sync"
 	"github.com/Yeeef/yeeef-agents/pm/internal/work"
 )
 
@@ -92,8 +93,9 @@ func openServiceStore(main, remote string) (service.Store, error) {
 
 // Sync is pm sync's: pull, merge, push, said in one line, with a warning per claim the merge overrode, as pm sync
 // prints them. A store with no remote yet (the repo's remote was added after pm init made the store) is first
-// attached to the config's remote, under work.RemoteRef, and the line says so. The context is checked before the sync
-// starts; the work store bounds each push by work.PushTimeout.
+// attached to the config's remote, under work.RemoteRef, and the line says so; refused when the remote holds a work
+// store already, which a store made apart from it shares no history with. The sync stops once ctx is done; a ctx
+// done already starts none, since Dolt's first reach of a remote, killed, leaves a remote cache no sync repairs.
 func (s *serviceStore) Sync(ctx context.Context) (string, []string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", nil, err
@@ -106,12 +108,21 @@ func (s *serviceStore) Sync(ctx context.Context) (string, []string, error) {
 		if err != nil {
 			return "", nil, fmt.Errorf("work store: it has no remote to sync with, and %v", err)
 		}
+		ok, held := pmsync.Run(s.main, "git", "ls-remote", s.remote, work.RemoteRef)
+		if !ok {
+			return "", nil, fmt.Errorf("work store: it has no remote to sync with, and %s", held)
+		}
+		if held != "" {
+			return "", nil, fmt.Errorf("work store: it has no remote, and %s holds a work store under %s already, "+
+				"which this one, made apart from it, shares no history with; move %s away and run pm init, which "+
+				"clones it", s.remote, work.RemoteRef, filepath.Join(s.main, ".pm/store/work"))
+		}
 		if err := s.AddRemote(url); err != nil {
 			return "", nil, err
 		}
-		attached = fmt.Sprintf("attached the work store to %s (%s) under %s; ", s.remote, url, work.RemoteRef)
+		attached = fmt.Sprintf("attached the work store to %s under %s; ", s.remote, work.RemoteRef)
 	}
-	r, err := s.Dolt.Sync()
+	r, err := s.SyncContext(ctx)
 	if err != nil {
 		return "", nil, err
 	}
@@ -208,15 +219,15 @@ func (s *servedSite) Stamp() (string, error) {
 // Load reads the records as they are on disk, uncommitted edits included, and checks them against items. The design
 // pages' dates come from git, read again only when the stamp moved.
 func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
+	stamp, err := s.Stamp() // before the read: a write between the two moves the stamp again, and the next look reads
+	if err != nil {
+		return nil, err
+	}
 	recs, err := records.Read(s.records, nil)
 	if err != nil {
 		return nil, err
 	}
 	summaries, err := records.ReadSummaries(s.records)
-	if err != nil {
-		return nil, err
-	}
-	stamp, err := s.Stamp()
 	if err != nil {
 		return nil, err
 	}

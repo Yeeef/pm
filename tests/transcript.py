@@ -6,12 +6,14 @@ new text, null when removed) and the store export after it. The normaliser repla
 keeping its shape so a difference in format still shows: the temp and checkout paths and random temp names, git
 commit ids and UUIDs (numbered by first appearance, with their length), timestamps and today's date (each digit as
 0), durations and ports (the number only), and root ids pm minted (in order of appearance; the seeded ids are kept).
-Three things differ by design until the cut-over, and each becomes one form: pm where's work-layer line, where Python pm
-names Beads and Go pm its work store; the lines pm init prints as it connects the clone to its work layer, Python pm's
-bd bootstrap, .beads mode, beads.role and agent profile, Go pm's work store cloned, created, pointed at or pushed to the
-remote (both dropped); and the comment that holds the answer a need closes with (pm decision add --need,
-pm decision close), which Python pm's `bd human respond` writes as a note "Response: <text>" by the git user and Go pm's
-work store as a reply by the owner (work.Answer)."""
+Some things differ by design until the cut-over, and each becomes one form: pm where's work-layer line, where Python pm
+names Beads and Go pm its work store; the lines pm init prints as it connects the clone to its work layer,
+Python pm's bd bootstrap, .beads mode, beads.role and agent profile, Go pm's work store cloned, created, pointed
+at or pushed to the remote (both dropped); pm push's work-layer step, Python pm's bd dolt push and Go pm's
+work-store sync; the pm service's log, whose timing lines name each one's store, so only its Serving lines are
+kept; pm service status's gc line, which only Go pm's service has (it collects the work store); and the comment that
+holds the answer a need closes with (pm decision add --need, pm decision close), which Python pm's `bd human respond`
+writes as a note "Response: <text>" by the git user and Go pm's work store as a reply by the owner (work.Answer)."""
 
 from __future__ import annotations
 
@@ -38,6 +40,10 @@ WORK_SETUP = re.compile(r"(?m)^(?:set up the Beads database \(.*|made .* private
                         r"|set beads\.role to maintainer|set the Beads agent profile to team-maintainer"
                         r"|cloned the work store from .*|created the work store at .*|pointed the work store .*"
                         r"|pushed the work store to .*)\n")
+WORK_PUSH = re.compile(r"(?m)^(\S+) (?:beads|work) (ok|error): .*$")  # pm push: bd dolt push, or the work store's sync
+SERVED_LAYER = re.compile(r"; (?:Beads reread when \S+ changes|Beads reread every look \(Dolt server\)|"
+                          r"the work store reread when it changes);")  # the service's Serving line
+GC_LINE = re.compile(r"(?m)^gc        .*\n")  # pm service status: Go pm's collection of its work store
 
 
 def start() -> None:
@@ -87,6 +93,9 @@ def normalise(value, paths: dict[str, str]):
     value = DURATION.sub("0", value)
     value = WORK_LAYER.sub("<work layer: Beads or the work store>", value)
     value = WORK_SETUP.sub("", value)
+    value = WORK_PUSH.sub(r"\1 <work layer: bd dolt push or the work store's sync> \2", value)
+    value = SERVED_LAYER.sub("; <work layer> reread when it changes;", value)
+    value = GC_LINE.sub("", value)
     return PORT.sub("<port>", value)
 
 
@@ -114,6 +123,8 @@ def write(directory: Path, nodeid: str, paths: dict[str, str]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = normalise({"test": nodeid, "calls": CALLS}, paths)
     for call in data["calls"]:  # by normalised id: a minted root id sorts apart from the seeds by its placeholder
+        if call["argv"][:2] == ["service", "logs"]:
+            call["stdout"] = "".join(l for l in call["stdout"].splitlines(True) if l.startswith("Serving "))
         if isinstance(call["export"], list):
             call["export"].sort(key=lambda i: i["id"])
             for item in call["export"]:

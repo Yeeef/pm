@@ -29,6 +29,8 @@ type Dolt struct {
 	conn   *sql.Conn
 	// pushFn, when a test sets it, runs each push in push's place, given the real push.
 	pushFn func(push func() error) error
+	// op bounds the sync running now (SyncContext); nil otherwise.
+	op context.Context
 }
 
 var _ Store = (*Dolt)(nil)
