@@ -755,6 +755,26 @@ def test_pm_show_project_prints_one_project_and_refuses_what_it_cannot(repo):
             match="--record and --section go together, without --sprint, --project or --json")
 
 
+@pytest.mark.integration
+def test_sprints_list_in_natural_id_order_on_the_overview_the_project_page_and_pm_show(repo):
+    """Beads ids order by their numbers, not as text: .9, .39, .100, where text order puts .100 before .39."""
+    from conftest import sprint
+    for n in (100, 39, 9):
+        repo.add_issue({"id": f"demo.{n}", "title": f"Sprint {n}: Number {n}", "status": "open",
+                        "issue_type": "epic", "parent": "demo", "created_at": "2026-10-01T12:00:00Z"})
+        repo.write(f"sprints/demo-{n}.md", sprint(f"Number {n}", f"demo.{n}"))
+    repo.commit("sprints 9, 39 and 100")
+    titles = ("Number 9", "Number 39", "Number 100")
+    in_order = lambda text: -1 < text.index(titles[0]) < text.index(titles[1]) < text.index(titles[2])
+    pages = repo.pages()
+    assert in_order(pages["index.html"])
+    project = pages["projects/demo.html"]
+    assert in_order(project) and in_order(project[project.index("<table>"):])  # the graph, then the sprint table
+    res = repo.pm("show", "--project", "demo")
+    assert res.returncode == 0, res.stderr
+    assert in_order(res.stdout), res.stdout
+
+
 # ---------------------------------------------------------------- the site: pm serve
 
 
