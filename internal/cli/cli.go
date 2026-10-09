@@ -450,6 +450,13 @@ func (r *refusal) Error() string { return r.msg }
 
 // Execute runs pm with argv (without the program name) and returns the exit code.
 func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if ok, err := goOnly(argv, stdout); ok {
+		if err != nil {
+			fmt.Fprintf(stderr, "error: %s\n", err)
+			return 1
+		}
+		return 0
+	}
 	run := func(p *Parsed) error { return dispatch(p, stdin, stdout, stderr) }
 	root := build(tree, run, stdout)
 	root.SetHelpCommand(&cobra.Command{Use: "no-help-command", Hidden: true})
