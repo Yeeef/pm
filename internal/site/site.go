@@ -210,6 +210,55 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 	return graph + table, nil
 }
 
+type unsprintedItem struct {
+	it      *Item
+	project *Record
+}
+
+// unsprinted is each open task or need filed directly under a project epic or with no parent, with its project (nil
+// for none), by id. A need under a project is left out: the await-you sections show it.
+func unsprinted(recs []*Record, items *Items) []unsprintedItem {
+	projects := map[string]*Record{}
+	for _, r := range recs {
+		if r.Type() == "project" {
+			projects[r.Bead()] = r
+		}
+	}
+	var out []unsprintedItem
+	for _, it := range items.All() {
+		if it.Status == work.Closed || isEpic(it) {
+			continue
+		}
+		if p := projects[it.Parent]; it.Parent == "" || (p != nil && it.Type != work.Need) {
+			out = append(out, unsprintedItem{it, p})
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].it.ID < out[j].it.ID })
+	return out
+}
+
+// unsprintedTable is the generated 'Not in a sprint' table; empty when there are none. The type is bd's issue type,
+// which the work store keeps as the label bug.
+func unsprintedTable(list []unsprintedItem, frm *Record, heading string) string {
+	if len(list) == 0 {
+		return ""
+	}
+	var rows strings.Builder
+	for _, u := range list {
+		typ, project := "task", "—"
+		if contains(u.it.Labels, "bug") {
+			typ = "bug"
+		}
+		if u.project != nil {
+			project = `<a href="` + link(frm, u.project.Out()) + `">` + esc(u.project.Title()) + "</a>"
+		}
+		rows.WriteString("<tr><td>" + esc(u.it.ID) + "</td><td>" + typ + "</td><td>" + esc(u.it.Title) + "</td><td>" +
+			project + "</td></tr>")
+	}
+	return "<" + heading + ` id="not-in-a-sprint">Not in a sprint</` + heading + ">\n" + `<div class="tbl"><table><tr>` +
+		"<th>Item</th><th>Type</th><th>Title</th><th>Project</th></tr>" + rows.String() + "</table></div>\n"
+}
+
 // docList is a generated list of dated records (docs or postmortems), newest first, linked relative to frm; empty
 // when there are none.
 func docList(docs []*Record, frm *Record, heading, label string) string {
@@ -742,6 +791,13 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 		if err != nil {
 			return "", err
 		}
+		var mine []unsprintedItem
+		for _, u := range unsprinted(recs, items) {
+			if u.project == rec {
+				mine = append(mine, u)
+			}
+		}
+		generated += unsprintedTable(mine, rec, "h3")
 		body = replaceFirst(progressRE, body, func(g string) string { return g + "\n" + generated + "\n" })
 		body = withDocs(body, "## Outcome", projectDocs(rec, recs, items, "doc"), projectDocs(rec, recs, items, "postmortem"), rec)
 	case "sprint":
@@ -925,6 +981,7 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 		}
 		out = append(out, `<h2 id="days">Days</h2><ul class="list">`+lis.String()+"</ul>")
 	}
+	out = append(out, unsprintedTable(unsprinted(recs, items), nil, "h2"))
 
 	for _, p := range projects {
 		out = append(out, `<h2><a href="`+p.Out()+`">`+esc(p.Title())+"</a></h2>")
