@@ -521,6 +521,12 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return hooks.CmdPrime(part, p.Get("hook_json") == "true", Nouns(), stdin, stdout)
 	case "hook stop":
 		return hooks.HookStop(stdin, stdout, stderr)
+	case "hook owner-request":
+		if code, err := hooks.HookOwnerRequest(here, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
+			return err
+		} else {
+			return &exitCode{code}
+		}
 	case "service install", "service status", "service restart", "service logs", "service run":
 		return runService(strings.TrimPrefix(name, "service "), p, here, stdout)
 	case "check":

@@ -1,65 +1,74 @@
 """The Stop hook that blocks a turn ending with an owner request asked only in chat, run as the runtimes run it (JSON
-on stdin) against the fake bd and a fake `claude` judge: how it turns the judge's answer into a verdict, and that it
-fails open. The judge's own accuracy is the live eval's job
+on stdin) in a temp repo whose seeds hold this session's needs and others, against a fake `claude` judge: how it turns
+the judge's answer into a verdict, and that it fails hard. The judge's own accuracy is the live eval's job
 (test_owner_request_prompt_live.py)."""
 
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from conftest import PM, fake_bd_env
+from conftest import IMPL
 
-HOOK = [*PM, "hook", "owner-request"]
-ROOT = Path(__file__).resolve().parents[2]  # this repo: pm needs its .pm/config.toml
 ME, OTHER = "sess-me", "sess-other"
+AT = "2026-10-01T12:00:00Z"
 
-MINE = {"id": "demo-x1.4", "title": "Rename X?", "description": "Options: X, Y. Default: X.", "status": "open",
-        "issue_type": "task", "labels": ["human"], "metadata": {"session": ME}}
-THEIRS = {**MINE, "id": "demo-x1.5", "title": "Merge PR #7?", "metadata": {"session": OTHER}}
-CLOSED = {**MINE, "id": "demo-x1.6", "title": "Old question?", "status": "closed"}
-NO_SESSION = {**MINE, "id": "demo-x1.7", "title": "Raised outside a session?", "metadata": {}}
-TASK = {"id": "demo-x1.8", "title": "A task", "status": "open", "issue_type": "task", "metadata": {"session": ME}}
-ISSUES = [MINE, THEIRS, CLOSED, NO_SESSION, TASK]
+MINE = {"id": "repo-demo.1.4", "title": "Rename X?", "description": "Options: X, Y. Default: X.", "status": "open",
+        "issue_type": "task", "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": ME},
+        "created_at": AT, "updated_at": AT}
+THEIRS = {**MINE, "id": "repo-demo.1.5", "title": "Merge PR #7?", "metadata": {"session": OTHER}}
+CLOSED = {**MINE, "id": "repo-demo.1.6", "title": "Old question?", "status": "closed", "closed_at": AT}
+NO_SESSION = {**MINE, "id": "repo-demo.1.7", "title": "Raised outside a session?", "metadata": {}}
+ISSUES = [MINE, THEIRS, CLOSED, NO_SESSION]
+
+
+@pytest.fixture
+def needs(repo):
+    """The repo with this session's open need, another session's, this session's closed one and one no session
+    raised."""
+    for issue in ISSUES:
+        repo.add_issue(issue)
+    return repo
 
 
 def answer(*items):
     return json.dumps({"items": [{"quote": q, "kind": k, "match": m} for q, k, m in items]})
 
 
-def run(tmp_path, reply="Should we rename X?", judged=None, env=None, issues=ISSUES, **event):
-    env = env or fake_bd_env(tmp_path, os.environ)
-    if judged is not None:
-        env = dict(env, FAKE_CLAUDE_OUTPUT=judged)
-    (tmp_path / "bd.json").write_text(json.dumps(issues))
+def run(repo, reply="Should we rename X?", judged=None, fail=None, **event):
+    env = repo.env
+    repo.env = dict(env, **({"FAKE_CLAUDE_OUTPUT": judged} if judged is not None else {}),
+                    **({"FAKE_CLAUDE_FAIL": fail} if fail else {}))
     event = {"session_id": ME, "hook_event_name": "Stop", "stop_hook_active": False,
              "last_assistant_message": reply, **event}
-    return subprocess.run(HOOK, input=json.dumps(event), env=env, cwd=ROOT, capture_output=True, text=True, timeout=20)
+    try:
+        return repo.pm("hook", "owner-request", stdin=json.dumps(event))
+    finally:
+        repo.env = env
 
 
-def bd_calls(tmp_path):
-    return [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
-
-
-def claude_calls(tmp_path):
-    log = tmp_path / "claude.log"
+def claude_calls(repo):
+    log = Path(repo.env["FAKE_CLAUDE_LOG"])
     return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
 
 
-def test_passes_a_request_matching_this_sessions_need(tmp_path):
-    res = run(tmp_path, judged=answer(("Should we rename X?", "decision", MINE["id"])))
+def test_passes_a_request_matching_this_sessions_need(needs):
+    res = run(needs, judged=answer(("Should we rename X?", "decision", MINE["id"])))
     assert res.returncode == 0 and res.stdout == "", res.stderr
+    (call,) = claude_calls(needs)
+    assert call["stdin"] == ("OPEN REQUESTS:\n- repo-demo.1.4: Rename X?\n  Options: X, Y. Default: X.\n\n"
+                             "REPLY:\n<<<\nShould we rename X?\n>>>"), "only this session's open needs are listed"
+    assert call["args"][:2] == ["-p", "--model"] and call["args"][-2] == "--system-prompt"
+    assert call["env"] == {"MAX_THINKING_TOKENS": "0", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
 
 
 @pytest.mark.parametrize("match", [None, THEIRS["id"]])
-def test_blocks_a_request_matching_no_open_need_of_this_session(tmp_path, match):
+def test_blocks_a_request_matching_no_open_need_of_this_session(needs, match):
     """A match the judge names counts only when it is one of this session's open needs, so another session's need
     does not cover the request."""
-    res = run(tmp_path, reply="Should I merge the PR now or wait for review?",
+    res = run(needs, reply="Should I merge the PR now or wait for review?",
               judged=answer(("Should I merge the PR now or wait for review?", "decision", match)))
     out = json.loads(res.stdout)
     assert res.returncode == 0 and out["decision"] == "block"
@@ -69,9 +78,9 @@ def test_blocks_a_request_matching_no_open_need_of_this_session(tmp_path, match)
     assert "needs no id" in out["reason"] and "cite" not in out["reason"]
 
 
-def test_blocks_a_needless_ask_even_when_an_open_need_matches(tmp_path):
+def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):
     """Leave to push the branch or open the PR is never needed: it blocks with its own reason, matched or not."""
-    res = run(tmp_path, reply="Should I push the branch and open the PR?",
+    res = run(needs, reply="Should I push the branch and open the PR?",
               judged=answer(("Should I push the branch and open the PR?", "authorized", MINE["id"])))
     reason = json.loads(res.stdout)["reason"]
     assert reason.startswith("Your reply asks the owner's leave for, or offers, a step you are authorized")
@@ -80,11 +89,13 @@ def test_blocks_a_needless_ask_even_when_an_open_need_matches(tmp_path):
 
 
 @pytest.mark.parametrize("event", [{"stop_hook_active": True}, {"last_assistant_message": "  \n"}])
-def test_passes_without_reading_anything(tmp_path, event):
+def test_passes_without_reading_anything(needs, event):
     """After one block (stop_hook_active) it never loops, and an empty reply asks nothing."""
-    res = run(tmp_path, **event)
+    res = run(needs, **event)
     assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
-    assert bd_calls(tmp_path) == [] and claude_calls(tmp_path) == []
+    assert claude_calls(needs) == []
+    if IMPL == "python":
+        assert needs.bd_calls() == []
 
 
 def failed(res, said):
@@ -93,6 +104,5 @@ def failed(res, said):
     assert "the owner-request check did not run" in res.stderr
 
 
-def test_fails_when_claude_fails(tmp_path):
-    env = dict(fake_bd_env(tmp_path, os.environ), FAKE_CLAUDE_FAIL="Not logged in")
-    failed(run(tmp_path, env=env), "claude -p failed (exit 1): Not logged in")
+def test_fails_when_claude_fails(needs):
+    failed(run(needs, fail="Not logged in"), "claude -p failed (exit 1): Not logged in")
