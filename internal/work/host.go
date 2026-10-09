@@ -370,9 +370,10 @@ func (h *Host) alive(session uint32) bool {
 	return found
 }
 
-// procLock is CALL pm_lock(seconds): the store's write lock for the calling connection, waiting at most seconds.
-func (h *Host) procLock(c *gmssql.Context, seconds int64) (gmssql.RowIter, error) {
-	if err := h.writes.lock(c.Session.ID(), time.Duration(seconds)*time.Second, c.Done()); err != nil {
+// procLock is CALL pm_lock(ms, pid, what): the store's write lock for the calling connection, whose client is
+// process pid making the write what, waiting at most ms milliseconds.
+func (h *Host) procLock(c *gmssql.Context, ms, pid int64, what string) (gmssql.RowIter, error) {
+	if err := h.writes.lock(c.Session.ID(), pid, what, time.Duration(ms)*time.Millisecond, c.Done()); err != nil {
 		return nil, fmt.Errorf("pm_lock: %w", err)
 	}
 	return nil, nil

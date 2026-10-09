@@ -139,9 +139,9 @@ func (d *Dolt) Clone(gitURL string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := d.conn.ExecContext(d.opCtx(), "CALL DOLT_CLONE('--remote', ?, '--ref', ?, ?, ?)", remote, RemoteRef, u,
-		dbName); err != nil {
-		return fmt.Errorf("work store: clone %s: %w", gitURL, d.broken(err))
+	if err := d.remoteCallOn(d.opCtx(), false, "CALL DOLT_CLONE('--remote', ?, '--ref', ?, ?, ?)", remote, RemoteRef,
+		u, dbName); err != nil {
+		return fmt.Errorf("work store: clone %s: %w", gitURL, err)
 	}
 	if err := d.UseStore(); err != nil {
 		return err

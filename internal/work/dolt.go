@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -324,12 +325,18 @@ var Waits struct{ Writes, Total, Max atomic.Int64 }
 // func releases it.
 func (d *Dolt) lockWrites(what string) (func(), error) {
 	start := time.Now()
-	if _, err := d.conn.ExecContext(ctx, "CALL pm_lock(?)", int64(WriteLockWait/time.Second)); err != nil {
+	ms := max(1, (WriteLockWait+time.Millisecond-1)/time.Millisecond) // rounded up: never a wait of 0
+	if _, err := d.conn.ExecContext(ctx, "CALL pm_lock(?, ?, ?)", int64(ms), int64(os.Getpid()),
+		strings.TrimPrefix(what, "pm: ")); err != nil {
 		var me *mysql.MySQLError
 		if errors.As(err, &me) && strings.Contains(me.Message, errLockTimeout.Error()) {
-			return nil, fmt.Errorf("work store: %s waited %s for the store's write lock, which another write holds; "+
-				"nothing was written: run the command again, and see pm service logs if it recurs",
-				strings.TrimPrefix(what, "pm: "), WriteLockWait)
+			holder := "unknown"
+			if _, after, ok := strings.Cut(me.Message, "held by "); ok {
+				holder = after
+			}
+			return nil, fmt.Errorf("work store: %s waited %s for the store's write lock, which a live pm process "+
+				"holds (%s); nothing was written. If that process hangs (stopped, or in a debugger), stop it; then "+
+				"run the command again", strings.TrimPrefix(what, "pm: "), WriteLockWait, holder)
 		}
 		return nil, fmt.Errorf("work store: take the write lock: %w", d.procError(err))
 	}
@@ -436,12 +443,17 @@ func (d *Dolt) txOnce(msg string, stamped bool, fn func(tx *sql.Tx) error) error
 	return nil
 }
 
-// remoteCall runs a statement that reaches the git remote (DOLT_FETCH, DOLT_PUSH) on a connection of its own, bounded
+// remoteCall runs a statement that reaches the git remote (DOLT_FETCH, DOLT_PUSH, DOLT_CLONE) on a connection of its own, bounded
 // by c. go-sql-driver drops a connection whose context ends mid-statement; dropping this one leaves d's connection,
 // and the write lock or transaction it may hold, as they were, so the outcome can still be checked. (The server may
 // still finish the dropped statement: Dolt kills its git once it sees the connection gone.)
 func (d *Dolt) remoteCall(c context.Context, q string, args ...any) error {
-	side, err := dial(d.sock, dialConfig{withDB: true})
+	return d.remoteCallOn(c, true, q, args...)
+}
+
+// remoteCallOn is remoteCall on a connection with the work database selected when withDB.
+func (d *Dolt) remoteCallOn(c context.Context, withDB bool, q string, args ...any) error {
+	side, err := dial(d.sock, dialConfig{withDB: withDB})
 	if err != nil {
 		return err
 	}
@@ -1047,6 +1059,18 @@ func (d *Dolt) Move(id, parent string) error {
 // by h.Session, or is held by a session that live reports not live; it sets StartedAt on the first claim. The claim
 // time is the store's clock.
 func (d *Dolt) Claim(id string, h Holder, live func(session string) bool) error {
+	// whether the holder is live is read before the write lock: it reads session transcripts on disk, slow work
+	// that no write should wait on; only a holder that changed meanwhile is read again under the lock
+	known := map[string]bool{}
+	if items, err := d.Get(id); err == nil && items[0].Holder != nil && items[0].Holder.Session != h.Session {
+		known[items[0].Holder.Session] = live(items[0].Holder.Session)
+	}
+	isLive := func(session string) bool {
+		if v, ok := known[session]; ok {
+			return v
+		}
+		return live(session)
+	}
 	return d.update("claim", id, func(it *Item, _ *Index) error {
 		if it.Status != Open {
 			return itemError(id, "is closed")
@@ -1054,7 +1078,7 @@ func (d *Dolt) Claim(id string, h Holder, live func(session string) bool) error 
 		if h.Session == "" {
 			return itemError(id, "cannot be claimed without a session")
 		}
-		if o := it.Holder; o != nil && o.Session != h.Session && live(o.Session) {
+		if o := it.Holder; o != nil && o.Session != h.Session && isLive(o.Session) {
 			return itemError(id, "is held by live session %s", o.Session)
 		}
 		now := d.now()
