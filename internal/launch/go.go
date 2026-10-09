@@ -2,7 +2,10 @@ package launch
 
 // A Go pin (>= 0.2.0, pre-releases such as 0.2.0-rc.1 too) runs its release binary, kept at pins/<pin>/pm, with no
 // network once it is there. The first launch on a machine downloads SHA256SUMS and the tarball for this OS and
-// architecture from release pm-v<pin> (10 s to connect, 300 s in all). The tarball must match its SHA256SUMS line and
+// architecture from release pm-v<pin> (10 s to connect, 300 s in all): through the GitHub API (APIURL, or
+// $PM_RELEASE_API), as the repo is private, with a token from $GH_TOKEN, else from `gh auth token`, and no token a hard
+// error naming both; the token goes to the API alone, never to the storage host an asset redirects to. $PM_RELEASE_URL
+// names a mirror instead, <url>/pm-v<pin>/<asset>, downloaded with no token. The tarball must match its SHA256SUMS line and
 // the sha256 an earlier download kept in pins/<pin>/sha256, if any: a release is never rebuilt, so a difference fails
 // hard. The binary, then its sha256, is written to a temp file and renamed into place, so another launch sees no file
 // or the whole one; nothing is written under pins/ before the tarball has passed every check. Every failure is a hard
@@ -16,6 +19,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -33,14 +37,15 @@ import (
 
 	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
 	"github.com/Yeeef/yeeef-agents/pm/internal/config"
+	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
 )
 
 const (
-	// DefaultReleaseURL is where pm's releases are: <base>/pm-v<X>/<asset>. $PM_RELEASE_URL replaces it (mirrors,
-	// tests).
-	DefaultReleaseURL = "https://github.com/Yeeef/yeeef-agents/releases/download"
-	connectTimeout    = 10 * time.Second
-	fix               = "; check the network and the release, then run pm again, or move the pin with pm upgrade"
+	// APIURL is the GitHub API's URL of pm's repo, where releases are found: <api>/releases/tags/pm-v<X>.
+	// $PM_RELEASE_API replaces it (tests).
+	APIURL         = "https://api.github.com/repos/Yeeef/yeeef-agents"
+	connectTimeout = 10 * time.Second
+	fix            = "; check the network and the release, then run pm again, or move the pin with pm upgrade"
 )
 
 // downloadTimeout bounds the whole download, SHA256SUMS and the tarball; a var for the test of it.
@@ -48,12 +53,29 @@ var downloadTimeout = 300 * time.Second
 
 var sumRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
-// ReleaseURL is the release base URL: $PM_RELEASE_URL without trailing slashes, or DefaultReleaseURL.
-func ReleaseURL() string {
-	if u := os.Getenv("PM_RELEASE_URL"); u != "" {
+// MirrorURL is $PM_RELEASE_URL without trailing slashes: a mirror's base URL, <base>/pm-v<X>/<asset>; "" when unset.
+func MirrorURL() string {
+	return strings.TrimRight(os.Getenv("PM_RELEASE_URL"), "/")
+}
+
+// apiURL is APIURL, or $PM_RELEASE_API without trailing slashes.
+func apiURL() string {
+	if u := os.Getenv("PM_RELEASE_API"); u != "" {
 		return strings.TrimRight(u, "/")
 	}
-	return DefaultReleaseURL
+	return APIURL
+}
+
+// GitHubToken is the token for GitHub's API: $GH_TOKEN, else what `gh auth token` prints; "" when neither gives one.
+func GitHubToken() string {
+	if t := strings.TrimSpace(os.Getenv("GH_TOKEN")); t != "" {
+		return t
+	}
+	res, err := proc.Run([]string{"gh", "auth", "token"}, proc.Options{Timeout: connectTimeout})
+	if err != nil || res.Code != 0 {
+		return ""
+	}
+	return strings.TrimSpace(res.Stdout)
 }
 
 // Platform is this machine's <os>-<arch> as release assets name it; ok is false on one pm is not released for.
@@ -97,19 +119,53 @@ func strerror(err error) string {
 func Download(version string) error {
 	dir := PinDir(version)
 	tag := "pm-v" + version
-	base := ReleaseURL() + "/" + tag
+	mirror := MirrorURL()
+	base := mirror + "/" + tag
+	if mirror == "" {
+		base = apiURL() + "/releases/tags/" + tag
+	}
 	head := fmt.Sprintf("this repo pins pm %s, but release %s", version, tag)
 	plat, ok := Platform()
 	if !ok {
 		return fmt.Errorf("%s has no binary for %s (only darwin-arm64 and linux-amd64): %s", head, plat, base)
 	}
 	asset := fmt.Sprintf("pm-%s-%s.tar.gz", version, plat)
-	sumsURL, tarURL := base+"/SHA256SUMS", base+"/"+asset
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancel()
 
+	sumsURL, tarURL, headers := base+"/SHA256SUMS", base+"/"+asset, map[string]string(nil)
+	if mirror == "" {
+		token := GitHubToken()
+		if token == "" {
+			return fmt.Errorf("%s is downloaded through the GitHub API, which needs a token: set GH_TOKEN, or log in "+
+				"with gh auth login so that gh auth token prints one", head)
+		}
+		headers = map[string]string{"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"}
+		var found bytes.Buffer
+		if _, err := download(ctx, base, &found, head, headers); err != nil {
+			return err
+		}
+		var rel struct {
+			Assets []struct{ Name, URL string } `json:"assets"`
+		}
+		if json.Unmarshal(found.Bytes(), &rel) != nil || rel.Assets == nil {
+			return fmt.Errorf("%s could not be downloaded: %s did not answer with a release%s", head, base, fix)
+		}
+		urls := map[string]string{}
+		for _, a := range rel.Assets {
+			urls[a.Name] = a.URL
+		}
+		for _, name := range []string{"SHA256SUMS", asset} {
+			if urls[name] == "" {
+				return fmt.Errorf("%s could not be downloaded: %s has no asset %s%s", head, base, name, fix)
+			}
+		}
+		sumsURL, tarURL = urls["SHA256SUMS"], urls[asset]
+		headers["Accept"] = "application/octet-stream"
+	}
+
 	var sums bytes.Buffer
-	if _, err := download(ctx, sumsURL, &sums, head); err != nil {
+	if _, err := download(ctx, sumsURL, &sums, head, headers); err != nil {
 		return err
 	}
 	want := ""
@@ -128,7 +184,7 @@ func Download(version string) error {
 	}
 	defer os.Remove(tarball.Name())
 	defer tarball.Close()
-	got, err := download(ctx, tarURL, tarball, head)
+	got, err := download(ctx, tarURL, tarball, head, headers)
 	if err != nil {
 		return err
 	}
@@ -159,11 +215,21 @@ func Download(version string) error {
 	return writeAtomicFrom(keptSum, strings.NewReader(got+"\n"), 0o644)
 }
 
-// download writes the body of GET url to out within ctx; its sha256 hex. head frames a failure's error.
-func download(ctx context.Context, link string, out io.Writer, head string) (string, error) {
+// download writes the body of GET url to out within ctx; its sha256 hex. head frames a failure's error. headers go to
+// link alone: a redirect (GitHub sends an asset's to its storage host) gets none of them.
+func download(ctx context.Context, link string, out io.Writer, head string, headers map[string]string) (string, error) {
 	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment,
 		DialContext:         (&net.Dialer{Timeout: connectTimeout}).DialContext,
-		TLSHandshakeTimeout: connectTimeout, ResponseHeaderTimeout: connectTimeout}}
+		TLSHandshakeTimeout: connectTimeout, ResponseHeaderTimeout: connectTimeout},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			for k := range headers {
+				req.Header.Del(k)
+			}
+			return nil
+		}}
 	fail := func(err error) (string, error) {
 		why := err.Error()
 		var uerr *url.Error
@@ -182,6 +248,9 @@ func download(ctx context.Context, link string, out io.Writer, head string) (str
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {
 		return fail(err)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

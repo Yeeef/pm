@@ -198,14 +198,14 @@ func TestDownloadGivesUpAtItsDeadline(t *testing.T) {
 	}
 }
 
-func TestReleaseURL(t *testing.T) {
+func TestMirrorURL(t *testing.T) {
 	t.Setenv("PM_RELEASE_URL", "")
-	if ReleaseURL() != DefaultReleaseURL {
-		t.Fatal(ReleaseURL())
+	if MirrorURL() != "" {
+		t.Fatal(MirrorURL())
 	}
 	t.Setenv("PM_RELEASE_URL", "http://mirror/x///")
-	if ReleaseURL() != "http://mirror/x" {
-		t.Fatal(ReleaseURL())
+	if MirrorURL() != "http://mirror/x" {
+		t.Fatal(MirrorURL())
 	}
 }
 

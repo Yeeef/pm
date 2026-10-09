@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from test_launch import PLATFORM, tarball
+from test_launch import PLATFORM, TOKEN, GitHub, tarball
 
 PM_DIR = Path(__file__).resolve().parents[1]
 TOOLING = pytest.mark.impl("python", reason="tests the release tooling, not a pm implementation")
@@ -80,6 +80,54 @@ def test_install_sh_refuses_a_release_with_no_line_for_this_platform(served):
     res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True)
     assert res.returncode == 1
     assert res.stderr == f"install.sh: error: {served.url}/SHA256SUMS has no line for {served.tar.name}\n"
+    assert not served.bin.exists()
+
+
+@pytest.fixture
+def api(served, tmp_path):
+    """`served`'s release behind the GitHub API stand-in, with no mirror and no token; a gh first on PATH whose
+    `gh auth token` prints $FAKE_GH_TOKEN, and without it fails as gh does when not logged in."""
+    gh = GitHub(served.tar.parent.parent)
+    bindir = tmp_path / "fakebin"
+    bindir.mkdir()
+    (bindir / "gh").write_text('#!/bin/sh\n[ "$*" = "auth token" ] && [ -n "${FAKE_GH_TOKEN:-}" ] || exit 1\n'
+                               'echo "$FAKE_GH_TOKEN"\n')
+    (bindir / "gh").chmod(0o755)
+    env = {k: v for k, v in served.env.items() if k not in ("PM_RELEASE_URL", "GH_TOKEN")}
+    env.update(PM_RELEASE_API=gh.api + "/", PATH=f"{bindir}{os.pathsep}{env['PATH']}")
+    yield SimpleNamespace(gh=gh, env=env)
+    gh.close()
+
+
+@TOOLING
+@pytest.mark.parametrize("source", ["GH_TOKEN", "gh auth token"])
+def test_install_sh_downloads_through_the_github_api_with_a_token_sent_to_the_api_alone(served, api, source):
+    env = dict(api.env, **({"GH_TOKEN": TOKEN} if source == "GH_TOKEN" else {"FAKE_GH_TOKEN": TOKEN}))
+    res = subprocess.run(["sh", str(served.script)], env=env, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert (served.bin / "pm").read_bytes() == FAKE
+    tar_url = f"{api.gh.api}/releases/assets/{api.gh.assets.index(('pm-v0.2.0', served.tar.name))}"
+    assert res.stdout.splitlines()[0] == f"installed pm 0.2.0 at {served.bin / 'pm'} (from {tar_url}, sha256 {served.sha})"
+    assert [r for r in api.gh.requests if r[0].startswith("/files/")] == [
+        ("/files/pm-v0.2.0/SHA256SUMS", False), (f"/files/pm-v0.2.0/{served.tar.name}", False)]
+    assert all(token for path, token in api.gh.requests if path.startswith("/api/"))
+
+
+@TOOLING
+def test_install_sh_with_no_token_fails_hard_naming_gh_token_and_gh_auth_token(served, api):
+    res = subprocess.run(["sh", str(served.script)], env=api.env, capture_output=True, text=True)
+    assert (res.returncode, res.stdout) == (1, "")
+    assert res.stderr == ("install.sh: error: release pm-v0.2.0 is downloaded through the GitHub API, which needs a "
+                          "token: set GH_TOKEN, or log in with gh auth login so that gh auth token prints one\n")
+    assert api.gh.requests == [] and not served.bin.exists()
+
+
+@TOOLING
+def test_install_sh_refuses_a_release_without_this_platforms_asset(served, api):
+    served.tar.unlink()
+    res = subprocess.run(["sh", str(served.script)], env=dict(api.env, GH_TOKEN=TOKEN), capture_output=True, text=True)
+    assert res.returncode == 1
+    assert res.stderr == (f"install.sh: error: {api.gh.api}/releases/tags/pm-v0.2.0 has no asset {served.tar.name}\n")
     assert not served.bin.exists()
 
 
