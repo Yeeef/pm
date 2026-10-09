@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,14 +79,39 @@ func TestCheckRendersEveryPageWithTheWorkStoresItems(t *testing.T) {
 	}
 }
 
-func TestCheckRefusesWithoutAWorkStore(t *testing.T) {
+func TestCheckReadsTheEmbeddedWorkStore(t *testing.T) {
+	root := clone(t)
+	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	dir, run := work.Locations(root)
+	d, err := work.CreateStore(work.Options{Dir: dir, RunDir: run})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = d.Import([]work.Item{{ID: "demo-a1b", Type: work.Project, Title: "Demo", Status: work.Open, CreatedAt: at,
+		UpdatedAt: at}}, "seed")
+	if err = errors.Join(err, d.Shutdown()); err != nil {
+		t.Fatal(err)
+	}
+	project := filepath.Join(root, ".pm/store/records/projects/demo.md") // the store needs <prefix>-<root> ids
+	b, _ := os.ReadFile(project)
+	os.WriteFile(project, bytes.Replace(b, []byte("bead: demo\n"), []byte("bead: demo-a1b\n"), 1), 0o644)
+	var out bytes.Buffer
+	if err := cmdCheck(root, &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := "checked the records in " + filepath.Join(root, ".pm/store/records") + ": all 2 pages render\n"; out.String() != want {
+		t.Errorf("pm check printed %q, want %q", out.String(), want)
+	}
+}
+
+func TestCheckFailsWithoutAWorkStore(t *testing.T) {
 	root := clone(t)
 	defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
 	buildinfo.Version = "9.9.9"
 	t.Chdir(root)
 	var stdout, stderr bytes.Buffer
 	code := Execute([]string{"check"}, nil, &stdout, &stderr)
-	want := "error: Go pm has no work store yet (port sprint P3); Python pm runs this command until the cut-over\n"
+	want := "error: work store: none at " + filepath.Join(root, ".pm/store/work") + "; pm init creates or clones it\n"
 	if code != 1 || stderr.String() != want || stdout.Len() != 0 {
 		t.Errorf("pm check: exit %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
 	}

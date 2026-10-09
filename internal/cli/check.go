@@ -12,10 +12,11 @@ import (
 	"github.com/Yeeef/yeeef-agents/pm/internal/work"
 )
 
-// OpenWork opens the clone's work store; root is the main checkout. Go pm has no work store until port sprint P3
-// lands it, so until then a command that reads items refuses; tests set a fake.
-var OpenWork = func(root string) (work.Store, error) {
-	return nil, errors.New("Go pm has no work store yet (port sprint P3); Python pm runs this command until the cut-over")
+// OpenWork opens the clone's work store under the main checkout: the embedded Dolt store, taken under its gate and
+// released by Shutdown. Tests set a fake (worktest).
+var OpenWork = func(main string) (work.Store, error) {
+	dir, run := work.Locations(main)
+	return work.OpenStore(work.Options{Dir: dir, RunDir: run})
 }
 
 // cmdCheck is pm check: every record renders with the work store's items, writing nothing.
@@ -33,10 +34,7 @@ func cmdCheck(here string, stdout io.Writer) error {
 		return err
 	}
 	all, err := ws.Items()
-	if err != nil {
-		return err
-	}
-	if err := ws.Shutdown(); err != nil {
+	if err = errors.Join(err, ws.Shutdown()); err != nil { // the store closes before the render, which needs no item more
 		return err
 	}
 	recs, err := records.Read(recordsDir, nil)

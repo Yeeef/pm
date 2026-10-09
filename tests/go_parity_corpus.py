@@ -159,15 +159,9 @@ def live(out: Path) -> None:
     for i in listed:
         if exported.get(i["id"], {}).get("comments"):
             i["comments"] = exported[i["id"]]["comments"]
-    # The work store refuses an open task with no parent (work_items.py). Such a task is under no project, so no page
-    # shows it; both sides go without it, and the corpus names what it left out.
-    orphans = [i["id"] for i in listed if i["issue_type"] != "epic" and i["status"] != "closed"
-               and not i.get("parent") and not any(d["type"] == "parent-child" for d in i.get("dependencies") or [])]
-    listed = [i for i in listed if i["id"] not in orphans]
     beads = beads_of(listed)
     name = "yeeef-agents"
     write(out, "live", store, listed, name, pages(store, beads, name), "pages")
-    (out / "live" / "meta.json").write_text(json.dumps({"site_name": name, "left_out": orphans}))
     (out / "live" / "check.json").write_text(json.dumps(check(store, beads, name)))
 
 
