@@ -1115,6 +1115,8 @@ def test_reply_read_prints_each_undelivered_reply_and_merge_once(repo):
     res = repo.pm(*ADD, "--need", "repo-demo.1.3", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
     assert repo.items()["repo-demo.1.3"]["status"] == "closed"
+    # the answer the close recorded is no reply of the owner's to deliver
+    assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
 
 
 def review_with_origin(repo) -> str:

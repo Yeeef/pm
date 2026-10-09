@@ -43,11 +43,13 @@ func reviewPR(n *work.Item) string {
 	return n.Need.Review.PR
 }
 
-// siteReplies is a need's owner replies, oldest first: its comments of kind reply.
+// siteReplies is a need's owner replies, oldest first: its comments of kind reply made before it closed. The reply
+// work.Answer writes as a session records the answer (pm decision add --need, pm decision close) is stamped with the
+// close itself and is the session's own: it is no reply to deliver, as bd's "Response:" note is none for Python pm.
 func siteReplies(n *work.Item) []work.Comment {
 	var out []work.Comment
 	for _, c := range n.Comments {
-		if c.Kind == work.Reply {
+		if c.Kind == work.Reply && (n.Status != work.Closed || c.CreatedAt.Before(n.ClosedAt)) {
 			out = append(out, c)
 		}
 	}

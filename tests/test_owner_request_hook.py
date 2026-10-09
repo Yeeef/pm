@@ -21,13 +21,16 @@ MINE = {"id": "repo-demo.1.4", "title": "Rename X?", "description": "Options: X,
 THEIRS = {**MINE, "id": "repo-demo.1.5", "title": "Merge PR #7?", "metadata": {"session": OTHER}}
 CLOSED = {**MINE, "id": "repo-demo.1.6", "title": "Old question?", "status": "closed", "closed_at": AT}
 NO_SESSION = {**MINE, "id": "repo-demo.1.7", "title": "Raised outside a session?", "metadata": {}}
-ISSUES = [MINE, THEIRS, CLOSED, NO_SESSION]
+# a task this session holds: work, not a request to the owner
+TASK = {"id": "repo-demo.1.8", "title": "A task", "status": "in_progress", "issue_type": "task", "parent": "repo-demo.1",
+        "metadata": {"claimed_by": ME, "claimed_at": AT}, "created_at": AT, "updated_at": AT, "started_at": AT}
+ISSUES = [MINE, THEIRS, CLOSED, NO_SESSION, TASK]
 
 
 @pytest.fixture
 def needs(repo):
-    """The repo with this session's open need, another session's, this session's closed one and one no session
-    raised."""
+    """The repo with this session's open need, another session's, this session's closed one, one no session raised
+    and a task this session holds."""
     for issue in ISSUES:
         repo.add_issue(issue)
     return repo
