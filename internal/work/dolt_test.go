@@ -87,7 +87,7 @@ func TestCreateWritesThroughToALaterOpen(t *testing.T) {
 		got.CreatedAt.Location() != time.UTC {
 		t.Fatalf("%+v", got)
 	}
-	if n := commits(t, d2); n != 5 { // Dolt's init commit, the schema, and one commit per create
+	if n := commits(t, d2); n != 6 { // Dolt's init commit, the schema at version 1, its migration to 2, one per create
 		t.Fatalf("%d commits", n)
 	}
 	var dirty int

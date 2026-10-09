@@ -27,6 +27,8 @@ type Dolt struct {
 	engine *embedded.Connector
 	db     *sql.DB
 	conn   *sql.Conn
+	// pushFn, when a test sets it, runs each push in push's place, given the real push.
+	pushFn func(push func() error) error
 }
 
 var _ Store = (*Dolt)(nil)
@@ -103,8 +105,11 @@ func CreateStore(o Options) (*Dolt, error) {
 	if _, err := d.conn.ExecContext(ctx, "USE `"+dbName+"`"); err != nil {
 		return fail(fmt.Errorf("work store: %w", err))
 	}
-	if err := d.inTx(fmt.Sprintf("pm: create the work store at schema version %d", SchemaVersion),
+	if err := d.inTx("pm: create the work store at schema version 1",
 		func(tx *sql.Tx) error { return execAll(tx, schema) }); err != nil {
+		return fail(err)
+	}
+	if err := d.migrate(); err != nil {
 		return fail(err)
 	}
 	return d, nil
@@ -136,6 +141,9 @@ func (d *Dolt) connect(withDB bool) error {
 	}
 	cfg, err := embedded.ParseDSN("file://" + d.o.Dir + "?" + v.Encode())
 	if err != nil {
+		return fmt.Errorf("work store: %w", err)
+	}
+	if err := os.Setenv(infoBranchEnv, ""); err != nil { // read when the engine first reaches the remote
 		return fmt.Errorf("work store: %w", err)
 	}
 	if d.engine, err = embedded.NewConnector(cfg); err != nil {
@@ -320,7 +328,8 @@ func load(q querier) ([]Item, error) {
 	if targetErr != nil {
 		return nil, targetErr
 	}
-	r, err := q.QueryContext(ctx, "SELECT id, item_id, kind, author, text, created_at FROM comments ORDER BY item_id, pos")
+	r, err := q.QueryContext(ctx,
+		"SELECT id, item_id, kind, author, text, created_at FROM comments ORDER BY item_id, pos, created_at, id")
 	if err != nil {
 		return nil, fmt.Errorf("work store: %w", err)
 	}
@@ -681,9 +690,22 @@ func cloneItem(it Item) Item {
 }
 
 // Create writes a new item and returns it: its id minted under the parent (a root id for a project), a sprint's
-// number one above its project's highest, status open. The id is minted from this store copy only; the compare-and-
-// swap through the remote that keeps two clones from minting the same child id comes with sync.
+// number one above its project's highest, status open. A child minted in a store with a remote goes through the
+// compare-and-swap on the remote (createShared); a project's random root id, or any id in a store with no remote, is
+// minted from this store copy.
 func (d *Dolt) Create(n New) (Item, error) {
+	if n.Type != Project {
+		if _, ok, err := d.remoteURL(); err != nil {
+			return Item{}, err
+		} else if ok {
+			return d.createShared(n)
+		}
+	}
+	return d.createLocal(n)
+}
+
+// createLocal mints the item's id from this store copy and writes it as one transaction.
+func (d *Dolt) createLocal(n New) (Item, error) {
 	var made Item
 	err := d.write(fmt.Sprintf("pm: create a %s under %q", n.Type, n.Parent), func(x *Index) ([]Item, error) {
 		now := d.now()
