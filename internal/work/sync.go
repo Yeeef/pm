@@ -81,9 +81,6 @@ func (d *Dolt) AddRemote(gitURL string) error {
 	return nil
 }
 
-// Remote is the store's remote URL, and whether it has one; a remote under another ref than RemoteRef fails hard.
-func (d *Dolt) Remote() (string, bool, error) { return d.remoteURL() }
-
 // Push pushes the store's branch to its remote under RemoteRef: pm init publishes a store the remote lacks with it.
 func (d *Dolt) Push() error {
 	if _, ok, err := d.remoteURL(); err != nil {

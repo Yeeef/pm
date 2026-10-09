@@ -12,6 +12,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
 	"github.com/Yeeef/yeeef-agents/pm/internal/config"
+	"github.com/Yeeef/yeeef-agents/pm/internal/install"
 	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
 	"github.com/Yeeef/yeeef-agents/pm/internal/service"
 	"github.com/Yeeef/yeeef-agents/pm/internal/store"
@@ -120,11 +121,11 @@ func whereAll(here string) (string, error) {
 	out = append(out, fmt.Sprintf("checkout  %s  branch %s, %s", top, whereGit(top, "rev-parse", "--abbrev-ref", "HEAD"), state))
 
 	workDir, _ := work.Locations(main)
-	if work.Exists(workDir) {
-		out = append(out, fmt.Sprintf("work      %s  set up", workDir))
-	} else {
-		out = append(out, fmt.Sprintf("work      %s  missing; run %s", workDir, whereSetup))
+	workState, err := install.WorkState(main, cfg.Remote)
+	if err != nil {
+		return "", err
 	}
+	out = append(out, fmt.Sprintf("work      %s  %s", workDir, workState))
 
 	if hp := whereGit(main, "config", "--get", "core.hooksPath"); hp != "" {
 		hooks := hp
@@ -246,28 +247,5 @@ func whereCodexConfig(path string) ([]string, error) {
 	return have, nil
 }
 
-// whereCodexRoots is codex_roots: the clone's git dir, the store, the store's git dir and the Beads dir, then uv's
-// cache, which every clone on the machine shares; each resolved.
-func whereCodexRoots(main string) ([]string, error) {
-	storeDir := filepath.Join(main, config.Store)
-	gitDir, err := store.Git(storeDir, "rev-parse", "--absolute-git-dir")
-	if err != nil {
-		return nil, err
-	}
-	var roots []string
-	for _, p := range []string{filepath.Join(main, ".git"), storeDir, gitDir, filepath.Join(main, ".beads")} {
-		roots = append(roots, resolvedPath(p))
-	}
-	res, err := proc.Run([]string{"uv", "--color", "never", "cache", "dir"}, proc.Options{})
-	var pe *proc.Error
-	if errors.As(err, &pe) && pe.Type == "FileNotFoundError" {
-		return nil, refuse("uv is not installed; pm is a uv tool and needs it")
-	}
-	if err != nil {
-		return nil, err
-	}
-	if res.Code != 0 || config.PyStrip(res.Stdout) == "" {
-		return nil, refuse("uv cache dir failed: %s", config.PyStrip(res.Stderr))
-	}
-	return append(roots, resolvedPath(config.PyStrip(res.Stdout))), nil
-}
+// whereCodexRoots is the writable roots the clone needs in Codex's sandbox (install.CodexRoots).
+func whereCodexRoots(main string) ([]string, error) { return install.CodexRoots(main) }

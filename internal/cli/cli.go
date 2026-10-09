@@ -535,6 +535,18 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 			return err
 		}
 		return cmdPush(cfg, here, stdout)
+	case "init":
+		return cmdInit(p, here, stdout)
+	case "doctor":
+		return cmdDoctor(here, stdout)
+	case "upgrade":
+		return cmdUpgrade(p, here, stdout)
+	case "uninstall":
+		return cmdUninstall(here, stdout)
+	case "hook git-post-checkout":
+		return hookGitPostCheckout(p, here, stdout, stderr)
+	case "hook git-pre-commit":
+		return hookGitPreCommit(here, stderr)
 	case "check":
 		return cmdCheck(here, stdout)
 	case "where":
