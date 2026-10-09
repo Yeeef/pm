@@ -311,6 +311,9 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 	t.Setenv("FAKE_SCHED_LOG", filepath.Join(tmp, "sched.log"))
 	t.Setenv("FAKE_SCHED_STATE", filepath.Join(tmp, "sched.json"))
 	t.Setenv("PM_TEST_SERVICE", main) // TestMain runs the started binary as the service
+	savedExe := Exe
+	Exe = os.Executable // the unit runs this test binary, not an installed pm
+	defer func() { Exe = savedExe }()
 	wrap := func(tool string) string { return "FAKE_TOOL=" + tool + ` exec python3 "` + sched + `" "$@"` }
 	fakeBin(t, map[string]string{"launchctl": wrap("launchctl"), "systemctl": wrap("systemctl")})
 	t.Cleanup(func() { stopServices(t, filepath.Join(tmp, "sched.json")) })

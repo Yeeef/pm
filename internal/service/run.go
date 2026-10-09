@@ -44,9 +44,9 @@ const StatusSlot = "<!--pm-status-->"
 // Shutdown: work.Store, plus the sync and the garbage collection only the service runs.
 type Store interface {
 	work.Store
-	// Sync fetches the remote's work data, merges it and pushes what the remote lacks (the work-store page's Sync);
-	// one line saying what it did.
-	Sync(ctx context.Context) (string, error)
+	// Sync fetches the remote's work data, merges it and pushes what the remote lacks (the work-store page's Sync):
+	// one line saying what it did, and a warning line for each claim the merge overrode, which the service logs.
+	Sync(ctx context.Context) (said string, warnings []string, err error)
 	// GC collects the store's garbage (CALL DOLT_GC()): it deletes no item and squashes no commit.
 	GC(ctx context.Context) error
 }
@@ -805,13 +805,17 @@ func (s *server) SyncSteps() []pmsync.Step {
 	return []pmsync.Step{
 		{Name: "work", Run: func() (bool, string) {
 			var said string
+			var warnings []string
 			err := s.withStore("sync", func(st Store) error {
 				ctx, cancel := context.WithTimeout(context.Background(), SyncTimeout)
 				defer cancel()
 				var err error
-				said, err = st.Sync(ctx)
+				said, warnings, err = st.Sync(ctx)
 				return err
 			})
+			for _, w := range warnings { // a claim a merge overrode: the session that lost it learns it from here
+				s.logf("%s", w)
+			}
 			if err != nil {
 				return false, err.Error()
 			}

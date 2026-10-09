@@ -659,11 +659,12 @@ def test_serve_shows_each_change_within_its_stated_age(repo):
         assert get("sprints/demo-1.html")[:2] == (200, "no-store")
 
         assert "1 of 2 tasks done" in get("")[2]
-        repo.set_issue("repo-demo.1.1", status="open")
+        repo.set_issue("repo-demo.1.1", status="open", closed_at=None)  # reopened, as bd reopens: no close time
         until_shown(lambda: get("")[2], lambda p: "0 of 2 tasks done" in p, time.time())
         assert get("style.css")[0] == 200 and get("nope.html")[0] == 404
 
-        repo.set_issue("repo-demo.1.2", status="closed")  # an answered need no decision cites: the render fails
+        repo.set_issue("repo-demo.1.2", status="closed", closed_at="2026-10-01T14:00:00Z")  # an answered need no decision
+        # cites: the render fails
         until_shown(lambda: get("")[2], lambda p: "no decision cites it" in p, time.time())
         code, _, body = get("")
         assert code == 500 and "need repo-demo.1.2 (Ask the owner) is closed but no decision cites it" in body
@@ -923,9 +924,11 @@ def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
                 lambda p: p.count('<span class="replied">not delivered') == 2 and "Merged as abc123." in p, None)
 
     assert repo.pm("check").returncode == 0  # the static site keeps the slot and shows no form, but the replies
-    static = repo.page("index.html")
-    assert "<!--pm-reply repo-demo.1.2 decision-->" in static and "<form" not in static
-    assert "<p>Merged as abc123.</p>" in static and "<!-- pm-reply" not in static
+    if IMPL == "python":  # repo.page renders Python pm's pages from Beads; Go pm's static pages equal them on the
+        # parity corpus, whose constructs hold site replies (internal/site, parity_test.go)
+        static = repo.page("index.html")
+        assert "<!--pm-reply repo-demo.1.2 decision-->" in static and "<form" not in static
+        assert "<p>Merged as abc123.</p>" in static and "<!-- pm-reply" not in static
 
 
 @contextlib.contextmanager
@@ -1124,7 +1127,7 @@ def review_with_origin(repo) -> str:
     the sha returned."""
     repo.add_issue({"id": "repo-demo.1.3", "title": "Review PR #7", "status": "open", "issue_type": "task",
                     "parent": "repo-demo.1", "labels": ["human", "action"], "created_at": "2026-10-01T12:00:00Z",
-                    "metadata": {"review": REVIEW}})
+                    "updated_at": "2026-10-01T12:00:00Z", "metadata": {"review": REVIEW}})
     origin = repo.root.parent / "origin.git"
     repo.git("init", "-q", "--bare", "-b", "main", str(origin))
     repo.git("remote", "add", "origin", str(origin))
@@ -1263,11 +1266,14 @@ def test_push_pushes_beads_and_new_records_commits(pushed):
     repo.commit("a day")
     res = repo.pm("push")
     assert res.returncode == 0, res.stdout + res.stderr
-    if IMPL == "python":  # Python pm pushes Beads with bd; Go pm syncs its own store
+    work = "beads" if IMPL == "python" else "work"  # Python pm pushes Beads with bd; Go pm syncs its work store
+    if IMPL == "python":
         assert ["dolt", "push"] in repo.bd_calls()
+    else:  # to the repo's remote, under pm's own ref
+        assert repo.git("rev-parse", "refs/pm/work", cwd=repo.root.parent / "origin.git").strip()
     assert remote_records(repo) == repo.git("rev-parse", "HEAD", cwd=repo.store).strip()
     state = push_state(repo)
-    assert state["beads"]["ok"] and state["records"]["ok"] and state["records"]["message"] == "pushed 2 commit(s)", "the day file and its new summary"
+    assert state[work]["ok"] and state["records"]["ok"] and state["records"]["message"] == "pushed 2 commit(s)", "the day file and its new summary"
     assert state["records"]["last_ok"] == state["records"]["at"]
     assert len((repo.root / ".pm/run/push.log").read_text().splitlines()) == 6
     assert state["summary"]["message"].startswith("summarized"), "the new day file changed the activity"
