@@ -122,6 +122,21 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
     assert doctor(new_repo)[0] == 0
 
 
+@pytest.mark.impl("go", reason="Python pm keeps its git hook sections in .beads/hooks, which a .beads file blocks")
+def test_a_beads_file_is_no_beads_for_doctor_and_upgrade(new_repo: Path):
+    """A repo that retired Beads by replacing .beads/ with a file (which blocks every bd command) holds no Beads
+    pieces, as a repo without .beads/: pm doctor is clean and pm upgrade --to the pin finds every piece current."""
+    assert pm(new_repo, "init").returncode == 0
+    (new_repo / ".beads").write_text("Beads is retired here.\n")
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Retire Beads")
+    res = pm(new_repo, "doctor")
+    assert res.returncode == 0, res.stdout + res.stderr
+    res = pm(new_repo, "upgrade", "--to", __version__)
+    assert res.returncode == 0, res.stderr
+    assert res.stdout == f"pm {__version__}: every managed piece is current; nothing to commit\n", res.stdout
+
+
 def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new_repo: Path):
     """Once .pm/config.toml exists, pm init (session start runs it) does only the clone's half: a branch that changed
     pm's hook entries keeps its change, and pm doctor names pm upgrade --to the pin as the fix."""
