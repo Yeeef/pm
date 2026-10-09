@@ -354,7 +354,10 @@ class Repo:
         return res
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
-        return subprocess.run(["git", *args], cwd=cwd or self.root, check=True, capture_output=True, text=True).stdout
+        res = subprocess.run(["git", *args], cwd=cwd or self.root, capture_output=True, text=True)
+        if res.returncode:  # git's stderr says why; CalledProcessError's message alone would not show it
+            raise AssertionError(f"git {' '.join(args)} exited {res.returncode} in {cwd or self.root}:\n{res.stderr}")
+        return res.stdout
 
     def commit(self, msg: str = "change") -> None:
         """Commit whatever changed, records in the store and code in the main checkout."""
@@ -503,6 +506,9 @@ def repo(tmp_path: Path) -> Repo:
     r.git("init", "-q", "-b", "main")
     r.git("config", "user.email", "t@example.com")
     r.git("config", "user.name", "t")
+    # git 2.55's commit starts `git maintenance run --auto --detach`, whose worktree-prune deletes a worktree that
+    # `git worktree add` is still making ("could not open '.git/worktrees/records/locked'", exit 128)
+    r.git("config", "maintenance.auto", "false")
     (root / ".gitignore").write_text("/records\n")
     write_config(root)
     r.git("add", ".gitignore", ".pm")
