@@ -175,6 +175,27 @@ def progress(project: Record, recs: list[Record], beads: dict[str, dict], frm: R
     return graph + table
 
 
+def unsprinted(recs: list[Record], beads: dict[str, dict]) -> list[tuple[dict, Record | None]]:
+    """(item, its project or None) for each open non-epic item filed directly under a project epic or with no parent.
+    A need under a project is left out: the 'await you' sections show it."""
+    projects = {r.meta["bead"]: r for r in recs if r.type == "project"}
+    return [(i, projects.get(i.get("parent"))) for i in sorted(beads.values(), key=lambda i: i["id"])
+            if i["status"] != "closed" and i.get("issue_type") != "epic"
+            and (not i.get("parent") or (i["parent"] in projects and HUMAN not in (i.get("labels") or [])))]
+
+
+def unsprinted_table(items: list[tuple[dict, Record | None]], frm: Record | None, heading: str = "h2") -> str:
+    """The generated 'Not in a sprint' table; empty when there are none."""
+    if not items:
+        return ""
+    rows = "".join(f'<tr><td>{html.escape(i["id"])}</td><td>{html.escape(i.get("issue_type", ""))}</td>'
+                   f'<td>{html.escape(i["title"])}</td><td>'
+                   + (f'<a href="{link(frm, p.out)}">{html.escape(p.title)}</a>' if p else "—") + "</td></tr>"
+                   for i, p in items)
+    return (f'<{heading} id="not-in-a-sprint">Not in a sprint</{heading}>\n<div class="tbl"><table><tr><th>Item</th>'
+            f'<th>Type</th><th>Title</th><th>Project</th></tr>{rows}</table></div>\n')
+
+
 def doc_list(docs: list[Record], frm: Record | None, heading: str = "h2", label: str = "Docs") -> str:
     """Generated list of dated records (docs or postmortems), newest first, linked relative to `frm`; empty when
     there are none."""
@@ -537,7 +558,8 @@ def render_record(rec: Record, recs: list[Record], beads: dict[str, dict], dates
     body_md = rec.body
     if rec.type == "project":
         ctx.mermaid = True
-        generated = progress(rec, recs, beads, rec)
+        generated = progress(rec, recs, beads, rec) + unsprinted_table(
+            [(i, p) for i, p in unsprinted(recs, beads) if p is rec], rec, "h3")
         body_md = re.sub(r"(## Progress\n(?:\n?>.*\n)*)", lambda mm: mm.group(1) + "\n" + generated + "\n", body_md, count=1)
         body_md = with_docs(body_md, "## Outcome", project_docs(rec, recs, beads),
                             project_docs(rec, recs, beads, "postmortem"), rec)
@@ -605,6 +627,7 @@ def render_index(recs: list[Record], beads: dict[str, dict], site_name: str, dat
                       f'<span class="k">{COMMENT_MD.renderInline(day_today(r)) if r.summary else inline(day_today(r), r)}</span></li>'
                       for r in days)
         out.append(f'<h2 id="days">Days</h2><ul class="list">{lis}</ul>')
+    out.append(unsprinted_table(unsprinted(recs, beads), None))
 
     for p in projects:
         out.append(f'<h2><a href="{p.out}">{html.escape(p.title)}</a></h2>')
