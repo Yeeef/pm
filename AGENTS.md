@@ -22,6 +22,8 @@ is for them, and nothing here ships: the wheel holds only `src/pm/` (`[tool.hatc
 | `src/pm/launch.py` | The launcher: `main()` first runs the repo's pinned version when it is not this one, through `uv tool run`, or for a Go pin (0.2.0 and up) its release binary, downloaded once into `<data dir>/pm/pins/<pin>/pm` |
 | `tests/` | pytest suite, fakes and the live eval (below) |
 | `go.mod`, `cmd/pm`, `internal/…`, `assets.go` | Go pm, the port the `pm-go` design page plans: built and tested on main, run by no repo until the cut-over. `internal/cli/commands.go` holds every command and help text, `internal/cli/agentcmds.go` runs the agent commands Go pm has ported (`show`, `record link`, `where`, `commit`, `day summarize`, the task, record, project and sprint writes, the decision, action and reply commands; bodies in `writes.go`, `needs.go`, `day.go`, `show*.go`, `where.go`, shared context and checks in `agent.go`), `internal/hooks` `pm prime`, `pm hook stop` and `pm hook owner-request` (its work-store read in `internal/cli/ownerrequest.go`), `internal/work` the work store on embedded Dolt (schema, invariant checks, ids, ready and blocked, the gate, the bd import and `pm export`, sync through the git remote under `refs/pm/work` with the merge rules in `merge.go` and the child-id compare-and-swap in `sync.go`), whose Go-only commands, `pm export [--store DIR]`, `pm init --import-bd FILE` (the import only, so far) and the work-store commands in `internal/cli/store_commands.go` (`task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`), stay out of the argparse tree, dispatched by `goOnly` in `internal/cli/work.go`; `internal/work/sync_test.go` runs two clones on a local bare repo; `internal/work/worktest` a read-only fake store, `internal/records` record parsing and checks, `internal/store` the records store, `internal/site` the pages; `internal/service` the pm service (`service.Run` against a `Store` and a `Site` interface, its unit files and lifecycle), which `internal/cli/serve.go` wires to the clone: `pm service run` on the work store, opened per poll under its gate, and `internal/site` (`serve.go` there: pages rendered on demand, reply forms, the status line), and `pm service install` and `restart` of a unit that runs the pm at `config.BinPath()`; `internal/sync` the push steps and their state, which `pm push` (`internal/cli/push.go`) runs once; `internal/service/testdata/units` holds Python's unit files, which Go's and Python's tests both compare against; `assets.go` embeds `src/pm/prime.md`, `style.css` and `prompts/`, so both implementations read one copy |
+| `internal/launch` | Go pm's launcher, which `cmd/pm` runs before anything else: `launch.py` ported, the same cases and texts (`test_launch.py` runs on both). A Go pin execs `pins/<pin>/pm`, downloaded once from release `pm-v<pin>` (`$PM_RELEASE_URL` replaces the base URL) and checked against `SHA256SUMS` and the kept `sha256` (`go.go`); a Python pin runs `uv tool run` of its tag's commit (`python.go`); `How()` is `pm where`'s line. `pm version` (Go-only, in `goOnly`) prints the build's version, `dev` when untagged |
+| `release/build.sh`, `install.sh` | The release build: `build.sh OUT_DIR [pm-v<X>]` builds this machine's binary with `X` from the tag (else the `pm-v*` tag on HEAD, else `dev`) and packs `pm-<X>-<os>-<arch>.tar.gz`; `.github/workflows/pm-release.yml` runs it (Releasing pm). `install.sh`, a release asset with `@VERSION@` filled in, installs that release's binary to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` after checking it against `SHA256SUMS`; `tests/test_release.py` runs both |
 | The pm uv tool | The `pm` on PATH that hooks, agents and the service run; `pm init` installs it from git (`tool.py`). It runs each repo's pinned version (`launch.py`). Run this checkout's code with `uv run --project pm pm …`; this checkout's pin is its own version, so it runs in process |
 | `../.claude/settings.json`, `../.codex/hooks.json` | Where the runtimes wire the hooks (below) |
 | `../.pm/config.toml` | This repo's pm config; its `version` must equal `version` in `pyproject.toml`, except at a release's first commit (Releasing pm) |
@@ -107,6 +109,31 @@ What the tests are:
   stands in for `launchctl`, `systemctl` and `crontab`.
 
 ## Releasing pm
+
+### Go pm (0.2.0 and up)
+
+A Go release is a tag and nothing else: `git tag pm-v<X> <a commit on main> && git push origin pm-v<X>`. No bump
+commit, no release PR, and no file holds `X`: `.github/workflows/pm-release.yml` takes `X` from the tag name, and
+`release/build.sh` stamps it into the binary (`-ldflags -X …/buildinfo.Version=<X>`); an untagged build reports
+`dev`, which no repo pins. On the tag push the workflow:
+
+| Job | Does |
+|---|---|
+| `version` | Takes `X` from the tag. A Python `X` (below 0.2.0) builds nothing and succeeds; a Go `X` must name a commit on main |
+| `build` | `release/build.sh dist pm-v<X>` natively on `macos-14` (darwin-arm64) and `ubuntu-22.04` (linux-amd64), cgo needing native runners; checks the tarball holds one `pm` whose `pm version` prints `X` |
+| `release` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets, `--prerelease` when `X` has a `-` suffix |
+
+- Cut a release candidate as `pm-v<X>-rc.<n>` (a GitHub pre-release); the launcher treats it as Go version `X`'s
+  pre-release, so a repo can pin it to try it.
+- Never move or recreate a release tag, and never rebuild a release's assets: launchers keep each binary's sha256
+  in `<data dir>/pm/pins/<X>/sha256` and fail hard when a later download differs.
+- Moving a repo's pin is a separate, ordinary PR once the release exists (`pm upgrade --to X`, merged any way).
+- `test_release.py` checks it: `install.sh` against a local server, and (in `pm-go.yml`, `PM_RELEASE_BUILD=1`, as
+  it builds twice) the build in a scratch clone, tagged then untagged.
+- Until the cut-over `make go-build` stamps `pyproject.toml`'s version instead, so the shared suite's config check
+  passes on Go pm.
+
+### Python pm (0.1.x)
 
 A release is tag `pm-v<X>` on the commit whose `pyproject.toml` says `X`. The pre-commit hook runs the pm uv tool,
 which launches the repo's pin and resolves its tag with `git ls-remote` (`launch.commit()`): a commit that moves the
