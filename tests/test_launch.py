@@ -2,7 +2,8 @@
 first on PATH logs each call with the markers it got; a fake `git` answers `ls-remote` and passes every other call to
 git; the integration test runs a real older release, built by real uv from this clone's own tag. A Go pin (0.2.0 and
 up) runs its release binary instead: `release` serves Go releases on 127.0.0.1 through PM_RELEASE_URL, each tarball
-holding a fake pm script that prints its argv, markers and stdin."""
+holding a fake pm script that prints its argv, markers and stdin; `github` serves them as GitHub's API does, for the
+download with a token."""
 
 from __future__ import annotations
 
@@ -313,6 +314,71 @@ def release(fakes, tmp_path):
     server.server_close()
 
 
+TOKEN = "gho_test_token"
+
+
+class GitHub:
+    """A stand-in for GitHub's API over the releases under `root`, on 127.0.0.1, as the launchers and install.sh call
+    it: GET <api>/releases/tags/<tag> answers the release's assets, each with its API url (and, as GitHub's JSON does,
+    other urls that name no asset); GET <api>/releases/assets/<n> with Accept application/octet-stream redirects to the
+    asset's file on another host name (localhost), which, as GitHub's storage host does, refuses a request carrying a
+    token. The API answers 401 without `Bearer TOKEN`. `requests` logs (path, whether it carried the token)."""
+
+    def __init__(self, root: Path):
+        self.root, self.requests, self.assets = root, [], []
+        gh = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                auth = self.headers.get("Authorization")
+                gh.requests.append((self.path, auth is not None))
+                parts = self.path.strip("/").split("/")
+                if parts[0] == "files":  # the storage host
+                    path = gh.root.joinpath(*parts[1:])
+                    if auth is not None:
+                        return self.answer(400, b"Only one auth mechanism allowed")
+                    return self.answer(200, path.read_bytes()) if path.is_file() else self.answer(404, b"")
+                if auth != f"Bearer {TOKEN}":
+                    return self.answer(401, b'{"message": "Bad credentials"}')
+                if parts[:3] == ["api", "releases", "tags"] and (gh.root / parts[3]).is_dir():
+                    return self.answer(200, json.dumps(gh.release(parts[3])).encode())
+                if parts[:3] == ["api", "releases", "assets"] and self.headers.get("Accept") == "application/octet-stream":
+                    tag, name = gh.assets[int(parts[3])]
+                    self.send_response(302)
+                    self.send_header("Location", f"http://localhost:{gh.port}/files/{tag}/{name}")
+                    self.send_header("Content-Length", "0")
+                    return self.end_headers()
+                self.answer(404, b'{"message": "Not Found"}')
+
+            def answer(self, code: int, body: bytes):
+                self.send_response(code)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.server.server_port
+        self.api = f"http://127.0.0.1:{self.port}/api"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def release(self, tag: str) -> dict:
+        assets = []
+        for f in sorted((self.root / tag).iterdir()):
+            self.assets.append((tag, f.name))
+            assets.append({"url": f"{self.api}/releases/assets/{len(self.assets) - 1}", "id": len(self.assets) - 1,
+                           "name": f.name, "uploader": {"url": "https://api.github.com/users/someone"},
+                           "browser_download_url": f"https://github.com/o/r/releases/download/{tag}/{f.name}"})
+        return {"url": f"{self.api}/releases/1", "assets_url": f"{self.api}/releases/1/assets", "name": f"pm {tag}",
+                "assets": assets}
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
 def tarball(path: Path, files: dict[str, bytes]) -> str:
     """Write a gzip tar holding `files`, each mode 0755; its sha256, the same on every run (gzip's mtime is 0), so
     the texts that name it compare across implementations."""
@@ -418,6 +484,63 @@ def test_a_go_release_that_differs_from_the_kept_sha256_fails_hard(fakes, releas
         f"{release.url}/pm-v0.2.0/{tar.name} has sha256 {sha}, but {kept} keeps {'2' * 64}; a release is never "
         "rebuilt, so check where it came from before you delete that file\n")
     assert [p.name for p in kept.parent.iterdir()] == ["sha256"] and kept.read_text() == "2" * 64 + "\n"
+
+
+@pytest.fixture
+def github(fakes, release):
+    """The releases of `release` behind the GitHub API stand-in, with no mirror and no token set."""
+    gh = GitHub(release.root)
+    fakes.env = {k: v for k, v in fakes.env.items() if k not in ("PM_RELEASE_URL", "GH_TOKEN")}
+    fakes.env["PM_RELEASE_API"] = gh.api + "/"
+    yield gh
+    gh.close()
+
+
+@pytest.mark.parametrize("source", ["GH_TOKEN", "gh auth token"])
+def test_a_go_pin_downloads_through_the_github_api_with_a_token_sent_to_the_api_alone(fakes, github, source):
+    """With no mirror, the release's assets are found and fetched through the API with the token, from $GH_TOKEN or
+    else from gh auth token; the storage host each asset redirects to gets no token."""
+    write_config(fakes.root, version="0.2.0")
+    tar, sha = publish(SimpleNamespace(root=github.root), "0.2.0")
+    fakes.env.update({"GH_TOKEN": TOKEN} if source == "GH_TOKEN" else {"FAKE_GH_TOKEN": TOKEN})
+    res = fakes.pm("show")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.startswith(f"argv0={go_pin(fakes, '0.2.0') / 'pm'}\narg=show\n")
+    assert github.requests == [("/api/releases/tags/pm-v0.2.0", True),
+                               ("/api/releases/assets/0", True), ("/files/pm-v0.2.0/SHA256SUMS", False),
+                               ("/api/releases/assets/1", True), (f"/files/pm-v0.2.0/{tar.name}", False)]
+    assert (go_pin(fakes, "0.2.0") / "sha256").read_text() == sha + "\n" and calls(fakes) == []
+
+
+def test_a_go_pin_with_no_token_fails_hard_naming_gh_token_and_gh_auth_token(fakes, github):
+    write_config(fakes.root, version="0.2.0")
+    publish(SimpleNamespace(root=github.root), "0.2.0")
+    res = fakes.pm("show")
+    assert (res.returncode, res.stdout) == (1, "")
+    assert res.stderr == ("error: this repo pins pm 0.2.0, but release pm-v0.2.0 is downloaded through the GitHub API, "
+                          "which needs a token: set GH_TOKEN, or log in with gh auth login so that gh auth token "
+                          "prints one\n")
+    assert github.requests == [] and not go_pin(fakes, "0.2.0").exists()
+
+
+@pytest.mark.parametrize("broken", ["no-release", "no-asset", "bad-token"])
+def test_a_go_release_the_api_cannot_give_fails_hard_and_keeps_nothing(fakes, github, broken):
+    write_config(fakes.root, version="0.2.0")
+    tar, _ = publish(SimpleNamespace(root=github.root), "0.2.0")
+    fakes.env["GH_TOKEN"] = "wrong" if broken == "bad-token" else TOKEN
+    url = f"{github.api}/releases/tags/pm-v0.2.0"
+    head = f"error: this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: {url}"
+    if broken == "no-release":
+        shutil.rmtree(github.root / "pm-v0.2.0")
+        want = f"{head}: HTTP 404{FIX}\n"
+    elif broken == "no-asset":
+        tar.unlink()
+        want = f"{head} has no asset {tar.name}{FIX}\n"
+    else:
+        want = f"{head}: HTTP 401{FIX}\n"
+    res = fakes.pm("show")
+    assert (res.returncode, res.stdout, res.stderr) == (1, "", want)
+    assert not go_pin(fakes, "0.2.0").exists() and calls(fakes) == []
 
 
 @pytest.mark.integration  # pm upgrade is integration_only's, though this one reaches no remote

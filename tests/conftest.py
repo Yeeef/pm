@@ -334,7 +334,8 @@ def fake_bd_env(tmp: Path, base) -> dict[str, str]:
             install_tool(tmp / "uv/tools", tmp / "uv/bin")
     # a test names its session itself, and its transcripts live under tmp/claude, not the user's
     base = {k: v for k, v in base.items() if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID",
-                                                         "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN")}
+                                                         "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
+                                                         "GH_TOKEN")}
     path = f"{bindir}{os.pathsep}{tmp / 'home/.local/bin'}{os.pathsep}{base['PATH']}" if IMPL == "go" else \
         f"{bindir}{os.pathsep}{base['PATH']}"
     return dict(base, PATH=path, FAKE_BD_STATE=str(tmp / "bd.json"),

@@ -23,9 +23,11 @@ launch again. launch() drops those dirs from a child's environment before it pic
 
 A pin at or above GO (0.2.0, and pre-releases such as 0.2.0-rc.1) is Go pm: a release binary, not a uv build. Its
 launch execs `<data dir>/pm/pins/<pin>/pm` with the same markers, with no network once the binary is there. The first
-launch downloads it from release pm-v<pin> ($PM_RELEASE_URL, else GitHub's release downloads): SHA256SUMS and this
-platform's tarball, pm-<pin>-<os>-<arch>.tar.gz (darwin-arm64 and linux-amd64 only), within 10 s to connect and 300 s
-in all. The tarball must match its SHA256SUMS line and the sha256 kept in `pins/<pin>/sha256` by an earlier download,
+launch downloads it from release pm-v<pin>: SHA256SUMS and this platform's tarball, pm-<pin>-<os>-<arch>.tar.gz
+(darwin-arm64 and linux-amd64 only), within 10 s to connect and 300 s in all. The repo is private, so it downloads
+through the GitHub API (API, or $PM_RELEASE_API) with a token from $GH_TOKEN, else from `gh auth token`; no token is a
+hard error naming both. The token goes to the API alone, never to the storage host an asset redirects to.
+$PM_RELEASE_URL names a mirror instead, <url>/pm-v<pin>/<asset>, downloaded with no token. The tarball must match its SHA256SUMS line and the sha256 kept in `pins/<pin>/sha256` by an earlier download,
 if any: a release is never rebuilt, so a difference fails hard. The binary, then its sha256, is written to a temp
 file and renamed into place, so another launch sees no file or the whole one. Every failure is a hard error naming
 the release and the URL; nothing falls back to another version or to uv. `pm upgrade --to <Go version>` launches
@@ -36,6 +38,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import io
+import json
 import os
 import platform
 import re
@@ -58,7 +61,7 @@ FIRST = (0, 1, 2)  # the first pm that knows it was launched
 RESOLVE_TIMEOUT = 10  # seconds git ls-remote may take to resolve a release tag
 BUILD_TIMEOUT = 300  # seconds uv may take to fetch and build a release the first time
 GO = (0, 2, 0)  # the first Go pm: a pin at or above it runs its release binary
-RELEASES = "https://github.com/Yeeef/yeeef-agents/releases/download"  # $PM_RELEASE_URL overrides it
+API = "https://api.github.com/repos/Yeeef/yeeef-agents"  # where releases are found; $PM_RELEASE_API overrides it
 PLATFORMS = ("darwin-arm64", "linux-amd64")  # the platforms a Go release has a binary for
 ARCH = {"arm64": "arm64", "aarch64": "arm64", "x86_64": "amd64", "amd64": "amd64"}
 CONNECT_TIMEOUT = 10  # seconds a release download may take to connect, and to answer each read
@@ -206,23 +209,42 @@ def binary(version: str) -> Path:
     if path.is_file() and os.access(path, os.X_OK):
         return path
     tag = f"pm-v{version}"
-    base = f"{(os.environ.get('PM_RELEASE_URL') or RELEASES).rstrip('/')}/{tag}"
+    mirror = (os.environ.get("PM_RELEASE_URL") or "").rstrip("/")
+    base = f"{mirror}/{tag}" if mirror else f"{(os.environ.get('PM_RELEASE_API') or API).rstrip('/')}/releases/tags/{tag}"
     head = f"this repo pins pm {version}, but release {tag}"
     fix = "; check the network and the release, then run pm again, or move the pin with pm upgrade"
     plat = this_platform()
     if plat not in PLATFORMS:
         raise LaunchError(f"{head} has no binary for {plat} (only {' and '.join(PLATFORMS)}): {base}")
     asset = f"pm-{version}-{plat}.tar.gz"
-    sums_url, tar_url = f"{base}/SHA256SUMS", f"{base}/{asset}"
     deadline = time.monotonic() + DOWNLOAD_TIMEOUT
+    if mirror:
+        sums_url, tar_url, headers = f"{base}/SHA256SUMS", f"{base}/{asset}", {}
+    else:
+        token = github_token()
+        if not token:
+            raise LaunchError(f"{head} is downloaded through the GitHub API, which needs a token: set GH_TOKEN, or log "
+                              "in with gh auth login so that gh auth token prints one")
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+        found = io.BytesIO()
+        download(base, found, deadline, f"{head} could not be downloaded: {base}: ", fix, headers)
+        try:
+            assets = {a["name"]: a["url"] for a in json.loads(found.getvalue())["assets"]}
+        except (ValueError, KeyError, TypeError):
+            raise LaunchError(f"{head} could not be downloaded: {base} did not answer with a release{fix}")
+        for name in ("SHA256SUMS", asset):
+            if not isinstance(assets.get(name), str):
+                raise LaunchError(f"{head} could not be downloaded: {base} has no asset {name}{fix}")
+        sums_url, tar_url = assets["SHA256SUMS"], assets[asset]
+        headers = dict(headers, Accept="application/octet-stream")
     sums = io.BytesIO()
-    download(sums_url, sums, deadline, f"{head} could not be downloaded: {sums_url}: ", fix)
+    download(sums_url, sums, deadline, f"{head} could not be downloaded: {sums_url}: ", fix, headers)
     lines = [line.split() for line in sums.getvalue().decode(errors="replace").splitlines()]
     want = next((f[0] for f in lines if len(f) == 2 and f[1] == asset and re.fullmatch(r"[0-9a-f]{64}", f[0])), None)
     if want is None:
         raise LaunchError(f"{head} could not be checked: {sums_url} has no line for {asset}{fix}")
     with tempfile.TemporaryFile() as tar:
-        got = download(tar_url, tar, deadline, f"{head} could not be downloaded: {tar_url}: ", fix)
+        got = download(tar_url, tar, deadline, f"{head} could not be downloaded: {tar_url}: ", fix, headers)
         if got != want:
             raise LaunchError(f"{head} could not be checked: {tar_url} has sha256 {got}, but SHA256SUMS says "
                               f"{want}{fix}")
@@ -273,11 +295,28 @@ def this_platform() -> str:
     return f"{sys.platform}-{ARCH.get(machine, machine)}"
 
 
-def download(url: str, out, deadline: float, why: str, fix: str) -> str:
-    """Write the body of GET `url` to `out` by `deadline`; its sha256 hex. `why` and `fix` frame a failure's error."""
-    sha = hashlib.sha256()
+def github_token() -> str | None:
+    """The token for GitHub's API: $GH_TOKEN, else what `gh auth token` prints; None when neither gives one."""
+    if token := os.environ.get("GH_TOKEN", "").strip():
+        return token
     try:
-        with urllib.request.urlopen(url, timeout=CONNECT_TIMEOUT) as res:
+        res = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                             timeout=CONNECT_TIMEOUT)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    token = res.stdout.strip() if res.returncode == 0 else ""
+    return token or None
+
+
+def download(url: str, out, deadline: float, why: str, fix: str, headers: dict[str, str] | None = None) -> str:
+    """Write the body of GET `url` to `out` by `deadline`; its sha256 hex. `why` and `fix` frame a failure's error.
+    `headers` go to `url` alone: a redirect (GitHub sends an asset's to its storage host) gets none of them."""
+    sha = hashlib.sha256()
+    req = urllib.request.Request(url)
+    for k, v in (headers or {}).items():
+        req.add_unredirected_header(k, v)
+    try:
+        with urllib.request.urlopen(req, timeout=CONNECT_TIMEOUT) as res:
             while chunk := res.read(1 << 20):
                 if time.monotonic() > deadline:
                     raise LaunchError(f"{why}not downloaded within {DOWNLOAD_TIMEOUT} s{fix}")
