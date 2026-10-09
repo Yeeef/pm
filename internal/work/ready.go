@@ -135,7 +135,7 @@ func (x *Index) ReadyTasks(live func(session string) bool) []Item {
 		case sa != sb:
 			return sa - sb
 		}
-		return compareIDs(a.ID, b.ID)
+		return CompareIDs(a.ID, b.ID)
 	})
 	return out
 }
@@ -188,7 +188,7 @@ func (x *Index) Cycle() []string {
 	for _, it := range x.items {
 		ids = append(ids, it.ID)
 	}
-	slices.SortFunc(ids, compareIDs)
+	slices.SortFunc(ids, CompareIDs)
 	for _, id := range ids {
 		if state[id] == unseen {
 			if c := visit(id); c != nil {
