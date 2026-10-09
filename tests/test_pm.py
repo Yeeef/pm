@@ -89,6 +89,72 @@ def test_sprint_open_creates_epic_and_record(repo):
     assert text.count("None yet.") == 3 and text.count("\n\nNot closed yet.\n") == 2
 
 
+def test_sprint_and_project_close_once_their_reports_are_written_and_their_work_closed(repo):
+    """A sprint with no PR review closes once its report is committed and every task is closed, naming the records
+    commit; a project closes once its sprints are closed and its Outcome is committed."""
+    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
+    refused(repo, "sprint", "close", "repo-demo.1",
+            match=r"records/sprints/demo-1.md: the committed Delivery report Outcome is still 'Not closed yet.'")
+    report(repo, "Done: shipped the thing.")
+    res = repo.pm("sprint", "close", "repo-demo.1")
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo.1": {"status": "closed", "resolution": "done", "close_reason":
+                                              f"Done: shipped the thing. (records commit {store_head(repo)})"}}
+    repo.mark()  # refused() checks that nothing at all changed in the work store
+    refused(repo, "project", "close", "demo",
+            match=r"records/projects/demo.md: the committed ## Outcome is still 'Not closed yet.'")
+    path = repo.records / "projects/demo.md"
+    path.write_text(path.read_text().replace("Not closed yet.", "Shipped both sprints. The rest was retired."))
+    repo.commit("outcome")
+    refused(repo, "project", "close", "demo", match=r"open sprints in the project: repo-demo.2 \(Sprint 2: Second\)")
+    assert repo.pm("sprint", "close", "repo-demo.2").returncode == 0
+    repo.mark()
+
+    res = repo.pm("project", "close", "demo")
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo": {"status": "closed", "resolution": "done", "close_reason":
+                                            f"Shipped both sprints. (commit {store_head(repo)})"}}
+
+
+def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
+    """Each write that makes or extends a record: its file, its one store commit, and its work-store change."""
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
+    writes = [
+        (("doc", "new", "probe", "--title", "Probe: one", "--project", "demo"), "Body.",
+         f"pm: created records/docs/{TODAY}-probe.md"),
+        (("design", "new", "parser", "--title", "The parser", "--project", "demo"), "",
+         "pm: created records/design/parser.md; fill in its sections by hand in the store, then pm commit -m \"…\" "
+         "records/design/parser.md"),
+        (("postmortem", "new", "outage", "--title", "Outage", "--sprint", "repo-demo.1"), "",
+         f"pm: created records/postmortems/{TODAY}-outage.md; fill in its sections by hand in the store, then pm "
+         f"commit -m \"…\" records/postmortems/{TODAY}-outage.md"),
+        (("feedback", "add", "--project", "demo", "--sprint", "repo-demo.1"), "The refusal named no fix.",
+         f"pm: added feedback to records/docs/{TODAY}-demo-feedback.md"),
+        (("feedback", "add", "--project", "demo"), "Again.", f"pm: added feedback to records/docs/{TODAY}-demo-feedback.md"),
+        (("finding", "add", "--sprint", "repo-demo.1", "A finding " + "long " * 20 + "enough to wrap."), "",
+         "pm: added a finding to records/sprints/demo-1.md"),
+    ]
+    for args, text, message in writes:
+        res = repo.pm(*args, text=text)
+        assert res.returncode == 0, res.stderr
+        assert committed(repo, [message])
+    assert repo.unchanged()
+    feedback = (repo.records / f"docs/{TODAY}-demo-feedback.md").read_text()
+    assert feedback.count("UTC, session `sess-1`") == 2 and "About sprint `repo-demo.1`.\n\nThe refusal" in feedback
+    res = repo.pm("task", "move", "repo-demo.1.2", "--to", "repo-demo.2", text="Moved on.\nIt fits sprint 2.")
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo.1.2": {"parent": "repo-demo.2"}}
+    assert committed(repo, ["pm: moved repo-demo.1.2 from repo-demo.1 to repo-demo.2 and added a sprint decision to "
+                            "records/sprints/demo-1.md"])
+    repo.mark()
+    res = repo.pm("project", "open", "fresh", "--title", "Fresh", text="Why we do it.")
+    assert res.returncode == 0, res.stderr
+    [(new, item)] = repo.changes().items()
+    assert item == {"id": new, "type": "project", "title": "Fresh", "status": "open"}
+    assert committed(repo, [f"pm: opened project fresh: epic {new}, record records/projects/fresh.md"])
+    assert repo.pm("check").returncode == 0
+
+
 @pytest.mark.integration
 def test_sprint_closes_after_its_pr_merges(repo):
     """The whole loop: a written report, a review under the sprint, a refusal while the review is open, the review
