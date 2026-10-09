@@ -13,8 +13,8 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // The work-store commands with no Python counterpart: the work-store page's Commands table, "For agents" (task

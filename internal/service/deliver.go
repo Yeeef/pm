@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // ReplyAuthor is the author of the comment that holds an owner's site reply (the work store's import maps bd's

@@ -1,4 +1,4 @@
-"""Run the pm tests in the package environment: uv run --project pm python pm/tests/run.py [pytest args]."""
+"""Run the pm tests in the package environment: uv run python tests/run.py [pytest args]."""
 
 import sys
 from pathlib import Path

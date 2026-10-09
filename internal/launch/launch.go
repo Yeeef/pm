@@ -12,8 +12,8 @@
 // launched pm's:
 //   - a Go pin (>= 0.2.0) runs the release binary kept at <data>/pm/pins/<pin>/pm, downloaded once from release
 //     pm-v<pin> and checked against its SHA256SUMS (go.go);
-//   - a Python pin (< 0.2.0) runs `uv tool run --from git+<repo>@<commit>#subdirectory=pm pm <args>`, the tag resolved
-//     once and its commit kept in pins/<pin>/commit (python.go).
+//   - a Python pin (< 0.2.0) runs `uv tool run --from git+<repo>@<commit> pm <args>`, the tag resolved
+//     once and its commit kept in pins/<pin>/commit-Yeeef-pm (python.go).
 //
 // Any failure is a hard error that names the release; nothing falls back.
 package launch
@@ -26,8 +26,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
 )
 
 const (
@@ -254,5 +254,5 @@ func How() string {
 		commit = "unknown"
 	}
 	return "this repo's pin at commit " + commit + ", launched by pm " + by + "; delete " +
-		filepath.Join(PinDir(v), "commit") + " to resolve tag pm-v" + v + " again"
+		filepath.Join(PinDir(v), CommitFile) + " to resolve tag pm-v" + v + " again"
 }

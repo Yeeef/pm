@@ -1,6 +1,6 @@
 // Package worktest is a read-only work.Store over a fixed list of items, for tests of the code that reads items (the
 // records, the site, pm check) before the embedded Dolt store exists. The items come as pm export gives them; the
-// parity corpus feeds them from bd issues through the neutral-test mapper (pm/tests/work_items.py).
+// parity corpus feeds them from bd issues through the neutral-test mapper (tests/work_items.py).
 package worktest
 
 import (
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // Store holds the items; every write fails.

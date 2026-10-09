@@ -14,13 +14,13 @@ import (
 	gosync "sync"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
-	"github.com/Yeeef/yeeef-agents/pm/internal/site"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	pmsync "github.com/Yeeef/yeeef-agents/pm/internal/sync"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/site"
+	"github.com/Yeeef/pm/internal/store"
+	pmsync "github.com/Yeeef/pm/internal/sync"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // The pm service wired to the clone: pm service run with the work store, the records and the site, and pm service

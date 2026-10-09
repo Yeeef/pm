@@ -1,4 +1,4 @@
-module github.com/Yeeef/yeeef-agents/pm
+module github.com/Yeeef/pm
 
 go 1.26.2
 

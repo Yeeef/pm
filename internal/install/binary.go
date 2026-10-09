@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/launch"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/launch"
+	"github.com/Yeeef/pm/internal/proc"
 )
 
 // launchedByGo is whether a Go launcher launched this pm for its own version: the launcher then owns the bin dir. A

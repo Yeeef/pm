@@ -3,7 +3,7 @@
 from importlib.metadata import version
 from pathlib import Path
 
-__version__ = version("pm")  # the one source is pm/pyproject.toml
+__version__ = version("pm")  # the one source is pyproject.toml
 
 
 def prompt(name: str) -> str:

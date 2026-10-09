@@ -2,9 +2,9 @@
 
 Run after the shared suite ran on Go (PM_IMPL=go), from the repository root:
 
-    uv run --project pm python pm/tests/compare_transcripts.py
+    uv run python tests/compare_transcripts.py
 
-It takes the Go transcripts under $PM_TRANSCRIPTS/go (default pm/.transcripts/go) of the tests not on
+It takes the Go transcripts under $PM_TRANSCRIPTS/go (default .transcripts/go) of the tests not on
 go-expected-failures.txt, which the strict Go run has shown to pass, runs those tests on Python pm, and compares
 each pair. It prints each differing test with a unified diff and exits 1 on any difference."""
 

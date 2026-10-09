@@ -41,7 +41,7 @@ def test_every_command_fails_on_another_pinned_version(repo, args):
     assert res.returncode == 1 and res.stdout == ""
     assert res.stderr == (
         f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {__version__} is running, launched for that "
-        f"pin: release tag pm-v9.9.9 at https://github.com/Yeeef/yeeef-agents builds pm {__version__}; fix the tag, "
+        f"pin: release tag pm-v9.9.9 at https://github.com/Yeeef/pm builds pm {__version__}; fix the tag, "
         f"or move the pin to {__version__} with pm upgrade --to {__version__}\n")
 
 

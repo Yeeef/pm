@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/store"
 )
 
 const (

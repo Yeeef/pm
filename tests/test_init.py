@@ -277,8 +277,8 @@ def test_a_pm_from_a_local_checkout_refuses_to_install_or_check_the_tool(new_rep
     tool instead of naming an install that would change nothing, and init says it before it changes anything."""
     local = {k: v for k, v in env(tmp_path).items() if k != "PYTHONPATH"}  # env() makes tmp's fakes, the tool too
     said = (f"pm {__version__} here runs from file://", ", not from git, and a local checkout cannot install or check "
-            f'the pm uv tool; run pm as the tool (uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v'
-            f'{__version__}#subdirectory=pm", then pm init), or once with uvx --from "git+')
+            f'the pm uv tool; run pm as the tool (uv tool install "git+https://github.com/Yeeef/pm@pm-v'
+            f'{__version__}", then pm init), or once with uvx --from "git+')
 
     def run(*args: str) -> subprocess.CompletedProcess:
         return subprocess.run([*PM, *args], cwd=new_repo, env=local, capture_output=True, text=True)

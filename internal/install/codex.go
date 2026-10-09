@@ -9,10 +9,10 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // Codex's workspace-write sandbox keeps .git read-only even inside the workspace and leaves the records store and the

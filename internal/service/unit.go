@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
+	"github.com/Yeeef/pm/internal/config"
 )
 
 // Launchd and Systemd are the supervisors the service runs under.

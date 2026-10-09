@@ -12,22 +12,22 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/install"
-	"github.com/Yeeef/yeeef-agents/pm/internal/launch"
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/install"
+	"github.com/Yeeef/pm/internal/launch"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/store"
 )
 
 // pm init, pm doctor, pm upgrade, pm uninstall and the git hooks. Python source: cmd_init, init_steps, cmd_doctor,
 // cmd_upgrade, cmd_uninstall and hook_git_post_checkout in cli.py, hook_git_pre_commit in hooks.py. The pieces and
 // the clone's setup are internal/install's.
 
-// latest is how to install the newest Go pm release, whose launcher launches any pin: its install.sh (pm/install.sh).
-const latest = `gh release download -R Yeeef/yeeef-agents -p install.sh -O - | sh`
+// latest is how to install the newest Go pm release, whose launcher launches any pin: its install.sh (install.sh).
+const latest = `curl -fsSL https://github.com/Yeeef/pm/releases/latest/download/install.sh | sh`
 
 func isFile(p string) bool {
 	st, err := os.Stat(p)

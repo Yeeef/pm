@@ -5,13 +5,13 @@ picks the checkout, as every command does) and runs the command in this process 
 the pin is this pm's version, for `pm upgrade` (it moves the pin to the running pm; `--to X` launches pm X instead),
 and when this process was launched for that pin already ($PM_LAUNCHED): a release that builds another version then
 fails the config check instead of launching again. Otherwise it replaces this process with
-`uv tool run --from git+<REPO>@<commit>#subdirectory=pm pm <args>`, so stdin, stdout, stderr, the pid and the exit
+`uv tool run --from git+<REPO>@<commit> pm <args>`, so stdin, stdout, stderr, the pid and the exit
 code are the launched pm's. The markers are for that launched pm alone: launch() takes them out of os.environ into
 `marks`, so its children (git hooks, `pm push`'s `claude -p`, any `pm` it runs) reach the launcher afresh.
 
 A tag makes uv fetch on every run (6 s measured), a commit runs from uv's cache (0.2 s). So the first launch of a pin
 on a machine resolves its tag to a commit (git ls-remote), runs it once to fetch and build it, and only then keeps the
-commit in `<data dir>/pm/pins/<pin>/commit`; a failure or timeout there fails hard naming the tag and the command.
+commit in `<data dir>/pm/pins/<pin>/<COMMIT_FILE>`; a failure or timeout there fails hard naming the tag and the command.
 Once kept, uv runs the commit from its cache, or fetches it again after `uv cache clean`, which needs the network;
 deleting the commit file makes the next launch resolve the tag again.
 
@@ -24,11 +24,13 @@ launch again. launch() drops those dirs from a child's environment before it pic
 A pin at or above GO (0.2.0, and pre-releases such as 0.2.0-rc.1) is Go pm: a release binary, not a uv build. Its
 launch execs `<data dir>/pm/pins/<pin>/pm` with the same markers, with no network once the binary is there. The first
 launch downloads it from release pm-v<pin>: SHA256SUMS and this platform's tarball, pm-<pin>-<os>-<arch>.tar.gz
-(darwin-arm64 and linux-amd64 only), within 10 s to connect and 300 s in all. The repo is private, so it downloads
-through the GitHub API (API, or $PM_RELEASE_API) with a token from $GH_TOKEN, else from `gh auth token`; no token is a
-hard error naming both. The token goes to the API alone, never to the storage host an asset redirects to.
-$PM_RELEASE_URL names a mirror instead, <url>/pm-v<pin>/<asset>, downloaded with no token. The tarball must match its SHA256SUMS line and the sha256 kept in `pins/<pin>/sha256` by an earlier download,
-if any: a release is never rebuilt, so a difference fails hard. The binary, then its sha256, is written to a temp
+(darwin-arm64 and linux-amd64 only), within 10 s to connect and 300 s in all, with no token: Yeeef/pm is public, and
+GitHub serves its assets at RELEASES/pm-v<pin>/<asset> ($PM_RELEASE_URL replaces RELEASES: a mirror, or tests). When
+that download fails (an HTTP error or no answer, not a check), and a token is at hand, from $GH_TOKEN, else from `gh
+auth token`, it downloads again through the GitHub API (API, or $PM_RELEASE_API), as a private copy of the repo needs;
+the token goes to the API alone, never to the storage host an asset redirects to, and the API's failure is the one
+reported. The tarball must match its SHA256SUMS line and the sha256 kept in `pins/<pin>/sha256` by an earlier
+download, if any: a release is never rebuilt, so a difference fails hard. The binary, then its sha256, is written to a temp
 file and renamed into place, so another launch sees no file or the whole one. Every failure is a hard error naming
 the release and the URL; nothing falls back to another version or to uv. `pm upgrade --to <Go version>` launches
 that version the same way."""
@@ -60,8 +62,13 @@ LAUNCHER = "PM_LAUNCHER"  # the version of the pm that launched it
 FIRST = (0, 1, 2)  # the first pm that knows it was launched
 RESOLVE_TIMEOUT = 10  # seconds git ls-remote may take to resolve a release tag
 BUILD_TIMEOUT = 300  # seconds uv may take to fetch and build a release the first time
+# the commit of release tag pm-v<pin> in config.REPO (Yeeef/pm), in pins/<pin>/. Launchers from before pm moved out of
+# yeeef-agents keep that repo's commit of the same tag in pins/<pin>/commit, which Yeeef/pm does not have, so this one
+# is named apart and both launchers can run on one machine.
+COMMIT_FILE = "commit-Yeeef-pm"
 GO = (0, 2, 0)  # the first Go pm: a pin at or above it runs its release binary
-API = "https://api.github.com/repos/Yeeef/yeeef-agents"  # where releases are found; $PM_RELEASE_API overrides it
+RELEASES = "https://github.com/Yeeef/pm/releases/download"  # release assets with no token; $PM_RELEASE_URL overrides it
+API = "https://api.github.com/repos/Yeeef/pm"  # where a token finds a release; $PM_RELEASE_API overrides it
 PLATFORMS = ("darwin-arm64", "linux-amd64")  # the platforms a Go release has a binary for
 ARCH = {"arm64": "arm64", "aarch64": "arm64", "x86_64": "amd64", "amd64": "amd64"}
 CONNECT_TIMEOUT = 10  # seconds a release download may take to connect, and to answer each read
@@ -71,6 +78,11 @@ marks: dict[str, str] = {}  # LAUNCHED and LAUNCHER as this process got them; la
 
 class LaunchError(Exception):
     """The pinned version cannot run: uv is missing, or its release cannot be found or built."""
+
+
+class DownloadError(LaunchError):
+    """A download that failed (an HTTP error or no answer), which the token path may try again; a failed check is a
+    LaunchError."""
 
 
 def pin(cwd: Path) -> str | None:
@@ -125,7 +137,7 @@ def pin_dir(version: str) -> Path:
 def kept(version: str) -> str | None:
     """The commit kept for `version`; None when there is none or the file holds no commit sha."""
     try:
-        sha = (pin_dir(version) / "commit").read_text().strip()
+        sha = (pin_dir(version) / COMMIT_FILE).read_text().strip()
     except OSError:
         return None
     return sha if re.fullmatch(r"[0-9a-f]{40}", sha) else None
@@ -146,7 +158,7 @@ def scrub() -> None:
 
 
 def requirement(commit: str) -> str:
-    return f"git+{config.REPO}@{commit}#subdirectory=pm"
+    return f"git+{config.REPO}@{commit}"
 
 
 def environment(version: str) -> dict:
@@ -194,9 +206,10 @@ def commit(version: str, env: dict) -> str:
     if res.returncode != 0:
         why = (res.stderr.strip().splitlines() or [f"exit {res.returncode}"])[-1].strip()
         raise LaunchError(f"{head}, but uv could not fetch and build {tag} ({sha}): {why}; {fix}")
-    path = pin_dir(version) / "commit"
+    path = pin_dir(version) / COMMIT_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f"commit.{os.getpid()}")  # another launch may read it at once: it sees no file or the whole sha
+    # another launch may read it at once: it sees no file or the whole sha
+    tmp = path.with_name(f"{COMMIT_FILE}.{os.getpid()}")
     tmp.write_text(sha + "\n")
     os.replace(tmp, path)
     return sha
@@ -209,8 +222,7 @@ def binary(version: str) -> Path:
     if path.is_file() and os.access(path, os.X_OK):
         return path
     tag = f"pm-v{version}"
-    mirror = (os.environ.get("PM_RELEASE_URL") or "").rstrip("/")
-    base = f"{mirror}/{tag}" if mirror else f"{(os.environ.get('PM_RELEASE_API') or API).rstrip('/')}/releases/tags/{tag}"
+    base = f"{(os.environ.get('PM_RELEASE_URL') or RELEASES).rstrip('/')}/{tag}"
     head = f"this repo pins pm {version}, but release {tag}"
     fix = "; check the network and the release, then run pm again, or move the pin with pm upgrade"
     plat = this_platform()
@@ -218,33 +230,16 @@ def binary(version: str) -> Path:
         raise LaunchError(f"{head} has no binary for {plat} (only {' and '.join(PLATFORMS)}): {base}")
     asset = f"pm-{version}-{plat}.tar.gz"
     deadline = time.monotonic() + DOWNLOAD_TIMEOUT
-    if mirror:
-        sums_url, tar_url, headers = f"{base}/SHA256SUMS", f"{base}/{asset}", {}
-    else:
-        token = github_token()
-        if not token:
-            raise LaunchError(f"{head} is downloaded through the GitHub API, which needs a token: set GH_TOKEN, or log "
-                              "in with gh auth login so that gh auth token prints one")
-        headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-        found = io.BytesIO()
-        download(base, found, deadline, f"{head} could not be downloaded: {base}: ", fix, headers)
-        try:
-            assets = {a["name"]: a["url"] for a in json.loads(found.getvalue())["assets"]}
-        except (ValueError, KeyError, TypeError):
-            raise LaunchError(f"{head} could not be downloaded: {base} did not answer with a release{fix}")
-        for name in ("SHA256SUMS", asset):
-            if not isinstance(assets.get(name), str):
-                raise LaunchError(f"{head} could not be downloaded: {base} has no asset {name}{fix}")
-        sums_url, tar_url = assets["SHA256SUMS"], assets[asset]
-        headers = dict(headers, Accept="application/octet-stream")
-    sums = io.BytesIO()
-    download(sums_url, sums, deadline, f"{head} could not be downloaded: {sums_url}: ", fix, headers)
-    lines = [line.split() for line in sums.getvalue().decode(errors="replace").splitlines()]
-    want = next((f[0] for f in lines if len(f) == 2 and f[1] == asset and re.fullmatch(r"[0-9a-f]{64}", f[0])), None)
-    if want is None:
-        raise LaunchError(f"{head} could not be checked: {sums_url} has no line for {asset}{fix}")
     with tempfile.TemporaryFile() as tar:
-        got = download(tar_url, tar, deadline, f"{head} could not be downloaded: {tar_url}: ", fix, headers)
+        try:
+            tar_url, want, got = fetch(f"{base}/SHA256SUMS", f"{base}/{asset}", asset, tar, deadline, head, fix)
+        except DownloadError:
+            token = github_token() if time.monotonic() < deadline else None  # past it, the API gets no time either
+            if not token:
+                raise
+            tar.seek(0)
+            tar.truncate()
+            tar_url, want, got = via_api(tag, asset, token, tar, deadline, head, fix)
         if got != want:
             raise LaunchError(f"{head} could not be checked: {tar_url} has sha256 {got}, but SHA256SUMS says "
                               f"{want}{fix}")
@@ -284,6 +279,37 @@ def binary(version: str) -> Path:
     return path
 
 
+def fetch(sums_url: str, tar_url: str, asset: str, out, deadline: float, head: str, fix: str,
+          headers: dict[str, str] | None = None) -> tuple[str, str, str]:
+    """Download SHA256SUMS from `sums_url` and the tarball from `tar_url` into `out`, sending `headers`: `tar_url`,
+    the sha256 SHA256SUMS gives `asset`, and the tarball's."""
+    sums = io.BytesIO()
+    download(sums_url, sums, deadline, f"{head} could not be downloaded: {sums_url}: ", fix, headers)
+    lines = [line.split() for line in sums.getvalue().decode(errors="replace").splitlines()]
+    want = next((f[0] for f in lines if len(f) == 2 and f[1] == asset and re.fullmatch(r"[0-9a-f]{64}", f[0])), None)
+    if want is None:
+        raise LaunchError(f"{head} could not be checked: {sums_url} has no line for {asset}{fix}")
+    got = download(tar_url, out, deadline, f"{head} could not be downloaded: {tar_url}: ", fix, headers)
+    return tar_url, want, got
+
+
+def via_api(tag: str, asset: str, token: str, out, deadline: float, head: str, fix: str) -> tuple[str, str, str]:
+    """fetch() through the GitHub API with `token`: the release's asset URLs, then each asset."""
+    base = f"{(os.environ.get('PM_RELEASE_API') or API).rstrip('/')}/releases/tags/{tag}"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    found = io.BytesIO()
+    download(base, found, deadline, f"{head} could not be downloaded: {base}: ", fix, headers)
+    try:
+        assets = {a["name"]: a["url"] for a in json.loads(found.getvalue())["assets"]}
+    except (ValueError, KeyError, TypeError):
+        raise LaunchError(f"{head} could not be downloaded: {base} did not answer with a release{fix}")
+    for name in ("SHA256SUMS", asset):
+        if not isinstance(assets.get(name), str):
+            raise LaunchError(f"{head} could not be downloaded: {base} has no asset {name}{fix}")
+    return fetch(assets["SHA256SUMS"], assets[asset], asset, out, deadline, head, fix,
+                 dict(headers, Accept="application/octet-stream"))
+
+
 def this_platform() -> str:
     """The machine's <os>-<arch> as release assets name it. An x86_64 Python under Rosetta (as uv may install on
     Apple silicon) reports x86_64, while the machine runs the arm64 binary natively, so a translated process is arm64."""
@@ -319,18 +345,18 @@ def download(url: str, out, deadline: float, why: str, fix: str, headers: dict[s
         with urllib.request.urlopen(req, timeout=CONNECT_TIMEOUT) as res:
             while chunk := res.read(1 << 20):
                 if time.monotonic() > deadline:
-                    raise LaunchError(f"{why}not downloaded within {DOWNLOAD_TIMEOUT} s{fix}")
+                    raise DownloadError(f"{why}not downloaded within {DOWNLOAD_TIMEOUT} s{fix}")
                 sha.update(chunk)
                 out.write(chunk)
     except urllib.error.HTTPError as e:
-        raise LaunchError(f"{why}HTTP {e.code}{fix}")
+        raise DownloadError(f"{why}HTTP {e.code}{fix}")
     except urllib.error.URLError as e:
         reason = f"no answer within {CONNECT_TIMEOUT} s" if isinstance(e.reason, TimeoutError) else e.reason
-        raise LaunchError(f"{why}{reason}{fix}")
+        raise DownloadError(f"{why}{reason}{fix}")
     except TimeoutError:
-        raise LaunchError(f"{why}no answer within {CONNECT_TIMEOUT} s{fix}")
+        raise DownloadError(f"{why}no answer within {CONNECT_TIMEOUT} s{fix}")
     except OSError as e:
-        raise LaunchError(f"{why}{e}{fix}")
+        raise DownloadError(f"{why}{e}{fix}")
     return sha.hexdigest()
 
 
@@ -365,7 +391,7 @@ def how() -> str:
     """How the running pm was chosen, for pm where and pm doctor."""
     if launched():
         return (f"this repo's pin at commit {kept(__version__) or 'unknown'}, launched by the pm uv tool "
-                f"(pm {marks.get(LAUNCHER) or 'unknown'}); delete {pin_dir(__version__) / 'commit'} to resolve "
+                f"(pm {marks.get(LAUNCHER) or 'unknown'}); delete {pin_dir(__version__) / COMMIT_FILE} to resolve "
                 f"tag pm-v{__version__} again")
     return "run in process: it is this repo's pin, or the repo pins none yet"
 

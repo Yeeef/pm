@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // Items is the work store's items by id, in the order the store gave them: what records and pages read status from.

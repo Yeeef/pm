@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 func run(t *testing.T, dir string, args ...string) string {

@@ -63,7 +63,7 @@ This repo uses pm: Beads holds the work, Markdown records hold the context, and 
 them as a site.
 
 - Install the pinned version (`version` in `config.toml`):
-  `uv tool install "git+https://github.com/Yeeef/yeeef-agents@pm-v<version>#subdirectory=pm"`, then run `pm init`
+  `uv tool install "git+https://github.com/Yeeef/pm@pm-v<version>"`, then run `pm init`
   in each clone.
 - Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads
   it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.

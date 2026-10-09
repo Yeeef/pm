@@ -1,18 +1,19 @@
 #!/bin/sh
-# Install Go pm on this machine: gh release download pm-v<X> -R Yeeef/yeeef-agents -p install.sh -O - | sh
+# Install Go pm on this machine: curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<X>/install.sh | sh
 #
 # Each release serves its own copy, with its version filled in where @VERSION@ stands (the release workflow does it).
 # It picks the release tarball for `uname -s`/`uname -m`, downloads it and the release's SHA256SUMS, checks the
 # tarball's sha256, and installs its pm to ${PM_BIN_DIR:-$HOME/.local/bin}/pm by renaming a temp file, so a pm
-# running there is never seen half-written. Any failure stops it with nothing installed. The repo is private, so it
-# downloads through the GitHub API ($PM_RELEASE_API replaces its URL, for tests) with curl and a token from $GH_TOKEN,
-# else from `gh auth token`; the token goes to the API alone, never to the storage host an asset redirects to.
-# $PM_RELEASE_URL names a mirror instead, <url>/pm-v<X>/<asset>, downloaded with no token.
+# running there is never seen half-written. Any failure stops it with nothing installed. Yeeef/pm is public, so it
+# downloads with no token from <url>/pm-v<X>/<asset> (url: $PM_RELEASE_URL, a mirror or tests, else GitHub's release
+# downloads). When that fails, and curl and a token are at hand, from $GH_TOKEN, else from `gh auth token`, it
+# downloads again through the GitHub API ($PM_RELEASE_API replaces its URL, for tests), as a private copy of the repo
+# needs; the token goes to the API alone, never to the storage host an asset redirects to.
 set -eu
 
 version='@VERSION@'
-mirror=${PM_RELEASE_URL:-}
-api=${PM_RELEASE_API:-https://api.github.com/repos/Yeeef/yeeef-agents}
+base=${PM_RELEASE_URL:-https://github.com/Yeeef/pm/releases/download}
+api=${PM_RELEASE_API:-https://api.github.com/repos/Yeeef/pm}
 bindir=${PM_BIN_DIR:-$HOME/.local/bin}
 
 fail() {
@@ -22,12 +23,12 @@ fail() {
 
 case $version in @*) fail "this copy names no version; run the one release pm-v<X> serves" ;; esac
 while :; do
-  case $mirror in */) mirror=${mirror%/} ;; *) break ;; esac
+  case $base in */) base=${base%/} ;; *) break ;; esac
 done
 while :; do
   case $api in */) api=${api%/} ;; *) break ;; esac
 done
-if [ -n "$mirror" ]; then url=$mirror/pm-v$version; else url=$api/releases/tags/pm-v$version; fi
+url=$base/pm-v$version
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -42,17 +43,20 @@ case $os-$arch in
 esac
 asset=pm-$version-$platform.tar.gz
 
-if [ -z "$mirror" ]; then
-  command -v curl >/dev/null 2>&1 || fail "curl is not installed to download $url"
-  token=${GH_TOKEN:-}
-  if [ -z "$token" ]; then token=$(gh auth token 2>/dev/null) || token=''; fi
-  [ -n "$token" ] || fail "release pm-v$version is downloaded through the GitHub API, which needs a token: set GH_TOKEN, or log in with gh auth login so that gh auth token prints one"
-  # curl sends a -H header to the URL's host alone, not to the host a redirect names
-  fetch() { curl -fsSL --connect-timeout 10 --max-time 300 -H "Authorization: Bearer $token" -H "Accept: $3" -o "$2" "$1"; }
-elif command -v curl >/dev/null 2>&1; then
-  fetch() { curl -fsSL --connect-timeout 10 --max-time 300 -o "$2" "$1"; }
+# fetch URL FILE [ACCEPT TOKEN]: the body of GET URL into FILE; with a token, sent to URL's host alone (curl 7.58 and
+# later drop an Authorization header on a redirect to another host) and given on stdin, so no process list shows it.
+# What curl or wget says goes to $tmp/err, for reason.
+if command -v curl >/dev/null 2>&1; then
+  fetch() {
+    if [ $# -eq 4 ]; then
+      printf 'header = "Authorization: Bearer %s"\n' "$4" |
+        curl --config - -fsSL --connect-timeout 10 --max-time 300 -H "Accept: $3" -o "$2" "$1" 2>"$tmp/err"
+    else
+      curl -fsSL --connect-timeout 10 --max-time 300 -o "$2" "$1" 2>"$tmp/err"
+    fi
+  }
 elif command -v wget >/dev/null 2>&1; then
-  fetch() { wget -q -T 10 -O "$2" "$1"; }
+  fetch() { wget -q -T 10 -O "$2" "$1" 2>"$tmp/err"; }
 else
   fail "neither curl nor wget is installed to download $url"
 fi
@@ -66,10 +70,37 @@ fi
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-sums_url=$url/SHA256SUMS
-tar_url=$url/$asset
-if [ -z "$mirror" ]; then
-  fetch "$url" "$tmp/release.json" application/vnd.github+json || fail "could not download $url"
+# reason: ": <the last line curl or wget said>" of the last fetch, or nothing
+reason() {
+  r=$(tail -n 1 "$tmp/err" 2>/dev/null) || r=''
+  if [ -n "$r" ]; then echo ": $r"; fi
+}
+
+# get SUMS_URL TAR_URL [ACCEPT TOKEN]: SHA256SUMS and the tarball into $tmp, the tarball checked against its line; says
+# what failed and returns 2 for a download that failed, which the token path may try again, and fails for a check
+get() {
+  sums_url=$1 tar_url=$2
+  shift 2
+  fetch "$sums_url" "$tmp/SHA256SUMS" "$@" || { why="could not download $sums_url$(reason)"; return 2; }
+  want=$(awk -v asset="$asset" 'NF == 2 && $2 == asset { print $1; exit }' "$tmp/SHA256SUMS")
+  case $want in
+    *[!0-9a-f]* | '') fail "$sums_url has no line for $asset" ;;
+  esac
+  [ ${#want} -eq 64 ] || fail "$sums_url has no line for $asset"
+  fetch "$tar_url" "$tmp/$asset" "$@" || { why="could not download $tar_url$(reason)"; return 2; }
+  got=$(sha256 "$tmp/$asset")
+  [ "$got" = "$want" ] || fail "$tar_url has sha256 $got, but SHA256SUMS says $want; nothing was installed"
+}
+
+st=0
+get "$url/SHA256SUMS" "$url/$asset" || st=$?
+if [ "$st" -eq 2 ]; then
+  token=${GH_TOKEN:-}
+  if [ -z "$token" ]; then token=$(gh auth token 2>/dev/null) || token=''; fi
+  [ -n "$token" ] && command -v curl >/dev/null 2>&1 || fail "$why"
+  rel=$api/releases/tags/pm-v$version
+  fetch "$rel" "$tmp/release.json" application/vnd.github+json "$token" ||
+    fail "could not download $rel$(reason)"
   # each asset's API url comes before its name; the url of whatever else the release names is no asset's
   asset_url() {
     grep -o -e '"url": *"[^"]*/releases/assets/[0-9]*"' -e '"name": *"[^"]*"' "$tmp/release.json" |
@@ -77,19 +108,15 @@ if [ -z "$mirror" ]; then
         { n = $0; sub(/^"name": *"/, "", n); sub(/"$/, "", n); if (n == want && u != "") { print u; exit } }'
   }
   sums_url=$(asset_url SHA256SUMS)
-  [ -n "$sums_url" ] || fail "$url has no asset SHA256SUMS"
+  [ -n "$sums_url" ] || fail "$rel has no asset SHA256SUMS"
   tar_url=$(asset_url "$asset")
-  [ -n "$tar_url" ] || fail "$url has no asset $asset"
+  [ -n "$tar_url" ] || fail "$rel has no asset $asset"
+  st=0
+  get "$sums_url" "$tar_url" application/octet-stream "$token" || st=$?
+  [ "$st" -eq 0 ] || fail "$why"
+elif [ "$st" -ne 0 ]; then
+  exit "$st"
 fi
-fetch "$sums_url" "$tmp/SHA256SUMS" application/octet-stream || fail "could not download $sums_url"
-want=$(awk -v asset="$asset" 'NF == 2 && $2 == asset { print $1; exit }' "$tmp/SHA256SUMS")
-case $want in
-  *[!0-9a-f]* | '') fail "$sums_url has no line for $asset" ;;
-esac
-[ ${#want} -eq 64 ] || fail "$sums_url has no line for $asset"
-fetch "$tar_url" "$tmp/$asset" application/octet-stream || fail "could not download $tar_url"
-got=$(sha256 "$tmp/$asset")
-[ "$got" = "$want" ] || fail "$tar_url has sha256 $got, but SHA256SUMS says $want; nothing was installed"
 mkdir "$tmp/x"
 tar -xzf "$tmp/$asset" -C "$tmp/x" pm 2>/dev/null && [ -f "$tmp/x/pm" ] && [ ! -L "$tmp/x/pm" ] ||
   fail "$tar_url is not a gzip tar holding pm"

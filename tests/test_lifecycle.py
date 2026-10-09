@@ -214,8 +214,8 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
                               capture_output=True, text=True)
     assert launched("0.0.1", "show").returncode == 1, "every other command refuses the old pin"
     res = launched("9.9.9", "upgrade", "--to", "9.9.9")
-    latest = ('uv tool install --reinstall "git+https://github.com/Yeeef/yeeef-agents#subdirectory=pm"'
-              if IMPL == "python" else "gh release download -R Yeeef/yeeef-agents -p install.sh -O - | sh")
+    latest = ('uv tool install --reinstall "git+https://github.com/Yeeef/pm"' if IMPL == "python"
+              else "curl -fsSL https://github.com/Yeeef/pm/releases/latest/download/install.sh | sh")
     assert res.returncode == 1 and res.stderr.endswith(  # the launcher's install, never an old pm in its place
         f'which launches pm 9.9.9: install the latest with {latest}\n'), res.stderr
     head = git(existing, "rev-parse", "HEAD")

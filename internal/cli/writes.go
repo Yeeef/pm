@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
-	"github.com/Yeeef/yeeef-agents/pm/internal/site"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/site"
+	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // The commands that write records and work items: findings, feedback, new docs, design pages and postmortems,

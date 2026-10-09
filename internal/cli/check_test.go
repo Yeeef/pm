@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work/worktest"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work/worktest"
 )
 
 // A clone as conftest's repo fixture builds it: main checkout, config, the store on branch records holding one

@@ -18,8 +18,8 @@ from pm import __version__
 import transcript
 from work_items import items as work_items
 
-# This checkout's records/ link: the real records, wherever this clone keeps its store.
-REAL_RECORDS = Path(__file__).resolve().parents[2] / "records"
+# This checkout: pm's repo, whose paths a transcript names <checkout>.
+CHECKOUT = Path(__file__).resolve().parents[1]
 # The pm the tests run: PM_IMPL=python (the default) runs pm from the package environment the tests run in (make
 # test); PM_IMPL=go runs the Go binary at $PM_GO_BIN. A test for one implementation only is marked with it and the
 # reason: @pytest.mark.impl("python", reason="…"). The renderer (Repo.pages) is Python's either way.
@@ -250,7 +250,7 @@ def no_service_left(tmp_path: Path):
 
 
 # Each test's Repo.pm calls, written as one transcript per test under $PM_TRANSCRIPTS/<impl> (default
-# pm/.transcripts/<impl>), which a run empties first: the same file from each implementation must be equal.
+# .transcripts/<impl>), which a run empties first: the same file from each implementation must be equal.
 TRANSCRIPTS = Path(os.environ.get("PM_TRANSCRIPTS") or Path(__file__).resolve().parents[1] / ".transcripts") / IMPL
 
 
@@ -260,7 +260,7 @@ def recorded(request, tmp_path: Path):
     yield
     paths = {str(tmp_path): "<tmp>", str(tmp_path.resolve()): "<tmp>", str(request.config.pm_home): "<home>",
              str(Path(request.config.pm_home).resolve()): "<home>", str(Path(PM[0]).parent): "<pm-bin>",
-             str(REAL_RECORDS.parent): "<checkout>", **{v: f"<{k}>" for k, v in UV_DIRS.items()},
+             str(CHECKOUT): "<checkout>", **{v: f"<{k}>" for k, v in UV_DIRS.items()},
              tempfile.gettempdir(): "<systmp>", str(Path(tempfile.gettempdir()).resolve()): "<systmp>"}
     transcript.write(TRANSCRIPTS, request.node.nodeid, paths)
 

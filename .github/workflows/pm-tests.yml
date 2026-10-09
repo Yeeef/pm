@@ -1,0 +1,36 @@
+# pm: the harness tests on every pull request. Agents run only the light set (make test) while they work; the
+# integration set (the pm service, pm init, push, the session-start hook) runs here, as its own job, so the
+# PR shows which set failed. make test-full ARGS="-k …" reproduces a failure locally.
+name: pm tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: pm-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  light:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Light tests (make test)
+        run: make test
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the launcher's integration test builds release 0.1.0 from this clone's tag pm-v0.1.0
+      - uses: astral-sh/setup-uv@v6
+      - name: Integration tests (make test-full ARGS="-m integration")
+        run: make test-full ARGS="-m integration"

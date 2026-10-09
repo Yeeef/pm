@@ -17,10 +17,10 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 
-	pm "github.com/Yeeef/yeeef-agents/pm"
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	pm "github.com/Yeeef/pm"
+	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // Style is the one stylesheet every page gets.

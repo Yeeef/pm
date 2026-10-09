@@ -3,7 +3,7 @@ first on PATH logs each call with the markers it got; a fake `git` answers `ls-r
 git; the integration test runs a real older release, built by real uv from this clone's own tag. A Go pin (0.2.0 and
 up) runs its release binary instead: `release` serves Go releases on 127.0.0.1 through PM_RELEASE_URL, each tarball
 holding a fake pm script that prints its argv, markers and stdin; `github` serves them as GitHub's API does, for the
-download with a token."""
+download with a token when the one with none fails."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ os.execv({git!r}, ["git", *sys.argv[1:]])
 '''
 
 SHA = "0123456789abcdef0123456789abcdef01234567"
-REQ = f"git+{config.REPO}@{SHA}#subdirectory=pm"
+REQ = f"git+{config.REPO}@{SHA}"
 
 
 @pytest.fixture
@@ -80,7 +80,7 @@ def calls(repo) -> list[dict]:
 
 
 def keep(repo, version: str, sha: str = SHA) -> Path:
-    path = Path(repo.env["XDG_DATA_HOME"]) / "pm/pins" / version / "commit"
+    path = Path(repo.env["XDG_DATA_HOME"]) / "pm/pins" / version / launch.COMMIT_FILE
     path.parent.mkdir(parents=True)
     path.write_text(sha + "\n")
     return path
@@ -114,16 +114,21 @@ def test_a_launched_text_file_body_reaches_the_pinned_pm_unread_by_the_launcher(
 
 
 def test_the_first_launch_of_a_pin_resolves_its_tag_builds_it_once_then_keeps_the_commit(fakes):
+    """The commit a launcher from before the move to Yeeef/pm kept (pins/<pin>/commit, yeeef-agents' commit of the
+    tag) is neither read nor touched."""
     write_config(fakes.root, version="0.1.99")
     env = dict(fakes.env, FAKE_LS_REMOTE=f"aaaa\trefs/tags/pm-v0.1.99\n{SHA}\trefs/tags/pm-v0.1.99^{{}}\n")
     fakes.env = env
+    legacy = Path(env["XDG_DATA_HOME"]) / "pm/pins/0.1.99/commit"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("b" * 40 + "\n")
     assert fakes.pm("show").returncode == 0
     assert fakes.pm("show").returncode == 0
     log = calls(fakes)
     assert log[0] == {"git": "ls-remote"}
     assert log[1]["argv"] == ["tool", "run", "--from", REQ, "pm", "--help"]
     assert [c["argv"] for c in log[2:]] == [["--quiet", "tool", "run", "--from", REQ, "pm", "show"]] * 2
-    assert (Path(env["XDG_DATA_HOME"]) / "pm/pins/0.1.99/commit").read_text() == SHA + "\n"
+    assert legacy.with_name(launch.COMMIT_FILE).read_text() == SHA + "\n" and legacy.read_text() == "b" * 40 + "\n"
 
 
 def test_a_pin_whose_release_cannot_be_fetched_fails_hard_naming_the_tag_and_the_command(fakes):
@@ -135,7 +140,7 @@ def test_a_pin_whose_release_cannot_be_fetched_fails_hard_naming_the_tag_and_the
         f"error: this repo pins pm 0.1.99, which {RUNNER} runs through uv, but uv could not "
         f"fetch and build pm-v0.1.99 ({SHA}): error: Git operation failed; check the network and that tag pm-v0.1.99 "
         "exists, then run pm again; or run it yourself with uv tool run --from "
-        f'"git+{config.REPO}@pm-v0.1.99#subdirectory=pm" pm …, or move the pin with pm upgrade\n')
+        f'"git+{config.REPO}@pm-v0.1.99" pm …, or move the pin with pm upgrade\n')
     assert not (Path(fakes.env["XDG_DATA_HOME"]) / "pm/pins/0.1.99/commit").exists()
     assert [c.get("argv", [""])[-1] for c in calls(fakes)] == ["", "--help"]  # ls-remote, the build; no launch
 
@@ -221,7 +226,7 @@ def test_a_kept_commit_file_without_a_sha_is_resolved_again(fakes):
     fakes.env = dict(fakes.env, FAKE_LS_REMOTE=f"{SHA}\trefs/tags/pm-v0.1.99\n")
     assert fakes.pm("show").returncode == 0
     assert calls(fakes)[0] == {"git": "ls-remote"} and path.read_text() == SHA + "\n"
-    assert [p.name for p in path.parent.iterdir()] == ["commit"], "the temp file went"
+    assert [p.name for p in path.parent.iterdir()] == [launch.COMMIT_FILE], "the temp file went"
 
 
 @IN_PROCESS
@@ -259,7 +264,7 @@ def test_upgrade_without_to_never_moves_a_newer_pin_down(fakes, monkeypatch, cap
     assert capsys.readouterr().err == (
         f"error: this repo pins pm 0.1.99, newer than the running pm {__version__}, and pm upgrade moves a pin down only "
         "when --to names the version; run pm upgrade --to 0.1.99 to rewrite pm's pieces at the pin, or install the "
-        f'latest pm uv tool with uv tool install --reinstall "git+{config.REPO}#subdirectory=pm", then pm upgrade\n')
+        f'latest pm uv tool with uv tool install --reinstall "git+{config.REPO}", then pm upgrade\n')
     assert path.read_text() == before and calls(fakes) == []
 
 
@@ -324,7 +329,9 @@ class GitHub:
     it: GET <api>/releases/tags/<tag> answers the release's assets, each with its API url (and, as GitHub's JSON does,
     other urls that name no asset); GET <api>/releases/assets/<n> with Accept application/octet-stream redirects to the
     asset's file on another host name (localhost), which, as GitHub's storage host does, refuses a request carrying a
-    token. The API answers 401 without `Bearer TOKEN`. `requests` logs (path, whether it carried the token)."""
+    token. The API answers 401 without `Bearer TOKEN`. `download` (<download>/<tag>/<asset>) answers 404, as GitHub
+    does to a request with no token for a private repo's asset. `requests` logs (path, whether it carried the
+    token)."""
 
     def __init__(self, root: Path):
         self.root, self.requests, self.assets = root, [], []
@@ -335,6 +342,8 @@ class GitHub:
                 auth = self.headers.get("Authorization")
                 gh.requests.append((self.path, auth is not None))
                 parts = self.path.strip("/").split("/")
+                if parts[0] == "download":  # the assets with no token, of a private repo
+                    return self.answer(404, b"Not Found")
                 if parts[0] == "files":  # the storage host
                     path = gh.root.joinpath(*parts[1:])
                     if auth is not None:
@@ -364,6 +373,7 @@ class GitHub:
         self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.port = self.server.server_port
         self.api = f"http://127.0.0.1:{self.port}/api"
+        self.download = f"http://127.0.0.1:{self.port}/download"
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
     def release(self, tag: str) -> dict:
@@ -490,39 +500,49 @@ def test_a_go_release_that_differs_from_the_kept_sha256_fails_hard(fakes, releas
 
 @pytest.fixture
 def github(fakes, release):
-    """The releases of `release` behind the GitHub API stand-in, with no mirror and no token set."""
+    """The releases of `release` behind the GitHub API stand-in, its download with no token failing, and no token
+    set."""
     gh = GitHub(release.root)
-    fakes.env = {k: v for k, v in fakes.env.items() if k not in ("PM_RELEASE_URL", "GH_TOKEN")}
-    fakes.env["PM_RELEASE_API"] = gh.api + "/"
+    fakes.env = {k: v for k, v in fakes.env.items() if k != "GH_TOKEN"}
+    fakes.env.update(PM_RELEASE_URL=gh.download, PM_RELEASE_API=gh.api + "/")
     yield gh
     gh.close()
 
 
 @pytest.mark.parametrize("source", ["GH_TOKEN", "gh auth token"])
 def test_a_go_pin_downloads_through_the_github_api_with_a_token_sent_to_the_api_alone(fakes, github, source):
-    """With no mirror, the release's assets are found and fetched through the API with the token, from $GH_TOKEN or
-    else from gh auth token; the storage host each asset redirects to gets no token."""
+    """When the download with no token fails, the release's assets are found and fetched through the API with the
+    token, from $GH_TOKEN or else from gh auth token; the storage host each asset redirects to gets no token."""
     write_config(fakes.root, version="0.2.0")
     tar, sha = publish(SimpleNamespace(root=github.root), "0.2.0")
     fakes.env.update({"GH_TOKEN": TOKEN} if source == "GH_TOKEN" else {"FAKE_GH_TOKEN": TOKEN})
     res = fakes.pm("show")
     assert res.returncode == 0, res.stderr
     assert res.stdout.startswith(f"argv0={go_pin(fakes, '0.2.0') / 'pm'}\narg=show\n")
-    assert github.requests == [("/api/releases/tags/pm-v0.2.0", True),
+    assert github.requests == [("/download/pm-v0.2.0/SHA256SUMS", False), ("/api/releases/tags/pm-v0.2.0", True),
                                ("/api/releases/assets/0", True), ("/files/pm-v0.2.0/SHA256SUMS", False),
                                ("/api/releases/assets/1", True), (f"/files/pm-v0.2.0/{tar.name}", False)]
     assert (go_pin(fakes, "0.2.0") / "sha256").read_text() == sha + "\n" and calls(fakes) == []
 
 
-def test_a_go_pin_with_no_token_fails_hard_naming_gh_token_and_gh_auth_token(fakes, github):
+def test_a_go_pin_that_fails_with_no_token_and_has_none_fails_hard_naming_that_download(fakes, github):
     write_config(fakes.root, version="0.2.0")
     publish(SimpleNamespace(root=github.root), "0.2.0")
     res = fakes.pm("show")
     assert (res.returncode, res.stdout) == (1, "")
-    assert res.stderr == ("error: this repo pins pm 0.2.0, but release pm-v0.2.0 is downloaded through the GitHub API, "
-                          "which needs a token: set GH_TOKEN, or log in with gh auth login so that gh auth token "
-                          "prints one\n")
-    assert github.requests == [] and not go_pin(fakes, "0.2.0").exists()
+    assert res.stderr == (f"error: this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: "
+                          f"{github.download}/pm-v0.2.0/SHA256SUMS: HTTP 404{FIX}\n")
+    assert github.requests == [("/download/pm-v0.2.0/SHA256SUMS", False)] and not go_pin(fakes, "0.2.0").exists()
+
+
+def test_a_go_pin_downloaded_with_no_token_never_asks_for_one(fakes, release):
+    """A token at hand is not used when the download with none works."""
+    write_config(fakes.root, version="0.2.0")
+    tar, _ = publish(release, "0.2.0")
+    fakes.env.update(GH_TOKEN=TOKEN, PM_RELEASE_API="http://127.0.0.1:1/api")  # never asked
+    res = fakes.pm("show")
+    assert res.returncode == 0, res.stderr
+    assert release.requests == ["/pm-v0.2.0/SHA256SUMS", f"/pm-v0.2.0/{tar.name}"]
 
 
 @pytest.mark.parametrize("broken", ["no-release", "no-asset", "bad-token"])
@@ -585,7 +605,7 @@ def test_the_new_tool_runs_pm_0_1_0_in_a_repo_pinned_to_it(repo, tmp_path):
     repo.env = dict(env, PATH=f"{bindir}{os.pathsep}{env['PATH']}", XDG_DATA_HOME=str(tmp_path / "data"))
     res = repo.pm("show")
     assert res.returncode == 0, res.stderr
-    kept = (tmp_path / "data/pm/pins/0.1.0/commit").read_text().strip()
+    kept = (tmp_path / "data/pm/pins/0.1.0" / launch.COMMIT_FILE).read_text().strip()
     assert kept == subprocess.run(["git", "rev-parse", "pm-v0.1.0^{commit}"], cwd=Path(__file__).parent,
                                   capture_output=True, text=True, check=True).stdout.strip()
     where = repo.pm("where")
@@ -595,14 +615,14 @@ def test_the_new_tool_runs_pm_0_1_0_in_a_repo_pinned_to_it(repo, tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.impl("python", reason="the launcher is Python pm's")
-def test_a_release_tags_before_it_pins_so_both_commits_pass_the_hook(tmp_path):
-    """pm/AGENTS.md, Releasing pm: commit A sets the package version and keeps the old pin, so the pm uv tool runs the
-    pre-commit hook in process; with tag pm-v<new> on A in origin, commit B moves the pin and the hook launches A's pm.
-    Commit B without the tag is refused, so the hook does run the launcher. Real git hooks and real uv; the release
-    URL is rewritten to a scratch origin, so nothing reaches GitHub."""
+def test_a_pin_moves_only_to_a_tagged_release_so_its_commit_passes_the_hook(tmp_path):
+    """AGENTS.md, Releasing pm: commit A in pm's repo sets the package version and gets tag pm-v<new>; a repo's commit
+    that moves its pin to <new> runs the pre-commit hook, whose launcher builds the tag's pm. Without the tag the hook
+    refuses that commit, so the hook does run the launcher. Real git hooks and real uv; the release URL is rewritten to
+    a scratch origin, so nothing reaches GitHub."""
     old = __version__
     new = ".".join([*old.split(".")[:-1], str(int(old.split(".")[-1]) + 1)])
-    origin, work = tmp_path / "origin.git", tmp_path / "work"
+    origin, release, work = tmp_path / "origin.git", tmp_path / "release", tmp_path / "work"
     run = lambda *a, cwd=work, **kw: subprocess.run(a, cwd=cwd, env=env, capture_output=True, text=True, **kw)
     bindir = tmp_path / "rewrite"
     bindir.mkdir()
@@ -614,48 +634,51 @@ def test_a_release_tags_before_it_pins_so_both_commits_pass_the_hook(tmp_path):
     # git runs a hook with its exec dir first on PATH, so the launcher's git ls-remote is rewritten by git's config
     env.update(PATH=f"{bindir}{os.pathsep}{env['PATH']}", GIT_CONFIG_COUNT="1",
                GIT_CONFIG_KEY_0=f"url.file://{origin}.insteadOf", GIT_CONFIG_VALUE_0=config.REPO)
-    kept = Path(env["XDG_DATA_HOME"]) / "pm/pins" / new / "commit"
+    kept = Path(env["XDG_DATA_HOME"]) / "pm/pins" / new / launch.COMMIT_FILE
 
+    # pm's repo: the package as this checkout has it, at the old version, then commit A at the new one
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)], check=True)
-    run("git", "clone", "-q", str(origin), str(work), cwd=tmp_path, check=True)
-    for k, v in (("user.email", "t@example.com"), ("user.name", "t"), ("core.hooksPath", ".beads/hooks")):
-        run("git", "config", k, v, check=True)
-    src = Path(__file__).resolve().parents[1]  # the package as this checkout has it, at the old version
+    run("git", "clone", "-q", str(origin), str(release), cwd=tmp_path, check=True)
+    for k, v in (("user.email", "t@example.com"), ("user.name", "t")):
+        run("git", "config", k, v, cwd=release, check=True)
+    src = Path(__file__).resolve().parents[1]
     for rel in ["pyproject.toml", *(p.relative_to(src).as_posix() for p in (src / "src/pm").rglob("*")
                                     if p.is_file() and "__pycache__" not in p.parts)]:
-        (work / "pm" / rel).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src / rel, work / "pm" / rel)
+        (release / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src / rel, release / rel)
+    run("git", "add", "-A", cwd=release, check=True)
+    run("git", "commit", "-qm", f"pm {old}", cwd=release, check=True)
+    pyproject = release / "pyproject.toml"
+    pyproject.write_text(pyproject.read_text().replace(f'version = "{old}"', f'version = "{new}"', 1))
+    run("git", "commit", "-qam", f"pm {new}: the package version", cwd=release, check=True)
+    run("git", "push", "-q", "origin", "main", cwd=release, check=True)
+    a = run("git", "rev-parse", "HEAD", cwd=release, check=True).stdout.strip()
+
+    # a repo pinned to the old version, with pm's pre-commit hook
+    run("git", "init", "-q", "-b", "main", str(work), cwd=tmp_path, check=True)
+    for k, v in (("user.email", "t@example.com"), ("user.name", "t"), ("core.hooksPath", ".beads/hooks")):
+        run("git", "config", k, v, check=True)
     write_config(work, version=old)
     hook = work / ".beads/hooks/pre-commit"  # pm's section, as pm init writes it into a new hook file
     hook.parent.mkdir(parents=True)
     hook.write_text(install.SHEBANG + install.git_hook_section("pre-commit"))
     hook.chmod(0o755)
     run("git", "add", "-A", check=True)
-    assert run("git", "commit", "-qm", f"pm {old}").returncode == 0
-    run("git", "push", "-q", "origin", "main", check=True)
-
-    # commit A: the package version only; the pin stays at the old version
-    run("git", "checkout", "-qb", "release", check=True)
-    pyproject = work / "pm/pyproject.toml"
-    pyproject.write_text(pyproject.read_text().replace(f'version = "{old}"', f'version = "{new}"', 1))
-    run("git", "add", "-A", check=True)
-    assert run("git", "ls-remote", str(origin), f"refs/tags/pm-v{new}").stdout == ""
-    res = run("git", "commit", "-qm", f"pm {new}: the package version")
+    res = run("git", "commit", "-qm", f"pm {old}")
     assert res.returncode == 0, res.stderr
-    a = run("git", "rev-parse", "HEAD", check=True).stdout.strip()
-    assert not kept.exists()  # the old pm ran the hook in process
+    head = run("git", "rev-parse", "HEAD", check=True).stdout.strip()
 
-    # commit B: the pin moves; without the tag the launcher cannot run the new pm, and the hook refuses the commit
+    # the pin moves; without the tag the launcher cannot run the new pm, and the hook refuses the commit
     write_config(work, version=new)
     run("git", "add", "-A", check=True)
+    assert run("git", "ls-remote", str(origin), f"refs/tags/pm-v{new}").stdout == ""
     res = run("git", "commit", "-qm", f"pm {new}: pin it")
     assert res.returncode != 0
     assert f"release tag pm-v{new} was not found at {config.REPO} (no such tag)" in res.stderr, res.stderr
-    assert run("git", "rev-parse", "HEAD", check=True).stdout.strip() == a
+    assert run("git", "rev-parse", "HEAD", check=True).stdout.strip() == head
 
-    run("git", "tag", "-a", f"pm-v{new}", "-m", f"pm {new}", a, check=True)
-    run("git", "push", "-q", "origin", f"pm-v{new}", check=True)
+    run("git", "tag", "-a", f"pm-v{new}", "-m", f"pm {new}", a, cwd=release, check=True)
+    run("git", "push", "-q", "origin", f"pm-v{new}", cwd=release, check=True)
     res = run("git", "commit", "-qm", f"pm {new}: pin it")
     assert res.returncode == 0, res.stderr
-    assert run("git", "rev-parse", "HEAD~1", check=True).stdout.strip() == a
     assert kept.read_text().strip() == a  # the hook ran the new pm, built from the tag's commit

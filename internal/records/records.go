@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // Types is every record type in the order Python's REQUIRED lists them, which a refusal names.

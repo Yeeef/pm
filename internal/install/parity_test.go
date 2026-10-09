@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
-	"github.com/Yeeef/yeeef-agents/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // The managed pieces against Python pm's on one table of inputs: $PM_PARITY/install.json, which

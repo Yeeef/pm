@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
+	"github.com/Yeeef/pm/internal/config"
 )
 
 const (

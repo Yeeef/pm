@@ -7,13 +7,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/config"
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
-	"github.com/Yeeef/yeeef-agents/pm/internal/service"
-	"github.com/Yeeef/yeeef-agents/pm/internal/site"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	pmsync "github.com/Yeeef/yeeef-agents/pm/internal/sync"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/site"
+	"github.com/Yeeef/pm/internal/store"
+	pmsync "github.com/Yeeef/pm/internal/sync"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // cmdShow is pm show: every level. Python source: show_data, show_text, show_project_text, sprint_detail,

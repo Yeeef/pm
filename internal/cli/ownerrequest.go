@@ -3,9 +3,9 @@ package cli
 import (
 	"errors"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/hooks"
-	"github.com/Yeeef/yeeef-agents/pm/internal/store"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // openRequests is pm hook owner-request's read: the open needs the session raised, from the work store of the clone

@@ -17,7 +17,7 @@ import (
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/records"
+	"github.com/Yeeef/pm/internal/records"
 )
 
 // The Markdown renderers. Python pm renders with markdown-it-py's commonmark preset; goldmark is CommonMark too, and

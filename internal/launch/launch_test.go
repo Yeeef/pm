@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/buildinfo"
 )
 
 // TestMain doubles as the launcher under test: with LAUNCH_HELPER set, the test binary is pm's main, so the exec
@@ -85,7 +86,71 @@ func serve(t *testing.T, version string, tgz []byte, sums string) *release {
 	}))
 	t.Cleanup(r.srv.Close)
 	t.Setenv("PM_RELEASE_URL", r.srv.URL+"//")
+	noToken(t)
 	return r
+}
+
+// noToken leaves pm no GitHub token: no $GH_TOKEN, and a PATH holding git alone, so no gh prints one.
+func noToken(t *testing.T) {
+	t.Helper()
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	if err := os.Symlink(git, filepath.Join(bin, "git")); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("PATH", bin)
+}
+
+// api stands in for GitHub's API over r's files, with the token tok: a release's assets, each asset redirected to
+// /files/ (the storage host), which refuses a request carrying the token. r's own paths answer 404, as GitHub does
+// for a private repo's assets to a request with no token. The requests are logged as "<path> <token sent>".
+func api(t *testing.T, r *release, tok string) *[]string {
+	t.Helper()
+	var log []string
+	var names []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		auth := req.Header.Get("Authorization")
+		log = append(log, fmt.Sprintf("%s %v", req.URL.Path, auth != ""))
+		p := req.URL.Path
+		switch {
+		case strings.HasPrefix(p, "/files/"):
+			b, ok := r.files["/"+strings.TrimPrefix(p, "/files/")]
+			if auth != "" || !ok {
+				http.Error(w, "", http.StatusBadRequest)
+				return
+			}
+			w.Write(b)
+		case !strings.HasPrefix(p, "/api/"):
+			http.NotFound(w, req)
+		case auth != "Bearer "+tok:
+			http.Error(w, "", http.StatusUnauthorized)
+		case strings.HasPrefix(p, "/api/releases/tags/"):
+			tag := strings.TrimPrefix(p, "/api/releases/tags/")
+			var assets []map[string]string
+			for path := range r.files {
+				if dir, name, _ := strings.Cut(strings.TrimPrefix(path, "/"), "/"); dir == tag {
+					names = append(names, path)
+					assets = append(assets, map[string]string{"name": name,
+						"url": fmt.Sprintf("http://%s/api/releases/assets/%d", req.Host, len(names)-1)})
+				}
+			}
+			json.NewEncoder(w).Encode(map[string]any{"assets": assets})
+		case strings.HasPrefix(p, "/api/releases/assets/") && req.Header.Get("Accept") == "application/octet-stream":
+			var n int
+			fmt.Sscanf(strings.TrimPrefix(p, "/api/releases/assets/"), "%d", &n)
+			http.Redirect(w, req, "/files"+names[n], http.StatusFound)
+		default:
+			http.NotFound(w, req)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("PM_RELEASE_URL", srv.URL) // anonymous: 404
+	t.Setenv("PM_RELEASE_API", srv.URL+"/api")
+	return &log
 }
 
 func assetOf(t *testing.T, version string) string {
@@ -198,14 +263,60 @@ func TestDownloadGivesUpAtItsDeadline(t *testing.T) {
 	}
 }
 
-func TestMirrorURL(t *testing.T) {
+func TestReleaseURL(t *testing.T) {
 	t.Setenv("PM_RELEASE_URL", "")
-	if MirrorURL() != "" {
-		t.Fatal(MirrorURL())
+	if releaseURL() != "https://github.com/Yeeef/pm/releases/download" {
+		t.Fatal(releaseURL())
 	}
 	t.Setenv("PM_RELEASE_URL", "http://mirror/x///")
-	if MirrorURL() != "http://mirror/x" {
-		t.Fatal(MirrorURL())
+	if releaseURL() != "http://mirror/x" {
+		t.Fatal(releaseURL())
+	}
+}
+
+func TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne(t *testing.T) {
+	pins := dataDir(t)
+	tgz := tarball(t, "pm", fakePM, tar.TypeReg)
+	r := serve(t, "0.2.0", tgz, "")
+	log := api(t, r, "tok")
+	t.Setenv("GH_TOKEN", "tok")
+	if err := Download("0.2.0"); err != nil {
+		t.Fatal(err)
+	}
+	if kept, _ := os.ReadFile(filepath.Join(pins, "0.2.0/sha256")); string(kept) != sum(tgz)+"\n" {
+		t.Fatalf("sha256 %q", kept)
+	}
+	asset := assetOf(t, "0.2.0")
+	got := strings.Join(*log, "\n")
+	// the anonymous download, then the release and each asset through the API, the token sent to the API alone
+	if !strings.HasPrefix(got, "/pm-v0.2.0/SHA256SUMS false\n/api/releases/tags/pm-v0.2.0 true\n") ||
+		!strings.Contains(got, "/files/pm-v0.2.0/SHA256SUMS false") ||
+		!strings.Contains(got, "/files/pm-v0.2.0/"+asset+" false") || strings.Count(got, " true") != 3 {
+		t.Fatalf("requests:\n%s", got)
+	}
+}
+
+func TestADownloadThatFailsBothWaysReportsTheAPIsFailure(t *testing.T) {
+	dataDir(t)
+	r := serve(t, "0.2.0", tarball(t, "pm", fakePM, tar.TypeReg), "")
+	api(t, r, "tok")
+	t.Setenv("GH_TOKEN", "wrong")
+	err := Download("0.2.0")
+	want := "this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: " +
+		os.Getenv("PM_RELEASE_API") + "/releases/tags/pm-v0.2.0: HTTP 401" + fix
+	if err == nil || err.Error() != want {
+		t.Fatalf("err = %v, want %q", err, want)
+	}
+}
+
+func TestAFailedCheckIsNotTriedThroughTheAPI(t *testing.T) {
+	dataDir(t)
+	tgz := tarball(t, "pm", fakePM, tar.TypeReg)
+	r := serve(t, "0.2.0", tgz, strings.Repeat("a", 64)+"  "+assetOf(t, "0.2.0")+"\n")
+	t.Setenv("GH_TOKEN", "tok")
+	t.Setenv("PM_RELEASE_API", "http://127.0.0.1:1/api") // never asked
+	if err := Download("0.2.0"); err == nil || !strings.Contains(err.Error(), "could not be checked: "+r.srv.URL) {
+		t.Fatalf("err = %v", err)
 	}
 }
 
@@ -377,14 +488,14 @@ func TestAPythonPinResolvesItsTagBuildsOnceAndExecsUV(t *testing.T) {
 	}
 	b, _ := os.ReadFile(log)
 	sha := "0123456789abcdef0123456789abcdef01234567"
-	req := "git+https://github.com/Yeeef/yeeef-agents@" + sha + "#subdirectory=pm"
-	want := "git ls-remote https://github.com/Yeeef/yeeef-agents refs/tags/pm-v0.1.4 refs/tags/pm-v0.1.4^{} prompt=0\n" +
+	req := "git+https://github.com/Yeeef/pm@" + sha
+	want := "git ls-remote https://github.com/Yeeef/pm refs/tags/pm-v0.1.4 refs/tags/pm-v0.1.4^{} prompt=0\n" +
 		"uv tool run --from " + req + " pm --help marks=0.1.4/0.2.0 tool=\n" +
 		strings.Repeat("uv --quiet tool run --from "+req+" pm show --x marks=0.1.4/0.2.0 tool=\n", 2)
 	if string(b) != want {
 		t.Fatalf("log:\n%s\nwant:\n%s", b, want)
 	}
-	if c, _ := os.ReadFile(filepath.Join(pins, "0.1.4/commit")); string(c) != sha+"\n" {
+	if c, _ := os.ReadFile(filepath.Join(pins, "0.1.4", CommitFile)); string(c) != sha+"\n" {
 		t.Fatalf("commit %q", c)
 	}
 }

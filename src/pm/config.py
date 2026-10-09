@@ -18,10 +18,10 @@ from pm import __version__
 REL = ".pm/config.toml"
 STORE = ".pm/store/records"  # the records store, under the main checkout
 RUN = ".pm/run"  # runtime state in the main checkout, never committed: the service log, the push state, locks
-REPO = "https://github.com/Yeeef/yeeef-agents"  # where pm's releases are: tag pm-v<version>, the package in pm/
-RELEASE = f"git+{REPO}@pm-v{{v}}#subdirectory=pm"  # a release's requirement
+REPO = "https://github.com/Yeeef/pm"  # where pm's releases are: tag pm-v<version>, the package at the repo's root
+RELEASE = f"git+{REPO}@pm-v{{v}}"  # a release's requirement
 INSTALL = f'uv tool install "{RELEASE}"'
-LATEST = f'uv tool install --reinstall "git+{REPO}#subdirectory=pm"'  # the newest launcher, from the default branch
+LATEST = f'uv tool install --reinstall "git+{REPO}"'  # the newest launcher, from the default branch
 KEYS = {"version": str, "remote": str, "main_branch": str, "port": int, "site_url": str}
 REQUIRED = ("version", "remote", "main_branch", "port")
 

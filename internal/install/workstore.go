@@ -7,8 +7,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // RemoteURL is the git remote's URL in dir, "" when the repo has no such remote.

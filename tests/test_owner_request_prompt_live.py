@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FAKE_BD, PM
+from conftest import FAKE_BD, PM, write_config
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("PM_LIVE_TESTS") != "1" or shutil.which("claude") is None,
@@ -28,7 +28,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 HOOK = [*PM, "hook", "owner-request"]
-ROOT = Path(__file__).resolve().parents[2]  # this repo: pm needs its .pm/config.toml
 DATA = json.loads((Path(__file__).resolve().parent / "owner_request_cases.json").read_text())
 CASES = {c["name"]: c for c in DATA["cases"]}
 RUNS = int(os.environ.get("PM_LIVE_RUNS", "3"))
@@ -42,7 +41,7 @@ def issues(case: dict) -> list[dict]:
             for n, (key, owner) in enumerate(case["open"].items(), 1)]
 
 
-def run_case(case: dict, bindir: Path, tmp: Path) -> tuple[str, float]:
+def run_case(case: dict, bindir: Path, tmp: Path, root: Path) -> tuple[str, float]:
     """The hook's verdict on `case` (pass or block) and the call's seconds."""
     with tempfile.NamedTemporaryFile("w", suffix=".json", dir=tmp, delete=False) as f:
         json.dump(issues(case), f)
@@ -51,7 +50,7 @@ def run_case(case: dict, bindir: Path, tmp: Path) -> tuple[str, float]:
     event = {"session_id": SESSIONS["me"], "hook_event_name": "Stop", "stop_hook_active": False,
              "last_assistant_message": case["reply"]}
     start = time.monotonic()
-    res = subprocess.run(HOOK, input=json.dumps(event), env=env, cwd=ROOT, capture_output=True, text=True,
+    res = subprocess.run(HOOK, input=json.dumps(event), env=env, cwd=root, capture_output=True, text=True,
                          timeout=60)
     took = time.monotonic() - start
     assert res.returncode == 0, res.stderr
@@ -68,10 +67,13 @@ def verdicts(tmp_path_factory):
     bindir = tmp / "bin"
     bindir.mkdir()
     (bindir / "bd").symlink_to(FAKE_BD)
+    root = tmp / "repo"  # a repo pinned to this pm: the hook reads its .pm/config.toml
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    write_config(root)
     jobs = [name for name in CASES for _ in range(RUNS)]
     start = time.monotonic()
     with ThreadPoolExecutor(WORKERS) as pool:
-        results = list(pool.map(lambda name: run_case(CASES[name], bindir, tmp), jobs))
+        results = list(pool.map(lambda name: run_case(CASES[name], bindir, tmp, root), jobs))
     times = [t for _, t in results]
     out = {name: [v for n, (v, _) in zip(jobs, results) if n == name] for name in CASES}
     print(f"\n{len(jobs)} hook runs in {time.monotonic() - start:.1f}s, {WORKERS} at a time; per run median "

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/Yeeef/yeeef-agents/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // The reply spool: the service appends each checked reply here, fsynced, before it answers the POST, and a "done" line
