@@ -159,6 +159,9 @@ def live(out: Path) -> None:
     for i in listed:
         if exported.get(i["id"], {}).get("comments"):
             i["comments"] = exported[i["id"]]["comments"]
+        # bd list gives an issue's blockers in no defined order (neither by id nor by when each was added, and not
+        # the export's); the work store keeps them by id, so Python renders them in that order too
+        i["dependencies"] = sorted(i.get("dependencies") or [], key=lambda d: (d["type"], d["depends_on_id"]))
     beads = beads_of(listed)
     name = "yeeef-agents"
     write(out, "live", store, listed, name, pages(store, beads, name), "pages")
