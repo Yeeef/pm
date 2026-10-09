@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 state_path, log_path = os.environ["FAKE_BD_STATE"], os.environ["FAKE_BD_LOG"]
@@ -14,6 +15,9 @@ with open(log_path, "a") as f:
     f.write(json.dumps(args) + "\n")
 issues = json.load(open(state_path))
 opts = dict(a[2:].split("=", 1) for a in args if a.startswith("--") and "=" in a)
+# As bd stamps a write: created_at and updated_at at create, updated_at at each change, started_at at the first
+# claim, closed_at at the close.
+NOW = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def main_checkout() -> Path:
@@ -101,7 +105,7 @@ elif args[:1] == ["create"]:
     else:
         new_id = f"new-{len(issues) + 1}"
     issue = {"id": new_id, "title": opts["title"], "status": "open", "issue_type": opts.get("type", "task"),
-             "created_at": "2026-10-03T12:00:00Z"}
+             "created_at": NOW, "updated_at": NOW}
     if parent:
         issue["parent"] = parent
     if opts.get("labels"):
@@ -116,33 +120,32 @@ elif args[:1] == ["create"]:
 elif args[:1] == ["close"]:
     for i in issues:
         if i["id"] == args[1]:
-            i["status"] = "closed"
-            i["close_reason"] = opts.get("reason")
+            i.update(status="closed", close_reason=opts.get("reason"), closed_at=NOW, updated_at=NOW)
     save()
 elif args[:1] == ["update"] and "--claim" in args:
     # Like bd: assignee and in_progress, and each --set-metadata=key=value merged into the metadata.
     for i in issues:
         if i["id"] == args[1]:
-            i.update(status="in_progress", assignee="t")
+            i.update(status="in_progress", assignee="t", started_at=i.get("started_at") or NOW, updated_at=NOW)
             i["metadata"] = {**(i.get("metadata") or {}),
                              **dict(a.split("=", 2)[1:] for a in args if a.startswith("--set-metadata="))}
     save()
 elif args[:1] == ["update"] and "parent" in opts:
     for i in issues:
         if i["id"] == args[1]:
-            i["parent"] = opts["parent"]
+            i.update(parent=opts["parent"], updated_at=NOW)
     save()
 elif args[:1] == ["update"] and ("add-label" in opts or "remove-label" in opts):
     for i in issues:
         if i["id"] == args[1]:
             labels = [l for l in i.get("labels", []) if l != opts.get("remove-label")]
-            i["labels"] = labels + ([opts["add-label"]] if "add-label" in opts else [])
+            i.update(labels=labels + ([opts["add-label"]] if "add-label" in opts else []), updated_at=NOW)
     save()
 elif args[:1] == ["update"] and "set-metadata" in opts:
     key, value = opts["set-metadata"].split("=", 1)
     for i in issues:
         if i["id"] == args[1]:
-            i["metadata"] = {**(i.get("metadata") or {}), key: value}
+            i.update(metadata={**(i.get("metadata") or {}), key: value}, updated_at=NOW)
     save()
 elif args[:2] == ["comments", "add"]:
     comment(args[2], Path(opts["file"]).read_text() if "file" in opts else args[3], opts.get("author", "t"))
@@ -150,8 +153,7 @@ elif args[:2] == ["comments", "add"]:
 elif args[:2] == ["human", "respond"]:
     for i in issues:
         if i["id"] == args[2]:
-            i["status"] = "closed"
-            i["close_reason"] = "Responded"
+            i.update(status="closed", close_reason="Responded", closed_at=NOW, updated_at=NOW)
     comment(args[2], f"Response: {opts['response']}")
     save()
 elif args[:1] == ["bootstrap"]:

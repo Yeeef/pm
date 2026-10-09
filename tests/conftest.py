@@ -119,25 +119,28 @@ def project(title, bead, outcome="Not closed yet."):
 
 
 RECORDS = {
-    "projects/demo.md": project("Demo", "demo"),
-    "projects/old.md": project("Old", "old", outcome="Done: retired."),
-    "sprints/demo-1.md": sprint("First", "demo.1"),
-    "sprints/demo-2.md": sprint("Second", "demo.2", outcome="Done: shipped.", against="- It works: met."),
+    "projects/demo.md": project("Demo", "repo-demo"),
+    "projects/old.md": project("Old", "repo-old", outcome="Done: retired."),
+    "sprints/demo-1.md": sprint("First", "repo-demo.1"),
+    "sprints/demo-2.md": sprint("Second", "repo-demo.2", outcome="Done: shipped.", against="- It works: met."),
     "days/2026-10-01.md": "---\ntype: day\ndate: 2026-10-01\n---\n\n## Today\n\n> What are we chasing today, and why now?\n\nStart.\n",
 }
 
+# As bd exports them: every issue has its created_at and updated_at, a closed one its closed_at.
 ISSUES = [
-    {"id": "demo", "title": "Demo", "status": "open", "issue_type": "epic", "created_at": "2026-10-01T12:00:00Z"},
-    {"id": "demo.1", "title": "Sprint 1: First", "status": "open", "issue_type": "epic", "parent": "demo",
-     "created_at": "2026-10-01T12:00:00Z"},
-    {"id": "demo.1.1", "title": "Done task", "status": "closed", "issue_type": "task", "parent": "demo.1",
-     "created_at": "2026-10-01T12:00:00Z", "closed_at": "2026-10-01T13:00:00Z"},
-    {"id": "demo.1.2", "title": "Ask the owner", "status": "open", "issue_type": "task", "parent": "demo.1",
-     "labels": ["human"], "created_at": "2026-10-01T12:00:00Z",
-     "dependencies": [{"depends_on_id": "demo.1.1", "type": "blocks"}]},
-    {"id": "demo.2", "title": "Sprint 2: Second", "status": "open", "issue_type": "epic", "parent": "demo",
-     "created_at": "2026-10-01T12:00:00Z"},
-    {"id": "old", "title": "Old", "status": "closed", "issue_type": "epic", "created_at": "2026-09-01T12:00:00Z"},
+    {"id": "repo-demo", "title": "Demo", "status": "open", "issue_type": "epic", "created_at": "2026-10-01T12:00:00Z",
+     "updated_at": "2026-10-01T12:00:00Z"},
+    {"id": "repo-demo.1", "title": "Sprint 1: First", "status": "open", "issue_type": "epic", "parent": "repo-demo",
+     "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"},
+    {"id": "repo-demo.1.1", "title": "Done task", "status": "closed", "issue_type": "task", "parent": "repo-demo.1",
+     "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T13:00:00Z", "closed_at": "2026-10-01T13:00:00Z"},
+    {"id": "repo-demo.1.2", "title": "Ask the owner", "status": "open", "issue_type": "task", "parent": "repo-demo.1",
+     "labels": ["human"], "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z",
+     "dependencies": [{"issue_id": "repo-demo.1.2", "depends_on_id": "repo-demo.1.1", "type": "blocks"}]},
+    {"id": "repo-demo.2", "title": "Sprint 2: Second", "status": "open", "issue_type": "epic", "parent": "repo-demo",
+     "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"},
+    {"id": "repo-old", "title": "Old", "status": "closed", "issue_type": "epic", "created_at": "2026-09-01T12:00:00Z",
+     "updated_at": "2026-09-02T12:00:00Z", "closed_at": "2026-09-02T12:00:00Z"},
 ]
 
 
@@ -204,6 +207,8 @@ def integration_only(args) -> str | None:
         if "--bare" in rest:
             return "a bare git repo (git --bare)"
     if name == "pm" and rest:
+        if rest[:2] == ["init", "--import-bd"]:  # Go pm's import into its work store only: how Repo seeds Go pm
+            return None
         if rest[0] in HEAVY_PM:
             return f"pm {rest[0]}"
         if rest[0] == "prime" and not {"--rules", "--subagent"} & set(rest):
@@ -345,6 +350,7 @@ class Repo:
         self.base: dict[str, dict] = {}  # the items changes() counts from; the repo fixture marks them once set up
         self.seeded: set[str] = set()  # ids pm did not mint: a transcript keeps them as they are
         self.bd_mark = 0  # the fake bd's calls before the mark, which unchanged() leaves out
+        self.imported: dict[str, dict] = {}  # Go pm: the items its store held right after the seeds were imported
 
     def pm(self, *args: str, text: str = "", stdin: str | None = None,
            cwd: Path | None = None) -> subprocess.CompletedProcess:
@@ -413,11 +419,24 @@ class Repo:
     # are the one place a test writes them.
 
     def items(self) -> dict[str, dict]:
-        """Every work-store item by id, as `pm export` gives them: for Python pm, the fake bd's issues mapped."""
+        """Every work-store item by id, as `pm export` gives them: for Python pm, the fake bd's issues mapped; for Go
+        pm, its store read by path, so a test that broke the repo's config still reads it."""
         if IMPL == "python":
             return work_items(json.loads(self.state.read_text()))
-        res = subprocess.run([*PM, "export"], cwd=self.root, env=self.env, capture_output=True, text=True, check=True)
+        res = subprocess.run([*PM, "export", "--store", str(self.root / ".pm/store/work")], cwd=self.root,
+                             env=self.env, capture_output=True, text=True, check=True)
         return {i["id"]: i for i in map(json.loads, res.stdout.splitlines())}
+
+    def import_seeds(self) -> None:
+        """Go pm: its work store made anew from the fake bd's issues, as `pm init --import-bd` imports a bd export."""
+        issues = json.loads(self.state.read_text())
+        export = self.state.with_name("bd-export.jsonl")
+        export.write_text("".join(json.dumps({"_type": "issue", **i}) + "\n" for i in issues))
+        shutil.rmtree(self.root / ".pm/store/work", ignore_errors=True)
+        res = subprocess.run([*PM, "init", "--import-bd", str(export)], cwd=self.root, env=self.env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, f"the seeds do not import into Go pm's work store: {res.stderr}"
+        self.imported = self.items()
 
     def mark(self) -> None:
         """Count changes() from now on."""
@@ -467,13 +486,16 @@ class Repo:
     def seed(self, edit) -> None:
         """Apply a seed edit to the fake bd's issues, and its items to the base changes() counts from, so a seed is
         no change of pm's."""
-        if IMPL != "python":
-            raise NotImplementedError(f"PM_IMPL={IMPL}: no way yet to seed Go pm's work store")
+        if IMPL == "go" and self.items() != self.imported:  # Go pm's store is imported anew from the seeds alone
+            raise NotImplementedError("PM_IMPL=go: a seed after Go pm wrote its work store would undo that write; "
+                                      "seed before the first pm write")
         issues = json.loads(self.state.read_text())
         before = {i["id"]: json.dumps(i, sort_keys=True) for i in issues}
         edit(issues)
         self.state.write_text(json.dumps(issues))
-        now = work_items(issues)
+        if IMPL == "go":
+            self.import_seeds()
+        now = self.imported if IMPL == "go" else work_items(issues)
         seeded = {i["id"] for i in issues if before.get(i["id"]) != json.dumps(i, sort_keys=True)}
         self.base.update({iid: now[iid] for iid in seeded})
         self.seeded |= seeded
@@ -497,8 +519,11 @@ class Repo:
         return [json.loads(l) for l in self.log.read_text().splitlines()]
 
     def snapshot(self) -> dict[str, bytes]:
+        """Every file of the main checkout but git's, and but Go pm's gate log, which each open of its work store
+        appends to (the pm-go page, Store sharing)."""
         return {p.relative_to(self.root).as_posix(): p.read_bytes()
-                for p in sorted(self.root.rglob("*")) if p.is_file() and ".git" not in p.parts}
+                for p in sorted(self.root.rglob("*")) if p.is_file() and ".git" not in p.parts
+                and p.relative_to(self.root).as_posix() != ".pm/run/work-gate.log"}
 
 
 STAMPS = {"created_at", "updated_at", "started_at", "closed_at", "claimed_at"}
@@ -536,6 +561,8 @@ def repo(tmp_path: Path) -> Repo:
         (r.store / rel).write_text(text)
     r.commit("records")
     r.records.symlink_to(r.store)
+    if IMPL == "go":
+        r.import_seeds()
     r.mark()
     return r
 

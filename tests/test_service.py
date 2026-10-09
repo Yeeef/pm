@@ -181,7 +181,7 @@ def test_service_install_status_restart_and_logs_end_to_end(repo, tmp_path):
     assert restarted.stdout.splitlines()[-1].endswith(f"running; the site answers on :{port}")
     assert re.search(rf"^Serving http://localhost:{port}; .*pushing every 10 min$",
                      repo.pm("service", "logs", "-n", "50").stdout, re.M)
-    link = repo.pm("record", "link", "demo.1")  # no $PORT: links use the port the unit serves on
+    link = repo.pm("record", "link", "repo-demo.1")  # no $PORT: links use the port the unit serves on
     assert link.stdout == f"http://localhost:{port}/sprints/demo-1.html\n", link
     again = repo.pm("service", "install")
     assert again.returncode == 0 and again.stdout.startswith("already installed and current"), again
