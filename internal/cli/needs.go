@@ -382,7 +382,7 @@ func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 	parentID := p.Get("parent")
 	parent := r.item(parentID)
 	if parent == nil {
-		return "", refuse("--parent %s is not a Beads issue", parentID)
+		return "", refuse("--parent %s is not in the work store", parentID)
 	}
 	if parent.Status == work.Closed {
 		return "", refuse("--parent %s is closed; raise it under an open sprint or task", parentID)
@@ -566,7 +566,7 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 func (r *repo) humanIssue(id, want string) (*work.Item, error) {
 	need := r.item(id)
 	if need == nil {
-		return nil, refuse("%s is not a Beads issue", id)
+		return nil, refuse("%s is not in the work store", id)
 	}
 	if need.Type != work.Need {
 		return nil, refuse("%s is not labelled human, so it is not a need; record your own decision with pm decision add "+
@@ -628,7 +628,7 @@ func (r *repo) decisionTarget(p *Parsed) (*records.Record, error) {
 	}
 	bead := rec.Bead()
 	if it := r.item(bead); it == nil {
-		return nil, refuse("%s %s has bead %s, which is not a Beads issue", level, target, bead)
+		return nil, refuse("%s %s has bead %s, which is not in the work store", level, target, bead)
 	} else if it.Status == work.Closed {
 		return nil, refuse("%s %s (%s) is closed; record the decision in an open %s", level, target, bead, level)
 	}
@@ -894,7 +894,7 @@ func cmdReplyRead(e *env, p *Parsed) (string, error) {
 		for _, id := range ids {
 			it, ok := byID[id]
 			if !ok || it.Type != work.Need {
-				return "", refuse("%s is not a request to the owner (a Beads issue labelled human)", id)
+				return "", refuse("%s is not a request to the owner (a need in the work store)", id)
 			}
 			needs = append(needs, it)
 		}

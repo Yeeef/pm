@@ -140,8 +140,8 @@ func CheckGenerated(rec *Record) error {
 		if contains(GeneratedBody[rec.Type()], s.Name) {
 			for n := s.Start + 1; n < s.End; n++ {
 				if Strip(lines[n]) != "" && !strings.HasPrefix(lines[n], ">") {
-					return errorf("%s.md:%d: hand-written text in '## %s', which is generated from Beads when the "+
-						"page is rendered; move it to Findings or Decisions, or remove it", rec.Rel, line0+n+1, s.Name)
+					return errorf("%s.md:%d: hand-written text in '## %s', which is generated from the work store "+
+						"when the page is rendered; move it to Findings or Decisions, or remove it", rec.Rel, line0+n+1, s.Name)
 				}
 			}
 		}
@@ -159,7 +159,7 @@ func Validate(rec *Record, recs []*Record, items *Items) error {
 	t := rec.Type()
 	if (t == "project" || t == "sprint" || t == "doc") && rec.Has("bead") {
 		if bead, ok := rec.ID("bead"); !ok || items.Get(bead) == nil {
-			return errorf("%s: bead %s not found in Beads", rec.Rel, rec.Meta["bead"].Str)
+			return errorf("%s: bead %s not found in the work store", rec.Rel, rec.Meta["bead"].Str)
 		}
 	}
 	if t == "postmortem" && rec.Has("sprint") && SprintRecord(recs, rec.Meta["sprint"]) == nil {

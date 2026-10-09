@@ -445,7 +445,7 @@ func (r *Refusal) Error() string { return r.Msg }
 func Apply(store string, writes []Write, message, undo, prefix string) error {
 	hint := ""
 	if undo != "" {
-		hint = "; undo the Beads step with: " + undo
+		hint = "; undo the work-store step with: " + undo
 	}
 	var before []Write
 	existed := map[string]bool{}

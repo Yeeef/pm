@@ -79,12 +79,14 @@ func ConfigText(s Settings) string {
 // README is .pm/README.md.
 const README = "# pm\n" +
 	"\n" +
-	"This repo uses pm: Beads holds the work, Markdown records hold the context, and pm writes the records and serves\n" +
+	"This repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\n" +
 	"them as a site.\n" +
 	"\n" +
 	"- Install the pinned version (`version` in `config.toml`):\n" +
-	"  `uv tool install \"git+https://github.com/Yeeef/pm@pm-v<version>\"`, then run `pm init`\n" +
+	"  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<version>/install.sh | sh`, then run `pm init`\n" +
 	"  in each clone.\n" +
+	"- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n" +
+	"  `refs/pm/work`.\n" +
 	"- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n" +
 	"  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n" +
 	"- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook <name>`); run `pm --help` for the\n" +
@@ -250,7 +252,7 @@ func codexHooks() entries {
 					"matcher", "startup|resume|clear")
 			},
 			"SubagentStart": func() *pyjson.Object {
-				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Naming the Beads agent profile", 15)))
+				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Loading pm's git rule for agents", 15)))
 			},
 			"Stop": func() *pyjson.Object {
 				return obj("hooks", []any{h("pm hook owner-request || exit 1", "Checking for owner requests asked only in chat", 30),

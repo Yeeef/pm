@@ -83,8 +83,10 @@ def test_sprint_open_creates_epic_and_record(repo):
     text = (repo.records / "sprints/demo-3.md").read_text()
     assert text.startswith('---\ntype: sprint\ntitle: "Third: the end"\nbead: repo-demo.3\n---\n')
     assert "Ship the thing." in text and "**Out:** other things." in text and "- It ships." in text
-    # Every section and prompt line matches an existing sprint record (the fixture mirrors the real ones).
-    skeleton = lambda t: [l for l in t.splitlines() if l.startswith(("#", ">"))]
+    # Every section and prompt line matches an existing sprint record (the fixture mirrors the real ones), but for
+    # where Progress comes from: Beads in Python pm's prompt, the work store in Go pm's.
+    skeleton = lambda t: [l.replace("from Beads", "from the work store") for l in t.splitlines()
+                          if l.startswith(("#", ">"))]
     assert skeleton(text) == skeleton((repo.records / "sprints/demo-1.md").read_text())
     assert text.count("None yet.") == 3 and text.count("\n\nNot closed yet.\n") == 2
 

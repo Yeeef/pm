@@ -164,7 +164,7 @@ func cmdFeedbackAdd(e *env, p *Parsed) (string, error) {
 	for _, f := range []struct{ flag, dest, word string }{{"--sprint", "sprint", "sprint"}, {"--task", "task", "task"}} {
 		if id, ok := given(p, f.dest); ok {
 			if r.item(id) == nil {
-				return "", refuse("%s %s is not a Beads issue", f.flag, id)
+				return "", refuse("%s %s is not in the work store", f.flag, id)
 			}
 			about = append(about, fmt.Sprintf("%s `%s`", f.word, id))
 		}
@@ -239,7 +239,7 @@ func cmdDocNew(e *env, p *Parsed) (string, error) {
 	var target string
 	if bead, ok := given(p, "bead"); ok {
 		if r.item(bead) == nil {
-			return "", refuse("--bead %s is not a Beads issue", bead)
+			return "", refuse("--bead %s is not in the work store", bead)
 		}
 		inside := false
 		chain := append([]string{bead}, r.x.Ancestors(bead)...)
@@ -442,7 +442,7 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 	epicID := prec.Bead()
 	epic := r.item(epicID)
 	if epic == nil {
-		return "", refuse("project %s has bead %s, which is not a Beads issue", project, epicID)
+		return "", refuse("project %s has bead %s, which is not in the work store", project, epicID)
 	}
 	if epic.Status == work.Closed {
 		return "", refuse("project %s (%s) is closed; open a sprint in an open project", project, epicID)
@@ -573,7 +573,7 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	}
 	epic := r.item(id)
 	if epic == nil {
-		return "", refuse("sprint %s is not a Beads issue", id)
+		return "", refuse("sprint %s is not in the work store", id)
 	}
 	if epic.Status == work.Closed {
 		return "", refuse("sprint %s is already closed", id)
@@ -713,7 +713,7 @@ func cmdProjectClose(e *env, p *Parsed) (string, error) {
 	epicID := prec.Bead()
 	epic := r.item(epicID)
 	if epic == nil {
-		return "", refuse("project %s has bead %s, which is not a Beads issue", name, epicID)
+		return "", refuse("project %s has bead %s, which is not in the work store", name, epicID)
 	}
 	if epic.Status == work.Closed {
 		return "", refuse("project %s (%s) is already closed", name, epicID)
@@ -760,7 +760,7 @@ func (r *repo) openSprint(id string) (*records.Record, error) {
 	}
 	it := r.item(id)
 	if it == nil || !isEpic(it) {
-		return nil, refuse("sprint %s is not a Beads epic", id)
+		return nil, refuse("sprint %s is not a sprint in the work store", id)
 	}
 	if it.Status == work.Closed {
 		return nil, refuse("sprint %s is closed; use an open sprint", id)
@@ -772,7 +772,7 @@ func (r *repo) openSprint(id string) (*records.Record, error) {
 func (r *repo) openTask(id string) (*work.Item, error) {
 	it := r.item(id)
 	if it == nil {
-		return nil, refuse("%s is not a Beads issue", id)
+		return nil, refuse("%s is not in the work store", id)
 	}
 	if isEpic(it) {
 		return nil, refuse("%s is an epic; close a sprint with pm sprint close, a project with pm project close", id)

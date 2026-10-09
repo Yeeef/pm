@@ -79,10 +79,41 @@ func same(v string) string { return parserWords.ReplaceAllString(v, "$1$2 (…);
 
 // What differs from Python pm 0.1.x by design (the work-store page, Cut-over), and no more: pm's git hook files live in
 // .pm/hooks, not in Beads' .beads/hooks (renamed: Python's path and every text naming it), and Go pm takes Beads' hook
-// entries out of the settings files it plans (withoutBeads) and names each one left in pm doctor (beadsLine). Each
-// piece's own Present, Apply, Part and Remove are unchanged; setup_test.go holds the Beads removal itself.
+// entries out of the settings files it plans (withoutBeads) and names each one left in pm doctor (beadsLine). Two
+// texts name the work store where Python's name Beads (reworded, in every text, given or expected): .pm/README.md,
+// which also installs with the release's install.sh, not the uv tool, and the Codex SubagentStart hook's status
+// message. Each piece's own Present, Apply, Part and Remove are unchanged; setup_test.go holds the Beads removal itself.
 
 func renamed(s string) string { return strings.ReplaceAll(s, ".beads/hooks/", HooksRel+"/") }
+
+// pythonREADME is Python pm 0.1.x's .pm/README.md.
+const pythonREADME = "# pm\n" +
+	"\n" +
+	"This repo uses pm: Beads holds the work, Markdown records hold the context, and pm writes the records and serves\n" +
+	"them as a site.\n" +
+	"\n" +
+	"- Install the pinned version (`version` in `config.toml`):\n" +
+	"  `uv tool install \"git+https://github.com/Yeeef/pm@pm-v<version>\"`, then run `pm init`\n" +
+	"  in each clone.\n" +
+	"- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n" +
+	"  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n" +
+	"- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook <name>`); run `pm --help` for the\n" +
+	"  commands.\n" +
+	"- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
+
+var reworder = strings.NewReplacer(pythonREADME, README,
+	`"statusMessage": "Naming the Beads agent profile"`, `"statusMessage": "Loading pm's git rule for agents"`)
+
+// reworded is a Python text in Go's wording: its README and Codex status message as Go writes them.
+func reworded(s string) string { return reworder.Replace(s) }
+
+func rewordedPtr(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	r := reworded(*s)
+	return &r
+}
 
 var beadsLine = regexp.MustCompile(`^[^:]+: holds .*, which pm \S+ removes$`)
 
@@ -174,15 +205,16 @@ func TestPiecesMatchPython(t *testing.T) {
 			t.Fatalf("Go pm has no piece %s", renamed(c.Rel))
 		}
 		c.Rel = p.Rel
-		c.Apply = renamed(c.Apply)
+		c.Text = rewordedPtr(c.Text)
+		c.Apply = reworded(renamed(c.Apply))
 		if s, ok := c.Remove.(string); ok {
-			c.Remove = renamed(s)
+			c.Remove = reworded(renamed(s))
 		}
 		if s, ok := c.Present.(string); ok {
-			c.Present = renamed(s)
+			c.Present = reworded(renamed(s))
 		}
 		for j := range c.Drift {
-			c.Drift[j] = renamed(c.Drift[j])
+			c.Drift[j] = reworded(renamed(c.Drift[j]))
 		}
 		present, err := p.Present(c.Text)
 		var gotPresent any = present
@@ -241,6 +273,7 @@ func TestTreesMatchPython(t *testing.T) {
 		top := t.TempDir()
 		files := map[string]string{}
 		for rel, text := range c.Files {
+			text = reworded(text)
 			files[renamed(rel)] = text
 			path := filepath.Join(top, renamed(rel))
 			os.MkdirAll(filepath.Dir(path), 0o755)
@@ -261,7 +294,7 @@ func TestTreesMatchPython(t *testing.T) {
 		python := func(ps [][2]string) [][2]string {
 			out := [][2]string{}
 			for _, p := range nonNil(ps) {
-				out = append(out, [2]string{renamed(p[0]), withoutBeads(p[1])})
+				out = append(out, [2]string{renamed(p[0]), withoutBeads(reworded(p[1]))})
 			}
 			for _, rel := range leftoverRels {
 				text, ok := files[rel]
@@ -292,13 +325,14 @@ func TestTreesMatchPython(t *testing.T) {
 		}
 		drift = withoutBeadsLines(drift)
 		for j := range c.Drift {
-			c.Drift[j] = renamed(c.Drift[j])
+			c.Drift[j] = reworded(renamed(c.Drift[j]))
 		}
 		if !reflect.DeepEqual(drift, c.Drift) && !(len(drift) == 0 && len(c.Drift) == 0) {
 			t.Errorf("tree %d: drift %q, Python %q", i, drift, c.Drift)
 		}
-		for _, r := range c.Removals {
+		for j, r := range c.Removals {
 			*r[0] = renamed(*r[0])
+			c.Removals[j][1] = rewordedPtr(r[1])
 		}
 		removals, err := Removals(top, s)
 		if err != nil {

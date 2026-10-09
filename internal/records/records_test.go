@@ -111,6 +111,11 @@ func TestSectionsMatchPythonsRegexes(t *testing.T) {
 	}
 }
 
+// progressWording is Python pm's Progress prompt lines, which name Beads, in Go pm's words, which name the work store.
+var progressWording = strings.NewReplacer(
+	"Generated from Beads when the page is rendered.", "Generated from the work store when the page is rendered.",
+	"Generated from Beads and the sprint\n> records when", "Generated from the work store and the\n> sprint records when")
+
 func TestTemplatesAndInsertEntryMatchPythons(t *testing.T) {
 	ref := loadReference(t)
 	got := map[string]string{
@@ -120,7 +125,7 @@ func TestTemplatesAndInsertEntryMatchPythons(t *testing.T) {
 		"postmortem": PostmortemText("Outage", "2026-10-03", "sprint: demo.1"),
 	}
 	for k, want := range ref.Templates {
-		if got[k] != want {
+		if want = progressWording.Replace(want); got[k] != want {
 			t.Errorf("%s template differs from Python's:\n%s\n---\n%s", k, got[k], want)
 		}
 	}
