@@ -189,7 +189,9 @@ def install_tool(tools: Path, bindir: Path) -> None:
 
 
 def stop_services(tmp: Path) -> None:
-    """Stop every process the fake supervisor started under `tmp`."""
+    """Stop every process the fake supervisor started under `tmp`, and mark them stopped: Go pm reads the work store
+    only through the clone's service, so from here a transcript records no store read (Repo.pm)."""
+    (tmp / "services-stopped").touch()
     path = tmp / "sched.json"
     if not path.exists():
         return
@@ -390,6 +392,8 @@ class Repo:
         try:
             if (pin := self.pin()) not in (None, __version__):  # that pm's service holds the store, not this one's
                 export = f"the repo pins pm {pin}, whose pm service holds the work store"
+            elif (self.tmp / "services-stopped").exists():  # the test stopped the clone's service
+                export = "the clone's pm service is stopped; Go pm reads the work store only through it"
             else:
                 export = sorted(self.items().values(), key=lambda i: i["id"])
         except subprocess.CalledProcessError as e:  # a pm whose export fails here (no config, say): that is the record
@@ -465,16 +469,18 @@ class Repo:
                              env=self.env, capture_output=True, text=True, check=True)
         return {i["id"]: i for i in map(json.loads, res.stdout.splitlines())}
 
-    def start_service(self) -> None:
+    def start_service(self, pm: list[str] | None = None) -> None:
         """Go pm: start `pm service run` for this clone on a free port, as the supervisor would, and wait for its
         work-store socket: every Go pm command reaches the work store only through the service (the pm-go page, Store
-        access). The fake supervisor stops it when a test starts the clone's installed service (fake_sched.py)."""
-        if IMPL != "go" or self.service is not None:
+        access). The fake supervisor stops it when a test starts the clone's installed service (fake_sched.py). pm
+        names the Go pm to run where the suite runs Python pm (test_go_parity.py)."""
+        if (pm is None and IMPL != "go") or self.service is not None:
             return
+        (self.tmp / "services-stopped").unlink(missing_ok=True)
         sock = self.root / ".pm/run/work.sock"
         sock.unlink(missing_ok=True)  # one a killed service left: the new one removes it too, but only once it starts
         with open(self.tmp / "fixture-service.log", "ab") as log:
-            self.service = POPEN([*PM, "service", "run"], cwd=self.root, env=dict(self.env, PORT="0"),
+            self.service = POPEN([*(pm or PM), "service", "run"], cwd=self.root, env=dict(self.env, PORT="0"),
                                  stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
         state = json.loads(self.sched.read_text()) if self.sched.exists() else {"loaded": []}
         state.setdefault("pids", {})["fixture"] = self.service.pid

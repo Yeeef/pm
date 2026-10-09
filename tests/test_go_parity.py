@@ -407,11 +407,13 @@ def present(v):
 
 
 def import_bd(repo, export, records):
-    """Go pm's pm init --import-bd of export, with the project and sprint records it goes with."""
+    """Go pm's pm init --import-bd of export, with the project and sprint records it goes with, through the clone's
+    Go pm service, which the repo fixture stops at teardown."""
     for kind in ("projects", "sprints"):
         (repo.store / kind).mkdir(exist_ok=True)
         for f in (records / kind).glob("*.md"):
             shutil.copy(f, repo.store / kind / f.name)
+    repo.start_service([GO])
     code, out, err = run(repo, "go", "init", "--import-bd", str(export))
     assert (code, err) == (0, ""), err
 
