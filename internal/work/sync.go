@@ -81,6 +81,39 @@ func (d *Dolt) AddRemote(gitURL string) error {
 	return nil
 }
 
+// Remote is the store's remote URL, and whether it has one; a remote under another ref than RemoteRef fails hard.
+func (d *Dolt) Remote() (string, bool, error) { return d.remoteURL() }
+
+// Push pushes the store's branch to its remote under RemoteRef: pm init publishes a store the remote lacks with it.
+func (d *Dolt) Push() error {
+	if _, ok, err := d.remoteURL(); err != nil {
+		return err
+	} else if !ok {
+		return errors.New("work store: it has no remote to push to")
+	}
+	return d.pushNow()
+}
+
+// Tracking is the store's commits the remote lacks and the remote's commits the store lacks, as of the last fetch or
+// push, and whether the store has fetched or pushed the remote's branch at all (false: no counts).
+func (d *Dolt) Tracking() (ahead, behind int, tracked bool, err error) {
+	var n int
+	if err := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
+		"remotes/"+remoteHead).Scan(&n); err != nil {
+		return 0, 0, false, fmt.Errorf("work store: %w", err)
+	}
+	if n == 0 {
+		return 0, 0, false, nil
+	}
+	if ahead, err = d.count(d.conn, remoteHead+".."+branch); err != nil {
+		return 0, 0, false, err
+	}
+	if behind, err = d.count(d.conn, branch+".."+remoteHead); err != nil {
+		return 0, 0, false, err
+	}
+	return ahead, behind, true, nil
+}
+
 // remoteURL is the store's remote, and whether it has one; a remote under another ref than RemoteRef fails hard.
 func (d *Dolt) remoteURL() (string, bool, error) {
 	if d.conn == nil {
