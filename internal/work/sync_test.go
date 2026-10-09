@@ -14,8 +14,8 @@ import (
 )
 
 // Sync through a git remote, from the work-store page's Storage (Remote, Sync, Merge, Cycle check) and Ids (the
-// child-id compare-and-swap): two clones of one store on a local bare repo, each opened per step as a pm command opens
-// it. The merge-table rows for list fields (comments, labels, blocked_by) and the rules Dolt's clean merge needs
+// child-id compare-and-swap): two clones of one store on a local bare repo, each served by its own host and reached
+// per step as a pm command reaches it. The merge-table rows for list fields (comments, labels, blocked_by) and the rules Dolt's clean merge needs
 // (close beats claim, the cycle check, add/add) are tested here; the rows on items fields in merge_test.go.
 
 // gitRun runs git in dir and fails the test on an error.
@@ -45,25 +45,48 @@ func bareRemote(t *testing.T) string {
 	return bare
 }
 
-// clone is one clone's store with its own clock, ticking a second per read.
+// clone is one clone's store with its own clock, ticking a second per read, served by its own host.
 type clone struct {
-	t     *testing.T
-	o     Options
-	clock time.Time
+	t      *testing.T
+	o      Options
+	clock  time.Time
+	s      *served
+	synced time.Time // when the clone last read the remote
+}
+
+// dedup is Dolt's read dedup of a git remote: a fetch within it of the service's last read of the remote reads
+// nothing new. A pm command's own process opened the store anew, so it never met it; a service that holds the store
+// does, and a test that wants a sync to see the other clone's latest push waits it out (fresh).
+const dedup = 1100 * time.Millisecond
+
+// fresh waits until the clone's next fetch reads the remote.
+func (c *clone) fresh() {
+	if wait := dedup - time.Since(c.synced); wait > 0 {
+		time.Sleep(wait)
+	}
 }
 
 func newClone(t *testing.T, clock time.Time) *clone {
-	dir := t.TempDir()
 	c := &clone{t: t, clock: clock}
-	c.o = Options{Dir: filepath.Join(dir, "store", "work"), RunDir: filepath.Join(dir, "run"), Prefix: "demo",
-		Now: func() time.Time { c.clock = c.clock.Add(time.Second); return c.clock }}
+	c.o = Options{Prefix: "demo", Now: func() time.Time { c.clock = c.clock.Add(time.Second); return c.clock }}
+	c.s = host(t, shortMain(t), c.o, Ops{})
 	return c
 }
 
-// do opens the store, runs fn on it and shuts it down, as one pm command does.
+// setup is a connection to the clone's host with no database selected, as pm init's setup has.
+func (c *clone) setup() *Dolt {
+	c.t.Helper()
+	d, err := dial(c.s.h.sock, dialConfig{prefix: c.o.Prefix, now: c.o.Now})
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	return d
+}
+
+// do connects to the clone's service, runs fn and disconnects, as one pm command does.
 func (c *clone) do(fn func(d *Dolt)) {
 	c.t.Helper()
-	d, err := OpenStore(c.o)
+	d, err := dial(c.s.h.sock, dialConfig{prefix: c.o.Prefix, now: c.o.Now, withDB: true})
 	if err != nil {
 		c.t.Fatal(err)
 	}
@@ -77,8 +100,10 @@ func (c *clone) do(fn func(d *Dolt)) {
 
 func (c *clone) sync() SyncResult {
 	c.t.Helper()
+	c.fresh()
 	var r SyncResult
 	c.do(func(d *Dolt) { r = must(d.Sync()) })
+	c.synced = time.Now()
 	return r
 }
 
@@ -111,8 +136,8 @@ type pair struct {
 func newPair(t *testing.T) *pair {
 	t.Helper()
 	x := &pair{bare: bareRemote(t), a: newClone(t, t0)}
-	d, err := CreateStore(x.a.o)
-	if err != nil {
+	d := x.a.setup()
+	if err := d.CreateStore(); err != nil {
 		t.Fatal(err)
 	}
 	if err := d.AddRemote(x.bare); err != nil {
@@ -125,14 +150,16 @@ func newPair(t *testing.T) *pair {
 	x.need = must(d.Create(New{Type: Need, Parent: x.t1.ID, Title: "N?", Need: &NeedInfo{Kind: Decision,
 		RaisedBy: &RaisedBy{Session: "s1"}}}))
 	must(d.Sync())
+	x.a.synced = time.Now()
 	if err := d.Shutdown(); err != nil {
 		t.Fatal(err)
 	}
 	x.b = newClone(t, x.a.clock)
-	db, err := CloneStore(x.b.o, x.bare)
-	if err != nil {
+	db := x.b.setup()
+	if err := db.Clone(x.bare); err != nil {
 		t.Fatal(err)
 	}
+	x.b.synced = time.Now()
 	if err := db.Shutdown(); err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +313,7 @@ func TestMergeCommentsUnionByID(t *testing.T) {
 // setLabels replaces an item's labels by SQL, as one commit: pm sets labels only at create, so the test edits rows.
 func setLabels(t *testing.T, d *Dolt, id string, labels ...string) {
 	t.Helper()
-	if err := d.inTx("test: labels", func(tx *sql.Tx) error {
+	if err := d.inTx("test: labels", true, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM labels WHERE item_id = ?", id); err != nil {
 			return err
 		}
@@ -335,6 +362,7 @@ func TestMergeCloseBeatsClaimOnACleanMerge(t *testing.T) {
 	x.b.do(func(d *Dolt) { must(0, d.Claim(x.t2.ID, Holder{Session: "sb"}, func(string) bool { return false })) })
 	var r SyncResult
 	x.a.sync()
+	x.b.fresh()
 	x.b.do(func(d *Dolt) { r = must(d.Sync()) })
 	if r.Resolved != 0 {
 		t.Fatalf("the merge had %d conflicted rows; the test wants a clean one", r.Resolved)
@@ -345,13 +373,14 @@ func TestMergeCloseBeatsClaimOnACleanMerge(t *testing.T) {
 	}
 }
 
-// failedSync syncs c, wants the sync to fail with want, and checks the store kept its pre-pull commit and items.
+// failedSync syncs c, wants the sync to fail with want, and checks the store kept its commit and items.
 func failedSync(t *testing.T, c *clone, want string) {
 	t.Helper()
+	c.fresh()
 	c.do(func(d *Dolt) {
 		head, before := must(d.head()), must(d.Items())
 		_, err := d.Sync()
-		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "pre-pull commit") {
+		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "the store stays as it was") {
 			t.Fatalf("want a failure with %q, got %v", want, err)
 		}
 		if h := must(d.head()); h != head || !reflect.DeepEqual(must(d.Items()), before) {
@@ -362,6 +391,7 @@ func failedSync(t *testing.T, c *clone, want string) {
 			t.Fatalf("%d uncommitted tables after the failed sync (%v)", dirty, err)
 		}
 	})
+	c.synced = time.Now()
 }
 
 // The same new id on both sides: two clones that mint a child without the compare-and-swap (as two stores with no
@@ -382,23 +412,23 @@ func TestMergeAddAddFailsHard(t *testing.T) {
 func (x *pair) rawPush(t *testing.T, stmts ...string) {
 	t.Helper()
 	x.a.do(func(d *Dolt) {
-		if err := d.inTx("test: raw", func(tx *sql.Tx) error { return execAll(tx, stmts) }); err != nil {
+		if err := d.inTx("test: raw", false, func(tx *sql.Tx) error { return execAll(tx, stmts) }); err != nil {
 			t.Fatal(err)
 		}
-		if err := d.pushNow(); err != nil {
+		if err := d.pushNow(branch); err != nil {
 			t.Fatal(err)
 		}
 	})
 }
 
-// A pull that would fast-forward (B has nothing of its own) onto a remote state that fails pm's checks: the branch
-// moves outside the transaction, so the failure resets it to the pre-pull commit.
-func TestPullFastForwardThatFailsItsCheckResets(t *testing.T) {
+// A pull that would fast-forward (B has nothing of its own) onto a remote state that fails pm's checks: the remote's
+// head is checked before the merge, so main never moves and nothing resets it.
+func TestPullOntoARemoteHeadThatFailsItsCheckMovesNothing(t *testing.T) {
 	x := newPair(t)
 	x.rawPush(t, "INSERT INTO blocked_by VALUES ('"+x.t1.ID+"', '"+x.t2.ID+"'), ('"+x.t2.ID+"', '"+x.t1.ID+"')")
 	failedSync(t, x.b, "blocked_by cycle")
 	x.rawPush(t, "DELETE FROM blocked_by", fmt.Sprintf("UPDATE schema_version SET version = %d", SchemaVersion+1))
-	failedSync(t, x.b, fmt.Sprintf("the remote's schema is version %d, newer than this pm's", SchemaVersion+1))
+	failedSync(t, x.b, fmt.Sprintf("its schema is version %d, newer than this pm's", SchemaVersion+1))
 }
 
 func TestMergeCycleAcrossClonesFailsHard(t *testing.T) {
@@ -419,19 +449,16 @@ func TestMergeAConflictNoRuleSettlesFailsHard(t *testing.T) {
 	failedSync(t, x.b, x.t1.ID+" field title")
 }
 
-// openA opens clone A for the length of the test step, so its writes can land between B's pull and B's push. Dolt's
-// engine close drops every git remote the process holds, so A stays open until B is done, as two pm processes would.
+// openA connects to clone A for the length of the test step, so its writes can land between B's mint and B's push.
 func (x *pair) openA(t *testing.T) *Dolt {
 	t.Helper()
-	da, err := OpenStore(x.a.o)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return da
+	return x.a.s.dial(t)
 }
 
-// Concurrent child mints: B pulls and mints, and before its push A mints under the same parent and pushes; B's push is
-// rejected, B resets, pulls A's child and mints the next number. The same for a sprint's number.
+// Concurrent child mints: B pulls and mints on pm-cas, and before its push A mints under the same parent and pushes;
+// B's push is rejected, B drops pm-cas, pulls A's child and mints the next number. The same for a sprint's number.
+// B runs the compare-and-swap in process (createShared, what its service runs for pm_create), so the test can hold
+// its push; A's creates go through A's service (CALL pm_create).
 func TestCreateConcurrentChildMintsGetDistinctIDs(t *testing.T) {
 	x := newPair(t)
 	var ia, ib, sa, sb Item
@@ -448,9 +475,9 @@ func TestCreateConcurrentChildMintsGetDistinctIDs(t *testing.T) {
 	}
 	x.b.do(func(d *Dolt) {
 		d.pushFn = race(func() { ia = must(da.Create(New{Type: Task, Parent: x.s.ID, Title: "A"})) })
-		ib = must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "B"}))
+		ib = must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "B"}))
 		d.pushFn = race(func() { sa = must(da.Create(New{Type: Sprint, Parent: x.p.ID, Title: "SA"})) })
-		sb = must(d.Create(New{Type: Sprint, Parent: x.p.ID, Title: "SB"}))
+		sb = must(d.createShared(New{Type: Sprint, Parent: x.p.ID, Title: "SB"}))
 	})
 	if err := da.Shutdown(); err != nil {
 		t.Fatal(err)
@@ -478,7 +505,7 @@ func TestCreateFailsAfterThreeRejectedPushes(t *testing.T) {
 			must(da.Create(New{Type: Task, Parent: x.s.ID, Title: "A"}))
 			return push()
 		}
-		_, err := d.Create(New{Type: Task, Parent: x.s.ID, Title: "B"})
+		_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "B"})
 		if err == nil || !strings.Contains(err.Error(), "no push landed in 3 attempts, the last: the remote moved") {
 			t.Fatal(err)
 		}
@@ -500,8 +527,8 @@ func TestCreateFailsAfterThreeRejectedPushes(t *testing.T) {
 	}
 }
 
-// A push that times out: the remote at the new commit means it landed; elsewhere, retry; a failing fetch resets and
-// fails with the outcome unknown.
+// A push that times out: the remote at the new commit means it landed; elsewhere, retry; a failing fetch drops pm-cas
+// and fails with the outcome unknown, main untouched.
 func TestCreatePushTimeout(t *testing.T) {
 	x := newPair(t)
 	timeout := func(landed bool) func(push func() error) error {
@@ -516,7 +543,7 @@ func TestCreatePushTimeout(t *testing.T) {
 	}
 	x.b.do(func(d *Dolt) {
 		d.pushFn = timeout(true)
-		it := must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "landed"}))
+		it := must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "landed"}))
 		d.pushFn = nil
 		if r := must(d.Sync()); r.Pushed != 0 {
 			t.Fatalf("pushed %d after a landed create", r.Pushed)
@@ -529,7 +556,7 @@ func TestCreatePushTimeout(t *testing.T) {
 			}
 			return push()
 		}
-		it2 := must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "retried"}))
+		it2 := must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "retried"}))
 		if calls != 2 || it2.ID == it.ID {
 			t.Fatalf("%d calls, ids %s %s", calls, it.ID, it2.ID)
 		}
@@ -545,7 +572,7 @@ func TestCreatePushTimeout(t *testing.T) {
 			}
 			return errPushTimeout
 		}
-		_, err := d.Create(New{Type: Task, Parent: x.s.ID, Title: "unknown"})
+		_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "unknown"})
 		if err == nil || !strings.Contains(err.Error(), "the outcome is unknown") || must(d.head()) != head {
 			t.Fatalf("%v", err)
 		}
@@ -571,7 +598,10 @@ func TestCreateRefusesWithTheRemoteUnreachable(t *testing.T) {
 	x.a.do(func(d *Dolt) {
 		head := must(d.head())
 		_, err := d.Create(New{Type: Task, Parent: x.s.ID, Title: "offline"})
-		if err == nil || !strings.Contains(err.Error(), "minted only against the remote") || must(d.head()) != head {
+		// The pull's fetch fails, or, within Dolt's 1 s read dedup of the service's last fetch, reads nothing and
+		// the push fails with an outcome the failing fetch cannot check: either way nothing is created.
+		if err == nil || !strings.Contains(err.Error(), "minted only against the remote") &&
+			!strings.Contains(err.Error(), "the outcome is unknown") || must(d.head()) != head {
 			t.Fatal(err)
 		}
 		if _, err := d.Create(New{Type: Project, Title: "a root id needs no remote"}); err != nil {

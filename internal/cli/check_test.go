@@ -18,7 +18,12 @@ import (
 // project and one sprint record.
 func clone(t *testing.T) string {
 	t.Helper()
-	tmp, _ := filepath.EvalSymlinks(t.TempDir())
+	tmp, err := os.MkdirTemp("", "pm") // short: the clone's service socket must fit the kernel's limit
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tmp) })
+	tmp, _ = filepath.EvalSymlinks(tmp)
 	cfg := filepath.Join(tmp, "gitconfig")
 	os.WriteFile(cfg, []byte("[user]\n\tname = t\n\temail = t@example.com\n[init]\n\tdefaultBranch = main\n"), 0o644)
 	t.Setenv("GIT_CONFIG_GLOBAL", cfg)
@@ -79,15 +84,11 @@ func TestCheckRendersEveryPageWithTheWorkStoresItems(t *testing.T) {
 	}
 }
 
-func TestCheckReadsTheEmbeddedWorkStore(t *testing.T) {
+func TestCheckReadsTheWorkStoreTheServiceHolds(t *testing.T) {
 	root := clone(t)
 	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	dir, run := work.Locations(root)
-	d, err := work.CreateStore(work.Options{Dir: dir, RunDir: run})
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = d.Import([]work.Item{{ID: "demo-a1b", Type: work.Project, Title: "Demo", Status: work.Open, CreatedAt: at,
+	_, d := worktest.ServeAt(t, root, work.Ops{})
+	err := d.Import([]work.Item{{ID: "demo-a1b", Type: work.Project, Title: "Demo", Status: work.Open, CreatedAt: at,
 		UpdatedAt: at}}, "seed")
 	if err = errors.Join(err, d.Shutdown()); err != nil {
 		t.Fatal(err)
@@ -104,15 +105,25 @@ func TestCheckReadsTheEmbeddedWorkStore(t *testing.T) {
 	}
 }
 
-func TestCheckFailsWithoutAWorkStore(t *testing.T) {
+func TestCheckFailsWithoutTheServiceOrAWorkStore(t *testing.T) {
 	root := clone(t)
 	defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
 	buildinfo.Version = "9.9.9"
 	t.Chdir(root)
-	var stdout, stderr bytes.Buffer
-	code := Execute([]string{"check"}, nil, &stdout, &stderr)
-	want := "error: work store: none at " + filepath.Join(root, ".pm/store/work") + "; pm init creates or clones it\n"
-	if code != 1 || stderr.String() != want || stdout.Len() != 0 {
-		t.Errorf("pm check: exit %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
+	check := func(want string) {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		if code := Execute([]string{"check"}, nil, &stdout, &stderr); code != 1 || stderr.String() != want ||
+			stdout.Len() != 0 {
+			t.Errorf("pm check: exit %d, stdout %q, stderr %q; want %q", code, stdout.String(), stderr.String(), want)
+		}
 	}
+	check("error: the pm service does not answer on " + work.Sock(root) + "; pm reaches the work store only " +
+		"through it: run pm service restart\n")
+	h, err := work.NewHost(work.HostOptions{Main: root, Version: buildinfo.Version})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	check("error: this clone has no work store yet: run pm init\n")
 }

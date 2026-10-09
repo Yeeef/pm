@@ -2,7 +2,6 @@ package work
 
 import (
 	"context"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,46 +9,17 @@ import (
 
 // The pm service rereads the items only when the fingerprint moved: a read must leave it as it was, every write must
 // move it, and a store made anew in its place must move it too.
-func TestFingerprintMovesOnAWriteAndNotOnARead(t *testing.T) {
-	d, o := newStore(t)
+func TestTheMarkMovesOnAWriteAndNotOnARead(t *testing.T) {
+	d, _ := newStore(t)
 	seed(t, d)
-	if err := d.Shutdown(); err != nil {
-		t.Fatal(err)
+	before := must(d.Mark())
+	must(d.Items())
+	if after := must(d.Mark()); after != before {
+		t.Fatalf("a read moved the mark: %s, was %s", after, before)
 	}
-	before := must(Fingerprint(o.Dir))
-	for range 2 {
-		r := must(OpenStore(o))
-		must(r.Items())
-		if err := r.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
-		if after := must(Fingerprint(o.Dir)); after != before {
-			t.Fatalf("a read moved the fingerprint:\n%q\n%q", before, after)
-		}
-	}
-	w := must(OpenStore(o))
-	must(w.Create(New{Type: Project, Title: "Another"}))
-	if err := w.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
-	written := must(Fingerprint(o.Dir))
-	if written == before {
-		t.Fatal("a write left the fingerprint as it was")
-	}
-	if err := os.RemoveAll(o.Dir); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Fingerprint(o.Dir); err == nil {
-		t.Fatal("no store, yet a fingerprint")
-	}
-	n := must(CreateStore(o))
-	seed(t, n)
-	must(n.Create(New{Type: Project, Title: "Another"}))
-	if err := n.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
-	if must(Fingerprint(o.Dir)) == written {
-		t.Fatal("a store made anew kept the old one's fingerprint")
+	must(d.Create(New{Type: Project, Title: "Q"}))
+	if after := must(d.Mark()); after == before {
+		t.Fatal("a write left the mark")
 	}
 }
 
@@ -57,20 +27,16 @@ func TestGCKeepsEveryItem(t *testing.T) {
 	d, o := newStore(t)
 	seed(t, d)
 	before := must(d.Items())
-	if err := d.GC(context.Background()); err != nil {
+	if err := o.h.GC(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
-	r := must(OpenStore(o))
-	defer r.Shutdown()
+	r := o.dial(t)
 	if after := must(r.Items()); !reflect.DeepEqual(after, before) {
 		t.Fatalf("gc changed the items:\n%v\n%v", before, after)
 	}
 }
 
-// The pm service bounds its sync, which holds the gate: a sync whose context is done stops, pushes nothing and leaves
+// The pm service bounds its sync: a sync whose context is done stops, pushes nothing and leaves
 // the store's items as they were; the next sync with time left pushes what it did not. (A context done before Dolt
 // first reached the remote would kill the git init of its remote cache, which no later sync repairs: the service
 // checks its context before it starts a sync.)

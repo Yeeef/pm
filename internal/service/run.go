@@ -40,17 +40,6 @@ var (
 // StatusSlot is the slot on every page that Site.FillStatus fills with the data's age and the reload script.
 const StatusSlot = "<!--pm-status-->"
 
-// Store is the work store as the service opens it for one poll or request, under the gate, and closes at once with
-// Shutdown: work.Store, plus the sync and the garbage collection only the service runs.
-type Store interface {
-	work.Store
-	// Sync fetches the remote's work data, merges it and pushes what the remote lacks (the work-store page's Sync):
-	// one line saying what it did, and a warning line for each claim the merge overrode, which the service logs.
-	Sync(ctx context.Context) (said string, warnings []string, err error)
-	// GC collects the store's garbage (CALL DOLT_GC()): it deletes no item and squashes no commit.
-	GC(ctx context.Context) error
-}
-
 // Site is the site renderer as the service uses it; internal/site implements it.
 type Site interface {
 	// Stamp is a cheap fingerprint of what the pages read besides the work store: the record files, the records
@@ -85,8 +74,17 @@ type Deps struct {
 	Pin                string // the config file, read again at every look: a pin moved off Version() stops the service
 	Spool              string // the reply spool, in the clone's git dir
 	WorkDir            string // the work store's directory, whose size the gc log line gives
-	Open               func() (Store, error)
-	Fingerprint        func() (string, error) // a few stat calls: changes on every write to the work store
+	// Open connects to the work store the service holds, through its own socket, for one poll or write.
+	Open func() (work.Store, error)
+	// Mark is the work store's change mark, main's HEAD commit (HASHOF('main')): it moves on every write; "" when
+	// the clone has no store yet.
+	Mark func() (string, error)
+	// Sync fetches the remote's work data, merges it and pushes what the remote lacks (the work-store page's Sync),
+	// under the host's operation mutex: one line saying what it did, then a warning line for each claim the merge
+	// overrode, which the service logs.
+	Sync func(ctx context.Context) ([]string, error)
+	// GC collects the store's garbage (CALL DOLT_GC()), online: it deletes no item and squashes no commit.
+	GC func(ctx context.Context) error
 	Site               Site
 	Summarize          func() (bool, string) // the day summary, the sync's second step
 	Style              []byte
@@ -141,7 +139,6 @@ type server struct {
 	done                  chan struct{} // closed when Run returns: every loop ends
 	serveCheck, mergePoll time.Duration // ServeCheck and MergePoll as Run started
 	logMu                 gosync.Mutex
-	storeMu               gosync.Mutex // one open at a time in this process: the loops never open the store together
 	gh                    bool
 }
 
@@ -151,22 +148,20 @@ func (s *server) logf(format string, a ...any) {
 	fmt.Fprintf(s.d.Log, format+"\n", a...)
 }
 
-// withStore opens the work store under the gate, runs fn and closes the store at once; it logs how long the open
-// waited (the gate) and how long the store was held.
-func (s *server) withStore(what string, fn func(Store) error) error {
+// withStore connects to the work store, runs fn and disconnects; a slow one is logged with how long it took.
+func (s *server) withStore(what string, fn func(work.Store) error) error {
 	t := time.Now()
-	s.storeMu.Lock()
-	defer s.storeMu.Unlock()
 	st, err := s.d.Open()
 	if err != nil {
-		return fmt.Errorf("opening the work store for %s: %w", what, err)
+		return fmt.Errorf("reaching the work store for %s: %w", what, err)
 	}
-	opened := time.Since(t)
 	err = fn(st)
 	if cerr := st.Shutdown(); err == nil {
 		err = cerr
 	}
-	s.logf("store %s open=%dms held=%dms", what, opened.Milliseconds(), (time.Since(t) - opened).Milliseconds())
+	if took := time.Since(t); took > time.Second {
+		s.logf("store %s took=%dms", what, took.Milliseconds())
+	}
 	return err
 }
 
@@ -189,15 +184,15 @@ func (s *server) poke() {
 
 // Run is pm service run: serve the site on 127.0.0.1:Port and sync every pmsync.Interval, the first that long after
 // start. A request never waits on a store: it renders from the last snapshot, which the refresher keeps current. Each
-// look (every ServeCheck, sooner after a request or a reply) stamps the records and fingerprints the work store, and
-// only when one moved opens the store, reads the items and closes it; a state that fails to render is read again
+// look (every ServeCheck, sooner after a request or a reply) stamps the records and reads the work store's change
+// mark, and only when one moved reads the items; a state that fails to render is read again
 // under the records store's shared lock, and then served as the error, never as an old page. A reply is checked
 // against the snapshot, spooled before the POST is answered, and stored by the writer, which retries a failed write
 // with backoff and then pushes the reply into the raising session's inbox. The merge watch, at start and every
 // MergePoll, hands reviews' merges to main to the writer, then has it sweep the open needs for anything their running
 // session has not received. Every look reads the pin again: once it pins another version, Run returns that error.
 func Run(d Deps) error {
-	if d.Open == nil || d.Fingerprint == nil || d.Site == nil || d.Summarize == nil || d.Out == nil || d.Log == nil ||
+	if d.Open == nil || d.Mark == nil || d.Sync == nil || d.GC == nil || d.Site == nil || d.Summarize == nil || d.Out == nil || d.Log == nil ||
 		d.Main == "" || d.Records == "" || d.Spool == "" || d.Pin == "" || d.WorkDir == "" {
 		return errors.New("pm service run: a dependency is missing")
 	}
@@ -305,14 +300,12 @@ func (s *server) refresher(srv *http.Server) {
 // read. The read takes no lock, so a writer never delays it; between a pm write's steps the records and the items
 // may not render together (a need closed before its decision is written), so a read that fails is repeated under
 // the records store's shared lock, which a pm write holds exclusively across its steps: an error shown is a real one.
-//
-// The repeat takes the gate first and the records lock second, the order every pm command that writes both stores
-// takes them, so the two never deadlock. A failure to stamp, open or read is not a render error: it is served, and
-// the next look tries again even when nothing moved.
+// A failure to stamp, reach or read the store is not a render error: it is served, and the next look tries again
+// even when nothing moved.
 func (s *server) refresh(old *snapshot) *snapshot {
 	now := time.Now()
 	stamp, serr := s.d.Site.Stamp()
-	fp, ferr := s.d.Fingerprint()
+	fp, ferr := s.d.Mark()
 	if serr == nil && ferr == nil && old != nil && !old.readFailed && stamp == old.stamp && fp == old.fp {
 		next := *old
 		next.asOf = now
@@ -334,7 +327,7 @@ func (s *server) refresh(old *snapshot) *snapshot {
 		for _, it := range old.order {
 			items = append(items, *it)
 		}
-	} else if err = s.withStore("snapshot", func(st Store) error {
+	} else if err = s.withStore("snapshot", func(st work.Store) error {
 		items, err = st.Items()
 		return err
 	}); err != nil {
@@ -343,7 +336,7 @@ func (s *server) refresh(old *snapshot) *snapshot {
 	pages, err := s.d.Site.Load(items)
 	var lock time.Duration
 	if err != nil {
-		err = s.withStore("snapshot under the records lock", func(st Store) error {
+		err = s.withStore("snapshot under the records lock", func(st work.Store) error {
 			fd, err := syscall.Open(s.d.Records, syscall.O_RDONLY, 0)
 			if err != nil {
 				return err
@@ -679,7 +672,7 @@ func (s *server) writer() {
 			s.sweep()
 		case j.merge != "": // a merge the watch saw: stored, then pushed like a reply
 			start := time.Now()
-			err := s.withStore("merge "+j.id, func(st Store) error {
+			err := s.withStore("merge "+j.id, func(st work.Store) error {
 				return st.UpdateNeed(j.id, work.NeedUpdate{ReviewMerged: &j.merge})
 			})
 			var got string
@@ -797,29 +790,23 @@ func (s *server) ticker() {
 	}
 }
 
-// SyncTimeout bounds the work store's sync, which holds the gate while it runs.
+// SyncTimeout bounds the work store's sync.
 var SyncTimeout = 120 * time.Second
 
-// SyncSteps are one sync run's steps: the work store's sync under the gate, the day summary, the records push.
+// SyncSteps are one sync run's steps: the work store's sync, the day summary, the records push.
 func (s *server) SyncSteps() []pmsync.Step {
 	return []pmsync.Step{
 		{Name: "work", Run: func() (bool, string) {
-			var said string
-			var warnings []string
-			err := s.withStore("sync", func(st Store) error {
-				ctx, cancel := context.WithTimeout(context.Background(), SyncTimeout)
-				defer cancel()
-				var err error
-				said, warnings, err = st.Sync(ctx)
-				return err
-			})
-			for _, w := range warnings { // a claim a merge overrode: the session that lost it learns it from here
-				s.logf("%s", w)
-			}
+			ctx, cancel := context.WithTimeout(context.Background(), SyncTimeout)
+			defer cancel()
+			lines, err := s.d.Sync(ctx)
 			if err != nil {
 				return false, err.Error()
 			}
-			return true, said
+			for _, w := range lines[1:] { // a claim a merge overrode: the session that lost it learns it from here
+				s.logf("%s", w)
+			}
+			return true, lines[0]
 		}},
 		{Name: "summary", Run: s.d.Summarize},
 		{Name: "records", Run: func() (bool, string) { return pmsync.PushRecords(s.d.Records, s.d.Remote) }},

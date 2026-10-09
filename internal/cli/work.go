@@ -54,14 +54,13 @@ func mainCheckout() (string, error) {
 	return filepath.Dir(filepath.Dir(filepath.Dir(records))), nil // <main>/.pm/store/records
 }
 
-// openStore opens this clone's work store, after the config check.
+// openStore connects to this clone's work store through its pm service, after the config check.
 func openStore() (*work.Dolt, error) {
 	main, err := mainCheckout()
 	if err != nil {
 		return nil, err
 	}
-	dir, run := work.Locations(main)
-	return work.OpenStore(work.Options{Dir: dir, RunDir: run})
+	return work.Dial(main)
 }
 
 // cmdExport is pm export: every item of the work store, one JSON object per line, ordered by id.
@@ -75,14 +74,15 @@ func cmdExport(stdout io.Writer) error {
 }
 
 // exportStore is pm export --store DIR: every item of the work store at DIR (<main checkout>/.pm/store/work), read
-// without the repo's config, so the tests read the store as it is after a command that broke the config. Its gate is
-// the clone's, at <main checkout>/.pm/run.
+// without the repo's config, so the tests read the store as it is after a command that broke the config, through the
+// service of the clone DIR belongs to (DIR/../../run/work.sock).
 func exportStore(dir string, stdout io.Writer) error {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return err
 	}
-	d, err := work.OpenStore(work.Options{Dir: abs, RunDir: filepath.Join(filepath.Dir(filepath.Dir(abs)), "run")})
+	main := filepath.Dir(filepath.Dir(filepath.Dir(abs)))
+	d, err := work.DialSock(work.Sock(main), main, work.Options{Prefix: filepath.Base(main)})
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,8 @@ func exportStore(dir string, stdout io.Writer) error {
 }
 
 // cmdImportBD is pm init --import-bd FILE: the bd export in FILE into this clone's work store, as one transaction and
-// one Dolt commit. It refuses a store that holds any item, and an export it cannot map.
+// one Dolt commit, through the pm service; a clone with no store yet gets an empty one first. It refuses a store that
+// holds any item, and an export it cannot map.
 func cmdImportBD(path string, stdout io.Writer) error {
 	main, err := mainCheckout()
 	if err != nil {
@@ -114,17 +115,23 @@ func cmdImportBD(path string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	dir, run := work.Locations(main)
-	o := work.Options{Dir: dir, RunDir: run}
-	open := work.CreateStore
-	if work.Exists(dir) {
-		open = work.OpenStore
-	}
-	d, err := open(o)
+	d, err := work.DialSetup(main)
 	if err != nil {
 		return err
 	}
-	err = d.Import(items, fmt.Sprintf("pm: import %d items from bd export %s", len(items), filepath.Base(path)))
+	err = func() error {
+		has, err := d.HasStore()
+		if err != nil {
+			return err
+		}
+		if !has {
+			return d.CreateStore()
+		}
+		return d.UseStore()
+	}()
+	if err == nil {
+		err = d.Import(items, fmt.Sprintf("pm: import %d items from bd export %s", len(items), filepath.Base(path)))
+	}
 	if err = errors.Join(err, d.Shutdown()); err != nil {
 		return err
 	}
@@ -132,6 +139,7 @@ func cmdImportBD(path string, stdout io.Writer) error {
 	for _, it := range items {
 		comments += len(it.Comments)
 	}
+	dir, _ := work.Locations(main)
 	fmt.Fprintf(stdout, "imported %d items with %d comments from %s into %s\n", len(items), comments, path, dir)
 	return nil
 }

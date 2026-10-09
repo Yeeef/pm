@@ -14,7 +14,9 @@ import (
 	gosync "sync"
 	"time"
 
+	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/install"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/site"
@@ -26,7 +28,8 @@ import (
 // The pm service wired to the clone: pm service run with the work store, the records and the site, and pm service
 // install of a unit that runs the installed pm. Python source: cmd_serve and cmd_service_* in cli.py.
 
-// serviceRun is pm service run: service.Run on this clone's config, records store, work store and site.
+// serviceRun is pm service run: the work store held open and served on its socket (work.NewHost; the only call
+// of it), then service.Run on this clone's config, records store, that store and the site.
 func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io.Writer) error {
 	port, err := service.PortFor(main, int(cfg.Port))
 	if err != nil {
@@ -44,12 +47,24 @@ func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io
 	if err != nil {
 		return err
 	}
+	h, err := work.NewHost(work.HostOptions{Main: main, Version: buildinfo.Version, Ops: work.Ops{
+		Sync: func(c context.Context, d *work.Dolt) ([]string, error) { return syncStore(c, d, main, cfg.Remote) },
+		Setup: func(_ context.Context, d *work.Dolt) ([]string, error) {
+			return install.SetupStore(d, main, cfg.Remote)
+		},
+	}})
+	if err != nil {
+		return err
+	}
+	defer h.Close()
 	dir, _ := work.Locations(main)
 	return service.Run(service.Deps{Main: main, Records: records, Remote: cfg.Remote, MainBranch: cfg.MainBranch,
 		SiteURL: cfg.SiteURL, Port: port, Pin: cfg.Path, Spool: filepath.Join(common, service.SpoolName), WorkDir: dir,
-		Open:        func() (service.Store, error) { return openServiceStore(main, cfg.Remote) },
-		Fingerprint: func() (string, error) { return work.Fingerprint(dir) },
-		Site:        pages, Summarize: func() (bool, string) { return summarizeDay(main) },
+		Open: func() (work.Store, error) {
+			return work.DialSock(h.Sock(), main, work.Options{Prefix: filepath.Base(main)})
+		},
+		Mark: h.Mark, Sync: h.Sync, GC: h.GC,
+		Site: pages, Summarize: func() (bool, string) { return summarizeDay(main) },
 		Style: []byte(site.Style), Out: stdout, Log: stderr})
 }
 
@@ -75,65 +90,50 @@ func serviceInstall(cfg config.Config, main string) (string, error) {
 	return "already installed and current\n" + line, nil
 }
 
-// serviceStore is the work store as the pm service and pm push open it: one open under the gate, closed by Shutdown,
-// with the sync through the repo's remote and the garbage collection.
-type serviceStore struct {
-	*work.Dolt
-	main, remote string
-}
-
-func openServiceStore(main, remote string) (service.Store, error) {
-	dir, run := work.Locations(main)
-	d, err := work.OpenStore(work.Options{Dir: dir, RunDir: run, Prefix: filepath.Base(main)})
+// syncStore is the sync the pm service runs (every 600 s, and for pm_sync(): pm sync, pm push), on a connection of
+// its own: pull, merge, push, said in one line, then a warning per claim the merge overrode. A store with no remote yet
+// (the repo's remote was added after pm init made the store) is first attached to the config's remote, under
+// work.RemoteRef, and the line says so; refused when the remote holds a work store already, which a store made apart
+// from it shares no history with. The sync stops once ctx is done; a ctx done already starts none, since Dolt's first
+// reach of a remote, killed, leaves a remote cache no sync repairs.
+func syncStore(ctx context.Context, d *work.Dolt, main, remote string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	attached := ""
+	if _, ok, err := d.Remote(); err != nil {
+		return nil, err
+	} else if !ok {
+		url, err := git(main, "remote", "get-url", remote)
+		if err != nil {
+			return nil, fmt.Errorf("work store: it has no remote to sync with, and %v", err)
+		}
+		ok, held := pmsync.Run(main, "git", "ls-remote", remote, work.RemoteRef)
+		if !ok {
+			return nil, fmt.Errorf("work store: it has no remote to sync with, and %s", held)
+		}
+		if held != "" {
+			return nil, fmt.Errorf("work store: it has no remote, and %s holds a work store under %s already, "+
+				"which this one, made apart from it, shares no history with; move %s away and run pm init, which "+
+				"clones it", remote, work.RemoteRef, filepath.Join(main, ".pm/store/work"))
+		}
+		if err := d.AddRemote(url); err != nil {
+			return nil, err
+		}
+		attached = fmt.Sprintf("attached the work store to %s under %s; ", remote, work.RemoteRef)
+	}
+	r, err := d.SyncContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &serviceStore{d, main, remote}, nil
-}
-
-// Sync is pm sync's: pull, merge, push, said in one line, with a warning per claim the merge overrode, as pm sync
-// prints them. A store with no remote yet (the repo's remote was added after pm init made the store) is first
-// attached to the config's remote, under work.RemoteRef, and the line says so; refused when the remote holds a work
-// store already, which a store made apart from it shares no history with. The sync stops once ctx is done; a ctx
-// done already starts none, since Dolt's first reach of a remote, killed, leaves a remote cache no sync repairs.
-func (s *serviceStore) Sync(ctx context.Context) (string, []string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", nil, err
-	}
-	attached := ""
-	if _, ok, err := s.Remote(); err != nil {
-		return "", nil, err
-	} else if !ok {
-		url, err := git(s.main, "remote", "get-url", s.remote)
-		if err != nil {
-			return "", nil, fmt.Errorf("work store: it has no remote to sync with, and %v", err)
-		}
-		ok, held := pmsync.Run(s.main, "git", "ls-remote", s.remote, work.RemoteRef)
-		if !ok {
-			return "", nil, fmt.Errorf("work store: it has no remote to sync with, and %s", held)
-		}
-		if held != "" {
-			return "", nil, fmt.Errorf("work store: it has no remote, and %s holds a work store under %s already, "+
-				"which this one, made apart from it, shares no history with; move %s away and run pm init, which "+
-				"clones it", s.remote, work.RemoteRef, filepath.Join(s.main, ".pm/store/work"))
-		}
-		if err := s.AddRemote(url); err != nil {
-			return "", nil, err
-		}
-		attached = fmt.Sprintf("attached the work store to %s under %s; ", s.remote, work.RemoteRef)
-	}
-	r, err := s.SyncContext(ctx)
-	if err != nil {
-		return "", nil, err
-	}
-	var warnings []string
+	lines := []string{attached + fmt.Sprintf("synced: pulled %d commits, resolved %d items both sides changed, "+
+		"pushed %d commits", r.Pulled, r.Resolved, r.Pushed)}
 	for _, o := range r.Overrides {
-		warnings = append(warnings, fmt.Sprintf("warning: %s: the claim by %s (%s) was overridden by the later claim "+
+		lines = append(lines, fmt.Sprintf("warning: %s: the claim by %s (%s) was overridden by the later claim "+
 			"of %s (%s)", o.ID, o.Lost.Session, o.Lost.ClaimedAt.Format(time.RFC3339), o.Kept.Session,
 			o.Kept.ClaimedAt.Format(time.RFC3339)))
 	}
-	return attached + fmt.Sprintf("synced: pulled %d commits, resolved %d items both sides changed, pushed %d commits",
-		r.Pulled, r.Resolved, r.Pushed), warnings, nil
+	return lines, nil
 }
 
 // summarizeDay is the sync's summary step: pm day summarize from the main checkout, ok and what it did, or why not.

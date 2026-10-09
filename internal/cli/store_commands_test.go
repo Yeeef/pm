@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"os"
@@ -12,14 +13,15 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work/worktest"
 )
 
-// The work-store commands of the work-store page's Commands table, run as pm runs them (parse, open the store, run,
-// close) on a store in a temp dir. Every refusal leaves the store as it was; every happy path writes what it says.
+// The work-store commands of the work-store page's Commands table, run as pm runs them (parse, connect to the service
+// that holds the store, run, disconnect) on a store a test host serves. Every refusal leaves the store as it was; every happy path writes what it says.
 
 type fixture struct {
 	t                                       *testing.T
-	o                                       work.Options
+	main                                    string // the clone the host serves
 	p, s1, s2, t1, t2, blocked, held, stale work.Item
 	loose, closed, need                     work.Item
 }
@@ -53,9 +55,16 @@ func newFixture(t *testing.T) *fixture {
 			t.Fatal(err)
 		}
 	}
-	f := &fixture{t: t, o: work.Options{Dir: filepath.Join(dir, "work"), RunDir: filepath.Join(dir, "run"),
-		Prefix: "demo"}}
-	d := must(work.CreateStore(f.o))
+	main, err := os.MkdirTemp("", "pm") // short: the socket must fit the kernel's limit
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(main) })
+	f := &fixture{t: t, main: main}
+	worktest.ServeAt(t, main, work.Ops{Sync: func(c context.Context, d *work.Dolt) ([]string, error) {
+		return syncStore(c, d, main, "origin")
+	}})
+	d := must(f.open())
 	defer d.Shutdown()
 	add := func(typ work.Type, parent, title string) work.Item {
 		return must(d.Create(work.New{Type: typ, Parent: parent, Title: title}))
@@ -90,7 +99,9 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-func (f *fixture) open() (*work.Dolt, error) { return work.OpenStore(f.o) }
+func (f *fixture) open() (*work.Dolt, error) {
+	return work.DialSock(work.Sock(f.main), f.main, work.Options{Prefix: "demo"})
+}
 
 // run runs pm <argv> with stdin, and gives its stdout and error.
 func (f *fixture) run(stdin string, argv ...string) (string, error) {

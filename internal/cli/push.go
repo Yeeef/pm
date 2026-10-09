@@ -1,15 +1,14 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
 
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/store"
 	pmsync "github.com/Yeeef/pm/internal/sync"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // cmdPush is pm push: one run of the steps the pm service syncs every 10 minutes (the work store's sync, today's
@@ -23,19 +22,17 @@ func cmdPush(cfg config.Config, here string, stdout io.Writer) error {
 	main := store.MainOf(recordsPath)
 	var warnings []string
 	steps := []pmsync.Step{
-		{Name: "work", Run: func() (bool, string) {
-			st, err := openServiceStore(main, cfg.Remote)
+		{Name: "work", Run: func() (bool, string) { // the service syncs: CALL pm_sync()
+			d, err := work.Dial(main)
 			if err != nil {
 				return false, err.Error()
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), service.SyncTimeout)
-			defer cancel()
-			said, w, err := st.Sync(ctx)
-			warnings = w
-			if err = errors.Join(err, st.Shutdown()); err != nil {
+			lines, err := d.CallSync()
+			if err = errors.Join(err, d.Shutdown()); err != nil {
 				return false, err.Error()
 			}
-			return true, said
+			warnings = lines[1:]
+			return true, lines[0]
 		}},
 		{Name: "summary", Run: func() (bool, string) { return summarizeDay(main) }},
 		{Name: "records", Run: func() (bool, string) {
