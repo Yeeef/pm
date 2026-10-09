@@ -102,9 +102,10 @@ func Target(argv []string, cwd, launched string) string {
 	return want
 }
 
-// Key is version as numbers to compare; ok is false when it is not dotted numbers.
+// Key is version as numbers to compare, a pre-release's "-…" suffix left out; ok is false when it is not dotted
+// numbers.
 func Key(version string) (key []int, ok bool) {
-	for _, p := range strings.Split(version, ".") {
+	for _, p := range strings.Split(strings.SplitN(version, "-", 2)[0], ".") {
 		n, err := strconv.Atoi(strings.TrimSpace(p)) // Python's int(): surrounding space and a sign allowed
 		if err != nil {
 			return nil, false
@@ -127,7 +128,7 @@ func Less(a, b []int) bool {
 // IsGo is whether version is a Go release: its leading dotted-numeric part, before any "-" suffix, is at least
 // 0.2.0 (0.2.0, 0.2.0-rc.1, 0.10.3). Anything else is a Python pin.
 func IsGo(version string) bool {
-	k, ok := Key(strings.SplitN(version, "-", 2)[0])
+	k, ok := Key(version)
 	return ok && !Less(k, goPin)
 }
 

@@ -6,6 +6,7 @@ holding a fake pm script that prints its argv, markers and stdin."""
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import http.server
 import io
@@ -313,8 +314,9 @@ def release(fakes, tmp_path):
 
 
 def tarball(path: Path, files: dict[str, bytes]) -> str:
-    """Write a gzip tar holding `files`, each mode 0755; its sha256."""
-    with tarfile.open(path, "w:gz") as tf:
+    """Write a gzip tar holding `files`, each mode 0755; its sha256, the same on every run (gzip's mtime is 0), so
+    the texts that name it compare across implementations."""
+    with gzip.GzipFile(path, "wb", mtime=0) as gz, tarfile.open(fileobj=gz, mode="w") as tf:
         for name, body in files.items():
             info = tarfile.TarInfo(name)
             info.size, info.mode = len(body), 0o755

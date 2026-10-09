@@ -1,14 +1,17 @@
 package launch
 
-// A Go pin (>= 0.2.0) runs its release binary, kept at pins/<pin>/pm. The first launch on a machine downloads
-// SHA256SUMS and the tarball for this OS and architecture from release pm-v<pin> (10 s to connect, 300 s for the
-// whole download), checks the tarball against its SHA256SUMS line and against the sha256 a former download kept in
-// pins/<pin>/sha256, and writes the binary and then that sha256, each atomically (a temp file renamed), so another
-// launch sees no file or a whole one. Every failure is a hard error that names the release and the URL.
+// A Go pin (>= 0.2.0, pre-releases such as 0.2.0-rc.1 too) runs its release binary, kept at pins/<pin>/pm, with no
+// network once it is there. The first launch on a machine downloads SHA256SUMS and the tarball for this OS and
+// architecture from release pm-v<pin> (10 s to connect, 300 s in all). The tarball must match its SHA256SUMS line and
+// the sha256 an earlier download kept in pins/<pin>/sha256, if any: a release is never rebuilt, so a difference fails
+// hard. The binary, then its sha256, is written to a temp file and renamed into place, so another launch sees no file
+// or the whole one; nothing is written under pins/ before the tarball has passed every check. Every failure is a hard
+// error naming the release and the URL; nothing falls back. The texts are launch.py's (the bridge release's), which
+// test_launch.py holds for both.
 
 import (
 	"archive/tar"
-	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -18,6 +21,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,6 +39,7 @@ const (
 	// tests).
 	DefaultReleaseURL = "https://github.com/Yeeef/yeeef-agents/releases/download"
 	connectTimeout    = 10 * time.Second
+	fix               = "; check the network and the release, then run pm again, or move the pin with pm upgrade"
 )
 
 // downloadTimeout bounds the whole download, SHA256SUMS and the tarball; a var for the test of it.
@@ -50,13 +55,10 @@ func ReleaseURL() string {
 	return DefaultReleaseURL
 }
 
-// Asset is the release tarball of version for this machine; ok is false on a platform pm is not released for.
-func Asset(version string) (name string, ok bool) {
-	switch runtime.GOOS + "/" + runtime.GOARCH {
-	case "darwin/arm64", "linux/amd64":
-		return fmt.Sprintf("pm-%s-%s-%s.tar.gz", version, runtime.GOOS, runtime.GOARCH), true
-	}
-	return "", false
+// Platform is this machine's <os>-<arch> as release assets name it; ok is false on one pm is not released for.
+func Platform() (plat string, ok bool) {
+	plat = runtime.GOOS + "-" + runtime.GOARCH
+	return plat, plat == "darwin-arm64" || plat == "linux-amd64"
 }
 
 // executable is whether path is an executable regular file.
@@ -73,123 +75,164 @@ func execGo(version string, argv []string) error {
 			return err
 		}
 	}
-	return syscall.Exec(bin, append([]string{bin}, argv...),
+	err := syscall.Exec(bin, append([]string{bin}, argv...),
 		environ(map[string]string{Launched: version, Launcher: buildinfo.Version}))
+	return fmt.Errorf("this repo pins pm %s, but %s could not run: %s; delete it to download it again", version, bin,
+		strerror(err))
+}
+
+// strerror is the C library's text for an errno, as Python's OSError.strerror gives it ("Exec format error").
+func strerror(err error) string {
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		s := errno.Error()
+		return strings.ToUpper(s[:1]) + s[1:]
+	}
+	return err.Error()
 }
 
 // Download fetches release pm-v<version>'s binary for this machine into pins/<version>/pm, checked against the
-// release's SHA256SUMS and the sha256 a former download kept.
+// release's SHA256SUMS and the sha256 an earlier download kept.
 func Download(version string) error {
+	dir := PinDir(version)
 	tag := "pm-v" + version
 	base := ReleaseURL() + "/" + tag
-	head := fmt.Sprintf("this repo pins pm %s, which pm %s downloads from release %s", version, buildinfo.Version, tag)
-	asset, ok := Asset(version)
+	head := fmt.Sprintf("this repo pins pm %s, but release %s", version, tag)
+	plat, ok := Platform()
 	if !ok {
-		return fmt.Errorf("%s, but release %s has no build for %s/%s (%s)", head, tag, runtime.GOOS, runtime.GOARCH, base)
+		return fmt.Errorf("%s has no binary for %s (only darwin-arm64 and linux-amd64): %s", head, plat, base)
 	}
+	asset := fmt.Sprintf("pm-%s-%s.tar.gz", version, plat)
+	sumsURL, tarURL := base+"/SHA256SUMS", base+"/"+asset
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancel()
-	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{Timeout: connectTimeout}).DialContext, TLSHandshakeTimeout: connectTimeout}}
-	fail := func(url string, err error) error {
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			err = fmt.Errorf("not done within %g s", downloadTimeout.Seconds())
-		}
-		return fmt.Errorf("%s, but %s could not be downloaded: %v; check the network and that release %s exists, then "+
-			"run pm again, or move the pin with pm upgrade", head, url, err, tag)
-	}
-	get := func(url string, to io.Writer) error {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			return fail(url, err)
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			return fail(url, err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fail(url, fmt.Errorf("HTTP %s", resp.Status))
-		}
-		if _, err := io.Copy(to, resp.Body); err != nil {
-			return fail(url, err)
-		}
-		return nil
-	}
 
-	sumsURL := base + "/SHA256SUMS"
-	var sums strings.Builder
-	if err := get(sumsURL, &sums); err != nil {
+	var sums bytes.Buffer
+	if _, err := download(ctx, sumsURL, &sums, head); err != nil {
 		return err
 	}
 	want := ""
-	sc := bufio.NewScanner(strings.NewReader(sums.String()))
-	for sc.Scan() {
-		if sum, name, ok := strings.Cut(sc.Text(), "  "); ok && name == asset && sumRe.MatchString(sum) {
-			want = sum
+	for _, line := range strings.Split(sums.String(), "\n") {
+		if f := strings.Fields(line); want == "" && len(f) == 2 && f[1] == asset && sumRe.MatchString(f[0]) {
+			want = f[0]
 		}
 	}
 	if want == "" {
-		return fmt.Errorf("%s, but %s has no sha256 line for %s", head, sumsURL, asset)
+		return fmt.Errorf("%s could not be checked: %s has no line for %s%s", head, sumsURL, asset, fix)
 	}
 
-	dir := PinDir(version)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tarURL := base + "/" + asset
-	tarball, err := os.CreateTemp(dir, asset+".*")
+	tarball, err := os.CreateTemp("", "pm-release-*.tar.gz") // outside pins/: nothing is kept before every check
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tarball.Name())
 	defer tarball.Close()
-	h := sha256.New()
-	if err := get(tarURL, io.MultiWriter(tarball, h)); err != nil {
+	got, err := download(ctx, tarURL, tarball, head)
+	if err != nil {
 		return err
 	}
-	got := hex.EncodeToString(h.Sum(nil))
 	if got != want {
-		return fmt.Errorf("%s, but %s has sha256 %s, not the %s that %s gives it; nothing was installed", head, tarURL,
-			got, want, sumsURL)
+		return fmt.Errorf("%s could not be checked: %s has sha256 %s, but SHA256SUMS says %s%s", head, tarURL, got,
+			want, fix)
 	}
 	keptSum := filepath.Join(dir, "sha256")
 	if b, err := os.ReadFile(keptSum); err == nil && config.PyStrip(string(b)) != got {
-		return fmt.Errorf("%s, but %s has sha256 %s, not the %s kept in %s from an earlier download: the release "+
-			"changed; delete %s to accept it", head, tarURL, got, config.PyStrip(string(b)), keptSum, dir)
+		return fmt.Errorf("%s changed since this machine first downloaded it: %s has sha256 %s, but %s keeps %s; a "+
+			"release is never rebuilt, so check where it came from before you delete that file", head, tarURL, got,
+			keptSum, config.PyStrip(string(b)))
 	}
-	if _, err := tarball.Seek(0, io.SeekStart); err != nil {
+	bad := fmt.Errorf("%s could not be unpacked: %s is not a gzip tar holding one file pm%s", head, tarURL, fix)
+	if !onlyPM(tarball) {
+		return bad
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	if err := extract(tarball, filepath.Join(dir, "pm")); err != nil {
-		return fmt.Errorf("%s, but %s holds no pm binary: %v", head, tarURL, err)
+		return bad
 	}
-	return writeAtomic(keptSum, []byte(got+"\n"), 0o644)
+	return writeAtomicFrom(keptSum, strings.NewReader(got+"\n"), 0o644)
 }
 
-// extract writes the regular file pm in the gzip tar r to path, executable, atomically.
-func extract(r io.Reader, path string) error {
-	gz, err := gzip.NewReader(r)
+// download writes the body of GET url to out within ctx; its sha256 hex. head frames a failure's error.
+func download(ctx context.Context, link string, out io.Writer, head string) (string, error) {
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment,
+		DialContext:         (&net.Dialer{Timeout: connectTimeout}).DialContext,
+		TLSHandshakeTimeout: connectTimeout, ResponseHeaderTimeout: connectTimeout}}
+	fail := func(err error) (string, error) {
+		why := err.Error()
+		var uerr *url.Error
+		if errors.As(err, &uerr) {
+			why = uerr.Err.Error()
+		}
+		var nerr net.Error
+		switch {
+		case ctx.Err() != nil:
+			why = fmt.Sprintf("not downloaded within %g s", downloadTimeout.Seconds())
+		case errors.As(err, &nerr) && nerr.Timeout():
+			why = fmt.Sprintf("no answer within %g s", connectTimeout.Seconds())
+		}
+		return "", fmt.Errorf("%s could not be downloaded: %s: %s%s", head, link, why, fix)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
+	if err != nil {
+		return fail(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fail(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fail(fmt.Errorf("HTTP %d", resp.StatusCode))
+	}
+	h := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(out, h), resp.Body); err != nil {
+		return fail(err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// onlyPM is whether the gzip tar f holds exactly one member, the regular file pm.
+func onlyPM(f io.ReadSeeker) bool {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return false
+	}
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return false
+	}
+	tr := tar.NewReader(gz)
+	n := 0
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return n == 1
+		}
+		if err != nil || hdr.Name != "pm" || hdr.Typeflag != tar.TypeReg { // the reader reports an old-style '\x00' file as TypeReg
+			return false
+		}
+		if _, err := io.Copy(io.Discard, tr); err != nil {
+			return false
+		}
+		n++
+	}
+}
+
+// extract writes the file pm in the gzip tar f, which onlyPM checked, to path, executable, atomically.
+func extract(f io.ReadSeeker, path string) error {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return err
 	}
 	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			return errors.New("no regular file pm in the archive")
-		}
-		if err != nil {
-			return err
-		}
-		if hdr.Name == "pm" && hdr.Typeflag == tar.TypeReg {
-			return writeAtomicFrom(path, tr, 0o755)
-		}
+	if _, err := tr.Next(); err != nil {
+		return err
 	}
-}
-
-func writeAtomic(path string, data []byte, mode os.FileMode) error {
-	return writeAtomicFrom(path, strings.NewReader(string(data)), mode)
+	return writeAtomicFrom(path, tr, 0o755)
 }
 
 // writeAtomicFrom writes r to a temp file beside path, sets its mode and renames it to path.
