@@ -523,6 +523,8 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return hooks.HookStop(stdin, stdout, stderr)
 	case "service install", "service status", "service restart", "service logs", "service run":
 		return runService(strings.TrimPrefix(name, "service "), p, here, stdout)
+	case "check":
+		return cmdCheck(here, stdout)
 	}
 	return &refusal{fmt.Sprintf("pm %s is not in Go pm yet; Python pm runs it until the cut-over", name)}
 }
