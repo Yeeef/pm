@@ -25,19 +25,20 @@ import (
 // refuse is a command's refusal: "error: <message>" on stderr, exit 1, nothing changed.
 func refuse(format string, a ...any) error { return &refusal{fmt.Sprintf(format, a...)} }
 
-// env is one command's run: where it runs, its streams, and the work store, opened on first use under the gate and
-// closed when the command ends or before slow work that is not the store's (the pm-go page, "Store sharing").
+// env is one command's run: where it runs, its streams, and its connection to the work store through the pm service,
+// made on first use and closed when the command ends (the pm-go page, "Store access"): an open connection blocks no
+// one, so a command keeps it across slow work.
 type env struct {
 	here, records string
 	stdin         io.Reader
 	stdout        io.Writer
 	stderr        io.Writer
 	ws            work.Store
-	lockRecords   bool   // a write: the records lock is taken as the store opens, after its gate
+	lockRecords   bool   // a write: the records lock is taken as the command connects to the work store
 	unlock        func() // releases the records lock while it is held
 }
 
-// work is the open work store, opened now if it is not yet; for a write, the records lock is taken next.
+// work is the connection to the work store, made now if it is not yet; for a write, the records lock is taken next.
 func (e *env) work() (work.Store, error) {
 	if e.ws == nil {
 		ws, err := OpenWork(store.MainOf(e.records))
@@ -54,8 +55,8 @@ func (e *env) work() (work.Store, error) {
 	return e.ws, nil
 }
 
-// closeWork closes the work store if it is open, releasing its gate. A write keeps the records lock until it ends
-// (release): pm commit closes the store before its render and commits after it, under the lock.
+// closeWork closes the connection to the work store if it is open. A write keeps the records lock until it ends
+// (release).
 func (e *env) closeWork() error {
 	if e.ws == nil {
 		return nil
@@ -65,7 +66,7 @@ func (e *env) closeWork() error {
 	return err
 }
 
-// release ends a command: the records lock released, then the work store closed.
+// release ends a command: the records lock released, then the connection to the work store closed.
 func (e *env) release() error {
 	if e.unlock != nil {
 		e.unlock()

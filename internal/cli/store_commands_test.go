@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"

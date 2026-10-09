@@ -1111,9 +1111,6 @@ func cmdCommit(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := e.closeWork(); err != nil { // the render needs no item more
-		return "", err
-	}
 	if _, err := site.Check(recs, records.NewItems(items), filepath.Base(codeRoot), nil); err != nil {
 		return "", err
 	}

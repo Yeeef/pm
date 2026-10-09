@@ -1,7 +1,7 @@
 package work
 
-// Store is the work store as pm's commands, site and service use it: one store per clone, opened at most once per
-// process under the gate and released at exit. Every write is one transaction that lands whole or not at all, checks
+// Store is the work store as pm's commands, site and service use it: one store per clone, which the pm service holds;
+// a command reaches it with one connection to the service's socket, closed at exit. Every write is one transaction that lands whole or not at all, checks
 // the item invariants (the type's fields present, closed means no holder, the tree rules) and fails hard naming the
 // item; there is no delete. Each method replaces one use of bd (the work-store page's "Inside pm" table).
 type Store interface {
@@ -42,7 +42,7 @@ type Store interface {
 	// UpdateNeed sets a need's delivery and review-merge fields; nil leaves one as it is.
 	UpdateNeed(id string, u NeedUpdate) error
 
-	// Shutdown closes the store and releases the gate; the process opens it no more.
+	// Shutdown closes the connection; the process reaches the store no more.
 	Shutdown() error
 }
 

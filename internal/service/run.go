@@ -84,11 +84,11 @@ type Deps struct {
 	// overrode, which the service logs.
 	Sync func(ctx context.Context) ([]string, error)
 	// GC collects the store's garbage (CALL DOLT_GC()), online: it deletes no item and squashes no commit.
-	GC func(ctx context.Context) error
-	Site               Site
-	Summarize          func() (bool, string) // the day summary, the sync's second step
-	Style              []byte
-	Out, Log           io.Writer // "Serving …" goes to Out; every log line to Log
+	GC        func(ctx context.Context) error
+	Site      Site
+	Summarize func() (bool, string) // the day summary, the sync's second step
+	Style     []byte
+	Out, Log  io.Writer // "Serving …" goes to Out; every log line to Log
 }
 
 // snapshot is what the service serves: the records and work items read at asOf or later, so current as of then; err

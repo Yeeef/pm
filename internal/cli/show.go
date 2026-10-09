@@ -39,9 +39,6 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	if id := p.Get("sprint"); id != "" {
-		if err := e.closeWork(); err != nil {
-			return "", err
-		}
 		if p.Get("json") != "" || p.Get("project") != "" {
 			return "", refuse("--sprint prints text only, one sprint; drop --json and --project")
 		}
@@ -51,9 +48,6 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 		if err := refreshInbox(e, r); err != nil {
 			return "", err
 		}
-	}
-	if err := e.closeWork(); err != nil {
-		return "", err
 	}
 	data, err := showDataOf(e, r)
 	if err != nil {

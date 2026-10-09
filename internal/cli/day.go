@@ -28,16 +28,12 @@ const (
 	summaryTimeout = 180 // seconds the model call may take
 )
 
-// cmdDaySummarize is pm day summarize. It reads both days' activity with the work store open once, and closes it
-// before the model call; the records lock is taken only for each write, once the model answered, so a slow model
-// blocks no other session.
+// cmdDaySummarize is pm day summarize. It reads both days' activity in one read of the work store; the records lock is
+// taken only for each write, once the model answered, so a slow model blocks no other session.
 func cmdDaySummarize(e *env, p *Parsed) (string, error) {
 	dryRun := p.Get("dry_run") == "true"
 	r, err := e.load(false)
 	if err != nil {
-		return "", err
-	}
-	if err := e.closeWork(); err != nil {
 		return "", err
 	}
 	now := time.Now()
