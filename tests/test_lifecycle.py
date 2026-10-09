@@ -29,7 +29,7 @@ def uv_cache() -> str:
 
 
 # Go pm needs no uv, so its roots are the clone's own five: .git, the records store and its git dir, the work store
-# and .pm/run, which holds the work store's gate (the pm-go page, Open question 12); Python pm's four (.git, the store,
+# and .pm/run, which holds the work store's socket (the pm-go page, Open question 12); Python pm's four (.git, the store,
 # its git dir, .beads) and uv's cache, which every clone shares
 CLONE_ROOTS, SHARED_ROOTS = (4, 1) if IMPL == "python" else (5, 0)
 

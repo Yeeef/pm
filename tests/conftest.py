@@ -377,6 +377,9 @@ class Repo:
         self.bd_mark = 0  # the fake bd's calls before the mark, which unchanged() leaves out
         self.imported: dict[str, dict] = {}  # Go pm: the items its store held right after the seeds were imported
         self.tmp = tmp
+        self.known: dict[str, dict] = {}  # the store as last read
+        self.unread: dict[str, dict] | None = None  # the store as last read before the transcript stopped reading it
+        self.config_text = ""  # the config as the fixture wrote it, which the teardown check reads the store under
         self.service: subprocess.Popen | None = None  # Go pm: the per-test pm service that holds the work store
 
     def pm(self, *args: str, text: str = "", stdin: str | None = None,
@@ -395,7 +398,10 @@ class Repo:
             elif (self.tmp / "services-stopped").exists():  # the test stopped the clone's service
                 export = "the clone's pm service is stopped; Go pm reads the work store only through it"
             else:
-                export = sorted(self.items().values(), key=lambda i: i["id"])
+                self.known = self.items()
+                export = sorted(self.known.values(), key=lambda i: i["id"])
+            if isinstance(export, str) and self.unread is None:
+                self.unread = self.known  # check_unread holds the store to it at teardown
         except subprocess.CalledProcessError as e:  # a pm whose export fails here (no config, say): that is the record
             export = f"pm export failed ({e.returncode}): {e.stderr}"
         transcript.record({
@@ -474,7 +480,7 @@ class Repo:
         work-store socket: every Go pm command reaches the work store only through the service (the pm-go page, Store
         access). The fake supervisor stops it when a test starts the clone's installed service (fake_sched.py). pm
         names the Go pm to run where the suite runs Python pm (test_go_parity.py)."""
-        if (pm is None and IMPL != "go") or self.service is not None:
+        if (pm is None and IMPL != "go") or self.service is not None and self.service.poll() is None:
             return
         (self.tmp / "services-stopped").unlink(missing_ok=True)
         sock = self.root / ".pm/run/work.sock"
@@ -491,6 +497,20 @@ class Repo:
                 raise AssertionError("the per-test pm service did not start:\n" +
                                      (self.tmp / "fixture-service.log").read_text())
             time.sleep(0.01)
+
+    def check_unread(self) -> None:
+        """At teardown: once a transcript stopped reading the store (the repo pins another pm, or the test stopped the
+        clone's services), no command may have written it, which nothing read showed. Read it now through a service on
+        this pm, with the fixture's config back, and require it as it was when the reading stopped."""
+        if self.unread is None:
+            return
+        (self.root / ".pm/config.toml").write_text(self.config_text)
+        try:
+            now = self.items()
+        except subprocess.CalledProcessError:  # no service answers: start the per-test one
+            self.start_service()
+            now = self.items()
+        assert now == self.unread, "a command wrote the work store while the transcript could not read it"
 
     def stop_service(self) -> None:
         """Go pm: stop the per-test pm service, before a test starts its own `pm service run` for the clone."""
@@ -513,11 +533,11 @@ class Repo:
         res = subprocess.run([*PM, "init", "--import-bd", str(export)], cwd=self.root, env=self.env,
                              capture_output=True, text=True)
         assert res.returncode == 0, f"the seeds do not import into Go pm's work store: {res.stderr}"
-        self.imported = self.items()
+        self.imported = self.known = self.items()
 
     def mark(self) -> None:
         """Count changes() from now on."""
-        self.base = self.items()
+        self.base = self.known = self.items()
         self.seeded |= self.base.keys()
         self.bd_mark = len(self.bd_calls()) if IMPL == "python" else 0
 
@@ -641,8 +661,12 @@ def repo(tmp_path: Path) -> Repo:
     if IMPL == "go":
         r.import_seeds()
     r.mark()
+    r.config_text = (root / ".pm/config.toml").read_text()
     yield r
-    r.stop_service()
+    try:
+        r.check_unread()
+    finally:
+        r.stop_service()
 
 
 @pytest.hookimpl(tryfirst=True)
