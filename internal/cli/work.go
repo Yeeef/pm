@@ -13,11 +13,14 @@ import (
 	"github.com/Yeeef/yeeef-agents/pm/internal/work"
 )
 
-// goOnly runs the commands Go pm has and Python pm does not: pm export, and pm init --import-bd FILE. The argparse
-// tree mirrors Python pm's, whose help texts and pm prime noun list the parity tests hold equal, so these stay out of
-// it until Python pm has them or the cut-over. In Go pm today, pm init --import-bd does the import only; the rest of
-// pm init comes with the install sprint. ok is false for any other argv.
-func goOnly(argv []string, stdout io.Writer) (ok bool, err error) {
+// goOnly runs the commands Go pm has and Python pm does not: pm export, pm init --import-bd FILE, and the work-store
+// commands in store_commands.go. The argparse tree mirrors Python pm's, whose help texts and pm prime noun list the
+// parity tests hold equal, so these stay out of it until Python pm has them or the cut-over. In Go pm today, pm init
+// --import-bd does the import only; the rest of pm init comes with the install sprint. ok is false for any other argv.
+func goOnly(argv []string, stdin io.Reader, stdout io.Writer) (ok bool, err error) {
+	if name, args, ok := storeCommandOf(argv); ok {
+		return true, runStoreCommand(name, args, openStore, stdin, stdout)
+	}
 	switch {
 	case len(argv) == 1 && argv[0] == "export":
 		return true, cmdExport(stdout)
@@ -45,14 +48,19 @@ func mainCheckout() (string, error) {
 	return filepath.Dir(filepath.Dir(filepath.Dir(records))), nil // <main>/.pm/store/records
 }
 
-// cmdExport is pm export: every item of the work store, one JSON object per line, ordered by id.
-func cmdExport(stdout io.Writer) error {
+// openStore opens this clone's work store, after the config check.
+func openStore() (*work.Dolt, error) {
 	main, err := mainCheckout()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	dir, run := work.Locations(main)
-	d, err := work.OpenStore(work.Options{Dir: dir, RunDir: run})
+	return work.OpenStore(work.Options{Dir: dir, RunDir: run})
+}
+
+// cmdExport is pm export: every item of the work store, one JSON object per line, ordered by id.
+func cmdExport(stdout io.Writer) error {
+	d, err := openStore()
 	if err != nil {
 		return err
 	}

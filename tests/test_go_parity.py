@@ -285,6 +285,16 @@ def present(v):
     return v
 
 
+def import_bd(repo, export, records):
+    """Go pm's pm init --import-bd of export, with the project and sprint records it goes with."""
+    for kind in ("projects", "sprints"):
+        (repo.store / kind).mkdir(exist_ok=True)
+        for f in (records / kind).glob("*.md"):
+            shutil.copy(f, repo.store / kind / f.name)
+    code, out, err = run(repo, "go", "init", "--import-bd", str(export))
+    assert (code, err) == (0, ""), err
+
+
 @pytest.mark.integration  # pm init, though with --import-bd Go pm only imports
 def test_import_bd_agrees_with_the_python_mapper(repo):
     """Go pm's pm init --import-bd, read back with pm export, gives the items that work_items.py (the neutral tests'
@@ -292,12 +302,7 @@ def test_import_bd_agrees_with_the_python_mapper(repo):
     goes with: PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=<pm where records>."""
     export = Path(os.environ.get("PM_BD_EXPORT") or BD_FIXTURE / "bd-export.jsonl")
     records = Path(os.environ.get("PM_BD_RECORDS") or BD_FIXTURE / "records")
-    for kind in ("projects", "sprints"):
-        (repo.store / kind).mkdir(exist_ok=True)
-        for f in (records / kind).glob("*.md"):
-            shutil.copy(f, repo.store / kind / f.name)
-    code, out, err = run(repo, "go", "init", "--import-bd", str(export))
-    assert (code, err) == (0, ""), err
+    import_bd(repo, export, records)
     code, out, err = run(repo, "go", "export")
     assert (code, err) == (0, ""), err
     go = {i["id"]: present(i) for i in map(json.loads, out.splitlines())}
@@ -306,3 +311,20 @@ def test_import_bd_agrees_with_the_python_mapper(repo):
     assert [i for i in py if go[i] != py[i]] == []
     code, _, err = run(repo, "go", "init", "--import-bd", str(export))
     assert code == 1 and "an import goes into an empty store only" in err
+
+
+@pytest.mark.integration  # pm init, though with --import-bd Go pm only imports
+def test_go_store_commands_run_on_the_clone_store(repo):
+    """Go pm's work-store commands, which Python pm has not (the work-store page's Commands), find the clone's store
+    from the repo and write through to pm export; their own tests are internal/cli/store_commands_test.go."""
+    import_bd(repo, BD_FIXTURE / "bd-export.jsonl", BD_FIXTURE / "records")
+    code, out, err = run(repo, "go", "task", "ready")
+    assert (code, err) == (0, "") and "demo-p1x.2.1.1  " in out, (out, err)
+    code, out, err = run(repo, "go", "comment", "add", "demo-p1x.2.1.1", "--text-file", "-",
+                         event="-- a note that starts with a dash\n")
+    assert (code, err) == (0, ""), err
+    code, out, err = run(repo, "go", "export")
+    item = next(i for i in map(json.loads, out.splitlines()) if i["id"] == "demo-p1x.2.1.1")
+    assert [(c["kind"], c["text"]) for c in item["comments"]][-1] == ("note", "-- a note that starts with a dash")
+    code, out, err = run(repo, "go", "sync")
+    assert code == 1 and "no remote to sync with" in err
