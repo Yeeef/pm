@@ -280,13 +280,13 @@ func cmdInit(p *Parsed, here string, stdout io.Writer) error {
 			return err
 		}
 		s = settingsOf(c)
-		if u := siteURLArg(siteArg); siteGiven && u != "" {
-			if err := checkSiteURL(u); err != nil { // before anything is written
+		if siteGiven && config.PyStrip(siteArg) != "" { // "/" is refused here, as no base URL
+			if err := checkSiteURL(siteURLArg(siteArg)); err != nil { // before anything is written
 				return err
 			}
 		}
 	}
-	if err := install.RefuseLegacy(top, main); err != nil {
+	if err := install.RefuseLegacy(top, main, fresh); err != nil {
 		return err
 	}
 	if !(sessionStart && service.Installed(main)) { // session start leaves an installed service alone
@@ -510,7 +510,7 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 			"--to names the version; run pm upgrade --to %s to rewrite pm's pieces at the pin, or install the latest "+
 			"pm uv tool with %s, then pm upgrade", c.Version, buildinfo.Version, c.Version, latest)
 	}
-	if err := install.RefuseLegacy(top, store.MainOf(records)); err != nil {
+	if err := install.RefuseLegacy(top, store.MainOf(records), true); err != nil {
 		return err
 	}
 	planned, err := install.Rewrite(top, settingsOf(c))
@@ -588,6 +588,14 @@ func cmdUninstall(here string, stdout io.Writer) error {
 		if roots, err = install.CodexRoots(main); err != nil {
 			return err
 		}
+	}
+	// the work store goes with the clone's .pm/store; the remote's refs/pm/work keeps the project's items, so a store
+	// holding what the remote lacks is refused, as uncommitted records are
+	if why, err := install.WorkUnsynced(main, c.Remote); err != nil {
+		return err
+	} else if why != "" {
+		return refuse("%s, and pm uninstall would delete it with the clone's .pm/store: push it with pm sync, or keep "+
+			"its items with pm export > FILE and move it away, then run pm uninstall again", why)
 	}
 	codexPath := filepath.Join(install.CodexHome(), "config.toml")
 	var codexNew *string

@@ -378,10 +378,7 @@ func SetupClone(cwd, remote string) (string, error) {
 	if err := RefuseLegacyStore(main, records); err != nil {
 		return "", err
 	}
-	out, err := SetupWork(main, remote)
-	if err != nil {
-		return "", err
-	}
+	var out []string
 	if said, err := SetupHooksPath(main); err != nil {
 		return "", err
 	} else if said != "" {
@@ -410,6 +407,12 @@ func SetupClone(cwd, remote string) (string, error) {
 	if _, err := store.Find(cwd); err != nil {
 		return "", err
 	}
+	// after the records store, which pm init --import-bd reads when a refusal here asks for the import first
+	work, err := SetupWork(main, remote)
+	if err != nil {
+		return "", err
+	}
+	out = append(out, work...)
 	if Resolve(top) == Resolve(records) {
 		return "", refuse("%s is the store itself; run %s from a code worktree", top, setup)
 	}

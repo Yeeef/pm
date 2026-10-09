@@ -70,7 +70,10 @@ var (
 // not readable JSON is an Error, since the pieces in it cannot be looked for.
 func LegacyRepo(top string) ([]string, error) {
 	var out []string
-	for _, rel := range legacyInstructionFiles {
+	for _, rel := range legacyInstructionFiles { // AGENTS.md is often a link to CLAUDE.md: a link is left alone
+		if isLink(filepath.Join(top, rel)) {
+			continue
+		}
 		t, err := Read(filepath.Join(top, rel))
 		if err != nil {
 			return nil, err
@@ -173,11 +176,15 @@ func LegacyFix() string {
 		LegacyRelease, LegacyRelease)
 }
 
-// RefuseLegacy refuses a clone or worktree holding the pre-package harness's pieces, naming each.
-func RefuseLegacy(top, main string) error {
-	found, err := LegacyRepo(top)
-	if err != nil {
-		return err
+// RefuseLegacy refuses a clone holding the pre-package harness's pieces, naming each: with repo, those in the
+// worktree's tracked files too (the files pm writes or rewrites: a first install, pm upgrade).
+func RefuseLegacy(top, main string, repo bool) error {
+	var found []string
+	if repo {
+		var err error
+		if found, err = LegacyRepo(top); err != nil {
+			return err
+		}
 	}
 	found = append(found, LegacyClone(main)...)
 	if len(found) == 0 {

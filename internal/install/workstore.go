@@ -27,9 +27,16 @@ func trimNewline(s string) string {
 	return s
 }
 
+// beadsRef is where bd keeps its Dolt database on the git remote.
+const beadsRef = "refs/dolt/data"
+
 // RemoteHasStore is whether the git remote holds a work store under work.RemoteRef; an unreachable remote is an Error.
 func RemoteHasStore(dir, remote string) (bool, error) {
-	res, err := proc.Run([]string{"git", "ls-remote", "--exit-code", remote, work.RemoteRef}, proc.Options{Cwd: &dir})
+	return remoteHasRef(dir, remote, work.RemoteRef)
+}
+
+func remoteHasRef(dir, remote, ref string) (bool, error) {
+	res, err := proc.Run([]string{"git", "ls-remote", "--exit-code", remote, ref}, proc.Options{Cwd: &dir})
 	if err != nil {
 		return false, err
 	}
@@ -43,7 +50,7 @@ func RemoteHasStore(dir, remote string) (bool, error) {
 	if why == "" {
 		why = res.Stdout
 	}
-	return false, refuse("git ls-remote %s %s failed: %s", remote, work.RemoteRef, trimNewline(why))
+	return false, refuse("git ls-remote %s %s failed: %s", remote, ref, trimNewline(why))
 }
 
 // quietStdout runs fn with the process's standard output sent to /dev/null: Dolt's clone prints its progress there,
@@ -62,17 +69,16 @@ func quietStdout(fn func() error) error {
 	if err := unix.Dup2(int(null.Fd()), 1); err != nil {
 		return err
 	}
-	ferr := fn()
-	if err := unix.Dup2(saved, 1); err != nil {
-		return errors.Join(ferr, err)
-	}
-	return ferr
+	defer unix.Dup2(saved, 1) // on a panic too
+	return fn()
 }
 
 // SetupWork attaches the clone's work store to the repo's remote, under work.RemoteRef: a missing store is cloned from
 // the remote when it holds one, else created and pushed there; a store without a remote gets the repo's, and one the
 // remote lacks is pushed. A clone whose repo has no such git remote keeps its store as it is: there is nothing to
-// attach it to (pm where says so). What it did, one line each.
+// attach it to (pm where says so). It refuses to start an empty store beside the Beads data a remote holds (the import
+// comes first), and to leave a store made here beside another the remote holds, which share no history. What it did,
+// one line each.
 func SetupWork(main, remote string) ([]string, error) {
 	dir, run := work.Locations(main)
 	o := work.Options{Dir: dir, RunDir: run}
@@ -95,6 +101,13 @@ func SetupWork(main, remote string) ([]string, error) {
 			}
 			out = append(out, fmt.Sprintf("cloned the work store from %s's %s into %s", remote, work.RemoteRef, dir))
 			return out, d.Shutdown()
+		}
+		if beads, err := remoteHasRef(main, remote, beadsRef); err != nil {
+			return nil, err
+		} else if beads {
+			return nil, refuse("%s holds Beads data (%s) but no work store (%s), and an empty store here would fork the "+
+				"project's work from it: import it first (bd export > FILE, then pm init --import-bd FILE), then run pm "+
+				"init again", remote, beadsRef, work.RemoteRef)
 		}
 		if d, err = work.CreateStore(o); err != nil {
 			return nil, err
@@ -130,8 +143,11 @@ func SetupWork(main, remote string) ([]string, error) {
 			return err // it has fetched or pushed the remote's store: attached
 		}
 		has, err := RemoteHasStore(main, remote)
-		if err != nil || has {
-			return err // the remote's store is there: the service's sync merges the two
+		if err != nil {
+			return err
+		}
+		if has {
+			return refuse("%s", unrelated(dir, remote))
 		}
 		if err := d.Push(); err != nil {
 			return err
@@ -159,13 +175,64 @@ func WorkDrift(main, remote string) ([]string, error) {
 		return nil, err
 	}
 	_, ok, err := d.Remote()
+	tracked := false
+	if err == nil && ok {
+		_, _, tracked, err = d.Tracking()
+	}
 	if err = errors.Join(err, d.Shutdown()); err != nil {
 		return nil, err
 	}
 	if !ok {
 		return []string{fmt.Sprintf("%s has no remote, so it syncs with no other clone; run pm init", dir)}, nil
 	}
+	if !tracked {
+		has, err := RemoteHasStore(main, remote)
+		if err != nil {
+			return nil, err
+		}
+		if has {
+			return []string{unrelated(dir, remote)}, nil
+		}
+		return []string{fmt.Sprintf("%s is not on %s's %s yet; run pm init", dir, remote, work.RemoteRef)}, nil
+	}
 	return nil, nil
+}
+
+// unrelated is what to say of a store made in this clone while the remote holds another.
+func unrelated(dir, remote string) string {
+	return fmt.Sprintf("the work store %s was made in this clone, and %s holds another at %s: the two share no history, "+
+		"so no sync can merge them; keep the remote's: move this one away (pm export --store %s > FILE keeps its items) "+
+		"and run pm init, which clones it", dir, remote, work.RemoteRef, dir)
+}
+
+// WorkUnsynced is why removing the clone's work store would lose items: it has no remote, or commits the remote
+// lacks; "" when the remote holds all of it, or there is no store.
+func WorkUnsynced(main, remote string) (string, error) {
+	dir, run := work.Locations(main)
+	if !work.Exists(dir) {
+		return "", nil
+	}
+	d, err := work.OpenStore(work.Options{Dir: dir, RunDir: run})
+	if err != nil {
+		return "", err
+	}
+	_, ok, err := d.Remote()
+	ahead, tracked := 0, false
+	if err == nil && ok {
+		ahead, _, tracked, err = d.Tracking()
+	}
+	if err = errors.Join(err, d.Shutdown()); err != nil {
+		return "", err
+	}
+	switch {
+	case !ok:
+		return fmt.Sprintf("the work store %s has no remote, so its items are on this clone only", dir), nil
+	case !tracked:
+		return fmt.Sprintf("the work store %s was never pushed to %s's %s", dir, remote, work.RemoteRef), nil
+	case ahead > 0:
+		return fmt.Sprintf("the work store %s holds %d commit(s) %s's %s lacks", dir, ahead, remote, work.RemoteRef), nil
+	}
+	return "", nil
 }
 
 // WorkState is pm where's work line state: the store's remote and how it stands against the remote's store as of the

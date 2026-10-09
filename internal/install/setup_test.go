@@ -105,6 +105,47 @@ func TestSetupWorkAttachesAnExistingStore(t *testing.T) {
 	}
 }
 
+// What pm init refuses rather than fork the project's work: an empty store beside the remote's Beads data, and a store
+// made here beside the remote's own, which share no history; pm uninstall refuses to delete what the remote lacks.
+func TestSetupWorkRefusesAFork(t *testing.T) {
+	beads := cloneOf(t, bareRemote(t), "beads")
+	run(t, beads, "git", "push", "-q", "origin", "HEAD:refs/dolt/data")
+	if _, err := SetupWork(beads, "origin"); err == nil || !strings.Contains(err.Error(), "holds Beads data (refs/dolt/data)") {
+		t.Fatalf("got %v, want the import asked for first", err)
+	}
+	if dir, _ := work.Locations(beads); work.Exists(dir) {
+		t.Fatal("a store was made")
+	}
+
+	bare := bareRemote(t)
+	first := cloneOf(t, bare, "first")
+	if _, err := SetupWork(first, "origin"); err != nil {
+		t.Fatal(err)
+	}
+	if why, err := WorkUnsynced(first, "origin"); err != nil || why != "" {
+		t.Fatalf("a pushed store: %q, %v", why, err)
+	}
+	other := cloneOf(t, bare, "other")
+	dir, runDir := work.Locations(other)
+	d, err := work.CreateStore(work.Options{Dir: dir, RunDir: runDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Shutdown()
+	if why, err := WorkUnsynced(other, "origin"); err != nil || !strings.Contains(why, "has no remote") {
+		t.Fatalf("a store with no remote: %q, %v", why, err)
+	}
+	if _, err := SetupWork(other, "origin"); err == nil || !strings.Contains(err.Error(), "share no history") {
+		t.Fatalf("got %v, want the unrelated store refused", err)
+	}
+	if drift, err := WorkDrift(other, "origin"); err != nil || len(drift) != 1 || !strings.Contains(drift[0], "share no history") {
+		t.Fatalf("doctor: %q, %v", drift, err)
+	}
+	if why, err := WorkUnsynced(other, "origin"); err != nil || !strings.Contains(why, "was never pushed") {
+		t.Fatalf("an unpushed store: %q, %v", why, err)
+	}
+}
+
 // A repo without the remote cannot get a store, and one with a store but no remote keeps it as it is.
 func TestSetupWorkWithoutTheRemote(t *testing.T) {
 	dir := t.TempDir()
