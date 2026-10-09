@@ -39,8 +39,12 @@ def embedded_store() -> None:
 
 
 def save() -> None:
-    """Write the issues back; when the test made a Dolt store (Repo.dolt), grow its journal as a Dolt write does."""
-    json.dump(issues, open(state_path, "w"))
+    """Write the issues back, atomically (a test polls the state while the pm service writes it); when the test made a
+    Dolt store (Repo.dolt), grow its journal as a Dolt write does."""
+    tmp = f"{state_path}.{os.getpid()}"
+    with open(tmp, "w") as f:
+        json.dump(issues, f)
+    os.replace(tmp, state_path)
     journal = main_checkout() / ".beads/embeddeddolt/demo/.dolt/noms/journal"
     if journal.parent.is_dir():
         with open(journal, "a") as f:
