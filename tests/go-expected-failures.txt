@@ -42,35 +42,14 @@ test_owner_request_hook.py::test_passes_without_reading_anything[event1]
 test_pm.py::test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read
 test_pm.py::test_a_reviewed_prs_merge_is_pushed_into_the_session_once
 test_pm.py::test_day_summarize_skips_unchanged_activity_and_regenerates_on_change
-test_pm.py::test_decision_add_need_closes_need_and_records_decision
-test_pm.py::test_decision_add_refuses_a_malformed_part_and_writes_nothing[flags1---decision has more than one line]
-test_pm.py::test_decision_add_refuses_a_malformed_part_and_writes_nothing[flags2---reason is empty]
-test_pm.py::test_decision_add_refuses_a_malformed_part_and_writes_nothing[flags3---reason starts with ':::']
-test_pm.py::test_decision_close_closes_small_answer_without_record
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags1-give at least two --option flags]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags10-in fact 3 has 26 words; the limit is 25]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags2-option a has no cost; add --cost a]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags3---cost c names no option; the labels are a, b]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags4-option a has two --cost flags]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags5-two options have the label a]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags6---default z names no option; the labels are a, b]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags7---fact has more than one line]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags8-give exactly one --default]
-test_pm.py::test_decision_need_refuses_a_malformed_part_and_writes_nothing[flags9-raise it with the review form]
-test_pm.py::test_decision_need_writes_its_flags_in_the_one_layout
 test_pm.py::test_every_reply_is_pushed_into_the_session_that_asked
 test_pm.py::test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_service
-test_pm.py::test_no_command_waits_on_an_open_stdin[action need-no-text]
-test_pm.py::test_no_command_waits_on_an_open_stdin[action need-text]
-test_pm.py::test_no_command_waits_on_an_open_stdin[decision close-no-text]
-test_pm.py::test_no_command_waits_on_an_open_stdin[decision close-text]
 test_pm.py::test_push_pushes_beads_and_new_records_commits
 test_pm.py::test_push_rebases_onto_a_moved_remote
 test_pm.py::test_reply_is_refused_without_the_token_or_from_another_host[forged-form0-headers0-403-no valid token]
 test_pm.py::test_reply_is_refused_without_the_token_or_from_another_host[page-form1-headers1-403-is neither this machine]
 test_pm.py::test_reply_on_a_card_is_stored_on_its_issue_as_one_comment
 test_pm.py::test_serve_shows_each_change_within_its_stated_age
-test_pm.py::test_sprint_closes_after_its_pr_merges
 test_service.py::test_install_fails_when_the_service_does_not_come_up
 test_service.py::test_service_install_status_restart_and_logs_end_to_end
 test_service.py::test_service_stops_once_the_pin_moves

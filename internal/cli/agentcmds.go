@@ -29,6 +29,12 @@ var agentCommands = map[string]agentCommand{
 	"project close":  cmdProjectClose,
 	"sprint open":    cmdSprintOpen,
 	"sprint close":   cmdSprintClose,
+	"decision add":   cmdDecisionAdd,
+	"decision need":  cmdDecisionNeed,
+	"decision close": cmdDecisionClose,
+	"action need":    cmdActionNeed,
+	"action done":    cmdActionDone,
+	"reply read":     cmdReplyRead,
 }
 
 // writes is the commands that write records: each runs under the records store's lock, taken after the work store's
