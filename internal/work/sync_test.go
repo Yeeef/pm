@@ -550,23 +550,24 @@ func TestCreatePushTimeout(t *testing.T) {
 	}
 	x.b.do(func(d *Dolt) {
 		d.pushFn = timeout(true)
-		it := must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "landed"}))
+		must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "landed"}))
 		d.pushFn = nil
 		if r := must(d.Sync()); r.Pushed != 0 {
 			t.Fatalf("pushed %d after a landed create", r.Pushed)
 		}
-		calls := 0
-		d.pushFn = func(push func() error) error { // the first push is lost, the retry lands
+		calls, head := 0, must(d.head())
+		d.pushFn = func(push func() error) error { // a push that times out and has not landed when checked
 			calls++
-			if calls == 1 {
-				return errPushTimeout
-			}
-			return push()
+			return errPushTimeout
 		}
-		it2 := must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "retried"}))
-		if calls != 2 || it2.ID == it.ID {
-			t.Fatalf("%d calls, ids %s %s", calls, it.ID, it2.ID)
+		_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "lost"})
+		want := "the push may still land as " + x.s.ID + ".4. Nothing was merged here: run pm sync, then check with " +
+			"pm show " + x.s.ID + ".4 before you create it again"
+		if err == nil || !strings.Contains(err.Error(), "the remote's history does not hold it yet: the outcome is "+
+			"unknown") || !strings.Contains(err.Error(), want) || calls != 1 || must(d.head()) != head {
+			t.Fatalf("%d pushes: %v", calls, err)
 		}
+		d.pushFn = nil
 	})
 	x.b.do(func(d *Dolt) {
 		head := must(d.head())
@@ -592,8 +593,43 @@ func TestCreatePushTimeout(t *testing.T) {
 	for _, it := range x.converge(t) {
 		titles[it.Title] = true
 	}
-	if !titles["landed"] || !titles["retried"] || titles["unknown"] {
+	if !titles["landed"] || titles["lost"] || titles["unknown"] {
 		t.Fatalf("%v", titles)
+	}
+}
+
+// A push the client dropped at its timeout lands on the remote only after the fetch that checked it (the server
+// finishes the dropped statement): the create fails, the outcome unknown, and mints nothing again, so the item is on
+// the remote once, and the next sync brings it here.
+func TestCreateWhosePushLandsAfterItsCheckMakesTheItemOnce(t *testing.T) {
+	x := newPair(t)
+	x.b.do(func(d *Dolt) {
+		calls := 0
+		d.pushFn = func(push func() error) error {
+			calls++
+			// the push the client dropped: C1, held to land later
+			if _, err := d.conn.ExecContext(ctx, "CALL DOLT_BRANCH('held', 'pm-cas')"); err != nil {
+				t.Fatal(err)
+			}
+			return errPushTimeout
+		}
+		_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "once"})
+		if err == nil || !strings.Contains(err.Error(), "the outcome is unknown") || calls != 1 {
+			t.Fatalf("%d pushes: %v", calls, err)
+		}
+		// the dropped push lands now, after the check
+		if err := d.remoteCall(ctx, "CALL DOLT_PUSH(?, ?)", remote, "held:main"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var ids []string
+	for _, it := range x.converge(t) {
+		if it.Title == "once" {
+			ids = append(ids, it.ID)
+		}
+	}
+	if len(ids) != 1 {
+		t.Fatalf("the item is there %d times: %v", len(ids), ids)
 	}
 }
 

@@ -581,10 +581,11 @@ func (d *Dolt) dropCAS() error {
 // createShared is Create on a store with a remote, run by the pm service one at a time: the compare-and-swap of the
 // work-store page's Ids section, so two clones never mint the same child id or sprint number, and main is never
 // reset. It pulls, notes main's HEAD as C0, makes the branch pm-cas at C0, mints and commits the item there as C1,
-// and pushes pm-cas to the remote's main. A push the remote rejects as non-fast-forward deletes pm-cas and starts
-// again, up to casAttempts in all. A push that times out or fails otherwise fetches: C1 in the remote's history means
-// the create landed; else delete and retry; a failing fetch deletes pm-cas and fails, the outcome unknown. Once the
-// push landed, pm-cas merges into main in one write transaction (a fast-forward when no session wrote since C0) and is
+// and pushes pm-cas to the remote's main. Only a push the remote rejects as non-fast-forward, which lands nothing,
+// deletes pm-cas and starts again, up to casAttempts in all. A push that times out or fails otherwise fetches: C1 in
+// the remote's history means the create landed; anything else deletes pm-cas and fails hard, the outcome unknown,
+// naming the id the push may still land as, since a dropped push can land later and a second mint would make the
+// item twice. Once the push landed, pm-cas merges into main in one write transaction (a fast-forward when no session wrote since C0) and is
 // deleted. With the remote unreachable, the pull fails and a create refuses.
 func (d *Dolt) createShared(n New) (Item, error) {
 	var last error
@@ -615,23 +616,26 @@ func (d *Dolt) createShared(n New) (Item, error) {
 				return Item{}, err
 			}
 			continue
-		default: // a timeout, or another failure: whether the push landed is unknown
+		default: // a timeout, or another failure: whether the push landed is unknown, and may stay so
+			// The push the client dropped may still land on the remote (the server finishes the statement until
+			// Dolt kills its git, and git can update the ref after that): C1 seen there means it landed, but C1 not
+			// seen yet proves nothing, so the create never mints again, which could make the item twice.
+			unknown := func(why string) (Item, error) {
+				return Item{}, errors.Join(fmt.Errorf("work store: create %s: %v; %s: the outcome is unknown, and "+
+					"the push may still land as %s. Nothing was merged here: run pm sync, then check with pm show %s "+
+					"before you create it again", it.ID, err, why, it.ID, it.ID), d.dropCAS())
+			}
 			if _, ferr := d.fetch(); ferr != nil {
-				return Item{}, errors.Join(fmt.Errorf("work store: create %s: %v, and the fetch to check it failed "+
-					"too (%v): the outcome is unknown; nothing was written here, and the next sync brings the item if "+
-					"the push landed", it.ID, err, ferr), d.dropCAS())
+				return unknown(fmt.Sprintf("the fetch to check it failed too (%v)", ferr))
 			}
 			// Landed when the remote's history holds C1: another clone may have pushed on top since.
 			var landed int
 			if qerr := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_log(?) WHERE commit_hash = ?",
 				remoteHead, c1).Scan(&landed); qerr != nil {
-				return Item{}, errors.Join(d.broken(qerr), d.dropCAS())
+				return unknown(fmt.Sprintf("reading the remote's history failed (%v)", d.broken(qerr)))
 			}
 			if landed == 0 {
-				if err := d.dropCAS(); err != nil {
-					return Item{}, err
-				}
-				continue
+				return unknown("the remote's history does not hold it yet")
 			}
 		}
 		if err := d.mergeCAS(); err != nil {
