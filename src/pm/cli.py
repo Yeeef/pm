@@ -41,7 +41,7 @@ from pathlib import Path
 
 import yaml
 
-from pm import __version__, config, hooks, install, launch, legacy
+from pm import __version__, config, hooks, install, launch, legacy, prompt
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
                            REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, id_key, kind,
                            load_beads, merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
@@ -356,21 +356,7 @@ def yaml_str(s: str) -> str:
 
 SUMMARY_MODEL = "claude-haiku-5-5"
 SUMMARY_TIMEOUT = 180  # seconds the model call may take
-SUMMARY_PROMPT = """You write the "Today" summary at the top of a project-management site's page for {day}.
-Below is everything recorded on {day}: per project, the sprints finished (with their outcome) and opened, the tasks
-finished (with how), started and opened, the requests to the owner raised and closed that day, and the commits to the
-project records. Write a briefing for the owner, not a list of tasks: group the day's work into at most four themes,
-one Markdown bullet per theme, each line starting with "- **<theme>:** ". A theme is an area of the work, named in two
-to four words. In each theme, write only the changes that matter to the owner, in one or two short sentences: what
-now works differently, what shipped, what a result showed. Leave out routine steps, record edits, task bookkeeping
-and work that did not change anything. Put first the theme with the largest change. Name work in progress only if it
-is notable. If the owner must do something, from the requests raised that day and still open, make it the last theme,
-"- **For you:** ", named by the action; it counts toward the four. Name work by what it does. Never write ids,
-sprint numbers, task numbers, PR numbers or other numbers. Write in ASD-STE100 Simplified Technical English: short
-sentences of at most 20 words, active voice, one meaning for each word, no idioms. Do not invent anything that is not
-below. Output only the bullets, no heading, no preamble.
-
-{activity}"""
+SUMMARY_PROMPT = prompt("day_summary")  # {day} and {activity} filled in
 
 
 def day_activity_text(repo: Repo, day: str) -> str:
