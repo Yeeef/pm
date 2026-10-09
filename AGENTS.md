@@ -175,7 +175,10 @@ A case's label comes from the rule, never from what the judge answers: a miss is
   `site_url` in `.pm/config.toml`, a tunnel to the pm service on the owner's machine.
 - One stylesheet, `src/pm/style.css`, for every page; a look it cannot express is added there, never to a record.
 - A record that does not validate shows as the error instead of its page: fix the record, not the renderer. A
-  generated section (Progress, Decisions await you, Actions await you, a day's Sprints) is rendered from Beads.
+  generated section (Progress, Decisions await you, Actions await you, a day's Sprints, Not in a sprint) is rendered
+  from Beads. Not in a sprint, on a project's page and the overview, lists each open non-epic item filed directly
+  under a project epic, or (overview only) with no parent; a need under a project is left out, since the await-you
+  sections show it.
   `test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that_does` holds the render check.
 - Day summaries live beside the day record as `records/days/<date>.summary.json`, written by `pm day summarize`.
 - Until the cut-over the site lands in both implementations: `site.py` and `internal/site`. Go's pages must equal Python's after `site.Normalise` (entities decoded, attributes sorted, whitespace HTML does not render dropped) on every page of the corpus; a difference no renderer change can remove goes on `internal/site/testdata/parity-allow.txt` with its reason, reviewed in the PR that adds it. A construct the corpus lacks gets a fixture in `internal/site/testdata/constructs`.
