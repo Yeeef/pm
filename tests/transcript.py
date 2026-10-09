@@ -6,8 +6,10 @@ new text, null when removed) and the store export after it. The normaliser repla
 keeping its shape so a difference in format still shows: the temp and checkout paths and random temp names, git
 commit ids and UUIDs (numbered by first appearance, with their length), timestamps and today's date (each digit as
 0), durations and ports (the number only), and root ids pm minted (in order of appearance; the seeded ids are kept).
-One line differs by design until the cut-over: pm where's work-layer line, where Python pm names Beads and Go pm its
-work store; each becomes one placeholder."""
+Two things differ by design until the cut-over, and each becomes one form: pm where's work-layer line, where Python pm
+names Beads and Go pm its work store; and the comment that holds the answer a need closes with (pm decision add --need,
+pm decision close), which Python pm's `bd human respond` writes as a note "Response: <text>" by the git user and Go pm's
+work store as a reply by the owner (work.Answer)."""
 
 from __future__ import annotations
 
@@ -80,6 +82,17 @@ def normalise(value, paths: dict[str, str]):
     return PORT.sub("<port>", value)
 
 
+def answer(comment: dict) -> dict:
+    """A need's answer comment in one form, whichever store wrote it: Python pm's note "Response: <text>", or Go pm's
+    reply by the owner that no site wrote (a site reply ends with its pm-reply mark)."""
+    text = comment.get("text") or ""
+    if comment.get("kind") == "note" and text.startswith("Response: "):
+        return {**comment, "kind": "<answer>", "author": "<answer>", "text": text.removeprefix("Response: ")}
+    if comment.get("kind") == "reply" and comment.get("author") == "owner" and "<!-- pm-reply" not in text:
+        return {**comment, "kind": "<answer>", "author": "<answer>"}
+    return comment
+
+
 def name(nodeid: str) -> str:
     """A file name for a test id: its characters outside [\\w.-] as _, a long one cut and made unique by a digest."""
     stem = re.sub(r"[^\w.-]", "_", nodeid.replace("::", "__"))
@@ -95,5 +108,7 @@ def write(directory: Path, nodeid: str, paths: dict[str, str]) -> Path:
     for call in data["calls"]:  # by normalised id: a minted root id sorts apart from the seeds by its placeholder
         if isinstance(call["export"], list):
             call["export"].sort(key=lambda i: i["id"])
+            for item in call["export"]:
+                item["comments"] = [answer(c) for c in item["comments"]]
     path.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
     return path
