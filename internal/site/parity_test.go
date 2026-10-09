@@ -16,7 +16,7 @@ import (
 	"github.com/Yeeef/pm/internal/work"
 )
 
-// The parity corpus: Python pm's pages and check results, written by pm/tests/go_parity_corpus.py into $PM_PARITY
+// The parity corpus: Python pm's pages and check results, written by tests/go_parity_corpus.py into $PM_PARITY
 // (make test-go does it). Each corpus holds its records store, its items as the neutral-test mapper gives them, and
 // Python's result; Go renders the same records with the same items and must give the same pages after Normalise, but
 // for the reviewed differences in testdata/parity-allow.txt.
@@ -24,7 +24,7 @@ import (
 func parityDir(t *testing.T) string {
 	dir := os.Getenv("PM_PARITY")
 	if dir == "" {
-		t.Skip("PM_PARITY names no parity corpus; make test-go writes one with pm/tests/go_parity_corpus.py")
+		t.Skip("PM_PARITY names no parity corpus; make test-go writes one with tests/go_parity_corpus.py")
 	}
 	return dir
 }

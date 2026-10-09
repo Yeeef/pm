@@ -247,19 +247,6 @@ def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
     assert "What — 1. The layers" in titles[0] and "How; Commands" in titles[1]
 
 
-def test_hook_entries_run_every_rules_chunk():
-    """Both runtimes' SessionStart and SubagentStart entries run chunks 1 to N, then the state or the profile line."""
-    root = Path(__file__).resolve().parents[2]
-    n = len(hooks.STARTS)
-    for path in (".claude/settings.json", ".codex/hooks.json"):
-        events = json.loads((root / path).read_text())["hooks"]
-        for event, last in (("SessionStart", "--state"), ("SubagentStart", "--subagent")):
-            cmds = [h["command"] for g in events[event] for h in g["hooks"] if "prime" in h["command"]
-                    and "bd prime" not in h["command"]]
-            want = [f"prime --rules {i} --hook-json" for i in range(1, n + 1)] + [f"prime {last} --hook-json"]
-            assert [c[c.index("prime "):] for c in cmds] == want, (path, event)
-
-
 def test_subagent_start_envelope(tmp_path):
     """The rules chunks and the git line (Python: the Beads profile line), each a SubagentStart envelope; no pm
     show."""

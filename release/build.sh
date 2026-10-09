@@ -1,7 +1,7 @@
 #!/bin/sh
-# Build Go pm's release tarball for this machine: pm/release/build.sh OUT_DIR [pm-v<X> | <X>]
+# Build Go pm's release tarball for this machine: release/build.sh OUT_DIR [pm-v<X> | <X>]
 #
-# A release is a tag pm-v<X> on a main commit (pm/AGENTS.md, Releasing pm): the version comes from the tag given, or
+# A release is a tag pm-v<X> on a main commit (AGENTS.md, Releasing pm): the version comes from the tag given, or
 # else from the tag on HEAD (git describe --tags --exact-match --match 'pm-v*', lightweight tags too); an untagged
 # build is "dev". No version is written in any file. The binary is built as the release workflow and make go-build build it (cgo for gozstd,
 # -tags gms_pure_go for Dolt, stripped) with buildinfo.Version stamped, and packed as OUT_DIR/pm-<X>-<os>-<arch>.tar.gz:
@@ -26,10 +26,10 @@ mkdir -p "$out"
 out=$(cd "$out" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-(cd "$root/pm" && CGO_ENABLED=1 go build -trimpath -tags gms_pure_go \
+(cd "$root" && CGO_ENABLED=1 go build -trimpath -tags gms_pure_go \
   -ldflags "-s -w -X github.com/Yeeef/pm/internal/buildinfo.Version=$version" -o "$work/pm" ./cmd/pm)
 chmod 0755 "$work/pm"
-tarball="$out/pm-$version-$(cd "$root/pm" && go env GOOS)-$(cd "$root/pm" && go env GOARCH).tar.gz"
+tarball="$out/pm-$version-$(cd "$root" && go env GOOS)-$(cd "$root" && go env GOARCH).tar.gz"
 # COPYFILE_DISABLE: macOS tar would add an AppleDouble ._pm member beside pm
 (cd "$work" && COPYFILE_DISABLE=1 tar -czf "$tarball" pm)
 [ "$(tar -tzf "$tarball")" = pm ] || { echo "$0: $tarball holds more than pm" >&2; exit 1; }

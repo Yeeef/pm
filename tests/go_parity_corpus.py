@@ -1,16 +1,17 @@
 """Write the corpus the Go parity tests compare against: Python pm's pages, check results and the results of the
 functions Go pm replaces with its own code, all from the same records and the same work data.
 
-    uv run --project pm python pm/tests/go_parity_corpus.py OUT [--live]
+    uv run python tests/go_parity_corpus.py OUT [--live CLONE]
 
 Each corpus is a directory under OUT: `records` (the store, a git repo, so design pages have dates), `items.json` (the
 work-store items, mapped from the bd issues by work_items.py, in bd's order), `meta.json` (site name), and Python's
 `pages.json` (every page by path) or `check.json` (pm check's result: pages or the error). Corpora:
 
 - `fixtures`: the test suite's records and issues (conftest.RECORDS, ISSUES).
-- `constructs`: pm/internal/site/testdata/constructs, a fixture for each construct the other corpora lack.
+- `constructs`: internal/site/testdata/constructs, a fixture for each construct the other corpora lack.
 - `check-<case>`: a constructs copy with one record or item broken; pm check's error.
-- `live` (with --live): this clone's records store and its Beads data, read with bd; needs bd and the store.
+- `live` (with --live CLONE): the records store and the Beads data of CLONE, a clone that uses pm, read with pm and
+  bd there; the site is named after CLONE's directory.
 
 OUT/reference.json holds Python's results for the scanning code that replaces its lookaround regexes, YAML 1.1 quoting
 and header typing, on a table of inputs plus every header value of every corpus. The Go tests (internal/site,
@@ -146,17 +147,18 @@ def broken() -> list[tuple[str, dict[str, str | None], list[dict]]]:
     ]
 
 
-def live(out: Path) -> None:
+def live(out: Path, clone: Path) -> None:
     # A clone of the records branch as committed now: other sessions write the store while the Go test runs, so both
     # sides read this snapshot, its history included for the design pages' dates.
-    source = subprocess.run(["pm", "where", "records"], check=True, capture_output=True, text=True).stdout.strip()
+    source = subprocess.run(["pm", "where", "records"], check=True, capture_output=True, text=True,
+                            cwd=clone).stdout.strip()
     store = out / "live" / "records"
     store.parent.mkdir(parents=True)
     git(out, "clone", "-q", "--branch", "records", "--single-branch", source, str(store))
     listed = json.loads(subprocess.run(["bd", "list", "--all", "--json"], check=True, capture_output=True,
-                                       text=True).stdout)
+                                       text=True, cwd=clone).stdout)
     exported = {r["id"]: r for r in map(json.loads, subprocess.run(["bd", "export"], check=True, capture_output=True,
-                                                                    text=True).stdout.splitlines())}
+                                                                    text=True, cwd=clone).stdout.splitlines())}
     for i in listed:
         if exported.get(i["id"], {}).get("comments"):
             i["comments"] = exported[i["id"]]["comments"]
@@ -164,7 +166,7 @@ def live(out: Path) -> None:
         # the export's); the work store keeps them sorted by id as text, so Python renders them in that order too
         i["dependencies"] = sorted(i.get("dependencies") or [], key=lambda d: (d["type"], d["depends_on_id"]))
     beads = beads_of(listed)
-    name = "yeeef-agents"
+    name = clone.resolve().name
     write(out, "live", store, listed, name, pages(store, beads, name), "pages")
     (out / "live" / "check.json").write_text(json.dumps(check(store, beads, name)))
 
@@ -371,7 +373,7 @@ def main(argv: list[str]) -> int:
         write(out, f"check-{case}", store, issues + extra, "demo", check(store, beads_of(issues + extra), "demo"),
               "check")
     if "--live" in argv[1:]:
-        live(out)
+        live(out, Path(argv[argv.index("--live") + 1]))
         stores.append(out / "live" / "records")
     reference(out, stores)
     install_reference(out)

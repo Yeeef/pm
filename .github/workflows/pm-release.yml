@@ -1,0 +1,116 @@
+# Go pm's release (AGENTS.md, Releasing pm): a tag pm-v<X> pushed on a main commit is the whole release (a
+# pre-release tag, pm-v<X>-rc.<n>, may name any commit, a PR's included). X comes from the tag name alone; no file holds it. A Python tag (X below 0.2.0, such as pm-v0.1.5) builds nothing and
+# succeeds: Python releases are their tag and the commit it names. For a Go X, each release target is built natively
+# (cgo needs it) by release/build.sh, which stamps X into the binary; then one GitHub release pm-v<X> gets both
+# tarballs, SHA256SUMS and install.sh with X filled in, marked a pre-release when X has a "-" suffix (pm-v0.2.0-rc.1).
+name: pm release
+
+on:
+  push:
+    tags: ["pm-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      go: ${{ steps.v.outputs.go }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Take X from the tag; a Go version is at least 0.2.0, a pre-release suffix left out
+        id: v
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          x=${TAG#pm-v}
+          go=$(python3 -c '
+          import sys
+          try:
+              key = tuple(int(p) for p in sys.argv[1].split("-", 1)[0].split("."))
+          except ValueError:
+              sys.exit(f"tag pm-v{sys.argv[1]} names no version")
+          print("true" if key >= (0, 2, 0) else "false")' "$x")
+          case $x in *-*) pre=true ;; *) pre=false ;; esac
+          # a release is a main commit; a pre-release (a release candidate) may name a PR's commit, to check the build
+          # before that PR merges
+          if [ "$go" = true ] && [ "$pre" = false ]; then
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
+              { echo "::error::tag $TAG names $GITHUB_SHA, which is not on main"; exit 1; }
+          fi
+          echo "version=$x" >> "$GITHUB_OUTPUT"
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          echo "tag $TAG: version $x, Go $go, pre-release $pre" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: version
+    if: needs.version.outputs.go == 'true'
+    strategy:
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-14
+          - target: linux-amd64
+            runner: ubuntu-22.04  # glibc 2.35, the oldest the release links against
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      X: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Build and pack (release/build.sh)
+        run: release/build.sh dist "${{ github.ref_name }}"
+      - name: Check the tarball holds pm reporting X
+        run: |
+          tar="dist/pm-$X-${{ matrix.target }}.tar.gz"
+          [ "$(tar -tzf "$tar")" = pm ]
+          # outside the checkout: inside it, pm launches the repo's pin, as it should
+          check="$RUNNER_TEMP/check" && mkdir "$check" && tar -xzf "$tar" -C "$check"
+          [ "$(cd "$check" && ./pm version)" = "$X" ]
+          echo "pm-$X-${{ matrix.target }}.tar.gz: $(wc -c < "$tar" | tr -d ' ') bytes" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pm-${{ matrix.target }}
+          path: dist/pm-${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      X: ${{ needs.version.outputs.version }}
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS and install.sh
+        run: |
+          cd dist
+          ls "pm-$X-darwin-arm64.tar.gz" "pm-$X-linux-amd64.tar.gz"
+          sha256sum "pm-$X-darwin-arm64.tar.gz" "pm-$X-linux-amd64.tar.gz" > SHA256SUMS
+          sed "s/@VERSION@/$X/" ../install.sh > install.sh
+          grep -q "^version='$X'\$" install.sh
+          cat SHA256SUMS
+      - name: Create the GitHub release
+        run: |
+          pre=
+          [ "${{ needs.version.outputs.prerelease }}" = true ] && pre=--prerelease
+          gh release create "$TAG" --verify-tag $pre --title "pm $X" \
+            --notes "Go pm $X. Install: curl -fsSL https://github.com/${{ github.repository }}/releases/download/$TAG/install.sh | sh, then pm init in each clone" \
+            dist/pm-$X-darwin-arm64.tar.gz dist/pm-$X-linux-amd64.tar.gz dist/SHA256SUMS dist/install.sh

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// Python's results for the code Go pm writes itself, from pm/tests/go_parity_corpus.py ($PM_PARITY/reference.json):
+// Python's results for the code Go pm writes itself, from tests/go_parity_corpus.py ($PM_PARITY/reference.json):
 // the scanning code that replaces records.py's lookaround regexes, YAML 1.1 quoting and typing on every header value
 // of every corpus, the templates and insert_entry.
 type reference struct {
@@ -27,7 +27,7 @@ type reference struct {
 func loadReference(t *testing.T) reference {
 	dir := os.Getenv("PM_PARITY")
 	if dir == "" {
-		t.Skip("PM_PARITY names no parity corpus; make test-go writes one with pm/tests/go_parity_corpus.py")
+		t.Skip("PM_PARITY names no parity corpus; make test-go writes one with tests/go_parity_corpus.py")
 	}
 	var ref reference
 	b, err := os.ReadFile(filepath.Join(dir, "reference.json"))
