@@ -646,7 +646,7 @@ func ownerCard(it *Item, where string, items *Items, md func(string) (string, er
 	}
 	how := "Reply below with the evidence once done; the agent checks it and closes this."
 	if Kind(it) == "decision" {
-		how = "Reply below, or answer with <code>bd human respond " + esc(it.ID) + "</code>; the agent that asked " +
+		how = "Reply below, or answer with <code>pm reply add " + esc(it.ID) + "</code>; the agent that asked " +
 			"records your answer."
 	}
 	return `<div class="card need" id="need-` + esc(it.ID) + `"><h4>` + pill(State(it, items)) + esc(it.Title) +

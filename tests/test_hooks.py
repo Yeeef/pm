@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import IMPL, PM, stop_services, write_config
+from conftest import GO_SUBAGENT, IMPL, PM, stop_services, write_config
 
 from pm import hooks
 
@@ -261,7 +261,8 @@ def test_hook_entries_run_every_rules_chunk():
 
 
 def test_subagent_start_envelope(tmp_path):
-    """The rules chunks and the profile line, each a SubagentStart envelope; no pm show."""
+    """The rules chunks and the git line (Python: the Beads profile line), each a SubagentStart envelope; no pm
+    show."""
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     write_config(tmp_path)
     (tmp_path / "bin").mkdir()
@@ -269,7 +270,10 @@ def test_subagent_start_envelope(tmp_path):
     event = {"hook_event_name": "SubagentStart", "cwd": str(tmp_path)}
     env = {"PATH": str(tmp_path / "bin")}  # git for pm's config check; no bd
     text = context_of(run(SUBAGENT, event, env, tmp_path), "SubagentStart")
-    assert text.startswith("Beads agent profile: unknown (") and "\n" not in text
+    if IMPL == "go":
+        assert text == GO_SUBAGENT
+    else:
+        assert text.startswith("Beads agent profile: unknown (") and "\n" not in text
     got = [context_of(run(rules_cmd(n), event, env, tmp_path), "SubagentStart") for n in range(1, len(hooks.STARTS) + 1)]
     assert got == hooks.chunks() and all(len(c) <= hooks.CAP for c in got)
 

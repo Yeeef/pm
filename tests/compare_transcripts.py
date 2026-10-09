@@ -44,7 +44,9 @@ def main() -> int:
     differ = 0
     for nodeid, path in go.items():
         py = ROOT / "python" / path.relative_to(ROOT / "go")
-        a = py.read_text().splitlines() if py.is_file() else []
+        if not py.is_file():  # passed on Python without a transcript: skipped there, a test for Go only
+            continue
+        a = py.read_text().splitlines()
         b = path.read_text().splitlines()
         if a != b:
             differ += 1

@@ -253,6 +253,6 @@ func How() string {
 	if commit == "" {
 		commit = "unknown"
 	}
-	return "this repo's pin at commit " + commit + ", launched by the pm uv tool (pm " + by + "); delete " +
+	return "this repo's pin at commit " + commit + ", launched by pm " + by + "; delete " +
 		filepath.Join(PinDir(v), "commit") + " to resolve tag pm-v" + v + " again"
 }

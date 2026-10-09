@@ -5,12 +5,17 @@
 //
 // A piece is either a whole file pm owns (.pm/config.toml, .pm/README.md, .pm/.gitignore, the two workflows) or pm's
 // part of a shared file: its hook entries in .claude/settings.json and .codex/hooks.json (a hook is pm's when its
-// command starts with "pm prime" or "pm hook "), its marked section in .beads/hooks/post-checkout and pre-commit
-// (after Beads' section), and its marked block in .gitignore. Each piece has Present, whether pm's part is there,
+// command starts with "pm prime" or "pm hook "), its marked section in its own git hook files .pm/hooks/post-checkout
+// and pre-commit, and its marked block in .gitignore. Each piece has Present, whether pm's part is there,
 // Apply, the file with pm's part as this version writes it and every other byte kept, Part, pm's part alone (what pm
 // doctor compares with Part(Apply(text))), and Remove, the file without pm's part (nil: nothing else is left, so the
 // file goes). pm init applies a piece only when it is not present, so a second run changes nothing; pm upgrade applies
-// every piece; pm uninstall removes every piece. Each writes the bytes Python pm 0.1.x writes.
+// every piece; pm uninstall removes every piece. Each writes the bytes Python pm 0.1.x writes, but for the hook files'
+// place: Python pm 0.1.x puts its sections in Beads' .beads/hooks.
+//
+// Go pm runs no bd, so pm init and pm upgrade also take Beads' own pieces out of the tracked files (the work-store
+// page, Cut-over): bd's hook entries in the runtimes' settings and the Beads block in CLAUDE.md and AGENTS.md
+// (leftovers below); pm doctor names each one left. pm uninstall leaves them, as they are not pm's.
 package install
 
 import (
@@ -347,7 +352,10 @@ func hooksPresent(rel string, want entries) func(*string) (bool, error) {
 }
 
 // dropPMHooks takes pm's hooks out of each matcher group of gs; a group left without hooks goes.
-func dropPMHooks(gs []any) []any {
+func dropPMHooks(gs []any) []any { return dropHooks(gs, isPMHook) }
+
+// dropHooks takes the hooks is picks out of each matcher group of gs; a group left without hooks goes.
+func dropHooks(gs []any, is func(any) bool) []any {
 	kept := []any{}
 	for _, g := range gs {
 		o := g.(*pyjson.Object)
@@ -355,7 +363,7 @@ func dropPMHooks(gs []any) []any {
 		var others []any
 		mine := false
 		for _, h := range hs {
-			if isPMHook(h) {
+			if is(h) {
 				mine = true
 			} else {
 				others = append(others, h)
@@ -490,8 +498,13 @@ func hooksPiece(rel string, want entries) Piece {
 
 // ---------------------------------------------------------------- marked sections
 
-// GitHooks are the Beads hook files pm adds its section to.
+// GitHooks are the git hooks pm runs: its own files in .pm/hooks (HooksRel), and the Beads hook files Python pm put its
+// section in.
 var GitHooks = []string{"post-checkout", "pre-commit"}
+
+// HooksRel is pm's git hook directory under a worktree, which core.hooksPath names (the work-store page, Constraints
+// resolved, row 8: pm owns its hook directory).
+const HooksRel = ".pm/hooks"
 
 const (
 	sectionEnd = "# --- END PM ---"
@@ -504,7 +517,7 @@ var (
 	beadsEnd = regexp.MustCompile(`(?m)^# --- END BEADS INTEGRATION[^\n]*(\n|\z)`)
 )
 
-// GitHookSection is pm's section in a Beads hook file: one line, so the logic ships in pm. `|| exit $?` keeps a
+// GitHookSection is pm's section in a git hook file: one line, so the logic ships in pm. `|| exit $?` keeps a
 // failure (pm missing, or the pre-commit guard refusing) from being lost when lines follow it.
 func GitHookSection(name string) string {
 	return "# --- BEGIN PM v" + buildinfo.Version + " ---\npm hook git-" + name + " \"$@\" || exit $?\n" + sectionEnd + "\n"
@@ -519,7 +532,7 @@ func stripSection(rel, text string, pattern, begin *regexp.Regexp) (string, erro
 }
 
 // gitHookApply puts pm's section right after Beads' end marker (or at the end when Beads has none); a new file gets
-// a shebang.
+// a shebang, and so holds pm's section alone.
 func gitHookApply(rel, name string) func(*string) (string, error) {
 	return func(text *string) (string, error) {
 		if text == nil {
@@ -609,6 +622,135 @@ func sectionRemove(rel string, pattern, begin *regexp.Regexp, bare ...string) fu
 	}
 }
 
+// ---------------------------------------------------------------- Beads' pieces, which pm removes
+
+// leftover is a piece of Beads' in a tracked file, which pm removes: find names what of it the text holds ("" when
+// none), clean is the text without it, every other byte kept.
+type leftover struct {
+	find  func(text string) (string, error)
+	clean func(text string) (string, error)
+}
+
+// leftoverRels is each file that may hold one, in the order pm names them. A symlinked CLAUDE.md or AGENTS.md is
+// skipped: its target is the other one, or not pm's to edit.
+var leftoverRels = []string{".claude/settings.json", ".codex/hooks.json", "CLAUDE.md", "AGENTS.md"}
+
+func leftoverOf(rel string) (leftover, bool) {
+	switch rel {
+	case ".claude/settings.json", ".codex/hooks.json":
+		return leftover{beadsHooksFind(rel), beadsHooksClean(rel)}, true
+	case "CLAUDE.md", "AGENTS.md":
+		return leftover{beadsBlockFind(rel), beadsBlockClean(rel)}, true
+	}
+	return leftover{}, false
+}
+
+// isBeadsHook is whether a hook entry is Beads': its command starts with "bd " (bd prime --hook-json in Claude Code's
+// settings, bd codex-hook <event> in Codex's), so pm prime is the only context (the work-store page, Constraints
+// resolved, row 7).
+func isBeadsHook(h any) bool {
+	o, ok := h.(*pyjson.Object)
+	if !ok {
+		return false
+	}
+	cmd, ok := o.Get("command").(string)
+	return ok && strings.HasPrefix(cmd, "bd ")
+}
+
+func beadsHooksFind(rel string) func(string) (string, error) {
+	return func(text string) (string, error) {
+		f, err := loadHooks(rel, &text, false)
+		if err != nil || f.events == nil {
+			return "", err
+		}
+		var cmds []string
+		for _, e := range f.events.Keys {
+			for _, g := range f.events.Get(e).([]any) {
+				for _, h := range groupHooks(g) {
+					if !isBeadsHook(h) {
+						continue
+					}
+					if c := h.(*pyjson.Object).Get("command").(string); !contains(cmds, c) {
+						cmds = append(cmds, c)
+					}
+				}
+			}
+		}
+		if len(cmds) == 0 {
+			return "", nil
+		}
+		return "Beads' hook entries (" + strings.Join(cmds, ", ") + ")", nil
+	}
+}
+
+// beadsHooksClean is the settings without Beads' hooks: a group or event their removal empties goes too, and so does
+// hooks when nothing is left in it.
+func beadsHooksClean(rel string) func(string) (string, error) {
+	return func(text string) (string, error) {
+		if what, err := beadsHooksFind(rel)(text); err != nil || what == "" {
+			return text, err
+		}
+		f, err := loadHooks(rel, &text, true)
+		if err != nil {
+			return "", err
+		}
+		for _, e := range append([]string(nil), f.events.Keys...) {
+			gs := f.events.Get(e).([]any)
+			if kept := dropHooks(gs, isBeadsHook); len(gs) > 0 && len(kept) == 0 {
+				f.events.Delete(e)
+			} else {
+				f.events.Set(e, kept)
+			}
+		}
+		if len(f.events.Keys) == 0 {
+			f.data.Delete("hooks")
+		}
+		return DumpJSON(f.data), nil
+	}
+}
+
+var (
+	beadsBlock      = regexp.MustCompile(`(?ms)^<!-- BEGIN BEADS INTEGRATION[^\n]*\n.*?^<!-- END BEADS INTEGRATION[^\n]*(?:\n|\z)`)
+	beadsBlockBegin = regexp.MustCompile(`(?m)^<!-- BEGIN BEADS INTEGRATION`)
+)
+
+func beadsBlockFind(rel string) func(string) (string, error) {
+	return func(text string) (string, error) {
+		if beadsBlock.MatchString(text) {
+			return "the Beads block (<!-- BEGIN BEADS INTEGRATION … -->)", nil
+		}
+		if beadsBlockBegin.MatchString(text) {
+			return "", refuse("%s has a Beads begin marker without its end marker (<!-- END BEADS INTEGRATION -->); fix "+
+				"it by hand", rel)
+		}
+		return "", nil
+	}
+}
+
+// beadsBlockClean is the text without each Beads block and the blank line that set it apart.
+func beadsBlockClean(rel string) func(string) (string, error) {
+	return func(text string) (string, error) {
+		if _, err := beadsBlockFind(rel)(text); err != nil {
+			return "", err
+		}
+		for {
+			m := beadsBlock.FindStringIndex(text)
+			if m == nil {
+				return text, nil
+			}
+			before, after := text[:m[0]], text[m[1]:]
+			if (before == "" || strings.HasSuffix(before, "\n\n")) && (after == "" || strings.HasPrefix(after, "\n")) {
+				if after != "" {
+					after = after[1:]
+				} else if before != "" {
+					before = before[:len(before)-1]
+				}
+			}
+			text = before + after
+		}
+	}
+}
+
 // ---------------------------------------------------------------- the pieces
 
 // Pieces is every managed piece, in the order pm writes and names them.
@@ -621,7 +763,7 @@ func Pieces(s Settings) []Piece {
 		hooksPiece(".codex/hooks.json", codexHooks()),
 	}
 	for _, name := range GitHooks {
-		rel := ".beads/hooks/" + name
+		rel := HooksRel + "/" + name
 		out = append(out, Piece{rel, marked(beginAny), gitHookApply(rel, name), sectionPart(section),
 			sectionRemove(rel, section, beginAny, "", shebang), 0o755})
 	}
@@ -633,12 +775,103 @@ func Pieces(s Settings) []Piece {
 	)
 }
 
-// Planned is one piece to write: its path, current text (nil: absent) and new text.
+// Planned is one file to write: its piece (for a file holding only Beads' pieces, one with just its Rel and Mode), path,
+// current text (nil: absent) and new text; Wrote is whether pm's part in it changes, Removed what of Beads' it loses.
 type Planned struct {
-	Piece Piece
-	Path  string
-	Text  *string
-	New   string
+	Piece   Piece
+	Path    string
+	Text    *string
+	New     string
+	Wrote   bool
+	Removed []string
+}
+
+// Said is what writing the planned files does, one line each: "wrote <file>" for pm's part, "removed <what> from
+// <file>" for Beads'.
+func Said(planned []Planned) []string {
+	var out []string
+	for _, p := range planned {
+		if p.Wrote {
+			out = append(out, "wrote "+p.Piece.Rel)
+		}
+		for _, r := range p.Removed {
+			out = append(out, "removed "+r+" from "+p.Piece.Rel)
+		}
+	}
+	return out
+}
+
+// plan is each file under top to write: with all, every piece as this version writes it (pm upgrade); else each piece
+// not present (pm init); either way without Beads' pieces. Read-only, so a refusal leaves the worktree as it was.
+func plan(top string, s Settings, all bool) ([]Planned, error) {
+	var out []Planned
+	add := func(p Piece, path string, text *string, n string, wrote bool) error {
+		var removed []string
+		if l, ok := leftoverOf(p.Rel); ok && !isLink(path) {
+			what, err := l.find(n)
+			if err != nil {
+				return err
+			}
+			if what != "" {
+				if n, err = l.clean(n); err != nil {
+					return err
+				}
+				removed = append(removed, what)
+			}
+		}
+		if text == nil || n != *text {
+			out = append(out, Planned{p, path, text, n, wrote, removed})
+		}
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, p := range Pieces(s) {
+		seen[p.Rel] = true
+		path := filepath.Join(top, p.Rel)
+		text, err := Read(path)
+		if err != nil {
+			return nil, err
+		}
+		apply := all
+		if !all {
+			ok, err := p.Present(text)
+			if err != nil {
+				return nil, err
+			}
+			apply = !ok
+		}
+		n, wrote := "", false
+		switch {
+		case apply:
+			if n, err = p.Apply(text); err != nil {
+				return nil, err
+			}
+			wrote = text == nil || n != *text
+		case text == nil:
+			continue
+		default:
+			n = *text
+		}
+		if err := add(p, path, text, n, wrote); err != nil {
+			return nil, err
+		}
+	}
+	for _, rel := range leftoverRels {
+		path := filepath.Join(top, rel)
+		if seen[rel] || isLink(path) {
+			continue
+		}
+		text, err := Read(path)
+		if err != nil {
+			return nil, err
+		}
+		if text != nil {
+			if err := add(Piece{Rel: rel, Mode: 0o644}, path, text, *text, false); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
 }
 
 // Read is a file's text, or nil when it is absent.
@@ -653,49 +886,68 @@ func Read(path string) (*string, error) {
 	return ptr(string(b)), nil
 }
 
-// Plan is each piece not present under top, with its path, current text and new text. Planning reads only, so a
-// refusal leaves the worktree as it was.
-func Plan(top string, s Settings) ([]Planned, error) {
-	var out []Planned
-	for _, p := range Pieces(s) {
-		path := filepath.Join(top, p.Rel)
-		text, err := Read(path)
-		if err != nil {
-			return nil, err
-		}
-		ok, err := p.Present(text)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			n, err := p.Apply(text)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, Planned{p, path, text, n})
-		}
-	}
-	return out, nil
-}
+// Plan is each piece not present under top, and each file holding Beads' pieces, with its path, current text and new
+// text. Planning reads only, so a refusal leaves the worktree as it was.
+func Plan(top string, s Settings) ([]Planned, error) { return plan(top, s, false) }
 
-// Drift is each piece whose pm part under top is not what this version writes, as one line saying how.
+// Drift is each piece whose pm part under top is not what this version writes, and each Beads piece left, as one
+// line saying how.
 func Drift(top string, s Settings) ([]string, error) {
 	var out []string
+	note := func(rel string, line string, err error) (bool, error) {
+		var ie *Error
+		if err != nil && !errors.As(err, &ie) {
+			return false, err
+		}
+		if ie != nil {
+			line = rel + ": " + ie.Msg
+		}
+		if line != "" {
+			out = append(out, line)
+		}
+		return ie == nil, nil
+	}
+	left := func(rel string, text *string) error {
+		l, ok := leftoverOf(rel)
+		if !ok || text == nil || isLink(filepath.Join(top, rel)) {
+			return nil
+		}
+		what, err := l.find(*text)
+		line := ""
+		if what != "" {
+			line = fmt.Sprintf("%s: holds %s, which pm %s removes", rel, what, buildinfo.Version)
+		}
+		_, err = note(rel, line, err)
+		return err
+	}
+	seen := map[string]bool{}
 	for _, p := range Pieces(s) {
+		seen[p.Rel] = true
 		text, err := Read(filepath.Join(top, p.Rel))
 		if err != nil {
 			return nil, err
 		}
 		line, err := drift(p, text)
-		var ie *Error
-		if err != nil && !errors.As(err, &ie) {
+		readable, err := note(p.Rel, line, err)
+		if err != nil {
 			return nil, err
 		}
-		if ie != nil {
-			line = p.Rel + ": " + ie.Msg
+		if readable { // an unreadable file's line says so already
+			if err := left(p.Rel, text); err != nil {
+				return nil, err
+			}
 		}
-		if line != "" {
-			out = append(out, line)
+	}
+	for _, rel := range leftoverRels {
+		if seen[rel] {
+			continue
+		}
+		text, err := Read(filepath.Join(top, rel))
+		if err != nil {
+			return nil, err
+		}
+		if err := left(rel, text); err != nil {
+			return nil, err
 		}
 	}
 	return out, nil
@@ -723,26 +975,9 @@ func drift(p Piece, text *string) (string, error) {
 	return "", nil
 }
 
-// Rewrite is every piece whose file under top differs from the file with pm's part as this version writes it.
-// Read-only, so a refusal leaves the worktree as it was.
-func Rewrite(top string, s Settings) ([]Planned, error) {
-	var out []Planned
-	for _, p := range Pieces(s) {
-		path := filepath.Join(top, p.Rel)
-		text, err := Read(path)
-		if err != nil {
-			return nil, err
-		}
-		n, err := p.Apply(text)
-		if err != nil {
-			return nil, err
-		}
-		if text == nil || n != *text {
-			out = append(out, Planned{p, path, text, n})
-		}
-	}
-	return out, nil
-}
+// Rewrite is every file under top that differs from the file with pm's part as this version writes it and without
+// Beads' pieces. Read-only, so a refusal leaves the worktree as it was.
+func Rewrite(top string, s Settings) ([]Planned, error) { return plan(top, s, true) }
 
 // Removal is one file holding a pm part and its text without it (nil: delete the file).
 type Removal struct {

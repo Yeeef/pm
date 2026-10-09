@@ -26,8 +26,8 @@ import (
 // cmd_upgrade, cmd_uninstall and hook_git_post_checkout in cli.py, hook_git_pre_commit in hooks.py. The pieces and
 // the clone's setup are internal/install's.
 
-// latest is how to install the newest launcher, which launches any pin.
-const latest = `uv tool install --reinstall "git+https://github.com/Yeeef/yeeef-agents#subdirectory=pm"`
+// latest is how to install the newest Go pm release, whose launcher launches any pin: its install.sh (pm/install.sh).
+const latest = `gh release download -R Yeeef/yeeef-agents -p install.sh -O - | sh`
 
 func isFile(p string) bool {
 	st, err := os.Stat(p)
@@ -251,7 +251,7 @@ func cmdInit(p *Parsed, here string, stdout io.Writer) error {
 				"none (%s); run pm init there, or check out a branch there that pins pm %s", main, err, buildinfo.Version)
 		} else {
 			pin = mc.Version
-			why = fmt.Sprintf("the main checkout %s pins pm %s, and the pm service and the one pm uv tool follow it; run "+
+			why = fmt.Sprintf("the main checkout %s pins pm %s, and the pm service and the installed pm follow it; run "+
 				"pm init with pm %s, or move main's pin with pm upgrade there first", main, pin, pin)
 		}
 		if pin != buildinfo.Version {
@@ -263,7 +263,7 @@ func cmdInit(p *Parsed, here string, stdout io.Writer) error {
 			if err != nil {
 				return err
 			}
-			return refuse("%s. pm init set up this worktree and left the pm uv tool and the service alone:\n%s", why, done)
+			return refuse("%s. pm init set up this worktree and left the installed pm and the service alone:\n%s", why, done)
 		}
 	}
 	var s install.Settings
@@ -373,11 +373,7 @@ func initSteps(here, top, main string, s install.Settings, fresh, sessionStart b
 		if err != nil {
 			return "", err
 		}
-		for _, rel := range *written {
-			if _, err := os.Stat(filepath.Join(top, rel)); err == nil {
-				*out = append(*out, "wrote "+rel)
-			}
-		}
+		*out = append(*out, install.Said(planned)...)
 	} else if siteGiven {
 		c, err := config.Load(here)
 		if err != nil {
@@ -482,15 +478,15 @@ func cmdDoctor(here string, stdout io.Writer) error {
 	return err
 }
 
-// cmdUpgrade is pm upgrade: move the pin to the running pm and rewrite every managed piece as it writes them; commits
-// nothing. Without --to it never moves a pin down.
+// cmdUpgrade is pm upgrade: move the pin to the running pm, rewrite every managed piece as it writes them, take out
+// Beads' pieces and point core.hooksPath at pm's hooks; commits nothing. Without --to it never moves a pin down.
 func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	to := p.Get("to")
 	if to == "" {
 		to = buildinfo.Version
 	}
 	if to != buildinfo.Version {
-		return refuse("pm upgrade --to %s must run pm %s, but pm %s is running; run it as the pm uv tool, which "+
+		return refuse("pm upgrade --to %s must run pm %s, but pm %s is running; run it as the pm on PATH, which "+
 			"launches pm %s: install the latest with %s", to, to, buildinfo.Version, to, latest)
 	}
 	records, err := store.PathOf(here)
@@ -510,9 +506,13 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if p.Get("to") == "" && okHave && okRun && launch.Less(run, have) {
 		return refuse("this repo pins pm %s, newer than the running pm %s, and pm upgrade moves a pin down only when "+
 			"--to names the version; run pm upgrade --to %s to rewrite pm's pieces at the pin, or install the latest "+
-			"pm uv tool with %s, then pm upgrade", c.Version, buildinfo.Version, c.Version, latest)
+			"pm with %s, then pm upgrade", c.Version, buildinfo.Version, c.Version, latest)
 	}
-	if err := install.RefuseLegacy(top, store.MainOf(records), true); err != nil {
+	main := store.MainOf(records)
+	if err := install.RefuseLegacy(top, main, true); err != nil {
+		return err
+	}
+	if err := install.CheckHooksPath(top, main); err != nil {
 		return err
 	}
 	planned, err := install.Rewrite(top, settingsOf(c))
@@ -523,7 +523,15 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// pm's hook files live in .pm/hooks: a clone Python pm set up points core.hooksPath at Beads' .beads/hooks
+	hooksPath, err := install.SetupHooksPath(main)
+	if err != nil {
+		return err
+	}
 	if len(written) == 0 {
+		if hooksPath != "" {
+			fmt.Fprintln(stdout, hooksPath)
+		}
 		_, err := fmt.Fprintf(stdout, "pm %s: every managed piece is current; nothing to commit\n", buildinfo.Version)
 		return err
 	}
@@ -535,9 +543,9 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if c.Version != buildinfo.Version {
 		moved = fmt.Sprintf("moved the pin from %s to %s", c.Version, buildinfo.Version)
 	}
-	lines := []string{moved}
-	for _, rel := range written {
-		lines = append(lines, "wrote "+rel)
+	lines := append([]string{moved}, install.Said(planned)...)
+	if hooksPath != "" {
+		lines = append(lines, hooksPath)
 	}
 	lines = append(lines, fmt.Sprintf("pm commits nothing on %s; commit pm's files there: git add -- %s && git commit "+
 		"-m \"Upgrade pm to %s\"", branch, strings.Join(written, " "), buildinfo.Version))

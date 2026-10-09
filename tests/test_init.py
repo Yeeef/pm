@@ -24,8 +24,11 @@ pytestmark = pytest.mark.integration  # each test makes a repo with a remote; in
 LAYOUT = ["days", "design", "docs", "postmortems", "projects", "sprints"]
 BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n"
               "# --- END BEADS INTEGRATION v1.3.1 ---\n")
+# where pm's git hook sections live: Python pm's in Beads' hook files, Go pm's in its own (the work-store page,
+# Cut-over), which core.hooksPath names
+HOOKS = ".beads/hooks" if IMPL == "python" else ".pm/hooks"
 PM_FILES = [".pm/config.toml", ".pm/README.md", ".pm/.gitignore", ".claude/settings.json", ".codex/hooks.json",
-            ".beads/hooks/post-checkout", ".beads/hooks/pre-commit", ".github/workflows/pm-records-guard.yml",
+            f"{HOOKS}/post-checkout", f"{HOOKS}/pre-commit", ".github/workflows/pm-records-guard.yml",
             ".github/workflows/pm-records-copy.yml", ".gitignore"]
 BD_SET = [".beads/config.yaml"]  # what bd changes when pm init sets the agent profile
 # Go pm runs no bd (the pm-go page, "What pm init installs"): its work store replaces bd init, bd bootstrap and the
@@ -132,7 +135,8 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert cfg == {"version": __version__, "remote": "origin", "main_branch": "main", "port": site_port(tmp_path)}
     assert (new_repo / ".pm/.gitignore").read_text() == "store/\nrun/\n"
     for name in ("post-checkout", "pre-commit"):
-        assert (new_repo / f".beads/hooks/{name}").read_text() == beads_hook + section(name)
+        assert (new_repo / f"{HOOKS}/{name}").read_text() == beads_hook + section(name)
+    assert git(new_repo, "config", "core.hooksPath").strip() == str(new_repo / HOOKS)
     claude = json.loads((new_repo / ".claude/settings.json").read_text())
     bd_prime = ["bd prime --hook-json"] if IMPL == "python" else []  # bd init's own hook entry
     assert commands(claude, "SessionStart") == [*bd_prime, *CLAUDE_PM["SessionStart"]]
@@ -304,8 +308,11 @@ def test_init_in_a_worktree_sets_it_up_when_mains_pin_differs(repo):
     write_config(repo.root, version="9.9.9")  # main's checkout moved its pin, uncommitted
     res = repo.pm("init", cwd=wt)
     assert res.returncode == 1, res.stdout
-    assert f"error: the main checkout {repo.root} pins pm 9.9.9, and the pm service and the one pm uv tool follow it" \
-        in res.stderr and "pm init set up this worktree and left the pm uv tool and the service alone:" in res.stderr
+    installed = "the one pm uv tool" if IMPL == "python" else "the installed pm"  # Go pm is its release binary
+    assert f"error: the main checkout {repo.root} pins pm 9.9.9, and the pm service and {installed} follow it" \
+        in res.stderr, res.stderr
+    left = "the pm uv tool" if IMPL == "python" else "the installed pm"
+    assert f"pm init set up this worktree and left {left} and the service alone:" in res.stderr, res.stderr
     assert f"linked {wt / 'records'} -> {repo.store}" in res.stderr, res.stderr
     assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
     assert "!/records/" in repo.git("sparse-checkout", "list", cwd=wt).split()

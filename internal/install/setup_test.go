@@ -242,3 +242,253 @@ func TestExcludeRoundTrip(t *testing.T) {
 		t.Fatalf("%q", b)
 	}
 }
+
+// pieceAt is the piece at rel.
+func pieceAt(t *testing.T, rel string) Piece {
+	t.Helper()
+	for _, p := range Pieces(Settings{"origin", "main", 8000, ""}) {
+		if p.Rel == rel {
+			return p
+		}
+	}
+	t.Fatalf("no piece %s", rel)
+	return Piece{}
+}
+
+// applied is text with pm's part as this version writes it, as Python pm 0.1.x writes it too (parity_test.go).
+func applied(t *testing.T, rel, text string) string {
+	t.Helper()
+	out, err := pieceAt(t, rel).Apply(&text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func writeTree(t *testing.T, top string, files map[string]string) {
+	t.Helper()
+	for rel, text := range files {
+		path := filepath.Join(top, rel)
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// A repo as Python pm 0.1.x leaves it with Beads (the work-store page, Cut-over): bd's hook entries beside pm's, the
+// Beads block in CLAUDE.md (AGENTS.md a link to it), pm's sections in .beads/hooks. pm upgrade's rewrite takes Beads'
+// pieces out, keeps pm's entries and everything else byte for byte, writes pm's own hook files, and leaves .beads/
+// alone; then pm doctor's drift is empty and a second rewrite plans nothing.
+func TestRewriteTakesOutBeadsPieces(t *testing.T) {
+	s := Settings{"origin", "main", 8000, ""}
+	top := t.TempDir()
+	// an event Beads' removal empties keeps its place where pm writes its own group
+	userClaude := "{\n  \"hooks\": {\n    \"SessionStart\": [],\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n" +
+		"            \"command\": \"./lint.sh\",\n            \"type\": \"command\"\n          }\n        ],\n" +
+		"        \"matcher\": \"Bash\"\n      }\n    ]\n  },\n  \"model\": \"x\"\n}\n"
+	bdClaude := "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n" +
+		"            \"command\": \"bd prime --hook-json\",\n            \"type\": \"command\"\n          }\n        ],\n" +
+		"        \"matcher\": \"\"\n      }\n    ],\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n" +
+		"            \"command\": \"./lint.sh\",\n            \"type\": \"command\"\n          }\n        ],\n" +
+		"        \"matcher\": \"Bash\"\n      }\n    ]\n  },\n  \"model\": \"x\"\n}\n"
+	userCodex := "{\n  \"hooks\": {\n    \"SessionStart\": [],\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          {\n" +
+		"            \"command\": \"./mine.sh\",\n            \"type\": \"command\"\n          }\n        ]\n      }\n    ]\n  }\n}\n"
+	bdCodex := "{\n  \"hooks\": {\n    \"PostCompact\": [\n      {\n        \"hooks\": [\n          {\n" +
+		"            \"command\": \"bd codex-hook PostCompact\",\n            \"type\": \"command\"\n          }\n        ]\n" +
+		"      }\n    ],\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n" +
+		"            \"command\": \"bd codex-hook SessionStart\",\n            \"type\": \"command\"\n          }\n        ],\n" +
+		"        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n" +
+		"          {\n            \"command\": \"bd codex-hook UserPromptSubmit\",\n            \"type\": \"command\"\n          },\n" +
+		"          {\n            \"command\": \"./mine.sh\",\n            \"type\": \"command\"\n          }\n        ]\n      }\n" +
+		"    ]\n  }\n}\n"
+	block := "<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:1105d646 -->\n## Beads Issue Tracker\n\nUse bd.\n" +
+		"<!-- END BEADS INTEGRATION -->\n"
+	beadsHook := "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n"
+	files := map[string]string{
+		".claude/settings.json":      applied(t, ".claude/settings.json", bdClaude),
+		".codex/hooks.json":          applied(t, ".codex/hooks.json", bdCodex),
+		"CLAUDE.md":                  "# Repo\n\nIntro.\n\n" + block,
+		".beads/hooks/pre-commit":    beadsHook + GitHookSection("pre-commit"),
+		".beads/hooks/post-checkout": beadsHook + GitHookSection("post-checkout"),
+	}
+	writeTree(t, top, files)
+	if err := os.Symlink("CLAUDE.md", filepath.Join(top, "AGENTS.md")); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range Pieces(s) { // the rest of pm's pieces as Python pm wrote them
+		if _, ok := files[p.Rel]; !ok && !strings.HasPrefix(p.Rel, HooksRel+"/") {
+			text, _ := p.Apply(nil)
+			writeTree(t, top, map[string]string{p.Rel: text})
+		}
+	}
+
+	drift, err := Drift(top, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := buildinfo.Version
+	wantDrift := []string{
+		".claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm " + v + " removes",
+		".codex/hooks.json: holds Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart, " +
+			"bd codex-hook UserPromptSubmit), which pm " + v + " removes",
+		".pm/hooks/post-checkout: pm's part is missing",
+		".pm/hooks/pre-commit: pm's part is missing",
+		"CLAUDE.md: holds the Beads block (<!-- BEGIN BEADS INTEGRATION … -->), which pm " + v + " removes",
+	}
+	if strings.Join(drift, "\n") != strings.Join(wantDrift, "\n") {
+		t.Fatalf("drift:\n%s\nwant:\n%s", strings.Join(drift, "\n"), strings.Join(wantDrift, "\n"))
+	}
+
+	planned, err := Rewrite(top, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Write(planned); err != nil {
+		t.Fatal(err)
+	}
+	wantSaid := []string{
+		"removed Beads' hook entries (bd prime --hook-json) from .claude/settings.json",
+		"removed Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart, bd codex-hook " +
+			"UserPromptSubmit) from .codex/hooks.json",
+		"wrote .pm/hooks/post-checkout",
+		"wrote .pm/hooks/pre-commit",
+		"removed the Beads block (<!-- BEGIN BEADS INTEGRATION … -->) from CLAUDE.md",
+	}
+	if got := Said(planned); strings.Join(got, "\n") != strings.Join(wantSaid, "\n") {
+		t.Fatalf("said:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(wantSaid, "\n"))
+	}
+	want := map[string]string{
+		".claude/settings.json":      applied(t, ".claude/settings.json", userClaude),
+		".codex/hooks.json":          applied(t, ".codex/hooks.json", userCodex),
+		"CLAUDE.md":                  "# Repo\n\nIntro.\n",
+		".pm/hooks/pre-commit":       "#!/usr/bin/env sh\n" + GitHookSection("pre-commit"),
+		".pm/hooks/post-checkout":    "#!/usr/bin/env sh\n" + GitHookSection("post-checkout"),
+		".beads/hooks/pre-commit":    files[".beads/hooks/pre-commit"],
+		".beads/hooks/post-checkout": files[".beads/hooks/post-checkout"],
+	}
+	for rel, text := range want {
+		if b, err := os.ReadFile(filepath.Join(top, rel)); err != nil || string(b) != text {
+			t.Errorf("%s:\n%s\nwant:\n%s", rel, b, text)
+		}
+	}
+	for _, name := range GitHooks {
+		if st, err := os.Stat(filepath.Join(top, HooksRel, name)); err != nil || st.Mode().Perm() != 0o755 {
+			t.Errorf("%s/%s: %v, %v; want an executable file", HooksRel, name, st, err)
+		}
+	}
+	if !isLink(filepath.Join(top, "AGENTS.md")) {
+		t.Error("AGENTS.md is no longer the link it was")
+	}
+	if drift, err := Drift(top, s); err != nil || len(drift) != 0 {
+		t.Fatalf("drift after the rewrite: %q, %v", drift, err)
+	}
+	if planned, err := Rewrite(top, s); err != nil || len(planned) != 0 {
+		t.Fatalf("a second rewrite: %v, %v; want nothing", Said(planned), err)
+	}
+	if planned, err := Plan(top, s); err != nil || len(planned) != 0 {
+		t.Fatalf("pm init's plan after the rewrite: %v, %v; want nothing", Said(planned), err)
+	}
+}
+
+// A new repo: pm init's plan writes pm's pieces, its own hook files among them, and no Beads piece.
+func TestPlanInANewRepoWritesNoBeadsPiece(t *testing.T) {
+	planned, err := Plan(t.TempDir(), Settings{"origin", "main", 8000, ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rels []string
+	for _, p := range planned {
+		rels = append(rels, p.Piece.Rel)
+		if strings.Contains(p.New, "bd ") || strings.Contains(p.New, "BEADS") || len(p.Removed) != 0 || !p.Wrote {
+			t.Errorf("%s: wrote %v, removed %q:\n%s", p.Piece.Rel, p.Wrote, p.Removed, p.New)
+		}
+	}
+	if !contains(rels, ".pm/hooks/post-checkout") || !contains(rels, ".pm/hooks/pre-commit") {
+		t.Errorf("%q", rels)
+	}
+}
+
+// The Beads block goes with the blank line that set it apart, wherever it sits; a begin marker without its end is
+// refused.
+func TestBeadsBlockClean(t *testing.T) {
+	block := "<!-- BEGIN BEADS INTEGRATION v:1 -->\nbd\n<!-- END BEADS INTEGRATION -->\n"
+	for _, c := range [][2]string{
+		{"a\n\n" + block, "a\n"},
+		{"a\n\n" + block + "\nb\n", "a\n\nb\n"},
+		{block + "\nb\n", "b\n"},
+		{"a\n" + block + "b\n", "a\nb\n"},
+		{"a\n\n" + strings.TrimSuffix(block, "\n"), "a\n"},
+		{"a\n", "a\n"},
+	} {
+		if got, err := beadsBlockClean("CLAUDE.md")(c[0]); err != nil || got != c[1] {
+			t.Errorf("%q: %q, %v; want %q", c[0], got, err, c[1])
+		}
+	}
+	_, err := beadsBlockClean("CLAUDE.md")("a\n<!-- BEGIN BEADS INTEGRATION v:1 -->\nbd\n")
+	if err == nil || err.Error() != "CLAUDE.md has a Beads begin marker without its end marker "+
+		"(<!-- END BEADS INTEGRATION -->); fix it by hand" {
+		t.Errorf("%v", err)
+	}
+}
+
+// core.hooksPath: Beads' .beads/hooks, where Python pm left it, moves to .pm/hooks, once; another hook manager's path
+// is refused.
+func TestHooksPathMovesOffBeads(t *testing.T) {
+	main := t.TempDir()
+	run(t, main, "git", "init", "-q")
+	beads, pm := filepath.Join(main, ".beads", "hooks"), filepath.Join(main, ".pm", "hooks")
+	run(t, main, "git", "config", "core.hooksPath", beads)
+	if err := CheckHooksPath(main, main); err != nil {
+		t.Fatal(err)
+	}
+	drift, err := DoctorSetup(main, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the main checkout has no .pm/hooks yet (the pin moved in another worktree): nothing moves, doctor says why
+	if said, err := SetupHooksPath(main); err != nil || said != "" {
+		t.Fatalf("without .pm/hooks in main: %q, %v", said, err)
+	}
+	if got, _ := GitConfig(main, "core.hooksPath"); got != beads {
+		t.Fatalf("core.hooksPath %q moved before main has pm's hooks", got)
+	}
+	run(t, main, "git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x")
+	wt := filepath.Join(t.TempDir(), "wt") // a worktree where the pin moved: pm upgrade there writes no hooks in main
+	run(t, main, "git", "worktree", "add", "-q", wt)
+	drift, _ = DoctorSetup(wt, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000)
+	if want := "hooks path: core.hooksPath is " + beads + " (Beads' hooks), not .pm/hooks; the main checkout " + main +
+		" has no pm hooks in .pm/hooks yet; once it pins Go pm (merge the pin, then pull main there), run pm init " +
+		"there to move it"; !contains(drift, want) {
+		t.Errorf("doctor: %q, want %q among them", drift, want)
+	}
+	if err := os.MkdirAll(pm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range GitHooks {
+		if err := os.WriteFile(filepath.Join(pm, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	drift, _ = DoctorSetup(main, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000)
+	if want := "hooks path: core.hooksPath is " + beads + " (Beads' hooks), not .pm/hooks; run pm upgrade --to " +
+		buildinfo.Version + " to move it"; !contains(drift, want) {
+		t.Errorf("doctor: %q, want %q among them", drift, want)
+	}
+	said, err := SetupHooksPath(main)
+	if want := "moved the git hooks off Beads' " + beads + ": core.hooksPath=" + pm; err != nil || said != want {
+		t.Fatalf("%q, %v; want %q", said, err, want)
+	}
+	if got, _ := GitConfig(main, "core.hooksPath"); got != pm {
+		t.Fatalf("core.hooksPath %q", got)
+	}
+	if said, err := SetupHooksPath(main); err != nil || said != "" {
+		t.Fatalf("a second run: %q, %v", said, err)
+	}
+	run(t, main, "git", "config", "core.hooksPath", ".husky")
+	if err := CheckHooksPath(main, main); err == nil || err.Error() != "core.hooksPath is .husky, not .pm/hooks; pm's git "+
+		"hooks live in its own hook files, so pm init works only with pm's hooks path (other hook managers are not "+
+		"supported)" {
+		t.Fatalf("%v", err)
+	}
+}

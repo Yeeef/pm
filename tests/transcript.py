@@ -11,7 +11,13 @@ names Beads and Go pm its work store; the lines pm init prints as it connects th
 Python pm's bd bootstrap, .beads mode, beads.role and agent profile, Go pm's work store cloned, created, pointed
 at or pushed to the remote (both dropped); pm push's work-layer step, Python pm's bd dolt push and Go pm's
 work-store sync; the pm service's log, whose timing lines name each one's store, so only its Serving lines are
-kept; pm service status's gc line, which only Go pm's service has (it collects the work store); and the comment that
+kept; pm service status's gc line, which only Go pm's service has (it collects the work store); the git hooks
+directory core.hooksPath names, Beads' .beads/hooks in Python and pm's own .pm/hooks in Go; the installed pm that
+pm init's refusal names, Python's pm uv tool and Go's release binary; the rules pm prime prints, each
+implementation's own prime.md (Python's names Beads and bd, Go's the work store and pm's commands); the launcher's
+name for itself when it runs a Python pin, "the pm uv tool (pm X)" in Python and "pm X" in Go; the command a need's
+line in pm show names, `bd show` in Python and `pm show` in Go; pm decision close's undo, bd's label removal in
+Python and pm decision add --need in Go; and the comment that
 holds the answer a need closes with (pm decision add --need, pm decision close), which Python pm's `bd human respond`
 writes as a note "Response: <text>" by the git user and Go pm's work store as a reply by the owner (work.Answer)."""
 
@@ -44,6 +50,18 @@ WORK_PUSH = re.compile(r"(?m)^(\S+) (?:beads|work) (ok|error): .*$")  # pm push:
 SERVED_LAYER = re.compile(r"; (?:Beads reread when \S+ changes|Beads reread every look \(Dolt server\)|"
                           r"the work store reread when it changes);")  # the service's Serving line
 GC_LINE = re.compile(r"(?m)^gc        .*\n")  # pm service status: Go pm's collection of its work store
+# core.hooksPath as pm init sets it and pm where shows it: Beads' .beads/hooks in Python, pm's own .pm/hooks in Go
+HOOKS_DIR = re.compile(r"(?<=/)(?:\.beads|\.pm)/hooks\b")
+# the pm on PATH, in pm init's refusal: Python's pm uv tool, Go's installed release binary
+INSTALLED_PM = re.compile(r"\bthe (?:one pm uv tool|pm uv tool|installed pm)\b")
+_PM = Path(__file__).resolve().parents[1]
+# pm prime's rules, each implementation's own prime.md, whole
+RULES = [(_PM / "src/pm/prime.md").read_text(encoding="utf-8").strip(), (_PM / "prime.md").read_text(encoding="utf-8").strip()]
+# the launcher running a Python pin: Python's pm uv tool, Go's installed pm (INSTALLED_PM has run first)
+PIN_RUNNER = re.compile(r"which (?:<the installed pm> \(pm (\S+)\)|pm (\S+)) runs through uv")
+SHOW_ITEM = re.compile(r"-> (?:bd|pm) show ")  # pm show's need lines: the command that shows the need
+UNDO = re.compile(r"; (?:undo with: bd update (\S+) --remove-label=no-decision|if it sets a rule after all, record it "
+                  r"with pm decision add --need (\S+), which marks the need answered)")
 
 
 def start() -> None:
@@ -96,6 +114,13 @@ def normalise(value, paths: dict[str, str]):
     value = WORK_PUSH.sub(r"\1 <work layer: bd dolt push or the work store's sync> \2", value)
     value = SERVED_LAYER.sub("; <work layer> reread when it changes;", value)
     value = GC_LINE.sub("", value)
+    value = HOOKS_DIR.sub("<pm's git hooks dir>", value)
+    value = INSTALLED_PM.sub("<the installed pm>", value)
+    for rules in RULES:
+        value = value.replace(rules, "<prime.md>")
+    value = PIN_RUNNER.sub(lambda m: f"which <the launcher, pm {m.group(1) or m.group(2)}> runs through uv", value)
+    value = SHOW_ITEM.sub("-> <show the item> ", value)
+    value = UNDO.sub(lambda m: f"; <undo no-decision on {m.group(1) or m.group(2)}>", value)
     return PORT.sub("<port>", value)
 
 

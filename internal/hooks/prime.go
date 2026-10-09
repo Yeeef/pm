@@ -6,7 +6,6 @@
 package hooks
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -286,98 +285,11 @@ func State(cwd *string, session string) (string, error) {
 	return first + show, nil
 }
 
-// Profile is the active Beads agent profile in one line, or why it could not be read.
-func Profile(cwd *string) string {
-	argv := []string{"bd", "config", "get", "agent.profile", "--json"}
-	value, err := func() (any, *proc.Error) {
-		res, err := proc.Run(argv, proc.Options{Cwd: cwd, Timeout: timeout * time.Second, TimeoutText: fmt.Sprint(timeout)})
-		if e, ok := err.(*proc.Error); ok {
-			return nil, e
-		}
-		if res.Code != 0 {
-			line := exitText(res.Code)
-			if why := failure(res); len(why) > 0 {
-				line = why[len(why)-1]
-			}
-			return nil, &proc.Error{Type: "RuntimeError", Msg: line}
-		}
-		data, jerr := pyjson.Loads(res.Stdout)
-		if jerr != nil {
-			return nil, decodeError(res.Stdout, jerr)
-		}
-		obj, ok := data.(*pyjson.Object)
-		if !ok {
-			return nil, subscriptError(data)
-		}
-		v, ok := obj.Values["value"]
-		if !ok {
-			return nil, &proc.Error{Type: "KeyError", Msg: "'value'"}
-		}
-		if !pyjson.Truthy(v) {
-			return nil, &proc.Error{Type: "RuntimeError", Msg: "agent.profile is not set"}
-		}
-		return v, nil
-	}()
-	if err != nil {
-		return fmt.Sprintf("Beads agent profile: unknown (bd config failed: %s: %s).", err.Type, err.Msg)
-	}
-	note := ""
-	if s, ok := value.(string); ok && s == "team-maintainer" {
-		note = " (commit and push are routine unless your brief says otherwise)"
-	}
-	return fmt.Sprintf("Beads agent profile: %s%s.", pyjson.Str(value), note)
-}
-
-// decodeError is json.loads's JSONDecodeError for text, as Python words it when bd prints no JSON value at all
-// ("Expecting value": nothing, or text that starts no value, such as a message) or a value followed by more
-// ("Extra data"); for JSON broken inside a value it gives Go's reason.
-func decodeError(text string, err error) *proc.Error {
-	rs := []rune(text)
-	skip := func(i int) int {
-		for i < len(rs) && strings.ContainsRune(" \t\n\r", rs[i]) {
-			i++
-		}
-		return i
-	}
-	at := func(msg string, pos int) *proc.Error {
-		line := strings.Count(string(rs[:pos]), "\n") + 1
-		col := pos + 1
-		for i := pos - 1; i >= 0; i-- {
-			if rs[i] == '\n' {
-				col = pos - i
-				break
-			}
-		}
-		return &proc.Error{Type: "JSONDecodeError", Msg: fmt.Sprintf("%s: line %d column %d (char %d)", msg, line, col, pos)}
-	}
-	pos := skip(0)
-	rest := string(rs[pos:])
-	startsValue := strings.ContainsAny(rest[:min(1, len(rest))], "{[\"0123456789") ||
-		(strings.HasPrefix(rest, "-") && (len(rest) > 1 && rest[1] >= '0' && rest[1] <= '9' || strings.HasPrefix(rest, "-Infinity")))
-	for _, lit := range []string{"true", "false", "null", "NaN", "Infinity"} {
-		startsValue = startsValue || strings.HasPrefix(rest, lit)
-	}
-	if !startsValue {
-		return at("Expecting value", pos)
-	}
-	dec := json.NewDecoder(strings.NewReader(text))
-	var v any
-	if dec.Decode(&v) == nil { // a whole value, then more than whitespace
-		return at("Extra data", skip(utf8.RuneCountInString(text[:dec.InputOffset()])))
-	}
-	return &proc.Error{Type: "JSONDecodeError", Msg: err.Error()}
-}
-
-// subscriptError is the TypeError of data["value"] on a JSON value that is not an object.
-func subscriptError(data any) *proc.Error {
-	switch data.(type) {
-	case []any:
-		return &proc.Error{Type: "TypeError", Msg: "list indices must be integers or slices, not str"}
-	case string:
-		return &proc.Error{Type: "TypeError", Msg: "string indices must be integers, not 'str'"}
-	}
-	return &proc.Error{Type: "TypeError", Msg: fmt.Sprintf("'%s' object is not subscriptable", pyjson.TypeName(data))}
-}
+// Subagent is what pm prime --subagent prints: pm's git rule for an agent, in one line. Python pm printed the Beads
+// agent profile there (bd config get agent.profile); the work store has no profile, so the rule is pm's own (the
+// work-store page, Constraints resolved).
+const Subagent = "Git: commit and push are routine for agents unless your brief says otherwise; only the PR review " +
+	"and the merge wait on the owner."
 
 // ReadEvent is the hook input JSON on stdin, or nil when it is not a JSON object.
 func ReadEvent(stdin io.Reader) (*pyjson.Object, error) {
@@ -443,7 +355,7 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 			return err
 		}
 		if part.Subagent {
-			text = Profile(cwd)
+			text = Subagent
 		} else {
 			var session string // only pm show reads it
 			if pyjson.Truthy(event.Get("session_id")) {

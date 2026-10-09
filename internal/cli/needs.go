@@ -707,6 +707,26 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 	}
 	done := fmt.Sprintf("added a source=%s %s decision to %s", source, p.Get("level"), r.rel(rec.Path))
 	w := []store.Write{{Path: rec.Path, Text: updated}}
+	if need != nil && need.Resolution == work.NoDecision { // a rule after all: it is answered, as its decision says
+		cited := *need
+		cited.Resolution = work.Answered
+		if err := r.checkPlanned(w, r.with(cited)); err != nil {
+			return "", err
+		}
+		ws, err := e.work()
+		if err != nil {
+			return "", err
+		}
+		if err := ws.SetResolution(needID, work.Answered); err != nil {
+			return "", err
+		}
+		out, err := r.apply(w, fmt.Sprintf("marked need %s answered and %s", needID, done), "", "pm: ")
+		if err != nil {
+			return "", fmt.Errorf("%w; the work-store step stands: %s is marked answered; record the decision again "+
+				"with pm decision add --need %s and the same flags", err, needID, needID)
+		}
+		return out, nil
+	}
 	if need == nil || need.Status == work.Closed {
 		if err := r.checkPlanned(w, nil); err != nil {
 			return "", err
@@ -802,8 +822,8 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 	if err := ws.SetResolution(id, work.NoDecision); err != nil {
 		return "", fmt.Errorf("%w; %s", err, failed)
 	}
-	// Python pm's undo, kept for parity until the cut-over (the pm-go page): the work store has no command for it.
-	return fmt.Sprintf("%s; undo with: bd update %s --remove-label=no-decision", done, id), nil
+	return fmt.Sprintf("%s; if it sets a rule after all, record it with pm decision add --need %s, which marks the "+
+		"need answered", done, id), nil
 }
 
 // noteAuthor is who a note pm writes is by: this session, else the owner at a shell.
