@@ -273,8 +273,23 @@ const pullAttempts = WriteAttempts
 // invariant and the blocked_by cycles, sets a fresh write stamp, and commits) that lands whole or rolls back. A merge
 // that loses to a concurrent write, or a fast-forward that finds main moved, starts the pull again.
 func (d *Dolt) pull() (SyncResult, error) {
+	has, err := d.fetch() // once: a merge that starts again lost to a local write, not to the remote
+	if err != nil || !has {
+		return SyncResult{}, err
+	}
+	theirs, err := d.hashOf(remoteHead)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	if behind, err := d.count(d.conn, branch+".."+theirs); err != nil || behind == 0 {
+		return SyncResult{}, err
+	}
+	if err := d.checkHead(theirs); err != nil {
+		return SyncResult{}, fmt.Errorf("work store: pull: the remote's head %s: %w; the store stays as it was",
+			theirs, err)
+	}
 	for attempt := 1; ; attempt++ {
-		res, again, err := d.pullOnce()
+		res, again, err := d.merge(theirs)
 		if err == nil || !again {
 			return res, err
 		}
@@ -286,25 +301,13 @@ func (d *Dolt) pull() (SyncResult, error) {
 	}
 }
 
-// pullOnce is one pull; again is whether a failure starts it again.
-func (d *Dolt) pullOnce() (res SyncResult, again bool, err error) {
-	has, err := d.fetch()
-	if err != nil || !has {
-		return res, false, err
-	}
-	theirs, err := d.hashOf(remoteHead)
-	if err != nil {
-		return res, false, err
-	}
+// merge merges the checked remote head theirs into main; again is whether a failure starts it again.
+func (d *Dolt) merge(theirs string) (res SyncResult, again bool, err error) {
 	behind, err := d.count(d.conn, branch+".."+theirs)
 	if err != nil || behind == 0 {
 		return res, false, err
 	}
 	res.Pulled = behind
-	if err := d.checkHead(theirs); err != nil {
-		return SyncResult{}, false, fmt.Errorf("work store: pull: the remote's head %s: %w; the store stays as it was",
-			theirs, err)
-	}
 	tx, err := d.conn.BeginTx(d.opCtx(), nil)
 	if err != nil {
 		return res, false, fmt.Errorf("work store: %w", d.broken(err))
@@ -312,8 +315,13 @@ func (d *Dolt) pullOnce() (res SyncResult, again bool, err error) {
 	defer d.conn.ExecContext(ctx, "SET @@dolt_allow_commit_conflicts = 0")
 	fail := func(err error) (SyncResult, bool, error) {
 		_ = tx.Rollback()
-		if serialization(err) || strings.Contains(err.Error(), "not ancestor") {
+		if retryable(err) {
 			return SyncResult{}, true, err
+		}
+		// A fast-forward moved main at once, to the head checked before the merge; the rest rolled back.
+		if h, herr := d.hashOf(branch); herr == nil && h == theirs {
+			return SyncResult{}, false, fmt.Errorf("work store: pull: %w; main had fast-forwarded to the remote's "+
+				"checked head %s, which stays", d.broken(err), theirs)
 		}
 		return SyncResult{}, false, fmt.Errorf("work store: pull: %w; the store stays as it was", d.broken(err))
 	}

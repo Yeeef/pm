@@ -221,6 +221,15 @@ func serialization(err error) bool {
 	return false
 }
 
+// retryable is whether a write's failure leaves nothing written and means only that it lost a race, so the whole
+// write runs again from a fresh read: Dolt's serialization failure, or its "dataset head is not ancestor of commit"
+// (ErrMergeNeeded), which a commit gets when a fast-forward moved the branch under it. Dolt returns ErrMergeNeeded
+// only from inside its root update's compare-and-swap (store/datas database_common.go: FastForward, doCommit,
+// doCommitWithWorkingSet), before it writes the new root, so nothing of that commit landed.
+func retryable(err error) bool {
+	return serialization(err) || err != nil && strings.Contains(err.Error(), "dataset head is not ancestor of commit")
+}
+
 // now is the store's clock: UTC, whole seconds.
 func (d *Dolt) now() time.Time {
 	t := time.Now()
@@ -326,7 +335,7 @@ func (d *Dolt) inTx(msg string, stamped bool, fn func(tx *sql.Tx) error) error {
 	Attempts.Writes.Add(1)
 	for attempt := 1; ; attempt++ {
 		err := d.txOnce(msg, stamped, fn)
-		if err == nil || !stamped || !serialization(err) {
+		if err == nil || !stamped || !retryable(err) {
 			for m := Attempts.Max.Load(); int64(attempt) > m && !Attempts.Max.CompareAndSwap(m, int64(attempt)); {
 				m = Attempts.Max.Load()
 			}
@@ -366,14 +375,14 @@ func (d *Dolt) txOnce(msg string, stamped bool, fn func(tx *sql.Tx) error) error
 		}
 	}
 	if _, err := tx.ExecContext(ctx, "CALL DOLT_COMMIT('-Am', ?)", msg); err != nil {
-		if serialization(err) {
+		if retryable(err) {
 			_ = tx.Rollback()
 			return err
 		}
 		return fail(fmt.Errorf("work store: commit: %w", err))
 	}
 	if err := tx.Commit(); err != nil {
-		if serialization(err) {
+		if retryable(err) {
 			return err
 		}
 		return fmt.Errorf("work store: commit: %w", d.broken(err))
