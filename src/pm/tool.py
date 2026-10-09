@@ -1,6 +1,6 @@
 """The pm uv tool: the one pm a machine runs, which `pm init` installs and the pm service's unit runs.
 
-`uvx --from "git+…@pm-v<X>#subdirectory=pm" pm init` runs pm from an ephemeral uv cache environment, which
+`uvx --from "git+…@pm-v<X>" pm init` runs pm from an ephemeral uv cache environment, which
 `uv cache clean` removes; the service and the hooks need a pm that stays. So `pm init` installs the tool from the
 source the running pm came from (PEP 610's direct_url.json: the git URL and commit), unless the tool already runs
 this build. A pm from a local directory or an index has no source to install from, and the tool, installed from

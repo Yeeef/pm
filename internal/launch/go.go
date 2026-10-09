@@ -2,15 +2,17 @@ package launch
 
 // A Go pin (>= 0.2.0, pre-releases such as 0.2.0-rc.1 too) runs its release binary, kept at pins/<pin>/pm, with no
 // network once it is there. The first launch on a machine downloads SHA256SUMS and the tarball for this OS and
-// architecture from release pm-v<pin> (10 s to connect, 300 s in all): through the GitHub API (APIURL, or
-// $PM_RELEASE_API), as the repo is private, with a token from $GH_TOKEN, else from `gh auth token`, and no token a hard
-// error naming both; the token goes to the API alone, never to the storage host an asset redirects to. $PM_RELEASE_URL
-// names a mirror instead, <url>/pm-v<pin>/<asset>, downloaded with no token. The tarball must match its SHA256SUMS line and
-// the sha256 an earlier download kept in pins/<pin>/sha256, if any: a release is never rebuilt, so a difference fails
-// hard. The binary, then its sha256, is written to a temp file and renamed into place, so another launch sees no file
-// or the whole one; nothing is written under pins/ before the tarball has passed every check. Every failure is a hard
-// error naming the release and the URL; nothing falls back. The texts are launch.py's (the bridge release's), which
-// test_launch.py holds for both.
+// architecture from release pm-v<pin> (10 s to connect, 300 s in all), with no token: Yeeef/pm is public, and GitHub
+// serves its assets at ReleaseURL/pm-v<pin>/<asset> ($PM_RELEASE_URL replaces ReleaseURL: a mirror, or tests). When
+// that download fails (an HTTP error or no answer, not a check), and a token is at hand, from $GH_TOKEN, else from `gh
+// auth token`, it downloads again through the GitHub API (APIURL, or $PM_RELEASE_API), as a private copy of the repo
+// needs; the token goes to the API alone, never to the storage host an asset redirects to, and the API's failure is
+// the one reported. The tarball must match its SHA256SUMS line and the sha256 an earlier download kept in
+// pins/<pin>/sha256, if any: a release is never rebuilt, so a difference fails hard. The binary, then its sha256, is
+// written to a temp file and renamed into place, so another launch sees no file or the whole one; nothing is written
+// under pins/ before the tarball has passed every check. Every failure is a hard error naming the release and the URL;
+// nothing falls back to another version. The texts are launch.py's (the bridge release's), which test_launch.py holds
+// for both.
 
 import (
 	"archive/tar"
@@ -41,9 +43,11 @@ import (
 )
 
 const (
-	// APIURL is the GitHub API's URL of pm's repo, where releases are found: <api>/releases/tags/pm-v<X>.
+	// ReleaseURL is where GitHub serves pm's release assets with no token: <url>/pm-v<X>/<asset>.
+	ReleaseURL = "https://github.com/Yeeef/pm/releases/download"
+	// APIURL is the GitHub API's URL of pm's repo, where a token finds a release: <api>/releases/tags/pm-v<X>.
 	// $PM_RELEASE_API replaces it (tests).
-	APIURL         = "https://api.github.com/repos/Yeeef/yeeef-agents"
+	APIURL         = "https://api.github.com/repos/Yeeef/pm"
 	connectTimeout = 10 * time.Second
 	fix            = "; check the network and the release, then run pm again, or move the pin with pm upgrade"
 )
@@ -53,9 +57,12 @@ var downloadTimeout = 300 * time.Second
 
 var sumRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
-// MirrorURL is $PM_RELEASE_URL without trailing slashes: a mirror's base URL, <base>/pm-v<X>/<asset>; "" when unset.
-func MirrorURL() string {
-	return strings.TrimRight(os.Getenv("PM_RELEASE_URL"), "/")
+// releaseURL is $PM_RELEASE_URL without trailing slashes, or ReleaseURL when it is unset.
+func releaseURL() string {
+	if u := os.Getenv("PM_RELEASE_URL"); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return ReleaseURL
 }
 
 // apiURL is APIURL, or $PM_RELEASE_API without trailing slashes.
@@ -114,16 +121,18 @@ func strerror(err error) string {
 	return err.Error()
 }
 
+// downloadError is a download that failed (an HTTP error or no answer), which the token path may try again; a check
+// that fails is another error.
+type downloadError struct{ msg string }
+
+func (e *downloadError) Error() string { return e.msg }
+
 // Download fetches release pm-v<version>'s binary for this machine into pins/<version>/pm, checked against the
-// release's SHA256SUMS and the sha256 an earlier download kept.
+// release's SHA256SUMS and the sha256 an earlier download kept: with no token, else through the API with one.
 func Download(version string) error {
 	dir := PinDir(version)
 	tag := "pm-v" + version
-	mirror := MirrorURL()
-	base := mirror + "/" + tag
-	if mirror == "" {
-		base = apiURL() + "/releases/tags/" + tag
-	}
+	base := releaseURL() + "/" + tag
 	head := fmt.Sprintf("this repo pins pm %s, but release %s", version, tag)
 	plat, ok := Platform()
 	if !ok {
@@ -133,58 +142,25 @@ func Download(version string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancel()
 
-	sumsURL, tarURL, headers := base+"/SHA256SUMS", base+"/"+asset, map[string]string(nil)
-	if mirror == "" {
-		token := GitHubToken()
-		if token == "" {
-			return fmt.Errorf("%s is downloaded through the GitHub API, which needs a token: set GH_TOKEN, or log in "+
-				"with gh auth login so that gh auth token prints one", head)
-		}
-		headers = map[string]string{"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"}
-		var found bytes.Buffer
-		if _, err := download(ctx, base, &found, head, headers); err != nil {
-			return err
-		}
-		var rel struct {
-			Assets []struct{ Name, URL string } `json:"assets"`
-		}
-		if json.Unmarshal(found.Bytes(), &rel) != nil || rel.Assets == nil {
-			return fmt.Errorf("%s could not be downloaded: %s did not answer with a release%s", head, base, fix)
-		}
-		urls := map[string]string{}
-		for _, a := range rel.Assets {
-			urls[a.Name] = a.URL
-		}
-		for _, name := range []string{"SHA256SUMS", asset} {
-			if urls[name] == "" {
-				return fmt.Errorf("%s could not be downloaded: %s has no asset %s%s", head, base, name, fix)
-			}
-		}
-		sumsURL, tarURL = urls["SHA256SUMS"], urls[asset]
-		headers["Accept"] = "application/octet-stream"
-	}
-
-	var sums bytes.Buffer
-	if _, err := download(ctx, sumsURL, &sums, head, headers); err != nil {
-		return err
-	}
-	want := ""
-	for _, line := range strings.Split(sums.String(), "\n") {
-		if f := strings.Fields(line); want == "" && len(f) == 2 && f[1] == asset && sumRe.MatchString(f[0]) {
-			want = f[0]
-		}
-	}
-	if want == "" {
-		return fmt.Errorf("%s could not be checked: %s has no line for %s%s", head, sumsURL, asset, fix)
-	}
-
 	tarball, err := os.CreateTemp("", "pm-release-*.tar.gz") // outside pins/: nothing is kept before every check
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tarball.Name())
 	defer tarball.Close()
-	got, err := download(ctx, tarURL, tarball, head, headers)
+	tarURL, want, got, err := fetch(ctx, base+"/SHA256SUMS", base+"/"+asset, asset, tarball, head, nil)
+	var derr *downloadError
+	if errors.As(err, &derr) && ctx.Err() == nil { // past the deadline, the API would get no time either
+		if token := GitHubToken(); token != "" {
+			if _, err := tarball.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+			if err := tarball.Truncate(0); err != nil {
+				return err
+			}
+			tarURL, want, got, err = viaAPI(ctx, tag, asset, token, tarball, head)
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -215,6 +191,55 @@ func Download(version string) error {
 	return writeAtomicFrom(keptSum, strings.NewReader(got+"\n"), 0o644)
 }
 
+// fetch downloads SHA256SUMS from sumsURL and the tarball from tarURL into out, sending headers; tarURL, the sha256
+// SHA256SUMS gives asset, and the tarball's.
+func fetch(ctx context.Context, sumsURL, tarURL, asset string, out io.Writer, head string,
+	headers map[string]string) (string, string, string, error) {
+	var sums bytes.Buffer
+	if _, err := download(ctx, sumsURL, &sums, head, headers); err != nil {
+		return "", "", "", err
+	}
+	want := ""
+	for _, line := range strings.Split(sums.String(), "\n") {
+		if f := strings.Fields(line); want == "" && len(f) == 2 && f[1] == asset && sumRe.MatchString(f[0]) {
+			want = f[0]
+		}
+	}
+	if want == "" {
+		return "", "", "", fmt.Errorf("%s could not be checked: %s has no line for %s%s", head, sumsURL, asset, fix)
+	}
+	got, err := download(ctx, tarURL, out, head, headers)
+	return tarURL, want, got, err
+}
+
+// viaAPI is fetch through the GitHub API with token: the release's asset URLs, then each asset.
+func viaAPI(ctx context.Context, tag, asset, token string, out io.Writer, head string) (string, string, string,
+	error) {
+	base := apiURL() + "/releases/tags/" + tag
+	headers := map[string]string{"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json"}
+	var found bytes.Buffer
+	if _, err := download(ctx, base, &found, head, headers); err != nil {
+		return "", "", "", err
+	}
+	var rel struct {
+		Assets []struct{ Name, URL string } `json:"assets"`
+	}
+	if json.Unmarshal(found.Bytes(), &rel) != nil || rel.Assets == nil {
+		return "", "", "", fmt.Errorf("%s could not be downloaded: %s did not answer with a release%s", head, base, fix)
+	}
+	urls := map[string]string{}
+	for _, a := range rel.Assets {
+		urls[a.Name] = a.URL
+	}
+	for _, name := range []string{"SHA256SUMS", asset} {
+		if urls[name] == "" {
+			return "", "", "", fmt.Errorf("%s could not be downloaded: %s has no asset %s%s", head, base, name, fix)
+		}
+	}
+	headers["Accept"] = "application/octet-stream"
+	return fetch(ctx, urls["SHA256SUMS"], urls[asset], asset, out, head, headers)
+}
+
 // download writes the body of GET url to out within ctx; its sha256 hex. head frames a failure's error. headers go to
 // link alone: a redirect (GitHub sends an asset's to its storage host) gets none of them.
 func download(ctx context.Context, link string, out io.Writer, head string, headers map[string]string) (string, error) {
@@ -243,7 +268,7 @@ func download(ctx context.Context, link string, out io.Writer, head string, head
 		case errors.As(err, &nerr) && nerr.Timeout():
 			why = fmt.Sprintf("no answer within %g s", connectTimeout.Seconds())
 		}
-		return "", fmt.Errorf("%s could not be downloaded: %s: %s%s", head, link, why, fix)
+		return "", &downloadError{fmt.Sprintf("%s could not be downloaded: %s: %s%s", head, link, why, fix)}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {

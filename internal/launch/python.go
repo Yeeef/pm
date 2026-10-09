@@ -2,8 +2,8 @@ package launch
 
 // A Python pin (< 0.2.0), launch.py's path ported. A tag makes uv fetch on every run (6 s measured), a commit runs
 // from uv's cache (0.2 s). So the first launch of a pin on a machine resolves its tag to a commit (git ls-remote), runs
-// it once to fetch and build it, and only then keeps the commit in pins/<pin>/commit; a failure or timeout there fails
-// hard naming the tag and the command. Deleting the commit file makes the next launch resolve the tag again.
+// it once to fetch and build it, and only then keeps the commit in pins/<pin>/<CommitFile>; a failure or timeout there
+// fails hard naming the tag and the command. Deleting the commit file makes the next launch resolve the tag again.
 //
 // A pin older than 0.1.2 predates the launcher: its pm init reinstalls the pm uv tool at its own version. It runs with
 // UV_TOOL_DIR and UV_TOOL_BIN_DIR in its pin's directory, that bin dir first on PATH, so its tool and the service unit
@@ -26,6 +26,10 @@ import (
 )
 
 const (
+	// CommitFile, in pins/<pin>/, keeps the commit of release tag pm-v<pin> in Repo (Yeeef/pm). Launchers from before
+	// pm moved out of yeeef-agents keep that repo's commit of the same tag in pins/<pin>/commit, which Yeeef/pm does
+	// not have, so this one is named apart and both launchers can run on one machine.
+	CommitFile     = "commit-Yeeef-pm"
 	resolveTimeout = 10 * time.Second  // git ls-remote resolving a release tag
 	buildTimeout   = 300 * time.Second // uv fetching and building a release the first time
 )
@@ -33,12 +37,12 @@ const (
 var shaRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 func requirement(commit string) string {
-	return "git+" + config.Repo + "@" + commit + "#subdirectory=pm"
+	return "git+" + config.Repo + "@" + commit
 }
 
 // kept is the commit kept for version; "" when there is none or the file holds no commit sha.
 func kept(version string) string {
-	b, err := os.ReadFile(filepath.Join(PinDir(version), "commit"))
+	b, err := os.ReadFile(filepath.Join(PinDir(version), CommitFile))
 	if err != nil {
 		return ""
 	}
@@ -84,7 +88,7 @@ func commit(version string, env []string) (string, error) {
 	}
 	tag := "pm-v" + version
 	fix := fmt.Sprintf("check the network and that tag %s exists, then run pm again; or run it yourself with uv tool "+
-		"run --from \"git+%s@%s#subdirectory=pm\" pm …, or move the pin with pm upgrade", tag, config.Repo, tag)
+		"run --from \"git+%s@%s\" pm …, or move the pin with pm upgrade", tag, config.Repo, tag)
 	head := pythonHead(version)
 	res, err := proc.Run([]string{"git", "ls-remote", config.Repo, "refs/tags/" + tag, "refs/tags/" + tag + "^{}"},
 		proc.Options{Env: environ(map[string]string{"GIT_TERMINAL_PROMPT": "0"}), Timeout: resolveTimeout})
@@ -127,7 +131,7 @@ func commit(version string, env []string) (string, error) {
 		why := config.PyStrip(lastLine(res.Stderr, fmt.Sprintf("exit %d", res.Code)))
 		return "", fmt.Errorf("%s, but uv could not fetch and build %s (%s): %s; %s", head, tag, sha, why, fix)
 	}
-	path := filepath.Join(PinDir(version), "commit")
+	path := filepath.Join(PinDir(version), CommitFile)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}

@@ -21,7 +21,7 @@ const (
 	Rel   = ".pm/config.toml"
 	Store = ".pm/store/records" // the records store, under the main checkout
 	Run   = ".pm/run"           // runtime state in the main checkout, never committed
-	Repo  = "https://github.com/Yeeef/yeeef-agents"
+	Repo  = "https://github.com/Yeeef/pm"
 )
 
 // keys are the config's keys and the Python type each must have, in KEYS order.

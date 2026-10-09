@@ -26,8 +26,8 @@ import (
 // cmd_upgrade, cmd_uninstall and hook_git_post_checkout in cli.py, hook_git_pre_commit in hooks.py. The pieces and
 // the clone's setup are internal/install's.
 
-// latest is how to install the newest Go pm release, whose launcher launches any pin: its install.sh (pm/install.sh).
-const latest = `gh release download -R Yeeef/yeeef-agents -p install.sh -O - | sh`
+// latest is how to install the newest Go pm release, whose launcher launches any pin: its install.sh (install.sh).
+const latest = `curl -fsSL https://github.com/Yeeef/pm/releases/latest/download/install.sh | sh`
 
 func isFile(p string) bool {
 	st, err := os.Stat(p)
