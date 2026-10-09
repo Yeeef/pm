@@ -1,11 +1,10 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"os"
-
-	"golang.org/x/sys/unix"
+	"time"
 
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/work"
@@ -31,12 +30,20 @@ func trimNewline(s string) string {
 const beadsRef = "refs/dolt/data"
 
 // RemoteHasStore is whether the git remote holds a work store under work.RemoteRef; an unreachable remote is an Error.
-func RemoteHasStore(dir, remote string) (bool, error) {
-	return remoteHasRef(dir, remote, work.RemoteRef)
+// git ls-remote runs within c's deadline, when it has one: in the pm service, the operation's bound.
+func RemoteHasStore(c context.Context, dir, remote string) (bool, error) {
+	return remoteHasRef(c, dir, remote, work.RemoteRef)
 }
 
-func remoteHasRef(dir, remote, ref string) (bool, error) {
-	res, err := proc.Run([]string{"git", "ls-remote", "--exit-code", remote, ref}, proc.Options{Cwd: &dir})
+func remoteHasRef(c context.Context, dir, remote, ref string) (bool, error) {
+	o := proc.Options{Cwd: &dir}
+	if deadline, ok := c.Deadline(); ok {
+		if o.Timeout = time.Until(deadline); o.Timeout <= 0 {
+			return false, fmt.Errorf("git ls-remote %s %s: %w", remote, ref, context.DeadlineExceeded)
+		}
+		o.TimeoutText = fmt.Sprintf("%.1f", o.Timeout.Seconds())
+	}
+	res, err := proc.Run([]string{"git", "ls-remote", "--exit-code", remote, ref}, o)
 	if err != nil {
 		return false, err
 	}
@@ -53,126 +60,108 @@ func remoteHasRef(dir, remote, ref string) (bool, error) {
 	return false, refuse("git ls-remote %s %s failed: %s", remote, ref, trimNewline(why))
 }
 
-// quietStdout runs fn with the process's standard output sent to /dev/null: Dolt's clone prints its progress there,
-// which is no part of pm's output.
-func quietStdout(fn func() error) error {
-	null, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+// SetupWork is pm init's work-store step: it asks the clone's pm service, which must be up, to attach the store to
+// the repo's remote (CALL pm_setup(); SetupStore runs it). What it did, one line each.
+func SetupWork(main string) ([]string, error) {
+	d, err := work.DialSetup(main)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer null.Close()
-	saved, err := unix.Dup(1)
-	if err != nil {
-		return err
-	}
-	defer unix.Close(saved)
-	if err := unix.Dup2(int(null.Fd()), 1); err != nil {
-		return err
-	}
-	defer unix.Dup2(saved, 1) // on a panic too
-	return fn()
+	out, err := d.CallSetup()
+	return out, errors.Join(err, d.Shutdown())
 }
 
-// SetupWork attaches the clone's work store to the repo's remote, under work.RemoteRef: a missing store is cloned from
-// the remote when it holds one, else created and pushed there; a store without a remote gets the repo's, and one the
+// SetupStore is what the pm service runs for pm_setup(), on a connection of its own with no database selected: it
+// attaches the clone's work store to the repo's remote, under work.RemoteRef. A missing store is cloned from the
+// remote when it holds one, else created and pushed there; a store without a remote gets the repo's, and one the
 // remote lacks is pushed. A clone whose repo has no such git remote keeps its store as it is: there is nothing to
 // attach it to (pm where says so). It refuses to start an empty store beside the Beads data a remote holds (the import
 // comes first), and to leave a store made here beside another the remote holds, which share no history. What it did,
 // one line each.
-func SetupWork(main, remote string) ([]string, error) {
-	dir, run := work.Locations(main)
-	o := work.Options{Dir: dir, RunDir: run}
+func SetupStore(c context.Context, d *work.Dolt, main, remote string) ([]string, error) {
+	dir, _ := work.Locations(main)
 	url := RemoteURL(main, remote)
 	var out []string
-	var d *work.Dolt
-	if !work.Exists(dir) {
+	has, err := d.HasStore()
+	if err != nil {
+		return nil, err
+	}
+	if !has {
 		if url == "" {
 			return nil, refuse("no work store at %s, and this repo has no remote %s to clone it from or push it to; "+
 				"add it (git remote add %s URL) and run pm init again", dir, remote, remote)
 		}
-		has, err := RemoteHasStore(main, remote)
+		held, err := RemoteHasStore(c, main, remote)
 		if err != nil {
 			return nil, err
 		}
-		if has {
-			err := quietStdout(func() (err error) { d, err = work.CloneStore(o, url); return err })
-			if err != nil {
+		if held {
+			if err := d.Clone(url); err != nil {
 				return nil, err
 			}
-			out = append(out, fmt.Sprintf("cloned the work store from %s's %s into %s", remote, work.RemoteRef, dir))
-			return out, d.Shutdown()
+			return []string{fmt.Sprintf("cloned the work store from %s's %s into %s", remote, work.RemoteRef, dir)}, nil
 		}
-		if beads, err := remoteHasRef(main, remote, beadsRef); err != nil {
+		if beads, err := remoteHasRef(c, main, remote, beadsRef); err != nil {
 			return nil, err
 		} else if beads {
 			return nil, refuse("%s holds Beads data (%s) but no work store (%s), and an empty store here would fork the "+
 				"project's work from it: import it first (bd export > FILE, then pm init --import-bd FILE), then run pm "+
 				"init again", remote, beadsRef, work.RemoteRef)
 		}
-		if d, err = work.CreateStore(o); err != nil {
+		if err := d.CreateStore(); err != nil {
 			return nil, err
 		}
 		if err := d.AddRemote(url); err != nil {
-			return nil, errors.Join(err, d.Shutdown())
+			return nil, err
 		}
 		if err := d.Push(); err != nil {
-			return nil, errors.Join(err, d.Shutdown())
+			return nil, err
 		}
-		out = append(out, fmt.Sprintf("created the work store at %s and pushed it to %s's %s", dir, remote, work.RemoteRef))
-		return out, d.Shutdown()
+		return []string{fmt.Sprintf("created the work store at %s and pushed it to %s's %s", dir, remote,
+			work.RemoteRef)}, nil
 	}
 	if url == "" {
 		return nil, nil
 	}
-	d, err := work.OpenStore(o)
+	if err := d.UseStore(); err != nil {
+		return nil, err
+	}
+	_, ok, err := d.Remote()
 	if err != nil {
 		return nil, err
 	}
-	err = func() error {
-		_, ok, err := d.Remote()
-		if err != nil {
-			return err
+	if !ok {
+		if err := d.AddRemote(url); err != nil {
+			return nil, err
 		}
-		if !ok {
-			if err := d.AddRemote(url); err != nil {
-				return err
-			}
-			out = append(out, fmt.Sprintf("pointed the work store %s at %s's %s", dir, remote, work.RemoteRef))
-		}
-		if _, _, tracked, err := d.Tracking(); err != nil || tracked {
-			return err // it has fetched or pushed the remote's store: attached
-		}
-		has, err := RemoteHasStore(main, remote)
-		if err != nil {
-			return err
-		}
-		if has {
-			return refuse("%s", unrelated(dir, remote))
-		}
-		if err := d.Push(); err != nil {
-			return err
-		}
-		out = append(out, fmt.Sprintf("pushed the work store to %s's %s", remote, work.RemoteRef))
-		return nil
-	}()
-	if err = errors.Join(err, d.Shutdown()); err != nil {
+		out = append(out, fmt.Sprintf("pointed the work store %s at %s's %s", dir, remote, work.RemoteRef))
+	}
+	if _, _, tracked, err := d.Tracking(); err != nil || tracked {
+		return out, err // it has fetched or pushed the remote's store: attached
+	}
+	held, err := RemoteHasStore(c, main, remote)
+	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	if held {
+		return nil, refuse("%s", unrelated(dir, remote))
+	}
+	if err := d.Push(); err != nil {
+		return nil, err
+	}
+	return append(out, fmt.Sprintf("pushed the work store to %s's %s", remote, work.RemoteRef)), nil
 }
 
-// WorkDrift is how the clone's work store differs from what pm init makes, one line each.
+// WorkDrift is how the clone's work store differs from what pm init makes, one line each; a service that does not
+// answer, or a clone with no store, is one such line.
 func WorkDrift(main, remote string) ([]string, error) {
-	dir, run := work.Locations(main)
-	if !work.Exists(dir) {
-		return []string{fmt.Sprintf("%s is missing; run pm init", dir)}, nil
+	dir, _ := work.Locations(main)
+	d, err := work.Dial(main)
+	if err != nil {
+		return []string{err.Error()}, nil
 	}
 	if RemoteURL(main, remote) == "" {
-		return nil, nil
-	}
-	d, err := work.OpenStore(work.Options{Dir: dir, RunDir: run})
-	if err != nil {
-		return nil, err
+		return nil, d.Shutdown()
 	}
 	_, ok, err := d.Remote()
 	tracked := false
@@ -186,11 +175,11 @@ func WorkDrift(main, remote string) ([]string, error) {
 		return []string{fmt.Sprintf("%s has no remote, so it syncs with no other clone; run pm init", dir)}, nil
 	}
 	if !tracked {
-		has, err := RemoteHasStore(main, remote)
+		held, err := RemoteHasStore(context.Background(), main, remote)
 		if err != nil {
 			return nil, err
 		}
-		if has {
+		if held {
 			return []string{unrelated(dir, remote)}, nil
 		}
 		return []string{fmt.Sprintf("%s is not on %s's %s yet; run pm init", dir, remote, work.RemoteRef)}, nil
@@ -206,13 +195,14 @@ func unrelated(dir, remote string) string {
 }
 
 // WorkUnsynced is why removing the clone's work store would lose items: it has no remote, or commits the remote
-// lacks; "" when the remote holds all of it, or there is no store.
+// lacks; "" when the remote holds all of it, or there is no store. It reads the store through the pm service, so it
+// fails when the service does not answer.
 func WorkUnsynced(main, remote string) (string, error) {
-	dir, run := work.Locations(main)
-	if !work.Exists(dir) {
+	dir, _ := work.Locations(main)
+	d, err := work.Dial(main)
+	if errors.Is(err, work.ErrNoStore) {
 		return "", nil
 	}
-	d, err := work.OpenStore(work.Options{Dir: dir, RunDir: run})
 	if err != nil {
 		return "", err
 	}
@@ -236,15 +226,11 @@ func WorkUnsynced(main, remote string) (string, error) {
 }
 
 // WorkState is pm where's work line state: the store's remote and how it stands against the remote's store as of the
-// last fetch or push, or what is missing.
+// last fetch or push, or why it cannot be read (no store, a service that does not answer).
 func WorkState(main, remote string) (string, error) {
-	dir, run := work.Locations(main)
-	if !work.Exists(dir) {
-		return "missing; run pm init", nil
-	}
-	d, err := work.OpenStore(work.Options{Dir: dir, RunDir: run})
+	d, err := work.Dial(main)
 	if err != nil {
-		return "", err
+		return err.Error(), nil
 	}
 	var state string
 	err = func() error {

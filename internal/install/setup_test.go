@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -33,9 +34,21 @@ func cloneOf(t *testing.T, bare, name string) string {
 	return filepath.Join(dir, name)
 }
 
+// shortDir is a new directory under a short temp root, removed at the test's end: a clone's service socket must fit
+// the kernel's limit, which t.TempDir's paths can pass on macOS.
+func shortDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "pm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	return dir
+}
+
 func bareRemote(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
+	dir := shortDir(t)
 	bare := filepath.Join(dir, "origin.git")
 	run(t, dir, "git", "init", "-q", "--bare", "-b", "main", bare)
 	w := cloneOf(t, bare, "seed")
@@ -44,12 +57,38 @@ func bareRemote(t *testing.T) string {
 	return bare
 }
 
+// serve starts the clone's work-store host with the setup operation, as pm service run does, stopped at the test's
+// end.
+func serve(t *testing.T, main string) {
+	t.Helper()
+	h, err := work.NewHost(work.HostOptions{Main: main, Version: buildinfo.Version, Ops: work.Ops{
+		Setup: func(c context.Context, d *work.Dolt) ([]string, error) { return SetupStore(c, d, main, "origin") }}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { h.Close() })
+}
+
+// emptyStore makes an empty store in the clone's service, as pm init --import-bd does before its import.
+func emptyStore(t *testing.T, main string) {
+	t.Helper()
+	d, err := work.DialSetup(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Shutdown()
+	if err := d.CreateStore(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // The work store's attach (the work-store page, Storage: Remote): the first clone creates the store and pushes it to
 // refs/pm/work, a second clone clones it from there, and a run on a set-up clone changes nothing.
 func TestSetupWorkCreatesPushesAndClones(t *testing.T) {
 	bare := bareRemote(t)
 	first := cloneOf(t, bare, "first")
-	said, err := SetupWork(first, "origin")
+	serve(t, first)
+	said, err := SetupWork(first)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +99,7 @@ func TestSetupWorkCreatesPushesAndClones(t *testing.T) {
 	if out := run(t, first, "git", "ls-remote", "origin", work.RemoteRef); !strings.Contains(out, work.RemoteRef) {
 		t.Fatalf("the remote has no %s: %q", work.RemoteRef, out)
 	}
-	if said, err := SetupWork(first, "origin"); err != nil || len(said) != 0 {
+	if said, err := SetupWork(first); err != nil || len(said) != 0 {
 		t.Fatalf("a set-up clone: %q, %v; want nothing done", said, err)
 	}
 	if state, err := WorkState(first, "origin"); err != nil || state != "0 ahead, 0 behind origin refs/pm/work (as of the last sync)" {
@@ -68,7 +107,8 @@ func TestSetupWorkCreatesPushesAndClones(t *testing.T) {
 	}
 
 	second := cloneOf(t, bare, "second")
-	said, err = SetupWork(second, "origin")
+	serve(t, second)
+	said, err = SetupWork(second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,18 +125,13 @@ func TestSetupWorkCreatesPushesAndClones(t *testing.T) {
 func TestSetupWorkAttachesAnExistingStore(t *testing.T) {
 	bare := bareRemote(t)
 	c := cloneOf(t, bare, "c")
-	dir, run := work.Locations(c)
-	d, err := work.CreateStore(work.Options{Dir: dir, RunDir: run})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := d.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
+	dir, _ := work.Locations(c)
+	serve(t, c)
+	emptyStore(t, c)
 	if drift, err := WorkDrift(c, "origin"); err != nil || len(drift) != 1 || !strings.Contains(drift[0], "has no remote") {
 		t.Fatalf("doctor before: %q, %v", drift, err)
 	}
-	said, err := SetupWork(c, "origin")
+	said, err := SetupWork(c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,32 +146,30 @@ func TestSetupWorkAttachesAnExistingStore(t *testing.T) {
 func TestSetupWorkRefusesAFork(t *testing.T) {
 	beads := cloneOf(t, bareRemote(t), "beads")
 	run(t, beads, "git", "push", "-q", "origin", "HEAD:refs/dolt/data")
-	if _, err := SetupWork(beads, "origin"); err == nil || !strings.Contains(err.Error(), "holds Beads data (refs/dolt/data)") {
+	serve(t, beads)
+	if _, err := SetupWork(beads); err == nil || !strings.Contains(err.Error(), "holds Beads data (refs/dolt/data)") {
 		t.Fatalf("got %v, want the import asked for first", err)
 	}
-	if dir, _ := work.Locations(beads); work.Exists(dir) {
-		t.Fatal("a store was made")
+	if _, err := work.Dial(beads); !errors.Is(err, work.ErrNoStore) {
+		t.Fatalf("a store was made: %v", err)
 	}
 
 	bare := bareRemote(t)
 	first := cloneOf(t, bare, "first")
-	if _, err := SetupWork(first, "origin"); err != nil {
+	serve(t, first)
+	if _, err := SetupWork(first); err != nil {
 		t.Fatal(err)
 	}
 	if why, err := WorkUnsynced(first, "origin"); err != nil || why != "" {
 		t.Fatalf("a pushed store: %q, %v", why, err)
 	}
 	other := cloneOf(t, bare, "other")
-	dir, runDir := work.Locations(other)
-	d, err := work.CreateStore(work.Options{Dir: dir, RunDir: runDir})
-	if err != nil {
-		t.Fatal(err)
-	}
-	d.Shutdown()
+	serve(t, other)
+	emptyStore(t, other)
 	if why, err := WorkUnsynced(other, "origin"); err != nil || !strings.Contains(why, "has no remote") {
 		t.Fatalf("a store with no remote: %q, %v", why, err)
 	}
-	if _, err := SetupWork(other, "origin"); err == nil || !strings.Contains(err.Error(), "share no history") {
+	if _, err := SetupWork(other); err == nil || !strings.Contains(err.Error(), "share no history") {
 		t.Fatalf("got %v, want the unrelated store refused", err)
 	}
 	if drift, err := WorkDrift(other, "origin"); err != nil || len(drift) != 1 || !strings.Contains(drift[0], "share no history") {
@@ -149,9 +182,14 @@ func TestSetupWorkRefusesAFork(t *testing.T) {
 
 // A repo without the remote cannot get a store, and one with a store but no remote keeps it as it is.
 func TestSetupWorkWithoutTheRemote(t *testing.T) {
-	dir := t.TempDir()
+	dir := shortDir(t)
 	run(t, dir, "git", "init", "-q", "-b", "main")
-	if _, err := SetupWork(dir, "origin"); err == nil || !strings.Contains(err.Error(), "has no remote origin") {
+	if _, err := SetupWork(dir); err == nil || !strings.Contains(err.Error(), "the pm service does not answer on "+
+		work.Sock(dir)+"; pm reaches the work store only through it: run pm service restart") {
+		t.Fatalf("got %v, want the service down named", err)
+	}
+	serve(t, dir)
+	if _, err := SetupWork(dir); err == nil || !strings.Contains(err.Error(), "has no remote origin") {
 		t.Fatalf("got %v, want a refusal naming the remote", err)
 	}
 }

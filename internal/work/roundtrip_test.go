@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -127,12 +126,7 @@ func roundTrip(t *testing.T, exportPath, records string) {
 	}
 	mapped := time.Since(start)
 
-	dir := t.TempDir()
-	o := Options{Dir: filepath.Join(dir, "store", "work"), RunDir: filepath.Join(dir, "run"), Prefix: "x"}
-	d, err := CreateStore(o)
-	if err != nil {
-		t.Fatal(err)
-	}
+	d, o := serve(t, Options{Prefix: "x"})
 	start = time.Now()
 	if err := d.Import(items, "pm: import the bd export"); err != nil {
 		t.Fatal(err)
@@ -141,11 +135,7 @@ func roundTrip(t *testing.T, exportPath, records string) {
 	if err := d.Shutdown(); err != nil {
 		t.Fatal(err)
 	}
-	d, err = OpenStore(o)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Shutdown()
+	d = o.dial(t)
 	back, err := d.Items()
 	if err != nil {
 		t.Fatal(err)

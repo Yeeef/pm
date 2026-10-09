@@ -7,7 +7,7 @@ package work
 
 // SchemaVersion is the version this pm's schema is at. A store at a lower version is migrated on open by the steps in
 // migrations; a store at a higher one is refused: an older pm does not write a newer schema.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // schema is version 1, statement by statement; CreateStore then runs migrations up to SchemaVersion, as an open of an
 // older store does.
@@ -99,5 +99,16 @@ var migrations = [][]string{
 	{
 		`ALTER TABLE comments ADD KEY comments_item_order (item_id, pos)`,
 		`ALTER TABLE comments DROP INDEX comments_item_pos`,
+	},
+	// 3: the write stamp. Every write transaction sets txn to a fresh UUID, so any two concurrent writes conflict and
+	// pm's writes are serializable (the work-store page, Concurrent writers); it carries no data, and a merge keeps
+	// this side's value.
+	{
+		`CREATE TABLE write_stamp (
+			one TINYINT NOT NULL PRIMARY KEY,
+			txn VARCHAR(36) NOT NULL,
+			CHECK (one = 1)
+		)`,
+		`INSERT INTO write_stamp (one, txn) VALUES (1, '')`,
 	},
 }

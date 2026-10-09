@@ -19,7 +19,8 @@ import (
 
 // The work-store commands with no Python counterpart: the work-store page's Commands table, "For agents" (task
 // ready, edit and release, dep add and rm, comment add, need dismiss, reply add, sync, and two forms of commands Python
-// has: pm show ID and pm task add --parent TASK). Each opens the store once, under the gate, and closes it at exit.
+// has: pm show ID and pm task add --parent TASK). Each connects to the pm service that holds the store once, and
+// disconnects at exit.
 // Like pm export they stay out of the argparse tree, whose help and noun list the parity tests hold equal to Python
 // pm's, until Python pm is deleted.
 
@@ -132,8 +133,9 @@ var storeCommands = map[string]storeCommand{
 	},
 	"sync": {
 		usage: "sync",
-		about: "Sync the work store with the repo's remote now: pull, resolve conflicts by the merge rules, push. A " +
-			"conflict no rule settles fails, names the item and field, and leaves the store as it was.",
+		about: "Sync the work store with the repo's remote now: the pm service pulls, resolves conflicts by the merge " +
+			"rules and pushes, as it does every 10 minutes. A conflict no rule settles fails, names the item and field, " +
+			"and leaves the store as it was.",
 		run: syncNow,
 	},
 }
@@ -582,16 +584,14 @@ func replyAdd(c *storeCall) error {
 	return nil
 }
 
+// syncNow is pm sync: the service syncs (CALL pm_sync()), and its lines are printed.
 func syncNow(c *storeCall) error {
-	r, err := c.d.Sync()
+	lines, err := c.d.CallSync()
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(c.stdout, "synced: pulled %d commits, resolved %d items both sides changed, pushed %d commits\n",
-		r.Pulled, r.Resolved, r.Pushed)
-	for _, o := range r.Overrides {
-		fmt.Fprintf(c.stdout, "warning: %s: the claim by %s (%s) was overridden by the later claim of %s (%s)\n", o.ID,
-			o.Lost.Session, o.Lost.ClaimedAt.Format(time.RFC3339), o.Kept.Session, o.Kept.ClaimedAt.Format(time.RFC3339))
+	for _, l := range lines {
+		fmt.Fprintln(c.stdout, l)
 	}
 	return nil
 }

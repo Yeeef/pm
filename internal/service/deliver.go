@@ -207,7 +207,7 @@ func PushInbox(n *work.Item, text string) string {
 // flagged by pm show, and the sweep tries it again.
 func (s *server) pushUndelivered(id string) (string, error) {
 	var n work.Item
-	if err := s.withStore("read "+id, func(st Store) error {
+	if err := s.withStore("read "+id, func(st work.Store) error {
 		got, err := st.Get(id)
 		if err == nil {
 			n = got[0]
@@ -223,7 +223,7 @@ func (s *server) pushUndelivered(id string) (string, error) {
 	if why := PushInbox(&n, text); why != "" {
 		return why, nil
 	}
-	if err := s.withStore("delivered "+id, func(st Store) error { return st.UpdateNeed(id, *mark) }); err != nil {
+	if err := s.withStore("delivered "+id, func(st work.Store) error { return st.UpdateNeed(id, *mark) }); err != nil {
 		return "", err
 	}
 	return "delivered", nil

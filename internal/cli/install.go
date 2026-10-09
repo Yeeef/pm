@@ -392,14 +392,33 @@ func initSteps(here, top, main string, s install.Settings, fresh, sessionStart b
 		return "", err
 	}
 	*out = append(*out, done)
+	// the work store is the service's: the service comes up first, then attaches the store (CALL pm_setup())
+	attach := func() error {
+		said, err := install.SetupWork(main)
+		*out = append(*out, said...)
+		return err
+	}
 	if sessionStart && service.Installed(main) {
-		// A restart may take service.RestartWait of session start's budget, and parallel session starts would each
-		// make one: session start only reports a stale or down service, and pm service restart fixes it.
+		// A service that does not answer is started, once for parallel session starts (the clone's install lock); a
+		// running one, a stale one included, is left as it is and reported, since a restart from a session start
+		// would restart it under every other session too.
+		said, err := service.StartIfDown(main)
+		if err != nil {
+			return "", err
+		}
+		if said != "" {
+			*out = append(*out, said)
+		}
 		if ok, line := service.Health(main); !ok {
 			if _, after, found := strings.Cut(line, ")  "); found {
 				line = after
 			}
-			*out = append(*out, "left the installed pm service as it is (session start never restarts it): "+line)
+			*out = append(*out, "left the installed pm service as it is (session start never restarts a running one): "+
+				line)
+			return strings.Join(*out, "\n"), nil
+		}
+		if err := attach(); err != nil {
+			return "", err
 		}
 		return strings.Join(*out, "\n"), nil
 	}
@@ -421,6 +440,9 @@ func initSteps(here, top, main string, s install.Settings, fresh, sessionStart b
 	}
 	if said != "" {
 		*out = append(*out, said)
+	}
+	if err := attach(); err != nil {
+		return "", err
 	}
 	return strings.Join(*out, "\n"), nil
 }

@@ -40,12 +40,16 @@ go-build:
 	CGO_ENABLED=1 go build -trimpath -tags gms_pure_go -ldflags "-s -w $(GO_VERSION_FLAG)" -o $(GO_PM) ./cmd/pm
 
 GO_PARITY := $(CURDIR)/.go/parity
+# The work store's concurrency tests, which make test-go runs again under the race detector (about a minute; the whole
+# internal/work package under -race would take several): the write lock, the slot, gc and merges racing writers.
+RACE_TESTS := Racing|Migrating|Eight|Opposite|OutsideTheLock|NotStarved|Outlasting|HungFetch|WriteLock|PmLock|ASecondLock
 # Both sides of the parity corpus render in a zone far from UTC, so a UTC date where a local one belongs (day pages)
 # differs, on CI's UTC runners too.
 PARITY_TZ ?= Pacific/Auckland
 test-go: go-build
 	TZ=$(PARITY_TZ) $(PMRUN) python tests/go_parity_corpus.py $(GO_PARITY) $(if $(PM_PARITY_LIVE),--live $(PM_PARITY_LIVE))
 	CGO_ENABLED=1 go vet -tags gms_pure_go ./... && TZ=$(PARITY_TZ) PM_PARITY=$(GO_PARITY) CGO_ENABLED=1 go test -tags gms_pure_go ./...
+	CGO_ENABLED=1 go test -race -tags gms_pure_go ./internal/service && CGO_ENABLED=1 go test -race -tags gms_pure_go -run '$(RACE_TESTS)' ./internal/work
 	PM_GO=$(GO_PM) $(PMRUN) python -m pytest -q -p no:cacheprovider -n auto tests/test_go_parity.py $(ARGS)
 
 # Run the shared suite, the integration tests too, on Go pm (PM_IMPL=go) against tests/go-expected-failures.txt:

@@ -392,9 +392,9 @@ func SetupHooksPath(main string) (string, error) {
 // ---------------------------------------------------------------- the clone's and the worktree's setup
 
 // SetupClone makes the clone and this worktree ready, the part of pm init's clone half that the post-checkout hook
-// runs too: attach the work store, set the git hooks path, check out the records store if it is missing, link this
-// worktree's records/ to it, and let Codex's sandbox write both stores and commit. pm init then installs the pm
-// service.
+// runs too: set the git hooks path, check out the records store if it is missing, link this worktree's records/ to
+// it, and let Codex's sandbox write both stores and commit. pm init then brings the pm service up and has it attach
+// the work store (SetupWork), which the service alone opens.
 func SetupClone(cwd, remote string) (string, error) {
 	records, err := store.PathOf(cwd)
 	if err != nil {
@@ -440,12 +440,6 @@ func SetupClone(cwd, remote string) (string, error) {
 	if _, err := store.Find(cwd); err != nil {
 		return "", err
 	}
-	// after the records store, which pm init --import-bd reads when a refusal here asks for the import first
-	work, err := SetupWork(main, remote)
-	if err != nil {
-		return "", err
-	}
-	out = append(out, work...)
 	if Resolve(top) == Resolve(records) {
 		return "", refuse("%s is the store itself; run %s from a code worktree", top, setup)
 	}

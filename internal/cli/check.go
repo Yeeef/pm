@@ -12,13 +12,10 @@ import (
 	"github.com/Yeeef/pm/internal/work"
 )
 
-// OpenWork opens the clone's work store under the main checkout: the embedded Dolt store, taken under its gate and
-// released by Shutdown. A root id it mints takes the repo name as its prefix: the main checkout's directory name.
-// Tests set a fake (worktest).
-var OpenWork = func(main string) (work.Store, error) {
-	dir, run := work.Locations(main)
-	return work.OpenStore(work.Options{Dir: dir, RunDir: run, Prefix: filepath.Base(main)})
-}
+// OpenWork connects to the clone's work store under the main checkout, through the pm service that holds it; Shutdown
+// disconnects. A root id it mints takes the repo name as its prefix: the main checkout's directory name. Tests set a
+// fake (worktest).
+var OpenWork = func(main string) (work.Store, error) { return work.Dial(main) }
 
 // cmdCheck is pm check: every record renders with the work store's items, writing nothing.
 func cmdCheck(here string, stdout io.Writer) error {
@@ -35,7 +32,7 @@ func cmdCheck(here string, stdout io.Writer) error {
 		return err
 	}
 	all, err := ws.Items()
-	if err = errors.Join(err, ws.Shutdown()); err != nil { // the store closes before the render, which needs no item more
+	if err = errors.Join(err, ws.Shutdown()); err != nil { // disconnect before the render, which needs no item more
 		return err
 	}
 	recs, err := records.Read(recordsDir, nil)

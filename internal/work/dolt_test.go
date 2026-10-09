@@ -3,30 +3,27 @@ package work
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 // The store on embedded Dolt, from the work-store page's Storage section and the Store interface: every write one
 // transaction and one Dolt commit that lands whole or not at all, every read checked, the claim a compare-and-set,
-// the schema version, the gate.
+// the schema version.
 
 // newStore is a new store in a temp dir with a clock that ticks a second per read, shut down at the test's end.
-func newStore(t *testing.T) (*Dolt, Options) {
+func newStore(t *testing.T) (*Dolt, *served) {
 	t.Helper()
-	dir := t.TempDir()
 	clock := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	o := Options{Dir: filepath.Join(dir, "store", "work"), RunDir: filepath.Join(dir, "run"), Prefix: "demo",
-		Now: func() time.Time { clock = clock.Add(time.Second); return clock }}
-	d, err := CreateStore(o)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Shutdown() })
-	return d, o
+	var mu sync.Mutex // the host's sessions read it at once
+	return serve(t, Options{Prefix: "demo", Now: func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		clock = clock.Add(time.Second)
+		return clock
+	}})
 }
 
 // must is v, panicking (failing the test) on err.
@@ -77,8 +74,7 @@ func TestCreateWritesThroughToALaterOpen(t *testing.T) {
 	if err := d.Shutdown(); err != nil {
 		t.Fatal(err)
 	}
-	d2 := must(OpenStore(o))
-	defer d2.Shutdown()
+	d2 := o.dial(t)
 	if items := must(d2.Items()); len(items) != 3 {
 		t.Fatalf("%d items", len(items))
 	}
@@ -87,7 +83,7 @@ func TestCreateWritesThroughToALaterOpen(t *testing.T) {
 		got.CreatedAt.Location() != time.UTC {
 		t.Fatalf("%+v", got)
 	}
-	if n := commits(t, d2); n != 6 { // Dolt's init commit, the schema at version 1, its migration to 2, one per create
+	if n := commits(t, d2); n != 7 { // Dolt's init commit, the schema at version 1, its migrations to 2 and 3, one per create
 		t.Fatalf("%d commits", n)
 	}
 	var dirty int
@@ -257,7 +253,7 @@ func TestCreateMintsIdsAndSprintNumbers(t *testing.T) {
 	}
 }
 
-func TestOpenRefusesANewerSchemaAndAMissingStore(t *testing.T) {
+func TestTheHostRefusesANewerSchemaAndAClientAMissingStore(t *testing.T) {
 	d, o := newStore(t)
 	if _, err := d.conn.ExecContext(ctx, "UPDATE schema_version SET version = ?", SchemaVersion+1); err != nil {
 		t.Fatal(err)
@@ -265,15 +261,20 @@ func TestOpenRefusesANewerSchemaAndAMissingStore(t *testing.T) {
 	if _, err := d.conn.ExecContext(ctx, "CALL DOLT_COMMIT('-Am', 'a newer pm')"); err != nil {
 		t.Fatal(err)
 	}
-	d.Shutdown()
-	if _, err := OpenStore(o); err == nil || !strings.Contains(err.Error(), "run pm upgrade") {
-		t.Fatalf("a newer schema opened: %v", err)
-	}
-	if _, err := CreateStore(o); err == nil || !strings.Contains(err.Error(), "already") {
+	if err := d.CreateStore(); err == nil || !strings.Contains(err.Error(), "exists") {
 		t.Fatalf("created a store over one: %v", err)
 	}
-	o.Dir = filepath.Join(t.TempDir(), "none")
-	if _, err := OpenStore(o); err == nil || !strings.Contains(err.Error(), "pm init creates") {
+	d.Shutdown()
+	if err := o.h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewHost(HostOptions{Main: o.main, Version: "x"}); err == nil ||
+		!strings.Contains(err.Error(), "run pm upgrade") {
+		t.Fatalf("a newer schema served: %v", err)
+	}
+	none := host(t, shortMain(t), Options{}, Ops{})
+	if _, err := dial(none.h.sock, dialConfig{withDB: true}); err == nil ||
+		err.Error() != "this clone has no work store yet: run pm init" {
 		t.Fatalf("no store: %v", err)
 	}
 }
@@ -323,46 +324,16 @@ func TestImportGoesIntoAnEmptyStoreOnly(t *testing.T) {
 	}
 }
 
-func TestTheGateSerialisesOpensAndLogsEachWait(t *testing.T) {
-	d, o := newStore(t)
-	o.GateTimeout = 300 * time.Millisecond
-	start := time.Now()
-	if _, err := OpenStore(o); err == nil || !strings.Contains(err.Error(), filepath.Join(o.RunDir, GateFile)) {
-		t.Fatalf("opened while another open held the gate: %v", err)
-	}
-	if waited := time.Since(start); waited < o.GateTimeout {
-		t.Fatalf("gave up after %s", waited)
-	}
-	// A waiter gets the store as soon as the holder shuts down.
-	o.GateTimeout = 10 * time.Second
-	go func() { time.Sleep(200 * time.Millisecond); d.Shutdown() }()
-	d2, err := OpenStore(o)
-	if err != nil {
-		t.Fatal(err)
-	}
-	d2.Shutdown()
-	log := string(must(os.ReadFile(filepath.Join(o.RunDir, GateLogFile))))
-	lines := strings.Split(strings.TrimSpace(log), "\n")
-	// One line per open: the create, the timed-out wait, the open that waited for the shutdown.
-	if len(lines) != 3 || !strings.Contains(lines[1], " timeout=1 ") || strings.Contains(lines[2], " timeout=1 ") ||
-		!strings.Contains(lines[2], fmt.Sprintf("pid=%d", os.Getpid())) {
-		t.Fatalf("gate log:\n%s", log)
-	}
-	for i, least := range map[int]float64{1: 300, 2: 150} {
-		var ms float64
-		if _, err := fmt.Sscanf(lines[i][strings.Index(lines[i], "wait_ms="):], "wait_ms=%f", &ms); err != nil ||
-			ms < least {
-			t.Fatalf("line %d waited %v ms (%v)", i, ms, err)
-		}
+func TestASecondHostOnAStoreFailsHard(t *testing.T) {
+	_, o := newStore(t)
+	_, err := NewHost(HostOptions{Main: o.main, Version: "x"})
+	if err == nil || !strings.Contains(err.Error(), "another process holds it (a second pm service?)") {
+		t.Fatalf("a second host: %v", err)
 	}
 }
 
 func TestCommentsKeepTheirOrderWithinASecond(t *testing.T) {
-	dir := t.TempDir()
-	o := Options{Dir: filepath.Join(dir, "work"), RunDir: filepath.Join(dir, "run"), Prefix: "demo",
-		Now: func() time.Time { return at }}
-	d := must(CreateStore(o))
-	defer d.Shutdown()
+	d, _ := serve(t, Options{Prefix: "demo", Now: func() time.Time { return at }})
 	_, _, task, need := seed(t, d)
 	var want []string
 	for i := range 5 {

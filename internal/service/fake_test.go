@@ -17,18 +17,17 @@ import (
 	"github.com/Yeeef/pm/internal/work"
 )
 
-// fakeWork is the work store's data, shared by every open of a fakeStore, with the gate's rule checked: no two opens
-// overlap, so a service that held the store across slow work, or opened it twice, fails the test.
+// fakeWork is the work store's data, shared by every connection to it (a fakeStore), and the host's operations: its
+// change mark, sync and gc.
 type fakeWork struct {
 	mu      gosync.Mutex
 	items   map[string]*work.Item
-	open    bool
+	open    int // connections not yet shut down
 	opens   int
 	reads   int // Items calls
 	syncs   int
 	gcs     int
-	fp      int // the fingerprint: moves on every write
-	overlap bool
+	fp      int // the change mark: moves on every write
 	failGet error
 	// syncWarnings are what each sync warns of: the claims its merge overrode
 	syncWarnings []string
@@ -43,22 +42,32 @@ func newFakeWork(items ...work.Item) *fakeWork {
 	return w
 }
 
-func (w *fakeWork) Open() (Store, error) {
+func (w *fakeWork) Open() (work.Store, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.open {
-		w.overlap = true
-		return nil, errors.New("fake work store: opened while open (the gate)")
-	}
-	w.open = true
+	w.open++
 	w.opens++
-	return &fakeStore{w}, nil
+	return &fakeStore{w: w}, nil
 }
 
-func (w *fakeWork) Fingerprint() (string, error) {
+func (w *fakeWork) Mark() (string, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return fmt.Sprint(w.fp), nil
+}
+
+func (w *fakeWork) Sync(ctx context.Context) ([]string, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.syncs++
+	return append([]string{"up to date"}, w.syncWarnings...), nil
+}
+
+func (w *fakeWork) GC(ctx context.Context) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.gcs++
+	return nil
 }
 
 func (w *fakeWork) item(id string) work.Item {
@@ -74,11 +83,14 @@ func (w *fakeWork) set(it work.Item) {
 	w.fp++
 }
 
-type fakeStore struct{ w *fakeWork }
+type fakeStore struct {
+	w      *fakeWork
+	closed bool
+}
 
 func (s *fakeStore) lock() func() {
 	s.w.mu.Lock()
-	if !s.w.open {
+	if s.closed {
 		panic("fake work store: used after Shutdown")
 	}
 	return s.w.mu.Unlock
@@ -137,22 +149,13 @@ func (s *fakeStore) UpdateNeed(id string, u work.NeedUpdate) error {
 	return nil
 }
 
-func (s *fakeStore) Sync(ctx context.Context) (string, []string, error) {
-	defer s.lock()()
-	s.w.syncs++
-	return "up to date", s.w.syncWarnings, nil
-}
-
-func (s *fakeStore) GC(ctx context.Context) error {
-	defer s.lock()()
-	s.w.gcs++
-	return nil
-}
-
 func (s *fakeStore) Shutdown() error {
 	s.w.mu.Lock()
 	defer s.w.mu.Unlock()
-	s.w.open = false
+	if !s.closed {
+		s.closed = true
+		s.w.open--
+	}
 	return nil
 }
 
@@ -266,7 +269,7 @@ func helperService(main string) int {
 	fmt.Sscan(os.Getenv("PORT"), &port)
 	pin := filepath.Join(main, ".pm/config.toml")
 	err := Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Port: port, Pin: pin,
-		Spool: filepath.Join(main, ".git", SpoolName), WorkDir: main, Open: w.Open, Fingerprint: w.Fingerprint,
+		Spool: filepath.Join(main, ".git", SpoolName), WorkDir: main, Open: w.Open, Mark: w.Mark, Sync: w.Sync, GC: w.GC,
 		Site: &fakeSite{}, Summarize: func() (bool, string) { return true, "nothing to summarize" },
 		Style: []byte("body{}"), Out: os.Stdout, Log: os.Stderr})
 	if err != nil {

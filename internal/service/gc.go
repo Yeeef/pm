@@ -12,7 +12,7 @@ import (
 
 // The garbage collection: the work store keeps every chunk a write replaced until a collection drops the dead ones
 // (bd's store here was 123 MB for 596 KB of data, 47 MB after one), so the service collects it once GCInterval has
-// passed since the last collection, under the gate, with GCTimeout, and logs the store's size before and after. It
+// passed since the last collection, online, with GCTimeout, and logs the store's size before and after. It
 // runs the store's GC (CALL DOLT_GC()), which deletes no item and squashes no commit. The last outcome is kept in
 // .pm/run/gc.json for pm service status.
 var (
@@ -120,11 +120,9 @@ func (s *server) collect() GCState {
 	before, err := dirSize(s.d.WorkDir)
 	if err == nil {
 		st.Before = before
-		err = s.withStore("gc", func(w Store) error {
-			ctx, cancel := context.WithTimeout(context.Background(), GCTimeout)
-			defer cancel()
-			return w.GC(ctx)
-		})
+		ctx, cancel := context.WithTimeout(context.Background(), GCTimeout)
+		err = s.d.GC(ctx)
+		cancel()
 	}
 	if err == nil {
 		st.After, err = dirSize(s.d.WorkDir)

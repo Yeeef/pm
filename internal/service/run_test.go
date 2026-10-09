@@ -78,7 +78,7 @@ func serve(t *testing.T, w *fakeWork, main string) *served {
 	s.setPin(Version())
 	go func() {
 		s.done <- Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Port: 0, Pin: s.pin,
-			Spool: s.spool, WorkDir: main, Open: w.Open, Fingerprint: w.Fingerprint, Site: s.site,
+			Spool: s.spool, WorkDir: main, Open: w.Open, Mark: w.Mark, Sync: w.Sync, GC: w.GC, Site: s.site,
 			Summarize: func() (bool, string) { return true, "summarized" }, Style: []byte("body{}"), Out: s.out,
 			Log: s.log})
 	}()
@@ -103,8 +103,8 @@ func serve(t *testing.T, w *fakeWork, main string) *served {
 		if !s.stopped {
 			s.stop()
 		}
-		if w.overlap {
-			t.Error("the service opened the work store while it was open: it must open it per poll and close it at once")
+		if w.open != 0 {
+			t.Errorf("the service left %d connections to the work store open", w.open)
 		}
 	})
 	return s
@@ -414,11 +414,11 @@ func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *tes
 	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
 	failing := true
 	var mu gosync.Mutex
-	open := func() (Store, error) {
+	open := func() (work.Store, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		if failing {
-			return nil, errors.New("the gate timed out")
+			return nil, errors.New("the pm service does not answer")
 		}
 		return w.Open()
 	}
@@ -431,13 +431,13 @@ func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *tes
 	s.setPin(Version())
 	go func() {
 		s.done <- Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Pin: s.pin,
-			Spool: s.spool, WorkDir: main, Open: open, Fingerprint: w.Fingerprint, Site: s.site,
+			Spool: s.spool, WorkDir: main, Open: open, Mark: w.Mark, Sync: w.Sync, GC: w.GC, Site: s.site,
 			Summarize: func() (bool, string) { return true, "" }, Style: []byte("x"), Out: s.out, Log: s.log})
 	}()
 	eventually(t, "serving", func() bool { return strings.Contains(s.out.String(), "Serving http://localhost:") })
 	s.base = "http://127.0.0.1:" + regexp.MustCompile(`localhost:(\d+);`).FindStringSubmatch(s.out.String())[1]
 	t.Cleanup(func() { s.stop() })
-	if resp, body := s.get("/"); resp.StatusCode != 500 || !strings.Contains(body, "the gate timed out") {
+	if resp, body := s.get("/"); resp.StatusCode != 500 || !strings.Contains(body, "the pm service does not answer") {
 		t.Fatalf("%d %s", resp.StatusCode, body)
 	}
 	mu.Lock()
@@ -571,11 +571,11 @@ func TestTheServiceStopsOnceThePinMoves(t *testing.T) {
 	}
 }
 
-func TestSyncStepsSyncTheStoreUnderTheGateSummarizeAndPushTheRecords(t *testing.T) {
+func TestSyncStepsSyncTheStoreSummarizeAndPushTheRecords(t *testing.T) {
 	w, log := newFakeWork(), &syncBuffer{}
 	w.syncWarnings = []string{"warning: demo-1.1: the claim by s1 (t1) was overridden by the later claim of s2 (t2)"}
 	s := &server{d: Deps{Main: t.TempDir(), Records: filepath.Join(t.TempDir(), "none"), Remote: "origin",
-		Open: w.Open, Summarize: func() (bool, string) { return true, "summarized" }, Log: log}}
+		Open: w.Open, Sync: w.Sync, Summarize: func() (bool, string) { return true, "summarized" }, Log: log}}
 	var names, said []string
 	for _, step := range s.SyncSteps() {
 		ok, line := step.Run()
@@ -584,7 +584,7 @@ func TestSyncStepsSyncTheStoreUnderTheGateSummarizeAndPushTheRecords(t *testing.
 			t.Fatalf("%s failed: %s", step.Name, line)
 		}
 	}
-	if strings.Join(names, ",") != "work,summary,records" || said[0] != "up to date" || w.syncs != 1 || w.open {
+	if strings.Join(names, ",") != "work,summary,records" || said[0] != "up to date" || w.syncs != 1 || w.open != 0 {
 		t.Fatalf("steps %v said %v; syncs %d, open %v", names, said, w.syncs, w.open)
 	}
 	if !strings.Contains(log.String(), "\n"+w.syncWarnings[0]+"\n") && !strings.HasPrefix(log.String(), w.syncWarnings[0]+"\n") {
@@ -592,13 +592,13 @@ func TestSyncStepsSyncTheStoreUnderTheGateSummarizeAndPushTheRecords(t *testing.
 	}
 }
 
-func TestGCRunsUnderTheGateWhenDueAndRecordsTheSizes(t *testing.T) {
+func TestGCRunsWhenDueAndRecordsTheSizes(t *testing.T) {
 	main := t.TempDir()
 	if err := os.WriteFile(filepath.Join(main, "chunk"), make([]byte, 2_500_000), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	w, log := newFakeWork(), &syncBuffer{}
-	s := &server{d: Deps{Main: main, WorkDir: main, Open: w.Open, Log: log}}
+	s := &server{d: Deps{Main: main, WorkDir: main, Open: w.Open, GC: w.GC, Log: log}}
 	if due, err := gcDue(main, time.Now()); !due || err != nil {
 		t.Fatalf("no collection recorded: due %v (%v)", due, err)
 	}
@@ -606,13 +606,13 @@ func TestGCRunsUnderTheGateWhenDueAndRecordsTheSizes(t *testing.T) {
 		t.Fatal(line)
 	}
 	st := s.collect()
-	if !st.OK || w.gcs != 1 || w.open || st.Before != 2_500_000 || st.After != 2_500_000 {
+	if !st.OK || w.gcs != 1 || w.open != 0 || st.Before != 2_500_000 || st.After != 2_500_000 {
 		t.Fatalf("collected %+v; gcs %d, open %v", st, w.gcs, w.open)
 	}
 	if line := GCLine(main); !regexp.MustCompile(`^gc        ok at \S+Z: 2\.5 MB -> 2\.5 MB in \d+ ms$`).MatchString(line) {
 		t.Fatal(line)
 	}
-	if !strings.Contains(log.String(), "gc ok: 2.5 MB -> 2.5 MB in ") || !strings.Contains(log.String(), "store gc open=") {
+	if !strings.Contains(log.String(), "gc ok: 2.5 MB -> 2.5 MB in ") {
 		t.Fatal(log.String())
 	}
 	if due, _ := gcDue(main, time.Now()); due {

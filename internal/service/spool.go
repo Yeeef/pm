@@ -166,7 +166,7 @@ func (s *server) deliverReply(e Entry) error {
 			return nil
 		}
 		mark := replyMark(e.RID)
-		err = s.withStore("reply "+e.ID, func(st Store) error {
+		err = s.withStore("reply "+e.ID, func(st work.Store) error {
 			got, err := st.Get(e.ID)
 			if err != nil {
 				return err

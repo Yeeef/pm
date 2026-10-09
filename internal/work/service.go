@@ -1,77 +1,72 @@
 package work
 
 import (
-	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-	"syscall"
+
+	"github.com/go-sql-driver/mysql"
 )
 
-// What the pm service needs of the store beside the Store interface: a cheap fingerprint to tell whether to read it
-// again, the remote it syncs through, and its garbage collection (the pm-go page, Store sharing).
-
-// Fingerprint is a fingerprint of the store in dir that changes on every write and costs a few stat calls, taken
-// without the gate: Dolt appends each write to its chunk journal, so a file grows, and a garbage collection rewrites
-// the manifest. Sizes only, because a read touches the files' mtimes; and not the journal's index (journal.idx), a
-// cache of the journal that a read may write. The chunk directory's inode too, so a store made anew in its place (a
-// new import) is a change even when its sizes match the old one's. It fails when dir holds no store.
-func Fingerprint(dir string) (string, error) {
-	noms := filepath.Join(dir, dbName, ".dolt", "noms")
-	manifest, err := os.ReadFile(filepath.Join(noms, "manifest"))
-	if err != nil {
-		return "", fmt.Errorf("work store: fingerprint: %w", err)
-	}
-	st, err := os.Stat(noms)
-	if err != nil {
-		return "", fmt.Errorf("work store: fingerprint: %w", err)
-	}
-	var b strings.Builder
-	if sys, ok := st.Sys().(*syscall.Stat_t); ok {
-		fmt.Fprintf(&b, "%d\x00", sys.Ino)
-	}
-	b.Write(manifest)
-	var sizes []string
-	for _, d := range []string{noms, filepath.Join(noms, "oldgen")} {
-		entries, err := os.ReadDir(d)
-		if err != nil && !os.IsNotExist(err) {
-			return "", fmt.Errorf("work store: fingerprint: %w", err)
-		}
-		for _, e := range entries {
-			if !e.Type().IsRegular() || e.Name() == journalIndex {
-				continue
-			}
-			info, err := e.Info()
-			if os.IsNotExist(err) { // replaced between the listing and the stat: a write, seen on the next look
-				continue
-			}
-			if err != nil {
-				return "", fmt.Errorf("work store: fingerprint: %w", err)
-			}
-			sizes = append(sizes, fmt.Sprintf("%s=%d", filepath.Join(filepath.Base(d), e.Name()), info.Size()))
-		}
-	}
-	sort.Strings(sizes)
-	b.WriteString("\x00" + strings.Join(sizes, "\x00"))
-	return b.String(), nil
-}
-
-// journalIndex is Dolt's index of the chunk journal: derived from the journal, and written by reads too.
-const journalIndex = "journal.idx"
+// What a command asks the pm service for beside the Store interface: the remote the store syncs through, and the
+// operations that run in the service (the pm-go page, "What runs in the service"), each a stored procedure on the
+// command's one connection.
 
 // Remote is the git remote URL the store syncs through, and whether it has one.
 func (d *Dolt) Remote() (string, bool, error) { return d.remoteURL() }
 
-// GC collects the store's garbage (CALL DOLT_GC()): chunks no commit reaches any more. It deletes no item and
-// squashes no commit.
-func (d *Dolt) GC(c context.Context) error {
-	if d.conn == nil {
-		return fmt.Errorf("work store: closed")
+// procError is a stored procedure's error as the operation gave it: the server sends it as MySQL error 1105, its
+// text the operation's.
+func (d *Dolt) procError(err error) error {
+	var me *mysql.MySQLError
+	if errors.As(err, &me) {
+		return errors.New(me.Message)
 	}
-	if _, err := d.conn.ExecContext(c, "CALL DOLT_GC()"); err != nil {
-		return fmt.Errorf("work store: gc: %w", err)
+	return d.broken(err)
+}
+
+// lines runs a procedure that answers one line per row.
+func (d *Dolt) lines(call string, args ...any) ([]string, error) {
+	rows, err := d.conn.QueryContext(ctx, call, args...)
+	if err != nil {
+		return nil, d.procError(err)
 	}
-	return nil
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var l string
+		if err := rows.Scan(&l); err != nil {
+			return nil, d.procError(err)
+		}
+		out = append(out, l)
+	}
+	return out, d.procError(rows.Err())
+}
+
+// CallSync asks the service to sync the store with the remote now (CALL pm_sync()): what it did, one line each, then
+// a warning per claim a merge overrode.
+func (d *Dolt) CallSync() ([]string, error) { return d.lines("CALL pm_sync()") }
+
+// CallSetup asks the service to attach the clone's store to the remote (CALL pm_setup()): clone it, or create and
+// push it, or point it at the remote; what it did, one line each.
+func (d *Dolt) CallSetup() ([]string, error) { return d.lines("CALL pm_setup()") }
+
+// callCreate asks the service to create n through the child-id compare-and-swap (CALL pm_create(?)).
+func (d *Dolt) callCreate(n New) (Item, error) {
+	spec, err := json.Marshal(n)
+	if err != nil {
+		return Item{}, err
+	}
+	out, err := d.lines("CALL pm_create(?)", string(spec))
+	if err != nil {
+		return Item{}, err
+	}
+	if len(out) != 1 {
+		return Item{}, fmt.Errorf("work store: pm_create answered %d rows, not 1", len(out))
+	}
+	var it Item
+	if err := json.Unmarshal([]byte(out[0]), &it); err != nil {
+		return Item{}, fmt.Errorf("work store: pm_create answered %q: %w", out[0], err)
+	}
+	return it, nil
 }

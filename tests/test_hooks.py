@@ -165,6 +165,8 @@ def test_session_start_runs_init_without_port(tmp_path, monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.impl("python", reason="Go pm's commands reach the work store only through the service, so its session "
+                  "start starts a down one (test_session_start_starts_a_down_service_once)")
 def test_session_start_reports_a_down_service_and_a_typed_init_restarts_it(repo, tmp_path):
     """Session start installs only a missing service: a down one is reported, never restarted within its budget;
     pm init typed by a person restarts it, on the port its unit serves on although the port's last connections
@@ -182,6 +184,29 @@ def test_session_start_reports_a_down_service_and_a_typed_init_restarts_it(repo,
     res = repo.pm("init")
     assert res.returncode == 0 and f"updated the pm service: " in res.stdout, (res.stdout, res.stderr)
     assert f"serving http://localhost:{port} " in res.stdout
+
+
+@pytest.mark.integration
+@pytest.mark.impl("go", reason="Python pm's session start leaves a down service to a typed pm init")
+def test_session_start_starts_a_down_service_once(repo, tmp_path):
+    """Every Go pm store command needs the service, so session start starts an installed one that does not answer,
+    under the clone's install lock: once, however many sessions start at once. A running one is left as it is."""
+    init_ready(repo)
+    port = int(repo.env["PORT"])
+    repo.env = {k: v for k, v in repo.env.items() if k != "PORT"}
+    stop_services(tmp_path)  # the process dies; the fake supervisor still holds the unit
+    calls = (tmp_path / "sched.log").read_text()
+    starts = [subprocess.Popen([*PM, "init", "--session-start"], cwd=repo.root, env=repo.env, text=True,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE) for _ in range(3)]
+    outs = [p.communicate(timeout=60) for p in starts]
+    assert all(p.returncode == 0 for p in starts), outs
+    assert sum("restarted the pm service" in out for out, _ in outs) == 1, outs
+    kicks = (tmp_path / "sched.log").read_text()[len(calls):]
+    assert kicks.count("kickstart") + kicks.count('"restart"') == 1, kicks
+    assert repo.pm("show", "repo-demo.1").returncode == 0, "the store answers again"
+    text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(repo.root)}, repo.env, repo.root))
+    assert "restarted the pm service" not in text.partition("\n\n")[0], "a running service is left as it is"
+    assert f":{port}" in text
 
 
 @pytest.mark.integration

@@ -51,6 +51,18 @@ def job(name: str) -> tuple[list[str], str, dict, str]:
 
 def start(name: str) -> None:
     cmd, cwd, env, out = job(name)
+    # the repo fixture's per-test pm service (conftest.py, Repo.start_service) holds the clone's work store; the
+    # clone's installed service takes it over, as only one process may hold it
+    fixture = state["pids"].pop("fixture", None)
+    if fixture is not None:
+        try:
+            os.kill(fixture, signal.SIGTERM)
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                os.kill(fixture, 0)
+                time.sleep(0.02)
+        except ProcessLookupError:
+            pass
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     with open(out, "a") as f:
         proc = subprocess.Popen(cmd, cwd=cwd, env={**os.environ, **env}, stdin=subprocess.DEVNULL, stdout=f,

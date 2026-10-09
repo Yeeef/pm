@@ -443,6 +443,29 @@ func Restart(main string) (string, error) {
 	return "restarted the pm service\n" + line, nil
 }
 
+// StartIfDown starts the installed service when it does not answer, under the clone's install lock, so parallel
+// session starts start it once: "" when it answers (a stale one too: it is left as it is), else what the restart
+// said. Refused when the service is not installed.
+func StartIfDown(main string) (string, error) {
+	unlock, err := lockInstall(main)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+	kind, err := Supervisor()
+	if err != nil {
+		return "", err
+	}
+	port, err := UnitPort(main, kind)
+	if err != nil {
+		return "", err
+	}
+	if s := probe(port); s != nil && s.Store != "" && resolve(s.Store) == store(main) {
+		return "", nil
+	}
+	return Restart(main)
+}
+
 // Logs is the last n lines of the service log.
 func Logs(main string, n int) (string, error) {
 	path := LogPath(main)

@@ -9,6 +9,8 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -17,6 +19,10 @@ from pm import __version__
 
 import transcript
 from work_items import items as work_items
+
+# subprocess.Popen as it is before light_unless_integration replaces it: the repo fixture's per-test pm service is no
+# integration test's (the pm-go page, Tests), so it starts through this one.
+POPEN = subprocess.Popen
 
 # This checkout: pm's repo, whose paths a transcript names <checkout>.
 CHECKOUT = Path(__file__).resolve().parents[1]
@@ -183,7 +189,9 @@ def install_tool(tools: Path, bindir: Path) -> None:
 
 
 def stop_services(tmp: Path) -> None:
-    """Stop every process the fake supervisor started under `tmp`."""
+    """Stop every process the fake supervisor started under `tmp`, and mark them stopped: Go pm reads the work store
+    only through the clone's service, so from here a transcript records no store read (Repo.pm)."""
+    (tmp / "services-stopped").touch()
     path = tmp / "sched.json"
     if not path.exists():
         return
@@ -361,13 +369,18 @@ class Repo:
 
     def __init__(self, root: Path, tmp: Path):
         self.root, self.store, self.records = root, root / ".pm/store/records", root / "records"
-        self.state, self.log = tmp / "bd.json", tmp / "bd.log"
+        self.state, self.log, self.sched = tmp / "bd.json", tmp / "bd.log", tmp / "sched.json"
         self.noms = root / ".beads/embeddeddolt/demo/.dolt/noms"  # the Dolt store bd context points at; see dolt()
         self.env = fake_bd_env(tmp, os.environ)
         self.base: dict[str, dict] = {}  # the items changes() counts from; the repo fixture marks them once set up
         self.seeded: set[str] = set()  # ids pm did not mint: a transcript keeps them as they are
         self.bd_mark = 0  # the fake bd's calls before the mark, which unchanged() leaves out
         self.imported: dict[str, dict] = {}  # Go pm: the items its store held right after the seeds were imported
+        self.tmp = tmp
+        self.known: dict[str, dict] = {}  # the store as last read
+        self.unread: dict[str, dict] | None = None  # the store as last read before the transcript stopped reading it
+        self.config_text = ""  # the config as the fixture wrote it, which the teardown check reads the store under
+        self.service: subprocess.Popen | None = None  # Go pm: the per-test pm service that holds the work store
 
     def pm(self, *args: str, text: str = "", stdin: str | None = None,
            cwd: Path | None = None) -> subprocess.CompletedProcess:
@@ -380,9 +393,20 @@ class Repo:
         res = subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
         after = self.record_files()
         try:
-            export = sorted(self.items().values(), key=lambda i: i["id"])
+            if (pin := self.pin()) is None:  # the service stops on its next look, finding no pin
+                export = "the repo has no readable pin in .pm/config.toml, so its pm service stops"
+            elif pin != __version__:  # that pm's service holds the store, not this one's
+                export = f"the repo pins pm {pin}, whose pm service holds the work store"
+            elif (self.tmp / "services-stopped").exists():  # the test stopped the clone's service
+                export = "the clone's pm service is stopped; Go pm reads the work store only through it"
+            else:
+                self.known = self.items()
+                export = sorted(self.known.values(), key=lambda i: i["id"])
+                self.unread = None  # reading resumed: what the store holds now is read, after this call's own writes
         except subprocess.CalledProcessError as e:  # a pm whose export fails here (no config, say): that is the record
             export = f"pm export failed ({e.returncode}): {e.stderr}"
+        if isinstance(export, str) and self.unread is None:
+            self.unread = self.known  # check_unread holds the store to it at teardown
         transcript.record({
             "argv": argv, "stdin": stdin, "stdout": res.stdout, "stderr": res.stderr, "exit": res.returncode,
             "records": {p: after[p].decode(errors="replace") if p in after else None
@@ -390,6 +414,15 @@ class Repo:
             "export": export}, roots=[i["id"] for i in export if isinstance(export, list) and i["parent"] is None
                                       and i["id"] not in self.seeded])
         return res
+
+    def pin(self) -> str | None:
+        """The pm version the main checkout's config pins; None without a readable one. Go pm's service stops once
+        the pin moves off its version (the supervisor then starts the pinned one) or it cannot read it, so a transcript
+        records no store read while the repo pins another pm or none, for either implementation."""
+        try:
+            return str(tomllib.loads((self.root / ".pm/config.toml").read_text())["version"])
+        except (OSError, KeyError, tomllib.TOMLDecodeError):
+            return None
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
         res = subprocess.run(["git", *args], cwd=cwd or self.root, capture_output=True, text=True)
@@ -445,20 +478,72 @@ class Repo:
                              env=self.env, capture_output=True, text=True, check=True)
         return {i["id"]: i for i in map(json.loads, res.stdout.splitlines())}
 
+    def start_service(self, pm: list[str] | None = None) -> None:
+        """Go pm: start `pm service run` for this clone on a free port, as the supervisor would, and wait for its
+        work-store socket: every Go pm command reaches the work store only through the service (the pm-go page, Store
+        access). The fake supervisor stops it when a test starts the clone's installed service (fake_sched.py). pm
+        names the Go pm to run where the suite runs Python pm (test_go_parity.py)."""
+        if (pm is None and IMPL != "go") or self.service is not None and self.service.poll() is None:
+            return
+        (self.tmp / "services-stopped").unlink(missing_ok=True)
+        sock = self.root / ".pm/run/work.sock"
+        sock.unlink(missing_ok=True)  # one a killed service left: the new one removes it too, but only once it starts
+        with open(self.tmp / "fixture-service.log", "ab") as log:
+            self.service = POPEN([*(pm or PM), "service", "run"], cwd=self.root, env=dict(self.env, PORT="0"),
+                                 stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+        state = json.loads(self.sched.read_text()) if self.sched.exists() else {"loaded": []}
+        state.setdefault("pids", {})["fixture"] = self.service.pid
+        self.sched.write_text(json.dumps(state))
+        deadline = time.monotonic() + 30
+        while not sock.exists():
+            if self.service.poll() is not None or time.monotonic() > deadline:
+                raise AssertionError("the per-test pm service did not start:\n" +
+                                     (self.tmp / "fixture-service.log").read_text())
+            time.sleep(0.01)
+
+    def check_unread(self) -> None:
+        """At teardown: once a transcript stopped reading the store (the repo pins another pm, or the test stopped the
+        clone's services), no command may have written it, which nothing read showed. Read it now through a service on
+        this pm, with the fixture's config back, and require it as it was when the reading stopped."""
+        if self.unread is None:
+            return
+        (self.root / ".pm/config.toml").write_text(self.config_text)
+        try:
+            now = self.items()
+        except subprocess.CalledProcessError:  # no service answers: start the per-test one
+            if self.service is not None:  # one stopping (its pin moved, say): let it exit first
+                self.service.wait(timeout=30)
+                self.service = None
+            self.start_service()
+            now = self.items()
+        assert now == self.unread, "a command wrote the work store while the transcript could not read it"
+
+    def stop_service(self) -> None:
+        """Go pm: stop the per-test pm service, before a test starts its own `pm service run` for the clone."""
+        if self.service is None:
+            return
+        self.service.terminate()
+        self.service.wait(timeout=30)
+        self.service = None
+
     def import_seeds(self) -> None:
-        """Go pm: its work store made anew from the fake bd's issues, as `pm init --import-bd` imports a bd export."""
+        """Go pm: its work store made anew from the fake bd's issues, as `pm init --import-bd` imports a bd export,
+        through the per-test service, restarted on the removed store."""
         issues = json.loads(self.state.read_text())
         export = self.state.with_name("bd-export.jsonl")
         export.write_text("".join(json.dumps({"_type": "issue", **i}) + "\n" for i in issues))
-        shutil.rmtree(self.root / ".pm/store/work", ignore_errors=True)
+        if (self.root / ".pm/store/work").exists():
+            self.stop_service()
+            shutil.rmtree(self.root / ".pm/store/work")
+        self.start_service()
         res = subprocess.run([*PM, "init", "--import-bd", str(export)], cwd=self.root, env=self.env,
                              capture_output=True, text=True)
         assert res.returncode == 0, f"the seeds do not import into Go pm's work store: {res.stderr}"
-        self.imported = self.items()
+        self.imported = self.known = self.items()
 
     def mark(self) -> None:
         """Count changes() from now on."""
-        self.base = self.items()
+        self.base = self.known = self.items()
         self.seeded |= self.base.keys()
         self.bd_mark = len(self.bd_calls()) if IMPL == "python" else 0
 
@@ -537,12 +622,11 @@ class Repo:
         return [json.loads(l) for l in self.log.read_text().splitlines()]
 
     def snapshot(self) -> dict[str, bytes]:
-        """Every file of the main checkout but git's, but Go pm's gate log, which each open of its work store
-        appends to (the pm-go page, Store sharing), and but the index of its Dolt chunk journal, a cache of the
-        journal that a read (a running pm service's too) may write; items() holds the store's content."""
+        """Every file of the main checkout but git's, and but the index of Go pm's Dolt chunk journal, a cache of the
+        journal that a read (the pm service's too) may write; items() holds the store's content."""
         return {p.relative_to(self.root).as_posix(): p.read_bytes()
                 for p in sorted(self.root.rglob("*")) if p.is_file() and ".git" not in p.parts
-                and p.relative_to(self.root).as_posix() != ".pm/run/work-gate.log" and p.name != "journal.idx"}
+                and p.name != "journal.idx"}
 
 
 STAMPS = {"created_at", "updated_at", "started_at", "closed_at", "claimed_at"}
@@ -583,10 +667,20 @@ def repo(tmp_path: Path) -> Repo:
     if IMPL == "go":
         r.import_seeds()
     r.mark()
-    return r
+    r.config_text = (root / ".pm/config.toml").read_text()
+    yield r
+    try:
+        r.check_unread()
+    finally:
+        r.stop_service()
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
+    # a short temp root: Go pm's service socket, <tmp>/<test>/repo/.pm/run/work.sock, must fit the kernel's 104 bytes,
+    # which pytest's default under $TMPDIR passes on macOS; the xdist workers take theirs under the controller's
+    if not config.option.basetemp and not os.environ.get("PYTEST_XDIST_WORKER"):
+        config.option.basetemp = tempfile.mkdtemp(prefix="pmt", dir="/tmp")
     # before any test module is imported, so module-level environments (test_init's GIT_ENV) get the temp dirs too
     os.environ.update({f"PM_TESTS_REAL_{k}": v for k, v in REAL.items()})
     home = config.pm_home = Path(tempfile.mkdtemp(prefix="pm-tests-home-"))

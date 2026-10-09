@@ -4,44 +4,47 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
-	"net/url"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"time"
 
-	embedded "github.com/dolthub/driver/v2"
+	"github.com/go-sql-driver/mysql"
+
+	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
 )
 
-// Dolt is the work store on embedded Dolt (dolthub/driver), as the work-store page's Storage section and the pm-go
-// page's "Store sharing between the CLI and the service" give it: a process takes the gate, opens the engine once,
-// runs every query on that one open store and closes it at exit (Shutdown). Every write is one SQL transaction that
-// loads the items, applies the change, checks every invariant over the result and ends in DOLT_COMMIT, so it lands
-// whole or not at all. Every read checks the invariants too and fails hard naming the item.
+// Dolt is the work store as a pm command reaches it: a SQL client of the pm service's socket, with one connection
+// held until the command exits (Shutdown), as the pm-go page's "Store access" gives it. The service (Host) holds the
+// Dolt engine; no command opens the store itself, and nothing falls back to a direct open. Every write is one SQL
+// transaction that loads the items, applies the change, checks every invariant over the result, sets the write stamp
+// and ends in DOLT_COMMIT, so it lands whole or not at all; a write that loses to a concurrent one runs again from a
+// fresh read. Every read is one read-only transaction and checks the invariants too, failing hard naming the item.
 type Dolt struct {
-	o      Options
-	gate   *gate
-	engine *embedded.Connector
-	db     *sql.DB
-	conn   *sql.Conn
+	o    Options
+	sock string // the service's socket, which remoteCall dials again
+	db   *sql.DB
+	conn *sql.Conn
 	// pushFn, when a test sets it, runs each push in push's place, given the real push.
 	pushFn func(push func() error) error
-	// op bounds the sync running now (SyncContext); nil otherwise.
+	// op bounds the operation running now (a sync, a create); nil otherwise.
 	op context.Context
 }
 
 var _ Store = (*Dolt)(nil)
 
-// Options locate a store and set how it mints ids and tells time.
+// Options set how a client mints ids and tells time.
 type Options struct {
-	Dir         string           // the store: <main checkout>/.pm/store/work
-	RunDir      string           // <main checkout>/.pm/run: the gate's lock file and its wait log
-	Prefix      string           // the prefix of minted root ids: the repo name
-	GateTimeout time.Duration    // 0: GateTimeout
-	Now         func() time.Time // nil: the clock
+	Prefix string           // the prefix of minted root ids: the repo name
+	Now    func() time.Time // nil: the clock
 }
 
 // Locations is the store and run directory of the clone whose main checkout is main.
@@ -49,137 +52,121 @@ func Locations(main string) (dir, run string) {
 	return filepath.Join(main, ".pm", "store", "work"), filepath.Join(main, ".pm", "run")
 }
 
-// dbName is the Dolt database inside the store directory.
-const dbName = "work"
+const (
+	// dbName is the Dolt database inside the store directory.
+	dbName = "work"
+	// ConnectTimeout bounds the connect to the service's socket.
+	ConnectTimeout = 2 * time.Second
+)
 
-var ctx = context.Background()
+var (
+	ctx = context.Background()
+	// ErrNoStore is a service with no work database yet: pm init's setup makes it.
+	ErrNoStore = errors.New("this clone has no work store yet: run pm init")
+)
 
-// Exists is whether dir holds a work store.
-func Exists(dir string) bool {
-	st, err := os.Stat(filepath.Join(dir, dbName, ".dolt"))
-	return err == nil && st.IsDir()
+// dialConfig is how dial connects: the client's options, whether it selects the work database, and the version
+// handshake (none for the host's own connections).
+type dialConfig struct {
+	prefix    string
+	now       func() time.Time
+	withDB    bool
+	handshake func(service string) error
 }
 
-// OpenStore takes the gate and opens the store in o.Dir, migrating an older schema; it fails when there is no store or its
-// schema is newer than this pm's.
-func OpenStore(o Options) (*Dolt, error) {
-	d, err := start(o)
-	if err != nil {
-		return nil, err
-	}
-	if !Exists(o.Dir) {
-		d.Shutdown()
-		return nil, fmt.Errorf("work store: none at %s; pm init creates or clones it", o.Dir)
-	}
-	if err := d.connect(true); err != nil {
-		d.Shutdown()
-		return nil, err
-	}
-	if err := d.migrate(); err != nil {
-		d.Shutdown()
-		return nil, err
-	}
-	return d, nil
+// Dial connects to the pm service of the clone whose main checkout is main, checks that it runs this pm's version,
+// and selects the work database. It fails hard when nothing answers on the socket, the service runs another version,
+// or the clone has no work store yet.
+func Dial(main string) (*Dolt, error) {
+	return DialSock(Sock(main), main, Options{Prefix: filepath.Base(main)})
 }
 
-// CreateStore takes the gate and makes a new store in o.Dir with the schema at SchemaVersion; it fails when one is there.
-func CreateStore(o Options) (*Dolt, error) {
-	d, err := start(o)
-	if err != nil {
-		return nil, err
+// DialSock is Dial on the socket sock, with the version handshake against the main checkout main's pin, and o's
+// options.
+func DialSock(sock, main string, o Options) (*Dolt, error) {
+	return dial(sock, dialConfig{prefix: o.Prefix, now: o.Now, withDB: true, handshake: func(service string) error {
+		return CheckVersion(service, buildinfo.Version, main)
+	}})
+}
+
+// DialSetup is Dial without the work database selected, for pm init's CALL pm_setup() on a clone with no store yet.
+func DialSetup(main string) (*Dolt, error) {
+	return dial(Sock(main), dialConfig{prefix: filepath.Base(main), handshake: func(service string) error {
+		return CheckVersion(service, buildinfo.Version, main)
+	}})
+}
+
+// CheckVersion refuses a service whose version differs from the command's, naming the fix: a stale service when the
+// main checkout pins the command's version, else a checkout that pins another version than the main checkout.
+func CheckVersion(service, command, main string) error {
+	if service == command {
+		return nil
 	}
+	path := filepath.Join(main, config.Rel)
+	pin := ""
+	if c, err := config.Read(main); err == nil {
+		pin = c.Version
+	}
+	if pin == command {
+		return fmt.Errorf("the pm service runs pm %s, not pm %s: run pm service restart", service, command)
+	}
+	return fmt.Errorf("this checkout pins pm %s, but the clone's pm service runs pm %s, which %s pins: run it from a "+
+		"checkout that pins pm %s", command, service, path, service)
+}
+
+func notAnswering(sock string) error {
+	return fmt.Errorf("the pm service does not answer on %s; pm reaches the work store only through it: run pm "+
+		"service restart", sock)
+}
+
+// dial opens one connection to the socket and holds it.
+func dial(sock string, c dialConfig) (*Dolt, error) {
+	cfg := mysql.NewConfig()
+	cfg.User, cfg.Net, cfg.Addr = "pm", "unix", sock
+	cfg.ParseTime, cfg.Loc, cfg.Timeout = true, time.UTC, ConnectTimeout
+	cfg.InterpolateParams = true // one round trip per statement, not a prepare, an execute and a close
+	connector, err := mysql.NewConnector(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("work store: %w", err)
+	}
+	db := sql.OpenDB(connector)
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+	cc, cancel := context.WithTimeout(ctx, ConnectTimeout)
+	conn, err := db.Conn(cc)
+	cancel()
+	if err != nil {
+		db.Close()
+		return nil, notAnswering(sock)
+	}
+	d := &Dolt{o: Options{Prefix: c.prefix, Now: c.now}, sock: sock, db: db, conn: conn}
 	fail := func(err error) (*Dolt, error) {
 		d.Shutdown()
 		return nil, err
 	}
-	if Exists(o.Dir) {
-		return fail(fmt.Errorf("work store: one is already at %s", o.Dir))
+	if c.handshake != nil {
+		var v string
+		if err := conn.QueryRowContext(ctx, "SELECT pm_version()").Scan(&v); err != nil {
+			return fail(fmt.Errorf("%w (%v)", notAnswering(sock), err))
+		}
+		if err := c.handshake(v); err != nil {
+			return fail(err)
+		}
 	}
-	if err := os.MkdirAll(o.Dir, 0o755); err != nil {
-		return fail(fmt.Errorf("work store: %w", err))
-	}
-	if err := d.connect(false); err != nil {
-		return fail(err)
-	}
-	if _, err := d.conn.ExecContext(ctx, "CREATE DATABASE `"+dbName+"`"); err != nil {
-		return fail(fmt.Errorf("work store: create the database: %w", err))
-	}
-	if _, err := d.conn.ExecContext(ctx, "USE `"+dbName+"`"); err != nil {
-		return fail(fmt.Errorf("work store: %w", err))
-	}
-	if err := d.inTx("pm: create the work store at schema version 1",
-		func(tx *sql.Tx) error { return execAll(tx, schema) }); err != nil {
-		return fail(err)
-	}
-	if err := d.migrate(); err != nil {
-		return fail(err)
+	if c.withDB {
+		if _, err := conn.ExecContext(ctx, "USE `"+dbName+"`"); err != nil {
+			var me *mysql.MySQLError
+			if errors.As(err, &me) && me.Number == 1049 { // unknown database
+				return fail(ErrNoStore)
+			}
+			return fail(d.broken(err))
+		}
 	}
 	return d, nil
 }
 
-// start takes the gate.
-func start(o Options) (*Dolt, error) {
-	if o.Dir == "" || o.RunDir == "" {
-		return nil, errors.New("work store: no store or run directory given")
-	}
-	if o.GateTimeout == 0 {
-		o.GateTimeout = GateTimeout
-	}
-	g, _, err := takeGate(o.RunDir, o.GateTimeout)
-	if err != nil {
-		return nil, err
-	}
-	return &Dolt{o: o, gate: g}, nil
-}
-
-// connect opens the engine on the store directory, with the work database selected when withDB. No open retry: the
-// gate serialises pm processes, so a locked engine is an impossible state and fails hard.
-func (d *Dolt) connect(withDB bool) error {
-	v := url.Values{}
-	v.Set(embedded.CommitNameParam, "pm")
-	v.Set(embedded.CommitEmailParam, "pm@localhost")
-	if withDB {
-		v.Set(embedded.DatabaseParam, dbName)
-	}
-	cfg, err := embedded.ParseDSN("file://" + d.o.Dir + "?" + v.Encode())
-	if err != nil {
-		return fmt.Errorf("work store: %w", err)
-	}
-	if err := os.Setenv(infoBranchEnv, ""); err != nil { // read when the engine first reaches the remote
-		return fmt.Errorf("work store: %w", err)
-	}
-	if d.engine, err = embedded.NewConnector(cfg); err != nil {
-		return fmt.Errorf("work store: %w", err)
-	}
-	d.db = sql.OpenDB(d.engine)
-	d.db.SetMaxOpenConns(1)
-	if d.conn, err = d.db.Conn(ctx); err != nil {
-		return fmt.Errorf("work store: open %s: %w", d.o.Dir, err)
-	}
-	return nil
-}
-
-// migrate checks the schema version: a newer one is refused, an older one is brought up to SchemaVersion.
-func (d *Dolt) migrate() error {
-	var v int
-	if err := d.conn.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE one = 1").Scan(&v); err != nil {
-		return fmt.Errorf("work store: read the schema version: %w", err)
-	}
-	if v > SchemaVersion {
-		return fmt.Errorf("work store: its schema is version %d, newer than this pm's %d: run pm upgrade", v,
-			SchemaVersion)
-	}
-	for ; v < SchemaVersion; v++ {
-		steps := append(slices.Clone(migrations[v-1]), fmt.Sprintf("UPDATE schema_version SET version = %d", v+1))
-		if err := d.inTx(fmt.Sprintf("pm: migrate the work store schema to version %d", v+1),
-			func(tx *sql.Tx) error { return execAll(tx, steps) }); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Shutdown closes the store and releases the gate; the process opens it no more.
+// Shutdown closes the connection; the command reaches the store no more.
 func (d *Dolt) Shutdown() error {
 	var errs []error
 	if d.conn != nil {
@@ -190,18 +177,50 @@ func (d *Dolt) Shutdown() error {
 		errs = append(errs, d.db.Close())
 		d.db = nil
 	}
-	if d.engine != nil {
-		errs = append(errs, d.engine.Close())
-		d.engine = nil
-	}
-	errs = append(errs, d.gate.release())
-	d.gate = nil
 	for _, err := range errs {
-		if err != nil && !errors.Is(err, context.Canceled) {
+		if err != nil && !errors.Is(err, driver.ErrBadConn) && !errors.Is(err, mysql.ErrInvalidConn) &&
+			!errors.Is(err, sql.ErrConnDone) {
 			return fmt.Errorf("work store: close: %w", err)
 		}
 	}
 	return nil
+}
+
+// ErrBroken is a connection to the service that broke mid-command; a write in flight has an unknown outcome.
+var ErrBroken = errors.New("the connection to the pm service broke")
+
+// broken names a broken connection as such: the command does not reconnect, since a write cut off in DOLT_COMMIT
+// may or may not have landed. Any other error is returned as it is.
+func (d *Dolt) broken(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, driver.ErrBadConn) || errors.Is(err, mysql.ErrInvalidConn) || errors.Is(err, sql.ErrConnDone) ||
+		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.EPIPE) {
+		return fmt.Errorf("%w (%v); a write in flight may or may not have landed: check with pm show, then pm service "+
+			"status", ErrBroken, err)
+	}
+	return err
+}
+
+// serialization is whether err is Dolt's serialization failure: the transaction conflicts with one another client
+// committed meanwhile (MySQL error 1213, SQLSTATE 40001).
+func serialization(err error) bool {
+	var me *mysql.MySQLError
+	if errors.As(err, &me) {
+		return me.Number == 1213 || string(me.SQLState[:]) == "40001"
+	}
+	return false
+}
+
+// retryable is whether a write's failure leaves nothing written and means only that it lost a race with a write
+// outside the write lock: Dolt's serialization failure, or its "dataset head is not ancestor of commit"
+// (ErrMergeNeeded), which a commit gets when a fast-forward moved the branch under it. Dolt returns ErrMergeNeeded
+// only from inside its root update's compare-and-swap (store/datas database_common.go: FastForward, doCommit,
+// doCommitWithWorkingSet), before it writes the new root, so nothing of that commit landed.
+func retryable(err error) bool {
+	return serialization(err) || err != nil && strings.Contains(err.Error(), "dataset head is not ancestor of commit")
 }
 
 // now is the store's clock: UTC, whole seconds.
@@ -213,6 +232,14 @@ func (d *Dolt) now() time.Time {
 	return t.UTC().Truncate(time.Second)
 }
 
+// opCtx is the context of the operation running now, or the background.
+func (d *Dolt) opCtx() context.Context {
+	if d.op != nil {
+		return d.op
+	}
+	return ctx
+}
+
 func execAll(tx *sql.Tx, stmts []string) error {
 	for _, s := range stmts {
 		if _, err := tx.ExecContext(ctx, s); err != nil {
@@ -222,36 +249,231 @@ func execAll(tx *sql.Tx, stmts []string) error {
 	return nil
 }
 
-// inTx runs fn in one transaction that ends in a Dolt commit with msg; on any error nothing lands. A write that
-// changed no row (a claim again by its holder within one second) makes no Dolt commit.
-func (d *Dolt) inTx(msg string, fn func(tx *sql.Tx) error) error {
-	if d.conn == nil {
-		return errors.New("work store: closed")
+// CreateStore makes the work database on a connection with none selected (DialSetup), at SchemaVersion; pm init's
+// setup and pm init --import-bd run it on a clone with no store yet. It fails when the database is there.
+func (d *Dolt) CreateStore() error {
+	if _, err := d.conn.ExecContext(ctx, "CREATE DATABASE `"+dbName+"`"); err != nil {
+		return fmt.Errorf("work store: create the database: %w", d.broken(err))
 	}
-	tx, err := d.conn.BeginTx(ctx, nil)
+	if _, err := d.conn.ExecContext(ctx, "USE `"+dbName+"`"); err != nil {
+		return fmt.Errorf("work store: %w", d.broken(err))
+	}
+	if err := d.inTx("pm: create the work store at schema version 1", false,
+		func(tx *sql.Tx) error { return execAll(tx, schema) }); err != nil {
+		return err
+	}
+	return d.migrate()
+}
+
+// HasStore is whether the service holds a work database, on a connection with none selected.
+func (d *Dolt) HasStore() (bool, error) {
+	var n int
+	err := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = ?",
+		dbName).Scan(&n)
+	return n > 0, d.broken(err)
+}
+
+// UseStore selects the work database on a connection that had none.
+func (d *Dolt) UseStore() error {
+	_, err := d.conn.ExecContext(ctx, "USE `"+dbName+"`")
+	return d.broken(err)
+}
+
+// migrate checks the schema version: a newer one is refused, an older one is brought up to SchemaVersion. Only the
+// service migrates, at its start.
+func (d *Dolt) migrate() error {
+	var v int
+	if err := d.conn.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE one = 1").Scan(&v); err != nil {
+		return fmt.Errorf("work store: read the schema version: %w", d.broken(err))
+	}
+	if v > SchemaVersion {
+		return fmt.Errorf("work store: its schema is version %d, newer than this pm's %d: run pm upgrade", v,
+			SchemaVersion)
+	}
+	for ; v < SchemaVersion; v++ {
+		steps := append(slices.Clone(migrations[v-1]), fmt.Sprintf("UPDATE schema_version SET version = %d", v+1))
+		if err := d.inTx(fmt.Sprintf("pm: migrate the work store schema to version %d", v+1), false,
+			func(tx *sql.Tx) error { return execAll(tx, steps) }); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// stamp sets the write stamp to a fresh UUID, so this transaction conflicts with any other write committed while it
+// ran (Concurrent writers).
+func setStamp(tx *sql.Tx) error {
+	id, err := newUUID()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE write_stamp SET txn = ? WHERE one = 1", id); err != nil {
+		return fmt.Errorf("work store: set the write stamp: %w", err)
+	}
+	return nil
+}
+
+// WriteLockWait bounds a write's wait for the store's write lock: a write that waits that long fails hard, naming
+// it, and writes nothing. A variable so the tests can shorten it.
+var WriteLockWait = 60 * time.Second
+
+// Waits counts this process's writes, the time they waited for the write lock and the longest wait, in nanoseconds:
+// what the concurrency benchmark reports.
+var Waits struct{ Writes, Total, Max atomic.Int64 }
+
+// lockWrites takes the store's write lock (lock.go) for the write what, waiting at most WriteLockWait; the returned
+// func releases it.
+func (d *Dolt) lockWrites(what string) (func(), error) {
+	start := time.Now()
+	ms := max(1, (WriteLockWait+time.Millisecond-1)/time.Millisecond) // rounded up: never a wait of 0
+	if _, err := d.conn.ExecContext(ctx, "CALL pm_lock(?, ?, ?)", int64(ms), int64(os.Getpid()),
+		strings.TrimPrefix(what, "pm: ")); err != nil {
+		var me *mysql.MySQLError
+		if errors.As(err, &me) && strings.Contains(me.Message, errLockTimeout.Error()) {
+			holder := "unknown"
+			if _, after, ok := strings.Cut(me.Message, "held by "); ok {
+				holder = after
+			}
+			return nil, fmt.Errorf("work store: %s waited %s for the store's write lock, which a live pm process "+
+				"holds (%s); nothing was written. If that process hangs (stopped, or in a debugger), stop it; then "+
+				"run the command again", strings.TrimPrefix(what, "pm: "), WriteLockWait, holder)
+		}
+		return nil, fmt.Errorf("work store: take the write lock: %w", d.procError(err))
+	}
+	waited := time.Since(start).Nanoseconds()
+	Waits.Writes.Add(1)
+	Waits.Total.Add(waited)
+	for m := Waits.Max.Load(); waited > m && !Waits.Max.CompareAndSwap(m, waited); {
+		m = Waits.Max.Load()
+	}
+	return func() { _, _ = d.conn.ExecContext(ctx, "CALL pm_unlock()") }, nil
+}
+
+// clean refuses a working set that differs from main's head at the start of a write, under the write lock: no pm
+// write leaves one, so it is a change outside pm or a merge cut short (Dolt's fast-forward moves the head and the
+// working set in two steps), which the write's DOLT_COMMIT('-A') would commit as if it were its own, a silent revert.
+func clean(tx *sql.Tx, what string) error {
+	rows, err := tx.QueryContext(ctx, "SELECT table_name FROM dolt_status ORDER BY table_name")
 	if err != nil {
 		return fmt.Errorf("work store: %w", err)
 	}
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
+	defer rows.Close()
+	var tables []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return fmt.Errorf("work store: %w", err)
+		}
+		tables = append(tables, t)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("work store: %w", err)
+	}
+	if len(tables) > 0 {
+		return fmt.Errorf("work store: %s found the store's working set differing from its head in %s, which no pm "+
+			"write leaves (a change outside pm, or a merge cut short); nothing was written. Look at it with any MySQL "+
+			"client on the pm service's socket (SELECT * FROM dolt_diff_<table>), and drop it there with CALL "+
+			"DOLT_RESET('--hard'), which keeps every commit", strings.TrimPrefix(what, "pm: "), strings.Join(tables, ", "))
+	}
+	return nil
+}
+
+// inTx runs fn in one transaction that ends in a Dolt commit with msg, under the store's write lock; on any error
+// nothing lands. A write that changed no row (a claim again by its holder within one second) makes no Dolt commit and
+// sets no stamp. With stamped, the write sets the write stamp: the lock makes pm's writes run one at a time, and the
+// stamp turns a write that raced one outside the lock (a SQL client past pm) into Dolt's serialization failure, which
+// fails the write hard, rather than into a broken invariant.
+func (d *Dolt) inTx(msg string, stamped bool, fn func(tx *sql.Tx) error) error {
+	if d.conn == nil {
+		return errors.New("work store: closed")
+	}
+	unlock, err := d.lockWrites(msg)
+	if err != nil {
 		return err
+	}
+	defer unlock()
+	err = d.txOnce(msg, stamped, fn)
+	if retryable(err) {
+		return fmt.Errorf("work store: %s conflicted with a write that did not take the store's write lock (a SQL "+
+			"client past pm?); nothing was written: run the command again", strings.TrimPrefix(msg, "pm: "))
+	}
+	return err
+}
+
+func (d *Dolt) txOnce(msg string, stamped bool, fn func(tx *sql.Tx) error) error {
+	tx, err := d.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("work store: %w", d.broken(err))
+	}
+	fail := func(err error) error {
+		_ = tx.Rollback()
+		return d.broken(err)
+	}
+	if err := clean(tx, msg); err != nil {
+		return fail(err)
+	}
+	if err := fn(tx); err != nil {
+		return fail(err)
 	}
 	var changed int
 	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_status").Scan(&changed); err != nil {
-		_ = tx.Rollback()
-		return fmt.Errorf("work store: %w", err)
+		return fail(fmt.Errorf("work store: %w", err))
 	}
 	if changed == 0 {
-		return tx.Rollback()
+		return d.broken(tx.Rollback())
+	}
+	if stamped {
+		if err := setStamp(tx); err != nil {
+			return fail(err)
+		}
 	}
 	if _, err := tx.ExecContext(ctx, "CALL DOLT_COMMIT('-Am', ?)", msg); err != nil {
-		_ = tx.Rollback()
-		return fmt.Errorf("work store: commit: %w", err)
+		if retryable(err) {
+			_ = tx.Rollback()
+			return err
+		}
+		return fail(fmt.Errorf("work store: commit: %w", err))
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("work store: commit: %w", err)
+		if retryable(err) {
+			return err
+		}
+		return fmt.Errorf("work store: commit: %w", d.broken(err))
 	}
 	return nil
+}
+
+// remoteCall runs a statement that reaches the git remote (DOLT_FETCH, DOLT_PUSH, DOLT_CLONE) on a connection of its own, bounded
+// by c. go-sql-driver drops a connection whose context ends mid-statement; dropping this one leaves d's connection,
+// and the write lock or transaction it may hold, as they were, so the outcome can still be checked. (The server may
+// still finish the dropped statement: Dolt kills its git once it sees the connection gone.)
+func (d *Dolt) remoteCall(c context.Context, q string, args ...any) error {
+	return d.remoteCallOn(c, true, q, args...)
+}
+
+// remoteCallOn is remoteCall on a connection with the work database selected when withDB.
+func (d *Dolt) remoteCallOn(c context.Context, withDB bool, q string, args ...any) error {
+	side, err := dial(d.sock, dialConfig{withDB: withDB})
+	if err != nil {
+		return err
+	}
+	defer side.Shutdown()
+	if _, err := side.conn.ExecContext(c, q, args...); err != nil {
+		if c.Err() != nil {
+			return fmt.Errorf("%w (%v)", c.Err(), err)
+		}
+		return err
+	}
+	return nil
+}
+
+// Mark is the store's change mark: main's HEAD commit, which every write moves.
+func (d *Dolt) Mark() (string, error) {
+	var h string
+	if err := d.conn.QueryRowContext(ctx, "SELECT HASHOF('main')").Scan(&h); err != nil {
+		return "", fmt.Errorf("work store: %w", d.broken(err))
+	}
+	return h, nil
 }
 
 // ---------------------------------------------------------------- reads
@@ -441,7 +663,16 @@ func (d *Dolt) Items() ([]Item, error) {
 	if d.conn == nil {
 		return nil, errors.New("work store: closed")
 	}
-	return loadChecked(d.conn)
+	tx, err := d.conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("work store: %w", d.broken(err))
+	}
+	items, err := loadChecked(tx)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, d.broken(err)
+	}
+	return items, d.broken(tx.Commit())
 }
 
 // Get is the items with these ids, in that order; a missing id is an error.
@@ -489,7 +720,7 @@ type change func(x *Index) ([]Item, error)
 // write runs one change as one transaction: load and check, apply, check the result, write the changed rows, and
 // DOLT_COMMIT with msg. Nothing lands unless all of it does.
 func (d *Dolt) write(msg string, fn change) error {
-	return d.inTx(msg, func(tx *sql.Tx) error {
+	return d.inTx(msg, true, func(tx *sql.Tx) error {
 		items, err := loadChecked(tx)
 		if err != nil {
 			return err
@@ -702,14 +933,14 @@ func cloneItem(it Item) Item {
 
 // Create writes a new item and returns it: its id minted under the parent (a root id for a project), a sprint's
 // number one above its project's highest, status open. A child minted in a store with a remote goes through the
-// compare-and-swap on the remote (createShared); a project's random root id, or any id in a store with no remote, is
-// minted from this store copy.
+// compare-and-swap on the remote, which the service runs (CALL pm_create(?), createShared); a project's random root id,
+// or any id in a store with no remote, is minted from this store copy by an ordinary write.
 func (d *Dolt) Create(n New) (Item, error) {
 	if n.Type != Project {
 		if _, ok, err := d.remoteURL(); err != nil {
 			return Item{}, err
 		} else if ok {
-			return d.createShared(n)
+			return d.callCreate(n)
 		}
 	}
 	return d.createLocal(n)
@@ -828,6 +1059,18 @@ func (d *Dolt) Move(id, parent string) error {
 // by h.Session, or is held by a session that live reports not live; it sets StartedAt on the first claim. The claim
 // time is the store's clock.
 func (d *Dolt) Claim(id string, h Holder, live func(session string) bool) error {
+	// whether the holder is live is read before the write lock: it reads session transcripts on disk, slow work
+	// that no write should wait on; only a holder that changed meanwhile is read again under the lock
+	known := map[string]bool{}
+	if items, err := d.Get(id); err == nil && items[0].Holder != nil && items[0].Holder.Session != h.Session {
+		known[items[0].Holder.Session] = live(items[0].Holder.Session)
+	}
+	isLive := func(session string) bool {
+		if v, ok := known[session]; ok {
+			return v
+		}
+		return live(session)
+	}
 	return d.update("claim", id, func(it *Item, _ *Index) error {
 		if it.Status != Open {
 			return itemError(id, "is closed")
@@ -835,7 +1078,7 @@ func (d *Dolt) Claim(id string, h Holder, live func(session string) bool) error 
 		if h.Session == "" {
 			return itemError(id, "cannot be claimed without a session")
 		}
-		if o := it.Holder; o != nil && o.Session != h.Session && live(o.Session) {
+		if o := it.Holder; o != nil && o.Session != h.Session && isLive(o.Session) {
 			return itemError(id, "is held by live session %s", o.Session)
 		}
 		now := d.now()

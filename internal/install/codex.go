@@ -18,7 +18,8 @@ import (
 // Codex's workspace-write sandbox keeps .git read-only even inside the workspace and leaves the records store and the
 // work store outside a worktree's workspace, so pm cannot commit records or write items until all are writable roots.
 // A writable root's own git dir stays read-only unless listed itself, so the store's (.git/worktrees/<name>) is listed
-// too, and so is .pm/run, which holds the work store's gate lock (the pm-go page, Open question 12).
+// too, and so is .pm/run, which holds the pm service's socket, work.sock, that every command connects to (the pm-go
+// page, Open question 12).
 const CodexTable = "sandbox_workspace_write"
 
 var (
@@ -61,7 +62,7 @@ func Resolve(p string) string {
 }
 
 // CodexRoots is the writable roots the clone needs: its git dir, the records store, the store's git dir, the work
-// store and the run directory (its gate lock), each resolved.
+// store and the run directory (the service's socket), each resolved.
 func CodexRoots(main string) ([]string, error) {
 	records := filepath.Join(main, config.Store)
 	gitDir, err := Git(records, "rev-parse", "--absolute-git-dir")
