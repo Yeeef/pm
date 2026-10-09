@@ -13,7 +13,7 @@ import (
 	"github.com/Yeeef/yeeef-agents/pm/internal/work"
 )
 
-// goOnly runs the commands Go pm has and Python pm does not: pm export, pm init --import-bd FILE, and the work-store
+// goOnly runs the commands Go pm has and Python pm does not: pm export [--store DIR], pm init --import-bd FILE, and the work-store
 // commands in store_commands.go. The argparse tree mirrors Python pm's, whose help texts and pm prime noun list the
 // parity tests hold equal, so these stay out of it until Python pm has them or the cut-over. In Go pm today, pm init
 // --import-bd does the import only; the rest of pm init comes with the install sprint. ok is false for any other argv.
@@ -24,6 +24,8 @@ func goOnly(argv []string, stdin io.Reader, stdout io.Writer) (ok bool, err erro
 	switch {
 	case len(argv) == 1 && argv[0] == "export":
 		return true, cmdExport(stdout)
+	case len(argv) == 3 && argv[0] == "export" && argv[1] == "--store":
+		return true, exportStore(argv[2], stdout)
 	case len(argv) == 3 && argv[0] == "init" && argv[1] == "--import-bd":
 		return true, cmdImportBD(argv[2], stdout)
 	case len(argv) == 2 && argv[0] == "init" && strings.HasPrefix(argv[1], "--import-bd="):
@@ -60,7 +62,23 @@ func openStore() (*work.Dolt, error) {
 
 // cmdExport is pm export: every item of the work store, one JSON object per line, ordered by id.
 func cmdExport(stdout io.Writer) error {
-	d, err := openStore()
+	main, err := mainCheckout()
+	if err != nil {
+		return err
+	}
+	dir, _ := work.Locations(main)
+	return exportStore(dir, stdout)
+}
+
+// exportStore is pm export --store DIR: every item of the work store at DIR (<main checkout>/.pm/store/work), read
+// without the repo's config, so the tests read the store as it is after a command that broke the config. Its gate is
+// the clone's, at <main checkout>/.pm/run.
+func exportStore(dir string, stdout io.Writer) error {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	d, err := work.OpenStore(work.Options{Dir: abs, RunDir: filepath.Join(filepath.Dir(filepath.Dir(abs)), "run")})
 	if err != nil {
 		return err
 	}
