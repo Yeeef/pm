@@ -347,7 +347,7 @@ func (e *env) body(p *Parsed) (string, error) {
 	return readTextFile(path[len(path)-1], e.stdin)
 }
 
-var sentenceEnd = regexp.MustCompile(`^(.+?[.!?])(\s|$)`)
+var sentenceEnd = regexp.MustCompile(`^(.+?[.!?])(` + records.PyS + `|$)`) // Python's \s
 
 // firstSentence is the first sentence of text's first paragraph, cut to limit characters with "…".
 func firstSentence(text string, limit int) string {
