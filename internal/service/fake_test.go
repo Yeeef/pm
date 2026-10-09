@@ -30,6 +30,8 @@ type fakeWork struct {
 	fp      int // the fingerprint: moves on every write
 	overlap bool
 	failGet error
+	// syncWarnings are what each sync warns of: the claims its merge overrode
+	syncWarnings []string
 }
 
 func newFakeWork(items ...work.Item) *fakeWork {
@@ -135,10 +137,10 @@ func (s *fakeStore) UpdateNeed(id string, u work.NeedUpdate) error {
 	return nil
 }
 
-func (s *fakeStore) Sync(ctx context.Context) (string, error) {
+func (s *fakeStore) Sync(ctx context.Context) (string, []string, error) {
 	defer s.lock()()
 	s.w.syncs++
-	return "up to date", nil
+	return "up to date", s.w.syncWarnings, nil
 }
 
 func (s *fakeStore) GC(ctx context.Context) error {

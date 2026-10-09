@@ -325,8 +325,9 @@ func WaitUp(main string, port int, done, hint string) (string, error) {
 	}
 }
 
-// Exe is the pm the unit runs: this binary, by the absolute path it was started from.
-func Exe() (string, error) { return os.Executable() }
+// Exe is the pm the unit runs: the pm installed at config.BinPath(), the launcher that runs the repo's pin. A
+// variable so the in-process tests can run the test binary as the service.
+var Exe = config.BinPath
 
 // stale is what to say of a service answering for this store on another pm build than this one.
 func stale(build string) string {

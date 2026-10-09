@@ -528,7 +528,7 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 			return &exitCode{code}
 		}
 	case "service install", "service status", "service restart", "service logs", "service run":
-		return runService(strings.TrimPrefix(name, "service "), p, here, stdout)
+		return runService(strings.TrimPrefix(name, "service "), p, here, stdout, stderr)
 	case "check":
 		return cmdCheck(here, stdout)
 	case "where":
