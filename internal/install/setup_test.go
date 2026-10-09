@@ -1,6 +1,7 @@
 package install
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -490,5 +491,44 @@ func TestHooksPathMovesOffBeads(t *testing.T) {
 		"hooks live in its own hook files, so pm init works only with pm's hooks path (other hook managers are not "+
 		"supported)" {
 		t.Fatalf("%v", err)
+	}
+}
+
+// A repo that retired Beads by replacing .beads/ with a file (which blocks every bd command) holds no Beads pieces, as
+// a repo without .beads/: the legacy check, pm doctor's drift and pm upgrade's rewrite read past it. Any other error
+// reading under .beads/ still fails.
+func TestABeadsFileIsNoBeads(t *testing.T) {
+	s := Settings{"origin", "main", 8000, ""}
+	top := t.TempDir()
+	if err := os.WriteFile(filepath.Join(top, ".beads"), []byte("Beads is retired here.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if found, err := LegacyRepo(top); err != nil || len(found) != 0 {
+		t.Fatalf("legacy: %q, %v; want nothing", found, err)
+	}
+	planned, err := Rewrite(top, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Write(planned); err != nil {
+		t.Fatal(err)
+	}
+	if drift, err := Drift(top, s); err != nil || len(drift) != 0 {
+		t.Fatalf("drift: %q, %v; want nothing", drift, err)
+	}
+
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a directory without permissions")
+	}
+	locked := filepath.Join(t.TempDir(), ".beads", "hooks")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(locked, 0o755)
+	if _, err := LegacyRepo(filepath.Dir(filepath.Dir(locked))); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("legacy under an unreadable .beads/hooks: %v; want permission denied", err)
 	}
 }

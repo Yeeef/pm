@@ -21,11 +21,13 @@ package install
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/hooks"
@@ -876,10 +878,12 @@ func plan(top string, s Settings, all bool) ([]Planned, error) {
 	return out, nil
 }
 
-// Read is a file's text, or nil when it is absent.
+// Read is a file's text, or nil when it is absent: missing, or under a path whose parent is a file, as Python's
+// Path.exists() has it (a repo that retired Beads keeps a file .beads, so .beads/hooks/* is absent); any other error
+// fails.
 func Read(path string) (*string, error) {
 	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
 		return nil, nil
 	}
 	if err != nil {
