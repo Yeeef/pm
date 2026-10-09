@@ -42,7 +42,7 @@ go-build:
 GO_PARITY := $(CURDIR)/.go/parity
 # The work store's concurrency tests, which make test-go runs again under the race detector (about a minute; the whole
 # internal/work package under -race would take several): the write lock, the slot, gc and merges racing writers.
-RACE_TESTS := Racing|Migrating|Eight|Opposite|OutsideTheLock|NotStarved|Outlasting|HungFetch
+RACE_TESTS := Racing|Migrating|Eight|Opposite|OutsideTheLock|NotStarved|Outlasting|HungFetch|WriteLock|PmLock|ASecondLock
 # Both sides of the parity corpus render in a zone far from UTC, so a UTC date where a local one belongs (day pages)
 # differs, on CI's UTC runners too.
 PARITY_TZ ?= Pacific/Auckland
