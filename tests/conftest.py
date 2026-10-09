@@ -506,6 +506,9 @@ def repo(tmp_path: Path) -> Repo:
     r.git("init", "-q", "-b", "main")
     r.git("config", "user.email", "t@example.com")
     r.git("config", "user.name", "t")
+    # git 2.55's commit starts `git maintenance run --auto --detach`, whose worktree-prune deletes a worktree that
+    # `git worktree add` is still making ("could not open '.git/worktrees/records/locked'", exit 128)
+    r.git("config", "maintenance.auto", "false")
     (root / ".gitignore").write_text("/records\n")
     write_config(root)
     r.git("add", ".gitignore", ".pm")
