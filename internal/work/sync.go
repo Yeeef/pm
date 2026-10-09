@@ -81,6 +81,14 @@ func (d *Dolt) AddRemote(gitURL string) error {
 	return nil
 }
 
+// opCtx is the context of the sync running now, or the background.
+func (d *Dolt) opCtx() context.Context {
+	if d.op != nil {
+		return d.op
+	}
+	return ctx
+}
+
 // remoteURL is the store's remote, and whether it has one; a remote under another ref than RemoteRef fails hard.
 func (d *Dolt) remoteURL() (string, bool, error) {
 	if d.conn == nil {
@@ -150,7 +158,13 @@ type SyncResult struct {
 // Sync pulls from the remote, resolves conflicts by the merge rules, checks the result and pushes what the remote
 // lacks: pm sync, and the pm service every 600 s. A push the remote rejects because it moved pulls again, up to
 // casAttempts times. A pull that fails rolls back and leaves the store at its pre-pull commit.
-func (d *Dolt) Sync() (SyncResult, error) {
+func (d *Dolt) Sync() (SyncResult, error) { return d.SyncContext(ctx) }
+
+// SyncContext is Sync bounded by c: its fetches, merge and pushes stop once c is done (Dolt runs git under the
+// query's context), and the sync fails as a pull or push that failed does.
+func (d *Dolt) SyncContext(c context.Context) (SyncResult, error) {
+	d.op = c
+	defer func() { d.op = nil }()
 	var res SyncResult
 	if _, ok, err := d.remoteURL(); err != nil {
 		return res, err
@@ -186,11 +200,11 @@ func (d *Dolt) Sync() (SyncResult, error) {
 
 // fetch brings the remote's branch into the store's remote-tracking branch, and says whether the remote holds one.
 func (d *Dolt) fetch() (bool, error) {
-	if _, err := d.conn.ExecContext(ctx, "CALL DOLT_FETCH(?)", remote); err != nil {
+	if _, err := d.conn.ExecContext(d.opCtx(), "CALL DOLT_FETCH(?)", remote); err != nil {
 		return false, fmt.Errorf("work store: fetch from the remote: %w", err)
 	}
 	var n int
-	if err := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
+	if err := d.conn.QueryRowContext(d.opCtx(), "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
 		"remotes/"+remoteHead).Scan(&n); err != nil {
 		return false, fmt.Errorf("work store: %w", err)
 	}
@@ -199,7 +213,7 @@ func (d *Dolt) fetch() (bool, error) {
 
 // count is the number of commits in a dolt_log range such as "main..origin/main".
 func (d *Dolt) count(q querier, rng string) (int, error) {
-	rows, err := q.QueryContext(ctx, "SELECT COUNT(*) FROM dolt_log(?)", rng)
+	rows, err := q.QueryContext(d.opCtx(), "SELECT COUNT(*) FROM dolt_log(?)", rng)
 	if err != nil {
 		return 0, fmt.Errorf("work store: %w", err)
 	}
@@ -217,7 +231,7 @@ func (d *Dolt) count(q querier, rng string) (int, error) {
 // store yet.
 func (d *Dolt) ahead() (int, error) {
 	var n int
-	if err := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
+	if err := d.conn.QueryRowContext(d.opCtx(), "SELECT COUNT(*) FROM dolt_remote_branches WHERE name = ?",
 		"remotes/"+remoteHead).Scan(&n); err != nil {
 		return 0, fmt.Errorf("work store: %w", err)
 	}
@@ -230,7 +244,7 @@ func (d *Dolt) ahead() (int, error) {
 // head is the store's HEAD commit.
 func (d *Dolt) head() (string, error) {
 	var h string
-	if err := d.conn.QueryRowContext(ctx, "SELECT HASHOF('HEAD')").Scan(&h); err != nil {
+	if err := d.conn.QueryRowContext(d.opCtx(), "SELECT HASHOF('HEAD')").Scan(&h); err != nil {
 		return "", fmt.Errorf("work store: %w", err)
 	}
 	return h, nil
@@ -256,7 +270,7 @@ func (d *Dolt) pull() (SyncResult, error) {
 	if err != nil {
 		return res, err
 	}
-	tx, err := d.conn.BeginTx(ctx, nil)
+	tx, err := d.conn.BeginTx(d.opCtx(), nil)
 	if err != nil {
 		return res, fmt.Errorf("work store: %w", err)
 	}
@@ -269,14 +283,14 @@ func (d *Dolt) pull() (SyncResult, error) {
 		}
 		return SyncResult{}, fmt.Errorf("work store: pull: %w; the store stays at its pre-pull commit", err)
 	}
-	if _, err := tx.ExecContext(ctx, "SET @@dolt_allow_commit_conflicts = 1"); err != nil {
+	if _, err := tx.ExecContext(d.opCtx(), "SET @@dolt_allow_commit_conflicts = 1"); err != nil {
 		return fail(err)
 	}
-	if _, err := tx.ExecContext(ctx, "CALL DOLT_MERGE('--no-commit', ?)", remoteHead); err != nil {
+	if _, err := tx.ExecContext(d.opCtx(), "CALL DOLT_MERGE('--no-commit', ?)", remoteHead); err != nil {
 		return fail(err)
 	}
 	var version int
-	if err := tx.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE one = 1").Scan(&version); err != nil {
+	if err := tx.QueryRowContext(d.opCtx(), "SELECT version FROM schema_version WHERE one = 1").Scan(&version); err != nil {
 		return fail(fmt.Errorf("read the merged schema version: %w", err))
 	}
 	if version > SchemaVersion {
@@ -286,7 +300,7 @@ func (d *Dolt) pull() (SyncResult, error) {
 	if res.Resolved, res.Overrides, err = resolveConflicts(tx); err != nil {
 		return fail(err)
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE items SET holder_session = NULL, holder_host = NULL,
+	if _, err := tx.ExecContext(d.opCtx(), `UPDATE items SET holder_session = NULL, holder_host = NULL,
 		holder_claimed_at = NULL WHERE status = 'closed' AND holder_session IS NOT NULL`); err != nil {
 		return fail(err)
 	}
@@ -294,15 +308,15 @@ func (d *Dolt) pull() (SyncResult, error) {
 		return fail(err)
 	}
 	var merging bool
-	if err := tx.QueryRowContext(ctx, "SELECT is_merging FROM dolt_merge_status").Scan(&merging); err != nil {
+	if err := tx.QueryRowContext(d.opCtx(), "SELECT is_merging FROM dolt_merge_status").Scan(&merging); err != nil {
 		return fail(err)
 	}
 	var changed int
-	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_status").Scan(&changed); err != nil {
+	if err := tx.QueryRowContext(d.opCtx(), "SELECT COUNT(*) FROM dolt_status").Scan(&changed); err != nil {
 		return fail(err)
 	}
 	if merging || changed > 0 {
-		if _, err := tx.ExecContext(ctx, "CALL DOLT_COMMIT('-A', '--allow-empty', '-m', ?)",
+		if _, err := tx.ExecContext(d.opCtx(), "CALL DOLT_COMMIT('-A', '--allow-empty', '-m', ?)",
 			fmt.Sprintf("pm: merge %d commits from %s", behind, remoteHead)); err != nil {
 			return fail(err)
 		}
@@ -446,7 +460,7 @@ func (d *Dolt) pushNow() error {
 // push is DOLT_PUSH of the branch, bounded by PushTimeout; a non-fast-forward rejection is errRemoteMoved, a timeout
 // errPushTimeout, and any other failure an error whose outcome is unknown too (the remote ref may have moved).
 func (d *Dolt) push() error {
-	c, cancel := context.WithTimeout(ctx, PushTimeout)
+	c, cancel := context.WithTimeout(d.opCtx(), PushTimeout)
 	defer cancel()
 	_, err := d.conn.ExecContext(c, "CALL DOLT_PUSH(?, ?)", remote, branch)
 	switch {

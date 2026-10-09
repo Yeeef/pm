@@ -76,22 +76,31 @@ func resolvePath(p string) string {
 	return filepath.Clean(p)
 }
 
-// runService runs pm service status and logs. pm service run needs the work store and the site renderer, which Go
-// pm does not have until the install sprint wires them (internal/service.Run takes both); until then install and
-// restart refuse too, since the unit they start would run that refusal under KeepAlive or Restart=always.
-func runService(sub string, p *Parsed, here string, stdout io.Writer) error {
-	switch sub {
-	case "run", "install", "restart":
-		return &refusal{fmt.Sprintf("pm service %s: Go pm's service needs the work store and the site, which Go pm "+
-			"does not wire yet; Python pm runs the service until the cut-over", sub)}
-	}
+// runService runs pm service install, status, restart, logs and run (serve.go wires the service to the clone).
+func runService(sub string, p *Parsed, here string, stdout, stderr io.Writer) error {
 	cfg, err := config.Load(here)
 	if err != nil {
 		return err
 	}
-	main, _, err := findStore(here)
+	main, records, err := findStore(here)
 	if err != nil {
 		return err
+	}
+	switch sub {
+	case "run":
+		return serviceRun(cfg, here, main, records, stdout, stderr)
+	case "install", "restart":
+		var said string
+		if sub == "install" {
+			said, err = serviceInstall(cfg, main)
+		} else {
+			said, err = service.Restart(main)
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(stdout, said)
+		return nil
 	}
 	if sub == "status" {
 		code, said, err := service.Status(main, cfg.Remote)

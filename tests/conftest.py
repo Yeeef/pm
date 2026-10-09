@@ -527,11 +527,12 @@ class Repo:
         return [json.loads(l) for l in self.log.read_text().splitlines()]
 
     def snapshot(self) -> dict[str, bytes]:
-        """Every file of the main checkout but git's, and but Go pm's gate log, which each open of its work store
-        appends to (the pm-go page, Store sharing)."""
+        """Every file of the main checkout but git's, but Go pm's gate log, which each open of its work store
+        appends to (the pm-go page, Store sharing), and but the index of its Dolt chunk journal, a cache of the
+        journal that a read (a running pm service's too) may write; items() holds the store's content."""
         return {p.relative_to(self.root).as_posix(): p.read_bytes()
                 for p in sorted(self.root.rglob("*")) if p.is_file() and ".git" not in p.parts
-                and p.relative_to(self.root).as_posix() != ".pm/run/work-gate.log"}
+                and p.relative_to(self.root).as_posix() != ".pm/run/work-gate.log" and p.name != "journal.idx"}
 
 
 STAMPS = {"created_at", "updated_at", "started_at", "closed_at", "claimed_at"}
