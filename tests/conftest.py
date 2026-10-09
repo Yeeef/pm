@@ -393,7 +393,9 @@ class Repo:
         res = subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
         after = self.record_files()
         try:
-            if (pin := self.pin()) not in (None, __version__):  # that pm's service holds the store, not this one's
+            if (pin := self.pin()) is None:  # the service stops on its next look, finding no pin
+                export = "the repo has no readable pin in .pm/config.toml, so its pm service stops"
+            elif pin != __version__:  # that pm's service holds the store, not this one's
                 export = f"the repo pins pm {pin}, whose pm service holds the work store"
             elif (self.tmp / "services-stopped").exists():  # the test stopped the clone's service
                 export = "the clone's pm service is stopped; Go pm reads the work store only through it"
@@ -414,8 +416,8 @@ class Repo:
 
     def pin(self) -> str | None:
         """The pm version the main checkout's config pins; None without a readable one. Go pm's service stops once
-        the pin moves off its version (the supervisor then starts the pinned one), so a transcript records no store
-        read while the repo pins another pm, for either implementation."""
+        the pin moves off its version (the supervisor then starts the pinned one) or it cannot read it, so a transcript
+        records no store read while the repo pins another pm or none, for either implementation."""
         try:
             return str(tomllib.loads((self.root / ".pm/config.toml").read_text())["version"])
         except (OSError, KeyError, tomllib.TOMLDecodeError):

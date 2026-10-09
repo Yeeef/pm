@@ -78,9 +78,10 @@ the clone to it (dropped), `pm push`'s work-layer step,
 `pm service status`, which only Go's service has, the git hooks directory, `.beads/hooks` in Python and `.pm/hooks`
 in Go, the installed pm `pm init`'s refusal names, and the comment that holds the answer a need closes with, bd's
 note "Response: …" in Python and the work store's reply in Go). While the repo pins another pm than the one under
-test, or once the test stopped the clone's services (`stop_services`), a call's store export is recorded as a fixed
-line for both implementations: Go pm reads its store only through the clone's service, which that pm would run, and
-which is down. The same test's
+test or none it can read, or once the test stopped the clone's services (`stop_services`), a call's store export is
+recorded as a fixed line for both implementations: Go pm reads its store only through the clone's service, which
+that pm would run, or which stops or is down. At teardown the fixture then reads the store through a service on this
+pm, with its config back, and fails the test if a command wrote it meanwhile (`Repo.check_unread`). The same test's
 transcript from Python and Go must be equal; a test for Go only (`@pytest.mark.impl("go", …)`) has no Python
 transcript and is not compared. Calls that bypass `repo.pm` (a direct `PM` subprocess) are not recorded.
 `test_go_refusals.py` is the static check that each refusal text of a command Go pm runs (`PORTED`) appears, its
