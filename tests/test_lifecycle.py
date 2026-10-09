@@ -14,8 +14,8 @@ import pytest
 
 from conftest import IMPL, PM
 from pm import __version__
-from test_init import (BD_SET, BD_WRITES, BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, PM_FILES, USER_CODEX, USER_SETTINGS,  # noqa: F401
-                       commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
+from test_init import (BD_SET, BD_WRITES, BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, HOOKS, PM_FILES, USER_CODEX,  # noqa: F401
+                       USER_SETTINGS, commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
 
 pytestmark = pytest.mark.integration  # each test runs pm init in a fresh repo with a remote and starts its service
 
@@ -32,6 +32,30 @@ def uv_cache() -> str:
 # and .pm/run, which holds the work store's gate (the pm-go page, Open question 12); Python pm's four (.git, the store,
 # its git dir, .beads) and uv's cache, which every clone shares
 CLONE_ROOTS, SHARED_ROOTS = (4, 1) if IMPL == "python" else (5, 0)
+
+
+MINE = "\n# mine\necho done\n"  # the existing repo's own lines after Beads' section in its hook files
+
+
+def hook_file(name: str) -> str:
+    """pm's git hook file in the existing repo: Python pm's section joins Beads' hook file; Go pm's own file holds its
+    section alone, and Beads' stays as it was."""
+    return BEADS_HOOK + section(name) + MINE if IMPL == "python" else "#!/usr/bin/env sh\n" + section(name)
+
+
+def without_bd(data: dict) -> dict:
+    """The user's settings data as pm leaves it: Python pm keeps Beads' hooks; Go pm, which runs no bd, takes out each
+    hook whose command starts with `bd ` and the groups and events that leaves empty (the work-store page, Cut-over)."""
+    if IMPL == "python":
+        return data
+    out = json.loads(json.dumps(data))
+    for event, groups in list(out.get("hooks", {}).items()):
+        for g in groups:
+            g["hooks"] = [h for h in g["hooks"] if not h["command"].startswith("bd ")]
+        out["hooks"][event] = [g for g in groups if g["hooks"]]
+        if not out["hooks"][event]:
+            del out["hooks"][event]
+    return out
 
 
 def codex_after_uninstall() -> str:
@@ -73,8 +97,8 @@ REPO_CHANGES = {
                          ".github/workflows/pm-records-guard.yml: pm's part is missing"),
     "hook entry": (lambda r: edit(r / ".claude/settings.json", '"pm hook stop || exit 1"', '"pm hook stop"'),
                    ".claude/settings.json: pm's part differs"),
-    "git hook section": (lambda r: edit(r / ".beads/hooks/pre-commit", "pm hook git-pre-commit", "pm hook git-x"),
-                         ".beads/hooks/pre-commit: pm's part differs"),
+    "git hook section": (lambda r: edit(r / f"{HOOKS}/pre-commit", "pm hook git-pre-commit", "pm hook git-x"),
+                         f"{HOOKS}/pre-commit: pm's part differs"),
     "gitignore block": (lambda r: edit(r / ".gitignore", "/records\n", "/records/\n"),
                         ".gitignore: pm's part differs"),
 }
@@ -131,7 +155,9 @@ SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of
     "records link": (lambda r, tmp: (r / "records").unlink(), "records link: "),
     "sparse checkout": (lambda r, tmp: git(r, "sparse-checkout", "disable"), "sparse checkout: "),
     "hooks path": (lambda r, tmp: git(r, "config", "core.hooksPath", ".git/hooks"),
-                   "hooks path: core.hooksPath is .git/hooks, not .beads/hooks; pm works only with Beads' hooks path"),
+                   "hooks path: core.hooksPath is .git/hooks, not .beads/hooks; pm works only with Beads' hooks path"
+                   if IMPL == "python" else
+                   "hooks path: core.hooksPath is .git/hooks, not .pm/hooks; pm works only with its own hooks path"),
     "service": (lambda r, tmp: [p.unlink() for p in sched_units(tmp)], "service: not installed"),
     "codex roots": (lambda r, tmp: (tmp / "codex/config.toml").write_text(CODEX_USER), "codex: "),
     "git exclude": (lambda r, tmp: edit(r / ".git/info/exclude", "/.pm/run/\n", ""), "git exclude: "),
@@ -159,11 +185,13 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     assert ["init", "--non-interactive"] not in calls, "Beads is there; bd init must not run"
     assert f"git add -- {' '.join(PM_FILES + BD_WRITES)} && " in res.stdout, "the agent profile bd set is listed"
     for name in ("post-checkout", "pre-commit"):
-        assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + section(name) + "\n# mine\necho done\n"
+        assert (existing / f"{HOOKS}/{name}").read_text() == hook_file(name)
+        if IMPL == "go":
+            assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + MINE, "Beads' hook files stay"
     for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
         text = (existing / rel).read_text()
         data = json.loads(text)
-        assert pm_free(data) == user and text == json.dumps(data, indent=2) + "\n", rel
+        assert pm_free(data) == without_bd(user) and text == json.dumps(data, indent=2) + "\n", rel
     claude = json.loads((existing / ".claude/settings.json").read_text())
     assert all(commands(claude, e)[-len(c):] == c for e, c in CLAUDE_PM.items())
     assert (existing / ".gitignore").read_text() == "*.log\nbuild/\n" + GITIGNORE_BLOCK
@@ -178,7 +206,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     git(existing, "commit", "-qm", "Install pm")
     # the repo as an older pm left it: an older pin and an older section in a Beads hook
     edit(existing / ".pm/config.toml", f'version = "{__version__}"', 'version = "0.0.1"')
-    edit(existing / ".beads/hooks/pre-commit", f"BEGIN PM v{__version__}", "BEGIN PM v0.0.1")
+    edit(existing / f"{HOOKS}/pre-commit", f"BEGIN PM v{__version__}", "BEGIN PM v0.0.1")
     git(existing, "commit", "--no-verify", "-qam", "pm 0.0.1")
     def launched(pin: str, *args: str) -> subprocess.CompletedProcess:  # as the pm uv tool launches `pin`, whose
         # release here builds this pm: test_launch.py has the launch itself, which would reach GitHub
@@ -186,18 +214,20 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
                               capture_output=True, text=True)
     assert launched("0.0.1", "show").returncode == 1, "every other command refuses the old pin"
     res = launched("9.9.9", "upgrade", "--to", "9.9.9")
+    latest = ('uv tool install --reinstall "git+https://github.com/Yeeef/yeeef-agents#subdirectory=pm"'
+              if IMPL == "python" else "gh release download -R Yeeef/yeeef-agents -p install.sh -O - | sh")
     assert res.returncode == 1 and res.stderr.endswith(  # the launcher's install, never an old pm in its place
-        'which launches pm 9.9.9: install the latest with uv tool install --reinstall '
-        '"git+https://github.com/Yeeef/yeeef-agents#subdirectory=pm"\n'), res.stderr
+        f'which launches pm 9.9.9: install the latest with {latest}\n'), res.stderr
     head = git(existing, "rev-parse", "HEAD")
     res = pm(existing, "upgrade")
     assert res.returncode == 0, res.stderr
     assert f"moved the pin from 0.0.1 to {__version__}" in res.stdout
-    assert "git add -- .pm/config.toml .beads/hooks/pre-commit && " in res.stdout
+    assert f"git add -- .pm/config.toml {HOOKS}/pre-commit && " in res.stdout
     assert git(existing, "rev-parse", "HEAD") == head, "pm upgrade commits nothing"
     assert tomllib.loads((existing / ".pm/config.toml").read_text())["version"] == __version__
-    assert (existing / ".beads/hooks/pre-commit").read_text() == BEADS_HOOK + section("pre-commit") + "\n# mine\necho done\n"
-    assert git(existing, "status", "--porcelain").split() == ["M", ".beads/hooks/pre-commit", "M", ".pm/config.toml"]
+    assert (existing / f"{HOOKS}/pre-commit").read_text() == hook_file("pre-commit")
+    changed = sorted([f"{HOOKS}/pre-commit", ".pm/config.toml"])
+    assert git(existing, "status", "--porcelain").split() == ["M", changed[0], "M", changed[1]]
     after = snapshot(existing)
     assert all(after[k] == v for k, v in before.items() if k not in PM_FILES + BD_SET), "files pm does not manage are kept"
     again = pm(existing, "upgrade")
@@ -264,6 +294,10 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     assert after.pop(".claude/settings.local.json") == LOCAL_SETTINGS.encode()
     profile = b"agent.profile: team-maintainer\n" if IMPL == "python" else b""  # Go pm sets no Beads profile
     assert after.pop(".beads/config.yaml") == before.pop(".beads/config.yaml") + profile
+    if IMPL == "go":  # pm init took Beads' hooks out, and uninstall does not put them back: Codex's file held only those
+        assert after.pop(".claude/settings.json") == (json.dumps(without_bd(USER_SETTINGS), indent=2) + "\n").encode()
+        assert ".codex/hooks.json" not in after
+        del before[".claude/settings.json"], before[".codex/hooks.json"]
     assert after == before
     assert pm(existing, "uninstall").returncode != 0, "with .pm/ gone, pm refuses to run here"
 
@@ -324,3 +358,95 @@ def test_doctor_names_a_settings_file_it_cannot_read_as_a_repo_finding(new_repo:
     assert code == 1 and any(l.startswith("repo: cannot look for the pre-package harness's pieces: .claude/settings.json "
                                           "is not valid JSON") for l in lines), lines
     assert not any(l.startswith("legacy: ") for l in lines), lines
+
+
+BEADS_BLOCK = ("<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:1105d646 -->\n## Beads Issue Tracker\n\n"
+               "Run `bd prime`.\n<!-- END BEADS INTEGRATION -->\n")
+
+
+def as_python_left_it(repo: Path) -> None:
+    """Turn a repo Go pm set up into one as Python pm 0.1.x with Beads leaves it, committed: bd's hook entries first in
+    both hook files (Codex's also in an event pm has none in), the Beads block in CLAUDE.md, pm's sections in Beads'
+    hook files and core.hooksPath on them, and no .pm/hooks."""
+    for rel, event, cmds in ((".claude/settings.json", "SessionStart", ["bd prime --hook-json"]),
+                             (".codex/hooks.json", "SessionStart", ["bd codex-hook SessionStart"])):
+        data = json.loads((repo / rel).read_text())
+        data["hooks"][event].insert(0, {"hooks": [{"command": c, "type": "command"} for c in cmds], "matcher": ""})
+        if rel == ".codex/hooks.json":
+            data["hooks"] = {"PostCompact": [{"hooks": [{"command": "bd codex-hook PostCompact", "type": "command"}]}],
+                             **data["hooks"]}
+        (repo / rel).write_text(json.dumps(data, indent=2) + "\n")
+    (repo / "CLAUDE.md").write_text("# Repo\n\nNotes.\n\n" + BEADS_BLOCK)
+    for name in ("post-checkout", "pre-commit"):
+        (repo / f".beads/hooks/{name}").write_text(BEADS_HOOK + section(name) + MINE)
+    git(repo, "rm", "-rq", ".pm/hooks")
+    git(repo, "config", "core.hooksPath", str(repo / ".beads/hooks"))
+    git(repo, "add", "-A")
+    git(repo, "commit", "--no-verify", "-qm", "as Python pm 0.1.x left it")
+
+
+@pytest.mark.impl("go", reason="Go pm runs no bd: its upgrade takes out the Beads pieces Python pm 0.1.x keeps")
+def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
+    """The cut-over (the work-store page, Cut-over): a repo as Python pm 0.1.x left it. pm doctor names each Beads
+    piece, pm upgrade removes them and points core.hooksPath at pm's own hook files, keeping .beads/ and everything
+    else, after which pm doctor is clean, a second upgrade changes nothing, and the pre-commit guard runs from
+    .pm/hooks."""
+    assert pm(existing, "init").returncode == 0
+    git(existing, "add", "-A")
+    git(existing, "commit", "-qm", "Install pm")
+    as_python_left_it(existing)
+    beads = {k: v for k, v in snapshot(existing).items() if k.startswith(".beads/")}
+
+    code, lines = doctor(existing)
+    v = __version__
+    assert code == 1 and reported(lines, [
+        "repo: .claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm " + v + " removes",
+        "repo: .codex/hooks.json: holds Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart), "
+        "which pm " + v + " removes",
+        "repo: .pm/hooks/post-checkout: pm's part is missing",
+        "repo: .pm/hooks/pre-commit: pm's part is missing",
+        "repo: CLAUDE.md: holds the Beads block (<!-- BEGIN BEADS INTEGRATION … -->), which pm " + v + " removes",
+        f"hooks path: core.hooksPath is {existing / '.beads/hooks'} (Beads' hooks), not .pm/hooks; run pm upgrade "
+        f"--to {v} to move it"]), lines
+
+    res = pm(existing, "upgrade")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.splitlines() == [
+        f"pin stays {v}",
+        "removed Beads' hook entries (bd prime --hook-json) from .claude/settings.json",
+        "removed Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart) from .codex/hooks.json",
+        "wrote .pm/hooks/post-checkout",
+        "wrote .pm/hooks/pre-commit",
+        "removed the Beads block (<!-- BEGIN BEADS INTEGRATION … -->) from CLAUDE.md",
+        f"moved the git hooks off Beads' {existing / '.beads/hooks'}: core.hooksPath={existing / '.pm/hooks'}",
+        f"pm commits nothing on {git(existing, 'rev-parse', '--abbrev-ref', 'HEAD').strip()}; commit pm's files there: "
+        "git add -- .claude/settings.json .codex/hooks.json "
+        f".pm/hooks/post-checkout .pm/hooks/pre-commit CLAUDE.md && git commit -m \"Upgrade pm to {v}\""], res.stdout
+    for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
+        text = (existing / rel).read_text()
+        data = json.loads(text)
+        assert pm_free(data) == without_bd(user) and text == json.dumps(data, indent=2) + "\n", rel
+        assert all(commands(data, e) == c for e, c in CLAUDE_PM.items()), rel
+    assert (existing / "CLAUDE.md").read_text() == "# Repo\n\nNotes.\n"
+    for name in ("post-checkout", "pre-commit"):
+        assert (existing / f".pm/hooks/{name}").read_text() == hook_file(name)
+    assert {k: v for k, v in snapshot(existing).items() if k.startswith(".beads/")} == beads, ".beads/ stays"
+    assert git(existing, "config", "core.hooksPath").strip() == str(existing / ".pm/hooks")
+    assert doctor(existing)[0] == 0, doctor(existing)[1]
+    after = snapshot(existing)
+    again = pm(existing, "upgrade")
+    assert again.returncode == 0 and again.stdout == f"pm {v}: every managed piece is current; nothing to commit\n", \
+        again.stdout
+    assert snapshot(existing) == after and git(existing, "config", "core.hooksPath").strip() == str(existing / ".pm/hooks")
+
+    git(existing, "add", "-A")  # the committed upgrade: pm's pre-commit guard now runs from .pm/hooks
+    res = subprocess.run(["git", "commit", "-qm", "Upgrade pm"], cwd=existing, env=env(existing.parent),
+                         capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    (existing / "records").unlink()
+    (existing / "records").mkdir()
+    (existing / "records/a.md").write_text("x\n")
+    git(existing, "add", "-f", "--sparse", "records/a.md")
+    res = subprocess.run(["git", "commit", "-qm", "edit records"], cwd=existing, env=env(existing.parent),
+                         capture_output=True, text=True)
+    assert res.returncode != 0 and "only the records branch may change" in res.stderr, res.stderr

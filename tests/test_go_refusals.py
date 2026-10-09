@@ -28,6 +28,16 @@ PORTED = {
     "remove_codex_roots", "claude_dirs", "setup_claude",
 }
 
+# Constant parts Go pm words otherwise by design: its git hooks live in its own .pm/hooks, not Beads' .beads/hooks
+# (the work-store page, Cut-over), and the pm on PATH is its release binary, not the pm uv tool (the pm-go page,
+# Distribution).
+REWORDED = {
+    ("check_hooks_path", ", not .beads/hooks; pm's git hooks live in Beads' hook files, so pm init works only with "
+                         "Beads' hooks path (other hook managers are not supported)"),
+    ("cmd_upgrade", "is running; run it as the pm uv tool, which launches pm"),
+    ("cmd_upgrade", "to rewrite pm's pieces at the pin, or install the latest pm uv tool with"),
+}
+
 GO_STRING = r'"(?:[^"\\\n]|\\.)*"|`[^`]*`'
 GO_JOINED = re.compile(rf"(?:{GO_STRING})(?:\s*\+\s*(?:{GO_STRING}))*")
 
@@ -92,6 +102,7 @@ def go_strings() -> list[str]:
 def test_every_ported_refusal_text_is_in_go_source():
     parts = refusal_parts()
     assert {name for name, _ in parts} == PORTED, "a ported function raises no refusal: did cli.py change?"
+    assert REWORDED <= set(parts), "a reworded refusal is gone from cli.py: drop it from REWORDED"
     go = go_strings()
-    missing = [(name, part) for name, part in parts if not any(part in s for s in go)]
+    missing = [(name, part) for name, part in parts if (name, part) not in REWORDED and not any(part in s for s in go)]
     assert missing == [], "\n".join(f"{name}: {part!r}" for name, part in missing)
