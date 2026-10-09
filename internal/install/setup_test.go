@@ -62,7 +62,7 @@ func bareRemote(t *testing.T) string {
 func serve(t *testing.T, main string) {
 	t.Helper()
 	h, err := work.NewHost(work.HostOptions{Main: main, Version: buildinfo.Version, Ops: work.Ops{
-		Setup: func(_ context.Context, d *work.Dolt) ([]string, error) { return SetupStore(d, main, "origin") }}})
+		Setup: func(c context.Context, d *work.Dolt) ([]string, error) { return SetupStore(c, d, main, "origin") }}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,8 +1,10 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/work"
@@ -28,12 +30,20 @@ func trimNewline(s string) string {
 const beadsRef = "refs/dolt/data"
 
 // RemoteHasStore is whether the git remote holds a work store under work.RemoteRef; an unreachable remote is an Error.
-func RemoteHasStore(dir, remote string) (bool, error) {
-	return remoteHasRef(dir, remote, work.RemoteRef)
+// git ls-remote runs within c's deadline, when it has one: in the pm service, the operation's bound.
+func RemoteHasStore(c context.Context, dir, remote string) (bool, error) {
+	return remoteHasRef(c, dir, remote, work.RemoteRef)
 }
 
-func remoteHasRef(dir, remote, ref string) (bool, error) {
-	res, err := proc.Run([]string{"git", "ls-remote", "--exit-code", remote, ref}, proc.Options{Cwd: &dir})
+func remoteHasRef(c context.Context, dir, remote, ref string) (bool, error) {
+	o := proc.Options{Cwd: &dir}
+	if deadline, ok := c.Deadline(); ok {
+		if o.Timeout = time.Until(deadline); o.Timeout <= 0 {
+			return false, fmt.Errorf("git ls-remote %s %s: %w", remote, ref, context.DeadlineExceeded)
+		}
+		o.TimeoutText = fmt.Sprintf("%.1f", o.Timeout.Seconds())
+	}
+	res, err := proc.Run([]string{"git", "ls-remote", "--exit-code", remote, ref}, o)
 	if err != nil {
 		return false, err
 	}
@@ -68,7 +78,7 @@ func SetupWork(main string) ([]string, error) {
 // attach it to (pm where says so). It refuses to start an empty store beside the Beads data a remote holds (the import
 // comes first), and to leave a store made here beside another the remote holds, which share no history. What it did,
 // one line each.
-func SetupStore(d *work.Dolt, main, remote string) ([]string, error) {
+func SetupStore(c context.Context, d *work.Dolt, main, remote string) ([]string, error) {
 	dir, _ := work.Locations(main)
 	url := RemoteURL(main, remote)
 	var out []string
@@ -81,7 +91,7 @@ func SetupStore(d *work.Dolt, main, remote string) ([]string, error) {
 			return nil, refuse("no work store at %s, and this repo has no remote %s to clone it from or push it to; "+
 				"add it (git remote add %s URL) and run pm init again", dir, remote, remote)
 		}
-		held, err := RemoteHasStore(main, remote)
+		held, err := RemoteHasStore(c, main, remote)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +101,7 @@ func SetupStore(d *work.Dolt, main, remote string) ([]string, error) {
 			}
 			return []string{fmt.Sprintf("cloned the work store from %s's %s into %s", remote, work.RemoteRef, dir)}, nil
 		}
-		if beads, err := remoteHasRef(main, remote, beadsRef); err != nil {
+		if beads, err := remoteHasRef(c, main, remote, beadsRef); err != nil {
 			return nil, err
 		} else if beads {
 			return nil, refuse("%s holds Beads data (%s) but no work store (%s), and an empty store here would fork the "+
@@ -129,7 +139,7 @@ func SetupStore(d *work.Dolt, main, remote string) ([]string, error) {
 	if _, _, tracked, err := d.Tracking(); err != nil || tracked {
 		return out, err // it has fetched or pushed the remote's store: attached
 	}
-	held, err := RemoteHasStore(main, remote)
+	held, err := RemoteHasStore(c, main, remote)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +175,7 @@ func WorkDrift(main, remote string) ([]string, error) {
 		return []string{fmt.Sprintf("%s has no remote, so it syncs with no other clone; run pm init", dir)}, nil
 	}
 	if !tracked {
-		held, err := RemoteHasStore(main, remote)
+		held, err := RemoteHasStore(context.Background(), main, remote)
 		if err != nil {
 			return nil, err
 		}

@@ -21,7 +21,6 @@ import (
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
-	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -49,8 +48,8 @@ func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io
 	}
 	h, err := work.NewHost(work.HostOptions{Main: main, Version: buildinfo.Version, Ops: work.Ops{
 		Sync: func(c context.Context, d *work.Dolt) ([]string, error) { return syncStore(c, d, main, cfg.Remote) },
-		Setup: func(_ context.Context, d *work.Dolt) ([]string, error) {
-			return install.SetupStore(d, main, cfg.Remote)
+		Setup: func(c context.Context, d *work.Dolt) ([]string, error) {
+			return install.SetupStore(c, d, main, cfg.Remote)
 		},
 	}})
 	if err != nil {
@@ -108,11 +107,11 @@ func syncStore(ctx context.Context, d *work.Dolt, main, remote string) ([]string
 		if err != nil {
 			return nil, fmt.Errorf("work store: it has no remote to sync with, and %v", err)
 		}
-		ok, held := pmsync.Run(main, "git", "ls-remote", remote, work.RemoteRef)
-		if !ok {
-			return nil, fmt.Errorf("work store: it has no remote to sync with, and %s", held)
+		held, err := install.RemoteHasStore(ctx, main, remote) // within the sync's bound
+		if err != nil {
+			return nil, fmt.Errorf("work store: it has no remote to sync with, and %v", err)
 		}
-		if held != "" {
+		if held {
 			return nil, fmt.Errorf("work store: it has no remote, and %s holds a work store under %s already, "+
 				"which this one, made apart from it, shares no history with; move %s away and run pm init, which "+
 				"clones it", remote, work.RemoteRef, filepath.Join(main, ".pm/store/work"))
