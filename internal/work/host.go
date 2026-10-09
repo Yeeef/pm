@@ -71,16 +71,33 @@ type Host struct {
 	srv    *server.Server
 	served chan error
 	ready  chan struct{} // closed once the schema is current: pm_version() answers only then
-	opMu   sync.Mutex    // one operation at a time: sync, create, setup, gc
+	slot   chan struct{} // the operation slot: one sync, create or setup at a time
+	mu     sync.Mutex    // guards holder and since
+	holder string        // the operation in the slot, and since when
+	since  time.Time
+	gcMu   sync.Mutex // one garbage collection at a time; it takes no slot (GC)
 	closed bool
 }
+
+// The bounds of the operations in the slot, the wait for the slot included: a hung fetch or push ends at its bound
+// and frees the slot, and a caller waiting behind it fails hard at its own, naming what holds the slot. Variables so
+// the tests can shorten them.
+var (
+	// SyncTimeout bounds a sync: the service's loop's, and pm_sync()'s (pm sync, pm push).
+	SyncTimeout = 120 * time.Second
+	// CreateTimeout bounds a child create, pm_create(): its pull and push, up to casAttempts times.
+	CreateTimeout = 180 * time.Second
+	// SetupTimeout bounds pm init's pm_setup(): a clone of the remote's store at most.
+	SetupTimeout = 300 * time.Second
+)
 
 // Host loads the store in <main>/.pm/store/work (an empty directory when there is none yet: pm_setup makes it),
 // migrates an older schema, and serves it on <main>/.pm/run/work.sock until Close. It fails hard when another
 // process holds the store or the socket path is too long for the kernel.
 func NewHost(o HostOptions) (*Host, error) {
 	dir, _ := Locations(o.Main)
-	h := &Host{o: o, dir: dir, sock: Sock(o.Main), served: make(chan error, 1), ready: make(chan struct{})}
+	h := &Host{o: o, dir: dir, sock: Sock(o.Main), served: make(chan error, 1), ready: make(chan struct{}),
+		slot: make(chan struct{}, 1)}
 	if n := len(h.sock); n > sockMax {
 		return nil, fmt.Errorf("the pm service's socket %s is %d bytes, over this system's limit of %d; move the clone "+
 			"to a shorter path", h.sock, n, sockMax)
@@ -243,39 +260,81 @@ func (h *Host) client(withDB bool) (*Dolt, error) {
 	return dial(h.sock, dialConfig{prefix: filepath.Base(h.o.Main), now: h.o.Now, withDB: withDB})
 }
 
-// op runs one operation under opMu, on a connection of the host's own.
-func (h *Host) op(withDB bool, fn func(d *Dolt) error) error {
-	h.opMu.Lock()
-	defer h.opMu.Unlock()
+// op runs the operation name in the host's operation slot, on a connection of the host's own, within timeout of now
+// (or c's deadline, if sooner), the wait for the slot included. A caller still waiting at its bound fails hard,
+// naming the operation in the slot; an operation still running at its bound is stopped (Dolt kills the git it runs
+// under the query's context) and fails, freeing the slot.
+func (h *Host) op(c context.Context, name string, timeout time.Duration, withDB bool, fn func(d *Dolt) error) error {
+	c, cancel := context.WithTimeout(c, timeout)
+	defer cancel()
+	select {
+	case h.slot <- struct{}{}:
+	case <-c.Done():
+		h.mu.Lock()
+		holder, since := h.holder, h.since
+		h.mu.Unlock()
+		return fmt.Errorf("work store: the %s waited %s for the pm service's %s, running for %s, and gave up; "+
+			"nothing was written: run the command again, and see pm service logs if it recurs", name,
+			timeout.Round(time.Millisecond), holder, time.Since(since).Round(time.Millisecond))
+	}
+	h.mu.Lock()
+	h.holder, h.since = name, time.Now()
+	h.mu.Unlock()
+	defer func() { <-h.slot }()
 	d, err := h.client(withDB)
 	if err != nil {
 		return err
 	}
-	return errors.Join(fn(d), d.Shutdown())
+	d.op = c
+	err = fn(d)
+	if err != nil && c.Err() != nil {
+		err = fmt.Errorf("work store: the %s did not finish within %s and was stopped: %w", name,
+			timeout.Round(time.Millisecond), err)
+	}
+	return errors.Join(err, d.Shutdown())
 }
 
-// Sync is the sync the service's loop runs every pmsync.Interval and pm_sync() runs on a command's call.
+// holding is the operation in the slot, "" when none is.
+func (h *Host) holding() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.slot) == 0 {
+		return ""
+	}
+	return h.holder
+}
+
+// Sync is the sync the service's loop runs every pmsync.Interval and pm_sync() runs on a command's call, within
+// SyncTimeout.
 func (h *Host) Sync(c context.Context) ([]string, error) {
 	if h.o.Ops.Sync == nil {
 		return nil, errors.New("work store: this host runs no sync")
 	}
 	var lines []string
-	err := h.op(true, func(d *Dolt) (err error) {
-		lines, err = h.o.Ops.Sync(c, d)
+	err := h.op(c, "sync", SyncTimeout, true, func(d *Dolt) (err error) {
+		lines, err = h.o.Ops.Sync(d.op, d)
 		return err
 	})
 	return lines, err
 }
 
 // GC collects the store's garbage (CALL DOLT_GC()), online: Dolt's session-aware safepoints let open connections go
-// on. It deletes no item and squashes no commit.
+// on. It deletes no item and squashes no commit. It takes no operation slot: the collection waits for every session
+// in the middle of a statement to end it, and a command in CALL pm_sync() or pm_create() is in the middle of one
+// while it waits for the slot, so a collection that held the slot would wait for it until its timeout. One
+// collection runs at a time (Dolt allows one).
 func (h *Host) GC(c context.Context) error {
-	return h.op(true, func(d *Dolt) error {
-		if _, err := d.conn.ExecContext(c, "CALL DOLT_GC()"); err != nil {
-			return fmt.Errorf("work store: gc: %w", d.broken(err))
-		}
-		return nil
-	})
+	h.gcMu.Lock()
+	defer h.gcMu.Unlock()
+	d, err := h.client(true)
+	if err != nil {
+		return err
+	}
+	_, err = d.conn.ExecContext(c, "CALL DOLT_GC()")
+	if err != nil {
+		err = fmt.Errorf("work store: gc: %w", d.broken(err))
+	}
+	return errors.Join(err, d.Shutdown())
 }
 
 // Mark is the store's change mark: main's HEAD commit, which moves on every write; "" when there is no store yet.
@@ -312,8 +371,8 @@ func (h *Host) procSetup(c *gmssql.Context) (gmssql.RowIter, error) {
 		return nil, errors.New("work store: this host runs no setup")
 	}
 	var lines []string
-	err := h.op(false, func(d *Dolt) (err error) {
-		lines, err = h.o.Ops.Setup(c, d)
+	err := h.op(c, "setup", SetupTimeout, false, func(d *Dolt) (err error) {
+		lines, err = h.o.Ops.Setup(d.op, d)
 		return err
 	})
 	if err != nil {
@@ -328,8 +387,7 @@ func (h *Host) procCreate(c *gmssql.Context, spec string) (gmssql.RowIter, error
 		return nil, fmt.Errorf("work store: pm_create: %w", err)
 	}
 	var made Item
-	err := h.op(true, func(d *Dolt) (err error) {
-		d.op = c
+	err := h.op(c, "create of a "+string(n.Type)+" under "+n.Parent, CreateTimeout, true, func(d *Dolt) (err error) {
 		made, err = d.createShared(n)
 		return err
 	})

@@ -544,6 +544,8 @@ func (d *Dolt) push(from string) error {
 		return nil
 	case strings.Contains(err.Error(), "non-fast-forward"):
 		return errRemoteMoved
+	case d.opCtx().Err() != nil: // the operation's own bound ended first
+		return fmt.Errorf("%w at the operation's bound: %v", errPushTimeout, err)
 	case errors.Is(err, context.DeadlineExceeded) || c.Err() != nil:
 		return fmt.Errorf("%w after %s: %v", errPushTimeout, PushTimeout, err)
 	}
