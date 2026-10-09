@@ -100,8 +100,16 @@ def ancestors(beads: dict[str, dict], issue_id: str) -> list[str]:
     return out
 
 
+def id_key(issue_id: str) -> tuple:
+    """Natural order of Beads ids: the prefix and root as text, then each dot-separated child part in turn, a number
+    by its value before any other part, so x.9 < x.39 < x.100 and x.9.2 < x.9.10. The text breaks ties ("01" before
+    "1"), so the order is total. Go's work.CompareIDs is the same order."""
+    root, *rest = issue_id.split(".")
+    return root, tuple((0, int(p), p) if p.isascii() and p.isdigit() else (1, 0, p) for p in rest)
+
+
 def children(beads: dict[str, dict], parent: str) -> list[dict]:
-    return sorted((i for i in beads.values() if i.get("parent") == parent), key=lambda i: i["id"])
+    return sorted((i for i in beads.values() if i.get("parent") == parent), key=lambda i: id_key(i["id"]))
 
 
 def state(issue: dict, beads: dict[str, dict]) -> str:

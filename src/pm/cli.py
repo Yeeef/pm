@@ -43,8 +43,8 @@ import yaml
 
 from pm import __version__, config, hooks, install, launch, legacy
 from pm.beads import (ACTION, HUMAN, MERGE_REPORTED, MERGED, NO_DECISION, PICKED, REPLY_AUTHOR, REPLY_ID,
-                           REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, kind, load_beads,
-                           merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
+                           REPLY_MARK, ancestors, bd, blockers, children, dolt_state, dolt_store, id_key, kind,
+                           load_beads, merge_waiting, owner_tasks, picked_up, reply_body, reply_in_beads, reply_waiting,
                            session_of, show_beads, site_replies, state)
 from pm.records import (NONE_YET, NOT_CLOSED, Record, RecordError, decisions, first_para, headings,
                              insert_entry, outcome, parse_records, project_of, read_records, read_summaries,
@@ -384,7 +384,8 @@ def day_activity_text(repo: Repo, day: str) -> str:
     for p in (r for r in repo.recs if r.type == "project"):
         lines = []
         sprints = sorted((i for i in repo.beads.values()
-                          if i.get("parent") == p.meta["bead"] and i.get("issue_type") == "epic"), key=lambda i: i["id"])
+                          if i.get("parent") == p.meta["bead"] and i.get("issue_type") == "epic"),
+                         key=lambda i: id_key(i["id"]))
         for sp in sprints:
             rows = []
             if local_day(sp.get("closed_at")) == day:
@@ -393,7 +394,7 @@ def day_activity_text(repo: Repo, day: str) -> str:
             if local_day(sp.get("created_at")) == day:
                 rows.append("    sprint opened")
             for t in sorted((i for i in repo.beads.values() if i.get("parent") == sp["id"] and not dismissed(i)),
-                            key=lambda i: i["id"]):
+                            key=lambda i: id_key(i["id"])):
                 request = HUMAN in (t.get("labels") or [])
                 noun = f"request to the owner ({kind(t)})" if request else "task"
                 if local_day(t.get("closed_at")) == day:
@@ -2089,7 +2090,7 @@ def show_data(repo: Repo) -> dict:
             "sprints": sprints,
             "needs": [dict(zip(("sprint", "task"), request_place(i, b, epic)), id=i["id"], title=i["title"],
                            kind=kind(i), session=session_of(i), replied=reply_waiting(i) or bool(merge_waiting(i)))
-                      for i in sorted(owner_tasks(b, epic), key=lambda i: i["id"])],
+                      for i in sorted(owner_tasks(b, epic), key=lambda i: id_key(i["id"]))],
             "decisions": [{k: v for k, v in d.items() if k != "order"} for d in reversed(decisions[-3:])],
             "feedback": [{"entries": len(FEEDBACK_ENTRY.findall(r.body)), "url": f"{site_url()}/{r.out}"} for r in fb],
         })

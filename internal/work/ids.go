@@ -117,27 +117,51 @@ func newUUID() (string, error) {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }
 
-// compareIDs orders ids by prefix and root as text, then by child numbers as numbers: 9va.2 before 9va.10.
-func compareIDs(a, b string) int {
+// CompareIDs is the natural order of ids, which pm's lists and pages use: the prefix and root as text, then each
+// child part in turn, a number by its value before any other part, so 9va.9 < 9va.39 < 9va.100 and 9va.9.2 <
+// 9va.9.10; the text breaks ties ("01" before "1"), and a shorter id comes first. Python's beads.id_key is the same
+// order.
+func CompareIDs(a, b string) int {
 	as, bs := strings.Split(a, "."), strings.Split(b, ".")
 	if c := strings.Compare(as[0], bs[0]); c != 0 {
 		return c
 	}
 	for i := 1; i < len(as) && i < len(bs); i++ {
-		an, aerr := strconv.Atoi(as[i])
-		bn, berr := strconv.Atoi(bs[i])
-		if aerr != nil || berr != nil {
-			if c := strings.Compare(as[i], bs[i]); c != 0 {
-				return c
-			}
-			continue
-		}
-		if an != bn {
-			if an < bn {
-				return -1
-			}
-			return 1
+		if c := comparePart(as[i], bs[i]); c != 0 {
+			return c
 		}
 	}
 	return len(as) - len(bs)
+}
+
+// comparePart orders two child parts: numbers first, by value (any length), then the text.
+func comparePart(a, b string) int {
+	an, bn := isNumber(a), isNumber(b)
+	switch {
+	case an && !bn:
+		return -1
+	case !an && bn:
+		return 1
+	case an:
+		at, bt := strings.TrimLeft(a, "0"), strings.TrimLeft(b, "0")
+		if len(at) != len(bt) {
+			return len(at) - len(bt)
+		}
+		if c := strings.Compare(at, bt); c != 0 {
+			return c
+		}
+	}
+	return strings.Compare(a, b)
+}
+
+func isNumber(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }

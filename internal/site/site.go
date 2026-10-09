@@ -141,7 +141,7 @@ func TaskGraph(sprints []*Item, items *Items) string {
 	nid := func(id string) string { return nonWord.ReplaceAllString(id, "_") }
 	label := func(s string) string { return strings.ReplaceAll(s, `"`, "#quot;") }
 	sorted := append([]*Item{}, sprints...)
-	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].ID < sorted[j].ID })
+	sort.SliceStable(sorted, func(i, j int) bool { return work.CompareIDs(sorted[i].ID, sorted[j].ID) < 0 })
 	lines, edges := []string{"flowchart LR"}, []string{}
 	for _, sp := range sorted {
 		lines = append(lines, fmt.Sprintf(`  subgraph %s["%s"]`, nid(sp.ID), label(sp.Title)), "    direction TB")
@@ -182,7 +182,7 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 			sprints = append(sprints, r)
 		}
 	}
-	sort.SliceStable(sprints, func(i, j int) bool { return sprints[i].Bead() < sprints[j].Bead() })
+	sort.SliceStable(sprints, func(i, j int) bool { return work.CompareIDs(sprints[i].Bead(), sprints[j].Bead()) < 0 })
 	var rows []string
 	for _, r := range sprints {
 		b := items.Get(r.Bead())
@@ -233,7 +233,7 @@ func unsprinted(recs []*Record, items *Items) []unsprintedItem {
 			out = append(out, unsprintedItem{it, p})
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].it.ID < out[j].it.ID })
+	sort.SliceStable(out, func(i, j int) bool { return work.CompareIDs(out[i].it.ID, out[j].it.ID) < 0 })
 	return out
 }
 
@@ -1104,7 +1104,7 @@ func CheckNeedsAnswered(recs []*Record, items *Items, ids map[string]bool) error
 		}
 	}
 	all := append([]*Item{}, items.All()...)
-	sort.SliceStable(all, func(i, j int) bool { return all[i].ID < all[j].ID })
+	sort.SliceStable(all, func(i, j int) bool { return work.CompareIDs(all[i].ID, all[j].ID) < 0 })
 	for _, it := range all {
 		if ids != nil && !ids[it.ID] {
 			continue

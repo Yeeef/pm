@@ -15,8 +15,8 @@ from mdit_py_plugins.anchors import anchors_plugin
 from mdit_py_plugins.container import container_plugin
 from mdit_py_plugins.front_matter import front_matter_plugin
 
-from .beads import (ACTION, HUMAN, NO_DECISION, REPLY_AUTHOR, ancestors, blockers, kind, owner_tasks, picked_up,
-                    reply_body, state)
+from .beads import (ACTION, HUMAN, NO_DECISION, REPLY_AUTHOR, ancestors, blockers, id_key, kind, owner_tasks,
+                    picked_up, reply_body, state)
 from .records import (BLOCK_ATTRS, BLOCKS, Record, RecordError, attrs, decisions, first_para, outcome, summary_line,
                       project_of, section_text, validate_record)
 
@@ -127,10 +127,10 @@ def task_graph(sprints: list[dict], beads: dict[str, dict]) -> str:
     nid = lambda i: re.sub(r"\W", "_", i)
     label = lambda s: s.replace('"', "#quot;")
     lines, edges = ["flowchart LR"], []
-    for sp in sorted(sprints, key=lambda i: i["id"]):
+    for sp in sorted(sprints, key=lambda i: id_key(i["id"])):
         lines.append(f'  subgraph {nid(sp["id"])}["{label(sp["title"])}"]')
         lines.append("    direction TB")
-        tasks = sorted((i for i in beads.values() if i.get("parent") == sp["id"]), key=lambda i: i["id"])
+        tasks = sorted((i for i in beads.values() if i.get("parent") == sp["id"]), key=lambda i: id_key(i["id"]))
         for t in tasks:
             who = " · " + t["assignee"] if t.get("assignee") and state(t, beads) != "done" else ""
             lines.append(f'    {nid(t["id"])}["{label(t["title"])}{label(who)}"]:::{state(t, beads)}')
@@ -162,7 +162,7 @@ def progress(project: Record, recs: list[Record], beads: dict[str, dict], frm: R
     graph = task_graph([i for i in beads.values() if i.get("parent") == root], beads)
     rows = []
     for r in sorted((r for r in recs if r.type == "sprint" and project_of(r, recs, beads) is project),
-                    key=lambda r: r.meta["bead"]):
+                    key=lambda r: id_key(r.meta["bead"])):
         b = beads[r.meta["bead"]]
         report = outcome(r)
         rows.append(f'<tr><td><a href="{link(frm, r.out)}">{html.escape(r.title)}</a></td>'
@@ -179,7 +179,7 @@ def unsprinted(recs: list[Record], beads: dict[str, dict]) -> list[tuple[dict, R
     """(item, its project or None) for each open non-epic item filed directly under a project epic or with no parent.
     A need under a project is left out: the 'await you' sections show it."""
     projects = {r.meta["bead"]: r for r in recs if r.type == "project"}
-    return [(i, projects.get(i.get("parent"))) for i in sorted(beads.values(), key=lambda i: i["id"])
+    return [(i, projects.get(i.get("parent"))) for i in sorted(beads.values(), key=lambda i: id_key(i["id"]))
             if i["status"] != "closed" and i.get("issue_type") != "epic"
             and (not i.get("parent") or (i["parent"] in projects and HUMAN not in (i.get("labels") or [])))]
 
@@ -245,9 +245,9 @@ def day_moves(day: str, beads: dict[str, dict], under: str) -> list[tuple[dict, 
     (verb, pill class, task) for each task opened, started or closed that day (its latest move only)."""
     out = []
     for sp in sorted((i for i in beads.values() if i.get("parent") == under and i.get("issue_type") == "epic"),
-                     key=lambda i: i["id"]):
+                     key=lambda i: id_key(i["id"])):
         rows = []
-        for t in sorted((i for i in beads.values() if i.get("parent") == sp["id"]), key=lambda i: i["id"]):
+        for t in sorted((i for i in beads.values() if i.get("parent") == sp["id"]), key=lambda i: id_key(i["id"])):
             hit = next(((verb, cls) for f, verb, cls in DAY_VERBS if local_day(t.get(f)) == day), None)
             if hit:
                 rows.append((*hit, t))
@@ -638,7 +638,7 @@ def render_index(recs: list[Record], beads: dict[str, dict], site_name: str, dat
         shown = ({i["id"] for i in sprints if i["status"] != "closed"}
                  | {i["id"] for i in done_sprints[:DONE_SPRINTS_SHOWN]})
         rows = []
-        for sp in sorted((i for i in sprints if i["id"] in shown), key=lambda i: i["id"]):
+        for sp in sorted((i for i in sprints if i["id"] in shown), key=lambda i: id_key(i["id"])):
             tasks = [t for t in beads.values() if t.get("parent") == sp["id"]]
             done = sum(t["status"] == "closed" for t in tasks)
             rec = sprint_recs.get(sp["id"])
@@ -682,7 +682,7 @@ def check_needs_answered(recs: list[Record], beads: dict[str, dict], ids: set[st
     those issues."""
     epics = {r.meta["bead"] for r in recs if r.type == "project"}
     bodies = [body for r in recs if r.type in ("project", "sprint") for _, body in decisions(r.text)]
-    for i in sorted(beads.values(), key=lambda i: i["id"]):
+    for i in sorted(beads.values(), key=lambda i: id_key(i["id"])):
         labels = i.get("labels") or []
         if ids is not None and i["id"] not in ids:
             continue

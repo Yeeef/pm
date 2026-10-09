@@ -69,8 +69,13 @@ func TestNewRootMintsFourBase36CharactersAndALongerOneOnAHit(t *testing.T) {
 
 func TestIDsOrderByTheirNumbers(t *testing.T) {
 	ids := []string{"x-9va.10", "x-9va.2", "x-9va", "x-9va.2.1", "x-abc", "x-9va.1"}
-	slices.SortFunc(ids, compareIDs)
+	slices.SortFunc(ids, CompareIDs)
 	if got := strings.Join(ids, " "); got != "x-9va x-9va.1 x-9va.2 x-9va.2.1 x-9va.10 x-abc" {
+		t.Error(got)
+	}
+	ids = []string{"x-9va.100", "x-9va.9.10", "x-9va.39", "x-9va.b", "x-9va.9.2", "x-9va.9", "x-9va.01", "x-9va.1"}
+	slices.SortFunc(ids, CompareIDs)
+	if got := strings.Join(ids, " "); got != "x-9va.01 x-9va.1 x-9va.9 x-9va.9.2 x-9va.9.10 x-9va.39 x-9va.100 x-9va.b" {
 		t.Error(got)
 	}
 }

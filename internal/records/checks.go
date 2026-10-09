@@ -53,7 +53,7 @@ func (x *Items) Ancestors(id string) []string {
 	return out
 }
 
-// Children is the items whose parent is the id, by id.
+// Children is the items whose parent is the id, in id order (work.CompareIDs).
 func (x *Items) Children(parent string) []*work.Item {
 	var out []*work.Item
 	for _, it := range x.order {
@@ -61,7 +61,7 @@ func (x *Items) Children(parent string) []*work.Item {
 			out = append(out, it)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	sort.SliceStable(out, func(i, j int) bool { return work.CompareIDs(out[i].ID, out[j].ID) < 0 })
 	return out
 }
 
