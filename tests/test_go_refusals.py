@@ -89,9 +89,15 @@ def go_strings() -> list[str]:
     return out
 
 
+# Refusals Go pm words for the work store where Python pm names a bd command: Python's part, Go's.
+GO_WORDING = {"is not in a sprint with a record; set its sprint with bd update --parent":
+              "is not in a sprint with a record, so no sprint can record the scope change"}
+
+
 def test_every_ported_refusal_text_is_in_go_source():
     parts = refusal_parts()
     assert {name for name, _ in parts} == PORTED, "a ported function raises no refusal: did cli.py change?"
+    assert set(GO_WORDING) <= {part for _, part in parts}, "a GO_WORDING entry names no Python refusal"
     go = go_strings()
-    missing = [(name, part) for name, part in parts if not any(part in s for s in go)]
+    missing = [(name, part) for name, part in parts if not any(GO_WORDING.get(part, part) in s for s in go)]
     assert missing == [], "\n".join(f"{name}: {part!r}" for name, part in missing)

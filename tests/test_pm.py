@@ -302,6 +302,20 @@ def test_decision_close_closes_small_answer_without_record(repo):
     assert repo.pm("check").returncode == 0
 
 
+@pytest.mark.impl("go", reason="Python pm's undo is bd update --remove-label=no-decision, which it prints")
+def test_a_decision_recorded_for_a_no_decision_need_marks_it_answered(repo):
+    """pm decision close names its undo: a decision that cites the need, which marks it answered."""
+    res = repo.pm("decision", "close", "repo-demo.1.2", "--reason", "It sets no rule.", text=ANSWER)
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.strip().endswith("; if it sets a rule after all, record it with pm decision add --need "
+                                       "repo-demo.1.2, which marks the need answered")
+    res = repo.pm(*ADD, "--need", "repo-demo.1.2", "--decision", DECISION, "--reason", REASON)
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.startswith("marked need repo-demo.1.2 answered and added a source=owner project decision")
+    assert repo.items()["repo-demo.1.2"]["resolution"] == "answered"
+    assert repo.pm("check").returncode == 0
+
+
 # ---------------------------------------------------------------- pm task add
 
 
@@ -1062,7 +1076,7 @@ def test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read(repo
     assert "the session that asked is not running" in page
     assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 0
     assert "decision .1.3  Parser?  (sprint 1)  [undelivered reply: pm reply read repo-demo.1.3]" in repo.pm("show").stdout
-    assert "Parser?  (sprint 1)  -> bd show repo-demo.1.3  [undelivered reply: pm reply read repo-demo.1.3]" \
+    assert f"Parser?  (sprint 1)  -> {'bd' if IMPL == 'python' else 'pm'} show repo-demo.1.3  [undelivered reply: pm reply read repo-demo.1.3]" \
         in repo.pm("show", "--project", "demo").stdout
     res = repo.pm("reply", "read")  # no ids: this session's open requests
     assert res.returncode == 0, res.stderr

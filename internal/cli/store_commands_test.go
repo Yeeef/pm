@@ -336,3 +336,62 @@ func TestLive(t *testing.T) {
 		t.Fatal("a Codex thread's rollout is not live")
 	}
 }
+
+func TestShowIDPrintsTheItemItsHolderBlockersChildrenNeedsAndComments(t *testing.T) {
+	f := newFixture(t)
+	if _, err := f.run("", "comment", "add", f.t1.ID, "--text", "a note\non two lines"); err != nil {
+		t.Fatal(err)
+	}
+	out := must(f.run("", "show", f.t1.ID))
+	for _, want := range []string{
+		f.t1.ID + "  task  open  in sprint 1\nparent: " + f.s1.ID + "  sprint  open  S1\n",
+		"\nneeds:\n  " + f.need.ID + "  need  open  N?\n",
+		"\ncomments:\n", " me (note)\n    a note\n    on two lines\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("pm show %s lacks %q:\n%s", f.t1.ID, want, out)
+		}
+	}
+	held := must(f.run("", "show", f.held.ID))
+	if !strings.Contains(held, "holder: session alive (live), claimed ") {
+		t.Errorf("held:\n%s", held)
+	}
+	stale := must(f.run("", "show", f.stale.ID))
+	if !strings.Contains(stale, "holder: session gone (not live), claimed ") {
+		t.Errorf("stale:\n%s", stale)
+	}
+	blocked := must(f.run("", "show", f.blocked.ID))
+	if !strings.Contains(blocked, "blocked by: "+f.t2.ID+"  task  open  in sprint 2\n") {
+		t.Errorf("blocked:\n%s", blocked)
+	}
+	sprint := must(f.run("", "show", f.s1.ID))
+	if !strings.Contains(sprint, "\nchildren:\n") || !strings.Contains(sprint, "  "+f.closed.ID+"  task  closed (done)  closed\n") {
+		t.Errorf("sprint:\n%s", sprint)
+	}
+	var got work.Item
+	if err := json.Unmarshal([]byte(must(f.run("", "show", f.t2.ID, "--json"))), &got); err != nil || got.ID != f.t2.ID {
+		t.Fatalf("--json: %v %+v", err, got)
+	}
+	f.refuses("no item demo-nope in the work store", "show", "demo-nope")
+	if _, _, ok := storeCommandOf([]string{"show", "--sprint", f.s1.ID}); ok {
+		t.Error("pm show --sprint is the argparse tree's")
+	}
+}
+
+func TestTaskAddParentAddsASubTaskUnderAnOpenTask(t *testing.T) {
+	f := newFixture(t)
+	out := must(f.run("the body\n", "task", "add", "--parent", f.t1.ID, "--title", "part one", "--text-file", "-"))
+	id := f.t1.ID + ".2" // .1 is the need under it
+	if out != "created task "+id+" under task "+f.t1.ID+"; claim it with pm task claim "+id+"\n" {
+		t.Fatalf("out = %q", out)
+	}
+	if it := f.get(id); it.Type != work.Task || it.Parent != f.t1.ID || it.Title != "part one" || it.Description != "the body" {
+		t.Fatalf("made %+v", it)
+	}
+	f.refuses("is a sprint, not a task", "task", "add", "--parent", f.s1.ID, "--title", "x")
+	f.refuses("task "+f.closed.ID+" is closed", "task", "add", "--parent", f.closed.ID, "--title", "x")
+	f.refuses("--title is required", "task", "add", "--parent", f.t1.ID)
+	if _, _, ok := storeCommandOf([]string{"task", "add", "--sprint", f.s1.ID, "--title", "x"}); ok {
+		t.Error("pm task add --sprint is the argparse tree's")
+	}
+}

@@ -1,4 +1,5 @@
-"""Go pm against Python pm: `pm prime` in every mode byte-identical, `pm hook stop` and the config check identical,
+"""Go pm against Python pm: `pm prime` in every mode byte-identical (the rules are each implementation's own
+prime.md, chunked alike; `--subagent` is Go's git line where Python reads the Beads profile), `pm hook stop` and the config check identical,
 and every command's `--help` identical after whitespace normalisation. Both run the same argv in the same temp clone
 with the same environment; each test compares stdout, stderr and the exit code.
 
@@ -22,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, integration_only, write_config
+from conftest import GO_RULES, GO_SUBAGENT, PM, integration_only, write_config
 from work_items import items as work_items
 
 from pm import __version__, hooks
@@ -53,15 +54,26 @@ def same(repo, *args, **kw):
 
 @pytest.mark.parametrize("n", range(1, len(hooks.STARTS) + 1))
 @pytest.mark.parametrize("hook_json", [False, True])
-def test_prime_rules_chunk(repo, n, hook_json):
+def test_prime_rules_chunk(repo, n, hook_json, monkeypatch):
+    """Each chunk is what Python pm's chunker cuts from Go's prime.md, enveloped as Python pm envelopes it."""
     args = ["prime", "--rules", str(n), *(["--hook-json"] if hook_json else [])]
-    code, out, _ = same(repo, *args, event={"hook_event_name": "SubagentStart"} if hook_json else None)
-    assert code == 0 and out.strip()
+    event = {"hook_event_name": "SubagentStart"} if hook_json else None
+    py, go = run(repo, "python", *args, event=event), run(repo, "go", *args, event=event)
+    monkeypatch.setattr(hooks, "rules", lambda: GO_RULES.read_text(encoding="utf-8").strip())
+    chunk = hooks.chunks()[n - 1]
+    assert py[0] == go[0] == 0 and py[2] == go[2] == ""
+    want = json.loads(py[1]) if hook_json else None
+    if hook_json:
+        want["hookSpecificOutput"]["additionalContext"] = chunk
+        assert json.loads(go[1]) == want
+    else:
+        assert go[1] == chunk + "\n"
 
 
 def test_prime_rules_hook_json_names_session_start_without_an_event_name(repo):
-    code, out, _ = same(repo, "prime", "--rules", "1", "--hook-json", event="")
-    assert json.loads(out)["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    for impl in ("python", "go"):
+        code, out, _ = run(repo, impl, "prime", "--rules", "1", "--hook-json", event="")
+        assert code == 0 and json.loads(out)["hookSpecificOutput"]["hookEventName"] == "SessionStart", impl
 
 
 def bin_with(tmp_path, name, script):
@@ -99,9 +111,16 @@ def test_prime_subagent(repo, tmp_path, case, hook_json):
         event["cwd"] = str(tmp_path / "gone")
         if not hook_json:
             pytest.skip("only the hook input names a cwd")
-    code, out, _ = same(repo, "prime", "--subagent", *(["--hook-json"] if hook_json else []),
-                        event=event if hook_json else None, env=env)
-    assert code == 0 and "Beads agent profile" in out
+    args = ["prime", "--subagent", *(["--hook-json"] if hook_json else [])]
+    py = run(repo, "python", *args, event=event if hook_json else None, env=env)
+    go = run(repo, "go", *args, event=event if hook_json else None, env=env)
+    assert py[0] == go[0] == 0 and "Beads agent profile" in py[1]
+    if hook_json:
+        want = json.loads(py[1])
+        want["hookSpecificOutput"]["additionalContext"] = GO_SUBAGENT
+        assert json.loads(go[1]) == want
+    else:
+        assert go == (0, GO_SUBAGENT + "\n", "")
 
 
 @pytest.mark.integration  # Python pm's session-start path starts `python -m pm.cli init`, which fails at once here
@@ -109,9 +128,17 @@ def test_prime_subagent(repo, tmp_path, case, hook_json):
 def test_prime_state_where_init_where_and_show_fail_at_the_config_check(repo, tmp_path, mode):
     outside = tmp_path / "outside"
     outside.mkdir()
-    code, out, _ = same(repo, "prime", *mode, "--hook-json", event={"cwd": str(outside), "session_id": "s1"})
-    text = json.loads(out)["hookSpecificOutput"]["additionalContext"]
-    assert code == 0 and "pm init failed at session start (error: " in text and "is not in a git worktree" in text
+    event = {"cwd": str(outside), "session_id": "s1"}
+    py, go = run(repo, "python", "prime", *mode, "--hook-json", event=event), run(repo, "go", "prime", *mode, "--hook-json", event=event)
+    text = json.loads(py[1])["hookSpecificOutput"]["additionalContext"]
+    assert py[0] == 0 and "pm init failed at session start (error: " in text and "is not in a git worktree" in text
+    if not mode:  # plain pm prime: the rules whole, each implementation's own, then the state
+        go_head = GO_RULES.read_text(encoding="utf-8").strip() + "\n\n" + hooks.commands()
+        assert text.startswith(hooks.head() + "\n\n")
+        text = go_head + text[len(hooks.head()):]
+    want = json.loads(py[1])
+    want["hookSpecificOutput"]["additionalContext"] = text
+    assert (go[0], json.loads(go[1]), go[2]) == (0, want, py[2])
 
 
 # ---------------------------------------------------------------- config check
@@ -227,9 +254,12 @@ def test_argument_errors(repo, args):
 @pytest.mark.parametrize("args", [["--rules", "1", "--hook"], ["--rules", "01"], ["--rules", " +2", "--hook-js"],
                                   ["--subagent", "--hook"]])
 def test_arguments_as_argparse_reads_them(repo, args):
-    """Abbreviated options and an int given as int() reads it."""
-    code, out, _ = same(repo, "prime", *args, event="")
-    assert code == 0 and out
+    """Abbreviated options and an int given as int() reads it: each implementation prints what it prints for the
+    argv spelled out (the rules are each one's own prime.md)."""
+    spelled = [{"--hook": "--hook-json", "--hook-js": "--hook-json", "01": "1", " +2": "2"}.get(a, a) for a in args]
+    for impl in ("python", "go"):
+        got, want = run(repo, impl, "prime", *args, event=""), run(repo, impl, "prime", *spelled, event="")
+        assert got == want and got[0] == 0 and got[1], impl
 
 
 # ---------------------------------------------------------------- --help
@@ -264,10 +294,56 @@ def normalised(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+# The help wording Go pm changes from Python pm's at the cut-over: Python's names Beads and bd, Go's the work store.
+GO_HELP = [
+    ("project actions that touch both records and Beads.", "project actions that touch both records and the work store."),
+    ("The pm uv tool runs the pm version the repo pins in .pm/config.toml, through uv when it is another;",
+     "pm runs the pm version the repo pins in .pm/config.toml: another Go version's release binary, a Python version "
+     "through uv;"),
+    ("Beads id", "id"),
+    ("the need is closed with bd human respond and the same text", "the need is closed as answered with the same text"),
+    ("Raise a decision need: a Beads task labelled human under a sprint or task.",
+     "Raise a decision need under a sprint or task."),
+    ("Close the need with bd human respond, the owner's answer and the reason, and label it no-decision;",
+     "Close the need with the owner's answer and the reason, as no-decision;"),
+    ("Raise an action: a Beads task labelled human and action under a sprint or task.",
+     "Raise an action under a sprint or task."),
+    ("Close a non-epic task with bd close.", "Close a task."),
+    ("Claim an open task with bd update --claim and record the session", "Claim an open task: make the session"),
+    ("and the time in its metadata (claimed_by, claimed_at).", "its holder, with the time."),
+    ("Move an open task to another open sprint with bd update --parent and record",
+     "Move an open task to another open sprint and record"),
+    ("check that every record renders with Beads,", "check that every record renders with the work store,"),
+    ("serves the site and pushes Beads data and the records branch every 10 minutes",
+     "serves the site, syncs the work store and pushes the records branch every 10 minutes"),
+    ("from the records store and Beads (a page", "from the records store and the work store (a page"),
+    ("and pushes Beads data (bd dolt push), today's summary", "and syncs the work store, pushes today's summary"),
+    ("behind the records and Beads and states", "behind the records and the work store and states"),
+    ("push Beads data (bd dolt push), summarize today", "sync the work store, summarize today"),
+    ("Push Beads data with bd dolt push, then summarize today", "Sync the work store with the remote, then summarize today"),
+    ("this checkout, Beads, the hooks", "this checkout, the work store, the hooks"),
+    ("only the line naming the Beads agent profile:", "only pm's git rule for agents, one line:"),
+]
+
+
+def go_wording(text: str) -> str:
+    for python, go in GO_HELP:
+        text = text.replace(python, go)
+    return text
+
+
 @pytest.mark.parametrize("argv", HELP_CASES)
 def test_help(repo, argv):
+    """Each --help is Python pm's in Go pm's wording (GO_HELP)."""
     py, go = run(repo, "python", *argv, "--help"), run(repo, "go", *argv, "--help")
-    assert (go[0], normalised(go[1]), go[2]) == (py[0], normalised(py[1]), py[2])
+    assert (go[0], normalised(go[1]), go[2]) == (py[0], go_wording(normalised(py[1])), py[2])
+
+
+@pytest.mark.integration  # it runs pm service --help and pm init --help among the rest
+def test_every_go_wording_is_in_python_pms_help(repo):
+    """GO_HELP holds only live differences: each Python phrase appears in some --help."""
+    helps = " ".join(normalised(run(repo, "python", *argv, "--help")[1]) for argv in COMMANDS)
+    assert [python for python, _ in GO_HELP if python not in helps] == []
 
 
 # ---------------------------------------------------------------- the work store's import from bd

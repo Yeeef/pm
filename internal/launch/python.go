@@ -61,7 +61,7 @@ func pythonEnv(version string) []string {
 }
 
 func pythonHead(version string) string {
-	return fmt.Sprintf("this repo pins pm %s, which the pm uv tool (pm %s) runs through uv", version, buildinfo.Version)
+	return fmt.Sprintf("this repo pins pm %s, which pm %s runs through uv", version, buildinfo.Version)
 }
 
 func uvMissing(version string) error {

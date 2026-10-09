@@ -1,6 +1,8 @@
-// Package pm holds the files Go pm and Python pm share. Until the cut-over, prime.md, style.css and the prompts stay in
-// the Python package (src/pm), which ships and reads them there; go:embed reaches only files at or below the embedding
-// package's directory, so this package at the module root embeds them, and both implementations read one copy.
+// Package pm holds the files Go pm reads: its own prime.md, and the files it shares with Python pm. Until Python pm is
+// deleted, style.css and the prompts stay in the Python package (src/pm), which ships and reads them there; go:embed
+// reaches only files at or below the embedding package's directory, so this package at the module root embeds them,
+// and both implementations read one copy. prime.md is Go's own: it names the work store and pm's commands for it,
+// where Python's src/pm/prime.md names Beads and bd, which Python pm runs on.
 package pm
 
 import (
@@ -10,7 +12,7 @@ import (
 
 // Rules is prime.md: the rules pm prime prints.
 //
-//go:embed src/pm/prime.md
+//go:embed prime.md
 var Rules string
 
 // Style is style.css: the one stylesheet every page of the site gets.

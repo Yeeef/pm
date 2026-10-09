@@ -980,7 +980,7 @@ func cmdTaskMove(e *env, p *Parsed) (string, error) {
 		inSprint = inSprint || rec.Type() == "sprint" && source != "" && rec.Bead() == source
 	}
 	if !inSprint {
-		return "", refuse("%s is not in a sprint with a record; set its sprint with bd update --parent", id)
+		return "", refuse("%s is not in a sprint with a record, so no sprint can record the scope change", id)
 	}
 	rec, err := r.sprint(source)
 	if err != nil {

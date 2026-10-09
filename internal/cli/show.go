@@ -563,7 +563,7 @@ func showProjectText(p *showProject) string {
 		}
 		out = append(out, fmt.Sprintf("%ss await you (%d):", k, len(needs)))
 		for _, n := range needs {
-			line := "  " + showShort(n.id, e) + "  " + n.title + showPlace(n, e, names) + "  -> bd show " + n.id
+			line := "  " + showShort(n.id, e) + "  " + n.title + showPlace(n, e, names) + "  -> pm show " + n.id
 			if n.replied {
 				line += fmt.Sprintf(showReplyHint, n.id)
 			}

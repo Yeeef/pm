@@ -33,6 +33,15 @@ elif IMPL == "go":
     PM = [os.environ["PM_GO_BIN"]]
 else:
     raise RuntimeError(f"PM_IMPL={IMPL!r}: give python or go")
+# The rules pm prime prints: Python pm's src/pm/prime.md names Beads and bd, which it runs on; Go pm's own prime.md
+# names the work store and pm's commands. On Go, hooks.rules() reads Go's, so hooks.chunks() and hooks.head(), which
+# the tests compare pm prime against, are what Go pm prints.
+GO_RULES = Path(__file__).resolve().parents[1] / "prime.md"
+GO_SUBAGENT = ("Git: commit and push are routine for agents unless your brief says otherwise; only the PR review and "
+               "the merge wait on the owner.")
+if IMPL == "go":
+    from pm import hooks as _hooks
+    _hooks.rules = lambda: GO_RULES.read_text(encoding="utf-8").strip()
 FAKE_BD = Path(__file__).resolve().parent / "fake_bd.py"
 FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"
 FAKE_SCHED = Path(__file__).resolve().parent / "fake_sched.py"

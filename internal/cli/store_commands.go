@@ -18,9 +18,10 @@ import (
 )
 
 // The work-store commands with no Python counterpart: the work-store page's Commands table, "For agents" (task
-// ready, edit and release, dep add and rm, comment add, need dismiss, reply add, sync). Each opens the store once,
-// under the gate, and closes it at exit. Like pm export they stay out of the argparse tree, whose help and noun list
-// the parity tests hold equal to Python pm's, until the cut-over.
+// ready, edit and release, dep add and rm, comment add, need dismiss, reply add, sync, and two forms of commands Python
+// has: pm show ID and pm task add --parent TASK). Each opens the store once, under the gate, and closes it at exit.
+// Like pm export they stay out of the argparse tree, whose help and noun list the parity tests hold equal to Python
+// pm's, until Python pm is deleted.
 
 // storeCommand is one of them.
 type storeCommand struct {
@@ -110,6 +111,25 @@ var storeCommands = map[string]storeCommand{
 		args:  1,
 		run:   replyAdd,
 	},
+	"show ID": {
+		usage: "show ID [--json]",
+		about: "One item, any type: its fields, holder and whether that session is live, blockers, children, needs " +
+			"and comments. Without ID, pm show prints project state level by level (pm show --help).",
+		flags: func(fs *pflag.FlagSet) { fs.Bool("json", false, "the item as one JSON object, as pm export prints it") },
+		args:  1,
+		run:   showItem,
+	},
+	"task add --parent": {
+		usage: "task add --parent TASK --title TITLE [--text TEXT | --text-file FILE]",
+		about: "Add a sub-task under the open task TASK; a sprint's task is pm task add --sprint ID. Its description " +
+			"is the body: --text, or --text-file - <<'EOF' … EOF.",
+		flags: func(fs *pflag.FlagSet) {
+			fs.String("parent", "", "the open task it is a part of (required)")
+			fs.String("title", "", "the sub-task's title (required)")
+			textFlags(fs, "the description")
+		},
+		run: subTaskAdd,
+	},
 	"sync": {
 		usage: "sync",
 		about: "Sync the work store with the repo's remote now: pull, resolve conflicts by the merge rules, push. A " +
@@ -125,8 +145,20 @@ func textFlags(fs *pflag.FlagSet, what string) {
 	fs.String("text-file", "", what+", from a file; - reads stdin, from a pipe or heredoc only")
 }
 
-// storeCommandOf is the store command argv names, and its arguments after the name.
+// storeCommandOf is the store command argv names, and its arguments after the name. pm show with an id first and pm
+// task add with --parent are store commands; any other pm show or pm task add is the argparse tree's.
 func storeCommandOf(argv []string) (string, []string, bool) {
+	if len(argv) >= 2 && argv[0] == "show" && !strings.HasPrefix(argv[1], "-") {
+		return "show ID", argv[1:], true
+	}
+	if len(argv) >= 2 && argv[0] == "task" && argv[1] == "add" {
+		for _, a := range argv[2:] {
+			if a == "--parent" || strings.HasPrefix(a, "--parent=") {
+				return "task add --parent", argv[2:], true
+			}
+		}
+		return "", nil, false
+	}
 	for _, n := range []int{2, 1} {
 		if len(argv) >= n {
 			name := strings.Join(argv[:n], " ")
@@ -285,6 +317,138 @@ func short(session string) string {
 		return session[:8]
 	}
 	return session
+}
+
+// showItem is pm show ID: the item, then its children, needs and comments.
+func showItem(c *storeCall) error {
+	items, err := c.d.Items()
+	if err != nil {
+		return err
+	}
+	x, err := work.NewIndex(items)
+	if err != nil {
+		return err
+	}
+	id := c.args[0]
+	it := x.Item(id)
+	if it == nil {
+		return fmt.Errorf("no item %s in the work store", id)
+	}
+	if asJSON, _ := c.fs.GetBool("json"); asJSON {
+		return writeJSON(c.stdout, it)
+	}
+	line := func(i *work.Item) string {
+		state := string(i.Status)
+		if i.Resolution != "" {
+			state += " (" + string(i.Resolution) + ")"
+		}
+		return fmt.Sprintf("%s  %s  %s  %s", i.ID, i.Type, state, i.Title)
+	}
+	stamp := func(t time.Time) string { return t.UTC().Format("2006-01-02 15:04 UTC") }
+	out := []string{line(it)}
+	if p := x.Item(it.Parent); p != nil {
+		out = append(out, "parent: "+line(p))
+	}
+	if it.Holder != nil {
+		liveness := "not live"
+		if c.live(it.Holder.Session) {
+			liveness = "live"
+		}
+		out = append(out, fmt.Sprintf("holder: session %s (%s), claimed %s", it.Holder.Session, liveness,
+			stamp(it.Holder.ClaimedAt)))
+	}
+	for _, b := range it.BlockedBy {
+		if bi := x.Item(b); bi != nil {
+			out = append(out, "blocked by: "+line(bi))
+		} else {
+			out = append(out, "blocked by: "+b)
+		}
+	}
+	if len(it.Labels) > 0 {
+		out = append(out, "labels: "+strings.Join(it.Labels, ", "))
+	}
+	if n := it.Need; n != nil {
+		need := "need: " + string(n.Kind)
+		if n.RaisedBy != nil {
+			need += ", raised by session " + n.RaisedBy.Session
+		}
+		if n.Review != nil && n.Review.PR != "" {
+			need += ", PR " + n.Review.PR
+		}
+		out = append(out, need+fmt.Sprintf(", owner replies delivered: %d", n.Delivered))
+	}
+	dates := "created " + stamp(it.CreatedAt) + ", updated " + stamp(it.UpdatedAt)
+	if !it.ClosedAt.IsZero() {
+		dates += ", closed " + stamp(it.ClosedAt)
+		if it.ClosedBy != "" {
+			dates += " by " + it.ClosedBy
+		}
+	}
+	out = append(out, dates)
+	if it.CloseReason != "" {
+		out = append(out, "close reason: "+it.CloseReason)
+	}
+	if d := strings.TrimSpace(it.Description); d != "" {
+		out = append(out, "", d)
+	}
+	var children, needs []string
+	for _, ch := range items {
+		if ch.Parent != id {
+			continue
+		}
+		if ch.Type == work.Need {
+			needs = append(needs, "  "+line(&ch))
+		} else {
+			children = append(children, "  "+line(&ch))
+		}
+	}
+	if len(children) > 0 {
+		out = append(out, "", "children:")
+		out = append(out, children...)
+	}
+	if len(needs) > 0 {
+		out = append(out, "", "needs:")
+		out = append(out, needs...)
+	}
+	if len(it.Comments) > 0 {
+		out = append(out, "", "comments:")
+		for _, cm := range it.Comments {
+			out = append(out, fmt.Sprintf("  %s  %s (%s)", stamp(cm.CreatedAt), cm.Author, cm.Kind))
+			for _, l := range strings.Split(strings.TrimSpace(cm.Text), "\n") {
+				out = append(out, "    "+l)
+			}
+		}
+	}
+	_, err = fmt.Fprintln(c.stdout, strings.Join(out, "\n"))
+	return err
+}
+
+// subTaskAdd is pm task add --parent TASK: a sub-task under an open task.
+func subTaskAdd(c *storeCall) error {
+	parent, title := strings.TrimSpace(c.flag("parent")), strings.TrimSpace(c.flag("title"))
+	if parent == "" {
+		return errors.New("--parent TASK is empty")
+	}
+	if title == "" {
+		return errors.New("--title is required")
+	}
+	body, _, err := c.text()
+	if err != nil {
+		return err
+	}
+	p, err := c.item(parent, work.Task)
+	if err != nil {
+		return err
+	}
+	if p.Status != work.Open {
+		return fmt.Errorf("task %s is closed; a sub-task goes under an open task", parent)
+	}
+	made, err := c.d.Create(work.New{Type: work.Task, Parent: parent, Title: title, Description: body})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(c.stdout, "created task %s under task %s; claim it with pm task claim %s\n", made.ID, parent, made.ID)
+	return nil
 }
 
 func taskEdit(c *storeCall) error {

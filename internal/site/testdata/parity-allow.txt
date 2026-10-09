@@ -12,3 +12,9 @@ reason: Python's task graph labels a task not done with its bd assignee ("· yee
 pages: live:projects/*.html live:sprints/*.html
 python: (?m) · [^·\n]+?(&#34;\]:::(?:running|ready|blocked)$)
 go: $1
+
+name: reply-command
+reason: a decision need's card names the shell command that answers it; Python pm's is bd human respond, Go pm's pm reply add, as bd is gone at the cut-over (work-store page, Commands)
+pages: fixtures:*.html fixtures:*/*.html constructs:*.html constructs:*/*.html live:*.html live:*/*.html
+python: <code>bd human respond ([^<]+)</code>
+go: <code>pm reply add $1</code>

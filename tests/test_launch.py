@@ -25,10 +25,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from conftest import PM, fake_bd_env, write_config
+from conftest import IMPL, PM, fake_bd_env, write_config
 from pm import __version__, config, install, launch
 
 IN_PROCESS = pytest.mark.impl("python", reason="runs Python pm's launcher or CLI in process")
+# who runs a Python pin through uv: Python pm is the pm uv tool; Go pm is the binary install.sh put on PATH
+RUNNER = f"the pm uv tool (pm {__version__})" if IMPL == "python" else f"pm {__version__}"
 
 FAKE_UV = '''#!{py}
 import json, os, sys
@@ -130,7 +132,7 @@ def test_a_pin_whose_release_cannot_be_fetched_fails_hard_naming_the_tag_and_the
     res = fakes.pm("show")
     assert res.returncode == 1 and res.stdout == ""
     assert res.stderr == (
-        f"error: this repo pins pm 0.1.99, which the pm uv tool (pm {__version__}) runs through uv, but uv could not "
+        f"error: this repo pins pm 0.1.99, which {RUNNER} runs through uv, but uv could not "
         f"fetch and build pm-v0.1.99 ({SHA}): error: Git operation failed; check the network and that tag pm-v0.1.99 "
         "exists, then run pm again; or run it yourself with uv tool run --from "
         f'"git+{config.REPO}@pm-v0.1.99#subdirectory=pm" pm …, or move the pin with pm upgrade\n')
@@ -142,7 +144,7 @@ def test_a_pin_with_no_release_tag_fails_hard(fakes):
     write_config(fakes.root, version="0.1.99")
     res = fakes.pm("show")
     assert res.returncode == 1
-    assert res.stderr.startswith(f"error: this repo pins pm 0.1.99, which the pm uv tool (pm {__version__}) runs through "
+    assert res.stderr.startswith(f"error: this repo pins pm 0.1.99, which {RUNNER} runs through "
                                  f"uv, but release tag pm-v0.1.99 was not found at {config.REPO} (no such tag); ")
     assert calls(fakes) == [{"git": "ls-remote"}]
 
