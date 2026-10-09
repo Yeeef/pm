@@ -288,8 +288,6 @@ func itemTitle(items *Items, id string, recs []*Record, frm *Record) string {
 
 // ---------------------------------------------------------------- days
 
-type move struct{ verb, class string }
-
 var dayVerbs = []struct {
 	at          func(*Item) time.Time
 	verb, class string
