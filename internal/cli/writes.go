@@ -47,8 +47,6 @@ var (
 // feedbackEntry matches the heading of each entry in a feedback doc.
 var feedbackEntry = feedbackRE
 
-func nowStamp() string { return time.Now().UTC().Format("2006-01-02T15:04:05Z") }
-
 func isEpic(it *work.Item) bool { return it.Type == work.Project || it.Type == work.Sprint }
 
 func strip(s string) string { return config.PyStrip(s) }
@@ -924,11 +922,15 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	now := nowStamp()
 	// Python pm records no host; the host comes with liveness across hosts (work-store page, Open questions).
 	if err := ws.Claim(id, work.Holder{Session: sid}, live); err != nil {
 		return "", err
 	}
+	claimed, err := ws.Get(id) // the claim time the store stamped
+	if err != nil {
+		return "", err
+	}
+	now := claimed[0].Holder.ClaimedAt.UTC().Format("2006-01-02T15:04:05Z")
 	was := ""
 	if h != nil && h.Session != sid {
 		was = "; took it over from idle session " + h.Session

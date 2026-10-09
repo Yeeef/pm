@@ -33,9 +33,11 @@ type env struct {
 	stdout        io.Writer
 	stderr        io.Writer
 	ws            work.Store
+	lockRecords   bool   // a write: the records lock is taken as the store opens, after its gate
+	unlock        func() // releases the records lock while it is held
 }
 
-// work is the open work store, opened now if it is not yet.
+// work is the open work store, opened now if it is not yet; for a write, the records lock is taken next.
 func (e *env) work() (work.Store, error) {
 	if e.ws == nil {
 		ws, err := OpenWork(store.MainOf(e.records))
@@ -43,11 +45,17 @@ func (e *env) work() (work.Store, error) {
 			return nil, err
 		}
 		e.ws = ws
+		if e.lockRecords && e.unlock == nil {
+			if e.unlock, err = store.Lock(e.records); err != nil {
+				return nil, errors.Join(err, e.closeWork())
+			}
+		}
 	}
 	return e.ws, nil
 }
 
-// closeWork closes the work store if it is open, releasing its gate.
+// closeWork closes the work store if it is open, releasing its gate. A write keeps the records lock until it ends
+// (release): pm commit closes the store before its render and commits after it, under the lock.
 func (e *env) closeWork() error {
 	if e.ws == nil {
 		return nil
@@ -55,6 +63,15 @@ func (e *env) closeWork() error {
 	err := e.ws.Shutdown()
 	e.ws = nil
 	return err
+}
+
+// release ends a command: the records lock released, then the work store closed.
+func (e *env) release() error {
+	if e.unlock != nil {
+		e.unlock()
+		e.unlock = nil
+	}
+	return e.closeWork()
 }
 
 // repo is Python's Repo: the worktree acted on, the store, every item and the records.

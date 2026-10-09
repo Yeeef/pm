@@ -39,8 +39,9 @@ var writes = map[string]bool{"finding add": true, "feedback add": true, "decisio
 	"task close": true, "task move": true, "commit": true}
 
 // runAgent runs an agent command as Python's main() does: the body from --text-file first (a slow pipe holds no
-// lock), then the records store, then for a write the work store and the records lock, then the command; it prints
-// what the command returns.
+// lock), then the records store, then the command, which checks its arguments before it opens the work store; a write
+// takes the records lock as it opens the store (env.work), so the gate always comes first. It prints what the command
+// returns.
 func runAgent(name string, cmd agentCommand, p *Parsed, here string, stdin io.Reader, stdout, stderr io.Writer) (err error) {
 	e := &env{here: here, stdin: stdin, stdout: stdout, stderr: stderr}
 	for _, a := range p.cmd.args { // argparse's type=str.strip on --text
@@ -61,16 +62,12 @@ func runAgent(name string, cmd agentCommand, p *Parsed, here string, stdin io.Re
 	if e.records, err = store.Find(here); err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, e.closeWork()) }()
-	if writes[name] {
+	e.lockRecords = writes[name]
+	defer func() { err = errors.Join(err, e.release()) }()
+	if name == "commit" { // it reads the store's state first: under the lock from the start, as in Python pm
 		if _, err := e.work(); err != nil {
 			return err
 		}
-		unlock, err := store.Lock(e.records)
-		if err != nil {
-			return err
-		}
-		defer unlock()
 	}
 	out, err := cmd(e, p)
 	if err != nil {
