@@ -92,5 +92,8 @@ def write(directory: Path, nodeid: str, paths: dict[str, str]) -> Path:
     path = directory / Path(file).stem / f"{name(test)}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     data = normalise({"test": nodeid, "calls": CALLS}, paths)
+    for call in data["calls"]:  # by normalised id: a minted root id sorts apart from the seeds by its placeholder
+        if isinstance(call["export"], list):
+            call["export"].sort(key=lambda i: i["id"])
     path.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
     return path
