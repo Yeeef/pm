@@ -569,7 +569,7 @@ func (r *repo) humanIssue(id, want string) (*work.Item, error) {
 		return nil, refuse("%s is not in the work store", id)
 	}
 	if need.Type != work.Need {
-		return nil, refuse("%s is not labelled human, so it is not a need; record your own decision with pm decision add "+
+		return nil, refuse("%s is not a need; record your own decision with pm decision add "+
 			"without --need", id)
 	}
 	if k := site.Kind(need); k != want {

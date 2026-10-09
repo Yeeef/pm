@@ -65,6 +65,8 @@ SHOW_ITEM = re.compile(r"-> (?:bd|pm) show ")  # pm show's need lines: the comma
 # Python pm's words for where an item lives, and Go pm's
 GO_WORDING = [
     ("is not a Beads issue", "is not in the work store"),
+    ("is not labelled human, so it is not a need", "is not a need"),
+    ("is labelled human, so it is a need", "is a need"),
     ("is not a Beads epic", "is not a sprint in the work store"),
     ("(a Beads issue labelled human)", "(a need in the work store)"),
     ("not found in Beads", "not found in the work store"),

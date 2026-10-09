@@ -822,7 +822,7 @@ func cmdTaskClose(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	if task.Type == work.Need {
-		return "", refuse("%s is labelled human, so it is a need; answer a decision with pm decision add --need %s (or pm "+
+		return "", refuse("%s is a need; answer a decision with pm decision add --need %s (or pm "+
 			"decision close if the answer sets no rule), close an action with pm action done %s", id, id, id)
 	}
 	reason := strip(p.Get("reason"))

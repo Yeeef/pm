@@ -350,8 +350,8 @@ GO_HELP = [
      "the main checkout, with the PATH install ran with (bd, git and uv must be on it) and PORT. The tool runs the "
      "version the main checkout pins, through uv when it is another.",
      "Unit: runs the installed pm (`<bin dir>/pm service run`, the bin dir $PM_BIN_DIR, else ~/.local/bin; pm init "
-     "copies pm there) in the main checkout, with the PATH install ran with (git must be on it) and PORT. The "
-     "installed pm runs the version the main checkout pins: another Go version's release binary, a Python version "
+     "copies pm there) in the main checkout, with the PATH install ran with (git must be on it, and uv for a "
+     "Python pin) and PORT. The installed pm runs the version the main checkout pins: another Go version's release binary, a Python version "
      "through uv."),
     ("the supervisor starts the pm uv tool again, which runs the new pin.",
      "the supervisor starts the installed pm again, which runs the new pin."),
