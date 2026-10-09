@@ -450,7 +450,7 @@ func (r *refusal) Error() string { return r.msg }
 
 // Execute runs pm with argv (without the program name) and returns the exit code.
 func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if ok, err := goOnly(argv, stdout); ok {
+	if ok, err := goOnly(argv, stdin, stdout); ok {
 		if err != nil {
 			fmt.Fprintf(stderr, "error: %s\n", err)
 			return 1
