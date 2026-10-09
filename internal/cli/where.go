@@ -12,6 +12,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
 	"github.com/Yeeef/yeeef-agents/pm/internal/config"
+	"github.com/Yeeef/yeeef-agents/pm/internal/launch"
 	"github.com/Yeeef/yeeef-agents/pm/internal/proc"
 	"github.com/Yeeef/yeeef-agents/pm/internal/service"
 	"github.com/Yeeef/yeeef-agents/pm/internal/store"
@@ -41,8 +42,6 @@ func cmdWhere(p *Parsed, here string, stdout io.Writer) error {
 const (
 	whereSetup  = "pm init"
 	whereBranch = "records"
-	// whereHow is launch.how() for a pm run in process; Go pm has no launcher yet.
-	whereHow = "run in process: it is this repo's pin, or the repo pins none yet"
 )
 
 // whereGit is git's stripped stdout in dir, or "" when it fails.
@@ -79,7 +78,7 @@ func whereAll(here string) (string, error) {
 		return "", err
 	}
 
-	out := []string{fmt.Sprintf("pm        %s  %s", buildinfo.Version, whereHow)}
+	out := []string{fmt.Sprintf("pm        %s  %s", buildinfo.Version, launch.How())}
 	if !isDir(storeDir) {
 		out = append(out, fmt.Sprintf("store     %s  missing; run %s", storeDir, whereSetup))
 	} else {

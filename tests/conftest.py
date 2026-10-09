@@ -427,10 +427,11 @@ class Repo:
 
     def items(self) -> dict[str, dict]:
         """Every work-store item by id, as `pm export` gives them: for Python pm, the fake bd's issues mapped; for Go
-        pm, its store read by path, so a test that broke the repo's config still reads it."""
+        pm, its store read by path from outside the repo, so a test that broke the repo's config or pins another
+        version still reads it, and the launcher never runs the pin for this read."""
         if IMPL == "python":
             return work_items(json.loads(self.state.read_text()))
-        res = subprocess.run([*PM, "export", "--store", str(self.root / ".pm/store/work")], cwd=self.root,
+        res = subprocess.run([*PM, "export", "--store", str(self.root / ".pm/store/work")], cwd=self.root.parent,
                              env=self.env, capture_output=True, text=True, check=True)
         return {i["id"]: i for i in map(json.loads, res.stdout.splitlines())}
 

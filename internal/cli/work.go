@@ -8,12 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Yeeef/yeeef-agents/pm/internal/buildinfo"
 	"github.com/Yeeef/yeeef-agents/pm/internal/config"
 	"github.com/Yeeef/yeeef-agents/pm/internal/hooks"
 	"github.com/Yeeef/yeeef-agents/pm/internal/work"
 )
 
-// goOnly runs the commands Go pm has and Python pm does not: pm export [--store DIR], pm init --import-bd FILE, and the work-store
+// goOnly runs the commands Go pm has and Python pm does not: pm version, pm export [--store DIR], pm init --import-bd FILE, and the work-store
 // commands in store_commands.go. The argparse tree mirrors Python pm's, whose help texts and pm prime noun list the
 // parity tests hold equal, so these stay out of it until Python pm has them or the cut-over. In Go pm today, pm init
 // --import-bd does the import only; the rest of pm init comes with the install sprint. ok is false for any other argv.
@@ -22,6 +23,9 @@ func goOnly(argv []string, stdin io.Reader, stdout io.Writer) (ok bool, err erro
 		return true, runStoreCommand(name, args, openStore, stdin, stdout)
 	}
 	switch {
+	case len(argv) == 1 && argv[0] == "version": // this build's version, outside any repo too; dev when untagged
+		_, err := fmt.Fprintln(stdout, buildinfo.Version)
+		return true, err
 	case len(argv) == 1 && argv[0] == "export":
 		return true, cmdExport(stdout)
 	case len(argv) == 3 && argv[0] == "export" && argv[1] == "--store":
