@@ -663,6 +663,7 @@ def test_serve_shows_each_change_within_its_stated_age(repo):
     import urllib.request
 
     repo.dolt()
+    repo.stop_service()  # this test's own service holds the work store
     srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
@@ -693,6 +694,7 @@ def test_serve_shows_each_change_within_its_stated_age(repo):
     finally:
         srv.terminate()
         srv.wait()
+        repo.start_service()  # the per-test service again, for what the test reads after
 
 
 # ---------------------------------------------------------------- pm show: its levels
@@ -877,6 +879,7 @@ def test_sprints_list_in_natural_id_order_on_the_overview_the_project_page_and_p
 def served(repo):
     """The pm service for the repo's store on a free port; the repo's env carries that PORT from here on."""
     repo.dolt()
+    repo.stop_service()  # this test's own service holds the work store
     srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
@@ -886,6 +889,7 @@ def served(repo):
     finally:
         srv.terminate()
         srv.wait()
+        repo.start_service()  # the per-test service again, for what the test reads after
 
 
 # ---------------------------------------------------------------- replies on the site
@@ -958,6 +962,7 @@ def serving(repo, **env):
     """The pm service for the repo's store on a free port with `env` added; its URL, then its stderr once it stopped."""
     log = repo.root.parent / "serve.log"
     with log.open("w") as err:
+        repo.stop_service()  # this test's own service holds the work store
         srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                                env=dict(repo.env, PORT="0", **env), stdout=subprocess.PIPE, stderr=err, text=True)
     try:
@@ -965,6 +970,7 @@ def serving(repo, **env):
     finally:
         srv.terminate()
         srv.wait()
+        repo.start_service()  # the per-test service again, for what the test reads after
 
 
 @pytest.mark.integration
@@ -1407,3 +1413,53 @@ def test_index_lists_every_sprint_not_done_and_only_the_latest_closed_done_ones(
     assert all(f"live-{n}" in page for n in range(3))
     assert [n for n in range(12) if f"done-{n:02}" in page] == list(range(4, 12))
     assert "4 older done sprints not shown" in page
+
+
+# ---------------------------------------------------------------- the work store's one access path (Go pm)
+
+# Every Go pm command that reads or writes work items, as an agent runs it: each reaches the work store only through
+# the pm service (the pm-go page, Store access), so with the service stopped each fails hard, naming the fix, and writes
+# nothing. pm where reports it in its work line instead, and the hooks fail open; pm record link reads no item.
+STORE_COMMANDS = [
+    ["show"], ["show", "--project", "demo"], ["show", "--sprint", "repo-demo.1"], ["show", "repo-demo.1"],
+    ["export"], ["check"], ["commit", "-m", "x"], ["day", "summarize"],
+    ["task", "add", "--sprint", "repo-demo.1", "--title", "T"], ["task", "add", "--parent", "repo-demo.1.2",
+                                                                    "--title", "T"],
+    ["task", "close", "repo-demo.1.2", "--reason", "x"], ["task", "claim", "repo-demo.1.2"],
+    ["task", "move", "repo-demo.1.2", "--to", "repo-demo.2", "--text=a\nb"], ["task", "ready"],
+    ["task", "edit", "repo-demo.1.2", "--title", "T"], ["task", "release", "repo-demo.1.2"],
+    ["finding", "add", "--sprint", "repo-demo.1", "x"], ["feedback", "add", "--project", "demo", "--text=x"],
+    ["doc", "new", "x", "--title", "X", "--project", "demo", "--text=x"],
+    ["design", "new", "x", "--title", "X", "--project", "demo"],
+    ["postmortem", "new", "x", "--title", "X", "--project", "demo"],
+    ["project", "open", "p", "--title", "P", "--text=x"], ["project", "close", "demo"],
+    ["sprint", "open", "demo", "--title", "S",
+     "--text=## Goal\n\nx\n\n## Scope\n\n**In:** a.\n\n**Out:** b.\n\n## Done when\n\n- x."],
+    ["sprint", "close", "repo-demo.1"],
+    ["decision", "add", "--level", "project", "--project", "demo", "--decision", "x", "--reason", "y"],
+    ["decision", "need", "--title", "Q?", "--parent", "repo-demo.1", "--question", "q", "--fact", "f",
+     "--option", "a", "a", "--cost", "a", "c", "--option", "b", "b", "--cost", "b", "c", "--default", "a", "why"],
+    ["decision", "close", "repo-demo.1.2", "--reason", "x", "--text=x"],
+    ["action", "need", "--title", "Do", "--parent", "repo-demo.1", "--text=x"],
+    ["action", "done", "repo-demo.1.2", "--reason", "x"], ["reply", "read", "repo-demo.1.2"],
+    ["dep", "add", "repo-demo.1.2", "--on", "repo-demo.2"], ["dep", "rm", "repo-demo.1.2", "--on", "repo-demo.1.1"],
+    ["comment", "add", "repo-demo.1.2", "--text=x"], ["need", "dismiss", "repo-demo.1.2", "--reason", "x"],
+    ["reply", "add", "repo-demo.1.2", "--text=x"], ["sync"],
+]
+
+
+@pytest.mark.impl("go", reason="Python pm reaches Beads through bd; only Go pm's store is held by the service")
+def test_every_store_command_fails_hard_with_the_service_stopped(repo):
+    repo.stop_service()
+    want = (f"error: the pm service does not answer on {repo.root / '.pm/run/work.sock'}; pm reaches the work store "
+            "only through it: run pm service restart\n")
+    env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-a")
+    wt = repo.worktree("feature")  # pm task claim refuses in the main checkout before it reaches the store
+    before = repo.snapshot()
+    for argv in STORE_COMMANDS:
+        res = subprocess.run([*PM, *argv], cwd=wt if argv[:2] == ["task", "claim"] else repo.root, env=env,
+                             capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        assert (res.returncode, res.stdout, res.stderr) == (1, "", want), argv
+    assert repo.snapshot() == before, "a command wrote with the service stopped"
+    repo.start_service()
+    assert repo.unchanged()

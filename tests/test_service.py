@@ -146,6 +146,7 @@ def test_unit_files_equal_the_files_go_pm_is_held_to(monkeypatch, kind, ext):
 
 def service_run(repo, port: str) -> tuple[subprocess.Popen, int]:
     """`pm service run` on `port` (0: a free one), as the supervisor starts it, its stdout and stderr in one pipe."""
+    repo.stop_service()  # this test's own service holds the work store
     srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root, env=dict(repo.env, PORT=port),
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     while not (found := re.search(r"^Serving http://localhost:(\d+)", srv.stdout.readline())):
