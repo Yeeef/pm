@@ -2,12 +2,17 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 )
 
-// The --help text, laid out as Python 3.13's argparse lays it out at an unbounded width: the same usage line, sections
-// and alignment, with no line wrapping. Python pm wraps to the terminal; whitespace aside, the two are identical.
+// The --help text, laid out as Python 3.13's argparse lays it out: the usage line wrapped to the terminal's width as
+// argparse wraps it, then the sections and alignment, with no wrapping of the help texts. Python pm wraps those to the
+// terminal too; whitespace aside, the two are identical.
 
 const helpPosition = 24 // argparse's max_help_position
 
@@ -61,10 +66,11 @@ func (c *command) choicesText() string {
 	return "{" + strings.Join(names, ",") + "}"
 }
 
-// usage is the usage line after "usage: ": the prog, [-h], the optionals (a mutually exclusive group as one part),
-// then the positionals and the subcommands.
-func (c *command) usage() string {
-	parts := []string{c.prog(), "[-h]"}
+// usageParts is the usage line's parts after the prog, as Python 3.13's argparse cuts them for wrapping: [-h], each
+// optional (a mutually exclusive group's members each a part, all but the last ending in " |", the first opening the
+// group's bracket and the last closing it), then the positionals and the subcommands; nOpt is the optionals' count.
+func (c *command) usageParts() (parts []string, nOpt int) {
+	parts = []string{"[-h]"}
 	for i := 0; i < len(c.args); i++ {
 		a := c.args[i]
 		if a.positional() {
@@ -83,12 +89,21 @@ func (c *command) usage() string {
 			members = append(members, usagePart(c.args[i]))
 		}
 		i--
+		open, close := "[", "]"
 		if c.groups[a.group-1] {
-			parts = append(parts, "("+strings.Join(members, " | ")+")")
-		} else {
-			parts = append(parts, "["+strings.Join(members, " | ")+"]")
+			open, close = "(", ")"
+			if len(members) == 1 {
+				open, close = "", ""
+			}
 		}
+		members[0] = open + members[0]
+		members[len(members)-1] += close
+		for j := range members[:len(members)-1] {
+			members[j] += " |"
+		}
+		parts = append(parts, members...)
 	}
+	nOpt = len(parts)
 	for _, a := range c.args {
 		if a.positional() {
 			parts = append(parts, formatArgs(a, a.dest))
@@ -97,7 +112,77 @@ func (c *command) usage() string {
 	if c.subs != nil {
 		parts = append(parts, c.choicesText()+" ...")
 	}
-	return strings.Join(parts, " ")
+	return parts, nOpt
+}
+
+// usage is the usage line after "usage: ", wrapped as argparse wraps it to the terminal's width (HelpFormatter: the
+// width shutil.get_terminal_size gives, less 2): when "usage: " and the line are longer, the parts go on lines indented
+// under the first part after the prog, the positionals starting a line of their own.
+func (c *command) usage() string {
+	prog := c.prog()
+	parts, nOpt := c.usageParts()
+	line := prog + " " + strings.Join(parts, " ")
+	const prefix = "usage: "
+	width := terminalColumns() - 2
+	if len(prefix)+len(line) <= width {
+		return line
+	}
+	getLines := func(parts []string, indent string, first bool) []string {
+		var lines, cur []string
+		n := len(indent) - 1
+		if first {
+			n = len(prefix) - 1
+		}
+		for _, p := range parts {
+			if n+1+len(p) > width && cur != nil {
+				lines = append(lines, indent+strings.Join(cur, " "))
+				cur, n = nil, len(indent)-1
+			}
+			cur = append(cur, p)
+			n += len(p) + 1
+		}
+		if cur != nil {
+			lines = append(lines, indent+strings.Join(cur, " "))
+		}
+		if first {
+			lines[0] = lines[0][len(indent):]
+		}
+		return lines
+	}
+	opts, pos := parts[:nOpt], parts[nOpt:]
+	var lines []string
+	if float64(len(prefix)+len(prog)) <= 0.75*float64(width) {
+		indent := strings.Repeat(" ", len(prefix)+len(prog)+1)
+		switch {
+		case len(opts) > 0:
+			lines = getLines(append([]string{prog}, opts...), indent, true)
+			lines = append(lines, getLines(pos, indent, false)...)
+		case len(pos) > 0:
+			lines = getLines(append([]string{prog}, pos...), indent, true)
+		default:
+			lines = []string{prog}
+		}
+	} else {
+		indent := strings.Repeat(" ", len(prefix))
+		lines = getLines(parts, indent, false)
+		if len(lines) > 1 {
+			lines = append(getLines(opts, indent, false), getLines(pos, indent, false)...)
+		}
+		lines = append([]string{prog}, lines...)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// terminalColumns is shutil.get_terminal_size().columns: $COLUMNS when a positive number, else the width of the
+// terminal on stdout, else 80.
+func terminalColumns() int {
+	if n, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && n > 0 {
+		return n
+	}
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+		return w
+	}
+	return 80
 }
 
 type helpItem struct {
