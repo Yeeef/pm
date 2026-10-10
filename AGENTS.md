@@ -175,7 +175,7 @@ labelled case for each case it moves.
   one arrives as a 2 KB preview and a file path), per hook, and the hooks of one entry arrive in any order. So the
   rules run as one hook per chunk: `hooks.Chunks` cuts them at the headings in `hooks.Starts` and puts a title
   line naming each chunk's place and sections on top (`pm prime --rules N`), and the state runs as its own hook,
-  cut at a line. 2026-10-07: 4 chunks of 8,447, 5,749, 6,317 and 4,708 characters, 24,872 without titles.
+  cut at a line. 2026-10-10: 3 chunks of 3,677, 6,417 and 6,329 characters, 16,259 without titles.
   `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` (and `TestChunksFitTheCapAndAddUpToTheHead`) fails when a
   chunk outgrows the cap: move a heading in `Starts` and in the harness's `RULE_STARTS`, or add one plus its hook
   entries; `test_init_bootstraps_a_brand_new_repo` checks the entries.

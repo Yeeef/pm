@@ -121,10 +121,11 @@ only.
   losing the writes since and crashing the service at its next collection ("error dropping journal writer during
   UpdateGCGen"). pm now builds with a Dolt that holds the fix (dolthub/dolt#11312).
 - The owner-request Stop hook no longer blocks text that asks the owner nothing: the agent's plan or progress
-  (including what waits on its own subagents or on a merge it holds), a fact no step of the agent waits on, a report
-  of a request already raised (also one held in another clone), and an answer to a question the owner asked. When
-  a reply asks again for what another session's open need already asks, the block now says to drop the ask or report
-  the need as open, not to raise a duplicate.
+  (including what its own subagents do, and a review or merge it names itself as doing), a fact no step of the agent
+  waits on, a request cited by its id as already open on the site (whichever session or clone holds it), and an
+  answer to a question the owner asked. A PR review or merge left pending without saying who does it still counts as
+  a request to the owner. When a reply asks again for what an open request already asks, the block now says to drop
+  the ask or say by its id that the request is open, not to raise a duplicate.
 - `pm hook stop` no longer blocks a session over a record that only the prompt of its still-running subagent names;
   the subagent may be writing it. Once the subagent returns, or a tool call of the session itself names the record,
   the hook blocks as before.
