@@ -60,6 +60,11 @@ Sprint 56 also builds option C: drop main's `records/` copy and the mechanisms i
 The owner asked in chat to continue in sprint 56 rather than open sprint 76, so the choice and its build share one record.
 :::
 
+::: decision {source=agent date=2026-10-10}
+Option C ships as a Go port in Yeeef/pm (internal/install pieces.go, clone.go), not as yeeef-agents PR #76; the review of #76 is dismissed and its conflict need closed.
+PR #76 changes the Python pm in yeeef-agents, which Go pm replaced; pm-harness moved to Yeeef/pm on 2026-10-10.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
