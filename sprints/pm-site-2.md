@@ -83,6 +83,11 @@ The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, i
   reads only .md, and pm commit commits any changed store path); no code
   change was needed, and a harness test now holds it byte for byte.
 
+- Image confinement has two layers, each checked by removing it: without the
+  dot-part check, /.git/x.svg and /docs/./x.svg were served; without os.Root
+  as well, ../, %2e%2e, a symlink out and an absolute symlink were served.
+  With both, all 11 escape paths get 404.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
