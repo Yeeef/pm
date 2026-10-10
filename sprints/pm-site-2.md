@@ -66,7 +66,18 @@ The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, i
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check at 390 px (Chromium headless shell, isMobile, device scale 2),
+  against `pm service run` on a scratch clone made by the harness's `repo`
+  fixture, on a doc with a 9-node wide flowchart and a 1200 px SVG figure.
+  Light: page scrollWidth 390 (no page scroll); the diagram's pre is 356 px
+  wide and scrolls over 2,772 px (scrolled to 2,416); SVG scale 1.0, labels 16
+  px (fit-to-width would scale by 356/2756 = 0.13, about 2 px: computed, not
+  measured); the figure shows 358 px wide, right edge 374 = the column's.
+  Switching the system scheme to dark redrew the diagram (node fill
+  rgb(236,236,255) to rgb(31,32,32), body rgb(245,246,244) to rgb(20,25,23));
+  setting `data-theme="light"` redrew it light. With jsdelivr blocked, the
+  diagram drew from unpkg.com. Screenshots: ![light](pm-site-2-light.png)
+  ![light, scrolled](pm-site-2-light-scrolled.png) ![dark](pm-site-2-dark.png)
 
 ## Delivery report
 
