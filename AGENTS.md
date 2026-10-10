@@ -27,7 +27,7 @@ pm is one Go module (`go.mod`); the pytest suite in `tests/` is its black-box ha
 | `internal/config`, `buildinfo`, `proc`, `pyjson` | `.pm/config.toml` (every command fails hard without it or on another pinned version); the build's version; subprocess runs; JSON written as pm has always written it |
 | `release/build.sh`, `install.sh` | The release build: `build.sh OUT_DIR [pm-v<X>]` builds this machine's binary with `X` from the tag (else the `pm-v*` tag on HEAD, else `dev`) and packs `pm-<X>-<os>-<arch>.tar.gz`; `.github/workflows/pm-release.yml` runs it (Releasing pm). `install.sh`, a release asset with `@VERSION@` filled in, installs that release's binary to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` after checking it against `SHA256SUMS`, downloading as the launcher does (with curl or wget; the token path needs curl); `tests/test_release.py` runs both |
 | `tests/` | The harness: the pytest suite, its fakes and the live eval (below); `tests/render-pages` prints every page as the service renders it, for the harness's page tests. `pyproject.toml` and `uv.lock` are its environment |
-| `CHANGELOG.md`, `changelog.d/`, `release/changelog.py` | Released sections' notes, the unreleased changes' entry files, and their tool: `check`, `notes X`, `pr BASE`, `release X` (Releasing pm) |
+| `CHANGELOG.md`, `changelog.d/`, `release/changelog.py`, `release/merge_ready.py` | Released sections' notes, the unreleased changes' entry files, and their tool: `check`, `notes X`, `pr BASE`, `release X` (Releasing pm); the merge check, `make merge-ready PR=N` (Tests) |
 | `.github/workflows/` | CI (`pm-tests.yml`: the harness; `pm-go.yml`: the Go build and tests; `pm-changelog.yml`) on every PR and push to main, the release build test (`pm-release-build.yml`) when a change can alter the release build and on a `pm-v*` tag, the release (`pm-release.yml`) on a `pm-v*` tag, and a release's notes re-rendered by hand (`pm-release-notes.yml`). No branch tracks `records/`: records live only on the `records` branch |
 
 pm tracks its own development here, with the release that `.pm/config.toml` pins: the work store (the remote's
@@ -53,6 +53,15 @@ Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> -
 `.github/workflows/pm-tests.yml` runs the light set and the integration set as separate jobs on every PR and push to main.
 Do not run the whole integration set locally: CI runs it on every PR, and that run is the check. Push, then watch
 it; to reproduce a CI failure, run only the failing tests with `make test-full ARGS="-k …"`.
+
+Merge a PR only through `make merge-ready PR=<n>` (`release/merge_ready.py`), run right before the merge: it
+refuses, naming why, unless the PR is open, its head contains `origin/main` as the remote has it now, and every
+check on that head passed; then it prints `gh pr merge <n> --squash --match-head-commit <sha>`, which merges that
+head and no later push. Each PR's CI runs against main as main was when it ran, so two PRs that pass alone can break
+main together (two rules chunks that each fit the cap, together 18 characters over). A refused PR is rebased onto
+`origin/main`, pushed, and merged once its new CI passes. GitHub's merge queue does not exist for a user-owned repo,
+and branch protection's "require branches to be up to date" is a repo setting; this check needs neither.
+`tests/test_merge_ready.py` runs it against a local bare origin and the fake `gh`.
 
 Frozen expectations in the Go tests: `internal/site/golden_test.go` holds every page of
 `internal/site/testdata/constructs` (a fixture for each construct a page renders) to its copy under
