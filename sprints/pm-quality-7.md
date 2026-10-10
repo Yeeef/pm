@@ -77,6 +77,10 @@ None yet.
   (pm need dismiss is not listed in its noun's --help) and TestNeedDismiss (no
   store command).
 
+- Rules chunks with the six new nouns: 3,647 / 6,417 / 6,837 characters
+  against the 10,000 cap (16,737 without titles, +269 over main's recorded
+  16,468); no change to hooks.Starts needed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
