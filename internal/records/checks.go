@@ -133,6 +133,33 @@ func SprintRecord(recs []*Record, bead Value) *Record {
 	return nil
 }
 
+// MovedSprint is the record of the sprint that pm sprint move took from rel, a sprint record's old place
+// ("sprints/<project>-<n>"): the sprint whose move note says it was sprint n of that project. nil when no move names
+// rel. A project never mints a moved-away number again, so at most one sprint matches.
+func MovedSprint(recs []*Record, items *Items, rel string) *Record {
+	name, ok := strings.CutPrefix(rel, "sprints/")
+	if !ok {
+		return nil
+	}
+	projects := map[string]string{} // bead → name
+	for _, r := range recs {
+		if r.Type() == "project" {
+			projects[r.Bead()] = r.Name()
+		}
+	}
+	for _, it := range items.All() {
+		if it.Type != work.Sprint {
+			continue
+		}
+		for _, m := range work.SprintMoves(it) {
+			if p, ok := projects[m.From]; ok && fmt.Sprintf("%s-%d", p, m.FromNumber) == name {
+				return SprintRecord(recs, Value{Kind: KindStr, Str: it.ID})
+			}
+		}
+	}
+	return nil
+}
+
 // CheckGenerated fails on hand-written text in a generated section: a non-prompt line in Progress, or a heading the
 // renderer adds itself.
 func CheckGenerated(rec *Record) error {

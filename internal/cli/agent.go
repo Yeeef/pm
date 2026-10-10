@@ -191,6 +191,10 @@ func (r *repo) checkPlanned(writes []store.Write, items []work.Item) error {
 	err = func() error {
 		changes := map[string]*string{}
 		for _, w := range writes {
+			if w.Remove {
+				changes[w.Path] = nil
+				continue
+			}
 			text := w.Text
 			changes[w.Path] = &text
 		}

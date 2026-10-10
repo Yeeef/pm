@@ -30,6 +30,7 @@ var agentCommands = map[string]agentCommand{
 	"project close":  cmdProjectClose,
 	"sprint open":    cmdSprintOpen,
 	"sprint close":   cmdSprintClose,
+	"sprint move":    cmdSprintMove,
 	"decision add":   cmdDecisionAdd,
 	"decision need":  cmdDecisionNeed,
 	"decision close": cmdDecisionClose,
@@ -42,7 +43,8 @@ var agentCommands = map[string]agentCommand{
 // writes both stores takes (the pm-go page, Store access).
 var writes = map[string]bool{"finding add": true, "feedback add": true, "decision add": true, "decision need": true,
 	"decision close": true, "action need": true, "action done": true, "doc new": true, "design new": true,
-	"postmortem new": true, "project open": true, "sprint open": true, "sprint close": true, "task add": true,
+	"postmortem new": true, "project open": true, "sprint open": true, "sprint close": true,
+	"sprint move": true, "task add": true,
 	"task close": true, "task move": true, "commit": true}
 
 // runAgent runs an agent command as Python's main() does: the body from --text-file first (a slow pipe holds no

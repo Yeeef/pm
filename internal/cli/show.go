@@ -27,7 +27,7 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		rec, err := linkTarget(recs, e.records, p.Get("record"))
+		rec, err := linkTarget(e, recs, p.Get("record"))
 		if err != nil {
 			return "", err
 		}
@@ -117,7 +117,7 @@ func cmdRecordLink(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	rec, err := linkTarget(recs, e.records, p.Get("target"))
+	rec, err := linkTarget(e, recs, p.Get("target"))
 	if err != nil {
 		return "", err
 	}
@@ -229,10 +229,7 @@ func showDecisionsOf(rec *records.Record, level string) []showDecision {
 	return out
 }
 
-var (
-	showSprintNumber = regexp.MustCompile(`-(\d+)$`)
-	showListItem     = regexp.MustCompile(`(?m)^(?:[-*]|\d+\.) `)
-)
+var showListItem = regexp.MustCompile(`(?m)^(?:[-*]|\d+\.) `)
 
 // showDataOf is Python's show_data: every open project with its open sprints, tasks, needs, last decisions and
 // feedback, the push flags and today's summary.
@@ -275,11 +272,8 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 			rec := sprintRecs[sp.ID]
 			name := showShort(sp.ID, epic)
 			if rec != nil {
-				if m := showSprintNumber.FindStringSubmatch(rec.Name()); m != nil {
-					name = "sprint " + m[1]
-				} else {
-					name = "sprint " + rec.Name()
-				}
+				// by the store's number, not the record's file name, which a move cut short has not renamed yet
+				name = fmt.Sprintf("sprint %d", sp.Number)
 				for i, d := range showDecisionsOf(rec, name) {
 					d.order = len(decisions) + i
 					decisions = append(decisions, d)

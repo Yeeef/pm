@@ -156,7 +156,7 @@ func TestDesignDatesFollowRenamesAndCountChangesAsToday(t *testing.T) {
 func TestApplyCommitsOrRestores(t *testing.T) {
 	_, store := clone(t)
 	p := filepath.Join(store, "projects/demo.md")
-	if err := Apply(store, []Write{{p, project + "more\n"}}, "edit", "", "pm: "); err != nil {
+	if err := Apply(store, []Write{{Path: p, Text: project + "more\n"}}, "edit", "", "pm: "); err != nil {
 		t.Fatal(err)
 	}
 	if got := sh(t, store, "git log -1 --format=%s"); got != "pm: edit" {
@@ -167,7 +167,7 @@ func TestApplyCommitsOrRestores(t *testing.T) {
 	}
 	gitdir := sh(t, store, "git rev-parse --absolute-git-dir")
 	write(t, gitdir, "index.lock", "") // git add now fails
-	err := Apply(store, []Write{{p, "changed"}, {filepath.Join(store, "docs/new.md"), "new"}}, "edit", "bd delete x", "pm: ")
+	err := Apply(store, []Write{{Path: p, Text: "changed"}, {Path: filepath.Join(store, "docs/new.md"), Text: "new"}}, "edit", "bd delete x", "pm: ")
 	if err == nil || !strings.HasPrefix(err.Error(), "committing failed: git add -A -- projects/demo.md docs/new.md failed in ") ||
 		!strings.HasSuffix(err.Error(), "; restored records/projects/demo.md, records/docs/new.md to the state before this "+
 			"write; undo the work-store step with: bd delete x") {
@@ -186,7 +186,7 @@ func TestApplyNeverOverwritesARecordItCannotRead(t *testing.T) {
 	p := filepath.Join(store, "projects/demo.md")
 	os.Chmod(p, 0)
 	defer os.Chmod(p, 0o644)
-	err := Apply(store, []Write{{p, "changed"}}, "edit", "", "pm: ")
+	err := Apply(store, []Write{{Path: p, Text: "changed"}}, "edit", "", "pm: ")
 	if err == nil || !strings.HasSuffix(err.Error(), "; no record was changed") {
 		t.Errorf("Apply on an unreadable record: %v", err)
 	}
