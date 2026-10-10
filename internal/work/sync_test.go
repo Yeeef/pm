@@ -2,6 +2,7 @@ package work
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -705,4 +706,52 @@ func TestMoveSprintAcrossClonesKeepsTheOtherClonesWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	x.converge(t)
+}
+
+// Every fetch the host's Dolt runs into the remote's cache repo, under the store's .dolt, finishes the auto maintenance
+// it starts before it returns. git 2.47 on detaches that maintenance by default, and a detached one drops
+// objects/maintenance.lock while a clone walks .dolt, where Dolt's walk panics on the file gone ("clone: invalid
+// connection"). git's trace2 events name each maintenance a fetch starts, with --detach when it detaches.
+func TestTheHostsFetchLeavesNoMaintenanceRunning(t *testing.T) {
+	trace := filepath.Join(t.TempDir(), "git-trace2")
+	t.Setenv("GIT_TRACE2_EVENT", trace)
+	x := newPair(t) // A creates and pushes, B clones (a fetch into B's cache repo, then the walk of .dolt)
+	x.b.do(func(d *Dolt) { must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T3"})) })
+	b, err := os.ReadFile(trace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	argv, hierarchy := map[string][]string{}, map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		var e struct {
+			Event, SID, Hierarchy string
+			Argv                  []string
+		}
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("%v: %s", err, line)
+		}
+		switch e.Event {
+		case "start":
+			argv[e.SID] = e.Argv
+		case "cmd_name":
+			hierarchy[e.SID] = e.Hierarchy
+		}
+	}
+	started, detached := 0, 0
+	for sid, h := range hierarchy {
+		if h != "fetch/maintenance" {
+			continue
+		}
+		started++
+		if slices.Contains(argv[sid], "--detach") {
+			detached++
+		}
+	}
+	if started == 0 {
+		t.Fatal("no fetch started its auto maintenance; git's trace2 logged none")
+	}
+	if detached > 0 {
+		t.Fatalf("%d of %d auto maintenances the host's fetches started were detached", detached, started)
+	}
+	t.Logf("%d auto maintenances started by a fetch, none detached", started)
 }

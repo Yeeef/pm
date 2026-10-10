@@ -8,6 +8,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -113,6 +115,9 @@ func NewHost(o HostOptions) (*Host, error) {
 	if err := os.Setenv(infoBranchEnv, ""); err != nil { // read when the engine first reaches the remote
 		return nil, fmt.Errorf("work store: %w", err)
 	}
+	if err := gitMaintenanceAttached(); err != nil {
+		return nil, fmt.Errorf("work store: %w", err)
+	}
 	// The server logs every connection and every failed query (a refusal) at info and warning; pm's commands report
 	// their own errors, so only the server's errors reach the service log.
 	logrus.SetLevel(logrus.ErrorLevel)
@@ -129,6 +134,39 @@ func NewHost(o HostOptions) (*Host, error) {
 	}
 	close(h.ready)
 	return h, nil
+}
+
+// gitMaintenanceAttached makes every git this process runs finish its auto maintenance before it exits, as git did
+// before 2.47 made it detach by default (maintenance.autoDetach, falling back to gc.autoDetach). Dolt runs git in the
+// remote's cache repo under the store's .dolt, and a detached maintenance takes and drops objects/maintenance.lock
+// after the git that started it returned: a clone's walk of .dolt (Dolt's CanCreateDatabaseAtPath) that lists the
+// lock and finds it gone at its lstat panics on the nil file info, and the clone fails with "invalid connection".
+// The settings go through git's GIT_CONFIG_COUNT environment, after any already there.
+func gitMaintenanceAttached() error {
+	n := 0
+	if v := os.Getenv("GIT_CONFIG_COUNT"); v != "" {
+		var err error
+		if n, err = strconv.Atoi(v); err != nil {
+			return fmt.Errorf("GIT_CONFIG_COUNT=%q is not a number", v)
+		}
+	}
+	set := map[string]bool{}
+	for i := range n {
+		if os.Getenv(fmt.Sprintf("GIT_CONFIG_VALUE_%d", i)) == "false" {
+			set[strings.ToLower(os.Getenv(fmt.Sprintf("GIT_CONFIG_KEY_%d", i)))] = true
+		}
+	}
+	for _, key := range []string{"maintenance.autodetach", "gc.autodetach"} {
+		if set[key] {
+			continue
+		}
+		if err := errors.Join(os.Setenv(fmt.Sprintf("GIT_CONFIG_KEY_%d", n), key),
+			os.Setenv(fmt.Sprintf("GIT_CONFIG_VALUE_%d", n), "false")); err != nil {
+			return err
+		}
+		n++
+	}
+	return os.Setenv("GIT_CONFIG_COUNT", strconv.Itoa(n))
 }
 
 // load opens the engine on the store directory, as dolthub/driver's connector does, failing fast when another
