@@ -85,6 +85,18 @@ None yet.
   service restart; pm service restart exit 0 in 0.46 s, is-enabled=enabled,
   is-active=active, pm show exit 0.
 
+- --text=Live check, same scratch clone: with the service stopped and one
+  unsynced work-store commit (pm project open), pm uninstall refused in 0.14 s
+  ('holds 1 commit(s) origin's refs/pm/work lacks') through its own pm service
+  run, leaving no process behind; after pm service restart, pm sync (pushed 1
+  commit) and pm service stop, pm uninstall succeeded in 0.29 s and removed
+  the disabled unit (systemctl: unit could not be found). pm record link
+  --local demo printed http://127.0.0.1:58259/projects/demo.html, which
+  answered 200. pm doctor on a scratch clone pinned 0.3.0 against the real
+  GitHub API printed 'release: pm 0.4.0 is out, newer than this repo's pin
+  0.3.0; what changed: https://github.com/Yeeef/pm/releases/tag/pm-v0.4.0 ...'
+  with exit 0.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
