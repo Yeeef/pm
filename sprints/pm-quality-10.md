@@ -148,7 +148,7 @@ Owner in chat, 2026-10-10: why make it more complicated; that agent should not r
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: the owner-request judge gives every labelled case its verdict 3/3, including the reported non-requests and all 40 existing cases, and `pm hook stop` leaves out a record only a running subagent's prompt names; PR #25, pending merge.
+done: the owner-request judge gives every labelled case its verdict 3/3, including the reported non-requests and all 40 existing cases, and `pm hook stop` leaves out a record only a running subagent's prompt names; PR #25, merged as 2911a04.
 
 - 23 new cases in `tests/owner_request_cases.json` (40 to 63): one per reported sentence (7), the five status lines from the coordinator's session as written (block) each with a form that names the agent as the actor (pass), and six contrast cases.
 - One rule in three texts (judge prompt, block reason, `prime.md`): a PR review or merge pending with no actor named asks the owner; naming the agent or its subagents is a plan; a request cited by its id as open on the site is a report, whichever session holds it; asking again for an open request blocks (owner: option mine), and the block says to drop the ask or name the request's id, never to raise a duplicate.
