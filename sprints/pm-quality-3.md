@@ -53,6 +53,11 @@ Fix the GC journal flake by building with Dolt b130ee82ebe9 (dolthub/dolt#11312)
 The race is inside Dolt journal (any journal re-creation during a prune hits it, not only the fetch); upstream fix fails-before/passes-after 20/20; a GC that waits on sync deadlocks, since DOLT_GC waits for sessions mid-statement (host.go:328-332).
 :::
 
+::: decision {source=agent date=2026-10-10}
+CI runs the Go tests with GOFLAGS=-count=1, and saves the Go caches on pushes to main plus once per PR whose go.sum has no saved cache.
+A refreshed cache would otherwise let cached test results stand in for test runs; saving on every PR run costs upload time on each job, while a go.sum change otherwise stays cold for every push of its PR.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
