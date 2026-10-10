@@ -15,7 +15,8 @@ type Store interface {
 	// Create writes a new item and returns it: its id minted under the parent (a root id for a project), and a
 	// sprint's number one above its project's highest.
 	Create(n New) (Item, error)
-	// Edit sets the title and the description; nil leaves one as it is.
+	// Edit sets the title and the description; nil leaves one as it is. A need's description is fixed once the need is
+	// closed or holds a reply.
 	Edit(id string, title, description *string) error
 	// Close closes an open item: its reason, resolution and closing session; it clears the holder.
 	Close(id, reason string, resolution Resolution, session string) error

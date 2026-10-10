@@ -1005,9 +1005,13 @@ func (d *Dolt) update(verb, id string, fn func(it *Item, x *Index) error) error 
 	})
 }
 
-// Edit sets the title and the description; nil leaves one as it is.
+// Edit sets the title and the description; nil leaves one as it is. A need's description is what the owner answers,
+// so it is fixed once the need is closed or holds a reply, checked in the write's transaction.
 func (d *Dolt) Edit(id string, title, description *string) error {
 	return d.update("edit", id, func(it *Item, _ *Index) error {
+		if description != nil && it.Type == Need && (it.Status == Closed || HasReply(it)) {
+			return itemError(id, "is a need that is closed or holds a reply; its description stays as the owner saw it")
+		}
 		if title != nil {
 			it.Title = *title
 		}

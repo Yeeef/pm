@@ -219,6 +219,35 @@ func TestClaimIsACompareAndSet(t *testing.T) {
 	}
 }
 
+// A need's description is what the owner answers: Edit refuses it, in the write's transaction, once the need holds a
+// reply or is closed; its title, and a task's description, stay editable.
+func TestEditKeepsAnAnsweredNeedsDescription(t *testing.T) {
+	d, _ := newStore(t)
+	_, _, task, need := seed(t, d)
+	desc, title := "new body", "N, renamed?"
+	if err := d.Edit(need.ID, nil, &desc); err != nil || get(t, d, need.ID).Description != desc {
+		t.Fatalf("an open need without a reply: %v", err)
+	}
+	must(d.Comment(need.ID, Reply, "owner", "yes"))
+	other := "another body"
+	if err := d.Edit(need.ID, nil, &other); err == nil || !strings.Contains(err.Error(), "holds a reply") {
+		t.Fatalf("a need with a reply took a new description: %v", err)
+	}
+	if err := d.Edit(need.ID, &title, nil); err != nil || get(t, d, need.ID).Title != title {
+		t.Fatalf("the title: %v", err)
+	}
+	closed := must(d.Create(New{Type: Need, Parent: task.ID, Title: "M?", Need: &NeedInfo{Kind: Action}}))
+	if err := d.Close(closed.ID, "moot", Dismissed, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Edit(closed.ID, nil, &other); err == nil || get(t, d, closed.ID).Description != "" {
+		t.Fatalf("a closed need took a new description: %v", err)
+	}
+	if err := d.Edit(task.ID, nil, &other); err != nil {
+		t.Fatalf("a task's description: %v", err)
+	}
+}
+
 func TestCreateMintsIdsAndSprintNumbers(t *testing.T) {
 	d, _ := newStore(t)
 	p, s1, task, _ := seed(t, d)
