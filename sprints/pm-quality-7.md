@@ -86,6 +86,13 @@ None yet.
   with the installed release (0.5.0's pin) stored the literal "--text=" as
   this sprint's second finding, fixed here by hand.
 
+- PR #30 CI: race (darwin-arm64) failed once on a DATA RACE in
+  internal/service's test, untouched here:
+  TestAReplyIsSpooledStoredOnceAndPushedIntoTheSessionsInbox reads the
+  fakeStore (run_test.go:394) while the service's writer goroutine writes it
+  through fakeStore.UpdateNeed (fake_test.go:140) with no lock; linux race and
+  local make test-go passed. Rerun once with gh run rerun --failed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
