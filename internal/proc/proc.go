@@ -1,7 +1,6 @@
 // Package proc runs a command as Python pm's subprocess.run(capture_output=True, text=True, timeout=…) does, and
 // reports a failure to start or a timeout as the Python exception would: its type name and its str(). pm prints both
-// in hook lines and refusals ("pm show did not run at session start (FileNotFoundError: [Errno 2] …)"), and parity
-// with Python pm holds those lines.
+// in hook lines and refusals ("pm show did not run at session start (FileNotFoundError: [Errno 2] …)").
 package proc
 
 import (

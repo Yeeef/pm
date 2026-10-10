@@ -2,7 +2,7 @@ package records
 
 import "strings"
 
-// The prompt line(s) each section opens with, by record type; Python's *_PROMPTS in cli.py.
+// The prompt line(s) each section opens with, by record type.
 var (
 	SprintPrompts = map[string]string{
 		"Goal": "> What should be true when this sprint ends, and why now?",

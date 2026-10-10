@@ -18,8 +18,7 @@ import (
 )
 
 // The commands that carry the owner's needs and replies: decisions recorded or asked for, actions and PR reviews
-// raised and closed, and replies read. Python source: cmd_decision_add, cmd_decision_need, cmd_decision_close,
-// cmd_action_need, cmd_action_done, cmd_reply_read and their helpers in cli.py. Each refuses before any write. A site
+// raised and closed, and replies read. Each refuses before any write. A site
 // reply only adds a reply comment; a need stays open until a session records it with one of these commands, which close
 // it with its resolution (the work-store page, Commands).
 

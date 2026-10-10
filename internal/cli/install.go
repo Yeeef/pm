@@ -22,8 +22,7 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 )
 
-// pm init, pm doctor, pm upgrade, pm uninstall and the git hooks. Python source: cmd_init, init_steps, cmd_doctor,
-// cmd_upgrade, cmd_uninstall and hook_git_post_checkout in cli.py, hook_git_pre_commit in hooks.py. The pieces and
+// pm init, pm doctor, pm upgrade, pm uninstall and the git hooks. The pieces and
 // the clone's setup are internal/install's.
 
 // latest is how to install the newest Go pm release, whose launcher launches any pin: its install.sh (install.sh).

@@ -21,7 +21,7 @@ import (
 )
 
 // pm day summarize: yesterday's and today's summary, each asked of the model when the day's activity changed since its
-// stored summary. Python source: summarize_day, summarize_one, day_activity_text and ask_model in cli.py.
+// stored summary.
 
 const (
 	summaryModel   = "claude-haiku-5-5"

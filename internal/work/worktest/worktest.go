@@ -1,7 +1,6 @@
 // Package worktest holds the work store's test doubles: Serve, a real store served by a host on a short temp clone
 // directory, for tests that need one; and Store, a read-only work.Store over a fixed list of items, for tests of the
-// code that reads items (the records, the site, pm check). The items come as pm export gives them; the parity corpus
-// feeds them from bd issues through the neutral-test mapper (tests/work_items.py).
+// code that reads items (the records, the site, pm check). The items come as pm export gives them.
 package worktest
 
 import (

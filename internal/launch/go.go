@@ -11,8 +11,7 @@ package launch
 // pins/<pin>/sha256, if any: a release is never rebuilt, so a difference fails hard. The binary, then its sha256, is
 // written to a temp file and renamed into place, so another launch sees no file or the whole one; nothing is written
 // under pins/ before the tarball has passed every check. Every failure is a hard error naming the release and the URL;
-// nothing falls back to another version. The texts are launch.py's (the bridge release's), which test_launch.py holds
-// for both.
+// nothing falls back to another version; tests/test_launch.py holds the texts.
 
 import (
 	"archive/tar"

@@ -1,6 +1,4 @@
-// Code moved verbatim from the argparse tree in src/pm/cli.py (parser()): every command, its help, description and
-// arguments, in the order Python defines them. A help text changes here and in cli.py together; the parity test
-// compares every command's --help with Python pm's.
+// Every command, its help, description and arguments, in the order pm --help lists them.
 
 package cli
 

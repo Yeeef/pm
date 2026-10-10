@@ -2,7 +2,7 @@
 //
 // Every hook fails open: it exits 0 and says on stderr why it let the event through, because a broken hook must never
 // stop a session from starting or an agent from stopping. The exception runs before any hook: pm's check of the repo's
-// .pm/config.toml, which fails hard. Python source: hooks.py; every line pm prints here is byte-identical to it.
+// .pm/config.toml, which fails hard.
 package hooks
 
 import (
@@ -21,11 +21,13 @@ import (
 )
 
 const (
-	Cap          = 10_000 // Claude Code's additionalContext limit, in characters (runes, as Python's len counts)
-	timeout      = 20     // seconds; pm show takes about 1 s
-	initTimeout  = 18     // seconds; see INIT_TIMEOUT in hooks.py
-	whereTimeout = 3      // seconds; pm where takes about 0.5 s
-	budget       = 28     // seconds for init, where and show together, under the state hook's 30 s timeout
+	Cap     = 10_000 // Claude Code's additionalContext limit, in characters (runes, as Python's len counts)
+	timeout = 20     // seconds; pm show takes about 1 s
+	// seconds; pm init in a set-up clone takes about 1 s, and one that installs a missing pm service waits up to 15 s
+	// for its site (session start never restarts an installed one)
+	initTimeout  = 18
+	whereTimeout = 3  // seconds; pm where takes about 0.5 s
+	budget       = 28 // seconds for init, where and show together, under the state hook's 30 s timeout
 	header       = "Project state from `pm show` at session start, %s UTC: a snapshot to orient by, which other " +
 		"sessions may have changed since; run `pm show` again before stating project state to the owner.\n\n"
 	cut = "\n… cut at the hook's 10,000-character limit; run `pm show` for the rest."
@@ -34,7 +36,11 @@ const (
 // Machinery is what the runtimes and the scheduler call, not agents: left out of the command list.
 var Machinery = map[string]bool{"prime": true, "hook": true, "push": true}
 
-// Starts are where Chunks cuts Head: the heading line each chunk starts with. See STARTS in hooks.py.
+// Starts are where Chunks cuts Head: the heading line each chunk starts with. Claude Code passes each hook's
+// additionalContext inline only up to Cap characters (longer reaches the model as a 2 KB preview and a file path), so
+// the rules run as one hook per chunk. The hooks of one entry run in parallel and arrive in any order, so each chunk
+// starts with a title naming its place and its sections. The hook entries name each chunk by number: a new chunk is a
+// new hook entry in every runtime's settings.
 var Starts = []string{"# pm rules", "# How"}
 
 // Self is the pm that pm prime --state runs for init, where and show: this binary, as Python runs its own

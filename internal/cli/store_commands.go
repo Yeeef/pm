@@ -21,8 +21,7 @@ import (
 // ready, edit and release, dep add and rm, comment add, need dismiss, reply add, sync, and two forms of commands Python
 // has: pm show ID and pm task add --parent TASK). Each connects to the pm service that holds the store once, and
 // disconnects at exit.
-// Like pm export they stay out of the argparse tree, whose help and noun list the parity tests hold equal to Python
-// pm's, until Python pm is deleted.
+// Like pm export they stay out of the command tree in commands.go, which pm --help and pm prime's noun list read.
 
 // storeCommand is one of them.
 type storeCommand struct {

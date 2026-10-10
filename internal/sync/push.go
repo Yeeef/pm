@@ -1,7 +1,7 @@
 // Package sync is the push the pm service runs every Interval: the work store's sync, today's summary and the records
 // branch, so no session pushes either. Each run records the outcome of each step's last attempt in a state file in the
 // clone's runtime directory (.pm/run/, never committed) and appends a line per step to a log beside it; pm where, pm
-// service status and the served site read the state to flag a failed or overdue push. Python source: push.py.
+// service status and the served site read the state to flag a failed or overdue push.
 package sync
 
 import (

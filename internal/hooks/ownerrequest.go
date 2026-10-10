@@ -6,7 +6,7 @@ package hooks
 // `claude -p` to list the owner requests in the reply and the open need each one matches; a request that matches none,
 // or a needless ask for leave to take an authorized step, blocks the stop once. On stop_hook_active, or a blank reply,
 // it lets the stop through without reading anything. It fails hard, never silently: when the input is unusable, or the
-// work store or claude fails, it exits 1 with the cause on stderr. Python source: owner_request.py.
+// work store or claude fails, it exits 1 with the cause on stderr.
 
 import (
 	"errors"

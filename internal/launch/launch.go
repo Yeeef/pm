@@ -1,5 +1,5 @@
 // Package launch is the launcher: the pm binary installed on a machine runs each repo's pinned pm version, so repos on
-// different pins share one machine (the pm-go page, Distribution). Python source: launch.py.
+// different pins share one machine (the pm-go page, Distribution).
 //
 // main calls Launch before anything else. It reads only `version` in the repo's .pm/config.toml (config.Root picks the
 // checkout, as every command does) and runs the command in this process when there is no readable pin, when the pin is
