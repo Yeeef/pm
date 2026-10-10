@@ -71,10 +71,18 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the pm service's change check, and the record reads of the Load after it, leave out a record file, directory or day summary that a records sync removed between listing and reading it, so the site no longer serves "no such file or directory" in place of every page while git rewrites the records.
+
+- `servedSite.Stamp()`, `records.Texts` and `records.ReadSummaries` skip a path gone when read (`fs.ErrNotExist`; the store root still fails hard).
+- A git-checkout race test over 200 record files for `Stamp()` and `Texts()`, and a dangling-link test for `ReadSummaries`.
+- A CHANGELOG entry under `[Unreleased]` / Fixed. PR #15, pending merge.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| The new test fails on main and passes with the fix | met | `go test -tags gms_pure_go ./internal/cli/ -run TestStampAndTexts -v`: with the fix stashed, 3 runs failed with Stamp() errors 44, 38, 33 and Texts errors 45, 36, 45 of 144-148 calls each; with the fix, 5 runs passed with 0 and 0 of 131-134 calls each, 0.57 s a run |
+| `go test -tags gms_pure_go ./internal/cli/ ./internal/service/` passes | met | ok for `internal/cli`, `internal/service`, `internal/records`, `internal/site`, `internal/store`; `make test`: 112 passed, 40 skipped; CI on PR #15 |
+| The PR is on main | pending | PR #15, pending merge; the coordinator merges |
