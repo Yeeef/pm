@@ -152,18 +152,18 @@ Owner in chat, 2026-10-10: why make it more complicated; that agent should not r
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: the owner-request judge passes every reported non-request on 15 new labelled cases and keeps all 40 existing verdicts, and `pm hook stop` leaves out a record only a running subagent's prompt names; PR #25, pending merge.
+done: the owner-request judge gives every labelled case its verdict 3/3, including the reported non-requests and all 40 existing cases, and `pm hook stop` leaves out a record only a running subagent's prompt names; PR #25, pending merge.
 
-- 15 new cases in `tests/owner_request_cases.json`: one per reported sentence (7), five from the coordinator's session of 2026-10-10, and three contrast cases (two block, one pass).
-- One rule in three texts, changed in one commit: the judge prompt, the block reason and `prime.md`'s request rule.
-- The judge's list stays this session's needs (owner: option mine); a reply that asks again for another session's need blocks, and the block reason says to drop the ask or report the need as open, never to raise a duplicate.
+- 23 new cases in `tests/owner_request_cases.json` (40 to 63): one per reported sentence (7), the five status lines from the coordinator's session as written (block) each with a form that names the agent as the actor (pass), and six contrast cases.
+- One rule in three texts (judge prompt, block reason, `prime.md`): a PR review or merge pending with no actor named asks the owner; naming the agent or its subagents is a plan; a request cited by its id as open on the site is a report, whichever session holds it; asking again for an open request blocks (owner: option mine), and the block says to drop the ask or name the request's id, never to raise a duplicate.
 - `pm hook stop` leaves out a path named only by the prompt of a subagent call that has not returned.
+- main's rules outgrew the hook cap: the rules now run as three chunks.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- At least 7 new cases, one per reported sentence: met. 15 new cases (40 to 55), each named after its feedback entry; the 2026-10-08 21:47 entry holds two sentences, so two cases. The formal-methods 2026-10-10 03:31 summary, which restates another session's needs as instructions, is labelled block under the owner's choice mine; a case that reports those needs as open without asking is labelled pass.
-- `make test-live` with `PM_LIVE_RUNS=3` passes every case 3/3: met. All 55 cases 3/3 in two full runs (165 hook runs each; per run median 1.90 s and 1.91 s, max 11.73 s and 7.31 s). Baseline before the change: 6 of the first 9 new cases failed.
+- At least 7 new cases, one per reported sentence: met. 23 new cases (40 to 63), each named after its feedback entry or review finding; the 2026-10-08 21:47 entry holds two sentences, so two cases. The formal-methods 2026-10-10 03:31 summary, which tells the owner to do another session's needs, is labelled block (option mine); a reply that reports them as open by id is labelled pass.
+- `make test-live` with `PM_LIVE_RUNS=3` passes every case 3/3: met. All 63 cases 3/3 in three full runs (189 hook runs each; per run median 2.09 s, 2.05 s and 2.09 s; max 9.80 s, 9.32 s and 7.83 s). Baseline before the change: 6 of the first 9 new cases failed.
 - A harness test of `pm hook stop` shows no block for a path named only by a running subagent call and a block for the same path edited by the session's own call: met. `test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names` (running, returned, own edit, both); its running case fails on the old code. Go: `TestTouchedCountsASubagentsPathOnceItsCallReturns`.
-- `make test` and the PR's CI pass: `make test` passes after the rebase onto main; CI on PR #25: the macOS Go job failed once on the known Dolt journal-writer panic in `internal/work` (not touched here) and was rerun; on the branch rebuilt on main (head 47a9ded) every check passes: light, integration, changelog, Go build and tests on linux-amd64 and darwin-arm64.
+- `make test` and the PR's CI pass: `make test` passes on head d242761; CI on that head: pending at this writing.
