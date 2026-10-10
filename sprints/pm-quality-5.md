@@ -59,7 +59,11 @@ A fixed path makes a second doc impossible for pm to write, and the title check 
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- --text=This repo's two feedback docs hold 24 entries (22 pm-harness, 2
+  pm-quality) on 2026-10-10 13:10 UTC, and 0.3.0 keeps appending to them until
+  the release ships: the pm-harness doc gained one entry (13:04 UTC) while
+  this sprint ran. So the merge (.5.2) is a script rerun at apply time, not a
+  frozen file.
 
 ## Delivery report
 
