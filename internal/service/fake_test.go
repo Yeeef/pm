@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -73,7 +74,21 @@ func (w *fakeWork) GC(ctx context.Context) error {
 func (w *fakeWork) item(id string) work.Item {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return *w.items[id]
+	return deep(w.items[id])
+}
+
+// deep is a copy of it that shares nothing with it (its Need, Holder, Comments and the rest), read under the fake's
+// lock: a caller reads it after the lock is gone while the service's goroutines write the fake's own.
+func deep(it *work.Item) work.Item {
+	b, err := json.Marshal(it)
+	if err != nil {
+		panic(err)
+	}
+	var out work.Item
+	if err := json.Unmarshal(b, &out); err != nil {
+		panic(err)
+	}
+	return out
 }
 
 func (w *fakeWork) set(it work.Item) {
@@ -101,7 +116,7 @@ func (s *fakeStore) Items() ([]work.Item, error) {
 	s.w.reads++
 	var out []work.Item
 	for _, it := range s.w.items {
-		out = append(out, *it)
+		out = append(out, deep(it))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
@@ -118,7 +133,7 @@ func (s *fakeStore) Get(ids ...string) ([]work.Item, error) {
 		if !ok {
 			return nil, fmt.Errorf("no item %s", id)
 		}
-		out = append(out, *it)
+		out = append(out, deep(it))
 	}
 	return out, nil
 }
