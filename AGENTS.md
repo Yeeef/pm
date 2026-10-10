@@ -55,8 +55,9 @@ Do not run the whole integration set locally: CI runs it on every PR, and that r
 it; to reproduce a CI failure, run only the failing tests with `make test-full ARGS="-k …"`.
 
 Merge a PR only through `make merge-ready PR=<n>` (`release/merge_ready.py`), run right before the merge: it
-refuses, naming why, unless the PR is open, its head contains `origin/main` as the remote has it now, and every
-check on that head passed; then it prints `gh pr merge <n> --squash --match-head-commit <sha>`, which merges that
+refuses, naming why, unless the PR is open, its head contains `origin/main` as the remote has it now, every check
+on that head passed (a check that ran twice there, re-run or cancelled by a later run, by its latest run), and each
+workflow that runs on every PR (a `pull_request` trigger without `paths`) has its checks there; then it prints `gh pr merge <n> --squash --match-head-commit <sha>`, which merges that
 head and no later push. Each PR's CI runs against main as main was when it ran, so two PRs that pass alone can break
 main together (two rules chunks that each fit the cap, together 18 characters over). A refused PR is rebased onto
 `origin/main`, pushed, and merged once its new CI passes. GitHub's merge queue does not exist for a user-owned repo,

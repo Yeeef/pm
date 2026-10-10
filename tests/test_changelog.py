@@ -190,6 +190,19 @@ def test_release_writes_x_s_section_above_the_newest_with_its_link():
         changelog.release(text(), entries, "0.3.0", "2026-10-10", " ")
 
 
+def test_release_wraps_the_summary_so_no_line_starts_a_list_item():
+    summary = " ".join(["abc"] * 29) + "d 2. step and - more"  # at 118, the second line would start '2. step'
+    assert len(summary.split(" 2.")[0]) == 116
+    lines = changelog.wrap(summary)
+    assert all(len(line) <= changelog.WIDTH for line in lines) and " ".join(lines) == summary
+    assert not any(line.startswith(("- ", "#")) or changelog.STEP.match(line) for line in lines[1:])
+    entries = [changelog.parse_entry("a.md", "### Fixed\n\n- Fix A.\n")]
+    log = changelog.parse(changelog.release(text(), entries, "0.3.0", "2026-10-10", summary))
+    assert changelog.notes(log, [], "0.3.0").startswith(summary + "\n\n### Upgrade guide")
+    with pytest.raises(changelog.ChangelogError, match="reword it"):
+        changelog.wrap("x" * 116 + " 2. step")  # no width keeps '2.' off a line's start
+
+
 def test_a_change_that_ships_needs_an_entry_file():
     shipping = ["internal/work/dolt.go", "tests/test_pm.py"]
     assert changelog.needs_entry(shipping, shipping) == ["internal/work/dolt.go"]

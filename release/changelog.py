@@ -289,6 +289,16 @@ def notes(log: Changelog, entries: list[Section], version: str) -> str:
     return section.body()
 
 
+def wrap(text: str) -> list[str]:
+    """text wrapped at WIDTH or less, so that no line but the first starts as a list item or a heading would: the
+    notes would keep it as one."""
+    for width in range(WIDTH, WIDTH // 2, -1):
+        lines = textwrap.wrap(text, width, break_long_words=False, break_on_hyphens=False)
+        if not any(line.startswith(("- ", "#")) or STEP.match(line) for line in lines[1:]):
+            return lines
+    raise ChangelogError("the summary breaks into a list item or heading at every width; reword it")
+
+
 def release(text: str, entries: list[Section], version: str, date: str, summary: str) -> str:
     """CHANGELOG.md with release X's section, assembled from the entry files, above the newest release, and its link
     reference above the others."""
@@ -301,7 +311,7 @@ def release(text: str, entries: list[Section], version: str, date: str, summary:
         raise ChangelogError(f"{ENTRIES}/ holds no entries: release {version} would have nothing to say")
     if not summary.strip():
         raise ChangelogError("a release opens with a summary paragraph: give it with --summary")
-    section = assemble(version, entries, date, tuple(textwrap.wrap(summary, WIDTH)))
+    section = assemble(version, entries, date, tuple(wrap(summary)))
     newest = log.sections[0].name if log.sections else None
     link = f"[{version}]: " + (f"{REPO}/compare/pm-v{newest}...pm-v{version}" if newest
                                else f"{REPO}/releases/tag/pm-v{version}")
@@ -361,8 +371,8 @@ def main(argv: list[str]) -> int:
                   "summary and upgrade guide, then commit it with the deletions")
         else:
             base = git("merge-base", a.base, "HEAD").strip()
-            paths = git("diff", "--name-only", f"{base}..HEAD").split()
-            written = git("diff", "--name-only", "--diff-filter=AM", f"{base}..HEAD").split()
+            paths = git("diff", "--name-only", "--no-renames", f"{base}..HEAD").split()  # a rename: both names
+            written = git("diff", "--name-only", "--no-renames", "--diff-filter=AM", f"{base}..HEAD").split()
             if missing := needs_entry(paths, written):
                 raise ChangelogError(
                     "this change touches what a release ships (" + ", ".join(missing[:5]) +
