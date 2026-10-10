@@ -101,10 +101,20 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: every command pm runs is a command of the tree, so `pm --help`, each `pm <noun> --help` and `pm prime`'s noun list name it, and a test fails when one is not; PR #30, pending merge.
+
+- The work-store commands (`task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`) are tree leaves carrying their own flags and help, unchanged; the store-command table is derived from the tree, so none can exist outside `pm --help`. `pm version` and `pm export [--store DIR]` are tree commands, and `--import-bd`/`--import` are `pm init` arguments. Only `pm show ID` and `pm task add --parent` are routed before the tree, and their tree command's help names them.
+- `internal/cli/commands_test.go`: walks the tree through `pm … --help`, every store command and every agent command body.
+- `pm decision close` (refusal and `--help`) and `pm need dismiss`'s help name dismiss for a need that became moot; `pm task claim --help` states that `--session` wins over the environment.
+- `pm finding add` takes `--text`/`--text-file`, refuses both forms at once and a positional text starting with `--`.
+- Not done: `pm dep` and `pm need` with no subcommand give the usage error naming their subcommands (`usage: pm dep [-h] {add,rm} ...`, exit 2), as every other noun does, rather than printing the full help (Scope's wording).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `pm dep --help` and `pm need --help` exit 0 and list their subcommands; `pm --help` lists `dep` and `need`; `pm task --help` lists `ready`, `edit`, `release`: met. `.go/pm dep --help` exit 0 lists `{add,rm}`; `pm need --help` lists `{dismiss}`; `pm --help` usage `{show,…,need,…,dep,comment,…,sync,…,export,version,…}`; `pm task --help` usage `{add,close,claim,move,ready,edit,release}`. Harness: `test_pm_help_lists_the_commands_that_ran_outside_the_command_tree`.
+- The new test walks `storeCommands` and `goOnly`'s names and passes; removing one command from the tree makes it fail: met. `goOnly` is gone (its names are tree commands); `TestEveryCommandPmRunsIsListedInHelp` and `TestTheCommandsOnceOutsideTheTreeAreInIt` pass; deleting the `need` noun from `commands.go` fails the latter ("pm need dismiss is not listed in its noun's --help") and `TestNeedDismiss`.
+- `pm prime` lists `dep` and `need`, and `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` passes: met. Noun list now 29 nouns incl. `need`, `dep`; chunks 3,647 / 6,417 / 6,837 characters (cap 10,000); `test_prime_lists_every_agent_command_pm_help_lists` and the chunks test pass.
+- A harness test shows `pm task claim --session X` records X with `$CLAUDE_CODE_SESSION_ID` set, and the help says so: met. `test_task_claim_records_the_session_given_with_session_even_with_one_in_the_environment`.
+- `make test`, `make test-go` and the PR's CI pass: met locally (`make test` 131 passed, 63 skipped live-model tests; `make test-go` pass). CI on PR #30: all jobs pass except one `race (darwin-arm64)` run that failed on a data race in `internal/service`'s test fake (untouched here; see Findings), rerun once; result at merge time.
