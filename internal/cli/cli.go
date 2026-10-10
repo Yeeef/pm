@@ -513,7 +513,7 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 	name := p.cmd.path()
 	check := name != "upgrade" && name != "version" && name != "export" // pm export checks it, but not with --store
-	if name == "init" { // pm init writes a missing config
+	if name == "init" {                                                 // pm init writes a missing config
 		root, err := config.Root(here)
 		if err != nil {
 			return err
