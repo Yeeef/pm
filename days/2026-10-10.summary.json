@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T04:06:35+00:00",
- "digest": "fe90b1bb203ab24b",
+ "generated_at": "2026-10-10T04:35:23+00:00",
+ "digest": "3e31c3553cfcb30f",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm replaces Python pm:** The harness repository no longer contains Python pm, and the Linux server now runs Go pm. Tracking moved to Yeeef/pm, and every item moved unchanged.\n- **Owner-request rules:** Agents now try to finish an owner request themselves first. Requests without a sprint or task get one opened first.\n- **Release notes:** Each release note now comes from its changelog section, with an upgrade guide. CI rejects a pull request or release tag that lacks one.\n- **For you:** Review the open pull requests for the import command, the move's init files, and the next release."
+ "text": "- **Go pm takes over:** Harness tracking moved to the pm repository, and the Linux server now runs Go pm. The Python pm is deleted from yeeef-agents.\n- **Release notes enforced:** Every pm release now carries a structured release note from its changelog section. CI refuses a pull request or release tag without one.\n- **Owner-request rule:** The owner-request hook now applies one rule. Agents act first, open a tracked item before any need, and ask through structured prompts.\n- **For you: Review the pm init and import changes:** Pull requests for pm init, import, and init files wait for your review."
 }
