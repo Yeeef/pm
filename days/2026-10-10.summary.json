@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T14:38:07+00:00",
- "digest": "aaf91ba3ead835ca",
+ "generated_at": "2026-10-10T14:48:27+00:00",
+ "digest": "5bdcc02140bd40be",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm only:** Python pm is gone from Yeeef/pm and yeeef-agents. Both clones, including the Linux server, run Go pm. The pm-harness project is now tracked in Yeeef/pm.\n- **pm releases and commands:** Each new Go pm release needs a structured release note, and CI enforces it. New commands move a sprint between projects and remove unused agent worktrees.\n- **Site diagrams and pages:** Wide diagrams scroll sideways on phones and keep readable labels. The site no longer shows missing-file errors while git rewrites records.\n- **CI and test reliability:** An intermittent garbage-collection test failed because of a Dolt bug. pm now builds with Dolt's fix, and Go tests run in parallel jobs."
+ "text": "- **Go pm cut-over:** The Go pm release is published. Python pm is deleted from Yeeef/pm and yeeef-agents. This Mac and the Linux server both run Go pm.\n- **Harness tracking move:** pm-harness is now tracked in Yeeef/pm, with its full history. The old copy in yeeef-agents is closed.\n- **Site reads and images:** The site no longer replaces every page with a missing-file error while git rewrites the records. Diagrams and images now read well on a phone.\n- **Records layout and releases:** Main no longer keeps a records copy. Each worktree keeps only its link. CI refuses a pull request or release tag that lacks a changelog section."
 }
