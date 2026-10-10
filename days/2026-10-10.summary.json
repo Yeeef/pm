@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T14:58:51+00:00",
- "digest": "f1cd7beefbc0310a",
+ "generated_at": "2026-10-10T15:09:17+00:00",
+ "digest": "e9f76974e499cd62",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm takeover:** Go pm has a new release. Python pm is removed from both repositories, and pm-harness tracking now lives in Yeeef/pm.\n- **Site on phones:** Wide diagrams scroll sideways on a phone and keep readable labels. The site shows image files kept beside records and no longer shows file errors during record syncs.\n- **Release notes and checks:** Each pm release now carries a structured release note from the changelog. CI refuses a pull request or release tag that lacks one.\n- **Owner-request hook:** The hook now applies one rule: act first, then ask in structured form. The interactive mode was dropped by owner decision."
+ "text": "- **Go pm is the only implementation:** Python pm is deleted from the pm repo and from yeeef-agents. The harness suite now tests only Go pm. The Linux server's clone runs Go pm and syncs with GitHub again.\n- **Release and changelog:** A Go pm release is published as a minor version, because main has a breaking change. Every release now has a structured release note. CI refuses a change without one.\n- **Site reads on phones:** Wide diagrams now scroll sideways on a phone, and images kept beside a record now show. The site no longer shows missing-file errors while git rewrites the records.\n- **Worktrees and records:** pm clean removes agent worktrees that nobody needs. It previews removals first. pm no longer writes a copy of the records into main; each worktree keeps a link instead."
 }
