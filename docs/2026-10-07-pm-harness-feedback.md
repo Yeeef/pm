@@ -92,3 +92,9 @@ pm action need --pr refuses until the sprint's delivery report is written, and a
 About sprint `yeeef-agents-9va.117`.
 
 Sprint 107 changed its goal (the interactive mode was dropped), but pm has no command to rename a sprint: pm task edit refuses a sprint id and pm sprint has only open and close, so the sprint keeps a stale title. A pm sprint edit --title, or pm task edit accepting a sprint, would have helped.
+
+### 2026-10-10 03:56 UTC, session `37ac00e7-d271-54c0-863a-548f0a515c18`
+
+About sprint `yeeef-agents-9va.121`.
+
+After pm-harness moved to Yeeef/pm (2026-10-10), the owner-request Stop hook blocked a reply that only reported an open need: "PR #10's review is on the new site as .121.2". The hook reads this session's open needs from the clone of the session's cwd (yeeef-agents), while the need lives in Yeeef/pm's store, so `pm show yeeef-agents-9va.121.2` finds it in Yeeef/pm and errors in yeeef-agents. A session whose cwd is one repo and whose tracked work is in another always gets false blocks. What would have helped: the hook reading the session's open needs from every clone on the machine that it has written to, or from the clone that holds the session's claimed tasks.
