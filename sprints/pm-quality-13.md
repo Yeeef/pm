@@ -129,7 +129,7 @@ The coordinator filed them into this sprint during the wave; each is a review or
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: every follow-up in Scope and the four tasks added to it ship in PR #31 (pending merge), each with a test that failed before its fix, and the TestCreateRacingALocalWriter flake has two root causes, both fixed.
+done: every follow-up in Scope and the four tasks added to it ship in PR #31, merged as da3423c, each with a test that failed before its fix, and the TestCreateRacingALocalWriter flake has two root causes, both fixed.
 
 - The site no longer passes a records read that missed a file a sync was rewriting. Such a read is now a `service.Partial`, read again under the records lock.
 - `pm check` and `pm commit` refuse a `.md` link to nothing.
