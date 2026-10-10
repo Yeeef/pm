@@ -96,10 +96,16 @@ Answers `yeeef-agents-9va.103.1`.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+voided: the frame reads Beads and changes the Python pm only, and Yeeef/pm has neither, so a hosted site for Go pm needs a new sprint.
+
+- Shipped: the owner's four decisions on the hosted site, kept as inputs for that sprint. No code shipped.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Every page at https://pm.yeeefs.com loads with this Mac's pm service stopped and matches the local render: not met. No hosted site was built; the design and build tasks are closed as obsolete.
+- A `pm commit` and a `pm task close` show on the hosted site within 5 minutes: not met. Push on change was not built.
+- A request to the hosted site without a valid Cloudflare Access token gets 403: not met here. The token check on the pm service is sprint 68's work, now a Go port.
+- A reply posted on https://pm.yeeefs.com reaches the asking session, with the service running and stopped: not met. The hosted reply queue was not built; its design assumed Beads comments.
+- The PR is merged to main and the design page describes the final state: not met. No PR or design page was made.
