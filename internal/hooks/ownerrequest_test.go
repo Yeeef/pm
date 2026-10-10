@@ -101,7 +101,8 @@ func TestABlockNamesTheNeedlessAskThenTheUncoveredRequest(t *testing.T) {
 	fakeClaude(t, `[ "$MAX_THINKING_TOKENS" = 0 ] || exit 3
 echo 'Verdict: {"items": [{"quote": "Merge it?", "kind": "decision", "match": "theirs.1"},
  {"quote": "Push the branch?", "kind": "authorized", "match": "mine.1"},
- {"quote": "Rename X?", "kind": "decision", "match": "mine.1"}, {"quote": "Done.", "kind": "not asked", "match": null}]}'`)
+ {"quote": "Rename X?", "kind": "decision", "match": "mine.1"}, {"quote": "Done.", "kind": "not asked", "match": null},
+ {"quote": "The Stop hook?", "kind": "clarification", "match": null}]}'`)
 	read := func(dir, session string) ([]Request, error) {
 		if session != "s" {
 			t.Errorf("session %q", session)
@@ -109,13 +110,13 @@ echo 'Verdict: {"items": [{"quote": "Merge it?", "kind": "decision", "match": "t
 		return []Request{{ID: "mine.1", Title: "Rename X?"}}, nil
 	}
 	var out, errb bytes.Buffer
-	in := `{"session_id": "s", "last_assistant_message": "Merge it? Push the branch? Rename X?"}`
+	in := `{"session_id": "s", "last_assistant_message": "Merge it? Push the branch? Rename X? The Stop hook?"}`
 	code, err := HookOwnerRequest(t.TempDir(), read, strings.NewReader(in), &out, &errb)
 	if code != 0 || err != nil || errb.Len() != 0 {
 		t.Fatalf("code %d, err %v, stderr %q", code, err, errb.String())
 	}
 	reason := strings.ReplaceAll(pm.OwnerRequestNeedless, "{asks}", `"Push the branch?"`) + "\n\n" +
-		strings.ReplaceAll(pm.OwnerRequestReason, "{asks}", `"Merge it?"`)
+		strings.ReplaceAll(pm.OwnerRequestReason, "{asks}", `"Merge it?"; "The Stop hook?"`)
 	want := `{"decision": "block", "reason": "` + strings.ReplaceAll(strings.ReplaceAll(reason, `"`, `\"`), "\n", `\n`) +
 		"\"}\n"
 	if out.String() != want {

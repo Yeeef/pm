@@ -86,7 +86,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A choice that is cheap to reverse, and that nobody will ask about, needs no record. The commit message is enough.
 - The source is `agent` for your own decisions. It is `owner` only when it answers a need or the owner confirmed it.
 - Owner decisions are closed. Do not ask again about a decided question.
-- Anything the owner must decide or do is a need, never text in a record and never only in chat.
+- Anything the owner must decide or do is a need, never text in a record.
 - An answered decision need is cited by a decision, or marked as setting no rule. So a missed rule is caught.
 - A design page holds one area's final state and the alternatives not chosen. The trail of findings stays in sprint records. Decisions and plans stay in project and sprint records.
 - When the design changes, edit the page to the new state. Do not add a trail of findings. Put no date in the name or the header. Git keeps the history, and the site shows the created and updated dates.
@@ -94,7 +94,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A postmortem is due when an incident cost more than a day, or broke other sessions or the owner's view.
 - A day page is generated. Nobody writes one.
 - Session start runs `pm init --session-start`, then injects `pm where` and `pm show`. When it says init failed or timed out, run `pm init` by hand.
-- **Never leave a request only in chat.** Raise a need first for each request that sprint work waits on. Examples: a decision on a sprint's scope or design, a PR review or merge, an action a task waits on.
+- **Never leave a request only in chat.** Ask the owner only for what you cannot do yourself: as a need under its task or sprint (open one if none holds it), or with AskUserQuestion when they are plainly in the chat. The owner-request hook blocks any other ask and says how.
 
 # How
 

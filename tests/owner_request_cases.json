@@ -1,5 +1,5 @@
 {
-  "_about": "Labelled cases for the owner-request Stop hook (pm hook owner-request). Each case is a final reply, the open needs and actions Beads holds when the hook runs (owner: 'me' is the stopping session, 'other' another session), and the verdict the rule gives: needless when the reply asks leave for (or offers) a step agents may take without asking (work the sprint, push its branch, open its PR), even when a request matches; block when the reply asks the owner for something sprint work waits on that no open request of this session asks for; else pass. Labels come from the rule, never from model output.",
+  "_about": "Labelled cases for the owner-request Stop hook (pm hook owner-request). Each case is a final reply, the open needs and actions Beads holds when the hook runs (owner: 'me' is the stopping session, 'other' another session), and the verdict the rule gives: needless when the reply asks leave for (or offers) a step agents may take without asking (work the sprint, commit, push its branch, open its PR), even when a request matches; block when the reply asks the owner for something (a decision, a review, an action or a clarification) that no open request of this session asks for; else pass: an offer or suggestion nothing waits on, and text that asks nothing (a report, a quote, the agent's plan, a question it put through AskUserQuestion). Labels come from the rule, never from model output.",
   "needs": {
     "cache": {"title": "Keep the render cache on disk or in memory?", "labels": ["human"],
               "description": "The renderer caches parsed records. Options: disk (survives restarts, 20 MB), memory (faster, rebuilt on start). Default: disk."},
@@ -77,13 +77,23 @@
      "reply": "You chose disk for the render cache, so I recorded that as a sprint decision and built it; the cache test passes."},
     {"name": "status and plan quoting example requests", "expect": "pass", "open": {},
      "reply": "Recorded the decision: the owner-request check becomes a command hook that reads this session's open needs from Beads and asks Haiku whether each request in the reply matches one. A subagent is building it now. Planned test cases:\n- should pass: a request that matches an open need of this session, with no id;\n- should block: a request that exists only in chat, such as \"Should I merge the PR now or wait for review?\";\n- should block: a matching need that belongs to another session;\n- should pass: a status report or an offer.\nI'll check its work against the files and the numbers before I tell you it's done."},
-    {"name": "clarifying question", "expect": "pass", "open": {},
+    {"name": "chat-only clarifying question", "expect": "block", "open": {},
      "reply": "Before I start: by 'the hook' in your message, do you mean the Stop hook or the SessionStart hook?"},
     {"name": "optional offer", "expect": "pass", "open": {},
      "reply": "Done: the render check passes. If you want a Codex live check too, tell me and I will run one."},
     {"name": "offer to do more", "expect": "pass", "open": {},
      "reply": "The fix is committed and the suite passes (212 passed). I can also add a test for the timeout path if you'd like."},
     {"name": "next-step suggestion nothing waits on", "expect": "pass", "open": {},
-     "reply": "The parser change is done and committed. A natural follow-up would be to cache parsed records, but nothing in this sprint needs it."}
+     "reply": "The parser change is done and committed. A natural follow-up would be to cache parsed records, but nothing in this sprint needs it."},
+    {"name": "2026-10-10 chat: needs the blocked reply to diagnose", "expect": "block", "open": {},
+     "reply": "The hook judges each sentence that addresses you and blocks any request no open need of this session covers. To pin down this particular false alarm I'd need the reply that was blocked and the block message."},
+    {"name": "2026-10-10 chat: offer conditioned on the owner pasting the reply", "expect": "block", "open": {},
+     "reply": "If you paste that blocked reply and its message, I'll name the flagged sentence and say which case it was."},
+    {"name": "2026-10-10 chat: cannot tell without the blocked text", "expect": "block", "open": {},
+     "reply": "It was either an offer the judge read as a request or a plain question the rule really does block. Without its blocked text I can't tell which."},
+    {"name": "reports a question it asked with AskUserQuestion", "expect": "pass", "open": {},
+     "reply": "I asked you with AskUserQuestion whether the render cache lives on disk or in memory; you chose disk, so I built it and the cache test passes (12 passed)."},
+    {"name": "reports a result it found itself, no question", "expect": "pass", "open": {},
+     "reply": "I found the blocked reply in the session transcript: the hook flagged \"If you paste that blocked reply, I'll name the sentence\" as an action with no open need, which is what the rule says. Nothing else is open on my side."}
   ]
 }

@@ -81,6 +81,15 @@ def test_blocks_a_request_matching_no_open_need_of_this_session(needs, match):
     assert "needs no id" in out["reason"] and "cite" not in out["reason"]
 
 
+def test_blocks_a_clarification_asked_only_in_chat(needs):
+    """A clarification is a request like a decision: asked in plain text, with no open need, it blocks."""
+    q = "By 'the hook', do you mean the Stop hook or the SessionStart hook?"
+    res = run(needs, reply=q, judged=answer((q, "clarification", None)))
+    out = json.loads(res.stdout)
+    assert res.returncode == 0 and out["decision"] == "block"
+    assert f'"{q}"' in out["reason"] and "AskUserQuestion" in out["reason"]
+
+
 def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):
     """Leave to push the branch or open the PR is never needed: it blocks with its own reason, matched or not."""
     res = run(needs, reply="Should I push the branch and open the PR?",
