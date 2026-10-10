@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T14:27:33+00:00",
- "digest": "b03d670591fd474b",
+ "generated_at": "2026-10-10T14:38:07+00:00",
+ "digest": "aaf91ba3ead835ca",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm is the only version:** The repos no longer contain Python pm. Work tracking for pm-harness now lives in Yeeef/pm, with its full history.\n- **Release notes enforced:** Each pm release now carries a structured note from its changelog. CI refuses a pull request or tag without that note.\n- **Worktree and records cleanup:** pm clean can remove agent worktrees nobody needs. It starts with a dry run. pm no longer writes a copy of the records into main.\n- **Site stays readable:** The site no longer shows missing-file errors while git rewrites records. Diagrams and images now stay readable on a phone."
+ "text": "- **Go pm only:** Python pm is gone from Yeeef/pm and yeeef-agents. Both clones, including the Linux server, run Go pm. The pm-harness project is now tracked in Yeeef/pm.\n- **pm releases and commands:** Each new Go pm release needs a structured release note, and CI enforces it. New commands move a sprint between projects and remove unused agent worktrees.\n- **Site diagrams and pages:** Wide diagrams scroll sideways on phones and keep readable labels. The site no longer shows missing-file errors while git rewrites records.\n- **CI and test reliability:** An intermittent garbage-collection test failed because of a Dolt bug. pm now builds with Dolt's fix, and Go tests run in parallel jobs."
 }
