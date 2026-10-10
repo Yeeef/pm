@@ -63,7 +63,11 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-10}
+The owner-request hook passes instructions that answer a question the owner asked, when no step of the agent waits on them.
+The owner asked and nothing waits on the step, so the reply asks nothing; owner chose option pass.
+Answers `pm-d2k5.10.4`.
+:::
 
 ## Findings
 
