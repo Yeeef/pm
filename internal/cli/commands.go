@@ -129,7 +129,7 @@ var tree = &command{
 				{
 					name:        "close",
 					help:        "close a decision need whose answer sets no rule, with no decision record; the answer with --text",
-					description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. If setting the resolution fails, run it again; it does not repeat the reason.",
+					description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason \"…\". If setting the resolution fails, run it again; it does not repeat the reason.",
 					groups:      []bool{false},
 					args: []arg{
 						{dest: "need_id", required: true, kind: value, help: "the decision need's id"},
@@ -367,10 +367,10 @@ var tree = &command{
 				{
 					name:        "claim",
 					help:        "claim a task for this agent session",
-					description: "Claim an open task: make the session ($CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one.",
+					description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one.",
 					args: []arg{
 						{dest: "task_id", required: true, kind: value, help: "the task's id"},
-						{flags: []string{"--session"}, dest: "session", metavar: []string{"ID"}, kind: value, help: "the session to record when no session id is in the environment"},
+						{flags: []string{"--session"}, dest: "session", metavar: []string{"ID"}, kind: value, help: "the session to record; default: this session's id from the environment"},
 					},
 				},
 				{

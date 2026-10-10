@@ -361,6 +361,18 @@ def test_a_decision_recorded_for_a_no_decision_need_marks_it_answered(repo):
     assert repo.pm("check").returncode == 0
 
 
+def test_decision_close_without_an_answer_names_need_dismiss_for_a_moot_need(repo):
+    """A need the owner never answered has no answer for pm decision close; its refusal and its --help name pm need
+    dismiss, the close for a need that became moot."""
+    refused(repo, "decision", "close", "repo-demo.1.2", "--reason", "It became moot.",
+            match=r"the answer is empty; .*; a need that became moot before the owner answered closes with pm need "
+                  r"dismiss repo-demo\.1\.2 --reason")
+    assert "close it with pm need dismiss <id>" in repo.pm("decision", "close", "--help").stdout
+    res = repo.pm("need", "dismiss", "repo-demo.1.2", "--reason", "It became moot.")
+    assert res.returncode == 0, res.stderr
+    assert repo.items()["repo-demo.1.2"]["resolution"] == "dismissed"
+
+
 # ---------------------------------------------------------------- pm task add
 
 
@@ -1367,6 +1379,15 @@ def test_task_claim_refuses_a_task_another_live_session_holds(repo):
     assert repo.unchanged()
     # the same session (a subagent shares it) may claim again
     assert claim(repo, "repo-demo.1.2", "sess-a", cwd=wt).returncode == 0
+
+
+def test_task_claim_records_the_session_given_with_session_even_with_one_in_the_environment(repo):
+    repo.set_issue("repo-demo.1.2", labels=[])
+    res = claim(repo, "repo-demo.1.2", "sess-env", "--session", "sess-flag", cwd=repo.worktree("feature"))
+    assert res.returncode == 0, res.stderr
+    assert repo.items()["repo-demo.1.2"]["holder"]["session"] == "sess-flag"
+    assert "--session ID  the session to record; default: this session's id from the environment" in \
+        repo.pm("task", "claim", "--help").stdout
 
 
 # ---------------------------------------------------------------- pm push: what the service runs

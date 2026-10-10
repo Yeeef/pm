@@ -778,7 +778,8 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 		return "", refuse("need %s was dismissed, so it has no answer to mark", id)
 	}
 	if need.Status != work.Closed && answer == "" {
-		return "", refuse("the answer is empty; pass the owner's answer, as they gave it, with %s", textForms)
+		return "", refuse("the answer is empty; pass the owner's answer, as they gave it, with %s; a need that became "+
+			"moot before the owner answered closes with pm need dismiss %s --reason \"…\"", textForms, id)
 	}
 	if err := refuseUnread(need); err != nil {
 		return "", err

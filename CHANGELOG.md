@@ -160,6 +160,9 @@ another project (`pm sprint move`), stop the pm service (`pm service stop`) and 
   `release` and `pm reply add`, which ran but were listed nowhere (`pm dep --help` said "invalid choice"). `pm show
   --help` names `pm show ID`, `pm task add --help` names `--parent`, and `pm init --help` names `--import-bd` and
   `--import`. Their flags and behaviour are unchanged.
+- `pm decision close` on a need the owner never answered, and its `--help`, name `pm need dismiss` for a need that
+  became moot.
+- `pm task claim --help` says what `--session` does: it is the session recorded, even when the environment names one.
 
 ## [0.4.0] - 2026-10-10
 
