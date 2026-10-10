@@ -61,10 +61,15 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: the 0.3.1 release notes are ready in Yeeef/pm PR #10 with CI green; the tag pm-v0.3.1 and the published release follow its merge.
+
+- CHANGELOG.md: `[Unreleased]` became `## [0.3.1] - 2026-10-10` with a summary, the upgrade guide and two Changed entries for PR #7.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| gh release view pm-v0.3.1 shows the release with both tarballs, SHA256SUMS and install.sh, and the 0.3.1 section as its notes | not yet | waits on PR #10's merge and the tag. PR #10: `release/changelog.py check` ok (5 releases), `notes 0.3.1` renders, CI light, integration, changelog and build-and-parity on linux (11m39s) and macOS (14m40s) pass |
+| install.sh from the release installs a binary whose pm version prints 0.3.1 | not yet | after the release |
