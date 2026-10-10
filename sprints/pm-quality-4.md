@@ -54,7 +54,13 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- --text=Design: keep the id and renumber the record (work-store page, Moving
+  a sprint). The id is what review targets, blockers, tasks and chat name, so
+  keeping it makes every old reference resolve with no pointer to follow.
+  Renumbering with a new id would strand a task that another clone adds under
+  the old id before it syncs. The old project's number is held by a move note
+  (a comment, author pm), not by a schema change, which would force every
+  clone to upgrade in lockstep as 0.3.0's did.
 
 ## Delivery report
 
