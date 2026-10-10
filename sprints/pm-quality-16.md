@@ -51,6 +51,11 @@ pm doctor keeps exiting 1 in a checkout whose pin is not the version the clone's
 The work store is a piece of the clone's setup pm doctor checks through the service, and from an off-pin checkout the handshake refuses that check; exit 0 would claim a setup it could not check. The release line, which concerns no piece, stays informational
 :::
 
+::: decision {source=agent date=2026-10-10}
+pm upgrade leaves the main checkout and the records store off its stranded-worktree list, and lists on every run, not only when it moves the pin
+The service follows the main checkout's pin, so the main checkout is the one the move reaches, never stranded; a second run after a merge (nothing to commit) is how an agent checks which worktrees are still off the pin
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
