@@ -53,6 +53,10 @@ only.
 
 ### Fixed
 
+- Mermaid diagrams keep their natural width and scroll sideways, so a wide flowchart stays legible on a phone instead
+  of shrinking its text to a few pixels; they are drawn again when the colour scheme changes; and the pages load one
+  exact Mermaid release (11.17.2), from a second CDN when the first fails, instead of whatever `mermaid@11` is today.
+
 - `pm init --help` now says what `--session-start` does with the service: it starts an installed service that does
   not answer, as session start has done since 0.3.0, so a session in a clone always brings its service up.
 - The site no longer shows "error: open …: no such file or directory" in place of every page when a records sync

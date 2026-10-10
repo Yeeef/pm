@@ -713,13 +713,40 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
 </div>{{.Mermaid}}</body></html>
 `))
 
-const mermaidScript = `
+// MermaidVersion is the exact Mermaid release the pages load: a pinned URL is immutable, so a browser that loaded it
+// once keeps it, and a second CDN serves it when the first fails.
+const MermaidVersion = "11.17.2"
+
+// mermaidScript draws each pre.mermaid at its natural width (the pre scrolls sideways; useMaxWidth would shrink a wide
+// diagram's text below reading size on a phone), and draws them again from their source when the colour scheme
+// changes: the system's, or the page's data-theme.
+var mermaidScript = strings.ReplaceAll(`
 <script type="module">
-import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "default" });
+const at = ["https://cdn.jsdelivr.net/npm/mermaid@VERSION/dist/mermaid.esm.min.mjs",
+  "https://unpkg.com/mermaid@VERSION/dist/mermaid.esm.min.mjs"];
+let mermaid;
+try { mermaid = (await import(at[0])).default; } catch { mermaid = (await import(at[1])).default; }
+const nodes = [...document.querySelectorAll("pre.mermaid")];
+const sources = nodes.map(n => n.textContent);
+const scheme = matchMedia("(prefers-color-scheme: dark)");
+const wide = { useMaxWidth: false };
+let shown, queue = Promise.resolve();
+async function draw() {
+  const set = document.documentElement.dataset.theme;
+  const theme = (set ? set === "dark" : scheme.matches) ? "dark" : "default";
+  if (theme === shown) return;
+  shown = theme;
+  nodes.forEach((n, i) => { n.removeAttribute("data-processed"); n.textContent = sources[i]; });
+  mermaid.initialize({ startOnLoad: false, theme, flowchart: wide, sequence: wide, class: wide, state: wide, er: wide,
+    gantt: wide, journey: wide });
+  await mermaid.run({ nodes });
+}
+const redraw = () => { queue = queue.then(draw).catch(console.error); }; // one failed draw does not stop the next
+scheme.addEventListener("change", redraw);
+new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+redraw();
 </script>
-`
+`, "VERSION", MermaidVersion)
 
 func page(rec *Record, kind, title, body string, c *ctx, crumbs string) (string, error) {
 	mermaid := ""
