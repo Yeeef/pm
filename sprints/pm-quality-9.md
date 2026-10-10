@@ -73,7 +73,10 @@ A reply that lands between the CLI check and the write would otherwise let the b
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- The store already kept a sprint title's 'Sprint <n>: ' prefix in step with
+  its number (work/merge.go on a concurrent edit, work/move.go on a move), so
+  pm sprint edit only had to write the prefix it found; the record header
+  holds the bare title, as pm sprint open writes it.
 
 ## Delivery report
 
