@@ -882,8 +882,8 @@ func writeLists(tx *sql.Tx, it *Item, kept int) error {
 	return nil
 }
 
-// Import writes items into an empty store as one transaction and one Dolt commit (pm init --import-bd). It refuses a
-// store that holds any item, and items that fail Check.
+// Import writes items into an empty store as one transaction and one Dolt commit (pm init --import-bd and --import).
+// It refuses a store that holds any item, and items that fail Check.
 func (d *Dolt) Import(items []Item, msg string) error {
 	if len(items) == 0 {
 		return errors.New("work store: an import of no items")

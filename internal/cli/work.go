@@ -14,9 +14,10 @@ import (
 	"github.com/Yeeef/pm/internal/work"
 )
 
-// goOnly runs the commands Go pm has and Python pm does not: pm version, pm export [--store DIR], pm init --import-bd FILE, and the work-store
-// commands in store_commands.go. They stay out of the command tree in commands.go, which pm --help and pm prime's noun
-// list read; pm init --import-bd does the import only. ok is false for any other argv.
+// goOnly runs the commands Go pm has and Python pm does not: pm version, pm export [--store DIR], pm init --import-bd FILE,
+// pm init --import FILE, and the work-store commands in store_commands.go. They stay out of the command tree in
+// commands.go, which pm --help and pm prime's noun list read; pm init --import-bd and --import do the import only. ok is
+// false for any other argv.
 func goOnly(argv []string, stdin io.Reader, stdout io.Writer) (ok bool, err error) {
 	if name, args, ok := storeCommandOf(argv); ok {
 		return true, runStoreCommand(name, args, openStore, stdin, stdout)
@@ -33,6 +34,10 @@ func goOnly(argv []string, stdin io.Reader, stdout io.Writer) (ok bool, err erro
 		return true, cmdImportBD(argv[2], stdout)
 	case len(argv) == 2 && argv[0] == "init" && strings.HasPrefix(argv[1], "--import-bd="):
 		return true, cmdImportBD(strings.TrimPrefix(argv[1], "--import-bd="), stdout)
+	case len(argv) == 3 && argv[0] == "init" && argv[1] == "--import":
+		return true, cmdImport(argv[2], stdout)
+	case len(argv) == 2 && argv[0] == "init" && strings.HasPrefix(argv[1], "--import="):
+		return true, cmdImport(strings.TrimPrefix(argv[1], "--import="), stdout)
 	}
 	return false, nil
 }
@@ -93,9 +98,8 @@ func exportStore(dir string, stdout io.Writer) error {
 	return work.Export(stdout, items)
 }
 
-// cmdImportBD is pm init --import-bd FILE: the bd export in FILE into this clone's work store, as one transaction and
-// one Dolt commit, through the pm service; a clone with no store yet gets an empty one first. It refuses a store that
-// holds any item, and an export it cannot map.
+// cmdImportBD is pm init --import-bd FILE: the bd export in FILE into this clone's work store (importItems). It
+// refuses an export it cannot map.
 func cmdImportBD(path string, stdout io.Writer) error {
 	main, err := mainCheckout()
 	if err != nil {
@@ -114,6 +118,33 @@ func cmdImportBD(path string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	return importItems(main, items, "bd export", path, stdout)
+}
+
+// cmdImport is pm init --import FILE: the pm export in FILE (what pm export printed in another clone) into this
+// clone's work store, ids kept (importItems). It moves a project's items into a new repo's store; it refuses a line
+// that is not an item and items that fail the store's checks.
+func cmdImport(path string, stdout io.Writer) error {
+	main, err := mainCheckout()
+	if err != nil {
+		return err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("import: %w", err)
+	}
+	items, err := work.FromExport(f)
+	f.Close()
+	if err != nil {
+		return err
+	}
+	return importItems(main, items, "pm export", path, stdout)
+}
+
+// importItems writes items, read from the export of this kind at path, into this clone's work store as one
+// transaction and one Dolt commit, through the pm service; a clone with no store yet gets an empty one first. It
+// refuses a store that holds any item.
+func importItems(main string, items []work.Item, kind, path string, stdout io.Writer) error {
 	d, err := work.DialSetup(main)
 	if err != nil {
 		return err
@@ -129,7 +160,7 @@ func cmdImportBD(path string, stdout io.Writer) error {
 		return d.UseStore()
 	}()
 	if err == nil {
-		err = d.Import(items, fmt.Sprintf("pm: import %d items from bd export %s", len(items), filepath.Base(path)))
+		err = d.Import(items, fmt.Sprintf("pm: import %d items from %s %s", len(items), kind, filepath.Base(path)))
 	}
 	if err = errors.Join(err, d.Shutdown()); err != nil {
 		return err
