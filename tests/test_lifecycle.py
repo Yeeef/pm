@@ -64,6 +64,11 @@ def doctor(repo: Path) -> tuple[int, list[str]]:
     return res.returncode, res.stdout.splitlines()
 
 
+def write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
 def edit(path: Path, old: str, new: str) -> None:
     text = path.read_text()
     assert old in text, (path, old)
@@ -74,12 +79,13 @@ def edit(path: Path, old: str, new: str) -> None:
 REPO_CHANGES = {
     "whole file": (lambda r: edit(r / ".pm/README.md", "# pm", "# not pm"),
                    ".pm/README.md: pm's part differs"),
-    "workflow deleted": (lambda r: (r / ".github/workflows/pm-records-guard.yml").unlink(),
-                         ".github/workflows/pm-records-guard.yml: pm's part is missing"),
+    "retired workflow": (lambda r: write(r / ".github/workflows/pm-records-copy.yml", "name: Copy records\n"),
+                         ".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's "
+                         "records/ copy"),
     "hook entry": (lambda r: edit(r / ".claude/settings.json", '"pm hook stop || exit 1"', '"pm hook stop"'),
                    ".claude/settings.json: pm's part differs"),
-    "git hook section": (lambda r: edit(r / f"{HOOKS}/pre-commit", "pm hook git-pre-commit", "pm hook git-x"),
-                         f"{HOOKS}/pre-commit: pm's part differs"),
+    "git hook section": (lambda r: edit(r / f"{HOOKS}/post-checkout", "pm hook git-post-checkout", "pm hook git-x"),
+                         f"{HOOKS}/post-checkout: pm's part differs"),
     "gitignore block": (lambda r: edit(r / ".gitignore", "/records\n", "/records/\n"),
                         ".gitignore: pm's part differs"),
 }
@@ -100,6 +106,7 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
     assert all(l.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for l in lines), lines
     res = pm(new_repo, "upgrade")
     assert res.returncode == 0 and "pin stays" in res.stdout, res.stderr
+    assert not (new_repo / ".github/workflows/pm-records-copy.yml").exists()
     assert doctor(new_repo)[0] == 0
 
 
@@ -126,16 +133,16 @@ def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new
     git(new_repo, "checkout", "-q", "-b", "changed")
     settings = new_repo / ".claude/settings.json"
     edit(settings, '"pm hook stop || exit 1"', '"pm hook stop"')
-    (new_repo / ".github/workflows/pm-records-guard.yml").unlink()
+    (new_repo / f"{HOOKS}/post-checkout").unlink()
     git(new_repo, "commit", "-qam", "change pm's pieces")
     changed = settings.read_bytes()
     res = pm(new_repo, "init")
     assert res.returncode == 0, res.stderr
-    assert settings.read_bytes() == changed and not (new_repo / ".github/workflows/pm-records-guard.yml").exists()
+    assert settings.read_bytes() == changed and not (new_repo / f"{HOOKS}/post-checkout").exists()
     assert git(new_repo, "status", "--porcelain") == "" and "git add" not in res.stdout, res.stdout
     code, lines = doctor(new_repo)
     assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
-                                          "repo: .github/workflows/pm-records-guard.yml: pm's part is missing"]), lines
+                                          f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
     assert all(l.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for l in lines), lines
     # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
     res = pm(new_repo, "init", "--site-url", "pm.example.com")
@@ -148,7 +155,8 @@ def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new
 
 SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of the line doctor reports for it
     "records link": (lambda r, tmp: (r / "records").unlink(), "records link: "),
-    "sparse checkout": (lambda r, tmp: git(r, "sparse-checkout", "disable"), "sparse checkout: "),
+    "sparse checkout": (lambda r, tmp: git(r, "sparse-checkout", "set", "--no-cone", "/*", "!/records/"),
+                        "sparse checkout: "),
     "hooks path": (lambda r, tmp: git(r, "config", "core.hooksPath", ".git/hooks"),
                    "hooks path: core.hooksPath is .git/hooks, not .pm/hooks; pm works only with its own hooks path"),
     "service": (lambda r, tmp: [p.unlink() for p in sched_units(tmp)], "service: not installed"),
@@ -175,8 +183,8 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     res = pm(existing, "init")
     assert res.returncode == 0, res.stderr
     assert f"git add -- {' '.join(PM_FILES)} && " in res.stdout, res.stdout
+    assert (existing / f"{HOOKS}/post-checkout").read_text() == hook_file("post-checkout")
     for name in ("post-checkout", "pre-commit"):
-        assert (existing / f"{HOOKS}/{name}").read_text() == hook_file(name)
         assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + MINE, "Beads' hook files stay"
     for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
         text = (existing / rel).read_text()
@@ -196,7 +204,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     git(existing, "commit", "-qm", "Install pm")
     # the repo as an older pm left it: an older pin and an older section in a Beads hook
     edit(existing / ".pm/config.toml", f'version = "{VERSION}"', 'version = "0.2.0"')
-    edit(existing / f"{HOOKS}/pre-commit", f"BEGIN PM v{VERSION}", "BEGIN PM v0.2.0")
+    edit(existing / f"{HOOKS}/post-checkout", f"BEGIN PM v{VERSION}", "BEGIN PM v0.2.0")
     git(existing, "commit", "--no-verify", "-qam", "pm 0.2.0")
     def launched(pin: str, *args: str) -> subprocess.CompletedProcess:  # as the installed pm launches `pin`, whose
         # release here builds this pm: test_launch.py has the launch itself, which would reach GitHub
@@ -211,16 +219,81 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     res = pm(existing, "upgrade")
     assert res.returncode == 0, res.stderr
     assert f"moved the pin from 0.2.0 to {VERSION}" in res.stdout
-    assert f"git add -- .pm/config.toml {HOOKS}/pre-commit && " in res.stdout
+    assert f"git add -- .pm/config.toml {HOOKS}/post-checkout && " in res.stdout
     assert git(existing, "rev-parse", "HEAD") == head, "pm upgrade commits nothing"
     assert tomllib.loads((existing / ".pm/config.toml").read_text())["version"] == VERSION
-    assert (existing / f"{HOOKS}/pre-commit").read_text() == hook_file("pre-commit")
-    changed = sorted([f"{HOOKS}/pre-commit", ".pm/config.toml"])
+    assert (existing / f"{HOOKS}/post-checkout").read_text() == hook_file("post-checkout")
+    changed = sorted([f"{HOOKS}/post-checkout", ".pm/config.toml"])
     assert git(existing, "status", "--porcelain").split() == ["M", changed[0], "M", changed[1]]
     after = snapshot(existing)
     assert all(after[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
     again = pm(existing, "upgrade")
     assert again.returncode == 0 and "nothing to commit" in again.stdout and snapshot(existing) == after
+
+
+OLD_PRE_COMMIT = '#!/usr/bin/env sh\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit "$@" || exit $?\n# --- END PM ---\n'
+RETIRED_WORKFLOWS = [".github/workflows/pm-records-copy.yml", ".github/workflows/pm-records-guard.yml"]
+
+
+def test_upgrade_retires_the_main_branchs_records_copy(new_repo: Path, tmp_path: Path):
+    """A repo as a pm that kept the main branch's records/ copy left it: the copy and guard workflows, pm's pre-commit
+    section, the copy tracked on main and the sparse checkout that kept it from the link. pm doctor names each; pm
+    init leaves the sparse checkout while HEAD tracks the copy; pm upgrade removes the pieces and names the commit
+    that untracks the copy; after that commit, pm init turns the sparse checkout off and the link stays."""
+    assert pm(new_repo, "init").returncode == 0
+    for rel in RETIRED_WORKFLOWS:
+        write(new_repo / rel, "name: old\n")
+    write(new_repo / f"{HOOKS}/pre-commit", OLD_PRE_COMMIT)
+    (new_repo / f"{HOOKS}/pre-commit").chmod(0o755)
+    (new_repo / "records").unlink()
+    write(new_repo / "records/sprints/a-1.md", "copy\n")
+    git(new_repo, "add", "-A")
+    git(new_repo, "add", "-f", "records")
+    # the old section's pm hook git-pre-commit is retired: it lets this commit, which stages records/, through
+    res = subprocess.run(["git", "commit", "-qm", "pm with main's records/ copy"], cwd=new_repo, env=env(tmp_path),
+                         capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    git(new_repo, "sparse-checkout", "set", "--no-cone", "/*", "!/records/")
+    git(new_repo, "config", "--worktree", "sparse.expectFilesOutsideOfPatterns", "true")
+    assert not (new_repo / "records").exists()
+    (new_repo / "records").symlink_to(new_repo / ".pm/store/records")
+
+    code, lines = doctor(new_repo)
+    retired = "retired with the main branch's records/ copy"
+    assert code == 1 and reported(lines, [
+        *(f"repo: {rel}: an earlier pm's file, {retired}" for rel in RETIRED_WORKFLOWS),
+        f"repo: {HOOKS}/pre-commit: an earlier pm's file, {retired}",
+        f"records copy: {new_repo} tracks records/, a copy no branch keeps now; untrack it with git rm -r -q --cached "
+        "--sparse records and commit, or merge the main branch once it has"]), lines
+    res = pm(new_repo, "init")
+    assert res.returncode == 0 and "sparse" not in res.stdout, res.stdout
+    assert "!/records/" in git(new_repo, "sparse-checkout", "list").split(), "kept while HEAD tracks the copy"
+
+    res = pm(new_repo, "upgrade")
+    assert res.returncode == 0, res.stderr
+    commit = (f"git add -- {' '.join(RETIRED_WORKFLOWS)} {HOOKS}/pre-commit && git rm -r -q --cached --sparse records && "
+              f'git commit -m "Upgrade pm to {VERSION}"')
+    assert res.stdout.splitlines() == [
+        f"pin stays {VERSION}",
+        *(f"removed {rel}, {retired}" for rel in RETIRED_WORKFLOWS),
+        f"removed {HOOKS}/pre-commit, {retired}",
+        "this branch tracks records/, a copy no branch keeps now; the commit below untracks it",
+        f"pm commits nothing on main; commit pm's files there: {commit}"], res.stdout
+    assert not any((new_repo / rel).exists() for rel in [*RETIRED_WORKFLOWS, f"{HOOKS}/pre-commit"])
+    res = subprocess.run(["sh", "-c", commit], cwd=new_repo, env=env(tmp_path), capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert git(new_repo, "ls-tree", "HEAD", "records") == ""
+    assert (new_repo / "records").is_symlink(), "untracking the copy leaves the link"
+
+    res = pm(new_repo, "init")
+    assert res.returncode == 0 and f"turned off the sparse checkout an earlier pm set in {new_repo}" in res.stdout, \
+        res.stdout
+    assert git(new_repo, "config", "--get", "--default=", "core.sparseCheckout").strip() in ("", "false")
+    assert git(new_repo, "config", "--worktree", "--get", "--default=", "sparse.expectFilesOutsideOfPatterns") == "\n"
+    assert (new_repo / "records").is_symlink() and (new_repo / "records/sprints").is_dir()
+    assert git(new_repo, "status", "--porcelain") == ""
+    code, lines = doctor(new_repo)
+    assert code == 0, lines
 
 
 def install_everywhere(repo: Path, tmp: Path) -> Path:
@@ -372,8 +445,8 @@ def as_python_left_it(repo: Path) -> None:
 def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
     """The cut-over (the work-store page, Cut-over): a repo as Python pm 0.1.x left it. pm doctor names each Beads
     piece, pm upgrade removes them and points core.hooksPath at pm's own hook files, keeping .beads/ and everything
-    else, after which pm doctor is clean, a second upgrade changes nothing, and the pre-commit guard runs from
-    .pm/hooks."""
+    else, after which pm doctor is clean, a second upgrade changes nothing, and the upgrade commits through pm's
+    hooks."""
     assert pm(existing, "init").returncode == 0
     git(existing, "add", "-A")
     git(existing, "commit", "-qm", "Install pm")
@@ -387,7 +460,6 @@ def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
         "repo: .codex/hooks.json: holds Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart), "
         "which pm " + v + " removes",
         "repo: .pm/hooks/post-checkout: pm's part is missing",
-        "repo: .pm/hooks/pre-commit: pm's part is missing",
         "repo: CLAUDE.md: holds the Beads block (<!-- BEGIN BEADS INTEGRATION … -->), which pm " + v + " removes",
         f"hooks path: core.hooksPath is {existing / '.beads/hooks'} (Beads' hooks), not .pm/hooks; run pm upgrade "
         f"--to {v} to move it"]), lines
@@ -399,20 +471,19 @@ def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
         "removed Beads' hook entries (bd prime --hook-json) from .claude/settings.json",
         "removed Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart) from .codex/hooks.json",
         "wrote .pm/hooks/post-checkout",
-        "wrote .pm/hooks/pre-commit",
         "removed the Beads block (<!-- BEGIN BEADS INTEGRATION … -->) from CLAUDE.md",
         f"moved the git hooks off Beads' {existing / '.beads/hooks'}: core.hooksPath={existing / '.pm/hooks'}",
         f"pm commits nothing on {git(existing, 'rev-parse', '--abbrev-ref', 'HEAD').strip()}; commit pm's files there: "
         "git add -- .claude/settings.json .codex/hooks.json "
-        f".pm/hooks/post-checkout .pm/hooks/pre-commit CLAUDE.md && git commit -m \"Upgrade pm to {v}\""], res.stdout
+        f".pm/hooks/post-checkout CLAUDE.md && git commit -m \"Upgrade pm to {v}\""], res.stdout
     for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
         text = (existing / rel).read_text()
         data = json.loads(text)
         assert pm_free(data) == without_bd(user) and text == json.dumps(data, indent=2) + "\n", rel
         assert all(commands(data, e) == c for e, c in CLAUDE_PM.items()), rel
     assert (existing / "CLAUDE.md").read_text() == "# Repo\n\nNotes.\n"
-    for name in ("post-checkout", "pre-commit"):
-        assert (existing / f".pm/hooks/{name}").read_text() == hook_file(name)
+    assert (existing / ".pm/hooks/post-checkout").read_text() == hook_file("post-checkout")
+    assert not (existing / ".pm/hooks/pre-commit").exists()
     assert {k: v for k, v in snapshot(existing).items() if k.startswith(".beads/")} == beads, ".beads/ stays"
     assert git(existing, "config", "core.hooksPath").strip() == str(existing / ".pm/hooks")
     assert doctor(existing)[0] == 0, doctor(existing)[1]
@@ -422,14 +493,7 @@ def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
         again.stdout
     assert snapshot(existing) == after and git(existing, "config", "core.hooksPath").strip() == str(existing / ".pm/hooks")
 
-    git(existing, "add", "-A")  # the committed upgrade: pm's pre-commit guard now runs from .pm/hooks
+    git(existing, "add", "-A")  # the committed upgrade, through pm's hooks in .pm/hooks
     res = subprocess.run(["git", "commit", "-qm", "Upgrade pm"], cwd=existing, env=env(existing.parent),
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
-    (existing / "records").unlink()
-    (existing / "records").mkdir()
-    (existing / "records/a.md").write_text("x\n")
-    git(existing, "add", "-f", "--sparse", "records/a.md")
-    res = subprocess.run(["git", "commit", "-qm", "edit records"], cwd=existing, env=env(existing.parent),
-                         capture_output=True, text=True)
-    assert res.returncode != 0 and "only the records branch may change" in res.stderr, res.stderr

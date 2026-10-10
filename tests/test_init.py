@@ -25,8 +25,7 @@ BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# be
               "# --- END BEADS INTEGRATION v1.3.1 ---\n")
 HOOKS = ".pm/hooks"  # pm's own git hook files, which core.hooksPath names
 PM_FILES = [".pm/config.toml", ".pm/README.md", ".pm/.gitignore", ".claude/settings.json", ".codex/hooks.json",
-            f"{HOOKS}/post-checkout", f"{HOOKS}/pre-commit", ".github/workflows/pm-records-guard.yml",
-            ".github/workflows/pm-records-copy.yml", ".gitignore"]
+            f"{HOOKS}/post-checkout", ".gitignore"]
 GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n"
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
                    "/.claude/settings.local.json\n# --- END PM ---\n")
@@ -120,8 +119,8 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     cfg = tomllib.loads((new_repo / ".pm/config.toml").read_text())
     assert cfg == {"version": VERSION, "remote": "origin", "main_branch": "main", "port": site_port(tmp_path)}
     assert (new_repo / ".pm/.gitignore").read_text() == "store/\nrun/\n"
-    for name in ("post-checkout", "pre-commit"):
-        assert (new_repo / f"{HOOKS}/{name}").read_text() == "#!/usr/bin/env sh\n" + section(name)
+    assert (new_repo / f"{HOOKS}/post-checkout").read_text() == "#!/usr/bin/env sh\n" + section("post-checkout")
+    assert not (new_repo / f"{HOOKS}/pre-commit").exists() and not (new_repo / ".github").exists()
     assert git(new_repo, "config", "core.hooksPath").strip() == str(new_repo / HOOKS)
     claude = json.loads((new_repo / ".claude/settings.json").read_text())
     assert all(commands(claude, e) == c for e, c in CLAUDE_PM.items())
@@ -129,7 +128,6 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert all(commands(codex, e) == c for e, c in CLAUDE_PM.items())
     status = [h["statusMessage"] for g in codex["hooks"]["SessionStart"] for h in g["hooks"] if h["command"] in RULES]
     assert status == [f"Loading pm rules ({n} of {len(RULES)})" for n in range(1, len(RULES) + 1)]
-    assert "branches: [main]" in (new_repo / ".github/workflows/pm-records-copy.yml").read_text()
     assert (new_repo / ".gitignore").read_text() == GITIGNORE_BLOCK
     status = git(new_repo, "status", "--porcelain", "--untracked-files=all").split("\n")
     untracked = sorted(l[3:] for l in status if l.startswith("?? ") and not l[3:].startswith(".beads/embedded"))
@@ -152,7 +150,8 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert (new_repo / ".git/info/exclude").read_text() == exclude
     assert "git add" not in again.stdout and "already set up" in again.stdout
 
-    # pm's git hooks, once committed: a new worktree gets its records link, and a code branch cannot commit records
+    # pm's git hooks, once committed: a new worktree gets its records link and no sparse checkout, and the link is
+    # git-ignored, so a code-branch commit of everything leaves records/ out
     git(new_repo, "add", "-A")
     git(new_repo, "commit", "-qm", "Install pm")
     wt = tmp_path / "wt"
@@ -160,16 +159,11 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
     assert (wt / "records").is_symlink() and (wt / "records").resolve() == store.resolve(), res.stderr
-    (wt / "records").unlink()
-    (wt / "records").mkdir()
-    (wt / "records/a.md").write_text("x\n")
-    git(wt, "add", "-f", "--sparse", "records/a.md")
-    res = subprocess.run(["git", "commit", "-qm", "edit records"], cwd=wt, env=env(tmp_path), capture_output=True,
-                         text=True)
-    assert res.returncode != 0 and "only the records branch may change" in res.stderr, res.stderr
-    git(wt, "restore", "--staged", "records/a.md")
+    for tree in (new_repo, wt):
+        assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() == ""
     (wt / "code.txt").write_text("code\n")
-    git(wt, "add", "code.txt")
+    git(wt, "add", "-A")
+    assert git(wt, "diff", "--cached", "--name-only").split() == ["code.txt"]
     res = subprocess.run(["git", "commit", "-qm", "code"], cwd=wt, env=env(tmp_path), capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
 
@@ -252,7 +246,7 @@ def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, t
 
 
 def test_init_in_a_worktree_sets_it_up_when_mains_pin_differs(repo):
-    """The main checkout pins another pm: the worktree's own setup (records link, sparse checkout) still runs, and
+    """The main checkout pins another pm: the worktree's own setup (its records link) still runs, and
     only the installed pm and the service, which follow main's pin, are refused."""
     wt = repo.root.parent / "feature"
     repo.git("worktree", "add", "-q", "--no-checkout", "-b", "feature", str(wt))
@@ -265,7 +259,7 @@ def test_init_in_a_worktree_sets_it_up_when_mains_pin_differs(repo):
     assert "pm init set up this worktree and left the installed pm and the service alone:" in res.stderr, res.stderr
     assert f"linked {wt / 'records'} -> {repo.store}" in res.stderr, res.stderr
     assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
-    assert "!/records/" in repo.git("sparse-checkout", "list", cwd=wt).split()
+    assert repo.git("config", "--get", "--default=", "core.sparseCheckout", cwd=wt).strip() == ""
     assert not (repo.root.parent / "sched.log").exists(), "no service"
 
 

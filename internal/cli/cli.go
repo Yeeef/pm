@@ -546,7 +546,7 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 	case "hook git-post-checkout":
 		return hookGitPostCheckout(p, here, stdout, stderr)
 	case "hook git-pre-commit":
-		return hookGitPreCommit(here, stderr)
+		return hookGitPreCommit()
 	case "check":
 		return cmdCheck(here, stdout)
 	case "where":

@@ -23,7 +23,8 @@ const (
 // would stage the store as an embedded repo and the link as a file.
 var Exclude = []string{"/.pm/store/", "/.pm/run/", "/records"}
 
-// SparsePatterns is what pm sets as a worktree's sparse checkout: everything but records/.
+// SparsePatterns is the sparse checkout an earlier pm set in each worktree, everything but records/, to keep the main
+// branch's records/ copy from replacing the link; pm init turns it off (OldSparse).
 var SparsePatterns = []string{"/*", "!/records/"}
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
@@ -314,6 +315,40 @@ func Sparse(top string) ([]string, error) {
 	return strings.Fields(res.Stdout), nil
 }
 
+// TracksRecords is whether the worktree's HEAD or index tracks anything under records/: a branch cut from a main
+// branch that still carried the records/ copy an earlier pm kept.
+func TracksRecords(top string) (bool, error) {
+	if gitOK(top, "rev-parse", "--verify", "--quiet", "HEAD") {
+		head, err := Git(top, "ls-tree", "--name-only", "HEAD", "records")
+		if err != nil || head != "" {
+			return head != "", err
+		}
+	}
+	index, err := Git(top, "ls-files", "--", "records")
+	return index != "", err
+}
+
+// OldSparse is whether the worktree keeps an earlier pm's sparse checkout (SparsePatterns) that can go: while its HEAD
+// or index tracks records/, turning sparse checkout off writes that copy over the link, so it stays.
+func OldSparse(top string) (bool, error) {
+	patterns, err := Sparse(top)
+	if err != nil || strings.Join(patterns, "\x00") != strings.Join(SparsePatterns, "\x00") {
+		return false, err
+	}
+	tracks, err := TracksRecords(top)
+	return !tracks, err
+}
+
+// Unsparse turns the worktree's sparse checkout off, and the setting an earlier pm set with it.
+func Unsparse(top string) error {
+	if _, err := Git(top, "sparse-checkout", "disable"); err != nil {
+		return err
+	}
+	proc.Run([]string{"git", "config", "--worktree", "--unset", "sparse.expectFilesOutsideOfPatterns"},
+		proc.Options{Cwd: &top})
+	return nil
+}
+
 // HooksDir is where the clone's git hooks live: pm's own .pm/hooks in the main checkout.
 func HooksDir(main string) string { return filepath.Join(main, filepath.FromSlash(HooksRel)) }
 
@@ -425,8 +460,7 @@ func SetupClone(cwd, remote string) (string, error) {
 	if !exists(records) {
 		if !gitOK(cwd, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch) {
 			if !gitOK(cwd, "rev-parse", "--verify", "--quiet", "refs/remotes/"+remote+"/"+branch) {
-				return "", refuse("no %s branch here or on %s; fetch it, or create it once with git subtree split "+
-					"--prefix=records -b %s", branch, remote, branch)
+				return "", refuse("no %s branch here or on %s; fetch it (git fetch %s %s)", branch, remote, remote, branch)
 			}
 			if _, err := Git(cwd, "branch", "--track", branch, remote+"/"+branch); err != nil {
 				return "", err
@@ -443,23 +477,25 @@ func SetupClone(cwd, remote string) (string, error) {
 	if Resolve(top) == Resolve(records) {
 		return "", refuse("%s is the store itself; run %s from a code worktree", top, setup)
 	}
-	// main's copy of records/ is tracked on any branch made from it, now or after a later pull; keep it out of this
-	// worktree always, or git replaces the ignored link with the copy the moment the branch tracks it.
-	if on, err := GitConfig(top, "core.sparseCheckout"); err != nil {
+	// an earlier pm kept the main branch's records/ copy out of each worktree with a sparse checkout
+	if old, err := OldSparse(top); err != nil {
 		return "", err
-	} else if on != "true" {
-		if _, err := Git(top, append([]string{"sparse-checkout", "set", "--no-cone"}, SparsePatterns...)...); err != nil {
+	} else if old {
+		if err := Unsparse(top); err != nil {
 			return "", err
 		}
-		if _, err := Git(top, "config", "--worktree", "sparse.expectFilesOutsideOfPatterns", "true"); err != nil {
-			return "", err
-		}
-		out = append(out, fmt.Sprintf("excluded records/ from %s with sparse checkout", top))
+		out = append(out, fmt.Sprintf("turned off the sparse checkout an earlier pm set in %s", top))
 	}
 	link := filepath.Join(top, "records")
 	switch {
 	case isLink(link) && Resolve(link) == Resolve(records):
 	case exists(link) || isLink(link):
+		if tracks, err := TracksRecords(top); err != nil {
+			return "", err
+		} else if tracks && !isLink(link) {
+			return "", refuse("%s is this branch's tracked copy of records/, not the link to %s; merge the main branch, "+
+				"which tracks none, then run %s again", link, records, setup)
+		}
 		return "", refuse("%s exists and is not a link to %s; move it away and run %s again", link, records, setup)
 	default:
 		if err := os.Symlink(records, link); err != nil {
@@ -497,12 +533,16 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	if !(isLink(link) && Resolve(link) == Resolve(records)) {
 		out = append(out, fmt.Sprintf("records link: %s is not a link to %s; run pm init", link, records))
 	}
-	patterns, err := Sparse(top)
-	if err != nil {
+	if old, err := OldSparse(top); err != nil {
 		return nil, err
+	} else if old {
+		out = append(out, fmt.Sprintf("sparse checkout: %s keeps the one an earlier pm set; run pm init", top))
 	}
-	if !contains(patterns, "!/records/") {
-		out = append(out, fmt.Sprintf("sparse checkout: %s does not exclude records/; run pm init", top))
+	if tracks, err := TracksRecords(top); err != nil {
+		return nil, err
+	} else if tracks {
+		out = append(out, fmt.Sprintf("records copy: %s tracks records/, a copy no branch keeps now; untrack it with git "+
+			"rm -r -q --cached --sparse records and commit, or merge the main branch once it has", top))
 	}
 	hp, err := GitConfig(main, "core.hooksPath")
 	if err != nil {

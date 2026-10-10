@@ -74,10 +74,11 @@ def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("tracked", [False, True], ids=["no-records", "mains-tracked-copy"])
+@pytest.mark.parametrize("tracked", [False, True], ids=["no-records", "branch-tracks-a-copy"])
 def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
-    """Claude Code's worktrees: added with --no-checkout, then reset, so git never runs post-checkout. With main
-    tracking a copy of records/ (and ignoring /records for the link), the reset leaves that copy where the link goes."""
+    """Claude Code's worktrees: added with --no-checkout, then reset, so git never runs post-checkout. A branch that
+    tracks a copy of records/ (cut from a main branch that still carried an earlier pm's copy) gets that copy where the
+    link goes: session start leaves it, and pm init and pm where say to merge the main branch."""
     if tracked:
         repo.records.unlink()
         (repo.records / "sprints").mkdir(parents=True)
@@ -90,11 +91,19 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
     repo.git("worktree", "add", "-q", "--no-checkout", "-b", "bridge", str(wt))
     repo.git("reset", "-q", "--hard", cwd=wt)
     assert (wt / "records").is_dir() == tracked and not (wt / "records").is_symlink()
-    init_ready(repo)  # after the worktree: main's sparse checkout, which pm init sets, would carry over to it
+    init_ready(repo)
     text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt))
-    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve(), text
     assert repo.git("status", "--porcelain", cwd=wt) == ""
+    assert repo.git("config", "--get", "--default=", "core.sparseCheckout", cwd=wt).strip() == ""
     ran, located, rest = text.split("\n\n", 2)
+    if tracked:
+        assert (wt / "records/sprints/demo-1.md").read_text() == "copy\n", "the tracked copy is left as it is"
+        assert (f"{wt / 'records'} is this branch's tracked copy of records/, not the link to {repo.store}; merge the "
+                "main branch, which tracks none, then run pm init again") in ran, ran
+        assert (f"checkout  {wt}  branch bridge, records/ is this branch's tracked copy, not the link; merge the main "
+                "branch, which tracks none, then run pm init") in located, located
+        return
+    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve(), text
     assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
     assert f"checkout  {wt}  branch bridge, records link set up" in located
     assert rest.startswith("Project state from `pm show` at session start, ")

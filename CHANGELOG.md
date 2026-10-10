@@ -22,6 +22,34 @@ only.
 
 ## [Unreleased]
 
+### Upgrade guide
+
+1. On each machine, install the release.
+2. In the repo, run `pm upgrade --to <X>`. Besides moving the pin, it deletes `.github/workflows/pm-records-copy.yml`
+   and `.github/workflows/pm-records-guard.yml` and pm's section in `.pm/hooks/pre-commit` (the file goes when
+   nothing else is in it), and the commit it prints also untracks the main branch's `records/` copy
+   (`git rm -r -q --cached --sparse records`; the records stay on the `records` branch, and each worktree's link
+   stays). Make that commit and merge it as an ordinary PR.
+3. Once the PR is on the main branch, pull it into the main checkout. `pm init` (session start runs it) then turns
+   off the sparse checkout an earlier pm set in each worktree. A branch cut before the merge still tracks
+   `records/`: merge the main branch into it.
+
+### Breaking changes
+
+- The main branch no longer carries a copy of `records/`: records live only on the `records` branch, read on the
+  site or on that branch on GitHub, and each worktree keeps its git-ignored `records/` link. pm no longer writes the
+  workflow that copied the records branch into the main branch, the pull-request guard that failed an edit of
+  `records/`, or the pre-commit section that refused one, and no longer sets a sparse checkout in each worktree to
+  keep the copy away from the link; each existed only for the copy (step 2). A branch that still tracks `records/`
+  gets that copy where its link goes: `pm init`, `pm doctor` and `pm where` say to merge the main branch (step 3).
+
+### Changed
+
+- `pm doctor` names each piece an earlier pm wrote for the copy (the two workflows, the `pre-commit` section, the
+  sparse checkout, the tracked `records/` copy), and `pm upgrade` and `pm uninstall` remove them.
+- `pm hook git-pre-commit` does nothing: an earlier pm's `pre-commit` section still runs it until `pm upgrade`
+  removes that section, so a commit goes through in the meantime.
+
 ### Fixed
 
 - `pm init --help` now says what `--session-start` does with the service: it starts an installed service that does

@@ -500,7 +500,8 @@ func cmdDoctor(here string, stdout io.Writer) error {
 }
 
 // cmdUpgrade is pm upgrade: move the pin to the running pm, rewrite every managed piece as it writes them, take out
-// Beads' pieces and point core.hooksPath at pm's hooks; commits nothing. Without --to it never moves a pin down.
+// Beads' pieces and the retired ones and point core.hooksPath at pm's hooks; commits nothing, and names the untracking
+// of a records/ copy the branch still tracks. Without --to it never moves a pin down.
 func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	to := p.Get("to")
 	if to == "" {
@@ -549,7 +550,12 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if len(written) == 0 {
+	// the main branch's records/ copy an earlier pm kept: no branch tracks records/ now
+	tracks, err := install.TracksRecords(top)
+	if err != nil {
+		return err
+	}
+	if len(written) == 0 && !tracks {
 		if hooksPath != "" {
 			fmt.Fprintln(stdout, hooksPath)
 		}
@@ -568,14 +574,22 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if hooksPath != "" {
 		lines = append(lines, hooksPath)
 	}
-	lines = append(lines, fmt.Sprintf("pm commits nothing on %s; commit pm's files there: git add -- %s && git commit "+
-		"-m \"Upgrade pm to %s\"", branch, strings.Join(written, " "), buildinfo.Version))
+	var steps []string
+	if len(written) > 0 {
+		steps = append(steps, "git add -- "+strings.Join(written, " "))
+	}
+	if tracks {
+		lines = append(lines, "this branch tracks records/, a copy no branch keeps now; the commit below untracks it")
+		steps = append(steps, "git rm -r -q --cached --sparse records")
+	}
+	lines = append(lines, fmt.Sprintf("pm commits nothing on %s; commit pm's files there: %s && git commit -m \"Upgrade "+
+		"pm to %s\"", branch, strings.Join(steps, " && "), buildinfo.Version))
 	_, err = fmt.Fprintln(stdout, strings.Join(lines, "\n"))
 	return err
 }
 
 // cmdUninstall is pm uninstall: pm's pieces out of this worktree and pm's setup out of the clone and the machine; the
-// records branch, records/ on the main branch and the remote's work store (refs/pm/work) stay, and so does pm in the
+// records branch and the remote's work store (refs/pm/work) stay, and so does pm in the
 // bin dir, which other clones run. Refused before anything changes when the store holds uncommitted records or a piece
 // cannot be removed without touching what is not pm's.
 func cmdUninstall(here string, stdout io.Writer) error {
@@ -665,11 +679,9 @@ func cmdUninstall(here string, stdout io.Writer) error {
 			out = append(out, "removed the link "+link)
 		}
 		if sparse[t] {
-			if _, err := install.Git(t, "sparse-checkout", "disable"); err != nil {
+			if err := install.Unsparse(t); err != nil {
 				return err
 			}
-			proc.Run([]string{"git", "config", "--worktree", "--unset", "sparse.expectFilesOutsideOfPatterns"},
-				proc.Options{Cwd: &t})
 			out = append(out, "turned off the sparse checkout of "+t)
 		}
 		said, err := install.RemoveClaude(t, records)
@@ -798,25 +810,8 @@ func hookGitPostCheckout(p *Parsed, here string, stdout, stderr io.Writer) error
 	return nil
 }
 
-// hookGitPreCommit is pm hook git-pre-commit: records live on the records branch, so a code-branch commit must not
-// edit records/ (main's copy is the copy workflow's). A merge is let through, since merging main brings in the copy.
-// Unlike the runtime hooks, this one refuses: it is the guard.
-func hookGitPreCommit(here string, stderr io.Writer) error {
-	gitDir, err := install.Git(here, "rev-parse", "--path-format=absolute", "--git-dir")
-	if err != nil {
-		return err
-	}
-	if whereExists(filepath.Join(gitDir, "MERGE_HEAD")) {
-		return nil
-	}
-	staged, err := install.Git(here, "diff", "--cached", "--name-only", "--", "records/")
-	if err != nil {
-		return err
-	}
-	if staged != "" {
-		fmt.Fprint(stderr, "error: this commit edits records/, which only the records branch may change; write records "+
-			"with pm\nand unstage these edits: git restore --staged records/\n")
-		return &exitCode{1}
-	}
-	return nil
-}
+// hookGitPreCommit is pm hook git-pre-commit, retired with the main branch's records/ copy, whose guard it was: it does
+// nothing. An earlier pm's section in the main checkout's .pm/hooks/pre-commit runs it in every worktree of the clone
+// until pm upgrade's removal of that section reaches the main checkout, so a worktree already pinned to this pm must
+// still commit.
+func hookGitPreCommit() error { return nil }
