@@ -1075,8 +1075,10 @@ func decisionBody(body string) error {
 }
 
 // decisionBlock is a ::: decision block of today, from source.
-func decisionBlock(source, body string) string {
-	return fmt.Sprintf("::: decision {source=%s date=%s}\n%s\n:::", source, store.Today(), body)
+func decisionBlock(source, body string) string { return decisionBlockOn(source, store.Today(), body) }
+
+func decisionBlockOn(source, date, body string) string {
+	return fmt.Sprintf("::: decision {source=%s date=%s}\n%s\n:::", source, date, body)
 }
 
 func cmdTaskMove(e *env, p *Parsed) (string, error) {
@@ -1203,7 +1205,7 @@ func cmdSprintMove(e *env, p *Parsed) (string, error) {
 				"there; rename the record to records/sprints/%s.md by hand and commit it with pm commit", id, toName,
 				r.rel(rec.Path), sprintName(toName, sp.Number))
 		}
-		w, err := r.moveWrites(rec, id, mv)
+		w, err := r.moveWrites(rec, id, mv, moveDate(sp))
 		if err != nil {
 			return "", err
 		}
@@ -1225,7 +1227,8 @@ func cmdSprintMove(e *env, p *Parsed) (string, error) {
 		ToNumber: work.LastSprintNumber(slices.Values(r.x.All()), to) + 1, Reason: reason}
 	planned := *sp
 	planned.Parent, planned.Number = to, plan.ToNumber
-	w, err := r.moveWrites(rec, id, plan)
+	planDate := time.Now().UTC().Format("2006-01-02")
+	w, err := r.moveWrites(rec, id, plan, planDate)
 	if err != nil {
 		return "", err
 	}
@@ -1247,8 +1250,8 @@ func cmdSprintMove(e *env, p *Parsed) (string, error) {
 	}
 	held := fmt.Sprintf("the work store holds the move (%s is sprint %d of %s): run the same command again to "+
 		"finish the records step", id, mv.ToNumber, toName)
-	if mv != plan {
-		if w, err = r.moveWrites(rec, id, mv); err == nil {
+	if date := moveDate(&moved); mv != plan || date != planDate {
+		if w, err = r.moveWrites(rec, id, mv, date); err == nil {
 			err = r.checkPlanned(w, r.with(moved))
 		}
 		if err != nil {
@@ -1298,7 +1301,21 @@ func moveText(r *repo, id string, mv work.SprintMove) string {
 
 // moveWrites is a move's records step, one commit: the sprint record renamed to <project>-<number>, its text
 // unchanged, and the move as a source=agent decision in both projects' records.
-func (r *repo) moveWrites(rec *records.Record, id string, mv work.SprintMove) ([]store.Write, error) {
+// moveDate is the UTC date of the sprint's last move note, which the move's decisions carry: the records step is then
+// the same on every clone and in every time zone, so a rerun on a clone whose records had not synced another clone's
+// finished step writes that step again, and the records sync's rebase onto it drops the copy.
+func moveDate(sp *work.Item) string {
+	for i := len(sp.Comments) - 1; i >= 0; i-- {
+		if c := sp.Comments[i]; c.Kind == work.Note && c.Author == work.MoveAuthor {
+			return c.CreatedAt.UTC().Format("2006-01-02")
+		}
+	}
+	return ""
+}
+
+// moveWrites is the records step of a move: the record renamed, and the move as a decision dated date in both
+// projects' records.
+func (r *repo) moveWrites(rec *records.Record, id string, mv work.SprintMove, date string) ([]store.Write, error) {
 	from, err := r.projectRecord(mv.From)
 	if err != nil {
 		return nil, err
@@ -1311,12 +1328,12 @@ func (r *repo) moveWrites(rec *records.Record, id string, mv work.SprintMove) ([
 	if exists(path) {
 		return nil, refuse("%s already exists; sprint %s cannot take its name", r.rel(path), id)
 	}
-	fromText, err := records.InsertEntry(from.Text, "Decisions", decisionBlock("agent", fmt.Sprintf(
+	fromText, err := records.InsertEntry(from.Text, "Decisions", decisionBlockOn("agent", date, fmt.Sprintf(
 		"Moved sprint %d (%s) to %s as sprint %d: %s", mv.FromNumber, id, to.Name(), mv.ToNumber, mv.Reason)))
 	if err != nil {
 		return nil, err
 	}
-	toText, err := records.InsertEntry(to.Text, "Decisions", decisionBlock("agent", fmt.Sprintf(
+	toText, err := records.InsertEntry(to.Text, "Decisions", decisionBlockOn("agent", date, fmt.Sprintf(
 		"Took in sprint %d of %s (%s) as sprint %d: %s", mv.FromNumber, from.Name(), id, mv.ToNumber, mv.Reason)))
 	if err != nil {
 		return nil, err
