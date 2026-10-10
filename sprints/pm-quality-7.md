@@ -101,7 +101,7 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: every command pm runs is a command of the tree, so `pm --help`, each `pm <noun> --help` and `pm prime`'s noun list name it, and a test fails when one is not; PR #30, pending merge.
+done: every command pm runs is a command of the tree, so `pm --help`, each `pm <noun> --help` and `pm prime`'s noun list name it, and a test fails when one is not; PR #30, merged as cee2d7d.
 
 - The work-store commands (`task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`) are tree leaves carrying their own flags and help, unchanged; the store-command table is derived from the tree, so none can exist outside `pm --help`. `pm version` and `pm export [--store DIR]` are tree commands, and `--import-bd`/`--import` are `pm init` arguments. Only `pm show ID` and `pm task add --parent` are routed before the tree, and their tree command's help names them.
 - `internal/cli/commands_test.go`: walks the tree through `pm … --help`, every store command and every agent command body.
