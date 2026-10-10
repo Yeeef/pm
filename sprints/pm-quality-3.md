@@ -98,6 +98,17 @@ A refreshed cache would otherwise let cached test results stand in for test runs
   -count=30 ok (93.2 s), -race -run GC -count=5 ok (20.6 s). Production
   exposed: the service GCs while commands and syncs write.
 
+- After the change, PR #16 (head b18634a, go.sum changed by the Dolt bump).
+  First attempt, caches cold for the new go.sum: build-vet-test 6:11 Linux /
+  6:16 macOS, work 4:17 / 5:20, race 2:40 / 5:04, release build 6:00 / 5:21,
+  light 2:45, integration 3:26. Rerun with the caches that first attempt saved
+  (as the next push of a PR, or any PR after main saves): build-vet-test 1:18
+  / 2:11, work 1:55 / 3:47 (macOS internal/work tests 137.4 s), race 1:20 /
+  2:07, release build 2:35 / 3:59, light 1:00, integration 1:18. Slowest check
+  3:59 (release build, macOS), 3:47 among the checks every PR runs (was 9:31
+  Linux / 10:16 macOS). macOS cache restore takes about 1 min of each macOS
+  job.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
