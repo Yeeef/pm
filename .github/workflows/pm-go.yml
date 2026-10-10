@@ -3,9 +3,10 @@
 # internal/work's; internal/work's tests, the longest; the race tests. The step summary records the binary's size per
 # target. pm-release-build.yml runs the release build test, pm-tests.yml the harness suite.
 #
-# The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version and kind (build,
-# race), and a pull request restores main's latest, so a PR compiles only what it changed. A run that restored nothing
-# (a new Go version, an evicted cache) saves too. GOFLAGS=-count=1: the restored cache never stands in for a test run.
+# The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
+# and go.sum, and a pull request restores main's latest, so a PR compiles only what it changed. A run that finds none
+# for its go.sum (a dependency change, a new Go version, an evicted cache) restores the latest of its kind and saves its
+# own, so the PR's next push is warm. GOFLAGS=-count=1: the restored cache never stands in for a test run.
 name: pm go
 
 on:
@@ -56,11 +57,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - name: The Go cache paths
+      - name: The Go cache paths and key
         id: paths
         run: |
           echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
           echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "kind=go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-${{ matrix.cache }}-" >> "$GITHUB_OUTPUT"
+          echo "sum=${{ hashFiles('go.sum') }}-" >> "$GITHUB_OUTPUT"
       - name: Restore main's latest Go cache
         id: restore
         uses: actions/cache/restore@v4
@@ -68,8 +71,10 @@ jobs:
           path: |
             ${{ steps.paths.outputs.mod }}
             ${{ steps.paths.outputs.build }}
-          key: go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-${{ matrix.cache }}-${{ github.sha }}
-          restore-keys: go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-${{ matrix.cache }}-
+          key: ${{ steps.paths.outputs.kind }}${{ steps.paths.outputs.sum }}${{ github.sha }}
+          restore-keys: |
+            ${{ steps.paths.outputs.kind }}${{ steps.paths.outputs.sum }}
+            ${{ steps.paths.outputs.kind }}
       - name: ${{ matrix.suite }}
         run: ${{ matrix.run }}
       - name: Record the binary
@@ -79,7 +84,9 @@ jobs:
           size=$(wc -c < .go/pm | tr -d ' ')
           echo "Go pm ${{ matrix.target }}: $size bytes, stripped (-s -w), cgo" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Save the Go cache
-        if: matrix.save && (github.ref == 'refs/heads/main' || steps.restore.outputs.cache-matched-key == '')
+        if: >-
+          matrix.save && (github.ref == 'refs/heads/main' ||
+          !startsWith(steps.restore.outputs.cache-matched-key, format('{0}{1}', steps.paths.outputs.kind, steps.paths.outputs.sum)))
         uses: actions/cache/save@v4
         with:
           path: |
