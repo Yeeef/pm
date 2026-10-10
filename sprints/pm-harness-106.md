@@ -98,7 +98,8 @@ done: pm-harness is tracked in Yeeef/pm with its full history, and the yeeef-age
 
 - Work store: 594 items imported with ids kept (14 open and 95 closed sprints, 20 open and 261 closed tasks, 4 open and 199 closed needs, 280 comments, 63 deps); a re-export equals the import.
 - Records: 142 moved (109 sprints, 19 design pages, 11 docs, 2 postmortems, the project), scrubbed of the owner email, home paths, session ids, the machine hostname and claude.ai links; pm.yeeefs.com kept by owner decision.
-- `pm init --import FILE` added in Yeeef/pm PR 6; pm's repo files and the AGENTS.md change in Yeeef/pm PR 11.
+- `pm init --import FILE` merged in PR 6 as 080c352; pm's repo files, the AGENTS.md change and `site_url` merged in PR 11 as 310df2d.
+- pm.yeeefs.com serves this clone's pm site and agents.yeeefs.com serves yeeef-agents', by owner decision.
 - Triage: sprints 81 and 94 voided; 56 and 68 port yeeef-agents PRs 76 and 72 to Go (new tasks .65.6 and .77.6); 55 and 92 retargeted to Go.
 - In yeeef-agents, all 14 open pm-harness sprints closed as moved, and the project closed with an Outcome that links here.
 
