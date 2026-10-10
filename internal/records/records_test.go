@@ -169,3 +169,27 @@ func TestParseReadsTheHeaderWithYAML11(t *testing.T) {
 		t.Errorf("a header without its closing line: %v", err)
 	}
 }
+
+// A summary the listing finds but that is gone when it is read (git rewrites a file by unlinking it, mid-sync) is left
+// out, not an error that every page would show: a dangling link is such a file, listed and never readable.
+func TestReadSummariesLeavesOutASummaryGoneWhenRead(t *testing.T) {
+	root := t.TempDir()
+	days := filepath.Join(root, "days")
+	if err := os.MkdirAll(days, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	text := `{"date": "2026-10-09", "generated_at": "2026-10-10T00:00:00Z", "digest": "d", "text": "t"}`
+	if err := os.WriteFile(filepath.Join(days, "2026-10-09.summary.json"), []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("gone", filepath.Join(days, "2026-10-10.summary.json")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadSummaries(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got["2026-10-09"] == nil {
+		t.Fatalf("summaries %v, want 2026-10-09's alone", got)
+	}
+}

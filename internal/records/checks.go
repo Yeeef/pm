@@ -1,7 +1,9 @@
 package records
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -187,7 +189,8 @@ type Summary struct {
 // SummaryPath is where pm day summarize stores a day's summary.
 func SummaryPath(root, day string) string { return filepath.Join(root, "days", day+".summary.json") }
 
-// ReadSummaries is every day summary under root, by date.
+// ReadSummaries is every day summary under root, by date. A summary listed but gone when it is read (git rewrites a
+// file by unlinking it) is left out, as it is no longer there.
 func ReadSummaries(root string) (map[string]*Summary, error) {
 	paths, err := filepath.Glob(filepath.Join(root, "days", "*.summary.json"))
 	if err != nil {
@@ -197,6 +200,9 @@ func ReadSummaries(root string) (map[string]*Summary, error) {
 	out := map[string]*Summary{}
 	for _, p := range paths {
 		s, err := ReadSummary(p)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}

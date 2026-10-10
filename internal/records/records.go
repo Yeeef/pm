@@ -4,6 +4,7 @@
 package records
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -257,7 +258,8 @@ func Parse(path, rel, text string) (*Record, error) {
 	return &Record{Path: path, Rel: rel, Meta: meta, Body: text[end:], Text: text}, nil
 }
 
-// Texts is the text of every .md file under root, by resolved path.
+// Texts is the text of every .md file under root, by resolved path. A file or directory the walk listed but that is
+// gone when it is read (git rewrites a file by unlinking it) is left out, as it is no longer there.
 func Texts(root string) (map[string]string, error) {
 	root, err := filepath.EvalSymlinks(root)
 	if err != nil {
@@ -265,6 +267,9 @@ func Texts(root string) (map[string]string, error) {
 	}
 	out := map[string]string{}
 	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && p != root {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -272,6 +277,9 @@ func Texts(root string) (map[string]string, error) {
 			return nil
 		}
 		b, err := os.ReadFile(p)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
