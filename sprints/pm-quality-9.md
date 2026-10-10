@@ -78,6 +78,13 @@ A reply that lands between the CLI check and the write would otherwise let the b
   pm sprint edit only had to write the prefix it found; the record header
   holds the bare title, as pm sprint open writes it.
 
+- Before this sprint, pm commit joined any relative path other than
+  records/... to the cwd, so sprints/x.md from the main checkout or a worktree
+  resolved outside the store and was refused; the fallback now resolves a
+  relative path to the store when the store holds a change or a file there,
+  and leaves every other refusal as it was (e.g. .gitignore from the main
+  checkout).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
