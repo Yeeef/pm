@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T18:53:58+00:00",
- "digest": "5c1e822c0d638ee5",
+ "generated_at": "2026-10-10T19:14:33+00:00",
+ "digest": "833b3887696d2d23",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm replaces Python pm:** Python pm is deleted from Yeeef/pm and yeeef-agents, and the harness tests check only Go pm. A new Go pm release is published, and both clones run it.\n- **Harness tracking moved to Yeeef/pm:** pm-harness now lives in Yeeef/pm with its full history. The old copy in yeeef-agents is closed.\n- **Faster checks and new commands:** Pull request checks finish much faster now. pm can move a sprint, remove merged worktrees, and close a task as dropped.\n- **Site and request hook:** The site keeps working while git rewrites records, and diagrams read well on a phone. The owner-request hook now applies one rule everywhere."
+ "text": "- **Go-only pm:** The Python pm is deleted from both repos, and both clones run the Go pm. The pm-harness project now lives in Yeeef/pm.\n- **pm release and notes:** A new pm release is published as a minor version, because main has a breaking change. CI now refuses any release without a structured release note.\n- **Site and records fixes:** The site no longer shows missing-file errors while git rewrites the records. Main no longer keeps its own copy of the records; each worktree links to them.\n- **Agent request rules:** Agents now do a step themselves before they ask the owner. Questions use the structured question tool, not plain text."
 }
