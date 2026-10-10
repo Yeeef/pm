@@ -1,5 +1,5 @@
 """`pm hook owner-request`, the Stop hook wired in Claude Code and Codex: an agent may not end its turn asking the
-owner for something sprint work waits on only in chat. Every such request in the final reply must match an open need
+owner for something only in chat. Every such request in the final reply must match an open need
 or action (a Beads issue labelled `human`) that this session raised; the reply needs no id.
 
 It reads this session's open requests from Beads (`pm decision need` and `pm action need` store the raising session
@@ -39,7 +39,7 @@ JUDGE_ARGS = ["claude", "-p", "--model", MODEL, "--setting-sources", "", "--stri
 
 SYSTEM = prompt("owner_request_system")
 
-ASKS = {"decision", "review", "action"}  # kinds that block unless an open request matches
+ASKS = {"decision", "review", "action", "clarification"}  # kinds that block unless an open request matches
 AUTHORIZED = "authorized"  # a needless ask: blocks even when an open request matches
 
 REASON = prompt("owner_request_reason")  # {asks}: the requests no open request covers

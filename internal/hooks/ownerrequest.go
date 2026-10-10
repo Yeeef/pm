@@ -1,7 +1,7 @@
 package hooks
 
 // pm hook owner-request, the Stop hook wired in Claude Code and Codex: an agent may not end its turn asking the owner
-// for something sprint work waits on only in chat. Every such request in the final reply must match an open need that
+// for something only in chat. Every such request in the final reply must match an open need that
 // this session raised. It reads this session's open needs from the work store, then asks Claude Haiku through
 // `claude -p` to list the owner requests in the reply and the open need each one matches; a request that matches none,
 // or a needless ask for leave to take an authorized step, blocks the stop once. On stop_hook_active, or a blank reply,
@@ -38,7 +38,7 @@ var judgeArgs = []string{"claude", "-p", "--model", judgeModel, "--setting-sourc
 // nonessential traffic.
 var judgeEnv = [][2]string{{"MAX_THINKING_TOKENS", "0"}, {"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"}}
 
-var asks = map[string]bool{"decision": true, "review": true, "action": true} // kinds that block unless one matches
+var asks = map[string]bool{"decision": true, "review": true, "action": true, "clarification": true} // kinds that block unless one matches
 
 // Request is one open need of the session, as the judge sees it.
 type Request struct{ ID, Title, Description string }

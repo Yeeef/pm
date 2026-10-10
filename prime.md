@@ -86,7 +86,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A choice that is cheap to reverse, and that nobody will ask about, needs no record. The commit message is enough.
 - The source is `agent` for your own decisions. It is `owner` only when it answers a need or the owner confirmed it.
 - Owner decisions are closed. Do not ask again about a decided question.
-- Anything the owner must decide or do is a need, never text in a record and never only in chat.
+- Anything the owner must decide or do is never text in a record, nor a plain-text question in chat: How's "Never leave a request only in chat" says how to raise it.
 - An answered decision need is cited by a decision, or marked as setting no rule. So a missed rule is caught.
 - A design page holds one area's final state and the alternatives not chosen. The trail of findings stays in sprint records. Decisions and plans stay in project and sprint records.
 - When the design changes, edit the page to the new state. Do not add a trail of findings. Put no date in the name or the header. Git keeps the history, and the site shows the created and updated dates.
@@ -94,11 +94,16 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A postmortem is due when an incident cost more than a day, or broke other sessions or the owner's view.
 - A day page is generated. Nobody writes one.
 - Session start runs `pm init --session-start`, then injects `pm where` and `pm show`. When it says init failed or timed out, run `pm init` by hand.
-- **Never leave a request only in chat.** Raise a need first for each request that sprint work waits on. Examples: a decision on a sprint's scope or design, a PR review or merge, an action a task waits on.
 
 # How
 
 **Bodies.** Some commands below take a body: a goal, a frame, a description, a reason, an answer. Give it as a quoted heredoc, `--text-file - <<'EOF'` … `EOF`, or as `--text="…"` for one plain line without backticks, `$` or quotes. pm reads stdin only for `--text-file -`, and only from a heredoc or a pipe; any other stdin is refused at once. Hooks read their JSON input from stdin.
+
+**Never leave a request only in chat.**
+1. Do what you can yourself first. Ask the owner only for what only they can do: a choice, a credential, a review or merge, a step outside your reach.
+2. Raise each such request as a need, below, under the task or sprint it belongs to. If no task or sprint holds it, open one first: `pm task add`, or `pm sprint open` for work no open sprint fits.
+3. When there is a clear reason not to raise a need, such as the owner plainly in the chat and wanting to answer there, ask with AskUserQuestion, never as a question in plain text.
+4. Do not ask leave for a step you are authorized to take: working a sprint's tasks, committing, pushing its branch, opening its PR.
 
 - check current projects state
   - `pm show`: the top level. It shows what other live sessions hold, each open owner request and undelivered reply, a failed push, and one line per project. Session start injects it, stamped with its UTC time: orient from that copy. Other sessions change the state, so run it again before you tell the owner the project state.
