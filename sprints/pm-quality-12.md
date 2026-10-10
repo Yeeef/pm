@@ -67,6 +67,12 @@ None yet.
   several categories (#30's entry has Added and Fixed); no front matter.
   GitHub's merge queue is unavailable on a user-owned repo.
 
+- Every release 0.2.0 to 0.5.0 opens its upgrade guide with the same two steps
+  (install pm-v<X>/install.sh; pm upgrade --to X), so 'changelog.py release X'
+  writes those two and numbers the entries' own steps after them; released
+  notes for 0.2.0..0.5.0 and 0.5.0-rc.1 are byte-identical between main's
+  changelog.py and the new one.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
