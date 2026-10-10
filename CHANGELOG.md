@@ -25,6 +25,86 @@ only.
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.6.0] - 2026-10-10
+
+Every command pm runs is now listed in `pm --help` and in the noun list `pm prime` injects, the work-store commands
+(`pm task ready`, `pm dep`, `pm need dismiss`, `pm sync` and the rest) included. New commands rename a sprint
+(`pm sprint edit`), fix a need before the owner replies (`pm need edit`) and close a sprint whose PR merged with no
+review (`pm sprint close --merged`); `pm finding add` takes `--text`, `pm commit` takes paths relative to the store,
+`pm check` refuses a `.md` link to nothing, two intermittent failures are fixed at their root (the site reading the
+records while a sync rewrote them, and the work store's clone racing git's detached maintenance), and pm is built
+with Go 1.26.9.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.6.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.6.0`, then commit what it changes and merge it, as an ordinary PR. It changes
+   only the pin in `.pm/config.toml` and the version in pm's section of `.pm/hooks/post-checkout`: the hook entries
+   and every other piece pm manages are as 0.5.0 wrote them. Until step 3, pm in that branch's worktree refuses every
+   work-store command, since the clone's service still runs 0.5.0 ("this checkout pins pm 0.6.0, but the clone's pm
+   service runs pm 0.5.0 …"): run those from the main checkout.
+3. In each clone, once the PR is on the main branch, pull it into the main checkout, then run `pm service restart`.
+   Session start never restarts a running service, and until the restart every work-store command in the main
+   checkout fails with "the pm service runs pm 0.5.0, not pm 0.6.0: run pm service restart".
+4. In each clone, merge the main branch into every worktree's branch cut before the merge (or rebase it onto the pin
+   move). Once the service runs 0.6.0, pm in a worktree whose branch still pins 0.5.0 refuses every work-store
+   command, session start's included ("this checkout pins pm 0.5.0, but the clone's pm service runs pm 0.6.0 …").
+
+### Breaking changes
+
+- `pm finding add` with no finding text exits 1 with "the finding text is empty", as its other refusals do, where
+  0.5.0 exited 2 with a usage error. A finding text that starts with `--`, which 0.5.0 stored as the finding
+  (`pm finding add --sprint ID -- "--txt=…"`), is refused with exit 1: it is a misspelt option, not a finding.
+- A `.md` link to nothing in the records store (a symlink whose file is gone) is an error, naming the link and its
+  target, for `pm check`, `pm commit`, the site and every other read of the records as they are on disk; 0.5.0
+  passed over it, and `pm commit` committed it as a record. Remove the link or restore its file.
+
+### Added
+
+- `pm finding add` takes the finding with `--text` or `--text-file` too, as every body command does, and refuses a
+  text that starts with `--` (a misspelt option such as `--txt=…`), which it used to store as the finding.
+- `pm sprint edit ID --title "…"` renames an open sprint: its work-store title, which keeps its `Sprint <n>: `, and
+  its record's title, with the reason (the body, two lines or more) recorded as a sprint decision.
+- `pm need edit ID` rewrites an open need's body before the owner replies: an action's description with `--text` or
+  `--text-file`, or a decision need's parts with the flags `pm decision need` takes, checked the same way. It refuses
+  a need that holds a reply, a closed need and a PR review.
+- `pm sprint close ID --merged SHA [--pr URL]` closes a sprint whose PR was merged with no review need and stamps
+  `Merged as <sha> (PR #N).` into its Outcome, as a close after a review does. The commit must be on the remote's
+  main branch, which pm fetches first; a sprint that holds a review is refused.
+
+### Changed
+
+- pm is built with Go 1.26.9 (was 1.26.2).
+
+### Fixed
+
+- `pm --help`, each `pm <noun> --help` and the noun list `pm prime` injects name every command pm runs:
+  `pm dep`, `pm need`, `pm comment`, `pm sync`, `pm export` and `pm version`, and `pm task ready`, `edit` and
+  `release` and `pm reply add`, which ran but were listed nowhere (`pm dep --help` said "invalid choice"). `pm show
+  --help` names `pm show ID`, `pm task add --help` names `--parent`, and `pm init --help` names `--import-bd` and
+  `--import`. Their flags and behaviour are unchanged.
+- `pm decision close` on a need the owner never answered, and its `--help`, name `pm need dismiss` for a need that
+  became moot.
+- `pm task claim --help` says what `--session` does: it is the session recorded, even when the environment names one.
+- The site no longer shows the records with a file missing while a records sync rewrites them: since 0.5.0 a record
+  file gone by the time the service read it was left out of that read, and the site served it until the records
+  moved again. The service now reads the records again under the records lock, which the sync holds.
+- `pm check` and `pm commit` refuse a `.md` link in the records store whose file does not exist, naming the link and
+  its target; `pm check` passed over one, and `pm commit` committed it as a record.
+- `pm init`'s clone of the work store could fail with "invalid connection" when git is 2.47 or later: the auto
+  maintenance a fetch starts ran detached and removed its lock file while the clone read its directory. Every git the
+  pm service runs now finishes its maintenance before it returns.
+- `pm uninstall` disables a systemd unit that is enabled but not running (one that crashed), which it left starting at
+  the next login after its unit file was gone; and a session start can no longer bring the service back between
+  `pm uninstall`'s check for unsynced work and the removal of the unit and the store: both take the clone's install
+  lock.
+- `pm sprint move` run again on a clone whose records had not synced another clone's finished move writes the same
+  records step, which the records sync then drops, instead of one dated that clone's day, which stopped the records
+  sync on a conflict: the move's decisions carry the move note's date (UTC).
+- `pm commit` takes a path relative to the store, such as `sprints/x.md`, from anywhere, as it takes
+  `records/sprints/x.md`.
+
 ## [0.5.0] - 2026-10-10
 
 Records now live only on the `records` branch: the main branch's copy of `records/` is gone, with the workflows, the
@@ -329,6 +409,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.6.0]: https://github.com/Yeeef/pm/compare/pm-v0.5.0...pm-v0.6.0
 [0.5.0]: https://github.com/Yeeef/pm/compare/pm-v0.4.0...pm-v0.5.0
 [0.4.0]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...pm-v0.4.0
 [0.3.0]: https://github.com/Yeeef/pm/compare/pm-v0.2.2...pm-v0.3.0
