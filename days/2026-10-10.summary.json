@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T17:00:54+00:00",
- "digest": "9a5b62c8a99a49e8",
+ "generated_at": "2026-10-10T17:11:21+00:00",
+ "digest": "fd2d43840b3a1076",
  "model": "claude-haiku-5-5",
- "text": "- **Go-only pm:** Go pm is now the only pm, and both clones run it. Project tracking moved to the public pm repository, with its full history.\n- **Release notes:** Go pm shipped as a release with a breaking change. Every release now has a changelog note, and CI refuses a change without one.\n- **Site and record fixes:** The site no longer shows \"no such file\" errors while git rewrites records. Wide diagrams scroll on phones, and images kept beside a record now display.\n- **Faster, steadier checks:** The slowest pm CI check now takes a fraction of its former time. The Dolt crash in garbage-collection tests is fixed; the cause was in Dolt itself."
+ "text": "- **Go-only pm release:** A new pm release is published with only the Go implementation. Python pm is removed from both repos.\n- **Harness project move:** pm-harness is now tracked in Yeeef/pm with its full history. The old yeeef-agents copy is closed and points to the new home.\n- **Owner-request rule:** The owner-request hook now follows one rule everywhere. Agents do the work themselves first, and open a task before they ask the owner.\n- **Site and checks:** The site no longer shows errors while git rewrites its records. Pull request checks finish much sooner than before."
 }
