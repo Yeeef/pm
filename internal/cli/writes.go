@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
@@ -905,6 +905,9 @@ const ghTimeout = 60 * time.Second
 // "commit OWNER/REPO@<short>" for OWNER/REPO@SHA and "PR <url>" (with its merge commit once merged) for a PR URL, the
 // last two resolved on GitHub with gh. A ref that does not resolve is refused.
 func closeCommit(root, ref string) (string, error) {
+	if out, err := store.Git(root, "rev-parse", "--verify", "--quiet", "--short", ref+"^{commit}"); err == nil {
+		return "commit " + out, nil // this repo's first: a branch may be named like OWNER/REPO@SHA
+	}
 	if m := otherRepoCommit.FindStringSubmatch(ref); m != nil {
 		var c struct {
 			SHA string `json:"sha"`
@@ -928,40 +931,36 @@ func closeCommit(root, ref string) (string, error) {
 		if err := ghJSON(root, &pr, "pr", "view", ref, "--json", "state,mergeCommit"); err != nil {
 			return "", refuse("--commit %s is not a pull request on GitHub: %v", ref, err)
 		}
-		if pr.State == "MERGED" && pr.MergeCommit != nil && len(pr.MergeCommit.OID) >= 7 {
+		switch {
+		case pr.State == "MERGED" && pr.MergeCommit != nil && len(pr.MergeCommit.OID) >= 7:
 			return "PR " + ref + ", merged as " + m[1] + "@" + pr.MergeCommit.OID[:7], nil
+		case pr.State == "CLOSED":
+			return "", refuse("--commit %s was closed without merging, so it holds no work; name the commit or PR "+
+				"that does, or close the task with --dropped", ref)
 		}
 		return "PR " + ref, nil
 	}
-	out, err := store.Git(root, "rev-parse", "--verify", "--quiet", "--short", ref+"^{commit}")
-	if err != nil {
-		return "", refuse("--commit %s is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL", ref)
-	}
-	return "commit " + out, nil
+	return "", refuse("--commit %s is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL", ref)
 }
 
 // ghJSON runs gh in dir and decodes the JSON it prints into v; a gh that fails, runs past ghTimeout or prints no
 // JSON is an error naming why.
 func ghJSON(dir string, v any, args ...string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), ghTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "gh", args...)
-	cmd.Dir = dir
-	var out, errb bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &errb
-	err := cmd.Run()
+	cmd := "gh " + strings.Join(args, " ")
+	res, err := proc.Run(append([]string{"gh"}, args...), proc.Options{Cwd: &dir, Timeout: ghTimeout,
+		TimeoutText: strconv.Itoa(int(ghTimeout.Seconds()))})
 	switch {
-	case ctx.Err() != nil:
-		return fmt.Errorf("gh %s ran past %ds", strings.Join(args, " "), int(ghTimeout.Seconds()))
 	case err != nil:
-		why := strings.TrimSpace(errb.String())
+		return fmt.Errorf("%s did not run: %v", cmd, err)
+	case res.Code != 0:
+		why := strings.TrimSpace(res.Stderr)
 		if why == "" {
-			why = err.Error()
+			why = fmt.Sprintf("exit %d", res.Code)
 		}
-		return fmt.Errorf("gh %s failed: %s", strings.Join(args, " "), why)
+		return fmt.Errorf("%s failed: %s", cmd, why)
 	}
-	if err := json.Unmarshal(out.Bytes(), v); err != nil {
-		return fmt.Errorf("gh %s printed no JSON: %v", strings.Join(args, " "), err)
+	if err := json.Unmarshal([]byte(res.Stdout), v); err != nil {
+		return fmt.Errorf("%s printed no JSON: %v", cmd, err)
 	}
 	return nil
 }

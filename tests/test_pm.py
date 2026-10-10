@@ -417,6 +417,8 @@ def test_task_close_dropped_records_why_and_needs_no_commit(repo):
     assert repo.changes() == {"repo-demo.1.3": {"status": "closed", "resolution": "dismissed", "holder": None,
                                                 "close_reason": "A library parses it.", "closed_by": "sess-a"}}
     assert "  dropped  repo-demo.1.3  Write the parser" in repo.pm("show", "--sprint", "repo-demo.1").stdout
+    # sprint 1 holds a done task, an open need and the dropped task: the dropped one counts in neither number
+    assert "Sprint 1: First  .1  running  1/2 done" in repo.pm("show", "--project", "demo").stdout
 
 
 def test_task_close_with_commit_warns_nothing_about_a_dirty_tree(repo):
@@ -439,6 +441,7 @@ def test_task_close_resolves_another_repos_commit_or_a_pr_with_gh(repo):
     add_task(repo)
     add_task(repo, "repo-demo.1.4")
     add_task(repo, "repo-demo.1.5")
+    add_task(repo, "repo-demo.1.6")
     sha = "0123456789abcdef0123456789abcdef01234567"
     repo.set_commit("Yeeef/pm", sha)
     merged, open_pr = "https://github.com/Yeeef/pm/pull/7", "https://github.com/Yeeef/pm/pull/9"
@@ -449,6 +452,9 @@ def test_task_close_resolves_another_repos_commit_or_a_pr_with_gh(repo):
                   r"repos/Yeeef/pm/commits/fedcba9 failed: gh: No commit found for SHA: fedcba9")
     refused(repo, "task", "close", "repo-demo.1.3", "--commit", "https://github.com/Yeeef/pm/pull/8",
             match=r"--commit https://github.com/Yeeef/pm/pull/8 is not a pull request on GitHub: gh pr view")
+    repo.set_pr("https://github.com/Yeeef/pm/pull/10", "CLOSED")
+    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "https://github.com/Yeeef/pm/pull/10",
+            match=r"--commit https://github.com/Yeeef/pm/pull/10 was closed without merging, so it holds no work")
     refused(repo, "task", "close", "repo-demo.1.3", "--commit", "no-such-ref",
             match=r"--commit no-such-ref is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL")
     res = repo.pm("task", "close", "repo-demo.1.3", "--reason", "Parser written.", "--commit", "Yeeef/pm@0123456")
@@ -459,6 +465,11 @@ def test_task_close_resolves_another_repos_commit_or_a_pr_with_gh(repo):
     assert items["repo-demo.1.3"]["close_reason"] == "Parser written. (commit Yeeef/pm@0123456)"
     assert items["repo-demo.1.4"]["close_reason"] == f"Done (PR {merged}, merged as Yeeef/pm@0123456)"
     assert items["repo-demo.1.5"]["close_reason"] == f"Done (PR {open_pr})"
+    # a branch of this repo named like OWNER/REPO@SHA is this repo's commit: no gh call
+    repo.git("branch", "Yeeef/pm@cafe1234")
+    assert repo.pm("task", "close", "repo-demo.1.6", "--commit", "Yeeef/pm@cafe1234").returncode == 0
+    head = repo.git("rev-parse", "--short", "HEAD").strip()
+    assert repo.items()["repo-demo.1.6"]["close_reason"] == f"Done (commit {head})"
 
 
 def test_task_close_refuses_a_task_another_live_session_holds(repo):

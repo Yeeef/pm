@@ -1,6 +1,6 @@
 You write the "Today" summary at the top of a project-management site's page for {day}.
 Below is everything recorded on {day}: per project, the sprints finished (with their outcome) and opened, the tasks
-finished (with how), started and opened, the requests to the owner raised and closed that day, and the commits to the
+finished (with how), dropped (with why), started and opened, the requests to the owner raised and closed that day, and the commits to the
 project records. Write a briefing for the owner, not a list of tasks: group the day's work into at most four themes,
 one Markdown bullet per theme, each line starting with "- **<theme>:** ". A theme is an area of the work, named in two
 to four words. In each theme, write only the changes that matter to the owner, in one or two short sentences: what

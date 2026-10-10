@@ -66,9 +66,9 @@ only.
   It removes with `git worktree remove` (never `--force`) and deletes a branch only once it is merged.
 - `pm task close <id> --dropped --reason "…"` closes a task that will not be done: no commit, no warning, and
   `pm show --sprint`, the site's task graph and day pages show it as dropped (it is stored with the `dismissed`
-  resolution every clone already accepts, so no store migration).
+  resolution every clone already accepts, so no store migration). A task it blocks no longer waits on it.
 - `pm task close --commit` takes `OWNER/REPO@SHA` for work committed in another repo, or a PR URL, both resolved with
-  `gh`; one that does not resolve is refused.
+  `gh`; one that does not resolve, or a PR closed without merging, is refused.
 - The site serves image files (`.svg`, `.png`, `.jpg`, `.jpeg`, `.webp`) kept in the records store, next to the
   record's page, so a record shows a figure with `![…](fig.png)` instead of a base64 data URI. Paths that leave the
   store (`..`, a symlink out of it) or name a dot file get 404. `pm check` and `pm commit` take such files beside a
@@ -101,7 +101,8 @@ only.
 - The site's overview links the feedback doc under Feedback.
 - `pm task close` refuses a task that another live session holds, as `pm task claim` does, and names
   `pm task release`.
-- A sprint's "n of m tasks done" on the overview, and `pm show`'s count, leave dropped tasks out.
+- A sprint's "n of m tasks done" on the overview, and `pm show`'s n/m done, leave dropped tasks out of both
+  numbers.
 
 ### Fixed
 

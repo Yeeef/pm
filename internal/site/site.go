@@ -167,7 +167,8 @@ func TaskGraph(sprints []*Item, items *Items) string {
 		"  classDef running fill:#e3edf8,stroke:#1d5fa8,color:#1d2321",
 		"  classDef ready fill:#f6efd9,stroke:#8a6a12,color:#1d2321",
 		"  classDef blocked fill:#f7e3e1,stroke:#a8322d,color:#1d2321")
-	legend := `<p class="meta">` + pill("done") + " " + pill("running") + " " + pill("ready") + " " + pill("blocked") +
+	legend := `<p class="meta">` + pill("done") + " " + pill("dropped") + " " + pill("running") + " " + pill("ready") +
+		" " + pill("blocked") +
 		"<span>arrows: must finish first</span></p>\n"
 	return `<pre class="mermaid">` + esc(strings.Join(lines, "\n")) + "</pre>\n" + legend
 }
@@ -1050,11 +1051,14 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 		var rows []string
 		for _, sp := range sprints {
 			if sp.Status != work.Closed || shown[sp.ID] {
-				tasks := items.Children(sp.ID)
-				n := 0
-				for _, t := range tasks {
-					if State(t, items) == "done" { // a dropped task is closed but not done
-						n++
+				n, m := 0, 0
+				for _, t := range items.Children(sp.ID) {
+					switch State(t, items) {
+					case "dropped": // not done, and no longer to do
+					case "done":
+						n, m = n+1, m+1
+					default:
+						m++
 					}
 				}
 				title := esc(sp.Title)
@@ -1062,7 +1066,7 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 					title = `<a href="` + r.Out() + `">` + esc(sp.Title) + "</a>"
 				}
 				rows = append(rows, "<li>"+pill(State(sp, items))+" "+title+
-					fmt.Sprintf(`<span class="k">%d of %d tasks done</span></li>`, n, len(tasks)))
+					fmt.Sprintf(`<span class="k">%d of %d tasks done</span></li>`, n, m))
 			}
 		}
 		if hidden := len(done) - DoneSprintsShown; hidden > 0 {
