@@ -51,7 +51,12 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- 0.5.0 upgrade guide (PR #28): found two steps the merged PRs missed, both
+  checked in code: pm service restart is required in each clone after the pull
+  (service.StartIfDown leaves a running, stale service as it is), and a 0.4.0
+  clone fails its sync over a sprint it changed that pm sprint move moved
+  (0.4.0 mergeItem holds number fixed), so step 5 names pm sprint move beside
+  pm feedback add. CI on a780ef4: all 10 checks pass.
 
 ## Delivery report
 
