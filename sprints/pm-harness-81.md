@@ -48,7 +48,13 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Go pm already does this sprint's work: internal/service/gc.go runs CALL
+  DOLT_GC() from the pm service every 24 h (GCInterval), checking every 10
+  min, with a 10 min timeout. It logs the store size before and after, keeps
+  the outcome in .pm/run/gc.json, and pm service status prints it.
+  TestGCRunsWhenDueAndRecordsTheSizes in internal/service/run_test.go covers
+  it. On this clone on 2026-10-10: gc ok at 03:45:54Z, 8.0 MB -> 0.6 MB in 55
+  ms.
 
 ## Delivery report
 
