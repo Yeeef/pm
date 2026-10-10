@@ -189,17 +189,47 @@ func CheckBlocks(text, rel string) error {
 // dated is the folder of a doc and a postmortem, and the key it names besides project.
 var dated = map[string][2]string{"doc": {"docs", "bead"}, "postmortem": {"postmortems", "sprint"}}
 
+// The repo's one pm feedback doc, which pm feedback add appends to: a doc at a fixed path, so a repo cannot hold two,
+// with no date in its name and neither bead nor project in its header, since each entry names its own project. A doc
+// with its title anywhere else fails CheckFeedbackDoc.
+const (
+	FeedbackDoc   = "docs/pm-feedback"
+	FeedbackTitle = "pm feedback"
+)
+
+// IsFeedbackDoc says whether the record is the repo's pm feedback doc.
+func IsFeedbackDoc(rec *Record) bool { return rec.Type() == "doc" && rec.Rel == FeedbackDoc }
+
+// CheckFeedbackDoc fails on a pm feedback doc outside FeedbackDoc, such as one of the per-project docs
+// (docs/<date>-<project>-feedback.md) that pm feedback add wrote before the repo's one doc.
+func CheckFeedbackDoc(rec *Record) error {
+	if rec.Type() == "doc" && rec.Title() == FeedbackTitle && rec.Rel != FeedbackDoc {
+		return errorf("%s: a repo keeps one pm feedback doc, records/%s.md; move this doc's entries into it in time "+
+			"order, each tagged with its project (About project `<name>`.), delete this doc and commit both with pm commit",
+			rec.Rel, FeedbackDoc)
+	}
+	return nil
+}
+
 func checkDatedHeader(meta Meta, rel string) error {
 	kind := meta["type"].Str
 	folder, key := dated[kind][0], dated[kind][1]
 	_, hasKey := meta[key]
 	_, hasProject := meta["project"]
-	if hasKey == hasProject {
+	feedback := kind == "doc" && rel == FeedbackDoc
+	if feedback && (hasKey || hasProject) {
+		return errorf("%s: the pm feedback doc is the repo's, about any project; its header names neither 'bead' nor "+
+			"'project'", rel)
+	}
+	if !feedback && hasKey == hasProject {
 		return errorf("%s: a %s names exactly one of '%s' or 'project' in its header", rel, kind, key)
 	}
 	day := meta["date"].Str
 	if !dayRE.MatchString(day) {
 		return errorf("%s: date must be YYYY-MM-DD, got %s", rel, pyjson.StrRepr(day))
+	}
+	if feedback {
+		return nil
 	}
 	if !regexp.MustCompile(`^` + folder + `/` + day + `-[a-z0-9]+(-[a-z0-9]+)*$`).MatchString(rel) {
 		return errorf("%s: a %s dated %s lives at %s/%s-<slug>.md (slug: lowercase words joined by '-')", rel, kind,

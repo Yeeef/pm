@@ -156,7 +156,7 @@ func CheckGenerated(rec *Record) error {
 }
 
 // Validate checks a record against the others and the items: its bead exists, it has a project, its sections are
-// there, and it writes nothing in a generated section.
+// there, it writes nothing in a generated section, and it is no second pm feedback doc.
 func Validate(rec *Record, recs []*Record, items *Items) error {
 	t := rec.Type()
 	if (t == "project" || t == "sprint" || t == "doc") && rec.Has("bead") {
@@ -167,7 +167,10 @@ func Validate(rec *Record, recs []*Record, items *Items) error {
 	if t == "postmortem" && rec.Has("sprint") && SprintRecord(recs, rec.Meta["sprint"]) == nil {
 		return errorf("%s: no sprint record has bead %s", rec.Rel, rec.Meta["sprint"].Str)
 	}
-	if t != "day" && ProjectOf(rec, recs, items) == nil { // days are repo-wide
+	if err := CheckFeedbackDoc(rec); err != nil {
+		return err
+	}
+	if t != "day" && !IsFeedbackDoc(rec) && ProjectOf(rec, recs, items) == nil { // days and the feedback doc are repo-wide
 		return errorf("%s: no project record found", rec.Rel)
 	}
 	for _, sec := range Sections[t] {

@@ -129,8 +129,8 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
          f"pm: created records/postmortems/{TODAY}-outage.md; fill in its sections by hand in the store, then pm "
          f"commit -m \"…\" records/postmortems/{TODAY}-outage.md"),
         (("feedback", "add", "--project", "demo", "--sprint", "repo-demo.1"), "The refusal named no fix.",
-         f"pm: added feedback to records/docs/{TODAY}-demo-feedback.md"),
-        (("feedback", "add", "--project", "demo"), "Again.", f"pm: added feedback to records/docs/{TODAY}-demo-feedback.md"),
+         "pm: added feedback to records/docs/pm-feedback.md"),
+        (("feedback", "add", "--project", "demo"), "Again.", "pm: added feedback to records/docs/pm-feedback.md"),
         (("finding", "add", "--sprint", "repo-demo.1", "A finding " + "long " * 20 + "enough to wrap."), "",
          "pm: added a finding to records/sprints/demo-1.md"),
     ]
@@ -139,8 +139,9 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
         assert res.returncode == 0, res.stderr
         assert committed(repo, [message])
     assert repo.unchanged()
-    feedback = (repo.records / f"docs/{TODAY}-demo-feedback.md").read_text()
-    assert feedback.count("UTC, session `sess-1`") == 2 and "About sprint `repo-demo.1`.\n\nThe refusal" in feedback
+    feedback = (repo.records / "docs/pm-feedback.md").read_text()
+    assert feedback.count("UTC, session `sess-1`") == 2
+    assert "About project `demo`, sprint `repo-demo.1`.\n\nThe refusal" in feedback
     res = repo.pm("task", "move", "repo-demo.1.2", "--to", "repo-demo.2", text="Moved on.\nIt fits sprint 2.")
     assert res.returncode == 0, res.stderr
     assert repo.changes() == {"repo-demo.1.2": {"parent": "repo-demo.2"}}
@@ -153,6 +154,55 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
     assert item == {"id": new, "type": "project", "title": "Fresh", "status": "open"}
     assert committed(repo, [f"pm: opened project fresh: epic {new}, record records/projects/fresh.md"])
     assert repo.pm("check").returncode == 0
+
+
+def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
+    """pm feedback add appends to records/docs/pm-feedback.md whatever the entry is about: two projects and none, each
+    entry tagged with its project; pm show and pm show --project link that one doc. A per-project doc as pm wrote
+    them before fails the check, and pm feedback add refuses until it is merged."""
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
+    res = repo.pm("show")
+    assert res.returncode == 0, res.stderr
+    assert "feedback: none yet; when pm gets in your way, run pm feedback add [--project NAME]" in res.stdout
+    assert repo.pm("project", "open", "fresh", "--title", "Fresh", text="Why we do it.").returncode == 0
+    for args, text in [(("--project", "demo", "--task", "repo-demo.1.1"), "Demo's refusal named no fix."),
+                       (("--project", "fresh"), "Fresh had no sprint move."), ((), "A rule cost a retry.")]:
+        res = repo.pm("feedback", "add", *args, text=text)
+        assert res.returncode == 0, res.stderr
+        assert committed(repo, ["pm: added feedback to records/docs/pm-feedback.md"])
+    assert [p.name for p in (repo.records / "docs").iterdir()] == ["pm-feedback.md"]
+    doc = (repo.records / "docs/pm-feedback.md").read_text()
+    assert doc.startswith(f"---\ntype: doc\ntitle: pm feedback\ndate: {TODAY}\n---\n\n")
+    entries = re.split(r"(?m)^### .* UTC, session `sess-1`\n\n", doc)[1:]
+    assert entries == ["About project `demo`, task `repo-demo.1.1`.\n\nDemo's refusal named no fix.\n\n",
+                       "About project `fresh`.\n\nFresh had no sprint move.\n\n", "A rule cost a retry.\n"]
+    site = re.search(r"site: (\S+) ", repo.pm("show").stdout)[1]
+    line = f"feedback: 3 entries -> {site}/docs/pm-feedback.html; when pm gets in your way"
+    for args in [(), ("--project", "demo"), ("--project", "fresh")]:
+        res = repo.pm("show", *args)
+        assert res.returncode == 0 and line in res.stdout, res.stdout
+    assert json.loads(repo.pm("show", "--json").stdout)["feedback"] == {"entries": 3,
+                                                                       "url": f"{site}/docs/pm-feedback.html"}
+    assert repo.pm("check").returncode == 0
+
+    old = f"docs/{TODAY}-demo-feedback.md"
+    repo.write(old, f"---\ntype: doc\ntitle: pm feedback\ndate: {TODAY}\nproject: demo\n---\n\nOlder entries.\n")
+    repo.commit("a per-project feedback doc, as pm wrote them before")
+    check = repo.pm("check")
+    assert check.returncode != 0 and "a repo keeps one pm feedback doc, records/docs/pm-feedback.md" in check.stderr
+    repo.mark()  # refused() checks that nothing at all changed in the work store
+    refused(repo, "feedback", "add", "--project", "demo", text="More.",
+            match=rf"{re.escape(old[:-3])}: a repo keeps one pm feedback doc, records/docs/pm-feedback.md; move this "
+                  r"doc's entries into it")
+
+
+def test_feedback_add_refuses_to_overwrite_another_record_at_the_feedback_doc_s_path(repo):
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
+    (repo.records / "docs").mkdir()
+    repo.write("docs/pm-feedback.md", "---\ntype: day\ndate: 2026-10-01\n---\n\nKeep this.\n")
+    repo.commit("a record at the feedback doc's path")
+    refused(repo, "feedback", "add", text="x",
+            match=r"records/docs/pm-feedback.md exists but is no pm feedback doc \(type: doc\); move it")
 
 
 @pytest.mark.integration

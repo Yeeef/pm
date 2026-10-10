@@ -982,6 +982,13 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 		out = append(out, `<h2 id="days">Days</h2><ul class="list">`+lis.String()+"</ul>")
 	}
 	out = append(out, unsprintedTable(unsprinted(recs, items), nil, "h2"))
+	var feedback []*Record // the repo's pm feedback doc, which no project lists
+	for _, r := range recs {
+		if records.IsFeedbackDoc(r) {
+			feedback = append(feedback, r)
+		}
+	}
+	out = append(out, docList(feedback, nil, "h2", "Feedback"))
 
 	for _, p := range projects {
 		out = append(out, `<h2><a href="`+p.Out()+`">`+esc(p.Title())+"</a></h2>")
