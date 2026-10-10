@@ -1,0 +1,32 @@
+# pm: copy the records branch into main's records/ after every push to main, so
+# main carries the records with their per-file history.
+name: Copy records to main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: pm-records-copy
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge the records branch into records/
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin records:records
+          if [ -d records ]; then
+            git subtree merge --prefix=records records -m "Copy records from the records branch"
+          else
+            git subtree add --prefix=records records -m "Copy records from the records branch"
+          fi
+          test "$(git rev-parse HEAD:records)" = "$(git rev-parse 'records^{tree}')"
+          git push origin HEAD:main

@@ -28,12 +28,13 @@ pm is one Go module (`go.mod`); the pytest suite in `tests/` is its black-box ha
 | `release/build.sh`, `install.sh` | The release build: `build.sh OUT_DIR [pm-v<X>]` builds this machine's binary with `X` from the tag (else the `pm-v*` tag on HEAD, else `dev`) and packs `pm-<X>-<os>-<arch>.tar.gz`; `.github/workflows/pm-release.yml` runs it (Releasing pm). `install.sh`, a release asset with `@VERSION@` filled in, installs that release's binary to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` after checking it against `SHA256SUMS`, downloading as the launcher does (with curl or wget; the token path needs curl); `tests/test_release.py` runs both |
 | `tests/` | The harness: the pytest suite, its fakes and the live eval (below); `tests/render-pages` prints every page as the service renders it, for the harness's page tests. `pyproject.toml` and `uv.lock` are its environment |
 | `CHANGELOG.md`, `release/changelog.py` | Releases' notes, and their checker: `check`, `notes X`, `pr BASE` (Releasing pm) |
-| `.github/workflows/` | CI (`pm-tests.yml`: the harness; `pm-go.yml`: the Go build and tests; `pm-changelog.yml`) on every PR and push to main, the release (`pm-release.yml`) on a `pm-v*` tag, and a release's notes re-rendered by hand (`pm-release-notes.yml`) |
+| `.github/workflows/` | CI (`pm-tests.yml`: the harness; `pm-go.yml`: the Go build and tests; `pm-changelog.yml`) on every PR and push to main, the release (`pm-release.yml`) on a `pm-v*` tag, a release's notes re-rendered by hand (`pm-release-notes.yml`), and the records guard and copy that `pm init` wrote (`pm-records-guard.yml`, `pm-records-copy.yml`) |
 
-This repo does not use pm itself: no `.pm/config.toml`, no hooks, no records. pm's plans, decisions and design pages
-(`pm-harness.md` and its sub pages, `pm-go.md`, `pm-versioning.md`) live in the records of the repo where pm's work is
-tracked; a design change edits the sub page it touches to the new state, and the trail of findings stays in the
-sprint record.
+pm tracks its own development here, with the release that `.pm/config.toml` pins: the work store (the remote's
+`refs/pm/work`) holds the `pm-harness` project's sprints, tasks and needs, the `records` branch holds its records, and
+session start runs `pm init --session-start` and `pm prime`. pm's plans, decisions and design pages (`pm-harness.md` and
+its sub pages, `pm-go.md`, `pm-versioning.md`) live in those records; a design change edits the sub page it touches to
+the new state, and the trail of findings stays in the sprint record.
 
 ## Tests
 
