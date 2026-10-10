@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -55,13 +56,16 @@ func cmdClean(p *Parsed, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	c := &cleaner{main: main, caller: realPath(strings.TrimSpace(caller)), remote: cfg.Remote,
+	c := &cleaner{main: main, caller: realPath(strings.TrimSpace(caller)), remote: cfg.Remote, mainBranch: cfg.MainBranch,
 		mainRef: "refs/remotes/" + cfg.Remote + "/" + cfg.MainBranch, mainName: cfg.Remote + "/" + cfg.MainBranch}
 	if _, err := cleanGit(main, "rev-parse", "--verify", "--quiet", c.mainRef); err != nil {
 		return refuse("no %s in this clone to compare branches with; run git fetch %s %s", c.mainName, cfg.Remote,
 			cfg.MainBranch)
 	}
-	c.sessions = liveUses(trees, main)
+	if c.sessions, err = liveUses(trees, main); err != nil {
+		return refuse("pm clean cannot tell which worktrees live sessions use, so it removes none: %v", err)
+	}
+	c.trees = trees
 	apply := p.Get("apply") == "true"
 	var removing, failed int
 	for _, wt := range trees {
@@ -85,9 +89,6 @@ func cmdClean(p *Parsed, here string, stdout io.Writer) error {
 		fmt.Fprintln(stdout, line)
 	}
 	if apply {
-		if _, err := cleanGit(main, "worktree", "prune"); err != nil {
-			return err
-		}
 		if failed > 0 {
 			return refuse("%d of %d worktrees to remove were not removed; each line above says why", failed, removing)
 		}
@@ -99,8 +100,9 @@ func cmdClean(p *Parsed, here string, stdout io.Writer) error {
 }
 
 type cleaner struct {
-	main, caller, remote, mainRef, mainName string
-	sessions                                map[string]liveUse // by worktree path: the latest live session that used it
+	main, caller, remote, mainBranch, mainRef, mainName string
+	sessions                                            map[string]liveUse // by worktree path: the latest live session that used it
+	trees                                               []worktree
 }
 
 // judge decides one worktree. Kept: the main checkout, the records store, the calling worktree, anything outside
@@ -132,16 +134,22 @@ func (c *cleaner) judge(wt worktree) verdict {
 	if use, ok := c.sessions[wt.path]; ok {
 		return keep(fmt.Sprintf("live session %s used it %s ago", use.session, age(use.at)))
 	}
+	for _, other := range c.trees { // git worktree remove deletes the whole directory, a worktree inside it too
+		if strings.HasPrefix(other.path, wt.path+"/") {
+			return keep("holds the worktree " + other.path)
+		}
+	}
 	if wt.prunable {
-		v.remove, v.reason = true, note("its directory is gone; git worktree prune drops it")
-		return v
-	}
-	status, err := cleanGit(wt.path, "status", "--porcelain")
-	if err != nil {
-		return keep("git status failed: " + err.Error())
-	}
-	if n := len(strings.Split(strings.TrimRight(status, "\n"), "\n")); status != "" {
-		return keep(fmt.Sprintf("uncommitted changes (%d paths)", n))
+		notes = append(notes, "its directory is gone")
+	} else {
+		// every untracked file, whatever status.showUntrackedFiles says: git worktree remove would delete a hidden one
+		status, err := cleanGit(wt.path, "status", "--porcelain", "--untracked-files=all")
+		if err != nil {
+			return keep("git status failed: " + err.Error())
+		}
+		if n := len(strings.Split(strings.TrimRight(status, "\n"), "\n")); status != "" {
+			return keep(fmt.Sprintf("uncommitted changes (%d paths)", n))
+		}
 	}
 	if _, err := cleanGit(c.main, "merge-base", "--is-ancestor", wt.head, c.mainRef); err == nil {
 		v.remove, v.deleteBranch = true, wt.branch != ""
@@ -151,7 +159,7 @@ func (c *cleaner) judge(wt worktree) verdict {
 	if wt.branch == "" {
 		return keep("detached HEAD with commits not on " + c.mainName)
 	}
-	pr, merged, ghErr := squashMerged(c.main, wt.branch, wt.head)
+	pr, merged, ghErr := squashMerged(c.main, c.mainBranch, wt.branch, wt.head)
 	if merged {
 		v.remove, v.deleteBranch = true, true
 		v.reason = note(fmt.Sprintf("squash-merged: PR #%d merged this branch at its tip", pr))
@@ -204,14 +212,14 @@ func (c *cleaner) remove(v verdict) error {
 			return err
 		}
 	}
-	if !v.wt.prunable {
-		if _, err := cleanGit(c.main, "worktree", "remove", v.wt.path); err != nil {
-			return err
-		}
+	// a missing directory too: git drops its entry, and leaves every other worktree's alone
+	if _, err := cleanGit(c.main, "worktree", "remove", v.wt.path); err != nil {
+		return err
 	}
 	if v.deleteBranch {
-		// merged into the main branch, checked above; git branch -d would compare with this checkout's HEAD instead
-		if _, err := cleanGit(c.main, "branch", "-D", v.wt.branch); err != nil {
+		// merged into the main branch at the tip judged above, so only that tip is deleted; git branch -d would
+		// compare with this checkout's HEAD instead
+		if _, err := cleanGit(c.main, "update-ref", "-d", "refs/heads/"+v.wt.branch, v.wt.head); err != nil {
 			return err
 		}
 	}
@@ -304,7 +312,7 @@ type liveUse struct {
 // whose tool call names its path (a subagent runs in its parent's directory and reaches its worktree by path). The
 // path's form relative to the main checkout counts when the entry's cwd is in the main checkout. The output of a
 // tool call does not count, so listing worktrees, or pm clean's own output, uses none of them.
-func liveUses(trees []worktree, main string) map[string]liveUse {
+func liveUses(trees []worktree, main string) (map[string]liveUse, error) {
 	type token struct{ path, abs, rel string }
 	var tokens []token
 	for _, wt := range trees {
@@ -314,34 +322,53 @@ func liveUses(trees []worktree, main string) map[string]liveUse {
 	}
 	uses := map[string]liveUse{}
 	if len(tokens) == 0 {
-		return uses
+		return uses, nil
 	}
 	now := time.Now()
-	_ = filepath.WalkDir(filepath.Join(claudeConfigDir(), "projects"), func(p string, e os.DirEntry, err error) error {
-		if err != nil || e.IsDir() || !strings.HasSuffix(p, ".jsonl") {
+	projects := filepath.Join(claudeConfigDir(), "projects")
+	err := filepath.WalkDir(projects, func(p string, e os.DirEntry, err error) error {
+		if err != nil {
+			if p == projects && errors.Is(err, fs.ErrNotExist) {
+				return filepath.SkipAll // no transcripts at all
+			}
+			return err
+		}
+		if e.IsDir() || !strings.HasSuffix(p, ".jsonl") {
 			return nil
 		}
-		if st, err := e.Info(); err != nil || now.Sub(st.ModTime()) >= LiveWindow {
+		st, err := e.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil // removed since it was listed
+		} else if err != nil {
+			return err
+		}
+		if now.Sub(st.ModTime()) >= LiveWindow {
 			return nil
 		}
 		f, err := os.Open(p)
-		if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
+		} else if err != nil {
+			return err
 		}
 		defer f.Close()
 		sc := bufio.NewScanner(f)
 		sc.Buffer(make([]byte, 0, 1<<20), 64<<20)
 		for sc.Scan() {
 			var entry struct {
-				Type      string    `json:"type"`
-				Timestamp time.Time `json:"timestamp"`
-				Cwd       string    `json:"cwd"`
-				SessionID string    `json:"sessionId"`
+				Type      string `json:"type"`
+				Timestamp string `json:"timestamp"`
+				Cwd       string `json:"cwd"`
+				SessionID string `json:"sessionId"`
 				Message   struct {
 					Content json.RawMessage `json:"content"`
 				} `json:"message"`
 			}
-			if json.Unmarshal(sc.Bytes(), &entry) != nil || now.Sub(entry.Timestamp) >= LiveWindow {
+			if json.Unmarshal(sc.Bytes(), &entry) != nil {
+				continue // not an entry: Claude Code writes one JSON object per line
+			}
+			at, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
+			if err != nil || now.Sub(at) >= LiveWindow {
 				continue
 			}
 			var calls []byte // the tool calls' inputs: what the session did, never what it was shown
@@ -362,14 +389,17 @@ func liveUses(trees []worktree, main string) map[string]liveUse {
 			for _, t := range tokens {
 				used := entry.Cwd == t.abs || strings.HasPrefix(entry.Cwd, t.abs+"/") || namesPath(calls, t.abs) ||
 					(inMain && namesPath(calls, t.rel))
-				if used && entry.Timestamp.After(uses[t.path].at) {
-					uses[t.path] = liveUse{entry.SessionID, entry.Timestamp}
+				if used && at.After(uses[t.path].at) {
+					uses[t.path] = liveUse{entry.SessionID, at}
 				}
 			}
 		}
+		if err := sc.Err(); err != nil {
+			return fmt.Errorf("reading %s: %w", p, err)
+		}
 		return nil
 	})
-	return uses
+	return uses, err
 }
 
 // namesPath is whether text names path itself or a path under it: an occurrence not followed by a name character, so
@@ -394,8 +424,9 @@ func isNameByte(b byte) bool {
 
 // squashMerged is whether a merged PR of branch has head as its tip: the branch's work reached the main branch through
 // it. err is set when gh is missing or fails, so the merge could not be checked.
-func squashMerged(main, branch, head string) (pr int, merged bool, err error) {
-	res, err := proc.Run([]string{"gh", "pr", "list", "--head", branch, "--state", "merged", "--json",
+func squashMerged(main, base, branch, head string) (pr int, merged bool, err error) {
+	res, err := proc.Run([]string{"gh", "pr", "list", "--head", branch, "--base", base, "--state", "merged",
+		"--json",
 		"number,headRefOid", "--limit", "100"}, proc.Options{Cwd: &main, Timeout: 30 * time.Second, TimeoutText: "30"})
 	if err != nil {
 		return 0, false, err

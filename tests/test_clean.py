@@ -83,7 +83,8 @@ def test_clean_keeps_dirty_unpushed_and_not_agent_worktrees_and_apply_removes_me
     repo.git("push", "-q", "origin", "main")
     gh = Path(repo.env["FAKE_GH_STATE"])
     gh.write_text(json.dumps({"https://github.com/o/r/pull/7": {"number": 7, "state": "MERGED",
-                                                                 "headRefName": "squashed", "headRefOid": tip}}))
+                                                                 "headRefName": "squashed", "baseRefName": "main",
+                                                                 "headRefOid": tip}}))
     repo.worktree("outside")
     before = (worktrees(repo), branches(repo))
 
@@ -116,7 +117,8 @@ def test_clean_keeps_a_branch_not_on_main_when_gh_cannot_check_a_squash_merge(cl
     repo = clone
     tip = commit(repo, agent_tree(repo, "squashed"), "c.txt")
     Path(repo.env["FAKE_GH_STATE"]).write_text(json.dumps({"u": {"number": 7, "state": "MERGED",
-                                                                  "headRefName": "squashed", "headRefOid": tip}}))
+                                                                  "headRefName": "squashed", "baseRefName": "main",
+                                                                 "headRefOid": tip}}))
     v = clean(repo, FAKE_GH_STATE=str(repo.root.parent / "no-such-file.json"))  # gh fails
     word, reason = v["squashed"]
     assert word == "keep"
@@ -202,3 +204,33 @@ def test_clean_keeps_a_worktree_a_live_session_used_and_the_worktree_it_runs_in(
     for n in ("shown", "old", "by"):  # named only in output, too long ago, or only as the start of a longer name
         assert v[n][0] == "remove", (n, v[n])
     assert worktrees(repo) == ["bycwd", "bypath", "byrel", "caller", "records", "repo"]
+
+
+def test_clean_keeps_what_a_removal_would_delete_with_it(clone):
+    """git worktree remove deletes the whole directory: a worktree inside it, and untracked files git status hides."""
+    repo = clone
+    (repo.root / ".git/info/exclude").write_text("**/.claude/worktrees/\n")  # as on a clone, so the outer one is clean
+    outer = agent_tree(repo, "outer")
+    inner = outer / ".claude/worktrees/inner"
+    repo.git("worktree", "add", "-q", "-b", "inner", str(inner), "origin/main")
+    (inner / "work.txt").write_text("not committed\n")
+    hidden = agent_tree(repo, "hidden")
+    repo.git("config", "status.showUntrackedFiles", "no")
+    (hidden / "notes.txt").write_text("untracked, and status hides it\n")
+    tip = commit(repo, agent_tree(repo, "stacked"), "s.txt")  # its PR merged into another branch, not main
+    Path(repo.env["FAKE_GH_STATE"]).write_text(json.dumps({"u": {"number": 8, "state": "MERGED", "headRefName": "stacked",
+                                                                  "baseRefName": "feature", "headRefOid": tip}}))
+    gone = agent_tree(repo, "gone")
+    away = repo.worktree("away")
+    for d in (gone, away):  # a directory deleted by hand, or on a disk not mounted now
+        subprocess.run(["rm", "-rf", str(d)], check=True)
+
+    v = clean(repo, "--apply")
+    assert v["outer"] == ("keep", f"holds the worktree {inner}")
+    assert v["inner"] == ("keep", "uncommitted changes (1 paths)")
+    assert v["hidden"] == ("keep", "uncommitted changes (1 paths)")
+    assert v["stacked"] == ("keep", "commits not on origin/main, and the branch was never pushed")
+    assert v["gone"] == ("remove", "merged: its commits are on origin/main; its directory is gone")
+    assert v["away"] == ("keep", "not an agent worktree (outside .claude/worktrees/)")
+    assert (inner / "work.txt").exists() and (hidden / "notes.txt").exists()
+    assert worktrees(repo) == ["away", "hidden", "inner", "outer", "records", "repo", "stacked"]  # no global prune
