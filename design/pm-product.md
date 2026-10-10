@@ -36,7 +36,7 @@ pm is now moving to another repo, so it has to become a product: installed with 
 > Which facts, findings and constraints shaped the design? Only those that
 > still hold; sprint records keep the findings as they happened.
 
-- pm's code is one Python file with a PEP 723 header (`pm.py`, about 2,300 lines; markdown-it-py, mdit-py-plugins, pyyaml) plus a small package and stdlib hook scripts, run with uv. It needs uv, git, bd and python3 on the machine, plus systemd, launchd or cron for the scheduled push.
+- pm is one Go binary ([pm in Go](pm-go.md)). It needs git on the machine, plus `gh` and `claude`, and systemd or launchd for the pm service.
 - Hardcoded today: the hook paths (`skills/project-management/harness/…` in `bin/pm`, `.claude/settings.json`, `.codex/hooks.json` and pm's own `wait_hint`), the remote `origin` and branch `main`, `make docs` and `make render` in agent-facing messages, `yeeef-agents-` ids in the Claude Code owner-request prompt hook, and this repo's remote in `.beads/config.yaml`.
 - `pm setup` requires an existing `records` branch on the remote and existing `refs/dolt/data`; it refuses to create either.
 - Beads keeps its repo footprint in `.beads/` (tracked `config.yaml`, `metadata.json`, `README.md`, `hooks/`, and a `.gitignore` for its database and runtime files). Its context reaches agents two ways: a short block in `AGENTS.md` between `BEGIN/END BEADS INTEGRATION` markers carrying a version and hash, and `bd prime` from a SessionStart hook. Beads moved away from full instructions in `AGENTS.md` because they cost tokens and went stale on upgrade.
@@ -50,19 +50,20 @@ pm is now moving to another repo, so it has to become a product: installed with 
 
 ### Distribution
 
-pm is a Python package that lives in the `pm/` subdirectory of yeeef-agents (`pm/pyproject.toml`, code under `pm/src/pm/`, a `pm` console entry point; the PEP 723 single file becomes this package) and installs with uv from a version tag of that repo:
+pm is a Go program in its own public repo, `Yeeef/pm`, released as one binary per platform from a version tag `pm-v<X>`. One line installs it on a machine; `pm init` then sets a repo up:
 
 ```
-uvx --from "git+https://github.com/Yeeef/yeeef-agents@pm-v<X>#subdirectory=pm" pm init
+curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<X>/install.sh | sh
+pm init
 ```
 
-That line runs `pm init` from the tagged version, which sets up whatever is missing in the repo, the clone and the worktree (below) and installs `pm` as a uv tool on the machine; the tool runs each repo's pinned version (Version pin, below). Target repos hold no copy of pm's code. The rules and the site's assets ship inside the package. The command is `pm`; a distribution name is chosen only if pm is ever published to PyPI. yeeef-agents is pm's first user: it installs pm the same way, and its `bin/pm` and `.records` give way to the installed tool and `.pm/store/records`.
+`install.sh` checks the binary against the release's `SHA256SUMS` and puts it in `~/.local/bin`. `pm init` sets up whatever is missing in the repo, the clone and the worktree (below). The installed `pm` runs each repo's pinned version (Version pin, below). Target repos hold no copy of pm's code. The rules, the site's stylesheet and the model prompts are embedded in the binary. [pm in Go](pm-go.md), Distribution, has the detail.
 
 ### Where pm's pieces live
 
 | Scope | Piece | Written by |
 |---|---|---|
-| Machine | the `pm` uv tool; the pm service per clone (systemd user service or launchd agent); Codex sandbox `writable_roots` per clone | `pm init` |
+| Machine | the `pm` binary in `~/.local/bin` and its pins cache; the pm service per clone (systemd user service or launchd agent); Codex sandbox `writable_roots` per clone | `pm init` |
 | Repo (tracked) | `.pm/` (below); pm's hook entries in `.claude/settings.json` and `.codex/hooks.json`; pm's lines in `.gitignore`, `/records` among them; pm's marked section in each `.beads/hooks/*` file it needs | `pm init`, `pm upgrade` |
 | Clone | the store checkout at `<main>/.pm/store/records` (git-ignored); Beads database and config; `core.hooksPath` (Beads' `.beads/hooks`); the Beads agent profile | `pm init` |
 | Worktree | the `records/` link to the store | `pm init`, run by the `post-checkout` hook |
@@ -86,7 +87,7 @@ Content and machinery stay apart: records stay at `records/` (each worktree's li
 `.pm/README.md` is the visible sign that a repo uses pm, for people and for agents in hosts without hooks. `config.toml`:
 
 ```toml
-version = "0.1.0"        # the pm version every session must run
+version = "0.3.0"        # the pm version every session must run
 remote = "origin"
 main_branch = "main"
 port = 8000              # the service's site port; the PORT environment variable overrides it for one run
@@ -101,7 +102,7 @@ Agent-facing messages name pm's own commands (`pm service`, `pm check`), never `
 
 All of pm's agent context comes from hooks; the repo's instruction files carry none of it.
 
-- `pm prime` prints pm's rules (shipped in the package, so they match the pinned version) and `pm show`. The rules are about 25,000 characters, so they run as one hook per chunk (owner decision, 2026-10-07): `pm prime --rules N` prints chunk N of 4, cut at fixed headings, each under the cap and under a title naming its place and sections, since the chunks arrive in any order. The SessionStart entry runs the 4 chunks and `pm prime --state` for startup, resume, clear and compact, so all the rules come back after compaction. An agent can also run plain `pm prime` by hand: the rules whole, then the state.
+- `pm prime` prints pm's rules (embedded in the binary, so they match the pinned version) and `pm show`. The rules are about 25,000 characters, so they run as one hook per chunk (owner decision, 2026-10-07): `pm prime --rules N` prints chunk N of 4, cut at fixed headings, each under the cap and under a title naming its place and sections, since the chunks arrive in any order. The SessionStart entry runs the 4 chunks and `pm prime --state` for startup, resume, clear and compact, so all the rules come back after compaction. An agent can also run plain `pm prime` by hand: the rules whole, then the state.
 - The rules `pm prime` prints include one merged list for anything addressed to the owner: put the conclusion first; use 4 bullets or fewer; no ids, hashes or file names unless the owner asks; give the page link, not a file path; tell what each number measures; use ASD-STE100 approved words, each with one meaning; at most 20 words per instruction sentence and 25 per description sentence; active voice and simple tenses; one instruction per sentence.
 - Subagents get the same rules: the SubagentStart entry runs the same 4 chunk hooks (each envelope names the event that ran it), then `pm prime --subagent`, one line naming the Beads agent profile. A subagent gets no `pm show`.
 - Codex's SessionStart has no compact event today (`.codex/hooks.json` matches startup, resume and clear); how Codex gets the rules back after compaction is sprint 34's.
@@ -124,7 +125,7 @@ One supervised background process per clone serves the site and pushes Beads dat
 
 ### Git hooks
 
-pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPath` stays `.beads/hooks`, and pm adds a section between `# --- BEGIN PM v<X> ---` and `# --- END PM ---` markers to the hooks it needs, after Beads' section. The section is one line, `pm hook git-<name> "$@"`, so the logic ships in the package. Beads preserves content outside its markers, and pm rewrites only inside its own:
+pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPath` stays `.beads/hooks`, and pm adds a section between `# --- BEGIN PM v<X> ---` and `# --- END PM ---` markers to the hooks it needs, after Beads' section. The section is one line, `pm hook git-<name> "$@"`, so the logic ships in the binary. Beads preserves content outside its markers, and pm rewrites only inside its own:
 
 - `post-checkout`: in a new worktree or clone, `pm init`.
 
@@ -132,20 +133,20 @@ pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPa
 
 ### Version pin
 
-`.pm/config.toml` pins the exact pm version every session in the repo runs; a worktree reads its own branch's file, so the pin moves with the code. The installed `pm` (the pm uv tool, 0.1.2 or later) is a launcher, so repos on different pins share one machine (owner decision, 2026-10-07; it reverses the earlier choice of one installed version and a hard failure on any other pin).
+`.pm/config.toml` pins the exact pm version every session in the repo runs; a worktree reads its own branch's file, so the pin moves with the code. The installed `pm` is a launcher, so repos on different pins share one machine (owner decision, 2026-10-07; it reverses the earlier choice of one installed version and a hard failure on any other pin).
 
 | Case | What `pm` does |
 |---|---|
-| No readable pin (no repo, `pm init` in a fresh one), or the pin is the tool's own version | Runs in process; no uv call. |
-| Another pin | Replaces itself (`exec`) with `uv tool run --from "git+<repo>@<commit>#subdirectory=pm" pm <args>`: stdin, stdout, stderr, the pid and the exit code are the pinned pm's, so hooks, git hooks and the service's unit go through it unchanged. |
+| No readable pin (no repo, `pm init` in a fresh one), or the pin is the installed pm's own version | Runs in process. |
+| Another pin, 0.2.0 or later | Replaces itself (`exec`) with that release's binary, `$XDG_DATA_HOME/pm/pins/<pin>/pm` (default `~/.local/share`): stdin, stdout, stderr, the pid and the exit code are the pinned pm's, so hooks, git hooks and the service's unit go through it unchanged. |
+| A pin below 0.2.0 (a retired Python release) | Fails hard, naming the fix: `pm upgrade --to <X>` with a release from 0.2.0 on. `pm upgrade --to` a version below 0.2.0 is refused. |
 | `pm upgrade` | Runs in process and moves the pin to the running version, never down: a pin newer than the running pm is refused, naming `pm upgrade --to <pin>`; `--to X` launches pm X to make the move. |
 | Launched for this pin already (`PM_LAUNCHED=<pin>`) | Runs in process; if that build is not the pinned version, the config check fails hard naming the tag. No second launch, so no loop. The launched pm takes `PM_LAUNCHED` and `PM_LAUNCHER` out of its environment first, so its children (git hooks, `claude -p`, any `pm`) reach the launcher afresh. |
 
-- **A commit, not a tag.** With a tag, uv fetches the remote on every run (6 s measured); with a commit it runs from its cache (0.2 s, no network). The first launch of a pin on a machine resolves tag `pm-v<pin>` with `git ls-remote`, runs the release once to fetch and build it, and only then keeps the commit in `$XDG_DATA_HOME/pm/pins/<pin>/commit` (default `~/.local/share`), written atomically; a file that holds no 40-hex sha counts as missing. `git ls-remote` runs with a 10 s timeout and `GIT_TERMINAL_PROMPT=0`, the first build with a 300 s one. A tag that is missing, a build that fails and a timeout are hard errors naming `pm-v<pin>` and the `uv tool run` command; nothing falls back to the tool's own version. Once kept, uv runs the commit from its cache, or fetches it again after `uv cache clean`, which needs the network; deleting the commit file makes the next launch resolve the tag again, and `pm where` names the kept commit and that file.
-- **A launched pm leaves the tool alone.** `pm init` run by a launched pm skips the tool install and says so, since installing its build would replace the launcher. The service's unit still runs the tool's interpreter (`<tool python> -m pm.cli service run`), which launches the main checkout's pin, so a repo pinned to 0.1.0 gets a 0.1.0 service. The stale-build check compares the service's build with the checking pm's, and both are the pin's build.
-- **Pins before 0.1.2** predate the launcher, and their `pm init`, also run at session start by 0.1.1, reinstalls the tool at their own version. They run with `UV_TOOL_DIR` and `UV_TOOL_BIN_DIR` in `$XDG_DATA_HOME/pm/pins/<pin>/`, that bin dir first on PATH, so their tool stays there and the machine's tool stays the launcher. They get no markers: they never read them, their children would inherit them, and their tags build no launcher, so they cannot launch again. The launcher drops those dirs from a child's environment before it picks the pin. The service unit such a pin writes runs its own tool; once the pin moves to 0.1.2 or later, that unit restarts the old version forever, so health (`pm where`, session start) names it stale and `pm service install` rewrites it.
-- **Moving the pin.** `pm upgrade [--to X]` moves the pin and rewrites every managed piece for the new version in one change for the owner to commit. Once the main checkout's pin moves, the service exits; the supervisor starts the tool again, which runs the new pin.
-- `pm where` and `pm doctor` name the version running and why (in process, or launched by the tool at version Y).
+- **Download once.** The first launch of a pin on a machine downloads release `pm-v<pin>`'s asset for the platform (10 s connect timeout, 300 s in all), checks it against `SHA256SUMS`, writes it atomically and keeps its sha256; a later download that differs fails hard. A missing release or asset, a checksum mismatch and a timeout are hard errors naming `pm-v<pin>`; nothing falls back to the installed pm's own version. After that a launch needs no network.
+- **A launched pm leaves the bin dir alone.** `pm init` run by a launched pm does not copy itself into the bin dir, since that would replace the launcher. The service's unit runs the bin-dir pm (`<path> service run`), which launches the main checkout's pin, so the service runs the repo's pin.
+- **Moving the pin.** `pm upgrade [--to X]` moves the pin and rewrites every managed piece for the new version in one change for the owner to commit. Once the main checkout's pin moves, the service exits; the supervisor starts the bin-dir pm again, which launches the new pin.
+- `pm where` and `pm doctor` name the version running and why (in process, or launched by the installed pm at version Y).
 
 ### Commands
 
@@ -160,16 +161,16 @@ pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPa
 
 | Today | In the product |
 |---|---|
-| `skills/project-management/harness/pm.py`, `harness/harness/*.py`, `render.py`, `style.css` | the `pm` package; `render.py`'s static build goes away, and its check becomes `pm check` |
+| `skills/project-management/harness/pm.py`, `harness/harness/*.py`, `render.py`, `style.css` | the `pm` binary; `render.py`'s static build goes away, and its check becomes `pm check` |
 | `harness/*_hook.py` | `pm prime` and `pm hook <name>` |
-| `harness/RULES.md` | package data printed by `pm prime` |
+| `harness/RULES.md` | `prime.md`, embedded in the binary and printed by `pm prime` |
 | `SKILL.md`, `references/*.md`, `status-site/*.md` | deleted; their essential judgment rules move into the rules `pm prime` prints; no skill is installed |
 | `agents/openai.yaml` | dropped with the skill; Codex's interface is sprint 34's |
-| `harness/tests/` | the package's tests, `pm/tests/`, run with `uv run pytest` in `pm/` |
-| Makefile `render`, `docs`, `test`, `test-live` | `pm check`, `pm service`, the package's test commands; the Makefile keeps only this repo's own targets |
+| `harness/tests/` | pm's black-box harness, `tests/` in `Yeeef/pm`, which drives the built binary |
+| Makefile `render`, `docs`, `test`, `test-live` | `pm check`, `pm service`, pm's own test commands in `Yeeef/pm`; the Makefile keeps only this repo's own targets |
 | push state `pm-push.{json,log,lock}` in the git dir; the scheduled push job | `.pm/run/` in the main checkout; the pm service |
 | `git config beads.role maintainer`, the Beads agent profile | unchanged, set by `pm init` |
-| `bin/pm` | removed; `pm` is the installed tool |
+| `bin/pm` | removed; `pm` is the installed binary |
 | `.github/workflows/records-{guard,copy}.yml`, the pre-commit records guard, the per-worktree sparse checkout, `records/` on main | removed: records live only on the `records` branch ([Shared records store](records-store.md)) |
 
 ### Migrating yeeef-agents
@@ -196,7 +197,6 @@ With no `records` branch on the remote, `pm init` creates it as an orphan branch
 - **pm's rules in `AGENTS.md`**, in full or as a pointer section beside the hook (Beads' approach). Beads needs the file for hosts without hooks; pm targets only hosts with hooks, the file text goes stale on upgrade and costs tokens on every request, and `.pm/README.md` already signals that pm is in use.
 - **pm as the only entry point over Beads**, wrapping `bd prime` and pinning Beads' block to its minimal profile. pm's context does not conflict with Beads', and changing what Beads says belongs to sprint 36.
 - **pm's own hook directory (`.pm/hooks`) chaining to Beads' hooks.** It would change `core.hooksPath` away from what Beads installs and checks; Beads already preserves other tools' marked sections, so a section in its files is simpler.
-- **pm in its own repository.** A cleaner release history, but two repos to keep in step during the move; pm stays in yeeef-agents.
 - **One installed version and a hard failure on any other pin.** It was the first design. It made the owner reinstall pm on every switch between repos on different pins, and repos cannot all move pins at once.
 - **`uvx` with the release tag.** uv fetches the remote to resolve a tag on every run (6 s), too slow for hooks; the launcher resolves the tag once and runs the commit.
 - **A persistent environment per pin, managed by pm.** It starts faster than `uv tool run` (no resolution), but it is a second install mechanism beside uv's cache; `uv tool run` with a commit costs 0.2 s.

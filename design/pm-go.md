@@ -8,20 +8,16 @@ project: pm-harness
 
 > What are we solving, and why now?
 
-The owner decided three things: pm replaces Beads with its own work store, the work store keeps its items in Dolt embedded in pm, and pm is rewritten from Python into Go. Dolt embeds only into Go programs, and a Go pm ships as one binary that starts faster than Python.
+The owner decided three things: pm replaces Beads with its own work store, the work store keeps its items in Dolt embedded in pm, and pm is written in Go. Dolt embeds only into Go programs, and a Go pm ships as one binary that starts faster than Python.
 
-- Python pm pays 3–4 s in `bd` on each of 20 commands (`pm show`, `pm task add`, `pm task claim`, `pm finding add`, …) before its own work: `bd list --all --json` takes 1.16–2.09 s and `bd export` 1.69–2.28 s (load average 70 on 8 cores).
-- This page designs the port: the Go architecture, the distribution that replaces the uv tool, the order of the port and how Python and Go coexist, and how the tests carry parity over.
-- [Work store](work-store.md) holds the data model, ids, ready, commands and migration; only its Storage section changes, to embedded Dolt. [pm as an installable product](pm-product.md) holds the version pin and the launcher, which this page changes. Part of the [Project management harness](pm-harness.md) design.
+- pm on bd paid 3–4 s in `bd` on each of 20 commands (`pm show`, `pm task add`, `pm task claim`, `pm finding add`, …) before its own work: `bd list --all --json` takes 1.16–2.09 s and `bd export` 1.69–2.28 s (load average 70 on 8 cores).
+- This page holds pm's Go design: the architecture, store access, the site, the distribution and the tests. Go is pm's one implementation; the Python pm it replaced is retired, and a pin to a Python release (below 0.2.0) fails hard (Distribution).
+- [Work store](work-store.md) holds the data model, ids, ready, commands and migration; its Storage section is embedded Dolt. [pm as an installable product](pm-product.md) holds the managed pieces and the version pin; this page holds the launcher. Part of the [Project management harness](pm-harness.md) design.
 
 | Term | Meaning |
 |---|---|
-| Python pm | The released package under `pm/src/pm`, 0.1.2, installed as a uv tool |
-| Go pm | The Go binary this page designs; first release G (Open questions: 0.2.0) |
+| pm | The Go module `github.com/Yeeef/pm`, built as one binary; first release 0.2.0 |
 | Work store | pm's store of items; the Dolt database inside Go pm, at `<main checkout>/.pm/store/work` |
-| Parity | Go pm and Python pm, given the same repo and the same work data, give the same stdout, stderr, exit code and record files, and pages equal after HTML normalisation (Design, Site) |
-| Cut-over | One repo's pin moving from a Python version to G, with its bd data imported into the work store |
-| Port sprint Pn | The n-th step of the port in this page's plan; not a sprint number. Each becomes a sprint when opened |
 
 ## Goals and non-goals
 
@@ -29,18 +25,16 @@ The owner decided three things: pm replaces Beads with its own work store, the w
 
 **Goals**
 
-- One Go binary is all of pm: CLI, hooks, site, service and launcher. Runtime needs drop to `git` (plus `gh` and `claude` as today); `bd`, `uv` and Python go, except `uv` to launch an old Python pin.
+- One Go binary is all of pm: CLI, hooks, site, service and launcher. Runtime needs are `git`, plus `gh` and `claude`; pm runs no `bd`, `uv` or Python.
 - A command that loads every item finishes in ≤ 300 ms in a fresh process (the work-store goal).
-- Parity with Python pm on every command, refusal text, record file and help text, checked by the existing suite run against both implementations.
-- Each repo switches from Python to Go in one step, by its pin, and moves back by moving the pin.
-- Each port sprint is shippable: merged to `main` with CI green and Go pm building on both targets.
+- Every command, refusal text, record file, help text and page is held by tests: the black-box harness and the Go golden tests (Tests).
+- Each repo moves to a new pm in one step, by its pin, and back by moving the pin.
+- Every merge to `main` is releasable: CI green and pm building on both targets.
 
 **Non-goals**
 
 - Changing the work store's data model, ids, ready rules or commands; the [Work store](work-store.md) page owns them.
-- Byte-identical pages. Pages must match after normalisation, with an allow-list of reviewed differences.
-- Running Go pm in any repo before parity, or running Python and Go on one repo at once.
-- Porting `legacy.py`, the pre-package harness migration (Open questions).
+- Moving a clone off the pre-package harness: `pm init` refuses such a clone and names the retired Python release that moves it (Distribution).
 - Targets other than darwin/arm64 and linux/amd64.
 
 ## Constraints and key facts
@@ -70,53 +64,15 @@ Reading: opening once per process meets the 300 ms goal about 5 times over, but 
 - Store size after about 380 commits on 466 items: 14 MB, 3.0 MB after `dolt gc`. bd's store here is 123 MB for 596 KB of exported data, 47 MB after `dolt gc` on a copy.
 - bd 1.3.1 (darwin/arm64, go1.26.7) builds with `CGO_ENABLED=1` and `-tags gms_pure_go,netgo`; it links `dolthub/gozstd`, a cgo binding, through `dolthub/dolt/go`. Its binary is 144,181,568 bytes.
 
-**Python pm, inventory.** Counts are from `main` when this page was written: `wc -l`, `grep -c "^def test_"`, and the argparse tree from `pm.cli.parser()`.
+**Behaviour kept from the Python implementation.** pm kept its outputs when it moved to Go; these choices follow from that.
 
-- 7,787 lines in 15 modules, plus `prime.md` (138 lines, 15,177 characters, 15,219 bytes) and `style.css` (115 lines).
-- Tests: 4,026 lines; 100 test functions (13 parametrized) in 11 files, plus 4 fakes, `conftest.py` and `render_pages.py`.
-- Parser: 25 nouns, 40 leaf commands; 33 for agents, 7 machinery (`push`, `prime`, `hook stop|owner-request|git-post-checkout|git-pre-commit`, `service run`). 165 `Refuse(` sites.
-
-| Module | Lines | What it does | External calls | Go package |
-|---|---|---|---|---|
-| `cli.py` | 3,739 | Every command, the argparse tree and help texts, the site's HTTP server, reply spool and inbox delivery, `pm show`, clone setup | `git` (19 sites), `bd` (30 calls through `beads.bd`), `gh pr view`, `claude -p` (day summary), `uv` | split, see the next table |
-| `site.py` | 751 | Page builders: record pages, index, day pages, need cards, TOC; markdown-it-py `commonmark` with html, `table`, front_matter, anchors h2–h3, containers `note` `decision` `result`, a `mermaid` fence rule | none | `internal/site` |
-| `service.py` | 445 | Service unit: launchd plist or systemd unit, ports, install lock, drift and stale-build checks, `status`, `logs` | `launchctl`, `systemctl`, `git`, `bd`, `uv` | `internal/service` |
-| `install.py` | 483 | Managed pieces (`present`/`apply`/`remove`): `.pm/`, hook entries in `.claude/settings.json` and `.codex/hooks.json`, `.gitignore` block, `.beads/hooks/*` sections; new-repo `records` bootstrap | `git`, `git ls-remote` | `internal/install` |
-| `legacy.py` | 438 | Pre-package harness pieces that `pm init` migrates and `pm doctor` reports | `git`, `launchctl`, `systemctl`, `crontab` | dropped (Open questions) |
-| `hooks.py` | 352 | `pm prime` (chunks under the 10,000-character cap, `--state`, `--subagent`), `pm hook stop`, session-start `pm init` with timeout | `git`, `bd config get agent.profile`, `pm init` | `internal/hooks` |
-| `records.py` | 340 | Record parsing (YAML front matter, sections, blocks and attributes, decisions, delivery report), record checks | none | `internal/records` |
-| `owner_request.py` | 203 | `pm hook owner-request`: the Haiku judge, its prompt and arguments | `claude -p`, `bd list --label human …` | `internal/hooks` |
-| `launch.py` | 201 | Launcher: run the pin in process, or `exec uv tool run --from git+…@<commit>` | `git ls-remote`, `uv tool run` | `internal/launch` |
-| `push.py` | 199 | `pm push`: `bd dolt push`, day summary, `records` fetch/rebase/push, push state under `.pm/run/` | `bd dolt push`, `git fetch/rev-list/rebase/push` | `internal/sync` |
-| `beads.py` | 198 | `bd` calls and status derived from bd JSON | `bd list --all --json`, `bd export`, `bd show`, `bd context` | replaced by `internal/work` |
-| `tool.py` | 180 | Installs and inspects the pm uv tool (PEP 610 `direct_url.json`) | `uv tool install/list`, `git` | removed; `internal/launch` installs the binary |
-| `store.py` | 149 | The `records` store: find, lock, commits, `git status` of record paths, design-page dates | `git` | `internal/store` |
-| `config.py` | 104 | `.pm/config.toml`: read, check the pin, fail hard | `git rev-parse` | `internal/config` |
-| `__init__.py` | 5 | `__version__` from package metadata | none | `-ldflags -X` into `internal/buildinfo` |
-
-| `cli.py` lines | Section | Size | Go package |
-|---|---|---|---|
-| 1–141 | constants, refusal patterns, `Refuse` | 141 | `internal/cli` |
-| 142–307 | context and atomic writes (`Repo`, `apply_writes`, `restore`, lock) | 166 | `internal/store` |
-| 308–354 | record templates | 47 | `internal/records` |
-| 355–1404 | write commands (finding, decision, need, action, task, doc, design, postmortem, project, sprint, check, day summarize) | 1,050 | `internal/cli` |
-| 1405–1857 | reply spool, snapshot, `pm service run` (HTTP server, 3 background threads) | 453 | `internal/service` |
-| 1858–2028 | reply delivery (inbox Unix socket), `pm reply read` | 171 | `internal/service`, `internal/cli` |
-| 2029–2207 | `pm show` | 179 | `internal/cli` |
-| 2208–2248 | `pm record link` | 41 | `internal/cli` |
-| 2249–2992 | `init`, `doctor`, `upgrade`, `uninstall`, clone and worktree setup, Codex roots | 744 | `internal/install` |
-| 2993–3158 | `push`, `service *`, `where`, `commit` | 166 | `internal/cli` |
-| 3159–3739 | argparse tree, help texts, `main` | 581 | `internal/cli` |
-
-**What the port must carry exactly.**
-
-| Item | Count | Port concern |
-|---|---|---|
-| Regex call sites | 76 (`cli` 31, `records` 17, `site` 15, others 13) | Go `regexp` is RE2: no lookarounds, no backreferences, and `\w` is ASCII only. 9 sites use them: section splits in `records.py` (`(?=^## \|\Z)`), sentence and word splitting in `cli.py` (`` (`+).+?\1 ``), the id match in `site.py` (`(?<![\w.-])`). Each becomes scanning code with its own table test, not `regexp2` |
-| Character counts | `hooks.CAP`, sentence and word limits | Python `len` counts code points; Go must use `utf8.RuneCountInString`, because `prime.md` is 15,177 characters but 15,219 bytes |
-| HTML escaping | every page | Python `html.escape` writes `&quot;` and `&#x27;`; Go writes `&#34;` and `&#39;`. Normalisation absorbs the difference (Design, Site) |
-| YAML | front matter; `yaml_str` decides quoting by a pyyaml round trip | pyyaml is YAML 1.1 (`yes`, `on` and dates are typed); Go YAML libraries are 1.2. Quoting must follow the 1.1 rules, or new headers change |
-| Refusal texts | 165 sites | `prime.md` and `test_pm.py` cite them word for word |
+| Item | Design |
+|---|---|
+| Regexes | Go `regexp` is RE2: no lookarounds, no backreferences, and `\w` is ASCII only. The 9 patterns that needed them (section splits, sentence and word splitting, the id match) are scanning code, each with its own table test, not `regexp2` |
+| Character counts | `hooks.CAP` and the sentence and word limits count runes (`utf8.RuneCountInString`), not bytes: `prime.md` has more bytes than characters |
+| YAML | front matter keeps YAML 1.1 typing (`yes`, `on` and dates are typed), so headers quote as they always did; `internal/records/testdata/expected.json` holds the cases |
+| JSON | `internal/pyjson` reads and writes JSON with Python `json`'s default separators, so stored and exported JSON keeps its form |
+| Refusal texts | `prime.md` and the harness cite them word for word |
 
 ## Design
 
@@ -125,7 +81,7 @@ Reading: opening once per process meets the 300 ms goal about 5 times over, but 
 
 ### Architecture
 
-Go pm lives in `pm/` beside Python pm until the cut-over, then replaces it: `pm/go.mod` (module `github.com/Yeeef/yeeef-agents/pm`), `pm/cmd/pm`, `pm/internal/…`. Release tags stay `pm-v<X>`. Old Python tags still build with `#subdirectory=pm`, because each tag keeps its own tree.
+pm is one Go module at the root of the `Yeeef/pm` repo: `go.mod` (module `github.com/Yeeef/pm`), `cmd/pm`, `internal/…`, and `assets.go` with the files pm embeds. Release tags are `pm-v<X>`.
 
 ```mermaid
 flowchart TD
@@ -142,32 +98,33 @@ flowchart TD
 ```
 Reading: only `work` touches Dolt: in the service it opens the engine and serves it on a Unix socket, everywhere else it is a SQL client of that socket. Only `store`, `sync` and `install` run `git`; everything else sees typed items and record structs.
 
-| Package | Holds | Python source |
-|---|---|---|
-| `cmd/pm` | `main`: `launch.Maybe()` first, then `cli.Execute()` | `launch.main`, `cli.main` |
-| `internal/cli` | Command tree, help texts, command bodies, `Refuse` error type and exit codes | `cli.py` |
-| `internal/config` | `.pm/config.toml` read, pin check, `PORT` | `config.py` |
-| `internal/launch` | Pins, downloading release binaries, `exec`, Python pins through `uv tool run` | `launch.py`, `tool.py` |
-| `internal/work` | The `Item` type and the store interface; Dolt schema and migrations, validation, ids and minting, ready and blocked, merge rules on conflict rows, the host (the engine and its socket server) and the client (one connection per command), `--import-bd`, `export` | `beads.py`, [Work store](work-store.md) |
-| `internal/records` | Record parse, sections, blocks, templates, checks | `records.py`, templates in `cli.py` |
-| `internal/store` | The `records` store: find it, flock, atomic multi-file writes, commit | `store.py`, context and writes in `cli.py` |
-| `internal/site` | Page templates, the Markdown renderer, `style.css` (embedded) | `site.py`, `style.css` |
-| `internal/service` | `service run` (the work store held open and served on its socket, the operations commands ask for, HTTP, snapshot, reply spool, merge poll, inbox push, sync and gc loops), unit files | `service.py`, serve and delivery in `cli.py` |
-| `internal/sync` | Records push and work-store sync, run by the service and `pm sync` | `push.py` |
-| `internal/hooks` | `prime` (`prime.md` from `pm/assets.go`, chunks), `hook stop`, `hook owner-request`, git hooks | `hooks.py`, `owner_request.py`, `prime.md` |
-| `internal/install` | Managed pieces, `init`, `doctor`, `upgrade`, `uninstall`, `where` | `install.py`, setup in `cli.py` |
-| `internal/gitx` | The one `git` subprocess helper: argv, cwd, timeout, stderr in the error | `git()` helpers in 5 modules |
+| Package | Holds |
+|---|---|
+| `cmd/pm` | `main`: `launch.Maybe()` first, then `cli.Execute()` |
+| `internal/cli` | Command tree, help texts, command bodies, `Refuse` error type and exit codes |
+| `internal/config` | `.pm/config.toml` read, pin check, `PORT` |
+| `internal/launch` | Pins, downloading release binaries, `exec`; a pin below 0.2.0 refused |
+| `internal/work` | The `Item` type and the store interface; Dolt schema and migrations, validation, ids and minting, ready and blocked, merge rules on conflict rows, the host (the engine and its socket server) and the client (one connection per command), `--import-bd`, `export` |
+| `internal/records` | Record parse, sections, blocks, templates, checks |
+| `internal/store` | The `records` store: find it, flock, atomic multi-file writes, commit |
+| `internal/site` | Page templates, the Markdown renderer, `style.css` (embedded) |
+| `internal/service` | `service run` (the work store held open and served on its socket, the operations commands ask for, HTTP, snapshot, reply spool, merge poll, inbox push, sync and gc loops), unit files |
+| `internal/sync` | Records push and work-store sync, run by the service and `pm sync` |
+| `internal/hooks` | `prime` (`prime.md` from `assets.go`, chunks), `hook stop`, `hook owner-request`, git hooks |
+| `internal/install` | Managed pieces, `init`, `doctor`, `upgrade`, `uninstall`, `where` |
+| `internal/proc` | The subprocess helper: argv, cwd, captured text output, timeout |
+| `internal/pyjson` | JSON read and written with Python `json`'s default separators |
+| `internal/buildinfo` | The version, stamped by the release build |
 
-- **Embedded files.** `//go:embed` reads only files at or below the package directory, so `pm/assets.go`, at the module root, embeds `src/pm/prime.md` and `src/pm/style.css` where they are: one copy serves Python and Go pm until the cut-over. The test that checks the noun list against `prime.md` reads the cobra tree.
-- **Libraries.** `BurntSushi/toml` reads `config.toml`; pm writes it from a template, as today. `go.yaml.in/yaml/v3` (the maintained yaml.v3) for front matter, with a quoting function that follows YAML 1.1, tested on every header in the corpus. The launchd plist comes from a text template, byte-identical to `plistlib`'s output so `pm doctor` sees no drift.
-- **External tools stay external.** `git`, `gh`, `claude` and `launchctl`/`systemctl` run through `exec.LookPath` on `PATH`, never an absolute path, so the test fakes keep working. `bd` disappears; `uv` is needed only to launch a Python pin.
+- **Embedded files.** `//go:embed` reads only files at or below the package directory, so `assets.go`, package `pm` at the module root, embeds `prime.md`, `style.css` and the model prompts in `prompts/`. The test that checks the noun list against `prime.md` reads the cobra tree.
+- **Libraries.** `BurntSushi/toml` reads `config.toml`; pm writes it from a template, as today. `go.yaml.in/yaml/v3` (the maintained yaml.v3) for front matter, with a quoting function that follows YAML 1.1, tested on every header in the corpus. The launchd plist comes from a text template; `internal/install`'s golden test holds it.
+- **External tools stay external.** `git`, `gh`, `claude` and `launchctl`/`systemctl` run through `exec.LookPath` on `PATH`, never an absolute path, so the test fakes keep working. pm runs no `bd` and no `uv`.
 
 ### CLI framework
 
 `spf13/cobra` (pflag inside). It gives nested commands, flags interspersed with positionals (`pm task close <id> --reason …`, `pm finding add --sprint ID "<text>"`), `MarkFlagRequired`, `MarkFlagsMutuallyExclusive` (`--bead`|`--project`), per-command help and hidden commands for machinery. bd 1.3.1 uses it (v1.10.2), and the binary already links about 214 modules through Dolt, so 2 more change nothing measurable.
 
-- Each help text moves verbatim from `parser()` into the command's `Long`.
-- Parity holds the help text with whitespace normalised; cobra's default layout replaces argparse's (Open questions).
+- Each command's help text is its `Long`, in cobra's default layout; the harness asserts the text, not the layout (Open questions).
 
 ### Store access: the service holds the store
 
@@ -274,7 +231,7 @@ A command never restarts the service: parallel commands would restart it many ti
 
 - Go: `worktest.Serve(t testing.TB) (*work.Host, *work.Dolt)` makes a clone directory with `os.MkdirTemp("", "pm")` (short enough for the socket on macOS, where `t.TempDir()` paths may not be), starts `work.NewHost` on it, makes an empty store, dials one client, and stops both in `t.Cleanup`. Sync and compare-and-swap tests run two hosts against a bare remote: one clone creates through `CALL pm_create`, the other runs the compare-and-swap in process so the test can hold its push; a sync that must see the other clone's last push waits out Dolt's 1 s read dedup. A version test hosts `pm_version()` returning another version and checks both refusals.
 - The concurrency test: 8 connections × 20 writes, 160 of 160 correct, invariants checked after; two opposite `pm dep add` at once: exactly one lands, the other refuses the cycle; a long write behind 3 tight-loop writers gets the lock in its turn; a write racing one outside the lock fails hard. The race tests (a pull and `pm_create` racing tight-loop local writers, zero failures asserted; gc racing `pm_sync` and `pm_create`) also run under `-race` in `make test-go`. The benchmarks (`bench_test.go`, with `PM_BENCH_STORE` naming a copy of a store) run 10 fresh-process loads and 8 processes × 20 writes.
-- pytest, `PM_IMPL=go`: the `repo` fixture starts `pm service run` for the clone (a free port, its socket under a short `--basetemp`), waits for the socket, seeds through it (a re-import restarts it on a removed store), and stops it at teardown. This per-test service does not make a test `integration`; `integration_only` keeps naming the service lifecycle tests. A test that runs the clone's own `pm service run` stops it first and starts it after, and the fake supervisor stops it when it starts the clone's installed service. While the repo pins another pm, a transcript records a fixed line in place of the store, for both implementations: that pm's service would hold it.
+- pytest: the `repo` fixture starts `pm service run` for the clone (a free port, its socket under a short `--basetemp`), waits for the socket, seeds through it (a re-import restarts it on a removed store), and stops it at teardown. This per-test service does not make a test `integration`; `integration_only` keeps naming the service lifecycle tests. A test that runs the clone's own `pm service run` stops it first and starts it after, and the fake supervisor stops it when it starts the clone's installed service.
 - The access-path test: with the service stopped, every store command fails with the message naming `pm service restart` and writes nothing (pytest, 39 commands); and only `host.go` calls into `dolthub/driver` or Dolt's engine package (`LoadMultiEnvFromDir`, `NewSqlEngine`), and only `pm service run` and `worktest` call `work.NewHost`: a Go test over every non-test file's calls, resolved by import path with `go/parser`, so a new direct open fails CI.
 
 ### Site
@@ -286,42 +243,31 @@ A command never restarts the service: parallel commands would restart it many ti
 | Markdown | `github.com/yuin/goldmark` (CommonMark 0.31.2; bd links v1.8.5) with `extension.Table` and `WithTableCellAlignMethod(TableCellAlignStyle)` (writes `style="text-align:…"` as markdown-it does); `html.WithUnsafe()` for records, a second renderer without it for comments and replies (`COMMENT_MD`); no linkify, no typographer, no auto heading ids |
 | Custom goldmark parts | front matter skip; heading ids for h2–h3 with the mdit-py-plugins `anchors` slug and duplicate suffixes; a `:::` container parser for `note`, `decision` and `result`, with the attribute parser from `records.attrs` and the required attributes (`BLOCK_ATTRS`); a `mermaid` fence renderer (`<pre class="mermaid">`); the link rewrite `.md(#…)` → `.html(#…)`; the TOC from the heading nodes |
 
-**Parity check.** A test renders every record page with Python pm and with Go pm from the same records and the same items, normalises both, and diffs them.
-
-| Normalised | How |
-|---|---|
-| Entity form | Parse with `golang.org/x/net/html`, which decodes every entity; serialise text and attributes with one escaper |
-| Attribute order | Sorted by name |
-| Whitespace | Runs in text nodes collapsed to one space, and whitespace-only nodes between block elements dropped; `<pre>` content kept as is |
-| Everything else | Compared as is: elements, nesting, attribute values, text |
-
-- The corpus is every record in this repo's store (126 when written: 5 projects, 84 sprints, 19 designs, 9 docs, 2 postmortems, 7 days; 163 `::: decision`, 1 `::: result`, 11 files with Mermaid), plus a fixture for each construct the corpus lacks.
-- A remaining difference is fixed by a renderer override, or goes on the allow-list `internal/site/testdata/parity-allow.txt`: page, the normalised hunk, and the reason. The list is reviewed in the PR that adds each entry, and a difference not on it fails the test.
-- The test runs until the cut-over; after it, Python pm is gone and the Go pages are the reference.
+**Golden pages.** `internal/site/golden_test.go` renders every page of `testdata/constructs` (a fixture for each construct a page renders: projects, sprints, designs, docs, postmortems, days, the index) and compares it with its copy under `testdata/constructs/pages`. After an intended change, `go test -tags gms_pure_go ./internal/site -run Golden -update` rewrites the copies, and the PR shows the diff for review.
 
 ### Distribution
 
-| Today (Python) | Go |
+| Part | Design |
 |---|---|
-| `uvx --from "git+…@pm-v<X>#subdirectory=pm" pm init` | `curl -fsSL https://github.com/Yeeef/yeeef-agents/releases/download/pm-v<X>/install.sh \| sh && pm init`. `install.sh` picks the asset for `uname -s`/`-m`, checks it against `SHA256SUMS`, installs to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` |
-| The pm uv tool is the launcher | The installed binary is the launcher |
-| A pin's code: `uv tool run --from git+…@<commit>`, built by uv on first use (300 s timeout) | A pin's binary: `$XDG_DATA_HOME/pm/pins/<pin>/pm`, downloaded once from release `pm-v<pin>`, checked against `SHA256SUMS`, written atomically; its sha256 is kept in `pins/<pin>/sha256`, and a later download that differs fails hard |
-| Runtime needs: uv, python (by uv), git, bd | git; `gh` and `claude` as today; uv only for Python pins |
-| `pm init` installs the uv tool | `pm init` copies the running binary (`os.Executable()`) into the bin dir when it is not there, and runs `uv tool uninstall pm` when the uv tool is present: both put `pm` in `~/.local/bin` |
+| Machine install | `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<X>/install.sh \| sh && pm init`. `install.sh` picks the asset for `uname -s`/`-m`, checks it against `SHA256SUMS`, installs to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` |
+| Launcher | the installed binary |
+| A pin's binary | `$XDG_DATA_HOME/pm/pins/<pin>/pm`, downloaded once from release `pm-v<pin>`, checked against `SHA256SUMS`, written atomically; its sha256 is kept in `pins/<pin>/sha256`, and a later download that differs fails hard |
+| Runtime needs | git; `gh` and `claude` |
+| `pm init` | copies the running binary (`os.Executable()`) into the bin dir when it is not there, replacing a link there (such as the retired pm uv tool's) rather than following it |
 
-**The Go launcher.**
+**The launcher.**
 
 | Case | What `pm` does |
 |---|---|
 | No readable pin, or the pin is this binary's version | Runs in process |
-| Pin ≥ G and not this version | `syscall.Exec` of `pins/<pin>/pm`, downloading it first if missing (10 s connect timeout, 300 s download); a missing release or asset, a checksum mismatch or a timeout is a hard error that names `pm-v<pin>` |
-| Pin < G (Python) | `launch.py`'s path, ported: tag → commit with `git ls-remote`, kept in `pins/<pin>/commit`, then `exec uv tool run --from git+<repo>@<commit>#subdirectory=pm pm <args>` |
+| Pin ≥ 0.2.0 and not this version | `syscall.Exec` of `pins/<pin>/pm`, downloading it first if missing (10 s connect timeout, 300 s download); a missing release or asset, a checksum mismatch or a timeout is a hard error that names `pm-v<pin>` |
+| Pin < 0.2.0 (a retired Python release) | Fails hard, naming the fix: move the pin to a release from 0.2.0 on with `pm upgrade --to <X>` |
 | `PM_LAUNCHED=<pin>` set | Runs in process, then the config check; removes `PM_LAUNCHED`/`PM_LAUNCHER` from its children's environment |
-| `pm upgrade [--to X]` | As today: moves the pin up to the running version, or launches X to move it |
+| `pm upgrade [--to X]` | Moves the pin up to the running version, or launches X to move it; `--to` a version below 0.2.0 is refused |
 
-**The bridge release.** A machine whose `pm` is still the Python uv tool must run a repo pinned to G. The last Python release, 0.1.N, learns the "pin ≥ G" row: it downloads and execs the Go binary the same way. It ships before the cut-over; without it, a Python launcher would run `uv tool run` on a Go tag and fail.
+**A clone on the pre-package harness.** `pm init` refuses a clone that still holds the pre-package harness's pieces and names the fix: run `pm init` once with the retired Python release that moves them (`uvx --from "git+https://github.com/Yeeef/pm@pm-v<that release>" pm init`, which needs uv), then move the pin to a release from 0.2.0 on and run `pm init`.
 
-**A release is a tag.** Releasing Go pm is `git tag pm-v<X> <any commit on main> && git push origin pm-v<X>`: no bump commit, no release PR and no rule on how a PR is merged. No version is written in Go source or in any file a release edits: the release workflow takes `<X>` from the tag name and stamps it with `-ldflags -X …/buildinfo.Version=<X>`; an untagged build reports `dev`, which no repo pins. Moving a repo's pin is a separate, ordinary PR after the release exists (`pm upgrade --to X`, merged any way); its hooks pass because the release's assets already exist. Until the cut-over, Python releases, the bridge release 0.1.N included, keep the Python procedure in `pm/AGENTS.md` ("Releasing pm"): tag the bump commit before the pin moves, and merge the release PR with a merge commit.
+**A release is a tag.** Releasing pm is `git tag pm-v<X> <any commit on main> && git push origin pm-v<X>`: no bump commit, no release PR and no rule on how a PR is merged. No version is written in Go source or in any file a release edits: the release workflow takes `<X>` from the tag name and stamps it with `-ldflags -X …/buildinfo.Version=<X>`; an untagged build reports `dev`, which no repo pins. Moving a repo's pin is a separate, ordinary PR after the release exists (`pm upgrade --to X`, merged any way); its hooks pass because the release's assets already exist.
 
 **Release builds.** `.github/workflows/pm-release.yml` runs on a `pm-v*` tag push, on native runners, because the build needs cgo (`gozstd`).
 
@@ -335,92 +281,47 @@ A command never restarts the service: parallel commands would restart it many ti
 
 **What `pm init` installs.**
 
-| Scope | Piece | Change from Python |
-|---|---|---|
-| Machine | `pm` in the bin dir; the `pins/` cache; the service unit running `<abs path of the bin-dir pm> service run`; Codex `writable_roots` including `.pm/store/work` | The unit no longer runs `<tool python> -m pm.cli`; `pm service install` rewrites a Python-era unit, because its command drifts |
-| Repo (tracked) | `.pm/config.toml`, `README.md`, `.gitignore`; pm's hook entries; `.gitignore` block; pm's git hooks | The `bd prime` and `bd codex-hook` entries, the Beads `CLAUDE.md` block and the `.beads/hooks` sections go; pm points `core.hooksPath` at its own hooks |
-| Clone | `records` store; the work store at `<main>/.pm/store/work`, cloned from the remote, or created and pushed when the remote has none; the `records/` link | Replaces `bd bootstrap` and the Beads profile |
+| Scope | Piece |
+|---|---|
+| Machine | `pm` in the bin dir; the `pins/` cache; the service unit running `<abs path of the bin-dir pm> service run`; Codex `writable_roots` including `.pm/store/work` |
+| Repo (tracked) | `.pm/config.toml`, `README.md`, `.gitignore`; pm's hook entries; `.gitignore` block; pm's git hooks in `.pm/hooks`, which `core.hooksPath` points at |
+| Clone | `records` store; the work store at `<main>/.pm/store/work`, cloned from the remote, or created and pushed when the remote has none; the `records/` link |
 
 `pm init` keeps its shape: a repo half on first install, and a clone and worktree half on every run, including `--session-start`.
 
-### Port order and coexistence
+### Migration from bd
 
-**Switch at parity, per repo, by the pin.** Go pm is built and tested on `main` sprint by sprint, but no repo runs it until parity. Each repo then switches in one step: its pin moves to G and its bd data is imported. Python pm stays the released pm until then, so only one work store is authoritative at a time, and moving the pin back undoes the code half.
-
-A port sprint is shippable when merged to `main` with CI green, its parity subset green, and Go pm building on both targets; it is not released. Each takes a few days of agent work at most.
-
-| # | Port sprint | Goal | Depends on | Check at its end |
-|---|---|---|---|---|
-| P0 | Embedded Dolt spike | Measure Dolt in Go for pm's workload; settle store sharing, cgo, ref and size | — | Done in [sprint 77](../sprints/pm-harness-77.md): Constraints and key facts |
-| P1 | Implementation-neutral tests | `PM_IMPL=python\|go` picks the binary; work data seeded and read through a store-neutral layer that maps fake-bd JSON to `pm export` items; a recorder logs every `pm` call | — | All 100 tests pass on Python unchanged; one transcript per test |
-| P2 | Go skeleton | Module, cobra tree with all 40 commands and their help, `config`, `buildinfo`, `prime` and its chunks, `hook stop`, the `work.Item` type and store interface, CI build on both targets with cgo | — | `pm prime` (all modes) byte-identical; every `--help` text identical after whitespace normalisation; binary size recorded |
-| P3 | Work store core | Dolt schema, typed items, validation, ids and minting, ready and blocked, the store gate, `--import-bd`, `export` | P2 | Round trip on this repo's real `bd export` with every check of the [Work store](work-store.md) migration; the importer agrees with P1's Python mapper |
-| P4 | Records and site | `records`, `store`, the goldmark renderer and its extensions, page templates, `pm check` | P2; P1 for the item fixture | Every record page of this repo and of the fixtures equal after normalisation, items from P1's mapper for both; the allow-list reviewed |
-| P5 | Agent commands I | `show`, `record link`, `commit`, `task add/close/claim/move`, `finding add`, `feedback add`, `doc/design/postmortem new`, `project/sprint open/close` | P1, P3, P4 | Their `test_pm.py` scenarios pass with `PM_IMPL=go`; transcripts identical; live-data parity |
-| P6 | Agent commands II | `decision add/need/close`, `action need/done` (with `--pr`), `reply read`, `day summarize`, `hook owner-request` | P5 | `test_pm.py` and `test_owner_request_hook.py` pass on Go; transcripts identical |
-| P7 | Work-store commands and sync | The commands with no Python counterpart (`task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `export`, `sync`); Dolt sync through the git remote; merge rules on conflict rows; the child-id compare-and-swap | P3 | Tests derived from the [Work store](work-store.md) page (merge table, ids, ready), plus a 2-clone sync test against a bare remote |
-| P8 | Service | `service run` (HTTP, snapshot, spool, merge poll, inbox push, sync and gc loops, open per poll), `install/status/restart/logs` on launchd and systemd | P2 | Go unit tests in `internal/service` with fake site and store; unit files equal to Python's for the same inputs |
-| P9 | Install, launcher, release | `init/doctor/upgrade/uninstall/where` on the work store; the Go launcher; `install.sh`; the release workflow; the Python bridge release 0.1.N; the service wired end to end | P6, P7, P8 | `test_service`, `test_init`, `test_lifecycle` and the rewritten `test_launch` pass on Go; a release candidate tag builds both assets; a machine with the Python tool runs a G-pinned scratch repo; live-data parity |
-| P10 | Cut-over of yeeef-agents | Migrate the bd data; move the pin to G; switch `prime.md` from bd to pm commands; `pm upgrade` removes the Beads pieces; after a soak, delete Python pm and update `pm/AGENTS.md`, [pm as an installable product](pm-product.md) and the [Work store](work-store.md) Storage section | P9 | Every clone on G, `pm doctor` clean, the site equal before and after, `pm export` equal to the final bd export |
-
-```mermaid
-flowchart LR
-  P0[P0 spike, done]
-  P1[P1 neutral tests]
-  P2[P2 skeleton] --> P3[P3 work store core]
-  P2 --> P4[P4 records + site]
-  P2 --> P8[P8 service]
-  P1 --> P4
-  P1 --> P5
-  P3 --> P5[P5 commands I]
-  P4 --> P5 --> P6[P6 commands II]
-  P3 --> P7[P7 store commands + sync]
-  P6 --> P9[P9 install + launcher + release]
-  P7 --> P9
-  P8 --> P9 --> P10[P10 cut-over]
-```
-Reading: P1 and P2 start at once. After P2, P3, P4 and P8 run in parallel: each builds against the `work.Item` type and store interface that P2 fixes, so P4 and P8 need no Dolt. After P3, P5 (once P4 lands) and P7 run in parallel. The critical path is P2 → P3 → P5 → P6 → P9 → P10.
-
-**Where the bd → Dolt migration fits.** The importer comes in P3 and runs in every later parity run, because the parity harness seeds Go from the same bd JSON through it. The real migration runs once, in P10, in one clone: stop the service in every clone, `bd dolt push`, `bd export`, `pm init --import-bd`, push. The other clones then attach with `pm init`. The final bd export and `.beads/` stay untouched until the owner removes them.
+`pm init --import-bd FILE` imports a `bd export` into a clone with no work store, as one write; the other clones then attach with `pm init`. The procedure and its checks are in [Work store](work-store.md), Migration from bd. The final bd export and `.beads/` stay untouched until the owner removes them.
 
 ### Tests
 
-**How the pytest suite's guarantees carry over.**
+**The harness.** The pytest suite in `tests/` is pm's black-box harness: it drives the binary `make go-build` builds, with `fake_gh`, `fake_claude` and `fake_sched` (launchctl, systemctl, crontab) on `PATH`. `pyproject.toml` and `uv.lock` hold its environment; pm itself has no Python.
 
-| Guarantee today | Where | After the port |
-|---|---|---|
-| Each command against a temp repo: every refusal changes nothing, every happy path writes what it says | `test_pm.py` (29 tests, 40 `repo.pm` calls) | Unchanged, run with `PM_IMPL=go`. The 18 `repo.issues()` reads and 8 `bd_calls()` assertions move to the store-neutral layer: `repo.items()` gives work-store items, mapped from fake-bd JSON for Python and from `pm export` for Go |
-| Refusal texts word for word | asserted in `test_pm.py`; cited by `prime.md` | Same assertions, plus a static check: the constant part of each of the 165 Python refusal strings appears in Go's source (P5–P6) |
-| Hooks as the runtimes run them (JSON on stdin) | `test_hooks.py` (14) | Unchanged; reads the noun list from `pm --help` output, not from `pm.cli.parser` |
-| Owner-request judge | `test_owner_request_hook.py` (5, fake judge); live eval (1) | Unchanged: `fake_claude.py` on `PATH`; `owner_request_cases.json` and `make test-live` stay |
-| Service end to end | `test_service.py` (13; 3 import `pm.service`/`pm.push`) | The end-to-end tests run on Go; the in-process tests become Go unit tests in `internal/service` |
-| Setup lifecycle | `test_init` (6), `test_lifecycle` (7) | Run on Go; `bd init`/`bootstrap` expectations become work-store creation and attach |
-| Launcher | `test_launch.py` (16), fake `uv` and `git ls-remote` | The Python-pin path keeps its tests; the Go-pin path runs against a local HTTP server that serves release assets |
-| uv tool | `test_tool.py` (4) | Retired with `tool.py`; replaced by tests of copying the binary and removing the uv tool |
-| Legacy migration | `test_migrate.py` (1) | Retired with `legacy.py` |
-| Config check | `test_config.py` (4) | Same behaviour; the internal import goes |
-| Light vs integration | the `integration` marker; `integration_only` in `conftest.py` fails an unmarked heavy test | Kept; `integration_only` also recognises the Go binary's `service run`, `init` and `sync` |
-| Fakes | `fake_bd`, `fake_gh`, `fake_claude`, `fake_sched` (launchctl, systemctl, crontab) | `fake_gh`, `fake_claude`, `fake_sched` stay: Go finds them on `PATH`. `fake_bd` serves Python only and goes at the cut-over |
+| Guarantee | Where |
+|---|---|
+| Each command against a temp repo: every refusal changes nothing, every happy path writes what it says | `test_pm.py`; work data read as work-store items, as `pm export` gives them (`repo.items()`) |
+| Refusal texts word for word | asserted in `test_pm.py`; cited by `prime.md` |
+| Hooks as the runtimes run them (JSON on stdin) | `test_hooks.py`; the noun list from `pm --help` |
+| Owner-request judge | `test_owner_request_hook.py` (fake judge); the live eval, `make test-live`, on `owner_request_cases.json` |
+| Service end to end | `test_service.py`; the in-process parts are Go tests in `internal/service` |
+| Setup lifecycle | `test_init.py`, `test_lifecycle.py` |
+| Launcher | `test_launch.py`, against a local HTTP server that serves release assets |
+| Config check | `test_config.py` |
+| Release build and `install.sh` | `test_release.py` |
+| Pages | `tests/render-pages` prints every page as the service renders it |
+| Light vs integration | the `integration` marker; `conftest.py` fails an unmarked test that starts the service, `init` or `sync` |
 
-**Go-native tests** (`go test ./...`), for what is cheaper to check in process:
+**Go tests** (`make test-go`: `go vet` and `go test ./...` with `-tags gms_pure_go`, the service and concurrency tests again under `-race`), for what is cheaper to check in process:
 
 | Package | Tests |
 |---|---|
 | `work` | The merge rules table from the [Work store](work-store.md) page, one case per row; ids and minting; `ready`, `blocked` and cycle detection, from that page's definitions, not from the code |
-| `site` | The normalised-HTML parity corpus and its allow-list; the normaliser itself on a table of known-equal and known-different pairs |
-| `records` | Section and block parsing; YAML 1.1 quoting on every corpus header; the 9 regexes replaced by scanning code, each against the Python regex's results on a table of inputs |
+| `site` | Golden pages (Site) |
+| `install` | Golden pieces: the managed pieces on a table of inputs, against `testdata/pieces.json` |
+| `records` | Section and block parsing; the scanning functions and YAML 1.1 typing against `testdata/expected.json`, edited by hand |
 | `hooks` | Each chunk under `CAP` in runes; the chunks add up to the rules; the noun list matches the cobra tree |
 
-**Parity layers during the port.**
-
-| Layer | Check | Normalised before the diff |
-|---|---|---|
-| 1. Shared suite | Each of the 100 tests runs on both implementations; a test for one only is marked with it and the reason | none |
-| 2. Differential transcripts | `Repo.pm` records argv, stdin, stdout, stderr, exit code, changed record files and the store export after each call; Go's transcript must equal Python's | temp paths, timestamps, random root ids (mapped in order of appearance), durations |
-| 3. Live data | On a copy of this clone: every record page, `pm show`, `pm where`, `pm check`, from bd (Python) and from the import (Go) | timestamps, the as-of line; pages as in Site |
-| 4. Help and rules | `pm prime` byte-identical; each `--help` text identical | whitespace in help |
-
-CI runs layers 1 and 2 on every PR from P2 on, as a job with a list of expected failures that only shrinks. Layer 3 runs at the end of P5, P9 and P10.
+A golden file is rewritten only by `go test -tags gms_pure_go ./internal/<pkg> -run Golden -update` after an intended change; the PR shows its diff for review.
 
 ## Alternatives considered
 
@@ -470,7 +371,6 @@ The alternative to the service-held store: each pm command opens the embedded st
 | bd 1.3.1 | Embedded Dolt through `dolthub/driver`; cobra; the build flags (`CGO_ENABLED=1`, `-tags gms_pure_go`); Not taken: one engine open per transaction, about 410 ms of its 567 ms list, and one process per command behind a gate lock |
 | markdown-it-py and mdit-py-plugins | The rendering that goldmark reproduces: tables with style alignment, h2–h3 anchors and their slug, containers, the mermaid fence |
 | goldmark | The CommonMark 0.31.2 parser and its extension points for the custom parts |
-| `golang.org/x/net/html` | The HTML5 parser behind the parity normaliser |
 
 ## Open questions
 
@@ -478,19 +378,13 @@ The alternative to the service-held store: each pm command opens the embedded st
 
 | # | Question | Options | Default |
 |---|---|---|---|
-| 1 | bd already uses `refs/dolt/data` on `origin`; the spike synced through that ref only | a. a pm-specific ref (`refs/pm/work`), if Dolt accepts it; b. a separate remote; c. pm takes `refs/dolt/data` over at the cut-over, after the final bd export | a, if P7 shows Dolt accepts the ref; else c, with the bd export kept as the rollback copy |
-| 2 | Which page differences the parity allow-list may hold | a. fix each in a renderer override; b. accept it with a reason | a, until only differences that an override cannot fix remain; each entry is reviewed in its PR |
-| 3 | cgo release builds | a. native runners per target; b. `zig cc` cross-builds from one runner (linux/amd64 built at 132 MB, not run) | a |
-| 4 | Binary size per pin (107 MB measured for the spike, darwin/arm64) | a. accept; b. keep the N most recent pins and let `pm doctor` list the others; c. `upx` | a, with `-s -w`; b once a machine holds more than 3 pins |
-| 5 | Rollback after the cut-over | a. fix forward; b. a `pm export --bd` reverse exporter; c. keep bd read-only | a. The code half rolls back by moving the pin; data written to Dolt after the cut-over does not go back to bd |
-| 6 | Machines that still have the Python launcher | a. the bridge release 0.1.N, before the cut-over; b. the owner reinstalls by hand | a; P9 checks it |
-| 7 | Release base URL for the Go launcher's tests | a. `net/http` with a documented `PM_RELEASE_URL` setting (mirrors, tests); b. `curl` on `PATH`, faked in tests; c. `gh release download` | a |
-| 8 | `legacy.py` (438 lines) | a. drop it: Go `pm init` refuses a legacy clone and names the Python release to run first; b. port it | a; whether any clone still has legacy pieces is not recorded, and `pm doctor` on each clone shows it before P9 |
-| 9 | Language of the black-box suite after the cut-over | a. keep pytest (neutral by then); b. port it to Go `testscript` | a; revisit if Python in a Go project costs CI time or confuses contributors |
-| 10 | First Go version | 0.2.0; 1.0.0 | 0.2.0: the work store is new and its schema may still change |
-| 11 | `--help` layout | a. a cobra template that mimics argparse; b. cobra's default layout, with only the text held | b. Agents read the text, and tests assert the text, not the layout |
-| 12 | Codex sandbox | A command in a Codex session must connect to the service's socket `.pm/run/work.sock`; whether the sandbox allows a connect to a Unix socket inside `writable_roots` is not recorded | `pm init` keeps `.pm/store/work` and `.pm/run` in `writable_roots`; the implementation checks the connect in a Codex session |
-| 13 | Go version | go.mod `go 1.26` (bd builds with go1.26.7; this Mac has go1.27.1) | 1.26, raised when Dolt requires it |
-| 14 | Dolt APIs the host reaches past the driver: `embedded.LoadMultiEnvFromDir`, `engine.NewSqlEngine`, `DoltDatabaseProvider.Register`, `sqlserver.SetRunningServer` | a. use them, pinned with Dolt in `go.mod`; b. an HTTP API on a second socket for the operations | a; a Dolt bump runs the host's tests first |
-| 15 | A clone whose main checkout path makes the socket path 104 bytes or more | a. fail hard, naming the limit; b. a socket under a short per-user directory | a; no clone near the limit is recorded |
-| 16 | A worktree that pins another version (a pin-moving PR) cannot touch work items | a. refuse, as designed; b. allow versions with the same schema version | a, until it costs a sprint measurable time |
+| 1 | cgo release builds | a. native runners per target; b. `zig cc` cross-builds from one runner (linux/amd64 built at 132 MB, not run) | a |
+| 2 | Binary size per pin (107 MB measured for the spike, darwin/arm64) | a. accept; b. keep the N most recent pins and let `pm doctor` list the others; c. `upx` | a, with `-s -w`; b once a machine holds more than 3 pins |
+| 3 | Release base URL for the Go launcher's tests | a. `net/http` with a documented `PM_RELEASE_URL` setting (mirrors, tests); b. `curl` on `PATH`, faked in tests; c. `gh release download` | a |
+| 4 | Language of the black-box suite | a. keep pytest; b. port it to Go `testscript` | a; revisit if Python in a Go project costs CI time or confuses contributors |
+| 5 | `--help` layout | a. a cobra template that mimics argparse; b. cobra's default layout, with only the text held | b. Agents read the text, and tests assert the text, not the layout |
+| 6 | Codex sandbox | A command in a Codex session must connect to the service's socket `.pm/run/work.sock`; whether the sandbox allows a connect to a Unix socket inside `writable_roots` is not recorded | `pm init` keeps `.pm/store/work` and `.pm/run` in `writable_roots`; the implementation checks the connect in a Codex session |
+| 7 | Go version | go.mod `go 1.26` (bd builds with go1.26.7; this Mac has go1.27.1) | 1.26, raised when Dolt requires it |
+| 8 | Dolt APIs the host reaches past the driver: `embedded.LoadMultiEnvFromDir`, `engine.NewSqlEngine`, `DoltDatabaseProvider.Register`, `sqlserver.SetRunningServer` | a. use them, pinned with Dolt in `go.mod`; b. an HTTP API on a second socket for the operations | a; a Dolt bump runs the host's tests first |
+| 9 | A clone whose main checkout path makes the socket path 104 bytes or more | a. fail hard, naming the limit; b. a socket under a short per-user directory | a; no clone near the limit is recorded |
+| 10 | A worktree that pins another version (a pin-moving PR) cannot touch work items | a. refuse, as designed; b. allow versions with the same schema version | a, until it costs a sprint measurable time |

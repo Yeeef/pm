@@ -11,8 +11,8 @@ project: pm-harness
 - pm writes two kinds of shared data in a repo: the records (Markdown on the `records` branch) and the work store (Dolt, synced through the remote). A pm that does not understand a repo's data must never write to it.
 - Today each repo pins one exact pm version in `.pm/config.toml`, and the installed `pm` is a **launcher**: it reads the pin and runs that exact version, fetching it on first use. The launcher exists because one machine holds several repos (three when the owner chose it) on different pins; with one installed pm and an exact pin, every switch between repos meant a reinstall, and every release meant an upgrade commit in every repo.
 - The launcher has cost more than it was expected to: a release stall, a release URL compiled into every installed copy, token downloads from a private repo, and two releases whose only job was to teach old launchers about new pins (Constraints).
-- Go pm is not live in any repo yet (main pins 0.1.6), so the model can change now for the price of one sprint; after the cut-over, changing it needs another transition release.
-- This page answers the owner's question: why pm needs a launcher, what the alternatives are, and what each looks like for the user. It supports the open decision on keeping the launcher and exact pin or moving to a minimum version and self-update. Builds on [pm as an installable product](pm-product.md) (Version pin, Distribution) and [pm in Go](pm-go.md) (Distribution).
+- Go is pm's one implementation. Python pm releases (below 0.2.0) are retired: a pin to one fails hard, naming `pm upgrade --to <X>`.
+- This page answers the owner's question: why pm needs a launcher, what the alternatives are, and what each looks like for the user. It records the owner's choice between keeping the launcher and exact pin and moving to a minimum version and self-update. Builds on [pm as an installable product](pm-product.md) (Version pin, Distribution) and [pm in Go](pm-go.md) (Distribution).
 
 ## Goals and non-goals
 
@@ -50,12 +50,12 @@ project: pm-harness
 | Fact | Number | Source |
 |---|---|---|
 | Release stall: the bump commit pinned a version whose tag did not exist yet; the pre-commit hook runs pm, which launched the new pin and failed on the missing tag; only `--no-verify` passed, which agent permissions deny | about 28 h between the 0.1.2 and 0.1.3 tags, the span that held the stall | the tags' dates; the pm-harness feedback doc |
-| Fix for Python releases: tag the bump commit, then move the pin in a second commit, merged with a merge commit | 4 steps | `pm/AGENTS.md`, "Releasing pm" |
-| Release URL compiled into every launcher (`API` in `launch.py`, `APIURL` in the Go launcher, both `Yeeef/yeeef-agents`) | every installed copy | the launcher sources on main |
+| Fix for Python releases, now retired: tag the bump commit, then move the pin in a second commit, merged with a merge commit | 4 steps | the Python release procedure |
+| Release URL compiled into every launcher (`ReleaseURL` in `internal/launch`, `Yeeef/pm`; the retired Python launchers named `Yeeef/yeeef-agents`) | every installed copy | the launcher sources on main |
 | So the first Go release must come from the repo pm keeps, `Yeeef/pm`; a Go release from yeeef-agents would leave each installed 0.2.0 launcher pointing at a repo pm leaves | one more bridge avoided | sprint decision, Go cut-over |
 | Private repo: anonymous release downloads get HTTP 404; launchers and `install.sh` need a token from `$GH_TOKEN` or `gh auth token` | every machine | bridge 0.1.6 |
 | Bridge releases shipped only so the Python launcher can run Go pins: 0.1.5 (download and exec a Go release binary), 0.1.6 (download through the GitHub API with a token) | 2 releases, each by the 4-step procedure | sprint findings |
-| A tag makes uv fetch on every run; a commit runs from uv's cache | 6 s vs 0.2 s per run | `launch.py` docstring |
+| Python pins: a tag made uv fetch on every run; a commit ran from uv's cache | 6 s vs 0.2 s per run | the retired Python launcher |
 | Go release size | tarballs 38.6 MB (darwin-arm64), 41.5 MB (linux-amd64); binary 111,380,098 bytes unpacked, kept once per pin per machine | release candidates |
 | First launch of a Go pin | 6.0 s through the GitHub API with a token; 2 s from a local mirror | live checks |
 
@@ -73,11 +73,11 @@ project: pm-harness
 
 The chosen design is A: each repo pins an exact pm version, and the launcher, one `pm` on PATH per machine, runs that version. It lives in the public `Yeeef/pm` repo, whose releases are tags, so a pin downloads anonymously.
 
-This section describes today's design (option A below). The decision on whether it stays is open.
+This section describes that design (option A below).
 
 ### The launcher
 
-Every `pm` invocation, from an agent, a Claude Code or Codex hook, a git hook or the service unit, starts in the installed `pm`: the pm uv tool (Python, 0.1.2 and later) or the Go binary in `~/.local/bin`. Before any command, the launcher reads only `version` in the checkout's `.pm/config.toml` and decides where the command runs.
+Every `pm` invocation, from an agent, a Claude Code or Codex hook, a git hook or the service unit, starts in the installed `pm`, the binary in `~/.local/bin`. Before any command, the launcher reads only `version` in the checkout's `.pm/config.toml` and decides where the command runs.
 
 ```mermaid
 sequenceDiagram
@@ -91,21 +91,16 @@ sequenceDiagram
   L->>C: read version
   alt no pin, or pin equals own version, or PM_LAUNCHED equals pin
     L->>L: run the command in process
-  else Go pin (0.2.0 and up)
+  else pin 0.2.0 and up
     L->>K: pins/PIN/pm present?
     opt first run of this pin on this machine
-      L->>R: GET SHA256SUMS and the platform tarball (token while private)
+      L->>R: GET SHA256SUMS and the platform tarball
       R-->>L: assets
       L->>K: check sha256, write binary and sha256 atomically
     end
     L->>P: exec pins/PIN/pm with PM_LAUNCHED=PIN
-  else Python pin (below 0.2.0)
-    L->>K: pins/PIN/commit present?
-    opt first run of this pin on this machine
-      L->>R: git ls-remote tag pm-vPIN, then uv builds that commit once
-      L->>K: keep the commit
-    end
-    L->>P: exec uv tool run from git at the commit
+  else pin below 0.2.0 (a retired Python release)
+    L-->>H: fail hard, naming pm upgrade --to X
   end
   P->>C: config check: pin must equal own version
   P-->>H: output and exit code (same process)
@@ -116,25 +111,25 @@ Reading: the launcher either runs the command itself or replaces itself with the
 | Case | What `pm` does |
 |---|---|
 | No readable pin, or the pin is this pm's version | Runs in process |
-| Go pin, not this version | `exec` of `pins/<pin>/pm` under `$XDG_DATA_HOME/pm/` (default `~/.local/share`), downloaded once from release `pm-v<pin>`, checked against `SHA256SUMS` and any sha256 kept from an earlier download; 10 s connect, 300 s in all |
-| Python pin, not this version | `git ls-remote` resolves tag `pm-v<pin>` once, uv builds it once (300 s limit), the commit is kept in `pins/<pin>/commit`; then `exec uv tool run --from git+<repo>@<commit>#subdirectory=pm pm …` |
+| Pin 0.2.0 or later, not this version | `exec` of `pins/<pin>/pm` under `$XDG_DATA_HOME/pm/` (default `~/.local/share`), downloaded once from release `pm-v<pin>`, checked against `SHA256SUMS` and any sha256 kept from an earlier download; 10 s connect, 300 s in all |
+| Pin below 0.2.0 (a retired Python release) | Fails hard, naming `pm upgrade --to <X>` with a release from 0.2.0 on |
 | `PM_LAUNCHED=<pin>` set | Runs in process; the config check fails hard if this build is not the pin; the markers are removed from children's environment |
-| `pm upgrade [--to X]` | Moves the pin up to the running version, or launches X to move it |
+| `pm upgrade [--to X]` | Moves the pin up to the running version, or launches X to move it; `--to` a version below 0.2.0 is refused |
 | Any failure: missing tag or release, checksum mismatch, timeout, no token | Hard error naming the release and the URL; nothing falls back |
 
 ### What the user sees today
 
 | Flow | Today (exact pin + launcher) |
 |---|---|
-| First install on a machine | Python: `uvx --from "git+https://github.com/Yeeef/yeeef-agents@pm-v<X>#subdirectory=pm" pm init`, which installs the uv tool. Go: `install.sh` from release `pm-v<X>`, then `pm init`; while the repo is private, `gh release download pm-v<X> -R Yeeef/yeeef-agents -p install.sh -O - \| sh` with a GitHub token |
-| Joining a repo that already uses pm | Clone, then `pm init` (session start runs it). The first command fetches the repo's pin if the machine lacks it: a 38–42 MB download, 6.0 s measured, or a uv build for a Python pin |
-| A hook or agent running pm | The launcher reads the pin and execs the kept build: no network; a Python pin adds about 0.2 s for `uv tool run` from cache |
-| Upgrading one repo | Go: once release X exists, `pm upgrade --to X` in an ordinary PR; each machine fetches X on its next run. Python: the 4-step tag-before-pin procedure |
+| First install on a machine | `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<X>/install.sh \| sh`, then `pm init` |
+| Joining a repo that already uses pm | Clone, then `pm init` (session start runs it). The first command fetches the repo's pin if the machine lacks it: a 38–42 MB download, 6.0 s measured |
+| A hook or agent running pm | The launcher reads the pin and execs the kept build: no network |
+| Upgrading one repo | Once release X exists, `pm upgrade --to X` in an ordinary PR; each machine fetches X on its next run |
 | Two repos on different versions on one machine | Works: each repo runs its own pin; each pin keeps its own build (111 MB per Go pin) |
 | A worktree that pins another version than its main checkout (a pin-moving PR) | Its commands that touch work items refuse: they reach the work store only through the clone's pm service, which runs the main checkout's pin, and a command and the service must be one version ([pm in Go](pm-go.md), Store access). Commands without work data run. The pin takes effect once the main checkout has it; the service then restarts on it by itself |
 | A teammate whose machine is behind | Works without action while the machine's launcher knows the pin's kind and release URL; when it does not (first Go pin, a new host or download method), every such machine needs a bridge release or a reinstall |
-| CI | Not used today. A workflow would run `install.sh`, then the launcher downloads the pin; a token while the repo is private |
-| Releasing pm | Go: `git tag pm-v<X> <commit on main> && git push origin pm-v<X>`; the workflow builds and publishes the assets; pin PRs follow per repo. Python bridge: the 4-step procedure, never `--no-verify` |
+| CI | Not used today. A workflow would run `install.sh`, then the launcher downloads the pin |
+| Releasing pm | `git tag pm-v<X> <commit on main> && git push origin pm-v<X>`; the workflow builds and publishes the assets; pin PRs follow per repo |
 
 ## Alternatives considered
 
@@ -149,7 +144,7 @@ Five models, A being today's. Each has the same user-flow rows. The release URL 
 The flows are in Design, "What the user sees today".
 
 - **Guarantees:** every session on a branch runs exactly the pinned build, so records and schema writes come from one version per repo. A stale branch's worktree still runs its old pin against the clone's shared work store, so the schema refusal is needed here too.
-- **Costs:** launcher code in two languages until Python pm is deleted; a pins cache (111 MB per Go pin per machine); one first-run download per pin per machine; the release host and asset layout frozen into every installed launcher, so any change to them needs a bridge release first; a pin PR in every repo for every release it wants.
+- **Costs:** launcher code; a pins cache (111 MB per Go pin per machine); one first-run download per pin per machine; the release host and asset layout frozen into every installed launcher, so any change to them needs a bridge release first; a pin PR in every repo for every release it wants.
 - **Changes in pm:** none.
 
 ### B. Minimum version + schema version, one installed pm, `pm self-update`
@@ -169,7 +164,7 @@ The model of git, gh and bd: one pm per machine, always the newest the machine h
 
 - **Guarantees:** no pm writes a store whose schema it does not know, and no pm older than the repo's `min_version` runs. It holds only if every records-format or schema change raises `min_version`, so `pm upgrade` must raise it whenever it migrates.
 - **Costs:** pm must stay backward compatible with every format a live repo still has: readers for old records forms, migrations for old schemas. Repos on one machine move together whenever that machine self-updates, so a regression reaches every repo at once (rollback: `pm self-update --to <X>`). About one sprint now.
-- **Changes in pm:** `version` becomes `min_version` (any pm at or above it runs); remove the launcher, the pins cache and the Python-pin path; add `pm self-update [--to X]` (download from `Yeeef/pm`, check `SHA256SUMS`, replace the binary atomically, restart the service); migrate the store only from `pm upgrade`, never on open; `pm doctor` reports a pm below the newest release. Machines that still have the Python tool run `install.sh` once; whether a final bridge is still worth shipping is open.
+- **Changes in pm:** `version` becomes `min_version` (any pm at or above it runs); remove the launcher and the pins cache; add `pm self-update [--to X]` (download from `Yeeef/pm`, check `SHA256SUMS`, replace the binary atomically, restart the service); migrate the store only from `pm upgrade`, never on open; `pm doctor` reports a pm below the newest release.
 
 ### C. Exact pin, no launcher
 
@@ -233,7 +228,7 @@ B's checks, but the binary comes from a package manager: a Homebrew tap (`brew i
 | | A. Pin + launcher | B. Minimum + self-update | C. Pin, no launcher | D. Repo wrapper | E. Package manager + B |
 |---|---|---|---|---|---|
 | Guarantee against an incompatible writer | Exact version per branch; schema check still needed for stale branches | `min_version` + `schema_version` refusal; holds if every format change raises `min_version` | Exact version per repo | Exact version and checksum per branch | As B |
-| Moving parts | Launcher (Go + Python paths), pins cache, compiled-in URL, bridges | One binary, two checks, `self-update` | One binary, one check | Wrapper per repo, cache, path-based hooks | B + tap or wheel pipeline |
+| Moving parts | Launcher, pins cache, compiled-in URL, bridges | One binary, two checks, `self-update` | One binary, one check | Wrapper per repo, cache, path-based hooks | B + tap or wheel pipeline |
 | Release steps | Tag; pin PR per repo | Tag | Tag; pin PR per repo; reinstall on every machine | Tag; pin PR per repo | Tag; formula or wheel publish |
 | First-run cost | One download per pin per machine (6.0 s, 111 MB kept each) | One download per install or update | One download per install | One download per pin per machine | Package-manager install |
 | Multi-repo on one machine | Yes, independent | Yes, shared pm, needs backward compatibility | No | Yes, independent | As B |
@@ -277,5 +272,4 @@ Reading: A, C and D guarantee one exact version per repo; B and E guarantee the 
 | 2 | Under B, a pm on another machine migrates the work store to a newer schema and pushes it; this machine's older pm pulls it | a. refuse with `pm self-update` (B's rule); b. refuse to pull a newer schema, keeping the old one locally | a; plus migrations only from `pm upgrade`, which raises `min_version` in the same PR |
 | 3 | Can two clones that each migrate the same Dolt store still merge, given bd's documented fork? | a. migrate in one clone only, then push; b. test that pm's migrations merge | a until b is measured |
 | 4 | Does the records format need its own version marker, or is `min_version` enough? | a. `min_version` only; b. a `records_format` key | a; b if a change can land without raising `min_version` |
-| 5 | Under B, the transition for machines with only the Python launcher (0.1.6) | a. one last bridge; b. run `install.sh` once by hand | b, if the owner's machines are few (count not recorded) |
 | 6 | Under B, should a refusal update pm itself (Go's `GOTOOLCHAIN=auto`)? | a. refuse and print `pm self-update`; b. self-update automatically | a: no network on the hook path |

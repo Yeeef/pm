@@ -85,14 +85,14 @@ Sample data on this page: a `bd export` of this repo with 466 items, 245 comment
 
 | Part | Design |
 |---|---|
-| Location | one Dolt database per clone at `<main checkout>/.pm/store/work`, beside the `records` store; no link into worktrees, pm opens it by path. bd keeps its database under `.beads/` instead |
+| Location | one Dolt database per clone at `<main checkout>/.pm/store/work`, beside the `records` store; no link into worktrees; the pm service opens it by path |
 | Schema | typed SQL tables, below; no JSON cell, since Dolt merges a cell whole and two clones that set different keys in one JSON cell conflict |
 | Open | only the pm service opens the store: at its start, for its whole life. Every pm command that reads or writes items is a SQL client of the service's socket, with one connection per command; no command opens the store itself, and there is no fallback to a direct open. With the service down, such a command fails hard naming `pm service restart` |
 | Write | each pm write is one SQL transaction: load and check, apply, check the result, write the changed rows, set the write stamp, `DOLT_COMMIT`, under the store's write lock. A command that changes several items lands whole or not at all. pm's writes run one at a time, in the order they asked for the lock, so they are serializable and none starves (Concurrent writers) |
 | Read | one read-only transaction, so every query of a load sees one commit. The schema enforces types, NOT NULL, enums and foreign keys; pm checks its invariants in code (the type's fields present, closed ⇒ no holder, the tree rules) on every write and on load, and fails hard naming the item |
 | Queries | SQL from Go; `pm export` prints JSONL for ad hoc `jq`; any MySQL client can read the store on the service's socket |
 | History | Dolt's own, per row and cell: `dolt_history_items`, `dolt_diff`, `dolt_blame_items`, `dolt_log` |
-| Remote | the repo's git remote, through Dolt's git remote support, under pm's own ref `refs/pm/work` (`DOLT_REMOTE add` and `DOLT_CLONE` take `--ref`; a push writes only that ref). pm turns off Dolt's `__dolt_remote_info__` branch, which bd already keeps on the remote |
+| Remote | the repo's git remote, through Dolt's git remote support, under pm's own ref `refs/pm/work` (`DOLT_REMOTE add` and `DOLT_CLONE` take `--ref`; a push writes only that ref). pm turns off Dolt's `__dolt_remote_info__` branch |
 | Sync | run by the pm service, every 600 s and when `pm sync` asks it: fetch; when behind, check the remote's head, then merge it in one write transaction with `@@dolt_allow_commit_conflicts=1`, resolve conflicts (Merge), check, `DOLT_COMMIT`; when ahead, `DOLT_PUSH`. A sync that fails rolls back and leaves the branch where it was; it never resets the branch, since other sessions' writes may have landed on it meanwhile. Push about 600 ms, no-op pull 180 ms |
 | Merge | Dolt merges each cell three-way. After a pull, pm resolves each row of `dolt_conflicts_items` by the rules under Data model, applies close beats claim to the merged rows, and checks invariants, foreign keys (`dolt_constraint_violations`) and `blocked_by` cycles. A conflict no rule settles fails the sync hard and names the item and column |
 | Cycle check | after every merge, pm recomputes `blocked_by` cycles (ancestors included, as `pm dep add` does); a cycle that two clones made between them fails the sync hard and names the items on it |
@@ -294,7 +294,7 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 | `bd dolt push`, `bd dolt pull` | `pm service` and `pm sync` | the service syncs every 600 s; `pm sync` asks it to sync now and prints what it did: pull, resolve conflicts, push (Storage, Sync) |
 | `bd init`, `bd bootstrap` | `pm init` (exists) | see constraint 4 |
 
-**Inside pm.** One row per row of "What pm uses of bd" on the [boundary page](work-layer-bd-boundary.md). `work` is the Go package that replaces `beads.py`; every call is SQL on the pm service's socket, with no subprocess and no JSON parse.
+**Inside pm.** One row per row of "What pm uses of bd" on the [boundary page](work-layer-bd-boundary.md). `work` is the Go package that holds the store; every call is SQL on the pm service's socket, with no subprocess and no JSON parse.
 
 | bd use | bd invocation | Replacement |
 |---|---|---|

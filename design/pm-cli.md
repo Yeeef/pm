@@ -130,7 +130,7 @@ The rule: `pm` wraps an operation only when it changes both layers or enforces a
 One parser and one validator serve both commands, so `pm` cannot accept a record the renderer rejects. Each write: take an exclusive lock on the store directory, which every worktree shares, build the new text in memory, validate every record with the new text substituted, write the file atomically (temp file and rename), then commit exactly the files written on the `records` branch before releasing the lock. For commands that also call `bd`, the `bd` step runs first and the record write only after it succeeds; if the record write then fails validation, `pm` prints the `bd` command that undoes it. Not chosen: one large script, which the renderer already strains at 534 lines.
 
 ### How a repo runs it
-`uv run skills/project-management/harness/pm.py <command>` from the repo root, with a `bin/pm` two-line wrapper that resolves the repo root (`git rev-parse --show-toplevel`) and calls it, so agents type `pm …`. In other repos the skill directory is linked in and the same wrapper points at it. `make render` runs `render.py` and `make docs` runs `pm serve`. Not chosen: a global install (`uv tool install`), which pins one version across repos; a make target per command, which cannot take stdin and arguments cleanly.
+The installed `pm` binary, which runs the repo's pinned version ([pm as an installable product](pm-product.md), Version pin; [pm in Go](pm-go.md), Distribution). `pm check` validates the records and `pm service` serves the site. Not chosen: a make target per command, which cannot take stdin and arguments cleanly.
 
 ### What `pm show` prints
 `pm show` prints project state in levels; each level names the command for the next.
