@@ -662,6 +662,13 @@ func cmdUninstall(here string, stdout io.Writer) error {
 			return err
 		}
 	}
+	// a session start that finds the service down starts it under the clone's install lock: held from the unsynced
+	// check to the store's removal, it keeps one from bringing the service back (and taking writes) in between
+	unlock, err := service.LockInstall(main)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	// the work store goes with the clone's .pm/store; the remote's refs/pm/work keeps the project's items, so a store
 	// holding what the remote lacks is refused, as uncommitted records are
 	if why, err := uninstallUnsynced(main, c.Remote); err != nil {

@@ -4,8 +4,11 @@ upgrade moves the pin and rewrites pm's parts only, uninstall removes pm's parts
 
 from __future__ import annotations
 
+import fcntl
 import http.server
 import json
+import os
+import signal
 import socket
 import subprocess
 import threading
@@ -613,3 +616,40 @@ def test_doctor_names_a_release_newer_than_the_pin(new_repo: Path, tmp_path: Pat
     assert res.returncode == 0 and res.stdout.splitlines()[-1].startswith(
         f"release: cannot read pm's latest release, so whether one is newer than the pin {VERSION} is not known: "
         "GET http://127.0.0.1:9/no-release-api/releases/latest: "), res.stdout
+
+
+def test_uninstall_disables_an_enabled_unit_that_is_not_running(new_repo: Path, tmp_path: Path):
+    """A unit the supervisor still starts at login but that is not running now (it crashed) is disabled by pm uninstall
+    with the rest, so no wants link outlives its unit file."""
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    state_path = tmp_path / "sched.json"
+    state = json.loads(state_path.read_text())
+    [name] = state["loaded"]
+    assert name in state["enabled"]
+    os.kill(state["pids"].pop(name), signal.SIGKILL)  # the service crashes: inactive, still enabled
+    state["loaded"].remove(name)
+    state_path.write_text(json.dumps(state))
+    res = pm(new_repo, "uninstall")
+    assert res.returncode == 0, res.stderr
+    assert "removed the pm service" in res.stdout, res.stdout
+    assert json.loads(state_path.read_text())["enabled"] == [] and sched_units(tmp_path) == []
+
+
+def test_uninstall_waits_for_a_session_start_that_holds_the_install_lock(new_repo: Path, tmp_path: Path):
+    """A session start that (re)starts the service holds the clone's install lock; pm uninstall takes it too, from its
+    unsynced-work check to the unit's and the store's removal, so no session start brings the service back in between."""
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    with open(new_repo / ".pm/run/install.lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        proc = subprocess.Popen([*PM, "uninstall"], cwd=new_repo, env=env(tmp_path), stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+        with pytest.raises(subprocess.TimeoutExpired):
+            proc.wait(timeout=3)
+        assert sched_units(tmp_path) and (new_repo / ".pm/store/work").is_dir()
+    out, err = proc.communicate(timeout=60)
+    assert proc.returncode == 0, err
+    assert "removed the pm service" in out and sched_units(tmp_path) == [] and not (new_repo / ".pm").exists()

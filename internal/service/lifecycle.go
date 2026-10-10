@@ -121,6 +121,12 @@ func Disabled(main, kind string) bool {
 	return ran && strings.TrimSpace(out) == "disabled"
 }
 
+// systemdEnabled is whether systemd starts the unit at login: is-enabled prints enabled.
+func systemdEnabled(main string) bool {
+	_, out, ran := quietOut("systemctl", "--user", "is-enabled", Label(main)+".service")
+	return ran && strings.TrimSpace(out) == "enabled"
+}
+
 // quietOut runs a supervisor command and returns its stdout.
 func quietOut(argv ...string) (code int, out string, ran bool) {
 	path, err := exec.LookPath(argv[0])
@@ -212,9 +218,10 @@ func CheckPort(main string, port int) error {
 		"Run PORT=%d pm init (a free port), or stop what holds :%d", port, what, FreePort(), port)
 }
 
-// lockInstall holds the clone's install lock, <main checkout>/.pm/run/install.lock, waiting for another holder: two
-// session starts or a typed pm init in parallel would otherwise rewrite and restart the one unit at once.
-func lockInstall(main string) (func(), error) {
+// LockInstall holds the clone's install lock, <main checkout>/.pm/run/install.lock, waiting for another holder: two
+// session starts or a typed pm init in parallel would otherwise rewrite and restart the one unit at once, and a session
+// start would bring the service back while pm uninstall removes it.
+func LockInstall(main string) (func(), error) {
 	path := filepath.Join(RunDir(main), "install.lock")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -235,7 +242,7 @@ func lockInstall(main string) (func(), error) {
 // unless the Tools resolve on the PATH it runs with; failed when the site does not come up (another clone's service
 // on the port, say). One install per clone runs at a time.
 func Install(main string, port int, exe string) (string, error) {
-	unlock, err := lockInstall(main)
+	unlock, err := LockInstall(main)
 	if err != nil {
 		return "", err
 	}
@@ -519,7 +526,7 @@ func Restart(main string) (string, error) {
 // said. A service pm service stop stopped is left stopped: stopped is true, and nothing is started. Refused when the
 // service is not installed.
 func StartIfDown(main string) (said string, stopped bool, err error) {
-	unlock, err := lockInstall(main)
+	unlock, err := LockInstall(main)
 	if err != nil {
 		return "", false, err
 	}
@@ -559,7 +566,7 @@ func Stop(main string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	unlock, err := lockInstall(main)
+	unlock, err := LockInstall(main)
 	if err != nil {
 		return "", err
 	}
@@ -636,20 +643,21 @@ func Logs(main string, n int) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-// Uninstall stops this clone's service and removes its unit; "" when none is installed.
+// Uninstall stops this clone's service, disables it (a systemd unit that is enabled but not running too) and removes
+// its unit; "" when none is installed.
 func Uninstall(main string) (string, error) {
 	kind := PlatformKind()
 	unit, name := UnitFile(main, kind), Label(main)
 	if _, err := os.Stat(unit); err != nil {
 		return "", nil
 	}
-	if Loaded(main, kind) {
-		if kind == Launchd {
-			if err := bootout(main); err != nil {
-				return "", refuse("%s", strings.Replace(err.Error(), "run pm service install again",
-					"run pm uninstall again", 1))
-			}
-		} else if err := checked("systemctl", "--user", "disable", "--now", filepath.Base(unit)); err != nil {
+	if kind == Launchd && Loaded(main, kind) {
+		if err := bootout(main); err != nil {
+			return "", refuse("%s", strings.Replace(err.Error(), "run pm service install again",
+				"run pm uninstall again", 1))
+		}
+	} else if kind == Systemd && (Loaded(main, kind) || systemdEnabled(main)) { // a crashed unit is still enabled
+		if err := checked("systemctl", "--user", "disable", "--now", filepath.Base(unit)); err != nil {
 			return "", err
 		}
 	}
