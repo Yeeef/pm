@@ -142,21 +142,24 @@ workflow:
 |---|---|
 | `version` | Takes `X` from the tag. A Python `X` (below 0.2.0) builds nothing and succeeds; a Go `X` must name a commit on main, unless it is a pre-release, and its `CHANGELOG.md` must pass `release/changelog.py check` and hold `X`'s notes (`changelog.py notes X`) |
 | `build` | `release/build.sh dist pm-v<X>` natively on `macos-14` (darwin-arm64) and `ubuntu-22.04` (linux-amd64), cgo needing native runners; checks the tarball holds one `pm` whose `pm version` prints `X` |
-| `release` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets, `--prerelease` when `X` has a `-` suffix, and notes `changelog.py notes X --install-tag pm-v<X>`: `X`'s section, then the install line |
+| `release` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets, `--prerelease` when `X` has a `-` suffix, and notes `changelog.py notes X`: `X`'s section, its upgrade guide first |
 
 - Write the notes first. `CHANGELOG.md` (Keep a Changelog, rules in its preamble) holds every Go release's notes,
-  for pm's users. A PR that changes what a release ships (`SHIPPED` in `release/changelog.py`: Go sources but tests,
-  embedded files, `go.mod`, `install.sh`, `release/build.sh`) adds an entry under `## [Unreleased]`; when users
-  would not notice it, label the PR `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
+  for pm's users. Each release opens with `### Upgrade guide`, a numbered list of the exact steps from the previous
+  release (install it, `pm upgrade --to X`, then whatever else, such as `pm service restart` in each clone); a
+  breaking change says what breaks and why, and points at its step. A PR that changes what a release ships
+  (`SHIPPED` in `release/changelog.py`: Go sources but tests, embedded files, `go.mod`, `install.sh`,
+  `release/build.sh`) adds an entry under `## [Unreleased]`; when users would not notice it, label the PR
+  `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
 - To release `X` (SemVer from `[Unreleased]`: a breaking change bumps the minor while pm is 0.x, an addition the
-  minor too, else the patch), rename `## [Unreleased]` to `## [X] - <date>` in a PR, add the summary paragraph, an
-  empty `## [Unreleased]` above and the link references, merge it, then tag the merge. A tag whose changelog has no
-  `X` section fails before any build.
+  minor too, else the patch), rename `## [Unreleased]` to `## [X] - <date>` in a PR, add the summary paragraph and
+  the upgrade guide, an empty `## [Unreleased]` above and the link references, merge it, then tag the merge. A tag
+  whose changelog has no `X` section fails before any build.
 - Fix or backfill a published release's notes by changing its section on main, then
   `gh workflow run pm-release-notes.yml -f version=<X>`: it replaces the release's notes alone (`gh release edit`).
 - Cut a release candidate as `pm-v<X>-rc.<n>` (a GitHub pre-release), on any commit, a PR's included, to check the
   release build before the PR merges; the launcher treats it as Go version `X`'s pre-release, so a repo can pin it to
-  try it. Its notes are `X`'s section when the changelog has one, else `[Unreleased]`, which must not be empty.
+  try it. Its notes are `X`'s section when the changelog has one, else `[Unreleased]`, which must have an upgrade guide.
 - Never move or recreate a release tag, and never rebuild a release's assets: launchers keep each binary's sha256
   in `<data dir>/pm/pins/<X>/sha256` and fail hard when a later download differs.
 - Moving a repo's pin is a separate, ordinary PR once the release exists (`pm upgrade --to X`, merged any way).

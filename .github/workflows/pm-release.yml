@@ -4,8 +4,8 @@
 # (cgo needs it) by release/build.sh, which stamps X into the binary; then one GitHub release pm-v<X> gets both
 # tarballs, SHA256SUMS and install.sh with X filled in, marked a pre-release when X has a "-" suffix (pm-v0.2.0-rc.1).
 # Its notes are X's section of CHANGELOG.md at the tagged commit (a pre-release's: X's section, else [Unreleased]),
-# then the install line: release/changelog.py notes. A Go tag whose changelog has no such section fails before any
-# build. pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
+# which opens with its upgrade guide: release/changelog.py notes. A Go tag whose changelog has no such section fails
+# before any build. pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
 name: pm release
 
 on:
@@ -122,6 +122,6 @@ jobs:
         run: |
           pre=
           [ "${{ needs.version.outputs.prerelease }}" = true ] && pre=--prerelease
-          python3 release/changelog.py notes "$X" --install-tag "$TAG" > notes.md
+          python3 release/changelog.py notes "$X" > notes.md
           gh release create "$TAG" --verify-tag $pre --title "pm $X" --notes-file notes.md \
             dist/pm-$X-darwin-arm64.tar.gz dist/pm-$X-linux-amd64.tar.gz dist/SHA256SUMS dist/install.sh

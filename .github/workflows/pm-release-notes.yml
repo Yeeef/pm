@@ -30,7 +30,7 @@ jobs:
           case $X in *-*) echo "::error::$X is a pre-release; its notes stay as they were released"; exit 1 ;; esac
           tag="pm-v$X"
           python3 release/changelog.py check
-          python3 release/changelog.py notes "$X" --install-tag "$tag" > notes.md
+          python3 release/changelog.py notes "$X" > notes.md
           gh release view "$tag" --json tagName --jq .tagName
           gh release edit "$tag" --notes-file notes.md
           { echo "### $tag notes"; echo; cat notes.md; } >> "$GITHUB_STEP_SUMMARY"

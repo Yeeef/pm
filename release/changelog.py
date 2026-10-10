@@ -2,7 +2,7 @@
 """Check CHANGELOG.md and print a release's notes from it (AGENTS.md, Releasing pm). Standard library only.
 
   changelog.py check [--require-unreleased]   the format CHANGELOG.md's preamble states; fails naming the line
-  changelog.py notes X [--install-tag TAG]    the body of release X; for X-rc.N, X's section, else [Unreleased]
+  changelog.py notes X                        the body of release X; for X-rc.N, X's section, else [Unreleased]
   changelog.py pr BASE                        fails when the changes since BASE touch a shipped path and leave
                                               [Unreleased] as it is at BASE
 
@@ -22,9 +22,9 @@ from pathlib import Path
 REPO = "https://github.com/Yeeef/pm"
 ROOT = Path(__file__).resolve().parents[1]
 CHANGELOG = ROOT / "CHANGELOG.md"
-CATEGORIES = ["Breaking changes", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
-BREAKING = "Breaking changes"
-UPGRADE = re.compile(r"^  - Upgrade: \S", re.M)  # a breaking change's sub-bullet: what users must do
+GUIDE = "Upgrade guide"  # first in every release: the numbered steps from the previous release to this one
+CATEGORIES = [GUIDE, "Breaking changes", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
+STEP = re.compile(r"^(\d+)\. \S")
 # What a Go release builds or serves: the binary's sources and embedded files, its build and its install script.
 # Go tests and their data ship nothing; Python pm (src/pm/*.py) serves only Python pins, which have no changelog.
 SHIPPED = ("cmd/", "internal/", "assets.go", "prime.md", "src/pm/style.css", "src/pm/prompts/", "go.mod", "go.sum",
@@ -66,7 +66,8 @@ def unwrap(text: str) -> str:
     """Join each line that continues a paragraph or a bullet onto the line before it."""
     out: list[str] = []
     for line in text.splitlines():
-        if line and out and out[-1] and not line.lstrip().startswith(("- ", "#")):
+        item = line.lstrip().startswith(("- ", "#")) or STEP.match(line.lstrip())
+        if line and out and out[-1] and not item:
             out[-1] += " " + line.strip()
         else:
             out.append(line)
@@ -91,6 +92,7 @@ def parse(text: str) -> Changelog:
     sections: list[Section] = []
     links: dict[str, str] = {}
     category: list[tuple[int, str]] | None = None
+    category_name = ""
     title = False
     for n, raw in enumerate(text.splitlines(), 1):
         line = raw.rstrip()
@@ -133,6 +135,7 @@ def parse(text: str) -> Changelog:
                     fail(n, f"category {name!r} comes after {list(section.categories)[-1]!r}; the order is "
                             f"{', '.join(CATEGORIES)}")
                 category = section.categories[name] = []
+                category_name = name
             else:
                 fail(n, f"only '#' title, '## ' section and '### ' category headings are allowed, not {line!r}")
             continue
@@ -141,7 +144,14 @@ def parse(text: str) -> Changelog:
         if category is None:
             sections[-1].summary.append(line)
             continue
-        if line and not (line.startswith("- ") or (line.startswith("  ") and any(t for _, t in category))):
+        started = any(t for _, t in category)
+        if category_name == GUIDE:
+            if line and not (line.startswith("  ") and started):
+                step = sum(1 for _, t in category if STEP.match(t)) + 1
+                if not (m := STEP.match(line)) or int(m[1]) != step:
+                    fail(n, f"{GUIDE!r} is a numbered list ('1. ', '2. ', …, with indented continuation lines and "
+                            f"sub-bullets); step {step} should start '{step}. '")
+        elif line and not (line.startswith("- ") or (line.startswith("  ") and started)):
             fail(n, "a category holds only '- ' bullets, with indented continuation lines and sub-bullets")
         category.append((n, line))
     if not sections:
@@ -157,31 +167,13 @@ def check_section(section: Section):
     for name, lines in section.categories.items():
         if not any(line for _, line in lines):
             fail(section.line, f"[{section.name}] has an empty {name!r} category")
-        if name == BREAKING:
-            for line, bullet in bullets(lines):
-                if not UPGRADE.search(bullet):
-                    fail(line, f"each {BREAKING!r} bullet has a sub-bullet '  - Upgrade: …' that says what users must "
-                               "do; this one has none")
     if section.name == "Unreleased":
         return
     if not "\n".join(section.summary).strip():
         fail(section.line, f"[{section.name}] needs a summary paragraph before its first category")
-    if not section.categories:
-        fail(section.line, f"[{section.name}] has no category")
-
-
-def bullets(lines: list[tuple[int, str]]):
-    """Each top-level bullet's line number and text, with its continuation lines and sub-bullets."""
-    start, current = 0, []
-    for n, line in lines:
-        if line.startswith("- "):
-            if current:
-                yield start, "\n".join(current)
-            start, current = n, []
-        if line:
-            current.append(line)
-    if current:
-        yield start, "\n".join(current)
+    if GUIDE not in section.categories:
+        fail(section.line, f"[{section.name}] needs an '### {GUIDE}' first: the numbered steps that move a repo from "
+                           "the previous release to this one")
 
 
 def check_order(sections: list[Section]):
@@ -225,12 +217,10 @@ def notes(log: Changelog, version: str) -> str:
     if not body:
         raise ChangelogError(f"CHANGELOG.md's [{section.name}] section is empty; pre-release {version} takes its notes "
                              "from it")
+    if GUIDE not in section.categories:
+        raise ChangelogError(f"CHANGELOG.md's [{section.name}] section has no '### {GUIDE}'; pre-release {version} "
+                             "takes its notes from it")
     return body
-
-
-def install_footer(tag: str) -> str:
-    return (f"### Install\n\n```sh\ncurl -fsSL {REPO}/releases/download/{tag}/install.sh | sh\n```\n\n"
-            "then `pm init` in each clone.")
 
 
 def shipped(path: str) -> bool:
@@ -263,7 +253,6 @@ def main(argv: list[str]) -> int:
     c.add_argument("--require-unreleased", action="store_true", help="also fail when [Unreleased] is empty")
     n = sub.add_parser("notes", help="print release X's notes")
     n.add_argument("version")
-    n.add_argument("--install-tag", metavar="TAG", help="append the install footer for release tag TAG")
     r = sub.add_parser("pr", help="fail when the changes since BASE touch a shipped path but not [Unreleased]")
     r.add_argument("base")
     a = p.parse_args(argv)
@@ -274,8 +263,7 @@ def main(argv: list[str]) -> int:
                 raise ChangelogError("CHANGELOG.md's [Unreleased] section is empty")
             print(f"CHANGELOG.md: ok, {len(log.sections) - 1} releases")
         elif a.cmd == "notes":
-            body = notes(log, a.version)
-            print(body + (f"\n\n{install_footer(a.install_tag)}" if a.install_tag else ""))
+            print(notes(log, a.version))
         else:
             base = git("merge-base", a.base, "HEAD").strip()
             paths = git("diff", "--name-only", f"{base}..HEAD").split()
