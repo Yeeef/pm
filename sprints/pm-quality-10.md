@@ -81,6 +81,13 @@ Answers `pm-d2k5.10.4`.
   0/3, review-then-merge status 0/3, uncited restatement (block) 1/3. 147 hook
   runs in 47.9 s, per run median 2.07 s, max 11.13 s.
 
+- --text=After the change (commit 8c279aa): make test-live, PM_LIVE_RUNS=3, 52
+  cases (40 existing + 12 new): every case 3/3 in two consecutive full runs;
+  156 hook runs in 51.9 s and 54.3 s, per run median 2.29 s and 2.28 s, max
+  11.31 s and 14.42 s. A third run in between errored on one claude -p call
+  that hit the hook's 15 s judge timeout (no verdict mismatch); the max
+  latency now runs close to that timeout while five sprints share the machine.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
