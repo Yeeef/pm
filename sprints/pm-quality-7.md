@@ -70,6 +70,13 @@ None yet.
   tree leaf now; only the forms pm show ID and pm task add --parent are routed
   before the tree, and their tree command's help names them.
 
+- --text=Single source rather than a list-vs-tree test: a work-store leaf
+  carries its storeCommand and storeCommands is derived from the tree, so a
+  store command cannot exist outside pm --help. Mutation check: deleting the
+  need noun from commands.go fails TestTheCommandsOnceOutsideTheTreeAreInIt
+  (pm need dismiss is not listed in its noun's --help) and TestNeedDismiss (no
+  store command).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
