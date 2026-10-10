@@ -88,6 +88,8 @@ None yet.
 
 done: `service.Run` returns only once every goroutine it started has ended, so a stopped pm service no longer reaches the work store after its caller closes the store's host.
 
+Merged as 41b6696 (PR #36).
+
 - Cause: a real bug, not the test. Run returned as soon as the HTTP server stopped. It did not wait for its loops (writer, refresher, merge watch, syncer, collector) or a reply's retry timer, and `pm service run` closes the host right after Run returns.
 - Fix: a stop signal the loops watch, then HTTP server `Shutdown` so the requests under way end, then a wait over every spawned goroutine.
   - The reply retry is now a spawned goroutine instead of `time.AfterFunc`.
