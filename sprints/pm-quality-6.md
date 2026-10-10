@@ -91,6 +91,17 @@ Subagents run in their parent session cwd and hold no worktree lock, so a per-wo
   not the main branch, else <remote>/<branch>; the harness case 'plain'
   (pushed without -u) holds it.
 
+- --text=A fresh-context review reproduced two data-loss cases in the first
+  cut, both fixed in a2a4f7d with a harness test that fails on the old code.
+  (1) git worktree remove deletes a worktree nested in the removed one: a
+  dirty inner worktree was lost. (2) status.showUntrackedFiles=no hid an
+  untracked file from the clean check, and the file was then deleted. The
+  global git worktree prune also dropped entries judged keep; pm clean now
+  removes a vanished worktree by its own entry. Not fixed, and left open:
+  Codex sessions in .claude/worktrees are not seen as owners (Codex is out of
+  scope), and a lock held from another PID namespace reads as stale
+  (unverified).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
