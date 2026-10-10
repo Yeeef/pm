@@ -43,7 +43,7 @@ FAKE_CLAUDE = Path(__file__).resolve().parent / "fake_claude.py"
 # additionalContext inline only up to 10,000 characters), each under a title naming its place and its sections.
 RULES = CHECKOUT / "prime.md"
 CAP = 10_000
-RULE_STARTS = ("# pm rules", "# How")
+RULE_STARTS = ("# pm rules", "## 3. Records", "# How")
 MACHINERY = {"prime", "hook", "push"}  # what the runtimes and the scheduler call, not agents
 
 
@@ -67,7 +67,7 @@ def head() -> str:
 
 
 def chunks() -> list[str]:
-    """head() cut at the lines in RULE_STARTS, each chunk under a title line such as "# pm rules (1 of 2): the
+    """head() cut at the lines in RULE_STARTS, each chunk under a title line such as "# pm rules (1 of 3): the
     introduction; What — 1. The layers, …"."""
     lines = head().split("\n")
     at = [lines.index(s) for s in RULE_STARTS]

@@ -54,7 +54,7 @@ def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     init_ready(repo)
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(RULE_STARTS) + 1)]
-    assert got == chunks() and got[0].startswith("# pm rules (1 of 2): the introduction; ")
+    assert got == chunks() and got[0].startswith("# pm rules (1 of 3): the introduction; ")
     text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
     ran, _, rest = text.partition("\n\n")
@@ -165,14 +165,14 @@ def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
     their titles are the rules and the command list: nothing lost, nothing twice. A failure here means prime.md
     outgrew its chunks: move a heading in RULE_STARTS and pm's, or add one and its hook entries."""
     cs = chunks()
-    assert len(cs) == len(RULE_STARTS) == 2
+    assert len(cs) == len(RULE_STARTS) == 3
     assert all(len(c) <= CAP for c in cs), [len(c) for c in cs]
     titles, bodies = zip(*(c.split("\n\n", 1) for c in cs))
     assert "\n\n".join(bodies) == head()
     assert [b.split("\n", 1)[0] for b in bodies] == list(RULE_STARTS)
     for n, t in enumerate(titles, 1):  # hooks arrive in any order, so each title names its place and its sections
-        assert t.startswith(f"# pm rules ({n} of 2): ") and "\n" not in t
-    assert "What — 1. The layers" in titles[0] and "How; Commands" in titles[1]
+        assert t.startswith(f"# pm rules ({n} of {len(cs)}): ") and "\n" not in t
+    assert "What — 1. The layers" in titles[0] and "What — 3. Records" in titles[1] and "How; Commands" in titles[2]
 
 
 def test_subagent_start_envelope(tmp_path):
