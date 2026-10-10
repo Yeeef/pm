@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T19:14:33+00:00",
- "digest": "833b3887696d2d23",
+ "generated_at": "2026-10-10T19:24:59+00:00",
+ "digest": "93c3003eb73d5a0a",
  "model": "claude-haiku-5-5",
- "text": "- **Go-only pm:** The Python pm is deleted from both repos, and both clones run the Go pm. The pm-harness project now lives in Yeeef/pm.\n- **pm release and notes:** A new pm release is published as a minor version, because main has a breaking change. CI now refuses any release without a structured release note.\n- **Site and records fixes:** The site no longer shows missing-file errors while git rewrites the records. Main no longer keeps its own copy of the records; each worktree links to them.\n- **Agent request rules:** Agents now do a step themselves before they ask the owner. Questions use the structured question tool, not plain text."
+ "text": "- **Go pm is the only implementation:** Yeeef/pm and yeeef-agents no longer contain Python pm. The harness suite checks only Go pm. Go pm now has a new release. pm-harness now lives in Yeeef/pm, with its full history. The Linux server's clone runs Go pm and syncs with GitHub.\n- **Owner-request hook:** The hook uses one rule in its prompt, judge, and reprompt. Autopilot is now the default mode. The owner decided against an interactive mode.\n- **Site reading and records sync:** The site no longer shows \"no such file\" errors during a records sync. Wide diagrams stay readable on a phone and scroll sideways. Images kept beside a record now display on the site.\n- **Release notes and CI:** Every release now has a structured release note from its changelog section. CI refuses a pull request or tag without one. The slowest CI check now finishes much faster."
 }
