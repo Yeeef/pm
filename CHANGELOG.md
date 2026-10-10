@@ -22,6 +22,12 @@ only.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-10
+
+pm's rule on requests to the owner, the owner-request Stop hook's judge and its block message now state one rule:
+ask the owner only for what you cannot do yourself, as a need under a task or sprint, or with AskUserQuestion when
+the owner is in the chat. The hook no longer exempts requests that no sprint waits on, a condition it never checked.
+
 ### Upgrade guide
 
 1. On each machine, install the release:
@@ -30,6 +36,12 @@ only.
 
 ### Changed
 
+- The owner-request Stop hook blocks every request to the owner left only in chat, whether or not a sprint waits on
+  it; a clarifying question asked in plain text now blocks too, and a sentence that makes the next step depend on
+  something the owner must provide counts as a request. Its block message tells the agent to do the step itself
+  first, to raise a need under the task or sprint the request belongs to (opening one if none holds it), or to ask
+  with AskUserQuestion when the owner is plainly in the chat.
+- `pm prime`'s rules state the request rule in one line, matching the hook.
 - Each GitHub release's notes are its section of this changelog: a summary, an upgrade guide, then the changes by
   category. A release tag without a section fails to release.
 
@@ -165,7 +177,8 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
-[Unreleased]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...HEAD
+[Unreleased]: https://github.com/Yeeef/pm/compare/pm-v0.3.1...HEAD
+[0.3.1]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...pm-v0.3.1
 [0.3.0]: https://github.com/Yeeef/pm/compare/pm-v0.2.2...pm-v0.3.0
 [0.2.2]: https://github.com/Yeeef/pm/compare/pm-v0.2.1...pm-v0.2.2
 [0.2.1]: https://github.com/Yeeef/pm/compare/pm-v0.2.0...pm-v0.2.1
