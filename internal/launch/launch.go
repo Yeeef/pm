@@ -9,16 +9,15 @@
 // its children (git hooks, pm push's claude -p, any pm it runs) reach the launcher afresh.
 //
 // Otherwise the pin is launched, replacing this process, so stdin, stdout, stderr, the pid and the exit code are the
-// launched pm's:
-//   - a Go pin (>= 0.2.0) runs the release binary kept at <data>/pm/pins/<pin>/pm, downloaded once from release
-//     pm-v<pin> and checked against its SHA256SUMS (go.go);
-//   - a Python pin (< 0.2.0) runs `uv tool run --from git+<repo>@<commit> pm <args>`, the tag resolved
-//     once and its commit kept in pins/<pin>/commit-Yeeef-pm (python.go).
+// launched pm's: the release binary kept at <data>/pm/pins/<pin>/pm, downloaded once from release pm-v<pin> and checked
+// against its SHA256SUMS (go.go). A pin below 0.2.0 names a Python pm release, retired, which pm no longer runs: it
+// fails hard, naming the fix (move the pin to a release from 0.2.0 on).
 //
 // Any failure is a hard error that names the release; nothing falls back.
 package launch
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -35,10 +34,7 @@ const (
 	Launcher = "PM_LAUNCHER" // the version of the pm that launched it
 )
 
-var (
-	first = []int{0, 1, 2} // the first pm that knows it was launched
-	goPin = []int{0, 2, 0} // the first Go release
-)
+var goPin = []int{0, 2, 0} // the first Go release
 
 // marks are Launched and Launcher as this process got them; Scrub takes them out of the environment.
 var marks = map[string]string{}
@@ -55,10 +51,25 @@ func Launch(argv []string) error {
 	if version == "" {
 		return nil
 	}
-	if IsGo(version) {
-		return execGo(version, argv)
+	if !IsGo(version) {
+		return retired(version, len(argv) > 0 && argv[0] == "upgrade")
 	}
-	return execPython(version, argv)
+	return execGo(version, argv)
+}
+
+// retired is the refusal of a version that names no Go release: a Python pm release (below 0.2.0), retired, or no
+// release at all; the repo's pin, or for upgrade the version --to names.
+func retired(version string, upgrade bool) error {
+	what := "a Python pm release, retired: pm runs only releases from 0.2.0 on"
+	if _, ok := Key(version); !ok {
+		what = "which names no release"
+	}
+	if upgrade {
+		return fmt.Errorf("pm upgrade --to %s names %s; give a release from 0.2.0 on (releases: %s/releases)",
+			version, strings.TrimPrefix(what, "which names "), config.Repo)
+	}
+	return fmt.Errorf("this repo pins pm %s, %s; move the pin to a release from 0.2.0 on with pm upgrade --to <X> "+
+		"(releases: %s/releases), and commit .pm/config.toml", version, what, config.Repo)
 }
 
 // Pin is the version the config of the checkout containing cwd pins; "" when there is no readable one, for the
@@ -126,16 +137,10 @@ func Less(a, b []int) bool {
 }
 
 // IsGo is whether version is a Go release: its leading dotted-numeric part, before any "-" suffix, is at least
-// 0.2.0 (0.2.0, 0.2.0-rc.1, 0.10.3). Anything else is a Python pin.
+// 0.2.0 (0.2.0, 0.2.0-rc.1, 0.10.3). Anything else names a retired Python release or none.
 func IsGo(version string) bool {
 	k, ok := Key(version)
 	return ok && !Less(k, goPin)
-}
-
-// old is whether version predates the launcher.
-func old(version string) bool {
-	k, ok := Key(version)
-	return ok && Less(k, first)
 }
 
 // Pins is the pins cache: $XDG_DATA_HOME/pm/pins, or ~/.local/share/pm/pins.
@@ -151,17 +156,7 @@ func Pins() string {
 // PinDir is where a pin's launch state lives.
 func PinDir(version string) string { return filepath.Join(Pins(), version) }
 
-// inside is Path(p).is_relative_to(root) for a non-empty p.
-func inside(p, root string) bool {
-	if p == "" {
-		return false
-	}
-	p = filepath.Clean(p)
-	return p == root || strings.HasPrefix(p, root+string(filepath.Separator))
-}
-
-// Scrub takes the markers out of the environment into marks, and an old pin's uv tool dirs, which a pm run by an old
-// pin inherits, out of UV_TOOL_DIR, UV_TOOL_BIN_DIR and PATH.
+// Scrub takes the markers out of the environment into marks.
 func Scrub() {
 	marks = map[string]string{}
 	for _, k := range []string{Launched, Launcher} {
@@ -169,21 +164,6 @@ func Scrub() {
 			marks[k] = v
 			os.Unsetenv(k)
 		}
-	}
-	root := filepath.Clean(Pins())
-	for _, k := range []string{"UV_TOOL_DIR", "UV_TOOL_BIN_DIR"} {
-		if inside(os.Getenv(k), root) {
-			os.Unsetenv(k)
-		}
-	}
-	if path, ok := os.LookupEnv("PATH"); ok {
-		var keep []string
-		for _, p := range strings.Split(path, string(os.PathListSeparator)) {
-			if !inside(p, root) {
-				keep = append(keep, p)
-			}
-		}
-		os.Setenv("PATH", strings.Join(keep, string(os.PathListSeparator)))
 	}
 }
 
@@ -199,26 +179,6 @@ func environ(set map[string]string) []string {
 		env = append(env, k+"="+v)
 	}
 	return env
-}
-
-// lookPath finds name on the PATH that env holds, as os.execvpe(name, …, env) does.
-func lookPath(name string, env []string) (string, bool) {
-	path := ""
-	for _, kv := range env {
-		if strings.HasPrefix(kv, "PATH=") {
-			path = strings.TrimPrefix(kv, "PATH=")
-		}
-	}
-	for _, dir := range filepath.SplitList(path) {
-		if dir == "" {
-			dir = "."
-		}
-		p := filepath.Join(dir, name)
-		if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && st.Mode()&0o111 != 0 {
-			return p, true
-		}
-	}
-	return "", false
 }
 
 // IsLaunched is whether this pm was launched for its own version: the pm that launched it is another version.
@@ -245,14 +205,6 @@ func How() string {
 	if by == "" {
 		by = "unknown"
 	}
-	if IsGo(v) {
-		return "this repo's pin, " + filepath.Join(PinDir(v), "pm") + " from release pm-v" + v + ", launched by pm " +
-			by + "; delete " + PinDir(v) + " to download it again"
-	}
-	commit := kept(v)
-	if commit == "" {
-		commit = "unknown"
-	}
-	return "this repo's pin at commit " + commit + ", launched by pm " + by + "; delete " +
-		filepath.Join(PinDir(v), CommitFile) + " to resolve tag pm-v" + v + " again"
+	return "this repo's pin, " + filepath.Join(PinDir(v), "pm") + " from release pm-v" + v + ", launched by pm " +
+		by + "; delete " + PinDir(v) + " to download it again"
 }

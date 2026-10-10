@@ -359,22 +359,17 @@ func TestTargetRunsInProcessForItsOwnPinTheLaunchedPinAndUpgrade(t *testing.T) {
 	}
 }
 
-func TestScrubTakesTheMarksAndAnOldPinsToolDirs(t *testing.T) {
+func TestScrubTakesTheMarks(t *testing.T) {
 	pins := dataDir(t)
-	old := filepath.Join(pins, "0.1.0")
 	t.Setenv(Launched, "0.2.0")
 	t.Setenv(Launcher, "0.1.5")
-	t.Setenv("UV_TOOL_DIR", filepath.Join(old, "tools"))
-	t.Setenv("UV_TOOL_BIN_DIR", "/elsewhere/bin")
-	t.Setenv("PATH", filepath.Join(old, "bin")+":/usr/bin:"+pins+"x/bin")
 	defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
 	buildinfo.Version = "0.2.0"
 	Scrub()
 	_, l1 := os.LookupEnv(Launched)
 	_, l2 := os.LookupEnv(Launcher)
-	_, td := os.LookupEnv("UV_TOOL_DIR")
-	if l1 || l2 || td || os.Getenv("UV_TOOL_BIN_DIR") != "/elsewhere/bin" || os.Getenv("PATH") != "/usr/bin:"+pins+"x/bin" {
-		t.Fatalf("env after scrub: PATH=%s", os.Getenv("PATH"))
+	if l1 || l2 {
+		t.Fatal("the markers are still in the environment")
 	}
 	if !IsLaunched() || !strings.HasPrefix(How(), "this repo's pin, "+filepath.Join(pins, "0.2.0/pm")+
 		" from release pm-v0.2.0, launched by pm 0.1.5; delete ") {
@@ -467,35 +462,22 @@ func TestAKeptBinaryThatCannotRunFailsHard(t *testing.T) {
 	}
 }
 
-// fakeUV logs its argv and markers, and fakeGit answers ls-remote, so the Python pin path runs without a network.
-const fakeUV = "#!/bin/sh\necho \"uv $* marks=$PM_LAUNCHED/$PM_LAUNCHER tool=$UV_TOOL_DIR\" >> \"$LOG\"\necho ran\n"
-const fakeGit = "#!/bin/sh\nif [ \"$1\" = ls-remote ]; then echo \"git $* prompt=$GIT_TERMINAL_PROMPT\" >> \"$LOG\"; " +
-	"printf '%s\\trefs/tags/pm-v%s\\n' 0123456789abcdef0123456789abcdef01234567 0.1.4; exit 0; fi\nexec \"$REALGIT\" \"$@\"\n"
-
-func TestAPythonPinResolvesItsTagBuildsOnceAndExecsUV(t *testing.T) {
+// A pin below 0.2.0 names a retired Python release (or a pin names no release at all): it fails hard, naming the fix,
+// and nothing is downloaded or run.
+func TestAPythonPinFailsHardNamingTheFix(t *testing.T) {
 	pins := dataDir(t)
-	bin := t.TempDir()
-	os.WriteFile(filepath.Join(bin, "uv"), []byte(fakeUV), 0o755)
-	os.WriteFile(filepath.Join(bin, "git"), []byte(fakeGit), 0o755)
-	git, _ := exec.LookPath("git")
-	log := filepath.Join(t.TempDir(), "log")
-	repo := pinnedRepo(t, "0.1.4")
-	env := []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "LOG=" + log, "REALGIT=" + git}
-	for i := 0; i < 2; i++ {
-		if out, err := helper(t, "0.2.0", repo, env...); err != nil || out != "ran\n" {
-			t.Fatalf("%v %q", err, out)
+	for _, c := range []struct{ pin, what string }{
+		{"0.1.5", "a Python pm release, retired: pm runs only releases from 0.2.0 on"},
+		{"dev", "which names no release"},
+	} {
+		out, err := helper(t, "0.3.0", pinnedRepo(t, c.pin))
+		want := "error: this repo pins pm " + c.pin + ", " + c.what + "; move the pin to a release from 0.2.0 on with " +
+			"pm upgrade --to <X> (releases: https://github.com/Yeeef/pm/releases), and commit .pm/config.toml\n"
+		if err == nil || out != want {
+			t.Fatalf("%s: %v %q", c.pin, err, out)
 		}
 	}
-	b, _ := os.ReadFile(log)
-	sha := "0123456789abcdef0123456789abcdef01234567"
-	req := "git+https://github.com/Yeeef/pm@" + sha
-	want := "git ls-remote https://github.com/Yeeef/pm refs/tags/pm-v0.1.4 refs/tags/pm-v0.1.4^{} prompt=0\n" +
-		"uv tool run --from " + req + " pm --help marks=0.1.4/0.2.0 tool=\n" +
-		strings.Repeat("uv --quiet tool run --from "+req+" pm show --x marks=0.1.4/0.2.0 tool=\n", 2)
-	if string(b) != want {
-		t.Fatalf("log:\n%s\nwant:\n%s", b, want)
-	}
-	if c, _ := os.ReadFile(filepath.Join(pins, "0.1.4", CommitFile)); string(c) != sha+"\n" {
-		t.Fatalf("commit %q", c)
+	if got := list(t, pins); len(got) != 0 {
+		t.Fatalf("kept %v", got)
 	}
 }

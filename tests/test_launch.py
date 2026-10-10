@@ -1,8 +1,6 @@
-"""The launcher (internal/launch): the installed pm runs each repo's pinned version. A Python pin (below 0.2.0) runs
-through `uv tool run`: a fake `uv` first on PATH logs each call with the markers it got; a fake `git` answers
-`ls-remote` and passes every other call to git; the integration test runs a real older release, built by real uv from
-this clone's own tag. A Go pin (0.2.0 and up) runs its release binary: `release` serves Go releases on 127.0.0.1 through PM_RELEASE_URL, each tarball
-holding a fake pm script that prints its argv, markers and stdin; `github` serves them as GitHub's API does, for the
+"""The launcher (internal/launch): the installed pm runs each repo's pinned version; a pin below 0.2.0, a retired
+Python release, fails hard. A fake `uv` and a fake `git ls-remote` first on PATH log any call, which no launch makes.
+A pin runs its release binary: `release` serves releases on 127.0.0.1 through PM_RELEASE_URL, each tarball holding a fake pm script that prints its argv, markers and stdin; `github` serves them as GitHub's API does, for the
 download with a token when the one with none fails."""
 
 from __future__ import annotations
@@ -15,7 +13,6 @@ import json
 import os
 import platform
 import shutil
-import subprocess
 import sys
 import tarfile
 import threading
@@ -27,8 +24,6 @@ import pytest
 from conftest import VERSION, write_config
 
 REPO = "https://github.com/Yeeef/pm"
-COMMIT_FILE = "commit-Yeeef-pm"  # where a Python pin's commit is kept, under <data dir>/pm/pins/<pin>
-RUNNER = f"pm {VERSION}"  # who runs a Python pin through uv
 
 FAKE_UV = '''#!{py}
 import json, os, sys
@@ -54,8 +49,6 @@ if sys.argv[1:2] == ["ls-remote"]:
 os.execv({git!r}, ["git", *sys.argv[1:]])
 '''
 
-SHA = "0123456789abcdef0123456789abcdef01234567"
-REQ = f"git+{REPO}@{SHA}"
 
 
 @pytest.fixture
@@ -77,11 +70,33 @@ def calls(repo) -> list[dict]:
     return [json.loads(l) for l in path.read_text().splitlines()] if path.exists() else []
 
 
-def keep(repo, version: str, sha: str = SHA) -> Path:
-    path = Path(repo.env["XDG_DATA_HOME"]) / "pm/pins" / version / COMMIT_FILE
-    path.parent.mkdir(parents=True)
-    path.write_text(sha + "\n")
-    return path
+RETIRED = (f"this repo pins pm 0.1.5, a Python pm release, retired: pm runs only releases from 0.2.0 on; move the pin "
+           f"to a release from 0.2.0 on with pm upgrade --to <X> (releases: {REPO}/releases), and commit "
+           ".pm/config.toml")
+
+
+def test_a_python_pin_fails_hard_naming_the_fix(fakes):
+    """A pin below 0.2.0 names a retired Python release: every command refuses, naming how to move the pin, and the
+    launcher fetches and runs nothing."""
+    write_config(fakes.root, version="0.1.5")
+    for args in (["show"], ["where"], ["hook", "stop"]):
+        res = fakes.pm(*args, stdin="{}")
+        assert (res.returncode, res.stdout, res.stderr) == (1, "", f"error: {RETIRED}\n"), args
+    assert calls(fakes) == [] and not (Path(fakes.env["XDG_DATA_HOME"]) / "pm/pins/0.1.5").exists()
+
+
+@pytest.mark.integration  # pm upgrade is integration_only's, though this one reaches no remote
+def test_upgrade_moves_a_python_pin_and_refuses_to_move_one_to_python(fakes):
+    """A bare pm upgrade moves a retired pin to the running pm, the fix the refusal names; --to a Python release is
+    refused."""
+    path = write_config(fakes.root, version="0.1.5")
+    res = fakes.pm("upgrade", "--to", "0.1.4")
+    assert (res.returncode, res.stderr) == (1, "error: pm upgrade --to 0.1.4 names a Python pm release, retired: pm "
+                                               "runs only releases from 0.2.0 on; give a release from 0.2.0 on "
+                                               f"(releases: {REPO}/releases)\n"), res.stderr
+    res = fakes.pm("upgrade")
+    assert res.returncode == 0 and f"moved the pin from 0.1.5 to {VERSION}" in res.stdout, res.stderr
+    assert f'version = "{VERSION}"' in path.read_text() and calls(fakes) == []
 
 
 def test_a_repo_pinned_to_this_version_runs_in_process_with_no_uv_call(fakes):
@@ -91,129 +106,25 @@ def test_a_repo_pinned_to_this_version_runs_in_process_with_no_uv_call(fakes):
     assert calls(fakes) == []
 
 
-def test_another_pin_execs_uv_with_the_pins_commit_and_passes_stdin_stdout_and_the_exit_code(fakes):
-    write_config(fakes.root, version="0.1.99")
-    keep(fakes, "0.1.99")
-    fakes.env = dict(fakes.env, FAKE_UV_EXIT="7")
-    res = fakes.pm("hook", "stop", stdin='{"cwd": "x"}')
-    assert (res.returncode, res.stdout, res.stderr) == (7, "the launched pm ran\n", "")
-    assert calls(fakes) == [{"argv": ["--quiet", "tool", "run", "--from", REQ, "pm", "hook", "stop"],
-                             "stdin": '{"cwd": "x"}', "launched": "0.1.99", "launcher": VERSION,
-                             "tool_dir": fakes.env.get("UV_TOOL_DIR"), "path0": fakes.env["PATH"].split(os.pathsep)[0]}]
-
-
-def test_a_launched_text_file_body_reaches_the_pinned_pm_unread_by_the_launcher(fakes):
-    write_config(fakes.root, version="0.1.99")
-    keep(fakes, "0.1.99")
-    args = ["feedback", "add", "--project", "demo", "--text-file", "-"]
-    res = fakes.pm(*args, stdin="line one\n`code` $x\n")
-    assert res.returncode == 0, res.stderr
-    assert [(c["argv"][-len(args):], c["stdin"]) for c in calls(fakes)] == [(args, "line one\n`code` $x\n")]
-
-
-def test_the_first_launch_of_a_pin_resolves_its_tag_builds_it_once_then_keeps_the_commit(fakes):
-    """The commit a launcher from before the move to Yeeef/pm kept (pins/<pin>/commit, yeeef-agents' commit of the
-    tag) is neither read nor touched."""
-    write_config(fakes.root, version="0.1.99")
-    env = dict(fakes.env, FAKE_LS_REMOTE=f"aaaa\trefs/tags/pm-v0.1.99\n{SHA}\trefs/tags/pm-v0.1.99^{{}}\n")
-    fakes.env = env
-    legacy = Path(env["XDG_DATA_HOME"]) / "pm/pins/0.1.99/commit"
-    legacy.parent.mkdir(parents=True)
-    legacy.write_text("b" * 40 + "\n")
-    assert fakes.pm("show").returncode == 0
-    assert fakes.pm("show").returncode == 0
-    log = calls(fakes)
-    assert log[0] == {"git": "ls-remote"}
-    assert log[1]["argv"] == ["tool", "run", "--from", REQ, "pm", "--help"]
-    assert [c["argv"] for c in log[2:]] == [["--quiet", "tool", "run", "--from", REQ, "pm", "show"]] * 2
-    assert legacy.with_name(COMMIT_FILE).read_text() == SHA + "\n" and legacy.read_text() == "b" * 40 + "\n"
-
-
-def test_a_pin_whose_release_cannot_be_fetched_fails_hard_naming_the_tag_and_the_command(fakes):
-    write_config(fakes.root, version="0.1.99")
-    fakes.env = dict(fakes.env, FAKE_LS_REMOTE=f"{SHA}\trefs/tags/pm-v0.1.99\n", FAKE_UV_FAIL="1")
-    res = fakes.pm("show")
-    assert res.returncode == 1 and res.stdout == ""
-    assert res.stderr == (
-        f"error: this repo pins pm 0.1.99, which {RUNNER} runs through uv, but uv could not "
-        f"fetch and build pm-v0.1.99 ({SHA}): error: Git operation failed; check the network and that tag pm-v0.1.99 "
-        "exists, then run pm again; or run it yourself with uv tool run --from "
-        f'"git+{REPO}@pm-v0.1.99" pm …, or move the pin with pm upgrade\n')
-    assert not (Path(fakes.env["XDG_DATA_HOME"]) / "pm/pins/0.1.99/commit").exists()
-    assert [c.get("argv", [""])[-1] for c in calls(fakes)] == ["", "--help"]  # ls-remote, the build; no launch
-
-
-def test_a_pin_with_no_release_tag_fails_hard(fakes):
-    write_config(fakes.root, version="0.1.99")
-    res = fakes.pm("show")
-    assert res.returncode == 1
-    assert res.stderr.startswith(f"error: this repo pins pm 0.1.99, which {RUNNER} runs through "
-                                 f"uv, but release tag pm-v0.1.99 was not found at {REPO} (no such tag); ")
-    assert calls(fakes) == [{"git": "ls-remote"}]
-
-
 def test_a_pm_launched_for_its_pin_that_runs_another_version_fails_instead_of_launching_again(fakes):
-    path = write_config(fakes.root, version="0.1.99")
-    fakes.env = dict(fakes.env, PM_LAUNCHED="0.1.99")
+    path = write_config(fakes.root, version="9.0.0")
+    fakes.env = dict(fakes.env, PM_LAUNCHED="9.0.0")
     res = fakes.pm("show")
     assert res.returncode == 1 and calls(fakes) == []
-    assert res.stderr == (f"error: this repo pins pm 0.1.99 in {path.resolve()}, but pm {VERSION} is running, "
-                          f"launched for that pin: release tag pm-v0.1.99 at {REPO} builds pm {VERSION}; "
+    assert res.stderr == (f"error: this repo pins pm 9.0.0 in {path.resolve()}, but pm {VERSION} is running, "
+                          f"launched for that pin: release tag pm-v9.0.0 at {REPO} builds pm {VERSION}; "
                           f"fix the tag, or move the pin to {VERSION} with pm upgrade --to {VERSION}\n")
-
-
-def test_a_pm_launched_for_another_repos_pin_still_launches_this_repos_pin(fakes):
-    write_config(fakes.root, version="0.1.99")
-    keep(fakes, "0.1.99")
-    fakes.env = dict(fakes.env, PM_LAUNCHED="0.1.88")
-    assert fakes.pm("show").returncode == 0
-    assert calls(fakes)[0]["launched"] == "0.1.99"
-
-
-def test_a_pin_older_than_the_launcher_keeps_its_own_uv_tool_dirs_and_gets_no_markers(fakes):
-    """0.1.0 never reads the markers and never launches, and its children would inherit them."""
-    write_config(fakes.root, version="0.1.0")
-    keep(fakes, "0.1.0")
-    assert fakes.pm("show").returncode == 0
-    pins = Path(fakes.env["XDG_DATA_HOME"]) / "pm/pins/0.1.0"
-    (call,) = calls(fakes)
-    assert (call["tool_dir"], call["path0"]) == (str(pins / "tools"), str(pins / "bin"))
-    assert (call["launched"], call["launcher"]) == (None, None)
-
-
-def test_a_pm_run_by_an_old_pin_reaches_the_launcher_without_its_tool_dirs(fakes):
-    """A child of 0.1.0 whose pin bin dir holds no pm yet reaches the launcher with 0.1.0's uv tool dirs: they go,
-    so another repo's pin runs with the machine's."""
-    write_config(fakes.root, version="0.1.99")
-    keep(fakes, "0.1.99")
-    pins = Path(fakes.env["XDG_DATA_HOME"]) / "pm/pins/0.1.0"
-    (pins / "bin").mkdir(parents=True)  # empty until 0.1.0's pm init installs its tool there
-    env = fakes.env
-    fakes.env = dict(env, UV_TOOL_DIR=str(pins / "tools"), UV_TOOL_BIN_DIR=str(pins / "bin"),
-                     PATH=f"{pins / 'bin'}{os.pathsep}{env['PATH']}")
-    assert fakes.pm("show").returncode == 0
-    (call,) = calls(fakes)
-    assert (call["launched"], call["tool_dir"], call["path0"]) == ("0.1.99", None, env["PATH"].split(os.pathsep)[0])
-
-
-def test_a_kept_commit_file_without_a_sha_is_resolved_again(fakes):
-    write_config(fakes.root, version="0.1.99")
-    path = keep(fakes, "0.1.99", sha="0123")  # cut short by a crash, say
-    fakes.env = dict(fakes.env, FAKE_LS_REMOTE=f"{SHA}\trefs/tags/pm-v0.1.99\n")
-    assert fakes.pm("show").returncode == 0
-    assert calls(fakes)[0] == {"git": "ls-remote"} and path.read_text() == SHA + "\n"
-    assert [p.name for p in path.parent.iterdir()] == [COMMIT_FILE], "the temp file went"
 
 
 @pytest.mark.integration  # pm upgrade is integration_only's, though this one reaches no remote
 def test_upgrade_without_to_never_moves_a_newer_pin_down(fakes):
     """A bare pm upgrade runs at the installed pm's version; in a repo pinned newer it refuses, naming what works."""
-    path = write_config(fakes.root, version="0.1.99")
+    path = write_config(fakes.root, version="9.0.0")
     before = path.read_text()
     res = fakes.pm("upgrade")
     assert res.returncode == 1 and res.stderr == (
-        f"error: this repo pins pm 0.1.99, newer than the running pm {VERSION}, and pm upgrade moves a pin down only "
-        "when --to names the version; run pm upgrade --to 0.1.99 to rewrite pm's pieces at the pin, or install the "
+        f"error: this repo pins pm 9.0.0, newer than the running pm {VERSION}, and pm upgrade moves a pin down only "
+        "when --to names the version; run pm upgrade --to 9.0.0 to rewrite pm's pieces at the pin, or install the "
         f"latest pm with curl -fsSL {REPO}/releases/latest/download/install.sh | sh, then pm upgrade\n"), res.stderr
     assert path.read_text() == before and calls(fakes) == []
 
@@ -510,41 +421,3 @@ def test_upgrade_to_a_go_version_launches_its_release_binary(fakes, release):
     assert res.returncode == 0, res.stderr
     assert res.stdout.splitlines()[1:4] == ["arg=upgrade", "arg=--to", "arg=0.2.0"]
     assert (go_pin(fakes, "0.2.0") / "pm").exists() and calls(fakes) == []
-
-
-def git_common_dir() -> str:
-    return subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], capture_output=True,
-                          text=True, check=True, cwd=Path(__file__).parent).stdout.strip()
-
-
-REWRITE = '''#!{py}
-import os, sys
-args = [a.replace({repo!r}, {local!r}) for a in sys.argv[1:]]
-os.execv({real!r}, [{name!r}, *args])
-'''
-
-
-@pytest.mark.integration
-def test_the_new_tool_runs_pm_0_1_0_in_a_repo_pinned_to_it(repo, tmp_path):
-    """Two built versions: this checkout's pm launches release 0.1.0, which real uv builds from this clone's tag."""
-    local = f"file://{git_common_dir()}"
-    if subprocess.run(["git", "rev-parse", "-q", "--verify", "refs/tags/pm-v0.1.0"], cwd=Path(__file__).parent,
-                      capture_output=True).returncode != 0:
-        pytest.fail("this clone has no tag pm-v0.1.0; git fetch --tags")
-    bindir = tmp_path / "rewrite"
-    bindir.mkdir()
-    for name in ("uv", "git"):  # the release URL points at this clone, so nothing reaches GitHub
-        (bindir / name).write_text(REWRITE.format(py=sys.executable, repo=REPO, local=local,
-                                                  real=shutil.which(name), name=name))
-        (bindir / name).chmod(0o755)
-    (bindir / "bd").write_text("#!/bin/sh\nexit 0\n")  # 0.1.0 requires a bd on PATH; its pm where calls none
-    (bindir / "bd").chmod(0o755)
-    write_config(repo.root, version="0.1.0")
-    repo.commit("pin 0.1.0")
-    repo.env = dict(repo.env, PATH=f"{bindir}{os.pathsep}{repo.env['PATH']}", XDG_DATA_HOME=str(tmp_path / "data"))
-    where = repo.pm("where")  # 0.1.0's pm where reads no Beads, which its pm show would need
-    assert where.returncode == 0, where.stderr
-    assert not where.stdout.startswith("pm        ")  # 0.1.0's pm where, which names no version line
-    kept = (tmp_path / "data/pm/pins/0.1.0" / COMMIT_FILE).read_text().strip()
-    assert kept == subprocess.run(["git", "rev-parse", "pm-v0.1.0^{commit}"], cwd=Path(__file__).parent,
-                                  capture_output=True, text=True, check=True).stdout.strip()

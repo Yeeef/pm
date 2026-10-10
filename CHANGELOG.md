@@ -26,7 +26,14 @@ only.
 
 1. On each machine, install the release:
    `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.3.1/install.sh | sh`.
-2. In the repo, run `pm upgrade --to 0.3.1`, then commit what it changes and merge it, as an ordinary PR.
+2. In the repo, run `pm upgrade --to 0.3.1`, then commit what it changes and merge it, as an ordinary PR. A repo
+   still pinned below 0.2.0 needs this step before any other pm command runs there.
+
+### Breaking changes
+
+- pm no longer runs a repo pinned to a Python release (below 0.2.0) through `uv`: every command there fails, naming
+  the fix, `pm upgrade --to <X>` with a release from 0.2.0 on (step 2). Python pm is retired, and pm no longer needs
+  `uv` on a machine.
 
 ### Changed
 

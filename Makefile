@@ -30,8 +30,8 @@ test-live: go-build
 # Build pm as the release builds it (cgo, -tags gms_pure_go, stripped) into .go/pm, and the harness's page renderer
 # (tests/render-pages) into .go/render-pages. A release takes its version from its tag (release/build.sh); this build
 # reports VERSION, which no release has: the harness's test repos pin it (the renderer's work-store handshake needs the
-# same), and its tests place it between the older pins they use (0.0.1, 0.1.0) and the newer ones (0.1.99, 0.2.0).
-VERSION := 0.1.90-dev
+# same), and its tests place it above the older Go pins they use (0.2.0, 0.3.0) and below the newer one (9.0.0).
+VERSION := 0.9.0-dev
 GO_FLAGS = -trimpath -tags gms_pure_go -ldflags "-s -w -X github.com/Yeeef/pm/internal/buildinfo.Version=$(VERSION)"
 go-build:
 	CGO_ENABLED=1 go build $(GO_FLAGS) -o .go/pm ./cmd/pm

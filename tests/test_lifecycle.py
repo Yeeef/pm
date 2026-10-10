@@ -195,14 +195,14 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     git(existing, "add", "-A")
     git(existing, "commit", "-qm", "Install pm")
     # the repo as an older pm left it: an older pin and an older section in a Beads hook
-    edit(existing / ".pm/config.toml", f'version = "{VERSION}"', 'version = "0.0.1"')
-    edit(existing / f"{HOOKS}/pre-commit", f"BEGIN PM v{VERSION}", "BEGIN PM v0.0.1")
-    git(existing, "commit", "--no-verify", "-qam", "pm 0.0.1")
+    edit(existing / ".pm/config.toml", f'version = "{VERSION}"', 'version = "0.2.0"')
+    edit(existing / f"{HOOKS}/pre-commit", f"BEGIN PM v{VERSION}", "BEGIN PM v0.2.0")
+    git(existing, "commit", "--no-verify", "-qam", "pm 0.2.0")
     def launched(pin: str, *args: str) -> subprocess.CompletedProcess:  # as the installed pm launches `pin`, whose
         # release here builds this pm: test_launch.py has the launch itself, which would reach GitHub
         return subprocess.run([*PM, *args], cwd=existing, env=dict(env(existing.parent), PM_LAUNCHED=pin),
                               capture_output=True, text=True)
-    assert launched("0.0.1", "show").returncode == 1, "every other command refuses the old pin"
+    assert launched("0.2.0", "show").returncode == 1, "every other command refuses the old pin"
     res = launched("9.9.9", "upgrade", "--to", "9.9.9")
     latest = "curl -fsSL https://github.com/Yeeef/pm/releases/latest/download/install.sh | sh"
     assert res.returncode == 1 and res.stderr.endswith(  # the launcher's install, never an old pm in its place
@@ -210,7 +210,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     head = git(existing, "rev-parse", "HEAD")
     res = pm(existing, "upgrade")
     assert res.returncode == 0, res.stderr
-    assert f"moved the pin from 0.0.1 to {VERSION}" in res.stdout
+    assert f"moved the pin from 0.2.0 to {VERSION}" in res.stdout
     assert f"git add -- .pm/config.toml {HOOKS}/pre-commit && " in res.stdout
     assert git(existing, "rev-parse", "HEAD") == head, "pm upgrade commits nothing"
     assert tomllib.loads((existing / ".pm/config.toml").read_text())["version"] == VERSION
