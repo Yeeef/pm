@@ -103,13 +103,16 @@ func (s *Store) Edit(string, *string, *string) error                 { return er
 func (s *Store) Close(string, string, work.Resolution, string) error { return errReadOnly }
 func (s *Store) SetResolution(string, work.Resolution) error         { return errReadOnly }
 func (s *Store) Move(string, string) error                           { return errReadOnly }
-func (s *Store) Claim(string, work.Holder, func(string) bool) error  { return errReadOnly }
-func (s *Store) Release(string, string) error                        { return errReadOnly }
-func (s *Store) DepAdd(string, string) error                         { return errReadOnly }
-func (s *Store) DepRemove(string, string) error                      { return errReadOnly }
-func (s *Store) Answer(string, string) error                         { return errReadOnly }
-func (s *Store) UpdateNeed(string, work.NeedUpdate) error            { return errReadOnly }
-func (s *Store) Shutdown() error                                     { return nil }
+func (s *Store) MoveSprint(string, string, string) (work.Item, error) {
+	return work.Item{}, errReadOnly
+}
+func (s *Store) Claim(string, work.Holder, func(string) bool) error { return errReadOnly }
+func (s *Store) Release(string, string) error                       { return errReadOnly }
+func (s *Store) DepAdd(string, string) error                        { return errReadOnly }
+func (s *Store) DepRemove(string, string) error                     { return errReadOnly }
+func (s *Store) Answer(string, string) error                        { return errReadOnly }
+func (s *Store) UpdateNeed(string, work.NeedUpdate) error           { return errReadOnly }
+func (s *Store) Shutdown() error                                    { return nil }
 func (s *Store) Comment(string, work.CommentKind, string, string) (work.Comment, error) {
 	return work.Comment{}, errReadOnly
 }

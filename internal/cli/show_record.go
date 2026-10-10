@@ -111,9 +111,11 @@ func showPosix(p string) string {
 }
 
 // linkTarget is the record a target names: a record path (records/ and .md optional), a sprint or project id, a
-// project name or a design slug. A target that fits several records is refused, never guessed.
-func linkTarget(recs []*records.Record, store, target string) (*records.Record, error) {
+// project name or a design slug; the old path of a sprint pm sprint move moved names its record now. A target that
+// fits several records is refused, never guessed.
+func linkTarget(e *env, recs []*records.Record, target string) (*records.Record, error) {
 	var found []*records.Record
+	store := e.records
 	if strings.Contains(target, "/") || strings.HasSuffix(target, ".md") {
 		given := target
 		if filepath.IsAbs(given) {
@@ -126,6 +128,19 @@ func linkTarget(recs []*records.Record, store, target string) (*records.Record, 
 		rel := strings.TrimSuffix(strings.TrimPrefix(showPosix(given), "records/"), ".md")
 		for _, r := range recs {
 			if r.Rel == rel {
+				found = append(found, r)
+			}
+		}
+		if len(found) == 0 && strings.HasPrefix(rel, "sprints/") { // a moved sprint's old path: the work store knows
+			ws, err := e.work()
+			if err != nil {
+				return nil, err
+			}
+			items, err := ws.Items()
+			if err != nil {
+				return nil, err
+			}
+			if r := records.MovedSprint(recs, records.NewItems(items), rel); r != nil {
 				found = append(found, r)
 			}
 		}

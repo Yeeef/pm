@@ -44,6 +44,13 @@ func (s *Served) Page(path string) (string, bool, error) {
 			return p, true, err
 		}
 	}
+	// a moved sprint's old page is its page now: links and chat that name the old path stay good
+	if rel, ok := strings.CutSuffix(path, ".html"); ok {
+		if r := records.MovedSprint(s.recs, s.items, rel); r != nil {
+			p, err := RenderRecord(r, s.recs, s.items, s.dates)
+			return p, true, err
+		}
+	}
 	return "", false, nil
 }
 

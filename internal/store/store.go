@@ -373,9 +373,11 @@ func umask() os.FileMode {
 	return os.FileMode(m)
 }
 
-// Write is one planned record file and its new text.
+// Write is one planned record file and its new text, or with Remove the file removed (a record renamed is a write
+// of the new path and a remove of the old).
 type Write struct {
 	Path, Text string
+	Remove     bool
 }
 
 // Rel is a store path as pm names it to the user: records/<path>.
@@ -459,7 +461,7 @@ func Apply(store string, writes []Write, message, undo, prefix string) error {
 		case !errors.Is(err, fs.ErrNotExist): // a record that cannot be read is never overwritten
 			return &Refusal{fmt.Sprintf("writing %s failed: %s; no record was changed%s", w.Path, oserror(err), hint)}
 		}
-		before = append(before, Write{w.Path, string(b)})
+		before = append(before, Write{Path: w.Path, Text: string(b)})
 	}
 	var written []Write
 	fail := func(what string) error {
@@ -470,13 +472,19 @@ func Apply(store string, writes []Write, message, undo, prefix string) error {
 		return &Refusal{what + "; " + undone + hint}
 	}
 	for i, w := range writes {
-		if err := WriteAtomic(w.Path, w.Text); err != nil {
+		err, verb := error(nil), "writing"
+		if w.Remove {
+			err, verb = os.Remove(w.Path), "removing"
+		} else {
+			err = WriteAtomic(w.Path, w.Text)
+		}
+		if err != nil {
 			name := "the record"
 			var pe *fs.PathError
 			if errors.As(err, &pe) {
 				name = pe.Path
 			}
-			return fail(fmt.Sprintf("writing %s failed: %s", name, oserror(err)))
+			return fail(fmt.Sprintf("%s %s failed: %s", verb, name, oserror(err)))
 		}
 		written = append(written, before[i])
 	}

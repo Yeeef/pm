@@ -291,6 +291,18 @@ var tree = &command{
 						{dest: "sprint_id", required: true, kind: value, help: "the sprint's id"},
 					},
 				},
+				{
+					name:        "move",
+					help:        "move an open sprint, with its tasks, frame, decisions and findings, to another open project; reason with --text",
+					description: "Move an open sprint to another open project. Its id stays, so its tasks, needs and holders stay as they are and the old id shows the sprint in its new place; it takes the project's next sprint number, and its record moves to records/sprints/<project>-<number>.md. The work store is written first: the new parent and number, and a move note on the sprint that keeps its old project and number, so the old project never reuses that number and the old record path still finds the record. Then one records commit renames the record and adds the move as a source=agent decision to both projects' records. If the records step fails or is cut short, run the same command again: it finds the move in the work store and writes the records step alone, with the reason the move note holds. The reason (--text) states why, on at least two lines. Refuses a closed sprint, a closed project, the project the sprint is in, and a move to another project while the last move's records step has not run.",
+					groups:      []bool{false},
+					args: []arg{
+						{dest: "sprint_id", required: true, kind: value, help: "the sprint's id"},
+						{flags: []string{"--to"}, dest: "to", metavar: []string{"PROJECT"}, required: true, kind: value, help: "the open project the sprint moves to, by record name, e.g. pm-harness"},
+						{flags: []string{"--text-file"}, dest: "text_file", metavar: []string{"PATH"}, kind: value, group: 1, help: "required: why the sprint moves, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{flags: []string{"--text"}, dest: "text", kind: value, def: "", group: 1, help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
+					},
+				},
 			},
 		},
 		{

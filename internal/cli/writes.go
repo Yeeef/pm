@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -443,20 +444,26 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 	if epic.Status == work.Closed {
 		return "", refuse("project %s (%s) is closed; open a sprint in an open project", project, epicID)
 	}
-	kids, top, suffix := 0, 0, 0
+	// The numbers moved away from the project count on both sides: pm sprint move renamed their records, and the
+	// project never mints them again (the work-store page, Moving a sprint).
+	kids, top, suffix, movedAway := 0, work.LastSprintNumber(slices.Values(r.x.All()), epicID), 0, 0
+	for _, it := range r.x.All() {
+		for _, m := range work.SprintMoves(it) {
+			if it.Type == work.Sprint && m.From == epicID {
+				movedAway = max(movedAway, m.FromNumber)
+			}
+		}
+	}
 	for _, k := range r.x.Children(epicID) {
 		if isEpic(k) {
 			kids++
-		}
-		if k.Type == work.Sprint {
-			top = max(top, k.Number)
 		}
 		if last := k.ID[strings.LastIndex(k.ID, ".")+1:]; strings.Contains(k.ID, ".") && trailingNumber.MatchString(last) {
 			n, _ := strconv.Atoi(last)
 			suffix = max(suffix, n)
 		}
 	}
-	n := kids
+	n := max(kids, movedAway)
 	name := regexp.MustCompile(`^` + regexp.QuoteMeta(project) + `-([0-9]+)$`)
 	for _, rec := range r.recs {
 		if m := name.FindStringSubmatch(rec.Name()); rec.Type() == "sprint" && m != nil {
@@ -1141,6 +1148,171 @@ func cmdTaskMove(e *env, p *Parsed) (string, error) {
 		return "", fmt.Errorf("%w; the work-store step is undone: %s is back in %s", err, id, source)
 	}
 	return out, nil
+}
+
+// cmdSprintMove moves an open sprint to another open project (the work-store page, Moving a sprint): the work store
+// first, in one write through the compare-and-swap (the parent, the project's next number, the move note), then one
+// records commit that renames the record and adds the move as a decision to both projects' records. A rerun that
+// finds the sprint in the project with its record not yet renamed writes the records step alone, from the move note.
+func cmdSprintMove(e *env, p *Parsed) (string, error) {
+	reason := p.Get("text")
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	id, toName := p.Get("sprint_id"), p.Get("to")
+	sp := r.item(id)
+	if sp == nil || sp.Type != work.Sprint {
+		return "", refuse("%s is not a sprint in the work store", id)
+	}
+	rec, err := r.sprint(id)
+	if err != nil {
+		return "", err
+	}
+	trec, err := r.project(toName)
+	if err != nil {
+		return "", err
+	}
+	to := trec.Bead()
+	if pi := r.item(to); pi == nil {
+		return "", refuse("project %s has bead %s, which is not in the work store", toName, to)
+	} else if pi.Status == work.Closed {
+		return "", refuse("project %s (%s) is closed; move the sprint to an open project", toName, to)
+	}
+	if err := decisionBody(reason); err != nil {
+		return "", err
+	}
+	if sp.Parent == to {
+		if rec.Name() == sprintName(toName, sp.Number) {
+			return "", refuse("sprint %s is in project %s already, as sprint %d (%s)", id, toName, sp.Number,
+				r.rel(rec.Path))
+		}
+		mv, ok := lastMove(sp)
+		if !ok {
+			return "", refuse("sprint %s is in project %s, but its record is %s and no move note says how it got "+
+				"there; rename the record to records/sprints/%s.md by hand and commit it with pm commit", id, toName,
+				r.rel(rec.Path), sprintName(toName, sp.Number))
+		}
+		w, err := r.moveWrites(rec, id, mv)
+		if err != nil {
+			return "", err
+		}
+		if err := r.checkPlanned(w, nil); err != nil {
+			return "", err
+		}
+		return r.apply(w, "finished moving "+moveText(r, id, mv)+" (the work store held it already)", "", "pm: ")
+	}
+	if sp.Status == work.Closed {
+		return "", refuse("sprint %s is closed; only an open sprint moves", id)
+	}
+	if mv, ok := lastMove(sp); ok { // a move whose records step has not run: finish it first, or the record skips a project
+		if here, err := r.projectRecord(mv.To); err == nil && rec.Name() != sprintName(here.Name(), sp.Number) {
+			return "", refuse("the move of sprint %s to %s is not finished: its record is still %s; run pm sprint move %s "+
+				"--to %s first", id, here.Name(), r.rel(rec.Path), id, here.Name())
+		}
+	}
+	plan := work.SprintMove{From: sp.Parent, FromNumber: sp.Number, To: to,
+		ToNumber: work.LastSprintNumber(slices.Values(r.x.All()), to) + 1, Reason: reason}
+	planned := *sp
+	planned.Parent, planned.Number = to, plan.ToNumber
+	w, err := r.moveWrites(rec, id, plan)
+	if err != nil {
+		return "", err
+	}
+	if err := r.checkPlanned(w, r.with(planned)); err != nil {
+		return "", err
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	moved, err := ws.MoveSprint(id, to, reason)
+	if err != nil {
+		return "", err
+	}
+	// The store minted against the remote, which may hold a sprint this clone has not seen: plan with its number.
+	mv, ok := lastMove(&moved)
+	if !ok || mv.To != to {
+		return "", fmt.Errorf("sprint %s: the work store moved it but holds no move note to %s", id, to)
+	}
+	held := fmt.Sprintf("the work store holds the move (%s is sprint %d of %s): run the same command again to "+
+		"finish the records step", id, mv.ToNumber, toName)
+	if mv != plan {
+		if w, err = r.moveWrites(rec, id, mv); err == nil {
+			err = r.checkPlanned(w, r.with(moved))
+		}
+		if err != nil {
+			return "", fmt.Errorf("%w; %s", err, held)
+		}
+	}
+	out, err := r.apply(w, "moved "+moveText(r, id, mv), "", "pm: ")
+	if err != nil {
+		return "", fmt.Errorf("%w; %s", err, held)
+	}
+	return out, nil
+}
+
+// sprintName is a sprint record's name: <project>-<number>.
+func sprintName(project string, n int) string { return fmt.Sprintf("%s-%d", project, n) }
+
+// lastMove is the sprint's last move, which brought it where it is.
+func lastMove(sp *work.Item) (work.SprintMove, bool) {
+	moves := work.SprintMoves(sp)
+	if len(moves) == 0 || moves[len(moves)-1].To != sp.Parent || moves[len(moves)-1].ToNumber != sp.Number {
+		return work.SprintMove{}, false
+	}
+	return moves[len(moves)-1], true
+}
+
+// projectRecord is the project record whose bead is id.
+func (r *repo) projectRecord(id string) (*records.Record, error) {
+	for _, rec := range r.recs {
+		if rec.Type() == "project" && rec.Bead() == id {
+			return rec, nil
+		}
+	}
+	return nil, refuse("no project record has bead %s", id)
+}
+
+// moveText names a move for its records commit and output.
+func moveText(r *repo, id string, mv work.SprintMove) string {
+	name := func(bead string) string {
+		if rec, err := r.projectRecord(bead); err == nil {
+			return rec.Name()
+		}
+		return bead
+	}
+	return fmt.Sprintf("sprint %s from %s (sprint %d) to %s (sprint %d): record records/sprints/%s.md, a decision in "+
+		"both projects", id, name(mv.From), mv.FromNumber, name(mv.To), mv.ToNumber, sprintName(name(mv.To), mv.ToNumber))
+}
+
+// moveWrites is a move's records step, one commit: the sprint record renamed to <project>-<number>, its text
+// unchanged, and the move as a source=agent decision in both projects' records.
+func (r *repo) moveWrites(rec *records.Record, id string, mv work.SprintMove) ([]store.Write, error) {
+	from, err := r.projectRecord(mv.From)
+	if err != nil {
+		return nil, err
+	}
+	to, err := r.projectRecord(mv.To)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(r.records, "sprints", sprintName(to.Name(), mv.ToNumber)+".md")
+	if exists(path) {
+		return nil, refuse("%s already exists; sprint %s cannot take its name", r.rel(path), id)
+	}
+	fromText, err := records.InsertEntry(from.Text, "Decisions", decisionBlock("agent", fmt.Sprintf(
+		"Moved sprint %d (%s) to %s as sprint %d: %s", mv.FromNumber, id, to.Name(), mv.ToNumber, mv.Reason)))
+	if err != nil {
+		return nil, err
+	}
+	toText, err := records.InsertEntry(to.Text, "Decisions", decisionBlock("agent", fmt.Sprintf(
+		"Took in sprint %d of %s (%s) as sprint %d: %s", mv.FromNumber, from.Name(), id, mv.ToNumber, mv.Reason)))
+	if err != nil {
+		return nil, err
+	}
+	return []store.Write{{Path: path, Text: rec.Text}, {Path: rec.Path, Remove: true},
+		{Path: from.Path, Text: fromText}, {Path: to.Path, Text: toText}}, nil
 }
 
 // ---------------------------------------------------------------- pm commit

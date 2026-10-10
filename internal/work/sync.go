@@ -578,20 +578,46 @@ func (d *Dolt) dropCAS() error {
 	return nil
 }
 
-// createShared is Create on a store with a remote, run by the pm service one at a time: the compare-and-swap of the
+// casWrite is one write the pm service runs through the compare-and-swap (shared): what it mints, and what to do when
+// its push's outcome is unknown or its merge here fails after the push landed.
+type casWrite struct {
+	verb, mints string               // "create", "a child id"
+	write       func() (Item, error) // the write, on the scratch branch
+	unknown     func(it Item) string // the next step when the push may still land
+	landed      func(it Item) string // the next step when the push landed but the merge into main failed
+}
+
+// createShared is Create on a store with a remote: the compare-and-swap (shared) whose write is the create.
+func (d *Dolt) createShared(n New) (Item, error) {
+	return d.shared(casWrite{
+		verb:  "create",
+		mints: "a child id",
+		write: func() (Item, error) { return d.createLocal(n) },
+		unknown: func(it Item) string {
+			return fmt.Sprintf("the push may still land as %s. Nothing was merged here: run pm sync, then check with "+
+				"pm show %s before you create it again", it.ID, it.ID)
+		},
+		landed: func(it Item) string {
+			return fmt.Sprintf("the item %s is on the remote; do not create it again: the next sync (pm sync) brings it",
+				it.ID)
+		},
+	})
+}
+
+// shared runs a write that mints against the remote, by the pm service one at a time: the compare-and-swap of the
 // work-store page's Ids section, so two clones never mint the same child id or sprint number, and main is never
-// reset. It pulls, notes main's HEAD as C0, makes the branch pm-cas at C0, mints and commits the item there as C1,
+// reset. It pulls, notes main's HEAD as C0, makes the branch pm-cas at C0, runs the write there, committed as C1,
 // and pushes pm-cas to the remote's main. Only a push the remote rejects as non-fast-forward, which lands nothing,
 // deletes pm-cas and starts again, up to casAttempts in all. A push that times out or fails otherwise fetches: C1 in
-// the remote's history means the create landed; anything else deletes pm-cas and fails hard, the outcome unknown,
-// naming the id the push may still land as, since a dropped push can land later and a second mint would make the
-// item twice. Once the push landed, pm-cas merges into main in one write transaction (a fast-forward when no session wrote since C0) and is
-// deleted. With the remote unreachable, the pull fails and a create refuses.
-func (d *Dolt) createShared(n New) (Item, error) {
+// the remote's history means the write landed; anything else deletes pm-cas and fails hard, the outcome unknown,
+// since a dropped push can land later and a second mint would make the item twice. Once the push landed, pm-cas
+// merges into main in one write transaction (a fast-forward when no session wrote since C0) and is deleted. With the
+// remote unreachable, the pull fails and the write refuses.
+func (d *Dolt) shared(w casWrite) (Item, error) {
 	var last error
 	for range casAttempts {
 		if _, err := d.pull(); err != nil {
-			return Item{}, fmt.Errorf("work store: create: a child id is minted only against the remote: %w", err)
+			return Item{}, fmt.Errorf("work store: %s: %s is minted only against the remote: %w", w.verb, w.mints, err)
 		}
 		c0, err := d.hashOf(branch)
 		if err != nil {
@@ -603,7 +629,7 @@ func (d *Dolt) createShared(n New) (Item, error) {
 		if _, err := d.conn.ExecContext(ctx, "CALL DOLT_BRANCH(?, ?)", casBranch, c0); err != nil {
 			return Item{}, fmt.Errorf("work store: make %s: %w", casBranch, d.broken(err))
 		}
-		it, c1, err := d.onBranch(casBranch, func() (Item, error) { return d.createLocal(n) })
+		it, c1, err := d.onBranch(casBranch, w.write)
 		if err != nil {
 			return Item{}, errors.Join(err, d.dropCAS())
 		}
@@ -619,11 +645,10 @@ func (d *Dolt) createShared(n New) (Item, error) {
 		default: // a timeout, or another failure: whether the push landed is unknown, and may stay so
 			// The push the client dropped may still land on the remote (the server finishes the statement until
 			// Dolt kills its git, and git can update the ref after that): C1 seen there means it landed, but C1 not
-			// seen yet proves nothing, so the create never mints again, which could make the item twice.
+			// seen yet proves nothing, so the write never mints again, which could make the item twice.
 			unknown := func(why string) (Item, error) {
-				return Item{}, errors.Join(fmt.Errorf("work store: create %s: %v; %s: the outcome is unknown, and "+
-					"the push may still land as %s. Nothing was merged here: run pm sync, then check with pm show %s "+
-					"before you create it again", it.ID, err, why, it.ID, it.ID), d.dropCAS())
+				return Item{}, errors.Join(fmt.Errorf("work store: %s %s: %v; %s: the outcome is unknown, and %s",
+					w.verb, it.ID, err, why, w.unknown(it)), d.dropCAS())
 			}
 			if _, ferr := d.fetch(); ferr != nil {
 				return unknown(fmt.Sprintf("the fetch to check it failed too (%v)", ferr))
@@ -639,13 +664,13 @@ func (d *Dolt) createShared(n New) (Item, error) {
 			}
 		}
 		if err := d.mergeCAS(); err != nil {
-			return Item{}, fmt.Errorf("work store: create %s: the item %s is on the remote, but merging it into this "+
-				"store failed (%w); do not create it again: the next sync (pm sync) brings it", it.ID, it.ID, err)
+			return Item{}, fmt.Errorf("work store: %s %s: merging it into this store failed (%w); %s", w.verb, it.ID,
+				err, w.landed(it))
 		}
 		return it, d.dropCAS()
 	}
-	return Item{}, fmt.Errorf("work store: create: no push landed in %d attempts, the last: %v; nothing was created",
-		casAttempts, last)
+	return Item{}, fmt.Errorf("work store: %s: no push landed in %d attempts, the last: %v; nothing was written",
+		w.verb, casAttempts, last)
 }
 
 // onBranch runs fn with the connection on the local branch b (the revision database work/<b>), and returns what fn

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, VERSION, fake_env, write_config
+from conftest import PM, VERSION, fake_env, project, sprint, write_config
 
 
 def reply_body(text: str) -> str:
@@ -377,6 +377,116 @@ def test_task_add_creates_task_in_sprint(repo):
     assert res.returncode == 0, res.stderr
     assert repo.changes() == {"repo-demo.2.1": {"id": "repo-demo.2.1", "type": "task", "title": "No description",
                                            "status": "open", "parent": "repo-demo.2"}}
+
+
+# ---------------------------------------------------------------- pm sprint move
+
+MOVE_REASON = "It belongs to the site.\nThe site project owns every page."
+
+
+def site_project(repo):
+    """Seed a second open project, site, with sprint 1 and their records, and a task in demo-1 that sess-a holds."""
+    repo.write("projects/site.md", project("Site", "repo-site"))  # the import reads them
+    repo.write("sprints/site-1.md", sprint("Pages", "repo-site.1"))
+    repo.commit("site project")
+    repo.add_issue({"id": "repo-site", "title": "Site", "status": "open", "issue_type": "epic",
+                    "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"})
+    repo.add_issue({"id": "repo-site.1", "title": "Sprint 1: Pages", "status": "open", "issue_type": "epic",
+                    "parent": "repo-site", "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"})
+    add_task(repo)
+
+
+def test_sprint_move_takes_the_sprint_whole_and_a_rerun_finishes_a_move_cut_short(repo):
+    """The sprint's Done when: a sprint with two tasks, a need, a decision and a finding moves to another project.
+    The records step fails after the work-store write (the store's sprints/ read-only: the fault point); pm show is
+    consistent then, and the same command run again finishes the move from the move note."""
+    site_project(repo)
+    for args in (("decision", "add", "--level", "sprint", "--sprint", "repo-demo.1", "--decision", "Parse first.",
+                  "--reason", "The site needs tables."), ("finding", "add", "--sprint", "repo-demo.1", "It parses 9 of 10.")):
+        assert repo.pm(*args).returncode == 0
+    old = (repo.records / "sprints/demo-1.md").read_text()
+    assert "Parse first." in old and "It parses 9 of 10." in old
+    repo.mark()
+    files = repo.record_files()
+    sprints = repo.store / "sprints"
+    sprints.chmod(0o555)
+    try:
+        res = repo.pm("sprint", "move", "repo-demo.1", "--to", "site", text=MOVE_REASON)
+    finally:
+        sprints.chmod(0o755)
+    assert res.returncode != 0
+    assert "the work store holds the move (repo-demo.1 is sprint 2 of site): run the same command again" in res.stderr
+    assert repo.record_files() == files and repo.git("status", "--porcelain", cwd=repo.store) == ""
+    note = ("pm sprint move: from repo-demo sprint 1 to repo-site sprint 2\n" + MOVE_REASON)
+    assert repo.changes() == {"repo-demo.1": {"parent": "repo-site", "number": 2, "title": "Sprint 2: First",
+                                              "comments": [{"kind": "note", "author": "pm", "text": note}]}}
+
+    def placed():
+        """pm show puts the sprint under site only, named by its number, and the old id shows it there."""
+        assert "Sprint 2: First  repo-demo.1  " in repo.pm("show", "--project", "site").stdout
+        demo = repo.pm("show", "--project", "demo")
+        assert demo.returncode == 0 and "First" not in demo.stdout and "Second" in demo.stdout
+        top = repo.pm("show")
+        assert top.returncode == 0 and "decision repo-demo.1.2  Ask the owner  (sprint 2)" in top.stdout
+        shown = repo.pm("show", "repo-demo.1").stdout
+        assert "parent: repo-site  project  open  Site" in shown and "pm sprint move: from repo-demo" in shown
+        assert repo.pm("check").returncode == 0
+
+    placed()
+    assert "records/sprints/demo-1.md" in repo.pm("show", "--sprint", "repo-demo.1").stdout  # not renamed yet
+    repo.mark()
+    refused(repo, "sprint", "move", "repo-demo.1", "--to", "demo", text=MOVE_REASON,
+            match=r"the move of sprint repo-demo.1 to site is not finished: its record is still "
+                  r"records/sprints/demo-1.md; run pm sprint move repo-demo.1 --to site first")
+
+    repo.mark()
+    res = repo.pm("sprint", "move", "repo-demo.1", "--to", "site", text=MOVE_REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.unchanged(), "the rerun writes the records step alone"
+    assert committed(repo, ["pm: finished moving sprint repo-demo.1 from demo (sprint 1) to site (sprint 2): record "
+                            "records/sprints/site-2.md, a decision in both projects (the work store held it already)"])
+    assert not (repo.records / "sprints/demo-1.md").exists()
+    assert (repo.records / "sprints/site-2.md").read_text() == old
+    demo, site = ((repo.records / f"projects/{n}.md").read_text() for n in ("demo", "site"))
+    assert f"Moved sprint 1 (repo-demo.1) to site as sprint 2: {MOVE_REASON}\n:::" in demo
+    assert f"Took in sprint 1 of demo (repo-demo.1) as sprint 2: {MOVE_REASON}\n:::" in site
+    placed()
+    assert "records/sprints/site-2.md" in repo.pm("show", "--sprint", "repo-demo.1").stdout
+    items = repo.items()
+    assert items["repo-demo.1.3"]["holder"]["session"] == "sess-a" and items["repo-demo.1.3"]["parent"] == "repo-demo.1"
+    assert items["repo-demo.1.2"]["parent"] == "repo-demo.1"
+    # The old record path still finds the record.
+    res = repo.pm("show", "--record", "records/sprints/demo-1.md", "--section", "Findings")
+    assert res.returncode == 0 and "It parses 9 of 10." in res.stdout, res.stderr
+    refused(repo, "sprint", "move", "repo-demo.1", "--to", "site", text=MOVE_REASON,
+            match=r"sprint repo-demo.1 is in project site already, as sprint 2 \(records/sprints/site-2.md\)")
+    # Neither project mints a number it used again: demo's 1 moved away, site's 2 moved in.
+    for name, n in (("demo", 3), ("site", 3)):
+        res = repo.pm("sprint", "open", name, "--title", "Next", text=FRAME)
+        assert res.returncode == 0 and f"opened sprint {n} of {name}" in res.stdout, res.stderr
+
+
+def test_sprint_move_in_one_go_and_its_refusals(repo):
+    site_project(repo)
+    refused(repo, "sprint", "move", "repo-demo.1.3", "--to", "site", text=MOVE_REASON,
+            match="repo-demo.1.3 is not a sprint in the work store")
+    refused(repo, "sprint", "move", "repo-demo.2", "--to", "old", text=MOVE_REASON,
+            match=r"project old \(repo-old\) is closed; move the sprint to an open project")
+    refused(repo, "sprint", "move", "repo-demo.2", "--to", "nope", text=MOVE_REASON, match="no project record named 'nope'")
+    refused(repo, "sprint", "move", "repo-demo.2", "--to", "site", text="One line.", match="the decision body is a single line")
+    refused(repo, "sprint", "move", "repo-demo.2", "--to", "demo", text=MOVE_REASON,
+            match=r"sprint repo-demo.2 is in project demo already, as sprint 2")
+    res = repo.pm("sprint", "move", "repo-demo.2", "--to", "site", text=MOVE_REASON)
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, ["pm: moved sprint repo-demo.2 from demo (sprint 2) to site (sprint 2): record "
+                            "records/sprints/site-2.md, a decision in both projects"])
+    assert repo.items()["repo-demo.2"]["number"] == 2 and repo.items()["repo-demo.2"]["parent"] == "repo-site"
+    assert repo.pm("sprint", "move", "repo-demo.2", "--to", "demo", text=MOVE_REASON).returncode == 0
+    assert (repo.records / "sprints/demo-3.md").exists(), "back in demo, it takes a new number: 2 moved away"
+    assert repo.pm("sprint", "close", "repo-demo.2").returncode == 0
+    repo.mark()
+    refused(repo, "sprint", "move", "repo-demo.2", "--to", "site", text=MOVE_REASON,
+            match="sprint repo-demo.2 is closed; only an open sprint moves")
 
 
 # ---------------------------------------------------------------- pm task close

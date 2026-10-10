@@ -87,6 +87,13 @@ only.
 - `pm doctor` names a pm release newer than the repo's pin, with its notes' URL and the move (`pm upgrade --to X`),
   or says that the release list cannot be read. The line does not change doctor's exit code.
 
+- `pm sprint move <sprint> --to <project>` moves an open sprint, with its tasks, needs, frame, decisions, findings
+  and report, to another open project in one command, and records the move as a decision in both projects. The
+  sprint keeps its id, so its tasks keep their holders and `pm show <id>` finds it in its new place; it takes the
+  project's next sprint number, and its record is renamed to match. The old record path and site page still lead to
+  it, and the old project never reuses the moved number. If the move stops part way, run the same command again to
+  finish it.
+
 ### Changed
 
 - Session and subagent start inject pm's rules as three hooks instead of two: the first chunk had outgrown the

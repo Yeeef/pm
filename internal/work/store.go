@@ -23,6 +23,10 @@ type Store interface {
 	SetResolution(id string, resolution Resolution) error
 	// Move gives a task or a need a new parent; its id stays.
 	Move(id, parent string) error
+	// MoveSprint moves an open sprint to an open project and returns it as it is after: its id stays, its number is
+	// the project's next, and a move note records where it was (SprintMoves). A sprint under the project already is
+	// returned as it is, with nothing written.
+	MoveSprint(id, to, reason string) (Item, error)
 
 	// Claim makes h the holder, as a compare-and-set in one transaction: it succeeds when the item has no holder, is
 	// held by h.Session, or is held by a session that live reports not live; it sets StartedAt on the first claim.

@@ -86,7 +86,8 @@ type Host struct {
 var (
 	// SyncTimeout bounds a sync: the service's loop's, and pm_sync()'s (pm sync, pm push).
 	SyncTimeout = 120 * time.Second
-	// CreateTimeout bounds a child create, pm_create(): its pull and push, up to casAttempts times.
+	// CreateTimeout bounds a child create, pm_create(), and a sprint move, pm_move_sprint(): its pull and push, up to
+	// casAttempts times.
 	CreateTimeout = 180 * time.Second
 	// SetupTimeout bounds pm init's pm_setup(): a clone of the remote's store at most.
 	SetupTimeout = 300 * time.Second
@@ -197,6 +198,8 @@ func (h *Host) listen() error {
 	p.Register(gmssql.ExternalStoredProcedureDetails{Name: "pm_setup", Schema: line, Function: h.procSetup})
 	p.Register(gmssql.ExternalStoredProcedureDetails{Name: "pm_create", Schema: gmssql.Schema{{Name: "item",
 		Type: types.LongText}}, Function: h.procCreate})
+	p.Register(gmssql.ExternalStoredProcedureDetails{Name: "pm_move_sprint", Schema: gmssql.Schema{{Name: "item",
+		Type: types.LongText}}, Function: h.procMoveSprint})
 	sb := func(c context.Context, conn *mysql.Conn, addr string) (gmssql.Session, error) {
 		bs, err := gmssql.BaseSessionFromConnection(c, conn, addr)
 		if err != nil {
@@ -432,6 +435,26 @@ func (h *Host) procCreate(c *gmssql.Context, spec string) (gmssql.RowIter, error
 		return nil, err
 	}
 	out, err := json.Marshal(made)
+	if err != nil {
+		return nil, err
+	}
+	return gmssql.RowsToRowIter(gmssql.Row{string(out)}), nil
+}
+
+func (h *Host) procMoveSprint(c *gmssql.Context, spec string) (gmssql.RowIter, error) {
+	var s sprintMoveSpec
+	if err := json.Unmarshal([]byte(spec), &s); err != nil {
+		return nil, fmt.Errorf("work store: pm_move_sprint: %w", err)
+	}
+	var moved Item
+	err := h.op(c, "move of sprint "+s.ID+" to "+s.To, CreateTimeout, true, func(d *Dolt) (err error) {
+		moved, err = d.moveSprintShared(s)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	out, err := json.Marshal(moved)
 	if err != nil {
 		return nil, err
 	}
