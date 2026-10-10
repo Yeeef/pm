@@ -85,6 +85,11 @@ A reply that lands between the CLI check and the write would otherwise let the b
   and leaves every other refusal as it was (e.g. .gitignore from the main
   checkout).
 
+- A decision need's body is pm's own layout (Question, Facts, Options with
+  costs, Default; 25-word sentences), built only by needMarkdown; the site
+  does not parse it, so a free-text edit would have rendered but bypassed
+  every check. pm need edit takes the parts flags instead (sprint decision).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
