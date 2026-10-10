@@ -20,7 +20,10 @@ pm's code, architecture and tests stay at the standard of a great open-source pr
 > What constrains every future sprint? Sprint-only choices live in the sprint
 > record.
 
-None yet.
+::: decision {source=owner date=2026-10-10}
+A fix for a defect that can recur ships with the mechanism that catches its class (a type, an assertion, a test, a lint rule, a CI check, a hook, a script); a prose rule or a hand fix is the fallback for what no mechanism can check.
+Owner, 2026-10-10: prefer structural fixes; also added to the global agent rules (Yeeef/yeeef-agents PR #104).
+:::
 
 ## Design pages
 
