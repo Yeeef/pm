@@ -80,6 +80,12 @@ The owner asked in chat on 2026-10-10 to move it to pm-quality; the .records sto
   Counting a live transcript entry (last 30 min) whose tool call names the
   worktree's path keeps all 11: 0 of 13 to remove.
 
+- --text=git worktree add -b X .claude/worktrees/X origin/main (the form
+  agents use) sets X's upstream to origin/main, so 'nothing beyond its
+  upstream' is no proof of a push. pm clean takes the upstream only when it is
+  not the main branch, else <remote>/<branch>; the harness case 'plain'
+  (pushed without -u) holds it.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
