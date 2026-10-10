@@ -98,10 +98,21 @@ A reply that lands between the CLI check and the write would otherwise let the b
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the four write-path gaps are closed in PR #33, pending merge: a sprint can be renamed, an open need's body edited, an agent's merge stamped at close, and a store-relative path committed.
+
+- `pm sprint edit ID --title "…"`: work-store title (its `Sprint <n>: ` kept), record `title:` header and a sprint decision with the reason, in one records commit; the old title is put back if the records step fails.
+- `pm need edit ID`: an action's description, or a decision need's parts with `pm decision need`'s flags and checks; refused once the need holds a reply or is closed, and for a PR review. The work store's `Edit` refuses the same inside its write transaction.
+- `pm sprint close ID --merged SHA [--pr URL]`: fetches the remote's main, requires the SHA on it, stamps `Merged as <sha> (PR #N).` as a review close does; refused when the sprint holds a review.
+- `pm commit sprints/x.md` from anywhere commits `records/sprints/x.md`.
+- `--help` texts, `prime.md`, a `changelog.d/` entry and the [pm CLI design page](../design/pm-cli.md) updated.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Harness tests: met.
+  - `pm sprint edit` changes both titles and adds the decision: `test_sprint_edit_renames_the_sprint_in_both_stores_and_records_why` (work-store change `Sprint 1: Parse: tables too`, record header, decision block, and five refusals with `repo.unchanged()`).
+  - `pm need edit` changes an open need's body and refuses one that holds a reply: `test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies` (action and decision edited; reply, closed, review, wrong body form and review-ask refused); Go `TestEditKeepsAnAnsweredNeedsDescription` for the store guard.
+  - `pm sprint close --merged <sha on main>` stamps "Merged as <sha>": `test_sprint_close_merged_stamps_an_agent_s_merge_on_main` (integration, bare origin): stamp `Merged as <sha7> (PR #12).`, commit `[SPRINT] demo sprint 1: closed, merged as <sha7>`; a SHA not on main, a non-hex SHA and `--pr` alone refused with `repo.unchanged()`; a sprint holding a review refuses `--merged`.
+  - `pm commit -m … sprints/x.md` commits `records/sprints/x.md`: `test_commit_takes_a_path_relative_to_the_store_from_anywhere` (from the main checkout and a worktree; `.gitignore` still refused).
+- `make test` and the PR's CI pass: `make test` 140 passed, 63 skipped; `make test-go` exit 0; the touched integration tests (`-k 'sprint_close or close_merged or commit or sprint_move or need_edit or sprint_edit'`) 15 passed; PR #33 CI: see the PR's checks (the first push was green on every job; the rebased push is pending).
