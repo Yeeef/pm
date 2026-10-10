@@ -120,6 +120,11 @@ only.
 - The pm service's garbage collection could delete the work store's live journal when a write or a sync raced it,
   losing the writes since and crashing the service at its next collection ("error dropping journal writer during
   UpdateGCGen"). pm now builds with a Dolt that holds the fix (dolthub/dolt#11312).
+- The owner-request Stop hook no longer blocks text that asks the owner nothing: the agent's plan or progress
+  (including what waits on its own subagents or on a merge it holds), a fact no step of the agent waits on, a report
+  of a request already raised (also one held in another clone), and an answer to a question the owner asked. When
+  a reply asks again for what another session's open need already asks, the block now says to drop the ask or report
+  the need as open, not to raise a duplicate.
 
 ## [0.4.0] - 2026-10-10
 
