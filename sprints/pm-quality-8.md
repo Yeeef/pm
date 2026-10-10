@@ -79,6 +79,14 @@ The work store syncs between clones through refs/pm/work and every clone checks 
   pages or the day summary (-k 'serve_shows_each_change or day_summarize or
   every_store_command') 4 passed.
 
+- --text=make test-go run from the main checkout fails
+  TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt
+  (internal/work/access_test.go): its walk from the repo root skips .git, .go,
+  testdata and .venv but not .claude, so the 12 agent worktrees under
+  .claude/worktrees add 24 NewHost callers. From a worktree, and in CI, it
+  passes. Not fixed here (out of scope); skipping .claude in the walk would
+  fix it.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
