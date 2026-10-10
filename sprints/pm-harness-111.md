@@ -44,7 +44,11 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-10}
+Release 0.4.0, not 0.3.1: rename the changelog section to 0.4.0 and name the breaking change in the summary, then tag pm-v0.4.0 on that change on main
+main carries the retire-Python-pm breaking change, and the repo rule bumps the minor for a breaking change while pm is 0.x
+Answers `yeeef-agents-9va.121.3`.
+:::
 
 ## Findings
 
