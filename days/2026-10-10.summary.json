@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T04:47:23+00:00",
- "digest": "b82351dfd0525809",
+ "generated_at": "2026-10-10T04:57:47+00:00",
+ "digest": "8da0381a6a521aa2",
  "model": "claude-haiku-5-5",
- "text": "- **Work tracking moved:** Harness work items moved to Yeeef/pm with their identifiers kept, and the old project is closed. The Linux server's clone runs Go pm and syncs with GitHub.\n- **Go-only pm:** Python pm is deleted from Yeeef/pm and yeeef-agents. The harness test suite now checks only Go pm. The design pages and docs describe one Go implementation.\n- **Release notes:** Each pm release note now comes from its CHANGELOG.md section, with an upgrade guide. CI refuses a pull request or release tag without one.\n- **For you:** Review the open pull requests and decide the next release version, since main has a breaking change. Also decide whether an old sprint's docs item moves to a newer sprint."
+ "text": "- **One Go implementation:** Python pm is gone from Yeeef/pm and yeeef-agents, and the test suite checks only Go pm. Beads is also removed from yeeef-agents, which now runs Go pm.\n- **Tracking moved to Yeeef/pm:** pm-harness work tracking now lives in Yeeef/pm with its full history. The old copy in yeeef-agents is closed and points to the new home.\n- **Release notes in CI:** Every pm release note now comes from the changelog and includes an upgrade guide. CI refuses a pull request or release tag without a changelog section.\n- **For you:** Decide the release version, the public pm-harness URL, and where an open docs item goes. Then review the open pull request."
 }
