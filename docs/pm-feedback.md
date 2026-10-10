@@ -181,3 +181,9 @@ pm finding add --sprint pm-d2k5.1 --text="…" wrote the finding with a leading 
 About project `pm-harness`.
 
 pm finding add --text="…" is accepted and stores the literal '--text=' prefix in the finding, while every other body command takes --text; it should either take --text like them or refuse it. Hit in pm-quality sprint 8.
+
+### 2026-10-10 18:52 UTC, session `ffa2f713-c138-5cf7-8379-c247d20c2e2a`
+
+About project `pm-quality`.
+
+internal/cli/cli.go on main is not gofmt-clean (found by pm-quality sprint 16 on 2026-10-10), and no CI step runs gofmt or go vet's formatting check, so unformatted Go reaches main. What would help: a gofmt -l check in pm-go.yml's build-vet-test job that fails on any listed file.
