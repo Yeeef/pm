@@ -118,8 +118,8 @@ The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, i
 
 done: a wide Mermaid diagram keeps 16 px labels and scrolls sideways at 390 px, redraws on a theme switch, survives a jsdelivr outage, and a record shows an image file kept beside it (PR #23, pending merge).
 
-- Mermaid pinned to 11.17.2 (jsdelivr, then unpkg), `useMaxWidth` off for every diagram type, redrawn from source on a `prefers-color-scheme` or `data-theme` change; `TestMermaidLoadsOneExactVersionAtNaturalWidth` fails on an unpinned URL.
-- The service serves `.svg`, `.png`, `.jpg`, `.jpeg`, `.webp` from the records store with their content types, `nosniff` and a sandboxing CSP, confined by a dot-part check and `os.Root`.
+- Mermaid pinned to 11.17.2 (jsdelivr, then unpkg), `useMaxWidth` off for every diagram type Mermaid's defaults give one (27), redrawn from source on a `prefers-color-scheme` or `data-theme` change; `TestMermaidLoadsOneExactVersionAtNaturalWidth` fails on an unpinned URL.
+- The service serves `.svg`, `.png`, `.jpg`, `.jpeg`, `.webp` from the records store with their content types, `nosniff` and a sandboxing CSP, confined by a dot-part check on the path asked for and on the file it resolves to, and by `os.Root`.
 - `img`, `figure`, `figcaption` rules in `style.css`; golden pages rewritten; `prime.md`, `pm commit --help`, CLAUDE.md and CHANGELOG updated.
 - Not served from the binary: see Decisions.
 
@@ -128,6 +128,6 @@ done: a wide Mermaid diagram keeps 16 px labels and scrolls sideways at 390 px, 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
 - Met: a golden page with a diagram loads the pinned version with `useMaxWidth` off: `internal/site/testdata/constructs/pages/design/parser.html` (and the day, project and sprint pages) import `mermaid@11.17.2` with `useMaxWidth: false`.
-- Met: `TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt` gets `200 image/svg+xml` for the store's `docs/x.svg` (served at `/docs/x.svg`) and `404` for 11 escape paths (`..`, `%2e%2e`, `//abs`, a symlink out, an absolute symlink, `.git/`); removing either confinement layer fails it.
+- Met: `TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt` gets `200 image/svg+xml` for the store's `docs/x.svg` (served at `/docs/x.svg`) and `404` for 13 escape paths (`..`, `%2e%2e`, `//abs`, a symlink out, an absolute symlink, `.git/`, symlinks to a dot file and into `.git`); removing any confinement layer fails it.
 - Met: live check at 390 px, light then dark, against a scratch clone's `pm service run`: the diagram scrolls (356 px pre over 2,772 px, scale 1.0, no page scroll) and the 1200 px figure shows 358 px wide inside the column, in both schemes; the switch was performed and the redraw verified by node fill (Findings, with screenshots).
-- Met: `make test` 113 passed, 40 skipped; `make test-go` passed; PR #23 CI green (light, integration, Go on linux-amd64 and darwin-arm64, changelog, guard).
+- Met: `make test` 113 passed, 40 skipped; `make test-go` passed; PR #23 CI green at head c5a4751 (light, integration, Go on linux-amd64 and darwin-arm64, changelog).
