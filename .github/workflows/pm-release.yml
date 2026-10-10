@@ -3,6 +3,9 @@
 # succeeds: Python releases are their tag and the commit it names. For a Go X, each release target is built natively
 # (cgo needs it) by release/build.sh, which stamps X into the binary; then one GitHub release pm-v<X> gets both
 # tarballs, SHA256SUMS and install.sh with X filled in, marked a pre-release when X has a "-" suffix (pm-v0.2.0-rc.1).
+# Its notes are X's section of CHANGELOG.md at the tagged commit (a pre-release's: X's section, else [Unreleased]),
+# which opens with its upgrade guide: release/changelog.py notes. A Go tag whose changelog has no such section fails
+# before any build. pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
 name: pm release
 
 on:
@@ -47,6 +50,14 @@ jobs:
           echo "go=$go" >> "$GITHUB_OUTPUT"
           echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
           echo "tag $TAG: version $x, Go $go, pre-release $pre" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: A Go release has its notes in CHANGELOG.md (release/changelog.py)
+        if: steps.v.outputs.go == 'true'
+        env:
+          X: ${{ steps.v.outputs.version }}
+        run: |
+          python3 release/changelog.py check
+          python3 release/changelog.py notes "$X" > notes.md
+          { echo "### Notes"; echo; cat notes.md; } >> "$GITHUB_STEP_SUMMARY"
 
   build:
     needs: version
@@ -107,10 +118,10 @@ jobs:
           sed "s/@VERSION@/$X/" ../install.sh > install.sh
           grep -q "^version='$X'\$" install.sh
           cat SHA256SUMS
-      - name: Create the GitHub release
+      - name: Create the GitHub release, its notes from CHANGELOG.md
         run: |
           pre=
           [ "${{ needs.version.outputs.prerelease }}" = true ] && pre=--prerelease
-          gh release create "$TAG" --verify-tag $pre --title "pm $X" \
-            --notes "Go pm $X. Install: curl -fsSL https://github.com/${{ github.repository }}/releases/download/$TAG/install.sh | sh, then pm init in each clone" \
+          python3 release/changelog.py notes "$X" > notes.md
+          gh release create "$TAG" --verify-tag $pre --title "pm $X" --notes-file notes.md \
             dist/pm-$X-darwin-arm64.tar.gz dist/pm-$X-linux-amd64.tar.gz dist/SHA256SUMS dist/install.sh

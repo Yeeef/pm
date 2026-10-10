@@ -24,10 +24,11 @@ is for them, and nothing here ships: the wheel holds only `src/pm/` (`[tool.hatc
 | `tests/` | pytest suite, fakes and the live eval (below) |
 | `go.mod`, `cmd/pm`, `internal/…`, `assets.go` | Go pm, the port the `pm-go` design page plans: built and tested on main, run by no repo until the cut-over. `internal/cli/commands.go` holds every command and help text, `internal/cli/agentcmds.go` runs the agent commands Go pm has ported (`show`, `record link`, `where`, `commit`, `day summarize`, the task, record, project and sprint writes, the decision, action and reply commands; bodies in `writes.go`, `needs.go`, `day.go`, `show*.go`, `where.go`, shared context and checks in `agent.go`), `internal/hooks` `pm prime`, `pm hook stop` and `pm hook owner-request` (its work-store read in `internal/cli/ownerrequest.go`), `internal/work` the work store on embedded Dolt (schema, invariant checks, ids, ready and blocked, the bd import and `pm export`, sync through the git remote under `refs/pm/work` with the merge rules in `merge.go` and the child-id compare-and-swap on the scratch branch `pm-cas` in `sync.go`; `host.go` the host, which only `pm service run` starts: the Dolt engine held open and served on `<main>/.pm/run/work.sock` with `pm_version()`, `pm_sync()`, `pm_create(?)` and `pm_setup()`; `dolt.go` the client every command and the service's own loops use, `work.Dial`, with the version handshake, and every write under the store's fair write lock, `lock.go`, which the host serves as `pm_lock()` and `pm_unlock()`), whose Go-only commands, `pm export [--store DIR]`, `pm init --import-bd FILE` (the import into a new or empty store) and the work-store commands in `internal/cli/store_commands.go` (`task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`, and the forms `show ID` and `task add --parent TASK` of two argparse commands), stay out of the argparse tree, dispatched by `goOnly` in `internal/cli/work.go`; `internal/work/sync_test.go` runs two hosted clones on a local bare repo, `access_test.go` holds the one access path (only `host.go` loads an engine, only `pm service run` starts a host), and `bench_test.go` the store benchmarks, which run with `PM_BENCH_STORE=<a copy of a clone's .pm/store/work>`; `internal/work/worktest` `Serve` (a host and a client on a short temp clone, for a Go test that needs a store) and a read-only fake store, `internal/records` record parsing and checks, `internal/store` the records store, `internal/site` the pages; `internal/service` the pm service (`service.Run` against the work store's client, its change mark, sync and gc, and a `Site` interface, its unit files and lifecycle), which `internal/cli/serve.go` wires to the clone: `pm service run` hosts the work store (`work.NewHost`) and reaches it through its own socket, and `internal/site` (`serve.go` there: pages rendered on demand, reply forms, the status line), and `pm service install` and `restart` of a unit that runs the pm at `config.BinPath()`; `internal/sync` the push steps and their state, which `pm push` (`internal/cli/push.go`) runs once; `internal/service/testdata/units` holds Python's unit files, which Go's and Python's tests both compare against; `assets.go` embeds `src/pm/prime.md`, `style.css` and `prompts/`, so both implementations read one copy |
 | `internal/launch` | Go pm's launcher, which `cmd/pm` runs before anything else: `launch.py` ported, the same cases and texts (`test_launch.py` runs on both). A Go pin execs `pins/<pin>/pm`, downloaded once from release `pm-v<pin>` with no token (`$PM_RELEASE_URL` replaces GitHub's release download URL), and when that fails, through the GitHub API with a token from `$GH_TOKEN` or `gh auth token` (`$PM_RELEASE_API` replaces the API URL), then checked against `SHA256SUMS` and the kept `sha256` (`go.go`); a Python pin runs `uv tool run` of its tag's commit in Yeeef/pm, kept in `pins/<pin>/commit-Yeeef-pm` (`python.go`); `How()` is `pm where`'s line. `pm version` (Go-only, in `goOnly`) prints the build's version, `dev` when untagged |
+| `CHANGELOG.md`, `release/changelog.py` | Go releases' notes, and their checker: `check`, `notes X`, `pr BASE` (Releasing pm) |
 | `release/build.sh`, `install.sh` | The release build: `build.sh OUT_DIR [pm-v<X>]` builds this machine's binary with `X` from the tag (else the `pm-v*` tag on HEAD, else `dev`) and packs `pm-<X>-<os>-<arch>.tar.gz`; `.github/workflows/pm-release.yml` runs it (Releasing pm). `install.sh`, a release asset with `@VERSION@` filled in, installs that release's binary to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` after checking it against `SHA256SUMS`, downloading as the launcher does (with curl or wget; the token path needs curl); `tests/test_release.py` runs both |
 | `internal/install`, `internal/cli/install.go` | Go pm's `pm init`, `doctor`, `upgrade`, `uninstall` and `pm hook git-post-checkout`/`git-pre-commit`: the repo's pieces as Python pm 0.1.x writes them, byte for byte, but for pm's git hook sections, which live in its own tracked `.pm/hooks/post-checkout` and `pre-commit`, and two texts that name the work store where Python's name Beads: `.pm/README.md` (which installs with the release's `install.sh`) and the Codex SubagentStart hook's status message (`pieces.go`; `parity_test.go` holds them equal to Python's on `$PM_PARITY/install.json`, which `go_parity_corpus.py` writes, relaxing only that path, those two texts and the Beads removal), Beads' pieces taken out by `pm init` and `pm upgrade` and named by `pm doctor` (bd's hook entries in `.claude/settings.json` and `.codex/hooks.json`, the Beads block in `CLAUDE.md` and a non-link `AGENTS.md`; `.beads/` itself stays), the records-branch bootstrap, the clone's setup (`clone.go`) with the work store attached to the remote's `refs/pm/work` in place of bd bootstrap (`workstore.go`: cloned, or created and pushed), `core.hooksPath` set to the main checkout's `.pm/hooks` by `pm init` and `pm upgrade` (moved off Beads' `.beads/hooks`, where Python pm left it), Codex roots without `.beads` or uv's cache (`codex.go`), pm copied into the bin dir (`binary.go`), and the pre-package harness's pieces found and refused, naming Python pm's release (`legacy.go`) |
 | The pm uv tool | The `pm` on PATH that hooks, agents and the service run; `pm init` installs it from git (`tool.py`). It runs each repo's pinned version (`launch.py`). Run this checkout's code with `uv run --project <this checkout> pm …` in a scratch repo: it runs in process where the repo pins this checkout's version, and launches the pin elsewhere |
-| `.github/workflows/` | CI (`pm-tests.yml`, `pm-go.yml`) on every PR and push to main, and the release (`pm-release.yml`) on a `pm-v*` tag |
+| `.github/workflows/` | CI (`pm-tests.yml`, `pm-go.yml`, `pm-changelog.yml`) on every PR and push to main, the release (`pm-release.yml`) on a `pm-v*` tag, and a release's notes re-rendered by hand (`pm-release-notes.yml`) |
 
 This repo does not use pm itself: no `.pm/config.toml`, no hooks, no records. pm's plans, decisions and design pages
 (`pm-harness.md` and its sub pages, `pm-go.md`, `pm-versioning.md`) live in the records of the repo where pm's work is
@@ -131,20 +132,34 @@ What the tests are:
 
 ### Go pm (0.2.0 and up)
 
-A Go release is a tag and nothing else: `git tag pm-v<X> <a commit on main> && git push origin pm-v<X>`. No bump
-commit, no release PR, and no file holds `X`: `.github/workflows/pm-release.yml` takes `X` from the tag name, and
-`release/build.sh` stamps it into the binary (`-ldflags -X …/buildinfo.Version=<X>`); an untagged build reports
-`dev`, which no repo pins. On the tag push the workflow:
+A Go release is its notes and a tag: a PR that gives `X` its section in `CHANGELOG.md`, then
+`git tag pm-v<X> <a commit on main> && git push origin pm-v<X>`. No bump commit, and no code file holds `X`:
+`.github/workflows/pm-release.yml` takes `X` from the tag name, and `release/build.sh` stamps it into the binary
+(`-ldflags -X …/buildinfo.Version=<X>`); an untagged build reports `dev`, which no repo pins. On the tag push the
+workflow:
 
 | Job | Does |
 |---|---|
-| `version` | Takes `X` from the tag. A Python `X` (below 0.2.0) builds nothing and succeeds; a Go `X` must name a commit on main, unless it is a pre-release |
+| `version` | Takes `X` from the tag. A Python `X` (below 0.2.0) builds nothing and succeeds; a Go `X` must name a commit on main, unless it is a pre-release, and its `CHANGELOG.md` must pass `release/changelog.py check` and hold `X`'s notes (`changelog.py notes X`) |
 | `build` | `release/build.sh dist pm-v<X>` natively on `macos-14` (darwin-arm64) and `ubuntu-22.04` (linux-amd64), cgo needing native runners; checks the tarball holds one `pm` whose `pm version` prints `X` |
-| `release` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets, `--prerelease` when `X` has a `-` suffix |
+| `release` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets, `--prerelease` when `X` has a `-` suffix, and notes `changelog.py notes X`: `X`'s section, its upgrade guide first |
 
+- Write the notes first. `CHANGELOG.md` (Keep a Changelog, rules in its preamble) holds every Go release's notes,
+  for pm's users. Each release opens with `### Upgrade guide`, a numbered list of the exact steps from the previous
+  release (install it, `pm upgrade --to X`, then whatever else, such as `pm service restart` in each clone); a
+  breaking change says what breaks and why, and points at its step. A PR that changes what a release ships
+  (`SHIPPED` in `release/changelog.py`: Go sources but tests, embedded files, `go.mod`, `install.sh`,
+  `release/build.sh`) adds an entry under `## [Unreleased]`; when users would not notice it, label the PR
+  `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
+- To release `X` (SemVer from `[Unreleased]`: a breaking change bumps the minor while pm is 0.x, an addition the
+  minor too, else the patch), rename `## [Unreleased]` to `## [X] - <date>` in a PR, add the summary paragraph and
+  the upgrade guide, an empty `## [Unreleased]` above and the link references, merge it, then tag the merge. A tag
+  whose changelog has no `X` section fails before any build.
+- Fix or backfill a published release's notes by changing its section on main, then
+  `gh workflow run pm-release-notes.yml -f version=<X>`: it replaces the release's notes alone (`gh release edit`).
 - Cut a release candidate as `pm-v<X>-rc.<n>` (a GitHub pre-release), on any commit, a PR's included, to check the
   release build before the PR merges; the launcher treats it as Go version `X`'s pre-release, so a repo can pin it to
-  try it.
+  try it. Its notes are `X`'s section when the changelog has one, else `[Unreleased]`, which must have an upgrade guide.
 - Never move or recreate a release tag, and never rebuild a release's assets: launchers keep each binary's sha256
   in `<data dir>/pm/pins/<X>/sha256` and fail hard when a later download differs.
 - Moving a repo's pin is a separate, ordinary PR once the release exists (`pm upgrade --to X`, merged any way).
@@ -152,8 +167,9 @@ commit, no release PR, and no file holds `X`: `.github/workflows/pm-release.yml`
   The repo is public, so `install.sh` and the launchers download with no token; only when that fails, a token from
   `$GH_TOKEN` or `gh auth token` makes them try the GitHub API, as a private copy of the repo needs.
   `$PM_RELEASE_URL` names a mirror.
-- `test_release.py` checks it: `install.sh` against a local server, and (in `pm-go.yml`, `PM_RELEASE_BUILD=1`, as
-  it builds twice) the build in a scratch clone, tagged then untagged.
+- `test_changelog.py` checks `changelog.py`'s rules, notes and PR check; `test_release.py` checks the rest:
+  `install.sh` against a local server, and (in `pm-go.yml`, `PM_RELEASE_BUILD=1`, as it builds twice) the build in a
+  scratch clone, tagged then untagged.
 - Until the cut-over `make go-build` stamps `pyproject.toml`'s version instead, so the shared suite's config check
   passes on Go pm.
 

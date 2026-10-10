@@ -1,0 +1,36 @@
+# Re-render an existing Go release's notes from main's CHANGELOG.md (AGENTS.md, Releasing pm): how a backfilled or
+# corrected section reaches a published release. It edits the release's notes alone; the tag and the assets stay as
+# they are, as they always must. Run it with: gh workflow run pm-release-notes.yml -f version=<X>
+name: pm release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The release whose notes to re-render: X in pm-v<X>, 0.2.0 or later, not a pre-release"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  notes:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      X: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Render X's section and replace the release's notes with it
+        run: |
+          case $X in *-*) echo "::error::$X is a pre-release; its notes stay as they were released"; exit 1 ;; esac
+          tag="pm-v$X"
+          python3 release/changelog.py check
+          python3 release/changelog.py notes "$X" > notes.md
+          gh release view "$tag" --json tagName --jq .tagName
+          gh release edit "$tag" --notes-file notes.md
+          { echo "### $tag notes"; echo; cat notes.md; } >> "$GITHUB_STEP_SUMMARY"
