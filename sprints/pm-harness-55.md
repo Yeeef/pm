@@ -47,6 +47,11 @@ None yet.
 pm-harness moved to Yeeef/pm on 2026-10-10, and Go pm is its only implementation; the Python pm is being retired.
 :::
 
+::: decision {source=agent date=2026-10-10}
+Moved yeeef-agents-9va.64.1 to pm-d2k5.6: The owner moved pm-harness sprint 55 to pm-quality on 2026-10-10: pm clean is pm's own tooling quality, which pm-quality holds.
+This sprint's open work continues in pm-quality sprint 6.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
