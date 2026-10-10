@@ -834,7 +834,7 @@ func serveForCheck(main string) (stop func() error, err error) {
 	defer os.Remove(out.Name()) // the open file stays readable
 	cmd := exec.Command(exe, "service", "run")
 	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = main, append(os.Environ(), "PORT=0"), out, out
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// in pm uninstall's process group, so a Ctrl-C of pm uninstall stops it too
 	if err := cmd.Start(); err != nil {
 		out.Close()
 		return nil, err

@@ -99,7 +99,8 @@ func Loaded(main, kind string) bool {
 }
 
 // Disabled is whether the supervisor keeps the unit from starting at login and after a crash: pm service stop's
-// record, the one there is. systemd: is-enabled says no; launchd: print-disabled lists the label as disabled.
+// record, the one there is. systemd: is-enabled prints disabled; launchd: print-disabled lists the label as disabled.
+// A supervisor that does not answer counts as not disabled, so a failure never reads as a stop.
 func Disabled(main, kind string) bool {
 	if kind == Launchd {
 		code, out, ran := quietOut("launchctl", "print-disabled", gui())
@@ -115,8 +116,9 @@ func Disabled(main, kind string) bool {
 		}
 		return false
 	}
-	code, _, ran := quiet("systemctl", "--user", "is-enabled", Label(main)+".service")
-	return ran && code != 0
+	// is-enabled exits non-zero for a failure to reach the user instance too: only its "disabled" counts
+	_, out, ran := quietOut("systemctl", "--user", "is-enabled", Label(main)+".service")
+	return ran && strings.TrimSpace(out) == "disabled"
 }
 
 // quietOut runs a supervisor command and returns its stdout.
@@ -653,6 +655,11 @@ func Uninstall(main string) (string, error) {
 	}
 	if err := os.Remove(unit); err != nil {
 		return "", err
+	}
+	if kind == Launchd && Disabled(main, kind) { // pm service stop's record goes with the unit
+		if err := checked("launchctl", "enable", gui()+"/"+name); err != nil {
+			return "", err
+		}
 	}
 	if kind == Systemd {
 		if err := checked("systemctl", "--user", "daemon-reload"); err != nil {

@@ -38,7 +38,7 @@ drop() { grep -vxF "$1" "$2" > "$2.t" 2>/dev/null; mv "$2.t" "$2"; }
 eval "u=\${$#}"
 case "$2" in
   is-active) grep -qxF "$3" "$FAKE_UP" 2>/dev/null && exit 0; exit 3;;
-  is-enabled) grep -qxF "$3" "$FAKE_UP.en" 2>/dev/null && exit 0; exit 1;;
+  is-enabled) grep -qxF "$3" "$FAKE_UP.en" 2>/dev/null && { echo enabled; exit 0; }; echo disabled; exit 1;;
   enable) echo "$u" >> "$FAKE_UP.en"; [ "$3" = --now ] && echo "$u" >> "$FAKE_UP";;
   disable) drop "$u" "$FAKE_UP.en"; [ "$3" = --now ] && drop "$u" "$FAKE_UP";;
   restart) grep -qxF "$u" "$FAKE_UP" 2>/dev/null || echo "$u" >> "$FAKE_UP";;
@@ -478,5 +478,16 @@ func TestStopFailsWhileTheSocketStillAnswers(t *testing.T) {
 	defer ln.Close()
 	if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "the work store's socket "+sock+" still answer") {
 		t.Fatal(err)
+	}
+}
+
+// A systemctl that cannot reach the user instance exits non-zero for is-enabled too: that is no stop, so session
+// start still starts the service and health says down, not stopped.
+func TestASupervisorThatDoesNotAnswerIsNoStop(t *testing.T) {
+	m := newMachine(t, Systemd)
+	m.install(8123)
+	fakeBin(t, map[string]string{"systemctl": `[ "$2" = is-enabled ] && { echo "Failed to connect to bus" >&2; exit 1; }; exit 0`})
+	if Disabled(m.main, Systemd) {
+		t.Fatal("a failed is-enabled reads as a stop")
 	}
 }

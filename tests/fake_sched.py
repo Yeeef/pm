@@ -96,7 +96,10 @@ def stop(name: str) -> None:
         state["loaded"].remove(name)
 
 
-if tool == "launchctl" and args[:1] == ["bootstrap"]:
+if tool == "launchctl" and args[:1] == ["bootstrap"] and Path(args[2]).stem in state["disabled"]:
+    print("Bootstrap failed: 5: Input/output error", file=sys.stderr)  # as launchd answers for a disabled label
+    sys.exit(5)
+elif tool == "launchctl" and args[:1] == ["bootstrap"]:
     start(Path(args[2]).stem)
     save()
 elif tool == "launchctl" and args[:1] == ["bootout"]:
@@ -110,9 +113,6 @@ elif tool == "launchctl" and args[:1] == ["print-disabled"]:
     for name in state["disabled"]:
         print(f'\t"{name}" => disabled')
     print("}")
-elif tool == "launchctl" and args[:1] == ["bootstrap"] and Path(args[2]).stem in state["disabled"]:
-    print(f"Bootstrap failed: 5: Input/output error", file=sys.stderr)  # as launchd answers for a disabled label
-    sys.exit(5)
 elif tool == "launchctl" and args[:1] == ["print"]:
     sys.exit(0 if args[1].rsplit("/", 1)[1] in state["loaded"] else 113)
 elif tool == "launchctl" and args[:2] == ["kickstart", "-k"]:
