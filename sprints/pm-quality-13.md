@@ -52,7 +52,13 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Load consistency: with records.Texts skipping a file a records sync unlinked
+  mid-read (PR #15), servedSite.Load passed without every record in 4-15 of
+  ~45 loads per run (git checking out between two commits of 100 docs); some
+  missing files were never even listed by the walk, so Load now also compares
+  the stamp after the read with the one before. With Texts naming what went
+  plus the stamp compare, 0 of ~60 loads per run (8 runs) passed short; each
+  such read becomes a service.Partial, read again under the records lock.
 
 ## Delivery report
 
