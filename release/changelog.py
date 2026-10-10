@@ -26,9 +26,9 @@ GUIDE = "Upgrade guide"  # first in every release: the numbered steps from the p
 CATEGORIES = [GUIDE, "Breaking changes", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
 STEP = re.compile(r"^(\d+)\. \S")
 # What a Go release builds or serves: the binary's sources and embedded files, its build and its install script.
-# Go tests and their data ship nothing; Python pm (src/pm/*.py) serves only Python pins, which have no changelog.
-SHIPPED = ("cmd/", "internal/", "assets.go", "prime.md", "src/pm/style.css", "src/pm/prompts/", "go.mod", "go.sum",
-           "install.sh", "release/build.sh")
+# Go tests and their data ship nothing.
+SHIPPED = ("cmd/", "internal/", "assets.go", "prime.md", "style.css", "prompts/", "go.mod", "go.sum", "install.sh",
+           "release/build.sh")
 
 VERSION = r"(\d+)\.(\d+)\.(\d+)"
 RELEASE_HEADING = re.compile(rf"^## \[({VERSION})\] - (\d{{4}}-\d{{2}}-\d{{2}})$")

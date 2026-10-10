@@ -14,7 +14,6 @@ spec = importlib.util.spec_from_file_location("changelog", PM_DIR / "release" / 
 changelog = sys.modules["changelog"] = importlib.util.module_from_spec(spec)  # dataclasses look it up
 spec.loader.exec_module(changelog)
 
-pytestmark = pytest.mark.impl("python", reason="tests the release tooling, not a pm implementation")
 REPO = "https://github.com/Yeeef/pm"
 
 GUIDE = "### Upgrade guide\n\n1. Install it.\n2. Run `pm upgrade\n   --to X`.\n"
@@ -134,9 +133,9 @@ def test_a_change_that_ships_needs_an_unreleased_entry():
     assert changelog.needs_entry(shipping, base, base) == ["internal/work/dolt.go"]
     assert changelog.needs_entry(shipping, base, head) == []
     assert changelog.needs_entry(["tests/test_pm.py", "internal/work/dolt_test.go", "AGENTS.md",
-                                  "internal/service/testdata/units/x", "src/pm/cli.py"], base, base) == []
-    assert changelog.needs_entry(["prime.md", "src/pm/prompts/day_summary.txt", "go.sum"], base, base) == [
-        "prime.md", "src/pm/prompts/day_summary.txt", "go.sum"]
+                                  "internal/service/testdata/units/x", "tests/render-pages/main.go"], base, base) == []
+    assert changelog.needs_entry(["prime.md", "prompts/day_summary.txt", "style.css", "go.sum"], base, base) == [
+        "prime.md", "prompts/day_summary.txt", "style.css", "go.sum"]
     assert changelog.needs_entry(shipping, None, base) == []  # the change adds the changelog
 
 
