@@ -106,4 +106,4 @@ done: `service.Run` returns only once every goroutine it started has ended, so a
 |---|---|---|
 | The new test fails on main and passes with the fix | met | `go test -race -count=20 -run TestRunReturnsOnlyOnce ./internal/service` on main's `run.go` (0665de2) with the new tests: 20 of 20 fail ("Run returned while the writer it started was still opening the work store"; "4 calls reached the work store after Run returned"). With the fix: 20 of 20 pass |
 | `go test -race -count=100 ./internal/service` is clean | met | At a7e5ce1 with `-timeout 40m`: ok in 605.9 s, 0 failures, 0 data races. Before, on main: 0 data races in 100 runs. With the late-call check, the original test showed 0 late calls in 300 runs, and 0 in 300 at `-cpu=1`. The CI race window is too narrow to hit on this machine, so the deterministic test is the check |
-| The PR's CI passes | met | PR #36, all 9 checks pass at a7e5ce1, including both race jobs. PR #36, pending merge |
+| The PR's CI passes | met | PR #36, all 9 checks pass at a7e5ce1, including both race jobs. PR #36, merged as 41b6696 |
