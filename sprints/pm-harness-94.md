@@ -81,7 +81,12 @@ Answers `yeeef-agents-9va.103.1`.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- This sprint's frame no longer holds in Yeeef/pm. It reads Beads from
+  refs/dolt/data and changes the Python pm only (Out: 'This sprint changes the
+  Python pm only'). Go pm replaced both: its work store is its own Dolt
+  database, and Python pm is being retired. A hosted site for Go pm needs a
+  new frame; the owner's four decisions here (one hostname, Cloudflare Pages,
+  push on change, replies hosted) are its inputs.
 
 ## Delivery report
 
