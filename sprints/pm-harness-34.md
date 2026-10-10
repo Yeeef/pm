@@ -41,7 +41,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+Moved yeeef-agents-9va.39.1 to pm-v498.1: The owner moved pm's Codex integration work to its own project, pm-codex, on 2026-10-10.
+This sprint's open work continues in pm-codex sprint 1.
+:::
 
 ## Findings
 
