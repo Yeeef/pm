@@ -58,6 +58,15 @@ None yet.
   so main went red. Two PRs that touch disjoint lines can still break a
   whole-file invariant together.
 
+- Prior art: towncrier (newsfragments/<id>.<type>, type in the name,
+  'towncrier build' assembles and deletes), changesets (.changeset/<name>.md,
+  YAML front matter per package, 'changeset version' consumes), scriv
+  (changelog.d/<name>.md holding '### Category' sections, 'scriv collect').
+  Chosen: scriv's form, changelog.d/<slug>.md holding '###' categories, since
+  changelog.py's category parser checks it unchanged and one PR may touch
+  several categories (#30's entry has Added and Fixed); no front matter.
+  GitHub's merge queue is unavailable on a user-owned repo.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
