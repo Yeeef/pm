@@ -45,7 +45,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+Scope adds tasks .5-.8: access_test skipping agent worktrees, the pm-release-build.yml paths and GO_PKGS failure, the TestCreateRacingALocalWriter flake root cause, and the internal/service fake data race.
+The coordinator filed them into this sprint during the wave; each is a review or CI follow-up of the same kind as the In list.
+:::
 
 ## Findings
 
