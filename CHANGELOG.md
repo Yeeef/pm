@@ -64,7 +64,11 @@ only.
   (Claude Code's lock, with its pid and start time) or that a live session used in the last 30 minutes, one with
   uncommitted changes or commits never pushed, the main checkout, the records store and the worktree it runs in.
   It removes with `git worktree remove` (never `--force`) and deletes a branch only once it is merged.
-
+- `pm task close <id> --dropped --reason "…"` closes a task that will not be done: no commit, no warning, and
+  `pm show --sprint`, the site's task graph and day pages show it as dropped (it is stored with the `dismissed`
+  resolution every clone already accepts, so no store migration).
+- `pm task close --commit` takes `OWNER/REPO@SHA` for work committed in another repo, or a PR URL, both resolved with
+  `gh`; one that does not resolve is refused.
 - The site serves image files (`.svg`, `.png`, `.jpg`, `.jpeg`, `.webp`) kept in the records store, next to the
   record's page, so a record shows a figure with `![…](fig.png)` instead of a base64 data URI. Paths that leave the
   store (`..`, a symlink out of it) or name a dot file get 404. `pm check` and `pm commit` take such files beside a
@@ -93,13 +97,17 @@ only.
 - `pm show` and `pm show --project` both link the feedback doc, with its entry count. In `pm show --json`, the doc is
   the top-level `feedback` (`null` before the first entry); a project no longer has a `feedback` list.
 - The site's overview links the feedback doc under Feedback.
+- `pm task close` refuses a task that another live session holds, as `pm task claim` does, and names
+  `pm task release`.
+- A sprint's "n of m tasks done" on the overview, and `pm show`'s count, leave dropped tasks out.
 
 ### Fixed
 
 - Mermaid diagrams keep their natural width and scroll sideways, so a wide flowchart stays legible on a phone instead
   of shrinking its text to a few pixels; they are drawn again when the colour scheme changes; and the pages load one
   exact Mermaid release (11.17.2), from a second CDN when the first fails, instead of whatever `mermaid@11` is today.
-
+- `pm task close --commit` no longer warns about uncommitted changes in the working tree: the named commit is the
+  work.
 - `pm init --help` now says what `--session-start` does with the service: it starts an installed service that does
   not answer, as session start has done since 0.3.0, so a session in a clone brings its service up (unless
   `pm service stop` stopped it).

@@ -497,6 +497,15 @@ class Repo:
         prs[url] = {"state": state, "mergeCommit": {"oid": merge} if merge else None}
         path.write_text(json.dumps(prs))
 
+    def set_commit(self, slug: str, sha: str) -> None:
+        """A commit the fake gh's `gh api repos/<slug>/commits/<ref>` finds, under its full sha and its 7-character
+        prefix."""
+        path = Path(self.env["FAKE_GH_STATE"])
+        state = json.loads(path.read_text())
+        for ref in (sha, sha[:7]):
+            state[f"repos/{slug}/commits/{ref}"] = {"sha": sha}
+        path.write_text(json.dumps(state))
+
     def snapshot(self) -> dict[str, bytes]:
         """Every file of the main checkout but git's, and but the index of the Dolt chunk journal, a cache of the
         journal that a read (the pm service's too) may write; items() holds the store's content."""

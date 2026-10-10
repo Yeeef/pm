@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """A stand-in for `gh` in tests: `gh pr view <url> --json …` prints the PR's entry in $FAKE_GH_STATE (a JSON object
 keyed by URL) and fails as gh does for a PR it does not know; `gh pr list --head <branch> [--base B] [--state S] --json
-…` lists the entries with that headRefName, baseRefName and state; `gh auth token` prints $FAKE_GH_TOKEN, and without it
-fails as gh does when not logged in."""
+…` lists the entries with that headRefName, baseRefName and state; `gh api <path>` prints the entry keyed by that
+path, as `repos/OWNER/REPO/commits/SHA`, and fails as gh does for one it does not know; `gh auth token` prints
+$FAKE_GH_TOKEN, and without it fails as gh does when not logged in."""
 
 import json
 import os
@@ -27,6 +28,11 @@ elif args[:2] == ["pr", "list"] and "--head" in args and "--json" in args:  # th
     print(json.dumps([{f: pr.get(f) for f in fields} for pr in prs.values()
                       if pr.get("headRefName") == head and pr.get("state") == state
                       and base in (None, pr.get("baseRefName"))]))
+elif args[:1] == ["api"] and len(args) == 2:
+    if args[1] not in prs:
+        print(f"gh: No commit found for SHA: {args[1].rsplit('/', 1)[-1]} (HTTP 422)", file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps(prs[args[1]]))
 else:
     print(f"fake gh: unsupported {args}", file=sys.stderr)
     sys.exit(1)

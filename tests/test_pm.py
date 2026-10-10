@@ -402,6 +402,78 @@ def test_task_close_names_head(repo):
     assert repo.items()["repo-demo.1.3"]["status"] == "closed"
 
 
+def test_task_close_dropped_records_why_and_needs_no_commit(repo):
+    """A dropped task closes as not done (resolution dismissed) with its reason: no commit looked up, no warning, even
+    in a dirty tree; pm show shows it as dropped."""
+    add_task(repo)
+    (repo.root / "wip.txt").write_text("not committed\n")
+    refused(repo, "task", "close", "repo-demo.1.3", "--dropped", match=r"--dropped needs --reason")
+    refused(repo, "task", "close", "repo-demo.1.3", "--dropped", "--reason", "x", "--commit", "HEAD",
+            match=r"--dropped closes repo-demo\.1\.3 as not done, so no commit holds its work; drop --commit")
+    res = repo.pm("task", "close", "repo-demo.1.3", "--dropped", "--reason", "A library parses it.")
+    assert res.returncode == 0, res.stderr
+    assert res.stderr == ""
+    assert res.stdout.strip() == "dropped repo-demo.1.3: A library parses it."
+    assert repo.changes() == {"repo-demo.1.3": {"status": "closed", "resolution": "dismissed", "holder": None,
+                                                "close_reason": "A library parses it.", "closed_by": "sess-a"}}
+    assert "  dropped  repo-demo.1.3  Write the parser" in repo.pm("show", "--sprint", "repo-demo.1").stdout
+
+
+def test_task_close_with_commit_warns_nothing_about_a_dirty_tree(repo):
+    """--commit names the work, so the tree's uncommitted changes say nothing about it; without --commit, HEAD stands
+    in for the work and a dirty tree still warns."""
+    add_task(repo)
+    add_task(repo, "repo-demo.1.4")
+    head = repo.git("rev-parse", "--short", "HEAD").strip()
+    (repo.root / "wip.txt").write_text("not committed\n")
+    res = repo.pm("task", "close", "repo-demo.1.3", "--commit", "HEAD")
+    assert res.returncode == 0, res.stderr
+    assert res.stderr == ""
+    assert repo.items()["repo-demo.1.3"]["close_reason"] == f"Done (commit {head})"
+    res = repo.pm("task", "close", "repo-demo.1.4")
+    assert res.returncode == 0, res.stderr
+    assert "warning: the working tree has uncommitted changes" in res.stderr
+
+
+def test_task_close_resolves_another_repos_commit_or_a_pr_with_gh(repo):
+    add_task(repo)
+    add_task(repo, "repo-demo.1.4")
+    add_task(repo, "repo-demo.1.5")
+    sha = "0123456789abcdef0123456789abcdef01234567"
+    repo.set_commit("Yeeef/pm", sha)
+    merged, open_pr = "https://github.com/Yeeef/pm/pull/7", "https://github.com/Yeeef/pm/pull/9"
+    repo.set_pr(merged, "MERGED", sha)
+    repo.set_pr(open_pr, "OPEN")
+    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "Yeeef/pm@fedcba9",
+            match=r"--commit Yeeef/pm@fedcba9 is not a commit of Yeeef/pm on GitHub: gh api "
+                  r"repos/Yeeef/pm/commits/fedcba9 failed: gh: No commit found for SHA: fedcba9")
+    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "https://github.com/Yeeef/pm/pull/8",
+            match=r"--commit https://github.com/Yeeef/pm/pull/8 is not a pull request on GitHub: gh pr view")
+    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "no-such-ref",
+            match=r"--commit no-such-ref is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL")
+    res = repo.pm("task", "close", "repo-demo.1.3", "--reason", "Parser written.", "--commit", "Yeeef/pm@0123456")
+    assert res.returncode == 0, res.stderr
+    assert repo.pm("task", "close", "repo-demo.1.4", "--commit", merged).returncode == 0
+    assert repo.pm("task", "close", "repo-demo.1.5", "--commit", open_pr).returncode == 0
+    items = repo.items()
+    assert items["repo-demo.1.3"]["close_reason"] == "Parser written. (commit Yeeef/pm@0123456)"
+    assert items["repo-demo.1.4"]["close_reason"] == f"Done (PR {merged}, merged as Yeeef/pm@0123456)"
+    assert items["repo-demo.1.5"]["close_reason"] == f"Done (PR {open_pr})"
+
+
+def test_task_close_refuses_a_task_another_live_session_holds(repo):
+    add_task(repo)  # held by sess-a
+    transcript(repo, "sess-a", 60)
+    refused(repo, "task", "close", "repo-demo.1.3",
+            match=r"repo-demo\.1\.3 is held by live session sess-a \(claimed \S+ ago; its transcript was written in the "
+                  r"last 30 minutes\); leave it, or ask that session to close it, or to release it with pm task release "
+                  r"repo-demo\.1\.3")
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-a")  # the holder itself closes it
+    res = repo.pm("task", "close", "repo-demo.1.3")
+    assert res.returncode == 0, res.stderr
+    assert repo.items()["repo-demo.1.3"]["status"] == "closed"
+
+
 # ---------------------------------------------------------------- the store: pm init in a clone
 
 GIT_ENV = dict(__import__("os").environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",

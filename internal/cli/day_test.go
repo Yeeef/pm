@@ -67,6 +67,8 @@ func TestDayActivityHoldsOnlyThatDaysEvents(t *testing.T) {
 		{ID: "repo-demo.2.6", Type: work.Need, Parent: "repo-demo.2", Title: "Dismissed", CreatedAt: at,
 			Status: work.Closed, ClosedAt: at, Resolution: work.Dismissed, Need: &work.NeedInfo{Kind: work.Decision}},
 		{ID: "repo-demo.2.5", Type: work.Task, Parent: "repo-demo.2", Title: "Old task", CreatedAt: before},
+		{ID: "repo-demo.2.4", Type: work.Task, Parent: "repo-demo.2", Title: "Dropped task", CreatedAt: before,
+			Status: work.Closed, ClosedAt: at, Resolution: work.Dismissed, CloseReason: "a library does it"},
 	}
 	r := &repo{records: dir, items: items, x: records.NewItems(items), recs: recs}
 	got, err := r.dayActivity(day)
@@ -76,6 +78,7 @@ func TestDayActivityHoldsOnlyThatDaysEvents(t *testing.T) {
 	want := "project Demo\n" +
 		"  sprint Sprint 2: Second\n" +
 		"    sprint finished: Done: shipped.\n" +
+		"    task dropped: Dropped task (a library does it)\n" +
 		"    request to the owner (action) raised: Run it\n" +
 		"    task started: Started task\n" +
 		"    task closed: Done task (commit abc)\n" +

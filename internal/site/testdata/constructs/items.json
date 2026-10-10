@@ -213,6 +213,27 @@
   "need": null
  },
  {
+  "id": "demo.1.11",
+  "type": "task",
+  "title": "Try the old renderer",
+  "description": "",
+  "status": "closed",
+  "resolution": "dismissed",
+  "close_reason": "Dropped: the parser made it moot",
+  "number": null,
+  "parent": "demo.1",
+  "blocked_by": [],
+  "labels": [],
+  "holder": null,
+  "started_at": "2026-10-01T15:00:00Z",
+  "created_at": "2026-10-01T12:00:00Z",
+  "updated_at": null,
+  "closed_at": "2026-10-02T10:00:00Z",
+  "closed_by": null,
+  "comments": [],
+  "need": null
+ },
+ {
   "id": "demo.1.2",
   "type": "task",
   "title": "Render \"tables\"",

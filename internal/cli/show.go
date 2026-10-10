@@ -303,7 +303,9 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 			}
 			for _, t := range tasks {
 				if t.Status == work.Closed {
-					s.done++
+					if site.State(t, r.x) == "done" { // a dropped task is closed but not done
+						s.done++
+					}
 					continue
 				}
 				status := string(t.Status)

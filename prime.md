@@ -109,7 +109,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - open a sprint: `pm sprint open <project> --title "…"`; body: the frame as `## Goal`, `## Scope` and `## Done when`. It refuses a frame with a required section missing.
 - open tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. A dependency: `pm dep add <id> --on <blocker>`. A sub-task: `pm task add --parent <task> --title "…"`.
 - claim a task: `pm task claim <id>`, from your own worktree. It records your session and refuses a task that another live session holds, or a claim from the main checkout. Do not take or brief work that another live session holds.
-- close a task: `pm task close <id> --reason "…"`. The reason names the commit: HEAD when newer than the task, else `--commit REF`.
+- close a task: `pm task close <id> --reason "…"`. The reason names the commit: HEAD when newer than the task, else `--commit REF` (a commit here, `OWNER/REPO@SHA` or a PR URL). A task not done closes with `--dropped --reason "<why>"` and no commit. It refuses a task another live session holds.
 - move a task: `pm task move <id> --to SPRINT_ID`; body: the reason, two lines or more. It records the scope change as a decision in the sprint it leaves.
 - need a decision from owner: `pm decision need --title "…" --parent ID`, with each part as a flag, one line each, in single quotes:
   - one `--question '…'`;
