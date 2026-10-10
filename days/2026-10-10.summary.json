@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T16:40:47+00:00",
- "digest": "451e8025ef045076",
+ "generated_at": "2026-10-10T17:00:54+00:00",
+ "digest": "9a5b62c8a99a49e8",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm rollout:** A new pm release is published, and Python pm is removed from both repos. Pm-harness tracking moved to Yeeef/pm with its full history, and the Linux server runs Go pm.\n- **Site reliability:** The site no longer shows \"no such file\" errors on every page while git rewrites records. Wide diagrams scroll sideways on phones, and records can show image files.\n- **Owner-request hook:** Agents now try a task themselves before they ask the owner. The interactive mode was dropped, so autopilot is the only mode.\n- **Pull request checks:** Pull request checks now finish in a few minutes. Before, the slowest check took much longer."
+ "text": "- **Go-only pm:** Go pm is now the only pm, and both clones run it. Project tracking moved to the public pm repository, with its full history.\n- **Release notes:** Go pm shipped as a release with a breaking change. Every release now has a changelog note, and CI refuses a change without one.\n- **Site and record fixes:** The site no longer shows \"no such file\" errors while git rewrites records. Wide diagrams scroll on phones, and images kept beside a record now display.\n- **Faster, steadier checks:** The slowest pm CI check now takes a fraction of its former time. The Dolt crash in garbage-collection tests is fixed; the cause was in Dolt itself."
 }
