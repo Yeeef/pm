@@ -22,21 +22,40 @@ only.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-10
+
+Records now live only on the `records` branch: the main branch's copy of `records/` is gone, with the workflows, the
+`pre-commit` section and the sparse checkout that kept it. A repo keeps one pm feedback doc, the Stop hooks block
+only what is the agent's to fix, and new commands remove agent worktrees nobody needs (`pm clean`), move a sprint to
+another project (`pm sprint move`), stop the pm service (`pm service stop`) and close a task that will not be done
+(`pm task close --dropped`).
+
 ### Upgrade guide
 
-1. On each machine, install the release.
-2. In the repo, run `pm upgrade --to <X>`. Besides moving the pin, it deletes `.github/workflows/pm-records-copy.yml`
-   and `.github/workflows/pm-records-guard.yml` and pm's section in `.pm/hooks/pre-commit` (the file goes when
-   nothing else is in it), and the commit it prints also untracks the main branch's `records/` copy
-   (`git rm -r -q --cached --sparse --ignore-unmatch records`; the records stay on the `records` branch, and each worktree's link
-   stays). Make that commit and merge it as an ordinary PR.
-3. Once the PR is on the main branch, pull it into the main checkout. `pm init` (session start runs it) then turns
-   off the sparse checkout an earlier pm set in each worktree. A branch cut before the merge still tracks
-   `records/`: merge the main branch into it.
-4. Move every clone, and every worktree's branch, to the new pin before anyone runs `pm feedback add` or step 5: an
-   earlier pm fails every command that reads the records once `records/docs/pm-feedback.md` exists, since it reads
-   that doc's header (no date in its name, no project) as invalid, and the records store syncs to every clone.
-5. If the records store holds pm feedback docs from an earlier release (`records/docs/<date>-<project>-feedback.md`,
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.5.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.5.0`. Besides moving the pin and rewriting pm's hook entries (a third rules
+   hook), it deletes `.github/workflows/pm-records-copy.yml` and `.github/workflows/pm-records-guard.yml` and pm's
+   section in `.pm/hooks/pre-commit` (the file goes when nothing else is in it), and the commit it prints also
+   untracks the main branch's `records/` copy (`git rm -r -q --cached --sparse --ignore-unmatch records`; the records
+   stay on the `records` branch, and each worktree's link stays). Make that commit and merge it as an ordinary PR.
+   Until step 3, pm in that branch's worktree refuses every work-store command, since the clone's service still runs
+   0.4.0 ("this checkout pins pm 0.5.0, but the clone's pm service runs pm 0.4.0 …"): run those from the main
+   checkout.
+3. In each clone, once the PR is on the main branch, pull it into the main checkout, then run `pm service restart`.
+   Session start never restarts a running service, and until the restart every work-store command in the main
+   checkout fails with "the pm service runs pm 0.4.0, not pm 0.5.0: run pm service restart".
+4. In each clone, merge the main branch into every worktree's branch cut before the merge (or rebase it onto the pin
+   move). Once the service runs 0.5.0, pm in a worktree whose branch still pins 0.4.0 refuses every work-store
+   command, session start's included ("this checkout pins pm 0.4.0, but the clone's pm service runs pm 0.5.0 …"),
+   and such a branch still tracks `records/`. After the merge, `pm init` (session start runs it) turns off the sparse
+   checkout an earlier pm set in that worktree.
+5. Move every clone, and every worktree's branch, to the new pin (steps 3 and 4) before anyone runs
+   `pm feedback add`, `pm sprint move` or step 6: an earlier pm fails every command that reads the records once
+   `records/docs/pm-feedback.md` exists, since it reads that doc's header (no date in its name, no project) as
+   invalid, and the records store syncs to every clone; and a clone on 0.4.0 fails its sync once it changed a sprint
+   that another clone moved, since 0.4.0 holds a sprint's number fixed.
+6. If the records store holds pm feedback docs from an earlier release (`records/docs/<date>-<project>-feedback.md`,
    titled `pm feedback`; `pm check` names each one), merge them into one `records/docs/pm-feedback.md`: a header
    `type: doc`, `title: pm feedback` and `date:` the oldest doc's date, with no `project:`; then every entry, in time
    order, each with `About project <name>` (with its `sprint` or `task`, if any) as its first line. Delete the old
@@ -49,12 +68,12 @@ only.
   workflow that copied the records branch into the main branch, the pull-request guard that failed an edit of
   `records/`, or the pre-commit section that refused one, and no longer sets a sparse checkout in each worktree to
   keep the copy away from the link; each existed only for the copy (step 2). A branch that still tracks `records/`
-  gets that copy where its link goes: `pm init`, `pm doctor` and `pm where` say to merge the main branch (step 3).
+  gets that copy where its link goes: `pm init`, `pm doctor` and `pm where` say to merge the main branch (step 4).
 - A repo keeps one pm feedback doc, `records/docs/pm-feedback.md`. Any other doc titled `pm feedback`, such as the
   per-project docs earlier releases wrote, fails `pm check` and `pm commit`, and `pm feedback add` refuses, until it
-  is merged into the one doc (step 5). Feedback about pm is read in one place, whatever project it is about.
-- An earlier pm cannot read a records store that holds `records/docs/pm-feedback.md`: move every clone to this
-  release first (step 4).
+  is merged into the one doc (step 6). Feedback about pm is read in one place, whatever project it is about.
+- An earlier pm cannot read a records store that holds `records/docs/pm-feedback.md`, and a clone on 0.4.0 fails
+  its sync over a sprint it changed that `pm sprint move` moved: move every clone to this release first (step 5).
 
 ### Added
 
@@ -75,7 +94,6 @@ only.
   record, and the stylesheet keeps images, figures and captions inside the column.
 - `pm task move` takes a task filed directly under a project (the site's Not in a sprint) into one of that
   project's open sprints, recording the scope added as a decision in the sprint it joins.
-
 - `pm service stop` stops a clone's pm service and keeps it stopped: it disables the unit at its supervisor
   (systemd or launchd), so neither login nor a crash starts it again, waits until the work store's socket and the site
   no longer answer, and says so. Session start leaves a stopped service stopped and its state names
@@ -86,7 +104,6 @@ only.
   even when `site_url` names a public site behind a login, for a check from this machine (a headless browser).
 - `pm doctor` names a pm release newer than the repo's pin, with its notes' URL and the move (`pm upgrade --to X`),
   or says that the release list cannot be read. The line does not change doctor's exit code.
-
 - `pm sprint move <sprint> --to <project>` moves an open sprint, with its tasks, needs, frame, decisions, findings
   and report, to another open project in one command, and records the move as a decision in both projects. The
   sprint keeps its id, so its tasks keep their holders and `pm show <id>` finds it in its new place; it takes the
@@ -309,7 +326,8 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
-[Unreleased]: https://github.com/Yeeef/pm/compare/pm-v0.4.0...HEAD
+[Unreleased]: https://github.com/Yeeef/pm/compare/pm-v0.5.0...HEAD
+[0.5.0]: https://github.com/Yeeef/pm/compare/pm-v0.4.0...pm-v0.5.0
 [0.4.0]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...pm-v0.4.0
 [0.3.0]: https://github.com/Yeeef/pm/compare/pm-v0.2.2...pm-v0.3.0
 [0.2.2]: https://github.com/Yeeef/pm/compare/pm-v0.2.1...pm-v0.2.2
