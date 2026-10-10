@@ -180,7 +180,10 @@ Reading: commands and the service's own loops are all clients of one server in t
 |---|---|---|
 | Equal to the command's | any | proceeds |
 | Differs | equals the command's: the service is stale (a pin move it has not acted on yet, or pm replaced under it) | fails hard: "the pm service runs pm S, not pm V: run pm service restart". The service already stops itself within a second of a pin move (`pinMoved`) and its supervisor starts it on the new pin through the launcher, so this lasts only that long |
-| Differs | differs from the command's: this checkout pins another version than the main checkout (a pin-moving branch) | fails hard: "this checkout pins pm V, but the clone's pm service runs pm S, which <main>/.pm/config.toml pins: run it from a checkout that pins pm S" |
+| Differs | equals the service's: this checkout pins another version than the main checkout | fails hard: "this checkout pins pm V, but the clone's pm service runs pm S, which <main>/.pm/config.toml pins: <fix>". The fix follows which side moved: a branch from before a pin move to S ("merge or rebase it onto that pin move (git rebase <remote>/<main branch>)"), or the branch that moves the pin ahead of main ("until the move is merged and the main checkout pulls it, run pm from a checkout that pins pm S") |
+| Differs | neither: a stale service and a checkout off main's pin | fails hard: "… and <main>/.pm/config.toml pins pm P: run pm service restart in the main checkout <main>, then <fix>" |
+
+A pin move names the worktrees it would strand: `pm upgrade` lists the clone's other worktrees whose checked-out branch pins another pm than the one it moves to (the main checkout and the records store aside), each with "merge or rebase it onto the pin move". In such a worktree, `pm where`'s work line and `pm doctor`'s work store line carry the handshake's refusal and fix, and `pm where`'s service line says the service runs the main checkout's pin instead of calling it stale; `pm init` there names the same fix.
 
 A command never restarts the service: parallel commands would restart it many times over, and a restart from a mismatched checkout would bring up the wrong version.
 
