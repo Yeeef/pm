@@ -88,6 +88,12 @@ Answers `pm-d2k5.10.4`.
   that hit the hook's 15 s judge timeout (no verdict mismatch); the max
   latency now runs close to that timeout while five sprints share the machine.
 
+- --text=prime.md's request rule gained one clause (another session's need
+  holds a request if the reply names its id); the first rules chunk is now
+  9,947 of the 10,000-character hook cap. A longer clause put it at 10,154 and
+  failed TestChunksFitTheCapAndAddUpToTheHead, so the next prime.md addition
+  before '# How' needs a new heading in hooks.Starts.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
