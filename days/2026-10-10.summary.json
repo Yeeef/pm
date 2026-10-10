@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T17:32:34+00:00",
- "digest": "b028d7a1b323958d",
+ "generated_at": "2026-10-10T17:52:59+00:00",
+ "digest": "123495b09019e5e8",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm only:** Python pm is deleted from both repos, so Go pm is the only implementation. Tracking for pm-harness moved to Yeeef/pm with its full history.\n- **Release and CI:** The new pm release shows its changelog section as the release notes. PR checks run much faster, and CI refuses changes without a changelog entry.\n- **Site reading:** Wide Mermaid diagrams scroll sideways on phones and redraw after a theme switch. The site no longer shows errors in place of pages while git rewrites records.\n- **Owner requests:** Agents now act on a step themselves before they ask the owner. A request with no sprint or task gets one opened first."
+ "text": "- **Go pm is the only pm:** Python pm is gone from Yeeef/pm and yeeef-agents. pm now publishes each release with a note taken from its changelog.\n- **Project tracking moves to Yeeef/pm:** pm-harness now tracks its work in Yeeef/pm, with its full history. The yeeef-agents copy is closed.\n- **Site stays readable:** The site no longer shows \"no such file\" errors while git rewrites the records. Diagrams and images now read well on a phone.\n- **Owner requests follow one rule:** A request with no sprint or task gets one opened first. The owner-request hook applies this same rule everywhere."
 }
