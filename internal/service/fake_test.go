@@ -32,6 +32,27 @@ type fakeWork struct {
 	failGet error
 	// syncWarnings are what each sync warns of: the claims its merge overrode
 	syncWarnings []string
+	ran          bool  // Run returned: the caller closes the store's host next, so nothing may reach the store
+	late         int   // calls that reached the store after Run returned
+	hold         *held // the next Open waits on it
+}
+
+// held is an Open made to wait: entered is closed once it waits, and it goes on once release is closed.
+type held struct{ entered, release chan struct{} }
+
+// holdNextOpen makes the next Open wait until the test closes release.
+func (w *fakeWork) holdNextOpen() *held {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.hold = &held{make(chan struct{}), make(chan struct{})}
+	return w.hold
+}
+
+// touch counts a call that reached the store after Run returned; under w.mu.
+func (w *fakeWork) touch() {
+	if w.ran {
+		w.late++
+	}
 }
 
 func newFakeWork(items ...work.Item) *fakeWork {
@@ -45,7 +66,16 @@ func newFakeWork(items ...work.Item) *fakeWork {
 
 func (w *fakeWork) Open() (work.Store, error) {
 	w.mu.Lock()
+	h := w.hold
+	w.hold = nil
+	w.mu.Unlock()
+	if h != nil {
+		close(h.entered)
+		<-h.release
+	}
+	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.touch()
 	w.open++
 	w.opens++
 	return &fakeStore{w: w}, nil
@@ -54,12 +84,14 @@ func (w *fakeWork) Open() (work.Store, error) {
 func (w *fakeWork) Mark() (string, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.touch()
 	return fmt.Sprint(w.fp), nil
 }
 
 func (w *fakeWork) Sync(ctx context.Context) ([]string, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.touch()
 	w.syncs++
 	return append([]string{"up to date"}, w.syncWarnings...), nil
 }
@@ -67,6 +99,7 @@ func (w *fakeWork) Sync(ctx context.Context) ([]string, error) {
 func (w *fakeWork) GC(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.touch()
 	w.gcs++
 	return nil
 }
@@ -108,6 +141,7 @@ func (s *fakeStore) lock() func() {
 	if s.closed {
 		panic("fake work store: used after Shutdown")
 	}
+	s.w.touch()
 	return s.w.mu.Unlock
 }
 
@@ -167,6 +201,7 @@ func (s *fakeStore) UpdateNeed(id string, u work.NeedUpdate) error {
 func (s *fakeStore) Shutdown() error {
 	s.w.mu.Lock()
 	defer s.w.mu.Unlock()
+	s.w.touch()
 	if !s.closed {
 		s.closed = true
 		s.w.open--

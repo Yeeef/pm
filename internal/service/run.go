@@ -154,8 +154,10 @@ type server struct {
 	queue                 chan job
 	wake                  chan struct{}
 	stopped               chan string
-	done                  chan struct{} // closed when Run returns: every loop ends
-	serveCheck, mergePoll time.Duration // ServeCheck and MergePoll as Run started
+	stop                  context.CancelFunc // Run stopping: done closes and every loop ends
+	done                  <-chan struct{}
+	wg                    gosync.WaitGroup // every goroutine Run started; Run returns only once they all ended
+	serveCheck, mergePoll time.Duration    // ServeCheck and MergePoll as Run started
 	logMu                 gosync.Mutex
 	gh                    bool
 }
@@ -183,7 +185,7 @@ func (s *server) withStore(what string, fn func(work.Store) error) error {
 	return err
 }
 
-// sleep waits d; false when Run returned meanwhile, so the loop ends.
+// sleep waits d; false when Run stopped meanwhile, so the loop ends.
 func (s *server) sleep(d time.Duration) bool {
 	select {
 	case <-time.After(d):
@@ -191,6 +193,16 @@ func (s *server) sleep(d time.Duration) bool {
 	case <-s.done:
 		return false
 	}
+}
+
+// spawn runs f on a goroutine that Run waits for before it returns. Only Run, before it waits, and a goroutine spawn
+// started call it, so the wait group never grows during the wait.
+func (s *server) spawn(f func()) {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		f()
+	}()
 }
 
 func (s *server) poke() {
@@ -209,6 +221,9 @@ func (s *server) poke() {
 // with backoff and then pushes the reply into the raising session's inbox. The merge watch, at start and every
 // MergePoll, hands reviews' merges to main to the writer, then has it sweep the open needs for anything their running
 // session has not received. Every look reads the pin again: once it pins another version, Run returns that error.
+// Run returns only once every goroutine it started has ended, so a stopped service never touches the work store (the
+// caller closes the store's host next): it tells them to stop, waits for the requests under way, then for each loop to
+// finish what it was doing (a sync or gc under way runs to its end or its timeout, as the host's statement does).
 func Run(d Deps) error {
 	if d.Open == nil || d.Mark == nil || d.Sync == nil || d.GC == nil || d.Site == nil || d.Summarize == nil || d.Out == nil || d.Log == nil ||
 		d.Main == "" || d.Records == "" || d.Spool == "" || d.Pin == "" || d.WorkDir == "" {
@@ -221,8 +236,10 @@ func Run(d Deps) error {
 	s := &server{d: d, texts: Texts{d.Main, d.Remote, d.MainBranch}, token: base64.RawURLEncoding.EncodeToString(tok),
 		replies: map[string]Reply{}, merges: map[string]bool{}, swept: map[string]sweepState{},
 		queue: make(chan job, 1024), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
-		done: make(chan struct{}), serveCheck: ServeCheck, mergePoll: MergePoll}
-	defer close(s.done)
+		serveCheck: ServeCheck, mergePoll: MergePoll}
+	ctx, stop := context.WithCancel(context.Background())
+	s.stop, s.done = stop, ctx.Done()
+	defer s.stop()
 	_, err := exec.LookPath("gh")
 	s.gh = err == nil
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", d.Port))
@@ -236,7 +253,7 @@ func Run(d Deps) error {
 		ln.Close()
 		return err
 	}
-	go s.writer()               // before the pending replies are queued, so any number of them fits
+	s.spawn(s.writer)           // before the pending replies are queued, so any number of them fits
 	for _, e := range pending { // replies a crash or kill left pending
 		s.mu.Lock()
 		s.replies[e.ID] = Reply{State: "saving", Text: e.Text, RID: e.RID}
@@ -246,15 +263,19 @@ func Run(d Deps) error {
 	if !s.gh {
 		s.logf("note: gh is not installed, so the pm service does not watch reviews' PRs for their merge")
 	}
-	go s.refresher(srv)
-	go s.ticker()
-	go s.syncer()
-	go s.collector()
+	s.spawn(func() { s.refresher(srv) })
+	s.spawn(s.ticker)
+	s.spawn(s.syncer)
+	s.spawn(s.collector)
 	port := ln.Addr().(*net.TCPAddr).Port
 	fmt.Fprintf(d.Out, "Serving http://localhost:%d; each page states the age of its data, at most %d s behind unless "+
 		"it says so; the work store reread when it changes; pushing every %d min\n", port, ServeBehind,
 		int(pmsync.Interval.Minutes()))
-	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+	err = srv.Serve(ln)
+	s.stop()
+	_ = srv.Shutdown(context.Background()) // the requests under way end; the refresher already shut it down on a pin move
+	s.wg.Wait()
+	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	select {
@@ -265,7 +286,8 @@ func Run(d Deps) error {
 	}
 }
 
-// put queues a job for the writer; it never blocks a request (the queue holds 1,024, and a full one drops a sweep).
+// put queues a job for the writer; it never blocks a request (the queue holds 1,024, and a full one drops a sweep),
+// nor outlasts Run (a job put once Run stopped is dropped; a reply stays in the spool for the next start).
 func (s *server) put(j job) {
 	if j.sweep {
 		select {
@@ -274,7 +296,10 @@ func (s *server) put(j job) {
 		}
 		return
 	}
-	s.queue <- j
+	select {
+	case s.queue <- j:
+	case <-s.done:
+	}
 }
 
 // pinMoved is why the service must stop, its config no longer pinning the version it runs; "" while it does.
@@ -744,6 +769,11 @@ func (s *server) writer() {
 	for {
 		var j job
 		select {
+		case <-s.done: // checked first: a stopped service takes no further job, however many are queued
+			return
+		default:
+		}
+		select {
 		case j = <-s.queue:
 		case <-s.done:
 			return
@@ -782,7 +812,11 @@ func (s *server) writeReply(j job) {
 		s.replies[e.ID] = Reply{State: "failed", Text: e.Text, RID: e.RID, Error: err.Error()}
 		s.mu.Unlock()
 		s.logf("reply %s failed total=%dms: %v", e.ID, time.Since(start).Milliseconds(), err)
-		time.AfterFunc(Backoff(j.tries), func() { s.put(job{entry: &e, id: e.ID, tries: j.tries + 1}) })
+		s.spawn(func() { // from the writer, which Run's wait still counts, so the Add never races the wait
+			if s.sleep(Backoff(j.tries)) {
+				s.put(job{entry: &e, id: e.ID, tries: j.tries + 1})
+			}
+		})
 		return
 	}
 	delivery, err := s.pushUndelivered(e.ID)
@@ -849,6 +883,11 @@ func (s *server) ticker() {
 		for _, n := range snap.order {
 			if !s.gh {
 				break
+			}
+			select {
+			case <-s.done: // each look may take GHTimeout; a stopped service looks no further
+				return
+			default:
 			}
 			pr := reviewPR(n)
 			s.mu.Lock()

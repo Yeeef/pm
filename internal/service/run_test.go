@@ -77,10 +77,14 @@ func serve(t *testing.T, w *fakeWork, main string) *served {
 		spool: filepath.Join(main, ".git", SpoolName), out: &syncBuffer{}, log: &syncBuffer{}, done: make(chan error, 1)}
 	s.setPin(Version())
 	go func() {
-		s.done <- Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Port: 0, Pin: s.pin,
+		err := Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Port: 0, Pin: s.pin,
 			Spool: s.spool, WorkDir: main, Open: w.Open, Mark: w.Mark, Sync: w.Sync, GC: w.GC, Site: s.site,
 			Summarize: func() (bool, string) { return true, "summarized" }, Style: []byte("body{}"), Out: s.out,
 			Log: s.log})
+		w.mu.Lock()
+		w.ran = true
+		w.mu.Unlock()
+		s.done <- err
 	}()
 	re := regexp.MustCompile(`Serving http://localhost:(\d+);`)
 	deadline := time.Now().Add(5 * time.Second)
@@ -103,8 +107,13 @@ func serve(t *testing.T, w *fakeWork, main string) *served {
 		if !s.stopped {
 			s.stop()
 		}
+		w.mu.Lock()
+		defer w.mu.Unlock()
 		if w.open != 0 {
 			t.Errorf("the service left %d connections to the work store open", w.open)
+		}
+		if w.late != 0 {
+			t.Errorf("%d calls reached the work store after Run returned", w.late)
 		}
 	})
 	return s
@@ -660,6 +669,41 @@ func TestTheServiceStopsOnceThePinMoves(t *testing.T) {
 	}
 	if !strings.Contains(s.log.String(), "error: "+err.Error()) {
 		t.Fatalf("not logged: %s", s.log.String())
+	}
+}
+
+// Run returns only once every goroutine it started ended: here the writer, held in Open when the pin moves. Returning
+// before would let it reach the store after the caller closed the store's host.
+func TestRunReturnsOnlyOnceTheGoroutinesItStartedEnded(t *testing.T) {
+	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
+	s := serve(t, w, "")
+	tok := s.token()
+	h := w.holdNextOpen()
+	if code, _, body := s.post(url.Values{"token": {tok}, "id": {"p-1.2.1"}, "text": {"yes"}}, ""); code != 303 {
+		t.Fatalf("the reply: %d %s", code, body)
+	}
+	select {
+	case <-h.entered: // the writer, storing the reply
+	case <-time.After(5 * time.Second):
+		t.Fatal("the writer did not open the store within 5 s")
+	}
+	s.stopped = true
+	s.setPin("9.9.9")
+	eventually(t, "the service sees its pin move", func() bool { return strings.Contains(s.log.String(), "now pins pm 9.9.9") })
+	select {
+	case <-s.done:
+		close(h.release)
+		t.Fatal("Run returned while the writer it started was still opening the work store")
+	case <-time.After(300 * time.Millisecond): // Run, once the server stopped, waits for the writer
+	}
+	close(h.release)
+	select {
+	case err := <-s.done:
+		if err == nil || !strings.Contains(err.Error(), "now pins pm 9.9.9") {
+			t.Fatalf("Run returned %v, want the pin's error", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return within 5 s of the writer going on")
 	}
 }
 
