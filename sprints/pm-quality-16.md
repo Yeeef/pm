@@ -35,7 +35,7 @@ Moving a repo's pin never surprises an open worktree: `pm upgrade --to X` lists 
 
 > Where is the detail?
 
-None yet.
+- [pm in Go](../design/pm-go.md): Store access, the version handshake table and the paragraph under it
 
 ## Progress
 
