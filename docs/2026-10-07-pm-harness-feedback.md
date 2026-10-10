@@ -98,3 +98,14 @@ Sprint 107 changed its goal (the interactive mode was dropped), but pm has no co
 About sprint `yeeef-agents-9va.121`.
 
 After pm-harness moved to Yeeef/pm (2026-10-10), the owner-request Stop hook blocked a reply that only reported an open need: "PR #10's review is on the new site as .121.2". The hook reads this session's open needs from the clone of the session's cwd (yeeef-agents), while the need lives in Yeeef/pm's store, so `pm show yeeef-agents-9va.121.2` finds it in Yeeef/pm and errors in yeeef-agents. A session whose cwd is one repo and whose tracked work is in another always gets false blocks. What would have helped: the hook reading the session's open needs from every clone on the machine that it has written to, or from the clone that holds the session's claimed tasks.
+
+### 2026-10-10 03:59 UTC, session `d2440053-39b8-519d-8887-8ecd90d4282a`
+
+About sprint `yeeef-agents-9va.116`, task `yeeef-agents-9va.116.3`.
+
+Triaging open sprints after the move to Go pm hit four snags.
+
+- Dismissing a replaced PR review needs `pm need dismiss`. Neither `pm action --help` nor prime's noun list names `need`; prime only says sprint close skips a dismissed review. I found it by grepping the Go source. Listing `need` in `pm --help` and pointing to it from `pm action --help` would help.
+- `pm decision close` stores its body as the owner's answer, even for a need the owner never answered and that became moot. A moot close with only a reason, or a body labelled as the agent's note, would help.
+- `pm task close --commit REF` still warns that the main checkout has uncommitted changes, although REF was given. A task closed as obsolete has no commit, so I passed a records commit as a stand-in. A `--obsolete` close that needs no commit would help.
+- `pm decision add` refuses while the record holds an uncommitted hand edit; the order (commit, then add) is fine once known, but the frame edit plus decision is one step in practice.
