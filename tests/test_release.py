@@ -139,7 +139,7 @@ def version_of(tar: Path, tmp: Path) -> str:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(not os.environ.get("PM_RELEASE_BUILD"), reason="builds pm twice; pm-go.yml sets PM_RELEASE_BUILD")
+@pytest.mark.skipif(not os.environ.get("PM_RELEASE_BUILD"), reason="builds pm twice; pm-release-build.yml sets PM_RELEASE_BUILD")
 def test_the_release_build_takes_its_version_from_the_tag_alone(tmp_path):
     """A scratch clone at this commit, nothing committed: tagged pm-v<X>, the release build reports X; untagged, dev."""
     clone = tmp_path / "clone"

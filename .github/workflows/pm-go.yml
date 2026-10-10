@@ -1,6 +1,11 @@
-# pm on every pull request: built on both release targets as the release builds it (cgo, native runners), then go vet
-# and the Go tests (make test-go), then the release build (release/build.sh) tagged and untagged. The step summary
-# records the binary's size per target. pm-tests.yml runs the harness suite.
+# pm on every pull request: built on both release targets as the release builds it (cgo, native runners), go vet and
+# the Go tests (make test-go), split into parallel jobs per target: the build, vet and every package's tests but
+# internal/work's; internal/work's tests, the longest; the race tests. The step summary records the binary's size per
+# target. pm-release-build.yml runs the release build test, pm-tests.yml the harness suite.
+#
+# The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version and kind (build,
+# race), and a pull request restores main's latest, so a PR compiles only what it changed. A run that restored nothing
+# (a new Go version, an evicted cache) saves too. GOFLAGS=-count=1: the restored cache never stands in for a test run.
 name: pm go
 
 on:
@@ -16,32 +21,68 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  test:
+    name: ${{ matrix.suite }} (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
+        target: [darwin-arm64, linux-amd64]
+        suite: [build-vet-test, work, race]
         include:
           - target: darwin-arm64
             runner: macos-14
           - target: linux-amd64
             runner: ubuntu-22.04  # glibc 2.35, the oldest the release links against
+          - suite: build-vet-test
+            cache: build
+            save: true
+            run: make go-build go-vet go-test GO_PKGS="$(go list -tags gms_pure_go ./... | grep -v '/internal/work$')"
+          - suite: work
+            cache: build  # what it compiles is a subset of build-vet-test's, which saves it
+            save: false
+            run: make go-test GO_PKGS=./internal/work
+          - suite: race
+            cache: race
+            save: true
+            run: make go-test-race
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    timeout-minutes: 15
+    env:
+      GOFLAGS: -count=1
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # the release-build test clones it
       - uses: actions/setup-go@v5
+        id: go
         with:
           go-version-file: go.mod
-          cache-dependency-path: go.sum
-      - uses: astral-sh/setup-uv@v6
-      - name: Build, vet and Go tests (make test-go)
-        run: make test-go
-      - name: The release build takes its version from the tag alone (release/build.sh, twice, in a scratch clone)
-        run: PM_RELEASE_BUILD=1 uv run --quiet python -m pytest -q -p no:cacheprovider tests/test_release.py
+          cache: false
+      - name: The Go cache paths
+        id: paths
+        run: |
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+      - name: Restore main's latest Go cache
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ steps.paths.outputs.mod }}
+            ${{ steps.paths.outputs.build }}
+          key: go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-${{ matrix.cache }}-${{ github.sha }}
+          restore-keys: go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-${{ matrix.cache }}-
+      - name: ${{ matrix.suite }}
+        run: ${{ matrix.run }}
       - name: Record the binary
+        if: matrix.suite == 'build-vet-test'
         run: |
           go version -m .go/pm | grep -E 'CGO_ENABLED=1|GOOS|GOARCH'
           size=$(wc -c < .go/pm | tr -d ' ')
           echo "Go pm ${{ matrix.target }}: $size bytes, stripped (-s -w), cgo" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Save the Go cache
+        if: matrix.save && (github.ref == 'refs/heads/main' || steps.restore.outputs.cache-matched-key == '')
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ steps.paths.outputs.mod }}
+            ${{ steps.paths.outputs.build }}
+          key: ${{ steps.restore.outputs.cache-primary-key }}
