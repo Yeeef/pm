@@ -17,11 +17,10 @@ import (
 	"github.com/Yeeef/pm/internal/work"
 )
 
-// The work-store commands with no Python counterpart: the work-store page's Commands table, "For agents" (task
-// ready, edit and release, dep add and rm, comment add, need dismiss, reply add, sync, and two forms of commands Python
-// has: pm show ID and pm task add --parent TASK). Each connects to the pm service that holds the store once, and
-// disconnects at exit.
-// Like pm export they stay out of the command tree in commands.go, which pm --help and pm prime's noun list read.
+// The work-store commands: task ready, edit and release, dep add and rm, comment add, need dismiss, reply add and sync,
+// leaves of the command tree in commands.go, and two forms of tree commands, pm show ID and pm task add --parent TASK.
+// Each parses its own arguments with pflag and prints its own help, connects to the pm service that holds the store
+// once, and disconnects at exit.
 
 // storeCommand is one of them.
 type storeCommand struct {
@@ -44,73 +43,9 @@ type storeCall struct {
 	stdout  io.Writer
 }
 
-var storeCommands = map[string]storeCommand{
-	"task ready": {
-		usage: "task ready [--sprint ID] [--json]",
-		about: "The tasks an agent can claim now: open, under open ancestors, held by no live session, with no open " +
-			"blocker of their own or an ancestor's. By sprint number, then id; tasks directly under a project last. A " +
-			"task whose holder is not live is ready and marked a stale holder; pm task claim takes it over.",
-		flags: func(fs *pflag.FlagSet) {
-			fs.String("sprint", "", "only the tasks under this sprint")
-			fs.Bool("json", false, "the ready tasks as a JSON array of items")
-		},
-		run: taskReady,
-	},
-	"task edit": {
-		usage: "task edit ID [--title TITLE] [--text TEXT | --text-file FILE]",
-		about: "Set a task's title, its description (the body: --text, or --text-file - <<'EOF' … EOF), or both. A " +
-			"scope change is still pm task move or a sprint decision.",
-		flags: func(fs *pflag.FlagSet) {
-			fs.String("title", "", "the new title")
-			textFlags(fs, "the new description")
-		},
-		args: 1,
-		run:  taskEdit,
-	},
-	"task release": {
-		usage: "task release ID",
-		about: "Clear the holder of a task this session ($CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) holds.",
-		args:  1,
-		run:   taskRelease,
-	},
-	"dep add": {
-		usage: "dep add ID --on BLOCKER",
-		about: "BLOCKER blocks ID: ID, and every task under it, waits until BLOCKER closes. Refuses a blocker that " +
-			"does not exist and a cycle over blocked_by, ancestors included.",
-		flags: onFlag,
-		args:  1,
-		run:   func(c *storeCall) error { return dep(c, true) },
-	},
-	"dep rm": {
-		usage: "dep rm ID --on BLOCKER",
-		about: "BLOCKER no longer blocks ID.",
-		flags: onFlag,
-		args:  1,
-		run:   func(c *storeCall) error { return dep(c, false) },
-	},
-	"comment add": {
-		usage: "comment add ID (--text TEXT | --text-file FILE)",
-		about: "Add a note to an item: --text, or --text-file - <<'EOF' … EOF. Its author is this session, or owner " +
-			"when no session runs the command.",
-		flags: func(fs *pflag.FlagSet) { textFlags(fs, "the note") },
-		args:  1,
-		run:   commentAdd,
-	},
-	"need dismiss": {
-		usage: "need dismiss ID --reason REASON",
-		about: "Close an open need as dismissed, for a [TEST] need or a replaced review.",
-		flags: func(fs *pflag.FlagSet) { fs.String("reason", "", "why it is dismissed (required)") },
-		args:  1,
-		run:   needDismiss,
-	},
-	"reply add": {
-		usage: "reply add ID (--text TEXT | --text-file FILE)",
-		about: "The owner's answer to an open need, at a shell: a reply, as a reply on the site writes. The need " +
-			"stays open; the session that raised it reads the reply and records it, which closes the need.",
-		flags: func(fs *pflag.FlagSet) { textFlags(fs, "the answer") },
-		args:  1,
-		run:   replyAdd,
-	},
+// storeForms are the two forms of tree commands that are work-store commands: pm show with an item id, and pm task
+// add with --parent. Their tree command's help names them.
+var storeForms = map[string]*storeCommand{
 	"show ID": {
 		usage: "show ID [--json]",
 		about: "One item, any type: its fields, holder and whether that session is live, blockers, children, needs " +
@@ -130,14 +65,27 @@ var storeCommands = map[string]storeCommand{
 		},
 		run: subTaskAdd,
 	},
-	"sync": {
-		usage: "sync",
-		about: "Sync the work store with the repo's remote now: the pm service pulls, resolves conflicts by the merge " +
-			"rules and pushes, as it does every 10 minutes. A conflict no rule settles fails, names the item and field, " +
-			"and leaves the store as it was.",
-		run: syncNow,
-	},
 }
+
+// storeCommands is every work-store command by name: the tree's leaves that are one, by path, and the forms.
+var storeCommands = func() map[string]*storeCommand {
+	out := map[string]*storeCommand{}
+	for name, sc := range storeForms {
+		out[name] = sc
+	}
+	var walk func(c *command)
+	walk = func(c *command) {
+		if c.store != nil {
+			out[c.path()] = c.store
+		}
+		for _, s := range c.subs {
+			s.parent = c
+			walk(s)
+		}
+	}
+	walk(tree)
+	return out
+}()
 
 func onFlag(fs *pflag.FlagSet) { fs.String("on", "", "the blocker (required)") }
 
@@ -146,9 +94,9 @@ func textFlags(fs *pflag.FlagSet, what string) {
 	fs.String("text-file", "", what+", from a file; - reads stdin, from a pipe or heredoc only")
 }
 
-// storeCommandOf is the store command argv names, and its arguments after the name. pm show with an id first and pm
-// task add with --parent are store commands; any other pm show or pm task add is the argparse tree's.
-func storeCommandOf(argv []string) (string, []string, bool) {
+// storeFormOf is the form argv names, if any, and its arguments after the name: pm show with an id first, and pm task
+// add with --parent. Any other pm show or pm task add is the argparse tree's.
+func storeFormOf(argv []string) (string, []string, bool) {
 	if len(argv) >= 2 && argv[0] == "show" && !strings.HasPrefix(argv[1], "-") {
 		return "show ID", argv[1:], true
 	}
@@ -156,15 +104,6 @@ func storeCommandOf(argv []string) (string, []string, bool) {
 		for _, a := range argv[2:] {
 			if a == "--parent" || strings.HasPrefix(a, "--parent=") {
 				return "task add --parent", argv[2:], true
-			}
-		}
-		return "", nil, false
-	}
-	for _, n := range []int{2, 1} {
-		if len(argv) >= n {
-			name := strings.Join(argv[:n], " ")
-			if _, ok := storeCommands[name]; ok {
-				return name, argv[n:], true
 			}
 		}
 	}

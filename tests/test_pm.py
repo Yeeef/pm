@@ -361,6 +361,41 @@ def test_a_decision_recorded_for_a_no_decision_need_marks_it_answered(repo):
     assert repo.pm("check").returncode == 0
 
 
+def test_decision_close_without_an_answer_names_need_dismiss_for_a_moot_need(repo):
+    """A need the owner never answered has no answer for pm decision close; its refusal and its --help name pm need
+    dismiss, the close for a need that became moot."""
+    refused(repo, "decision", "close", "repo-demo.1.2", "--reason", "It became moot.",
+            match=r"the answer is empty; .*; a need that became moot before the owner answered closes with pm need "
+                  r"dismiss repo-demo\.1\.2 --reason")
+    assert "close it with pm need dismiss <id>" in repo.pm("decision", "close", "--help").stdout
+    res = repo.pm("need", "dismiss", "repo-demo.1.2", "--reason", "It became moot.")
+    assert res.returncode == 0, res.stderr
+    assert repo.items()["repo-demo.1.2"]["resolution"] == "dismissed"
+
+
+# ---------------------------------------------------------------- pm finding add
+
+
+def test_finding_add_takes_the_text_as_an_argument_with_text_or_with_text_file(repo):
+    """The finding is one argument, or the body as every body command takes it: --text or --text-file."""
+    for args, stdin in [(("It parses 9 of 10.",), None), (("--text=It parses 8 of 10.",), None),
+                        (("--text", "It parses 7 of 10."), None), (("--text-file", "-"), "It parses 6 of 10.\n")]:
+        res = repo.pm("finding", "add", "--sprint", "repo-demo.1", *args, stdin=stdin)
+        assert res.returncode == 0, res.stderr
+    findings = (repo.records / "sprints/demo-1.md").read_text().split("## Findings", 1)[1]
+    assert all(f"- It parses {n} of 10." in findings for n in (9, 8, 7, 6)) and "--text" not in findings
+
+
+def test_finding_add_refuses_a_text_that_starts_with_two_dashes_and_two_texts(repo):
+    """A misspelt option is not a finding: three agents stored a literal `--text=…` before pm finding add took
+    --text."""
+    refused(repo, "finding", "add", "--sprint", "repo-demo.1", "--txt=It parses 9 of 10.",
+            match=r"the finding text starts with --, an option pm finding add does not have: '--txt=It parses 9 of "
+                  r"10\.'; give the text as one quoted argument")
+    refused(repo, "finding", "add", "--sprint", "repo-demo.1", "It parses.", "--text=It parses too.",
+            match=r"give the finding as one argument or with --text or --text-file - <<'EOF', not both")
+
+
 # ---------------------------------------------------------------- pm task add
 
 
@@ -1369,6 +1404,15 @@ def test_task_claim_refuses_a_task_another_live_session_holds(repo):
     assert claim(repo, "repo-demo.1.2", "sess-a", cwd=wt).returncode == 0
 
 
+def test_task_claim_records_the_session_given_with_session_even_with_one_in_the_environment(repo):
+    repo.set_issue("repo-demo.1.2", labels=[])
+    res = claim(repo, "repo-demo.1.2", "sess-env", "--session", "sess-flag", cwd=repo.worktree("feature"))
+    assert res.returncode == 0, res.stderr
+    assert repo.items()["repo-demo.1.2"]["holder"]["session"] == "sess-flag"
+    assert "--session ID  the session to record; default: this session's id from the environment" in \
+        repo.pm("task", "claim", "--help").stdout
+
+
 # ---------------------------------------------------------------- pm push: what the service runs
 
 DAY2 = "---\ntype: day\ndate: 2026-10-02\n---\n\n## Today\n\n> What are we chasing today, and why now?\n\nMore.\n"
@@ -1527,3 +1571,18 @@ def test_every_store_command_fails_hard_with_the_service_stopped(repo):
     assert repo.snapshot() == before, "a command wrote with the service stopped"
     repo.start_service()
     assert repo.unchanged()
+
+
+# ---------------------------------------------------------------- pm --help
+
+
+def test_pm_help_lists_the_commands_that_ran_outside_the_command_tree():
+    """pm dep answered "invalid choice: 'dep'" and pm need dismiss was found only in the source: every command pm runs
+    is in pm --help and its noun's --help (internal/cli/commands_test.go walks them all)."""
+    def helped(*cmd):
+        res = subprocess.run([*PM, *cmd, "--help"], cwd="/", capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr
+        return re.search(r"\{([a-z,-]+)\} \.\.\.", res.stdout.split("\n\n", 1)[0]).group(1).split(",")
+    assert {"dep", "need", "comment", "sync", "export", "version"} <= set(helped())
+    assert helped("dep") == ["add", "rm"] and helped("need") == ["dismiss"] and "add" in helped("comment")
+    assert {"ready", "edit", "release"} <= set(helped("task")) and "add" in helped("reply")

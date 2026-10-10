@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
 )
@@ -62,6 +63,7 @@ type command struct {
 	subDest                         string
 	subs                            []*command
 	parent                          *command
+	store                           *storeCommand // a work-store command, which parses its own arguments
 }
 
 func (c *command) prog() string {
@@ -106,7 +108,7 @@ func Nouns() []string {
 	return out
 }
 
-// Leaves is every command that runs (40), as "task add".
+// Leaves is every command that runs, as "task add".
 func Leaves() []string {
 	var out []string
 	var walk func(c *command)
@@ -120,6 +122,20 @@ func Leaves() []string {
 	}
 	walk(tree)
 	return out
+}
+
+// given is the first of these dests' arguments that was given, or nil.
+func (p *Parsed) given(dests ...string) *arg {
+	for _, d := range dests {
+		if _, ok := p.values[d]; ok {
+			for i := range p.cmd.args {
+				if p.cmd.args[i].dest == d {
+					return &p.cmd.args[i]
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // pairSep joins the two values of a two-value option inside pflag, which holds one string per occurrence.
@@ -382,8 +398,8 @@ func (c *command) flagError(err error) error {
 	return &usageError{c, err.Error()}
 }
 
-// build makes the cobra command for c and its subcommands.
-func build(c *command, run runner, out io.Writer) *cobra.Command {
+// build makes the cobra command for c and its subcommands; runStore runs a work-store command.
+func build(c *command, run runner, runStore func(name string, args []string) error, out io.Writer) *cobra.Command {
 	cc := &cobra.Command{Use: c.name, Short: c.help, Long: c.description, SilenceErrors: true, SilenceUsage: true}
 	cc.SetHelpFunc(func(*cobra.Command, []string) { fmt.Fprint(out, c.helpText()) })
 	if c.subs != nil {
@@ -401,11 +417,15 @@ func build(c *command, run runner, out io.Writer) *cobra.Command {
 		}
 		for _, s := range c.subs {
 			s.parent = c
-			cc.AddCommand(build(s, run, out))
+			cc.AddCommand(build(s, run, runStore, out))
 		}
 		return cc
 	}
 	cc.DisableFlagParsing = true
+	if c.store != nil { // its own pflag parse and help (store_commands.go), after argv reached it through the tree
+		cc.RunE = func(_ *cobra.Command, args []string) error { return runStore(c.path(), args) }
+		return cc
+	}
 	fs := cc.Flags()
 	fs.SortFlags = false
 	for _, a := range c.args {
@@ -450,15 +470,16 @@ func (r *refusal) Error() string { return r.msg }
 
 // Execute runs pm with argv (without the program name) and returns the exit code.
 func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if ok, err := goOnly(argv, stdin, stdout); ok {
-		if err != nil {
+	if name, args, ok := storeFormOf(argv); ok {
+		if err := runStoreCommand(name, args, openStore, stdin, stdout); err != nil {
 			fmt.Fprintf(stderr, "error: %s\n", err)
 			return 1
 		}
 		return 0
 	}
 	run := func(p *Parsed) error { return dispatch(p, stdin, stdout, stderr) }
-	root := build(tree, run, stdout)
+	runStore := func(name string, args []string) error { return runStoreCommand(name, args, openStore, stdin, stdout) }
+	root := build(tree, run, runStore, stdout)
 	root.SetHelpCommand(&cobra.Command{Use: "no-help-command", Hidden: true})
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.SetArgs(argv)
@@ -491,7 +512,7 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return err
 	}
 	name := p.cmd.path()
-	check := name != "upgrade"
+	check := name != "upgrade" && name != "version" && name != "export" // pm export checks it, but not with --store
 	if name == "init" { // pm init writes a missing config
 		root, err := config.Root(here)
 		if err != nil {
@@ -536,7 +557,24 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		}
 		return cmdPush(cfg, here, stdout)
 	case "init":
+		if imp := p.given("import_bd", "import"); imp != nil { // the import alone, into the work store
+			if other := p.given("session_start", "site_url"); other != nil {
+				return &usageError{p.cmd, fmt.Sprintf("argument %s: not allowed with argument %s", imp.name(), other.name())}
+			}
+			if imp.dest == "import_bd" {
+				return cmdImportBD(p.Get("import_bd"), stdout)
+			}
+			return cmdImport(p.Get("import"), stdout)
+		}
 		return cmdInit(p, here, stdout)
+	case "version": // this build's version, outside any repo too; dev when untagged
+		_, err := fmt.Fprintln(stdout, buildinfo.Version)
+		return err
+	case "export":
+		if dir, ok := p.values["store"]; ok {
+			return exportStore(dir[0], stdout)
+		}
+		return cmdExport(stdout)
 	case "doctor":
 		return cmdDoctor(here, stdout)
 	case "upgrade":

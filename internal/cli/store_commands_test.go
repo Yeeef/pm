@@ -103,10 +103,15 @@ func (f *fixture) open() (*work.Dolt, error) {
 	return work.DialSock(work.Sock(f.main), f.main, work.Options{Prefix: "demo"})
 }
 
-// run runs pm <argv> with stdin, and gives its stdout and error.
+// run runs pm <argv> with stdin, as the tree routes it to its store command or a form, and gives its stdout and error.
 func (f *fixture) run(stdin string, argv ...string) (string, error) {
 	f.t.Helper()
-	name, args, ok := storeCommandOf(argv)
+	name, args, ok := storeFormOf(argv)
+	for n := min(2, len(argv)); !ok && n > 0; n-- {
+		if _, ok = storeCommands[strings.Join(argv[:n], " ")]; ok {
+			name, args = strings.Join(argv[:n], " "), argv[n:]
+		}
+	}
 	if !ok {
 		f.t.Fatalf("%v is no store command", argv)
 	}
@@ -384,7 +389,7 @@ func TestShowIDPrintsTheItemItsHolderBlockersChildrenNeedsAndComments(t *testing
 		t.Fatalf("--json: %v %+v", err, got)
 	}
 	f.refuses("no item demo-nope in the work store", "show", "demo-nope")
-	if _, _, ok := storeCommandOf([]string{"show", "--sprint", f.s1.ID}); ok {
+	if _, _, ok := storeFormOf([]string{"show", "--sprint", f.s1.ID}); ok {
 		t.Error("pm show --sprint is the argparse tree's")
 	}
 }
@@ -402,7 +407,7 @@ func TestTaskAddParentAddsASubTaskUnderAnOpenTask(t *testing.T) {
 	f.refuses("is a sprint, not a task", "task", "add", "--parent", f.s1.ID, "--title", "x")
 	f.refuses("task "+f.closed.ID+" is closed", "task", "add", "--parent", f.closed.ID, "--title", "x")
 	f.refuses("--title is required", "task", "add", "--parent", f.t1.ID)
-	if _, _, ok := storeCommandOf([]string{"task", "add", "--sprint", f.s1.ID, "--title", "x"}); ok {
+	if _, _, ok := storeFormOf([]string{"task", "add", "--sprint", f.s1.ID, "--title", "x"}); ok {
 		t.Error("pm task add --sprint is the argparse tree's")
 	}
 }
