@@ -65,6 +65,13 @@ only.
   uncommitted changes or commits never pushed, the main checkout, the records store and the worktree it runs in.
   It removes with `git worktree remove` (never `--force`) and deletes a branch only once it is merged.
 
+### Added
+
+- The site serves image files (`.svg`, `.png`, `.jpg`, `.jpeg`, `.webp`) kept in the records store, next to the
+  record's page, so a record shows a figure with `![…](fig.png)` instead of a base64 data URI. Paths that leave the
+  store (`..`, a symlink out of it) or name a dot file get 404. `pm check` and `pm commit` take such files beside a
+  record, and the stylesheet keeps images, figures and captions inside the column.
+
 ### Changed
 
 - `pm doctor` names each piece an earlier pm wrote for the copy (the two workflows, the `pre-commit` section, the
@@ -79,6 +86,10 @@ only.
 - The site's overview links the feedback doc under Feedback.
 
 ### Fixed
+
+- Mermaid diagrams keep their natural width and scroll sideways, so a wide flowchart stays legible on a phone instead
+  of shrinking its text to a few pixels; they are drawn again when the colour scheme changes; and the pages load one
+  exact Mermaid release (11.17.2), from a second CDN when the first fails, instead of whatever `mermaid@11` is today.
 
 - `pm init --help` now says what `--session-start` does with the service: it starts an installed service that does
   not answer, as session start has done since 0.3.0, so a session in a clone always brings its service up.

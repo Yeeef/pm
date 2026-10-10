@@ -57,8 +57,29 @@
 
 </div>
 <script type="module">
-import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "default" });
+const at = ["https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.esm.min.mjs",
+  "https://unpkg.com/mermaid@11.17.2/dist/mermaid.esm.min.mjs"];
+let mermaid;
+try { mermaid = (await import(at[0])).default; } catch { mermaid = (await import(at[1])).default; }
+const nodes = [...document.querySelectorAll("pre.mermaid")];
+const sources = nodes.map(n => n.textContent);
+const scheme = matchMedia("(prefers-color-scheme: dark)");
+// Every diagram type that Mermaid's defaults give a useMaxWidth draws at natural width.
+const types = Object.entries(mermaid.mermaidAPI.defaultConfig).filter(([, v]) => v && typeof v === "object" && "useMaxWidth" in v);
+const wide = Object.fromEntries(types.map(([k]) => [k, { useMaxWidth: false }]));
+let shown, queue = Promise.resolve();
+async function draw() {
+  const set = document.documentElement.dataset.theme;
+  const theme = (set ? set === "dark" : scheme.matches) ? "dark" : "default";
+  if (theme === shown) return;
+  shown = theme;
+  nodes.forEach((n, i) => { n.removeAttribute("data-processed"); n.textContent = sources[i]; });
+  mermaid.initialize({ startOnLoad: false, theme, ...wide });
+  await mermaid.run({ nodes });
+}
+const redraw = () => { queue = queue.then(draw).catch(console.error); }; // one failed draw does not stop the next
+scheme.addEventListener("change", redraw);
+new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+redraw();
 </script>
 </body></html>

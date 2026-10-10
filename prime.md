@@ -65,7 +65,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - Put facts in tables: dimensions, parameters, results. Write formulas out.
 - Give only numbers that evidence backs, and state their scope.
 - A date or a fact that the records do not have is "not recorded". Do not guess it.
-- Draw real diagrams (Mermaid, or inline SVG), never ASCII art.
+- Draw real diagrams (Mermaid, SVG), never ASCII art. A figure is an image file beside its record: `![…](fig.png)`.
 - Use one term for each concept, and define it once. Use plain table headers.
 - Keep task ids and digests out of the prose. Give the page link, not a file path.
 - Prefer to use bullet points rather than a long paragraph.

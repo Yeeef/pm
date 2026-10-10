@@ -297,6 +297,73 @@ func TestServesPagesStyleAndVersionWithTheStoreAndVersionHeaders(t *testing.T) {
 	}
 }
 
+// raw sends path as the request line holds it, so no client cleans a .. out first; it returns the status and the
+// Content-Type.
+func (s *served) raw(path string) (int, string) {
+	s.t.Helper()
+	conn, err := net.Dial("tcp", strings.TrimPrefix(s.base, "http://"))
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := conn.Write([]byte("GET " + path + " HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")); err != nil {
+		s.t.Fatal(err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode, resp.Header.Get("Content-Type")
+}
+
+func TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt(t *testing.T) {
+	s := serve(t, newFakeWork(), "")
+	recs := store(s.main)
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>`
+	files := map[string]string{"docs/x.svg": svg, "docs/fig.png": "\x89PNG\r\n", "docs/a.jpg": "jpg", "docs/b.webp": "webp",
+		"docs/notes.txt": "text", ".git/x.svg": svg, ".hidden.svg": svg}
+	for rel, body := range files {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(recs, rel)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(recs, rel), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	secret := filepath.Join(filepath.Dir(recs), "secret.svg") // beside the store, so ../secret.svg would reach it
+	if err := os.WriteFile(secret, []byte(svg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for link, target := range map[string]string{"docs/out.svg": "../../secret.svg", "docs/abs.svg": secret, "docs/in.svg": "x.svg",
+		"docs/leak.svg": "../.hidden.svg", "docs/git.svg": "../.git/x.svg"} {
+		if err := os.Symlink(target, filepath.Join(recs, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resp, body := s.get("/docs/x.svg")
+	if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "image/svg+xml" || body != svg ||
+		resp.Header.Get("X-Content-Type-Options") != "nosniff" || !strings.Contains(resp.Header.Get("Content-Security-Policy"), "sandbox") {
+		t.Fatalf("GET /docs/x.svg: %d %v %q", resp.StatusCode, resp.Header, body)
+	}
+	for path, want := range map[string]string{"/docs/fig.png": "image/png", "/docs/a.jpg": "image/jpeg",
+		"/docs/b.webp": "image/webp", "/docs/in.svg": "image/svg+xml"} {
+		if code, ctype := s.raw(path); code != 200 || ctype != want {
+			t.Errorf("GET %s: %d %s, want 200 %s", path, code, ctype, want)
+		}
+	}
+	for _, path := range []string{"/docs/missing.svg", "/../secret.svg", "/docs/../../secret.svg",
+		"/docs/%2e%2e/%2e%2e/secret.svg", "/%2e%2e/secret.svg", "//" + strings.TrimPrefix(secret, "/"), "/docs/out.svg",
+		"/docs/abs.svg", "/.git/x.svg", "/docs/./x.svg", "/docs", "/docs/leak.svg", "/docs/git.svg"} {
+		if code, _ := s.raw(path); code != 404 {
+			t.Errorf("GET %s: %d, want 404", path, code)
+		}
+	}
+	if code, ctype := s.raw("/docs/notes.txt"); code != 404 || !strings.HasPrefix(ctype, "text/html") {
+		t.Errorf("GET /docs/notes.txt: %d %s, want the 404 page: only image files are served", code, ctype)
+	}
+}
+
 func (s *served) postTo(path string) (int, string, string) {
 	resp, err := http.Post(s.base+path, "text/plain", strings.NewReader("x"))
 	if err != nil {

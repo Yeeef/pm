@@ -624,6 +624,29 @@ def test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that
     refused(repo, "commit", "-m", "Nothing", "records/sprints/demo-1.md", match=r"error: nothing to commit in .*\.pm/store/records")
 
 
+def test_pm_check_and_commit_take_image_files_beside_a_record(repo):
+    """A figure kept next to its doc is checked with the records and committed byte for byte."""
+    docs = repo.store / "docs"
+    docs.mkdir()
+    svg, png = b'<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', bytes(range(256))
+    (docs / "fig.svg").write_bytes(svg)
+    (docs / "plot.png").write_bytes(png)
+    (docs / "2026-10-07-figures.md").write_text("---\ntype: doc\ntitle: Figures\ndate: 2026-10-07\nproject: demo\n---\n\n"
+                                               "![Stages](fig.svg)\n\n<figure><img src=\"plot.png\" alt=\"Plot\">"
+                                               "<figcaption>A plot.</figcaption></figure>\n")
+    res = repo.pm("check")
+    assert res.returncode == 0, res.stderr
+    res = repo.pm("commit", "-m", "Add the figures", "records/docs/2026-10-07-figures.md", "records/docs/fig.svg",
+                  "records/docs/plot.png")
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, ["Add the figures"])
+    assert repo.git("show", "--name-only", "--format=", "HEAD", cwd=repo.store).split() == [
+        "docs/2026-10-07-figures.md", "docs/fig.svg", "docs/plot.png"]
+    for name, data in (("fig.svg", svg), ("plot.png", png)):
+        shown = subprocess.run(["git", "show", f"HEAD:docs/{name}"], cwd=repo.store, capture_output=True, check=True)
+        assert shown.stdout == data
+
+
 def test_commit_commits_only_its_callers_records_beside_another_sessions_edit(repo):
     """Two sessions share the store: A has an edit in progress, B commits its own. B's commit holds B's file only,
     and pm commit with no path lists both instead of sweeping A's edit in."""
