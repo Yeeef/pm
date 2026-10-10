@@ -49,7 +49,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+The repo-level feedback doc is a doc record at the fixed path records/docs/pm-feedback.md: type doc, title "pm feedback", date of first use, and neither bead nor project in its header; the record checks exempt exactly that path from the date-in-name and project rules, and fail any other doc titled "pm feedback", so a repo holds at most one feedback doc.
+A fixed path makes a second doc impossible for pm to write, and the title check catches the per-project docs earlier releases wrote; it adds no record type, and the doc still shows on its first-use day page like any doc. Not chosen: a new record type (more code and site handling for one file), or a dated name (a second dated file could not be told from a successor).
+:::
 
 ## Findings
 
