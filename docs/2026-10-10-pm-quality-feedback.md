@@ -25,3 +25,9 @@ What would have helped: one `pm sprint move <sprint> --to <project>` that moves 
 
 Moving a repo's pin (0.3.0 to 0.4.0, PR #14) while ten agent worktrees were mid-sprint: once the main checkout pulls the new pin and the service restarts, every worktree still on the old pin gets each pm command refused by the version handshake, until it rebases onto main. With uncommitted work, that means a WIP commit or a stash first, in every worktree.
 What would have helped: `pm upgrade`'s output, or the release's upgrade guide, naming this (rebase each open worktree after the pin move), and `pm where` in a worktree on another pin saying so before the restart rather than after.
+
+### 2026-10-10 13:31 UTC, session `ffa2f713-c138-5cf7-8379-c247d20c2e2a`
+
+About sprint `pm-d2k5.1`.
+
+pm finding add --sprint pm-d2k5.1 --text="…" wrote the finding with a leading "--text=" as part of its text: finding add takes the text as a positional argument, and an unknown --text=… was taken as that positional instead of being refused. Every other body command takes --text, so the brief's form looked right. What would have helped: finding add accepting --text/--text-file like the other body commands, or refusing an argument that starts with "--".
