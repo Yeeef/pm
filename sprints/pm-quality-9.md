@@ -58,7 +58,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+`pm need edit` takes an action's body with `--text`/`--text-file`, and a decision need's parts with the flags `pm decision need` takes (`--question`, `--fact`, `--option`, `--cost`, `--default`), not a free `--text-file` body.
+A decision need has one checked layout (question, facts, options with costs, default, 25-word sentences); a free body would bypass those checks, so the edit rebuilds it through the same code.
+:::
 
 ## Findings
 
