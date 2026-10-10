@@ -310,6 +310,34 @@ func TestDriftNamesWhatDiffersFromWhatPmInitInstalls(t *testing.T) {
 	}
 }
 
+// A service on the main checkout's pin, seen from a checkout that pins another pm (a branch from before the pin move):
+// the service is not stale, so neither pm where's line nor pm doctor's service drift says to restart it; the line
+// names this checkout's pin and its fix, and pm doctor's work store line does (work.CheckVersion).
+func TestAServiceOnMainsPinIsNotStaleFromACheckoutOffIt(t *testing.T) {
+	m := newMachine(t, Systemd)
+	m.install(8123)
+	if out, err := exec.Command("git", "init", "-q", m.main).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	os.MkdirAll(filepath.Join(m.main, ".pm"), 0o755)
+	os.WriteFile(filepath.Join(m.main, ".pm/config.toml"), []byte("version = \"9.9.9\"\nremote = \"origin\"\n"+
+		"main_branch = \"main\"\nport = 8123\n"), 0o644)
+	m.build = "9.9.9"
+	ok, line := Health(m.main)
+	if ok || !strings.Contains(line, "  running pm 9.9.9, the main checkout's pin, and the site answers on :8123; pm "+
+		"refuses this checkout's work-store commands: this checkout pins pm "+Version()+", but the clone's pm service runs pm 9.9.9, which "+
+		filepath.Join(m.main, ".pm/config.toml")+" pins: ") {
+		t.Fatal(line)
+	}
+	if d := Drift(m.main, 8123); len(d) != 0 {
+		t.Fatal(d)
+	}
+	m.build = "0.0.1" // a service on neither pin is stale
+	if ok, line := Health(m.main); ok || !strings.Contains(line, "stale: it runs pm 0.0.1, not pm "+Version()) {
+		t.Fatal(line)
+	}
+}
+
 // The end to end: under the fake supervisor (tests/fake_sched.py), which starts the unit's command as launchd or
 // systemd would, the unit runs this test binary as a pm service with the fake site and store (TestMain).
 func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {

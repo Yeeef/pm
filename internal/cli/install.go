@@ -254,8 +254,8 @@ func cmdInit(p *Parsed, here string, stdout io.Writer) error {
 				"none (%s); run pm init there, or check out a branch there that pins pm %s", main, err, buildinfo.Version)
 		} else {
 			pin = mc.Version
-			why = fmt.Sprintf("the main checkout %s pins pm %s, and the pm service and the installed pm follow it; run "+
-				"pm init with pm %s, or move main's pin with pm upgrade there first", main, pin, pin)
+			why = fmt.Sprintf("the main checkout %s pins pm %s, and the pm service and the installed pm follow it, but "+
+				"this checkout pins pm %s: %s", main, pin, buildinfo.Version, work.PinFix(buildinfo.Version, mc))
 		}
 		if pin != buildinfo.Version {
 			c, err := config.Load(here)
@@ -583,11 +583,17 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	stranded, err := strandedWorktrees(top, main, records, c.MainBranch)
+	if err != nil {
+		return err
+	}
 	if len(written) == 0 && !tracks {
 		if hooksPath != "" {
 			fmt.Fprintln(stdout, hooksPath)
 		}
-		_, err := fmt.Fprintf(stdout, "pm %s: every managed piece is current; nothing to commit\n", buildinfo.Version)
+		lines := append([]string{fmt.Sprintf("pm %s: every managed piece is current; nothing to commit",
+			buildinfo.Version)}, stranded...)
+		_, err := fmt.Fprintln(stdout, strings.Join(lines, "\n"))
 		return err
 	}
 	branch, err := install.Git(top, "rev-parse", "--abbrev-ref", "HEAD")
@@ -612,8 +618,50 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	}
 	lines = append(lines, fmt.Sprintf("pm commits nothing on %s; commit pm's files there: %s && git commit -m \"Upgrade "+
 		"pm to %s\"", branch, strings.Join(steps, " && "), buildinfo.Version))
-	_, err = fmt.Fprintln(stdout, strings.Join(lines, "\n"))
+	_, err = fmt.Fprintln(stdout, strings.Join(append(lines, stranded...), "\n"))
 	return err
+}
+
+// strandedWorktrees is pm upgrade's lines on the clone's other worktrees whose branch pins another pm than this one:
+// once the main checkout pins this pm, its pm service runs it, and the version handshake refuses every pm command there
+// that reaches the work store. The main checkout, whose pin the service follows, and the records store are not listed;
+// nor is a worktree whose branch has no readable pin, where pm refuses every command already.
+func strandedWorktrees(top, main, records, mainBranch string) ([]string, error) {
+	trees, err := install.Worktrees(main)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, t := range trees {
+		if r := resolvedPath(t); r == resolvedPath(top) || r == resolvedPath(main) || r == resolvedPath(records) {
+			continue
+		}
+		c, err := config.Read(t)
+		if err != nil || c.Version == buildinfo.Version {
+			continue
+		}
+		branch, err := install.Git(t, "rev-parse", "--abbrev-ref", "HEAD")
+		if err != nil {
+			return nil, err
+		}
+		if branch == "HEAD" {
+			branch = "detached"
+		} else {
+			branch = "branch " + branch
+		}
+		out = append(out, fmt.Sprintf("  %s  %s pins pm %s: merge or rebase it onto the pin move", t, branch,
+			c.Version))
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	when := fmt.Sprintf("once the pin move to pm %s is on %s and the main checkout pulls it, the pm service runs it",
+		buildinfo.Version, mainBranch)
+	if mc, err := config.Read(main); err == nil && mc.Version == buildinfo.Version {
+		when = fmt.Sprintf("the main checkout pins pm %s, so the pm service runs it", buildinfo.Version)
+	}
+	head := when + ", and pm refuses every work-store command in these worktrees, whose branches pin another pm:"
+	return append([]string{head}, out...), nil
 }
 
 // cmdUninstall is pm uninstall: pm's pieces out of this worktree and pm's setup out of the clone and the machine; the

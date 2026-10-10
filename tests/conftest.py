@@ -22,15 +22,19 @@ POPEN = subprocess.Popen
 
 # This checkout: pm's repo.
 CHECKOUT = Path(__file__).resolve().parents[1]
-# The pm the tests run, and the page renderer Repo.pages runs: both built by `make go-build`, with one version stamped.
+# The pm the tests run, and the page renderer Repo.pages runs: both built by `make go-build`, with one version stamped;
+# and pm-before, the same pm stamped with an older version, which a branch from before a pin move runs.
 BIN = CHECKOUT / ".go"
-for _b in ("pm", "render-pages"):
+for _b in ("pm", "render-pages", "pm-before"):
     if not os.access(BIN / _b, os.X_OK):
         raise RuntimeError(f"{BIN / _b} is not an executable: build it with make go-build (make test does)")
 PM = [str(BIN / "pm")]
 RENDER_PAGES = BIN / "render-pages"
 # The version the build reports, which every test repo pins.
 VERSION = subprocess.run([*PM, "version"], cwd="/", check=True, capture_output=True, text=True).stdout.strip()
+PM_BEFORE = [str(BIN / "pm-before")]
+VERSION_BEFORE = subprocess.run([*PM_BEFORE, "version"], cwd="/", check=True, capture_output=True,
+                                text=True).stdout.strip()
 SUBAGENT_RULE = ("Git: commit and push are routine for agents unless your brief says otherwise; only the PR review and "
                  "the merge wait on the owner.")
 FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"

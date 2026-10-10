@@ -20,6 +20,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/launch"
 )
 
 // Dolt is the work store as a pm command reaches it: a SQL client of the pm service's socket, with one connection
@@ -96,22 +97,45 @@ func DialSetup(main string) (*Dolt, error) {
 	}})
 }
 
-// CheckVersion refuses a service whose version differs from the command's, naming the fix: a stale service when the
-// main checkout pins the command's version, else a checkout that pins another version than the main checkout.
+// CheckVersion refuses a service whose version differs from the command's, naming the fix. The service follows the
+// main checkout's pin: when that pin is the command's, the service is stale; otherwise this checkout pins another
+// version than the main checkout, and PinFix says how its branch gets to the main checkout's pin.
 func CheckVersion(service, command, main string) error {
 	if service == command {
 		return nil
 	}
 	path := filepath.Join(main, config.Rel)
-	pin := ""
-	if c, err := config.Read(main); err == nil {
-		pin = c.Version
-	}
-	if pin == command {
+	mc, err := config.Read(main)
+	switch {
+	case err != nil:
+		return fmt.Errorf("this checkout pins pm %s, but the clone's pm service runs pm %s, and the main checkout's pin "+
+			"cannot be read (%v): run it from a checkout that pins pm %s", command, service, err, service)
+	case mc.Version == command:
 		return fmt.Errorf("the pm service runs pm %s, not pm %s: run pm service restart", service, command)
+	case mc.Version == service:
+		return fmt.Errorf("this checkout pins pm %s, but the clone's pm service runs pm %s, which %s pins: %s", command,
+			service, path, PinFix(command, mc))
 	}
-	return fmt.Errorf("this checkout pins pm %s, but the clone's pm service runs pm %s, which %s pins: run it from a "+
-		"checkout that pins pm %s", command, service, path, service)
+	return fmt.Errorf("this checkout pins pm %s, but the clone's pm service runs pm %s and %s pins pm %s: run pm "+
+		"service restart in the main checkout %s, then %s", command, service, path, mc.Version, main,
+		PinFix(command, mc))
+}
+
+// PinFix is how a branch that pins pm here gets to main's pin, the one the main checkout's pm service follows: a
+// branch from before a pin move merges or rebases onto it; the branch that moves the pin ahead of main waits for the
+// move to reach the main checkout.
+func PinFix(here string, main config.Config) string {
+	switch {
+	case launch.Newer(main.Version, here):
+		return fmt.Sprintf("this branch is from before %s moved the pin to pm %s; merge or rebase it onto that pin "+
+			"move (git rebase %s/%s), then pm runs pm %s here", main.MainBranch, main.Version, main.Remote,
+			main.MainBranch, main.Version)
+	case launch.Newer(here, main.Version):
+		return fmt.Sprintf("this branch moves the pin ahead of the main checkout; until the move is merged and the "+
+			"main checkout pulls it, run pm from a checkout that pins pm %s", main.Version)
+	}
+	return fmt.Sprintf("merge or rebase this branch onto %s/%s, or run pm from a checkout that pins pm %s",
+		main.Remote, main.MainBranch, main.Version)
 }
 
 // ErrNoService is a socket nothing answers on: the clone's pm service is down.
