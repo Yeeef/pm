@@ -20,3 +20,8 @@ About sprint `pm-bfli.1`.
 
 Moving pm-harness sprint 92 to the new pm-site project took six steps: `pm sprint open` with the frame copied out of the old record by hand, `pm task move` per task, `pm decision add` to carry each decision, a hand-written voided delivery report, `pm commit`, `pm sprint close`. The first `pm sprint open` timed out when the service restarted mid-move, leaving the move half done until checked by hand.
 What would have helped: one `pm sprint move <sprint> --to <project>` that moves the frame, tasks, decisions and findings and leaves the old id pointing at the new one.
+
+### 2026-10-10 13:25 UTC, session `ffa2f713-c138-5cf7-8379-c247d20c2e2a`
+
+Moving a repo's pin (0.3.0 to 0.4.0, PR #14) while ten agent worktrees were mid-sprint: once the main checkout pulls the new pin and the service restarts, every worktree still on the old pin gets each pm command refused by the version handshake, until it rebases onto main. With uncommitted work, that means a WIP commit or a stash first, in every worktree.
+What would have helped: `pm upgrade`'s output, or the release's upgrade guide, naming this (rebase each open worktree after the pin move), and `pm where` in a worktree on another pin saying so before the restart rather than after.
