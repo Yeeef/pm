@@ -1,6 +1,6 @@
-# CHANGELOG.md on every pull request (AGENTS.md, Releasing pm): it passes release/changelog.py check, and a change to
-# what a release ships (changelog.py's SHIPPED paths) also changes the [Unreleased] section, unless the PR has the
-# no-changelog label. Adding or removing the label runs it again.
+# CHANGELOG.md and the entry files in changelog.d/ on every pull request (AGENTS.md, Releasing pm): they pass
+# release/changelog.py check, and a change to what a release ships (changelog.py's SHIPPED paths) also adds or changes
+# an entry file, unless the PR has the no-changelog label. Adding or removing the label runs it again.
 name: pm changelog
 
 on:
@@ -24,8 +24,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # the PR check diffs against the merge base
-      - name: CHANGELOG.md's format (changelog.py check)
+      - name: CHANGELOG.md's and changelog.d/'s format (changelog.py check)
         run: python3 release/changelog.py check
-      - name: A change that ships has an [Unreleased] entry (changelog.py pr), or the no-changelog label
+      - name: A change that ships has an entry file (changelog.py pr), or the no-changelog label
         if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-changelog')
         run: python3 release/changelog.py pr "${{ github.event.pull_request.base.sha }}"

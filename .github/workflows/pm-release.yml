@@ -3,8 +3,8 @@
 # release target is built natively (cgo needs it) by release/build.sh, which stamps X into the binary; then one GitHub
 # release pm-v<X> gets both tarballs, SHA256SUMS and install.sh with X filled in, marked a pre-release when X has a "-"
 # suffix (pm-v0.3.0-rc.1). Its notes are X's section of CHANGELOG.md at the tagged commit (a pre-release's: X's
-# section, else [Unreleased]), which opens with its upgrade guide: release/changelog.py notes. A tag whose changelog has
-# no such section fails before any build. pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
+# section, else the one the entry files in changelog.d/ give), which opens with its upgrade guide: release/changelog.py
+# notes. A tag whose changelog has no such section fails before any build. pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
 name: pm release
 
 on:

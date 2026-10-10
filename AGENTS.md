@@ -27,7 +27,7 @@ pm is one Go module (`go.mod`); the pytest suite in `tests/` is its black-box ha
 | `internal/config`, `buildinfo`, `proc`, `pyjson` | `.pm/config.toml` (every command fails hard without it or on another pinned version); the build's version; subprocess runs; JSON written as pm has always written it |
 | `release/build.sh`, `install.sh` | The release build: `build.sh OUT_DIR [pm-v<X>]` builds this machine's binary with `X` from the tag (else the `pm-v*` tag on HEAD, else `dev`) and packs `pm-<X>-<os>-<arch>.tar.gz`; `.github/workflows/pm-release.yml` runs it (Releasing pm). `install.sh`, a release asset with `@VERSION@` filled in, installs that release's binary to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` after checking it against `SHA256SUMS`, downloading as the launcher does (with curl or wget; the token path needs curl); `tests/test_release.py` runs both |
 | `tests/` | The harness: the pytest suite, its fakes and the live eval (below); `tests/render-pages` prints every page as the service renders it, for the harness's page tests. `pyproject.toml` and `uv.lock` are its environment |
-| `CHANGELOG.md`, `release/changelog.py` | Releases' notes, and their checker: `check`, `notes X`, `pr BASE` (Releasing pm) |
+| `CHANGELOG.md`, `changelog.d/`, `release/changelog.py` | Released sections' notes, the unreleased changes' entry files, and their tool: `check`, `notes X`, `pr BASE`, `release X` (Releasing pm) |
 | `.github/workflows/` | CI (`pm-tests.yml`: the harness; `pm-go.yml`: the Go build and tests; `pm-changelog.yml`) on every PR and push to main, the release build test (`pm-release-build.yml`) when a change can alter the release build and on a `pm-v*` tag, the release (`pm-release.yml`) on a `pm-v*` tag, and a release's notes re-rendered by hand (`pm-release-notes.yml`). No branch tracks `records/`: records live only on the `records` branch |
 
 pm tracks its own development here, with the release that `.pm/config.toml` pins: the work store (the remote's
@@ -128,18 +128,25 @@ workflow:
   release (install it, `pm upgrade --to X`, then whatever else, such as `pm service restart` in each clone); a
   breaking change says what breaks and why, and points at its step. A PR that changes what a release ships
   (`SHIPPED` in `release/changelog.py`: Go sources but tests, embedded files, `go.mod`, `install.sh`,
-  `release/build.sh`) adds an entry under `## [Unreleased]`; when users would not notice it, label the PR
-  `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
-- To release `X` (SemVer from `[Unreleased]`: a breaking change bumps the minor while pm is 0.x, an addition the
-  minor too, else the patch), rename `## [Unreleased]` to `## [X] - <date>` in a PR, add the summary paragraph and
-  the upgrade guide, an empty `## [Unreleased]` above and the link references, merge it, then tag the merge. A tag
-  whose changelog has no `X` section fails before any build.
+  `release/build.sh`) adds its own entry file, `changelog.d/<slug>.md`: the `###` categories it touches, each with
+  its bullets, and an `### Upgrade guide` numbered from `1. ` for a step beyond installing and `pm upgrade --to X`.
+  One file per change, never an edit to `CHANGELOG.md`, so parallel PRs never conflict over the changelog
+  (`changelog.py check` refuses an `## [Unreleased]` section there). When users would not notice the change, label
+  the PR `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
+- To release `X` (SemVer from the entry files: a breaking change bumps the minor while pm is 0.x, an addition the
+  minor too, else the patch), run `python3 release/changelog.py release X --summary "<what the release is about>"`
+  in a PR: it writes `## [X] - <today, UTC>` above the newest release from the entry files (each category's
+  bullets, entries in name order; an upgrade guide that opens with installing X and `pm upgrade --to X`, then the
+  entries' steps, renumbered) with its link reference, and deletes the entry files. Edit the section by hand where
+  it needs it (the summary's wrap, the guide's wording), merge it, then tag the merge. A tag whose changelog has no
+  `X` section fails before any build.
 - Fix or backfill a published release's notes by changing its section on main, then
   `gh workflow run pm-release-notes.yml -f version=<X>`: it replaces the release's notes alone (`gh release edit`).
 
 - Cut a release candidate as `pm-v<X>-rc.<n>` (a GitHub pre-release), on any commit, a PR's included, to check the
   release build before the PR merges; the launcher treats it as version `X`'s pre-release, so a repo can pin it to
-  try it. Its notes are `X`'s section when the changelog has one, else `[Unreleased]`, which must have an upgrade guide.
+  try it. Its notes are `X`'s section when the changelog has one, else the section the entry files give, as
+  `release X` would write it with the rc's version in its first two steps; it fails when there is no entry file.
 - Never move or recreate a release tag, and never rebuild a release's assets: launchers keep each binary's sha256
   in `<data dir>/pm/pins/<X>/sha256` and fail hard when a later download differs.
 - Moving a repo's pin is a separate, ordinary PR once the release exists (`pm upgrade --to X`, merged any way).
@@ -147,7 +154,8 @@ workflow:
   The repo is public, so `install.sh` and the launchers download with no token; only when that fails, a token from
   `$GH_TOKEN` or `gh auth token` makes them try the GitHub API, as a private copy of the repo needs.
   `$PM_RELEASE_URL` names a mirror.
-- `test_changelog.py` checks `changelog.py`'s rules, notes and PR check; `test_release.py` checks the rest:
+- `test_changelog.py` checks `changelog.py`'s rules, notes, release section and PR check, and that two branches
+  that each add an entry merge without a conflict and reach the release together; `test_release.py` checks the rest:
   `install.sh` against a local server, and (in `pm-release-build.yml`, `PM_RELEASE_BUILD=1`, as it builds twice) the
   build in a scratch clone, tagged then untagged. `pm-release-build.yml` runs on a PR or push that changes `release/`,
   `install.sh`, `go.mod`, `go.sum`, `internal/buildinfo`, the test or itself, and on every `pm-v*` tag.

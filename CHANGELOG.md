@@ -5,12 +5,16 @@ Every change to Go pm that its users can notice, by release. The format is
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). History before 0.2.0 (Python pm) is in the git tags
 only.
 
-- `## [Unreleased]` comes first and holds what is merged but not released. A release renames it to
-  `## [X.Y.Z] - YYYY-MM-DD` (the release's date) and opens an empty one above it.
+- What is merged but not released is in `changelog.d/`, one file per change, so that two pull requests never edit
+  the same lines: `changelog.d/<slug>.md`, the slug naming the change in lowercase letters, digits and `-`. An entry
+  file holds only `###` categories and their items, as a release's section does (`### Fixed`, then its bullets).
+- This file holds released sections only, newest first: `## [X.Y.Z] - YYYY-MM-DD` (the release's date). A release
+  writes its section from the entry files and deletes them (`release/changelog.py release X`).
 - A release's section opens with a summary paragraph: what the release is about, in one to three sentences.
 - Then `### Upgrade guide`, always: a numbered list (`1. `, `2. `, …) of the exact steps that move a repo from the
-  previous release to this one, starting with installing the release and `pm upgrade --to X`. `[Unreleased]` needs
-  one too before a release candidate is tagged from it.
+  previous release to this one. The release writes the first two, installing the release and `pm upgrade --to X`;
+  a change that needs another step adds it in its entry file as `### Upgrade guide`, numbered from `1. `, and the
+  release numbers it after them. A release candidate's notes are the section the entry files give the same way.
 - Then these `###` categories, only these, in this order, each only when it has an entry: `Breaking changes`,
   `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 - An entry is a `- ` bullet written for pm's users: what they can now do, or what behaves differently. A breaking
@@ -18,25 +22,8 @@ only.
   them.
 - Each section has a link reference at the bottom: its compare view against the release before it.
 
-`release/changelog.py check` checks these rules; the release workflow publishes each release's section as its notes.
-
-## [Unreleased]
-
-### Added
-
-- `pm finding add` takes the finding with `--text` or `--text-file` too, as every body command does, and refuses a
-  text that starts with `--` (a misspelt option such as `--txt=…`), which it used to store as the finding.
-
-### Fixed
-
-- `pm --help`, each `pm <noun> --help` and the noun list `pm prime` injects name every command pm runs:
-  `pm dep`, `pm need`, `pm comment`, `pm sync`, `pm export` and `pm version`, and `pm task ready`, `edit` and
-  `release` and `pm reply add`, which ran but were listed nowhere (`pm dep --help` said "invalid choice"). `pm show
-  --help` names `pm show ID`, `pm task add --help` names `--parent`, and `pm init --help` names `--import-bd` and
-  `--import`. Their flags and behaviour are unchanged.
-- `pm decision close` on a need the owner never answered, and its `--help`, name `pm need dismiss` for a need that
-  became moot.
-- `pm task claim --help` says what `--session` does: it is the session recorded, even when the environment names one.
+`release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
+each release's section as its notes.
 
 ## [0.5.0] - 2026-10-10
 
@@ -342,7 +329,6 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
-[Unreleased]: https://github.com/Yeeef/pm/compare/pm-v0.5.0...HEAD
 [0.5.0]: https://github.com/Yeeef/pm/compare/pm-v0.4.0...pm-v0.5.0
 [0.4.0]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...pm-v0.4.0
 [0.3.0]: https://github.com/Yeeef/pm/compare/pm-v0.2.2...pm-v0.3.0
