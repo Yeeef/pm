@@ -86,10 +86,26 @@ The service follows the main checkout's pin, so the main checkout is the one the
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a pin move now names the worktrees it strands, and a stranded worktree's pm where, pm doctor, pm init and every work-store refusal name the mismatch and the fix (PR #37, pending merge).
+
+- `pm upgrade` lists the clone's other worktrees whose branch pins another pm, each with its fix: "merge or rebase it onto the pin move", or, for one pinned past the move, that it runs once its own move is on main.
+- The version handshake says which side of a pin move a checkout is on (`git rebase <remote>/<main branch>`, or wait for the merge), and no longer claims the main checkout pins the service's version when it does not.
+- `pm where`'s service line and `pm doctor`'s service drift no longer call a service on the main checkout's pin stale from an off-pin checkout, so they no longer send that checkout to `pm service restart`, which fixed nothing.
+- `make go-build` also builds `.go/pm-before`, so the harness runs a branch from before a pin move with the pm that branch pins.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Harness test with two worktrees, one rebased onto the pin move and one not: met. `tests/test_config.py::test_a_pin_move_names_the_worktrees_it_strands`:
+  - Before the move, `pm upgrade --to VERSION` lists both worktrees.
+  - After the move is on main, the service runs VERSION and the fresh worktree is rebased; then `pm upgrade` lists only the stale one, plus a worktree pinned further ahead, which gets its own fix.
+  - In the stale worktree, `.go/pm-before` `where` prints the mismatch and the fix on its work line, `doctor` exits 1 with the same line and `show` is refused with it.
+  - Result: `make test-full ARGS="-k strands"` 1 passed in 1.80s.
+- `make test`, `make test-go`, the PR's CI and `make merge-ready`: met.
+  - `make test`: 145 passed, 63 skipped.
+  - `make go-vet go-test go-test-race`: every package ok.
+  - The integration tests the change touches: 41 passed.
+  - PR #37 CI on 2a0fd00: light, integration, changelog, and build-vet-test, work and race on linux-amd64 and darwin-arm64, all passed.
+  - `make merge-ready PR=37`: "PR #37 is ready: its head 2a0fd00 contains origin/main 41b6696, and every check on it passed."
+- Not checkable before a release: the change helps only a worktree whose pinned release contains it, so the first pin move it covers is the one from the release that ships it to the next.
