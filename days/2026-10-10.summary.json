@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T17:21:56+00:00",
- "digest": "2206545585fb69fc",
+ "generated_at": "2026-10-10T17:32:34+00:00",
+ "digest": "b028d7a1b323958d",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm replaces Python pm:** The pm repo and the agents repo no longer contain Python pm. Harness tracking now lives in the pm repo, with its full history.\n- **Owner requests and pm tools:** Agents now try the work first. They open a tracked need before they ask the owner. A sprint now moves to another project in one command.\n- **Site reliability:** The site no longer fails every page while git rewrites the records. Wide diagrams scroll sideways on phones, and images kept beside a record now show.\n- **Release notes and CI:** Every pm release note now comes from the changelog, and CI enforces it. The slowest pm check runs much faster than before."
+ "text": "- **Go pm only:** Python pm is deleted from both repos, so Go pm is the only implementation. Tracking for pm-harness moved to Yeeef/pm with its full history.\n- **Release and CI:** The new pm release shows its changelog section as the release notes. PR checks run much faster, and CI refuses changes without a changelog entry.\n- **Site reading:** Wide Mermaid diagrams scroll sideways on phones and redraw after a theme switch. The site no longer shows errors in place of pages while git rewrites records.\n- **Owner requests:** Agents now act on a step themselves before they ask the owner. A request with no sprint or task gets one opened first."
 }
