@@ -129,6 +129,8 @@ only the owner can add a prompt entry, while an agent Bash call is indistinguish
 
 done: prime.md, the owner-request judge prompt and its reprompt state one four-item rule (do it yourself first; a need under a task or sprint, opened first; AskUserQuestion over a plain-text question; no leave asked for authorized steps), shipped in Yeeef/pm PR #7.
 
+Merged as c44a0ff (PR #7).
+
 - prime.md (both copies): the rule in one invariant line; the reprompt carries the detail, which the agent gets when the hook blocks.
 - Judge: no sprint-work condition; a clarification blocks like a decision, review or action; a condition or statement that makes the next step depend on the owner is an action.
 - Reprompt: do it yourself first, open a sprint or task, AskUserQuestion; the needless-ask text lists committing.
