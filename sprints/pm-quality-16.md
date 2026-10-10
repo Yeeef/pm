@@ -61,7 +61,13 @@ The service follows the main checkout's pin, so the main checkout is the one the
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Before this sprint the handshake already refused an off-pin checkout, but
+  its fix was 'run it from a checkout that pins pm S' (no rebase named), it
+  claimed the main checkout pins S even when the service was stale on a third
+  version, and pm where's service line in such a checkout said 'stale: pm was
+  replaced since it started; run pm service restart', which restarts the
+  service on the same main pin and fixes nothing; pm doctor's service drift
+  said the same.
 
 ## Delivery report
 
