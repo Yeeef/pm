@@ -48,7 +48,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+Fix the GC journal flake by building with Dolt b130ee82ebe9 (dolthub/dolt#11312), guarded by TestDoltHoldsTheJournalPruneFix; pm does not serialize GC with sync.
+The race is inside Dolt journal (any journal re-creation during a prune hits it, not only the fetch); upstream fix fails-before/passes-after 20/20; a GC that waits on sync deadlocks, since DOLT_GC waits for sessions mid-statement (host.go:328-332).
+:::
 
 ## Findings
 
