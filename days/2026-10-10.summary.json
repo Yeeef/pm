@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T18:33:02+00:00",
- "digest": "d557e2db7e0d30d7",
+ "generated_at": "2026-10-10T18:43:29+00:00",
+ "digest": "21635ce1d6fe0b12",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm only:** Python pm is deleted from Yeeef/pm and yeeef-agents. Every clone now runs Go pm, including the Linux server.\n- **Harness records in Yeeef/pm:** pm-harness is tracked in Yeeef/pm with its full history. The yeeef-agents copy is closed.\n- **Command and hook changes:** pm can move a sprint to another project in one command. pm clean removes merged agent worktrees. The owner-request hook now applies one rule.\n- **Site and CI checks:** Wide diagrams stay readable and scroll sideways on a phone. The site keeps serving pages while git rewrites records. The slowest pull request check runs much faster."
+ "text": "- **Go pm replaces Python pm:** Python pm is deleted from both repositories. Both clones now run Go pm, and Beads is removed.\n- **Records and site:** The pm-harness project now lives in Yeeef/pm, with its full history. The site no longer fails while git rewrites records.\n- **Release and CI:** The new pm release is published, and CI now checks each release note. Pull request checks also finish much sooner.\n- **Owner-request hook:** The hook now uses one rule: do the work first, then open a sprint or task before asking the owner. The planned interactive mode was dropped."
 }
