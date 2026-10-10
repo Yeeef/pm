@@ -1,4 +1,5 @@
 #!/bin/sh
+# (probe: a release/ change runs the release build test; this PR is closed unmerged)
 # Build Go pm's release tarball for this machine: release/build.sh OUT_DIR [pm-v<X> | <X>]
 #
 # A release is a tag pm-v<X> on a main commit (AGENTS.md, Releasing pm): the version comes from the tag given, or
