@@ -63,7 +63,12 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Before this sprint 11 commands ran outside the argparse tree (goOnly: task
+  ready/edit/release, dep add/rm, comment add, need dismiss, reply add, sync,
+  version, export) plus init --import-bd/--import; pm --help listed 23 nouns,
+  now 29 (dep, need, comment, sync, export, version added). Every one is a
+  tree leaf now; only the forms pm show ID and pm task add --parent are routed
+  before the tree, and their tree command's help names them.
 
 ## Delivery report
 
