@@ -87,8 +87,6 @@ only.
 - `pm doctor` names a pm release newer than the repo's pin, with its notes' URL and the move (`pm upgrade --to X`),
   or says that the release list cannot be read. The line does not change doctor's exit code.
 
-### Added
-
 - `pm sprint move <sprint> --to <project>` moves an open sprint, with its tasks, needs, frame, decisions, findings
   and report, to another open project in one command, and records the move as a decision in both projects. The
   sprint keeps its id, so its tasks keep their holders and `pm show <id>` finds it in its new place; it takes the
