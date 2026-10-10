@@ -537,6 +537,8 @@ def test_the_new_tool_runs_pm_0_1_0_in_a_repo_pinned_to_it(repo, tmp_path):
         (bindir / name).write_text(REWRITE.format(py=sys.executable, repo=REPO, local=local,
                                                   real=shutil.which(name), name=name))
         (bindir / name).chmod(0o755)
+    (bindir / "bd").write_text("#!/bin/sh\nexit 0\n")  # 0.1.0 requires a bd on PATH; its pm where calls none
+    (bindir / "bd").chmod(0o755)
     write_config(repo.root, version="0.1.0")
     repo.commit("pin 0.1.0")
     repo.env = dict(repo.env, PATH=f"{bindir}{os.pathsep}{repo.env['PATH']}", XDG_DATA_HOME=str(tmp_path / "data"))
