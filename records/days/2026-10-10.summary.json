@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T11:58:48+00:00",
- "digest": "f038b08698b1328a",
+ "generated_at": "2026-10-10T12:19:32+00:00",
+ "digest": "29f287709846323b",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm only:** Yeeef/pm and yeeef-agents no longer contain Python pm. The harness suite checks only Go pm, and the design pages describe one Go implementation.\n- **Project tracking moved:** pm-harness is now tracked in Yeeef/pm, with its full history. The yeeef-agents copy is closed.\n- **Server and release notes:** The Linux server now runs Go pm and syncs with GitHub. CI refuses a pull request or tag without a release note.\n- **For you:** Choose the next release version, because main now has a breaking change. Review the open pull request."
+ "text": "- **Python pm retired:** Yeeef/pm and yeeef-agents no longer contain Python pm. The harness suite now checks only Go pm. Design pages describe one implementation, Go pm.\n- **New pm release published:** The project published its latest release. Each release note now comes from the changelog, and CI requires it.\n- **Harness tracking moved:** Yeeef/pm now tracks pm-harness with its full history. The yeeef-agents copy is closed. The Linux server's clone runs Go pm and syncs with GitHub.\n- **For you:** Review the open pull request."
 }
