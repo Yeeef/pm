@@ -79,6 +79,12 @@ None yet.
   1.26.2. Fix: go 1.26.9. Not reproducible on linux; CI's macOS race job is
   the check.
 
+- Service fake race (task .8): fakeWork.item/Items/Get copied items shallowly,
+  sharing Need with the fake; the test read Need.Delivered unlocked while
+  UpdateNeed wrote it. go test -race -run TestAReplyIsSpooled, 8 runs of
+  -count=100 on 2 shared CPUs: 5 of 8 raced before, 0 of 8 after the deep
+  copy; -count=50 clean.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
