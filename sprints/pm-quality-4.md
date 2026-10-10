@@ -62,6 +62,13 @@ None yet.
   (a comment, author pm), not by a schema change, which would force every
   clone to upgrade in lockstep as 0.3.0's did.
 
+- --text=Review caught a sync break before push: merge.go refused any two
+  different sprint numbers. Before this change no number changed; now that a
+  move changes it, a clone that wrote the sprint's row while another moved it
+  would fail every later sync. number now merges three-way.
+  TestMoveSprintAcrossClonesKeepsTheOtherClonesWrites covers it: the other
+  clone comments on and renames the sprint during the move's push race.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
