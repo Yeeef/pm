@@ -63,6 +63,17 @@ None yet.
   cache'; the cache dates from 2026-10-09, the last go.sum change. That the
   -race compile is uncached is inferred from those dates, not measured.
 
+- Before the change (pm go run 38050732408, PR #13, one job per target): Linux
+  9:31 = setup 0:32 (886 MB setup-go cache) + go-build 0:11 + vet and tests
+  1:48 (internal/work 81.9 s) + race internal/service 3:01 + race
+  internal/work 0:48 (40.0 s of tests) + release build test 3:01; macOS 10:16
+  = setup 1:04 (891 MB cache) + go-build 0:25 + vet and tests 2:58
+  (internal/work 133.3 s) + race 2:14 + 1:10 (56.2 s of tests) + release build
+  test 2:17. The setup-go cache hit its primary key (the go.sum hash) and was
+  never saved after 2026-10-09: the non-race build was warm (go-build 11 s),
+  the -race compile cold (internal/service: 6.5 s of tests in a 3:01 step). Go
+  test results were cached across runs too (pyjson "(cached)").
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
