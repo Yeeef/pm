@@ -71,6 +71,14 @@ None yet.
   runs failed with the CI panic stack. Fix: the host sets
   maintenance.autoDetach=false and gc.autoDetach=false via GIT_CONFIG_COUNT.
 
+- TestCreateRacingALocalWriter, macOS race (push: unknown push error; git
+  command failed (exit -1)): the full log shows 'git hash-object -w --stdin
+  ... signal: segmentation fault', the child dying before exec. That is
+  golang/go#79804 (darwin -race instruments rawSyscall, which the forked child
+  calls pre-exec), fixed in Go 1.26.5 (backport golang/go#79806); go.mod said
+  1.26.2. Fix: go 1.26.9. Not reproducible on linux; CI's macOS race job is
+  the check.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
