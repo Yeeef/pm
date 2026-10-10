@@ -14,7 +14,8 @@ pm's rules and the project's state from session hooks (`pm prime`), so every ses
 ## Install
 
 Go pm is released for macOS on Apple silicon (`darwin-arm64`) and Linux on x86-64 (`linux-amd64`). Install release
-`<X>` (see [Releases](https://github.com/Yeeef/pm/releases)) on a machine:
+`<X>` (see [Releases](https://github.com/Yeeef/pm/releases); [`CHANGELOG.md`](CHANGELOG.md) lists what each
+changed and how to upgrade) on a machine:
 
 ```sh
 curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<X>/install.sh | sh
