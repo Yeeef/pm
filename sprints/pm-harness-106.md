@@ -90,10 +90,21 @@ Answers `yeeef-agents-9va.116.2.1`.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: pm-harness is tracked in Yeeef/pm with its full history, and the yeeef-agents copy is closed.
+
+- Work store: 594 items imported with ids kept (14 open and 95 closed sprints, 20 open and 261 closed tasks, 4 open and 199 closed needs, 280 comments, 63 deps); a re-export equals the import.
+- Records: 142 moved (109 sprints, 19 design pages, 11 docs, 2 postmortems, the project), scrubbed of the owner email, home paths, session ids, the machine hostname and claude.ai links; pm.yeeefs.com kept by owner decision.
+- `pm init --import FILE` added in Yeeef/pm PR 6; pm's repo files and the AGENTS.md change in Yeeef/pm PR 11.
+- Triage: sprints 81 and 94 voided; 56 and 68 port yeeef-agents PRs 76 and 72 to Go (new tasks .65.6 and .77.6); 55 and 92 retargeted to Go.
+- In yeeef-agents, all 14 open pm-harness sprints closed as moved, and the project closed with an Outcome that links here.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| `pm show --project pm-harness` in Yeeef/pm lists the open sprints with tasks and needs; `pm check` passes | met | `pm show`: 11 open sprints, 2 owner requests; `pm check`: all 153 pages render |
+| `git ls-remote` shows the records branch and the work-store ref | met | `refs/heads/records` 2db31ce, `refs/pm/work` ab0cbf3 |
+| A grep finds no `yeeefs.com`, owner email, home paths or session UUIDs | met, with one change | 0 matches for the email, `/home/yeeef`, `/Users/yeeef`, the machine hostname and claude.ai links; `yeeefs.com` is kept by the owner decision on .116.6; the moved records hold 0 session ids, and `pm feedback add` writes the session id into each new entry (2 since the move) |
+| In yeeef-agents, `pm show` no longer lists pm-harness, and its project record links to Yeeef/pm | met | `pm show` in yeeef-agents lists 4 projects without pm-harness; its project Outcome names Yeeef/pm |
