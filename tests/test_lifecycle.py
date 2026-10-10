@@ -1,4 +1,4 @@
-"""pm doctor, pm upgrade and pm uninstall in the temp repos of test_init (a local bare remote, the fake bd, and the
+"""pm doctor, pm upgrade and pm uninstall in the temp repos of test_init (a local bare remote and the
 fake launchd/systemd in tmp/home): init and upgrade keep what is not pm's, doctor names each hand-made change,
 upgrade moves the pin and rewrites pm's parts only, uninstall removes pm's parts and setup only."""
 
@@ -12,9 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from conftest import IMPL, PM
-from pm import __version__
-from test_init import (BD_SET, BD_WRITES, BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, HOOKS, PM_FILES, USER_CODEX,  # noqa: F401
+from conftest import PM, VERSION
+from test_init import (BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, HOOKS, PM_FILES, USER_CODEX,  # noqa: F401
                        USER_SETTINGS, commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
 
 pytestmark = pytest.mark.integration  # each test runs pm init in a fresh repo with a remote and starts its service
@@ -23,31 +22,22 @@ LOCAL_SETTINGS = '{\n  "model": "café"\n}\n'  # non-ASCII: pm rewrites the file
 CODEX_USER = '# mine\nmodel = "o3"\n\n[sandbox_workspace_write]\nnetwork_access = true\n'
 
 
-def uv_cache() -> str:
-    res = subprocess.run(["uv", "--color", "never", "cache", "dir"], check=True, capture_output=True, text=True)
-    return str(Path(res.stdout.strip()).resolve())
-
-
-# Go pm needs no uv, so its roots are the clone's own five: .git, the records store and its git dir, the work store
-# and .pm/run, which holds the work store's socket (the pm-go page, Open question 12); Python pm's four (.git, the store,
-# its git dir, .beads) and uv's cache, which every clone shares
-CLONE_ROOTS, SHARED_ROOTS = (4, 1) if IMPL == "python" else (5, 0)
+# pm's roots in Codex's writable_roots, per clone: .git, the records store and its git dir, the work store and
+# .pm/run, which holds the work store's socket
+CLONE_ROOTS = 5
 
 
 MINE = "\n# mine\necho done\n"  # the existing repo's own lines after Beads' section in its hook files
 
 
 def hook_file(name: str) -> str:
-    """pm's git hook file in the existing repo: Python pm's section joins Beads' hook file; Go pm's own file holds its
-    section alone, and Beads' stays as it was."""
-    return BEADS_HOOK + section(name) + MINE if IMPL == "python" else "#!/usr/bin/env sh\n" + section(name)
+    """pm's git hook file in the existing repo: pm's own file holds its section alone, and Beads' stays as it was."""
+    return "#!/usr/bin/env sh\n" + section(name)
 
 
 def without_bd(data: dict) -> dict:
-    """The user's settings data as pm leaves it: Python pm keeps Beads' hooks; Go pm, which runs no bd, takes out each
-    hook whose command starts with `bd ` and the groups and events that leaves empty (the work-store page, Cut-over)."""
-    if IMPL == "python":
-        return data
+    """The user's settings data as pm leaves it: pm, which runs no bd, takes out each hook whose command starts with
+    `bd ` and the groups and events that leaves empty (the work-store page, Cut-over)."""
     out = json.loads(json.dumps(data))
     for event, groups in list(out.get("hooks", {}).items()):
         for g in groups:
@@ -56,15 +46,6 @@ def without_bd(data: dict) -> dict:
         if not out["hooks"][event]:
             del out["hooks"][event]
     return out
-
-
-def codex_after_uninstall() -> str:
-    """CODEX_USER with uv's cache, the one root uninstall keeps: other clones share it. Go pm adds no uv cache, so
-    uninstall leaves CODEX_USER as it was."""
-    if IMPL == "go":
-        return CODEX_USER
-    return CODEX_USER.replace("[sandbox_workspace_write]\n",
-                              f"[sandbox_workspace_write]\nwritable_roots = [{json.dumps(uv_cache())}]\n")
 
 
 def sched_units(tmp: Path) -> list[Path]:
@@ -116,13 +97,12 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
         change(new_repo)
     code, lines = doctor(new_repo)
     assert code == 1 and reported(lines, [f"repo: {want}" for _, want in REPO_CHANGES.values()]), lines
-    assert all(l.endswith(f"run pm upgrade --to {__version__} to rewrite it") for l in lines), lines
+    assert all(l.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for l in lines), lines
     res = pm(new_repo, "upgrade")
     assert res.returncode == 0 and "pin stays" in res.stdout, res.stderr
     assert doctor(new_repo)[0] == 0
 
 
-@pytest.mark.impl("go", reason="Python pm keeps its git hook sections in .beads/hooks, which a .beads file blocks")
 def test_a_beads_file_is_no_beads_for_doctor_and_upgrade(new_repo: Path):
     """A repo that retired Beads by replacing .beads/ with a file (which blocks every bd command) holds no Beads
     pieces, as a repo without .beads/: pm doctor is clean and pm upgrade --to the pin finds every piece current."""
@@ -132,9 +112,9 @@ def test_a_beads_file_is_no_beads_for_doctor_and_upgrade(new_repo: Path):
     git(new_repo, "commit", "-qm", "Retire Beads")
     res = pm(new_repo, "doctor")
     assert res.returncode == 0, res.stdout + res.stderr
-    res = pm(new_repo, "upgrade", "--to", __version__)
+    res = pm(new_repo, "upgrade", "--to", VERSION)
     assert res.returncode == 0, res.stderr
-    assert res.stdout == f"pm {__version__}: every managed piece is current; nothing to commit\n", res.stdout
+    assert res.stdout == f"pm {VERSION}: every managed piece is current; nothing to commit\n", res.stdout
 
 
 def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new_repo: Path):
@@ -156,7 +136,7 @@ def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new
     code, lines = doctor(new_repo)
     assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
                                           "repo: .github/workflows/pm-records-guard.yml: pm's part is missing"]), lines
-    assert all(l.endswith(f"run pm upgrade --to {__version__} to rewrite it") for l in lines), lines
+    assert all(l.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for l in lines), lines
     # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
     res = pm(new_repo, "init", "--site-url", "pm.example.com")
     assert res.returncode == 1 and "is not an http(s) base URL" in res.stderr and git(new_repo, "status", "--porcelain") == ""
@@ -170,8 +150,6 @@ SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of
     "records link": (lambda r, tmp: (r / "records").unlink(), "records link: "),
     "sparse checkout": (lambda r, tmp: git(r, "sparse-checkout", "disable"), "sparse checkout: "),
     "hooks path": (lambda r, tmp: git(r, "config", "core.hooksPath", ".git/hooks"),
-                   "hooks path: core.hooksPath is .git/hooks, not .beads/hooks; pm works only with Beads' hooks path"
-                   if IMPL == "python" else
                    "hooks path: core.hooksPath is .git/hooks, not .pm/hooks; pm works only with its own hooks path"),
     "service": (lambda r, tmp: [p.unlink() for p in sched_units(tmp)], "service: not installed"),
     "codex roots": (lambda r, tmp: (tmp / "codex/config.toml").write_text(CODEX_USER), "codex: "),
@@ -196,13 +174,10 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     before = snapshot(existing)
     res = pm(existing, "init")
     assert res.returncode == 0, res.stderr
-    calls = [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
-    assert ["init", "--non-interactive"] not in calls, "Beads is there; bd init must not run"
-    assert f"git add -- {' '.join(PM_FILES + BD_WRITES)} && " in res.stdout, "the agent profile bd set is listed"
+    assert f"git add -- {' '.join(PM_FILES)} && " in res.stdout, res.stdout
     for name in ("post-checkout", "pre-commit"):
         assert (existing / f"{HOOKS}/{name}").read_text() == hook_file(name)
-        if IMPL == "go":
-            assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + MINE, "Beads' hook files stay"
+        assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + MINE, "Beads' hook files stay"
     for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
         text = (existing / rel).read_text()
         data = json.loads(text)
@@ -212,7 +187,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     assert (existing / ".gitignore").read_text() == "*.log\nbuild/\n" + GITIGNORE_BLOCK
     assert git(existing / ".pm/store/records", "ls-files").split() == ["sprints/a-1.md"]
     installed = snapshot(existing)
-    assert all(installed[k] == v for k, v in before.items() if k not in PM_FILES + BD_SET), "files pm does not manage are kept"
+    assert all(installed[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
     again = pm(existing, "init")
     assert again.returncode == 0, again.stderr
     assert snapshot(existing) == installed and "git add" not in again.stdout
@@ -220,31 +195,30 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     git(existing, "add", "-A")
     git(existing, "commit", "-qm", "Install pm")
     # the repo as an older pm left it: an older pin and an older section in a Beads hook
-    edit(existing / ".pm/config.toml", f'version = "{__version__}"', 'version = "0.0.1"')
-    edit(existing / f"{HOOKS}/pre-commit", f"BEGIN PM v{__version__}", "BEGIN PM v0.0.1")
+    edit(existing / ".pm/config.toml", f'version = "{VERSION}"', 'version = "0.0.1"')
+    edit(existing / f"{HOOKS}/pre-commit", f"BEGIN PM v{VERSION}", "BEGIN PM v0.0.1")
     git(existing, "commit", "--no-verify", "-qam", "pm 0.0.1")
-    def launched(pin: str, *args: str) -> subprocess.CompletedProcess:  # as the pm uv tool launches `pin`, whose
+    def launched(pin: str, *args: str) -> subprocess.CompletedProcess:  # as the installed pm launches `pin`, whose
         # release here builds this pm: test_launch.py has the launch itself, which would reach GitHub
         return subprocess.run([*PM, *args], cwd=existing, env=dict(env(existing.parent), PM_LAUNCHED=pin),
                               capture_output=True, text=True)
     assert launched("0.0.1", "show").returncode == 1, "every other command refuses the old pin"
     res = launched("9.9.9", "upgrade", "--to", "9.9.9")
-    latest = ('uv tool install --reinstall "git+https://github.com/Yeeef/pm"' if IMPL == "python"
-              else "curl -fsSL https://github.com/Yeeef/pm/releases/latest/download/install.sh | sh")
+    latest = "curl -fsSL https://github.com/Yeeef/pm/releases/latest/download/install.sh | sh"
     assert res.returncode == 1 and res.stderr.endswith(  # the launcher's install, never an old pm in its place
         f'which launches pm 9.9.9: install the latest with {latest}\n'), res.stderr
     head = git(existing, "rev-parse", "HEAD")
     res = pm(existing, "upgrade")
     assert res.returncode == 0, res.stderr
-    assert f"moved the pin from 0.0.1 to {__version__}" in res.stdout
+    assert f"moved the pin from 0.0.1 to {VERSION}" in res.stdout
     assert f"git add -- .pm/config.toml {HOOKS}/pre-commit && " in res.stdout
     assert git(existing, "rev-parse", "HEAD") == head, "pm upgrade commits nothing"
-    assert tomllib.loads((existing / ".pm/config.toml").read_text())["version"] == __version__
+    assert tomllib.loads((existing / ".pm/config.toml").read_text())["version"] == VERSION
     assert (existing / f"{HOOKS}/pre-commit").read_text() == hook_file("pre-commit")
     changed = sorted([f"{HOOKS}/pre-commit", ".pm/config.toml"])
     assert git(existing, "status", "--porcelain").split() == ["M", changed[0], "M", changed[1]]
     after = snapshot(existing)
-    assert all(after[k] == v for k, v in before.items() if k not in PM_FILES + BD_SET), "files pm does not manage are kept"
+    assert all(after[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
     again = pm(existing, "upgrade")
     assert again.returncode == 0 and "nothing to commit" in again.stdout and snapshot(existing) == after
 
@@ -296,30 +270,27 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
         assert not (tree / "records").is_symlink()
         assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() in ("", "false")
     assert sched_units(tmp_path) == [] and loaded(tmp_path) == []
-    assert (tmp_path / "codex/config.toml").read_text() == codex_after_uninstall()
-    # pm's exclude lines go, byte for byte; the fake bd's own line (its database) stays with Beads
-    assert exclude.read_bytes() == exclude_before + (b"/.beads/embeddeddolt/\n" if IMPL == "python" else b"")
+    assert (tmp_path / "codex/config.toml").read_text() == CODEX_USER
+    assert exclude.read_bytes() == exclude_before  # pm's exclude lines go, byte for byte
     assert (existing / ".claude/settings.local.json").read_text() == LOCAL_SETTINGS
     assert not (wt / ".claude/settings.local.json").exists()
     assert not (existing / ".pm").exists() and (existing / ".beads/hooks").is_dir()
     # every byte that is not pm's is as it was, but for the newline pm's block needed after the unterminated last
     # line of .gitignore
-    after = {k: v for k, v in snapshot(existing).items() if not k.startswith(".beads/embeddeddolt/")}  # Beads stays
+    after = snapshot(existing)
     assert after.pop(".gitignore") == before.pop(".gitignore") + b"\n"
     assert after.pop(".claude/settings.local.json") == LOCAL_SETTINGS.encode()
-    profile = b"agent.profile: team-maintainer\n" if IMPL == "python" else b""  # Go pm sets no Beads profile
-    assert after.pop(".beads/config.yaml") == before.pop(".beads/config.yaml") + profile
-    if IMPL == "go":  # pm init took Beads' hooks out, and uninstall does not put them back: Codex's file held only those
-        assert after.pop(".claude/settings.json") == (json.dumps(without_bd(USER_SETTINGS), indent=2) + "\n").encode()
-        assert ".codex/hooks.json" not in after
-        del before[".claude/settings.json"], before[".codex/hooks.json"]
+    # pm init took Beads' hooks out, and uninstall does not put them back: Codex's file held only those
+    assert after.pop(".claude/settings.json") == (json.dumps(without_bd(USER_SETTINGS), indent=2) + "\n").encode()
+    assert ".codex/hooks.json" not in after
+    del before[".claude/settings.json"], before[".codex/hooks.json"]
     assert after == before
     assert pm(existing, "uninstall").returncode != 0, "with .pm/ gone, pm refuses to run here"
 
 
-def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Path, tmp_path: Path):
-    """Two clones set up on one machine: uninstalling one removes only its own roots (CLONE_ROOTS); uv's cache, which both
-    need, and the other clone's roots stay, and every other byte of config.toml with them. Roots it cannot take out
+def test_uninstall_keeps_other_clones_roots(new_repo: Path, tmp_path: Path):
+    """Two clones set up on one machine: uninstalling one removes only its own roots (CLONE_ROOTS); the other clone's
+    roots stay, and every other byte of config.toml with them. Roots it cannot take out
     without breaking the TOML are refused before anything changes."""
     (tmp_path / "codex").mkdir()
     config = tmp_path / "codex/config.toml"
@@ -339,8 +310,7 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
     roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
     mine = [r for r in roots if r.startswith(str(new_repo.resolve()))]
     theirs = [r for r in roots if r.startswith(str(other.resolve()))]
-    assert len(mine) == len(theirs) == CLONE_ROOTS and roots.count(uv_cache()) == SHARED_ROOTS, roots
-    assert len(roots) == 2 * CLONE_ROOTS + SHARED_ROOTS, roots
+    assert len(mine) == len(theirs) == CLONE_ROOTS and len(roots) == 2 * CLONE_ROOTS, roots
     # writable_roots spread over lines, one root a line: taking a root out leaves its comma, which is not TOML;
     # uninstall names the file and says to remove the roots by hand, before it changes anything
     flat = config.read_text()
@@ -356,8 +326,7 @@ def test_uninstall_keeps_the_shared_uv_cache_and_other_clones_roots(new_repo: Pa
     config.write_text(flat)
     res = pm(new_repo, "uninstall")
     assert res.returncode == 0, res.stderr
-    assert "uv's cache stays" in res.stdout if IMPL == "python" else f"removed this clone's writable_roots from {config}" \
-        in res.stdout, res.stdout
+    assert f"removed this clone's writable_roots from {config}" in res.stdout, res.stdout
     kept = [r for r in roots if r not in mine]
     assert config.read_text() == CODEX_USER.replace(
         "[sandbox_workspace_write]\n",
@@ -400,7 +369,6 @@ def as_python_left_it(repo: Path) -> None:
     git(repo, "commit", "--no-verify", "-qm", "as Python pm 0.1.x left it")
 
 
-@pytest.mark.impl("go", reason="Go pm runs no bd: its upgrade takes out the Beads pieces Python pm 0.1.x keeps")
 def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
     """The cut-over (the work-store page, Cut-over): a repo as Python pm 0.1.x left it. pm doctor names each Beads
     piece, pm upgrade removes them and points core.hooksPath at pm's own hook files, keeping .beads/ and everything
@@ -413,7 +381,7 @@ def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
     beads = {k: v for k, v in snapshot(existing).items() if k.startswith(".beads/")}
 
     code, lines = doctor(existing)
-    v = __version__
+    v = VERSION
     assert code == 1 and reported(lines, [
         "repo: .claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm " + v + " removes",
         "repo: .codex/hooks.json: holds Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart), "

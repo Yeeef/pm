@@ -10,8 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from conftest import IMPL
-
 ME, OTHER = "sess-me", "sess-other"
 AT = "2026-10-01T12:00:00Z"
 
@@ -106,8 +104,6 @@ def test_passes_without_reading_anything(needs, event):
     res = run(needs, **event)
     assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
     assert claude_calls(needs) == []
-    if IMPL == "python":
-        assert needs.bd_calls() == []
 
 
 def failed(res, said):

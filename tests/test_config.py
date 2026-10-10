@@ -3,24 +3,17 @@
 from __future__ import annotations
 
 import json
+import re
+import subprocess
 
 import pytest
 
-from conftest import write_config
-from pm import __version__
-
-PYTHON_ONLY = pytest.mark.impl("python", reason="checks Python pm's package version or parser in process")
+from conftest import PM, VERSION, write_config
 
 # prime's parts share one config check; --subagent is the one that starts no pm setup (a light test may not)
 COMMANDS = [("show",), ("where",), ("prime", "--subagent"), ("hook", "stop")]
-
-
-@PYTHON_ONLY
-def test_version_has_one_source():
-    import tomllib
-    from pathlib import Path
-    pyproject = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
-    assert __version__ == pyproject["project"]["version"]
+CONFIG = ".pm/config.toml"
+KEYS = ("version", "remote", "main_branch", "port", "site_url")  # what the config accepts
 
 
 @pytest.mark.parametrize("args", COMMANDS)
@@ -40,29 +33,21 @@ def test_every_command_fails_on_another_pinned_version(repo, args):
     res = repo.pm(*args, stdin=json.dumps({"cwd": str(repo.root)}))
     assert res.returncode == 1 and res.stdout == ""
     assert res.stderr == (
-        f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {__version__} is running, launched for that "
-        f"pin: release tag pm-v9.9.9 at https://github.com/Yeeef/pm builds pm {__version__}; fix the tag, "
-        f"or move the pin to {__version__} with pm upgrade --to {__version__}\n")
+        f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {VERSION} is running, launched for that "
+        f"pin: release tag pm-v9.9.9 at https://github.com/Yeeef/pm builds pm {VERSION}; fix the tag, "
+        f"or move the pin to {VERSION} with pm upgrade --to {VERSION}\n")
 
 
-def help_texts(ap) -> list[str]:
-    """`ap`'s --help and that of every command under it, as argparse prints them."""
-    import argparse
-    out = [ap.format_help()]
-    for action in ap._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            for sub in action.choices.values():
-                out += help_texts(sub)
-    return out
+def help_texts(*cmd: str) -> list[str]:
+    """pm <cmd> --help and that of every command under it."""
+    text = subprocess.run([*PM, *cmd, "--help"], cwd="/", check=True, capture_output=True, text=True).stdout
+    subs = re.search(r"\{([a-z,-]+)\} \.\.\.", text.split("\n\n", 1)[0])  # the usage's commands, not a choice
+    return [text, *(t for sub in (subs.group(1).split(",") if subs else []) for t in help_texts(*cmd, sub))]
 
 
-@PYTHON_ONLY
 def test_every_config_key_is_named_in_some_commands_help():
-    """pm explains its own config: each key config.KEYS accepts is named, as a word, in the --help of some command
+    """pm explains its own config: each key the config accepts is named, as a word, in the --help of some command
     that also names .pm/config.toml, so nobody reads pm's source to learn what a key does or which command sets it."""
-    import re
-    from pm import config
-    from pm.cli import parser
-    texts = [t for t in help_texts(parser()) if config.REL in t]
-    missing = [k for k in config.KEYS if not any(re.search(rf"(?<![\w-]){k}(?![\w-])", t) for t in texts)]
-    assert not missing, f"{config.REL} keys no --help names: {', '.join(missing)}"
+    texts = [t for t in help_texts() if CONFIG in t]
+    missing = [k for k in KEYS if not any(re.search(rf"(?<![\w-]){k}(?![\w-])", t) for t in texts)]
+    assert texts and not missing, f"{CONFIG} keys no --help names: {', '.join(missing)}"

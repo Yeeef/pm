@@ -9,7 +9,7 @@ import (
 
 // Export writes items as pm export prints them: one JSON object per line, in the order given. Every item carries every
 // field, in the work-store page's order, with null where a field does not apply and [] for an empty list, so one
-// shape serves jq and the tests' transcripts (tests/work_items.py writes the same).
+// shape serves jq and the tests (Repo.items in tests/conftest.py).
 func Export(w io.Writer, items []Item) error {
 	bw := bufio.NewWriter(w)
 	for i := range items {

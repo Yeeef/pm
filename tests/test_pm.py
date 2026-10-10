@@ -1,4 +1,4 @@
-"""The pm flows agents and the owner depend on, end to end against a temp repo and a fake bd: setup, the sprint loop,
+"""The pm flows agents and the owner depend on, end to end against a temp repo: setup, the sprint loop,
 needs and replies, tasks, the shared records store, the pm service and its push."""
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ import subprocess
 import sys
 import time
 import urllib.request
-from collections import Counter
 from pathlib import Path
 
 import pytest
 
-from conftest import write_config, IMPL, PM, fake_bd_env
-from pm import __version__
-from pm.beads import reply_body
+from conftest import PM, VERSION, fake_env, write_config
 
-IN_PROCESS = pytest.mark.impl("python", reason="renders with Python pm's code in process")
+
+def reply_body(text: str) -> str:
+    """A site reply's comment text as the owner wrote it, without its <!-- pm-reply <id> --> mark line."""
+    return re.sub(r"\s*<!-- pm-reply [A-Za-z0-9-]+ -->\s*$", "", text)
 
 FRAME = "## Goal\n\nShip the thing.\n\n## Scope\n\n**In:** the thing.\n\n**Out:** other things.\n\n## Done when\n\n- It ships.\n"
 
@@ -78,13 +78,11 @@ def test_sprint_open_creates_epic_and_record(repo):
     assert repo.changes() == {"repo-demo.3": {"id": "repo-demo.3", "type": "sprint", "title": "Sprint 3: Third: the end",
                                          "status": "open", "number": 3, "parent": "repo-demo"}}
     assert repo.items()["repo-demo.3"]["parent"] == "repo-demo"
-    if IMPL == "python":  # After the create it reads only the new epic from bd, not every issue again.
-        assert [c for c in repo.bd_calls() if c[:1] in (["list"], ["show"])] == [["list", "--all", "--json"], ["show", "repo-demo.3", "--json"]]
     text = (repo.records / "sprints/demo-3.md").read_text()
     assert text.startswith('---\ntype: sprint\ntitle: "Third: the end"\nbead: repo-demo.3\n---\n')
     assert "Ship the thing." in text and "**Out:** other things." in text and "- It ships." in text
-    # Every section and prompt line matches an existing sprint record (the fixture mirrors the real ones), but for
-    # where Progress comes from: Beads in Python pm's prompt, the work store in Go pm's.
+    # Every section and prompt line matches an existing sprint record (the fixture mirrors the real ones, written when
+    # Progress came from Beads), but for where Progress comes from: the work store.
     skeleton = lambda t: [l.replace("from Beads", "from the work store") for l in t.splitlines()
                           if l.startswith(("#", ">"))]
     assert skeleton(text) == skeleton((repo.records / "sprints/demo-1.md").read_text())
@@ -250,15 +248,11 @@ ACTION = "Restart the site on port 8767, which the new proxy expects.\n"
 
 
 def assert_answered(repo, need_id, resolution, text):
-    """The only change is the need closed with `resolution` and one new comment holding the answer `text`. How the
-    store keeps the answer is the implementation's: bd's `human respond` writes "Response: <text>" as the git user."""
+    """The only change is the need closed with `resolution` and one new comment holding the answer `text`."""
     change = repo.changes()
     assert list(change) == [need_id] and set(change[need_id]) <= {"status", "resolution", "close_reason", "comments"}
     assert (change[need_id]["status"], change[need_id]["resolution"]) == ("closed", resolution)
     assert len(change[need_id]["comments"]) == 1 and change[need_id]["comments"][0]["text"].endswith(text)
-    if IMPL == "python":
-        assert change == {need_id: {"status": "closed", "resolution": resolution, "close_reason": "Responded",
-                                    "comments": [{"kind": "note", "author": "t", "text": f"Response: {text}"}]}}
 
 
 def test_decision_add_need_closes_need_and_records_decision(repo):
@@ -304,7 +298,6 @@ def test_decision_close_closes_small_answer_without_record(repo):
     assert repo.pm("check").returncode == 0
 
 
-@pytest.mark.impl("go", reason="Python pm's undo is bd update --remove-label=no-decision, which it prints")
 def test_a_decision_recorded_for_a_no_decision_need_marks_it_answered(repo):
     """pm decision close names its undo: a decision that cites the need, which marks it answered."""
     res = repo.pm("decision", "close", "repo-demo.1.2", "--reason", "It sets no rule.", text=ANSWER)
@@ -370,15 +363,15 @@ def git_in(cwd, *args):
 
 
 def init_in(cwd, *args):
-    """pm init with the fake bd, whose calls land in <tmp>/bd.log next to the clone, the pm uv tool first on PATH
-    (the hooks pm writes call `pm`) and the service under the fake supervisor on a port free when first asked for."""
-    env = fake_bd_env(cwd.parent, GIT_ENV)
+    """pm init with the fakes, the installed pm on PATH (the hooks pm writes call `pm`) and the service under the fake
+    supervisor on a port free when first asked for."""
+    env = fake_env(cwd.parent, GIT_ENV)
     port = cwd.parent / "port"
     if not port.exists():
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             port.write_text(str(s.getsockname()[1]))
-    env = dict(env, PATH=f"{env['UV_TOOL_BIN_DIR']}{os.pathsep}{env['PATH']}", PORT=port.read_text())
+    env = dict(env, PORT=port.read_text())
     return subprocess.run([*PM, "init", *args], cwd=cwd, env=env, capture_output=True, text=True)
 
 
@@ -393,12 +386,6 @@ def schedule_line(clone: Path, home: Path, state: str) -> str:
 def sched_calls(tmp_path) -> list[list[str]]:
     log = tmp_path / "sched.log"
     return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
-
-
-def bd_writes_in(tmp_path):
-    """The bd calls that change something: not the --json reads (the bootstrap dry run, bd context)."""
-    calls = [json.loads(l) for l in (tmp_path / "bd.log").read_text().splitlines()]
-    return [c for c in calls if "--json" not in c]
 
 
 def service_line(clone: Path, home: Path, state: str) -> str:
@@ -433,23 +420,17 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
     clone = tmp_path / "clone"
     res = init_in(clone)
     assert res.returncode == 0, res.stderr
-    if IMPL == "python":
-        assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
-                                         ["hooks", "install", "--beads"]]
-        assert git_in(clone, "config", "beads.role").strip() == "maintainer"
-        assert (clone / ".beads").stat().st_mode & 0o777 == 0o700
-    else:  # Go pm's work store takes bd bootstrap's place: the remote had none, so pm init made it and pushed it
-        assert git_in(clone, "ls-remote", "origin", "refs/pm/work").strip()
-        assert f"created the work store at {clone}/.pm/store/work and pushed it to origin's refs/pm/work" in res.stdout
-    hooks = ".beads/hooks" if IMPL == "python" else ".pm/hooks"  # Go pm's git hooks are its own (the work-store page)
-    assert git_in(clone, "config", "core.hooksPath").strip() == str(clone / hooks)
+    # the remote had no work store, so pm init made it and pushed it
+    assert git_in(clone, "ls-remote", "origin", "refs/pm/work").strip()
+    assert f"created the work store at {clone}/.pm/store/work and pushed it to origin's refs/pm/work" in res.stdout
+    assert git_in(clone, "config", "core.hooksPath").strip() == str(clone / ".pm/hooks")
     assert git_in(clone / ".pm/store/records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "records"
     assert (clone / "records").is_symlink() and (clone / "records/sprints/demo-1.md").read_text() == "one\n"
     assert git_in(clone, "status", "--porcelain") == ""
     config = (clone / ".git/config").read_text()
     where = subprocess.run([*PM, "where"], cwd=clone,
-                           env=fake_bd_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
-    assert where[0].startswith(f"pm        {__version__}  ")
+                           env=fake_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
+    assert where[0].startswith(f"pm        {VERSION}  ")
     assert where[1] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
     assert where[2] == f"checkout  {clone}  branch main, records link set up"
     # the clone's half of pm init ends with the service; the repo's files, installed already, stay as they are
@@ -459,9 +440,6 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
     assert [c for c in sched_calls(tmp_path) if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]]
     again = init_in(clone)
     assert again.returncode == 0 and again.stdout.startswith("already set up"), again.stderr
-    if IMPL == "python":
-        assert bd_writes_in(tmp_path) == [["bootstrap", "--yes"], ["config", "set", "agent.profile", "team-maintainer"],
-                                         ["hooks", "install", "--beads"]], "no bd change"
     assert (clone / ".git/config").read_text() == config
 
 
@@ -662,7 +640,6 @@ def test_serve_shows_each_change_within_its_stated_age(repo):
     import urllib.error
     import urllib.request
 
-    repo.dolt()
     repo.stop_service()  # this test's own service holds the work store
     srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
@@ -698,140 +675,6 @@ def test_serve_shows_each_change_within_its_stated_age(repo):
 
 
 # ---------------------------------------------------------------- pm show: its levels
-
-
-def show_holder(sid, live):
-    return {"session": sid, "assignee": "yeeef", "claimed_at": None, "live": live}
-
-
-def show_task(tid, title, state="ready", human=False, kind="task", blocked_by=(), h=None):
-    return {"id": tid, "title": title, "state": state, "status": "in_progress" if h else "open", "human": human,
-            "kind": kind, "blocked_by": list(blocked_by), "holder": h}
-
-
-def show_sprint(sid, name, title, tasks, goal="Ship it.", items=0, done_when="", done=0):
-    return {"id": sid, "name": name, "title": title, "state": "running" if tasks else "ready", "record": None,
-            "url": None, "done": done, "total": done + len(tasks), "goal": goal, "done_when_items": items,
-            "done_when": done_when, "tasks": tasks}
-
-
-def show_need(nid, title, kind, sprint=None, task=None, replied=False):
-    return {"sprint": sprint, "task": task, "id": nid, "title": title, "kind": kind, "session": None, "replied": replied}
-
-
-SHOW_DATA = {
-    "site": "https://pm.example.com",
-    "push": ["records push failed at 2026-10-07T01:10:00+00:00: remote rejected; log /x/push.log",
-             "summary step overdue: last successful step 2026-10-06T23:00:00+00:00, 130 min ago (the pm service pushes every 10 min); log /x/push.log"],
-    "today": {"date": "2026-10-07", "page": "days/2026-10-07.html", "summary": "Levels shipped.",
-              "generated_at": "2026-10-07T20:00:00+00:00"},
-    "projects": [
-        {"name": "alpha", "bead": "pa", "title": "Alpha", "url": "https://pm.example.com/projects/alpha.html",
-         "goal": "Alpha's goal.",
-         "sprints": [
-             show_sprint("pa.1", "sprint 1", "Sprint 1: Running", [
-                 show_task("pa.1.1", "Held elsewhere", state="running", h=show_holder("other-session-1", True)),
-                 show_task("pa.1.2", "Held by me", state="running", h=show_holder("me", True)),
-                 show_task("pa.1.3", "Held idle", state="running", h=show_holder("idle-session", False)),
-                 show_task("pa.1.4", "Claimed without pm", state="running",
-                      h={"session": None, "assignee": "bob", "claimed_at": None, "live": None}),
-                 show_task("pa.1.5", "Blocked one", state="blocked", blocked_by=["pa.1.1", "pa.1.4"]),
-                 show_task("pa.1.6", "Review PR #9", human=True, kind="action"),
-             ], items=3, done=2),
-             show_sprint("pa.2", "sprint 2", "Sprint 2: One-line done-when", [show_task("pa.2.1", "Only task")],
-                    goal="", done_when="It works."),
-             show_sprint("pa.3", "sprint 3", "Sprint 3: Quiet", []),
-             show_sprint("pa.4", "sprint 4", "Sprint 4: Also quiet", []),
-         ],
-         "needs": [show_need("pa.1.6", "Review PR #9", "action", sprint="pa.1"),
-                   show_need("pa.5", "Pick a layout", "decision", replied=True),
-                   show_need("pa.1.7", "Choose a name", "decision", sprint="pa.1", task="pa.1.5", replied=True)],
-         "decisions": [{"date": "2026-10-03", "source": "agent", "level": "sprint 1", "record": "sprints/alpha-1",
-                        "text": "Use flags."},
-                       {"date": "2026-10-01", "source": "owner", "level": "project", "record": "projects/alpha",
-                        "text": "Keep it small."}],
-         "feedback": [{"entries": 4, "url": "https://pm.example.com/docs/2026-10-07-alpha-feedback.html"}]},
-        {"name": "beta", "bead": "pb", "title": "Beta", "url": "https://pm.example.com/projects/beta.html",
-         "goal": "Beta's goal.",
-         "sprints": [show_sprint("pb.1", "sprint 1", "Sprint 1: Beta work",
-                            [show_task("pb.1.1", "Beta task held", state="running", h=show_holder("other-session-2", True))])],
-         "needs": [], "decisions": [], "feedback": []},
-        {"name": "gamma", "bead": "pg", "title": "Gamma", "url": "https://pm.example.com/projects/gamma.html",
-         "goal": "Gamma's goal.", "sprints": [], "needs": [show_need("pg.2", "Run the migration", "action")],
-         "decisions": [], "feedback": []},
-    ],
-}
-
-
-# What pm show printed for SHOW_DATA before it had levels (pm 0.1.2), captured from that version's renderer.
-OLD_SHOW = """\
-warning: the pm service's push needs attention (pm service status; pm service logs):
-  records push failed at 2026-10-07T01:10:00+00:00: remote rejected; log /x/push.log
-  summary step overdue: last successful step 2026-10-06T23:00:00+00:00, 130 min ago (the pm service pushes every 10 min); log /x/push.log
-warning: other live sessions hold these tasks; do not start or delegate them:
-  pa.1.1  held by other-se, ?, live
-  pb.1.1  held by other-se, ?, live
-today 2026-10-07: Levels shipped. (generated 2026-10-07T20:00:00+00:00)
-site: https://pm.example.com (the pm service); a record's page is <site>/<its path under records/, without .md>.html; pm record link <target> prints one
-feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"
-alpha  pa  Alpha's goal.
-decisions await you (2):
-  .5  Pick a layout  -> bd show pa.5  [undelivered reply: pm reply read pa.5]
-  .1.7  Choose a name  (sprint 1, task .1.5)  -> bd show pa.1.7  [undelivered reply: pm reply read pa.1.7]
-actions await you (1):
-  .1.6  Review PR #9  (sprint 1)  -> bd show pa.1.6
-feedback: 4 entries -> https://pm.example.com/docs/2026-10-07-alpha-feedback.html
-beta  pb  Beta's goal.
-decisions await you (0):
-actions await you (0):
-gamma  pg  Gamma's goal.
-decisions await you (0):
-actions await you (1):
-  .2  Run the migration  -> bd show pg.2
-alpha  pa  sprints and decisions:
-Sprint 1: Running  .1  running  2/8 done
-  held by: bob (no session), idle-ses, me, other-se
-  goal: Ship it.
-  done when: 3 items (pm show --sprint pa.1)
-  in_progress  .1.1  Held elsewhere  [held by other-se, ?, live]
-  in_progress  .1.2  Held by me  [held by me, ?, live]
-  in_progress  .1.3  Held idle  [held by idle-ses, ?, idle]
-  in_progress  .1.4  Claimed without pm  [held by bob without a session, ?]
-  blocked      .1.5  Blocked one  (by .1.1, .1.4)
-  ready        .1.6  Review PR #9  [human action]
-Sprint 2: One-line done-when  .2  running  0/1 done
-  done when: It works.
-  ready        .2.1  Only task
-open sprints without tasks: .3 Sprint 3: Quiet; .4 Sprint 4: Also quiet
-decisions (last 2):
-  2026-10-03 agent sprint 1  Use flags.
-  2026-10-01 owner project  Keep it small.
-beta  pb  sprints and decisions:
-Sprint 1: Beta work  .1  running  0/1 done
-  held by: other-se
-  goal: Ship it.
-  in_progress  .1.1  Beta task held  [held by other-se, ?, live]"""
-
-
-@IN_PROCESS
-def test_pm_show_levels_together_print_every_line_pm_show_printed_whole(monkeypatch):
-    """The top level and the per-project levels together print every line the one-level pm show printed but the day
-    summary, which only --json and the day page carry, and the top level keeps every push failure, task another live session holds, open owner request and undelivered reply."""
-    from pm import cli
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "me")
-    top = cli.show_text(SHOW_DATA).splitlines()
-    projects = [cli.show_project_text(p).splitlines() for p in SHOW_DATA["projects"]]
-    shown = Counter(top + [l for lines in projects for l in lines])  # counted: a line each project prints once
-    old = [l for l in OLD_SHOW.splitlines() if not l.startswith("today ")]
-    assert Counter(old) - shown == Counter() and not any(l.startswith("today ") for l in shown)
-    old_top = old[:old.index(next(l for l in old if l.startswith("feedback: when pm gets")))]  # warnings, the site
-    assert top[:len(old_top)] == old_top
-    for p in SHOW_DATA["projects"]:
-        assert f"  {p['name']}  {p['bead']}  " in "\n".join(top)
-        for n in p["needs"]:
-            line = next(l for l in top if f"{n['kind']} {n['id'].removeprefix(p['bead'])}  " in l)
-            assert line.endswith(f"[undelivered reply: pm reply read {n['id']}]") == n["replied"], line
-    assert "pa.1.2" not in "\n".join(top)  # the task this session holds is no warning
 
 
 def test_pm_show_project_prints_one_project_and_refuses_what_it_cannot(repo):
@@ -878,7 +721,6 @@ def test_sprints_list_in_natural_id_order_on_the_overview_the_project_page_and_p
 @pytest.fixture
 def served(repo):
     """The pm service for the repo's store on a free port; the repo's env carries that PORT from here on."""
-    repo.dolt()
     repo.stop_service()  # this test's own service holds the work store
     srv = subprocess.Popen([*PM, "service", "run"], cwd=repo.root,
                            env=dict(repo.env, PORT="0"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
@@ -950,11 +792,9 @@ def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
                 lambda p: p.count('<span class="replied">not delivered') == 2 and "Merged as abc123." in p, None)
 
     assert repo.pm("check").returncode == 0  # the static site keeps the slot and shows no form, but the replies
-    if IMPL == "python":  # repo.page renders Python pm's pages from Beads; Go pm's static pages equal them on the
-        # parity corpus, whose constructs hold site replies (internal/site, parity_test.go)
-        static = repo.page("index.html")
-        assert "<!--pm-reply repo-demo.1.2 decision-->" in static and "<form" not in static
-        assert "<p>Merged as abc123.</p>" in static and "<!-- pm-reply" not in static
+    static = repo.page("index.html")
+    assert "<!--pm-reply repo-demo.1.2 decision-->" in static and "<form" not in static
+    assert "<p>Merged as abc123.</p>" in static and "<!-- pm-reply" not in static
 
 
 @contextlib.contextmanager
@@ -1085,7 +925,7 @@ def test_a_reply_to_an_ended_session_is_flagged_and_read_with_pm_reply_read(repo
     assert "the session that asked is not running" in page
     assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 0
     assert "decision .1.3  Parser?  (sprint 1)  [undelivered reply: pm reply read repo-demo.1.3]" in repo.pm("show").stdout
-    assert f"Parser?  (sprint 1)  -> {'bd' if IMPL == 'python' else 'pm'} show repo-demo.1.3  [undelivered reply: pm reply read repo-demo.1.3]" \
+    assert "Parser?  (sprint 1)  -> pm show repo-demo.1.3  [undelivered reply: pm reply read repo-demo.1.3]" \
         in repo.pm("show", "--project", "demo").stdout
     res = repo.pm("reply", "read")  # no ids: this session's open requests
     assert res.returncode == 0, res.stderr
@@ -1176,7 +1016,6 @@ def pull_main(repo) -> str:
 
 @pytest.mark.integration
 def test_a_reviewed_prs_merge_is_pushed_into_the_session_once(repo):
-    repo.dolt()
     sha = review_with_origin(repo)
     repo.set_pr(REVIEWED_PR, "MERGED", sha)
     with session_inbox() as (inbox, lines):
@@ -1294,14 +1133,11 @@ def test_push_pushes_beads_and_new_records_commits(pushed):
     repo.commit("a day")
     res = repo.pm("push")
     assert res.returncode == 0, res.stdout + res.stderr
-    work = "beads" if IMPL == "python" else "work"  # Python pm pushes Beads with bd; Go pm syncs its work store
-    if IMPL == "python":
-        assert ["dolt", "push"] in repo.bd_calls()
-    else:  # to the repo's remote, under pm's own ref
-        assert repo.git("rev-parse", "refs/pm/work", cwd=repo.root.parent / "origin.git").strip()
+    # the work store syncs to the repo's remote, under pm's own ref
+    assert repo.git("rev-parse", "refs/pm/work", cwd=repo.root.parent / "origin.git").strip()
     assert remote_records(repo) == repo.git("rev-parse", "HEAD", cwd=repo.store).strip()
     state = push_state(repo)
-    assert state[work]["ok"] and state["records"]["ok"] and state["records"]["message"] == "pushed 2 commit(s)", "the day file and its new summary"
+    assert state["work"]["ok"] and state["records"]["ok"] and state["records"]["message"] == "pushed 2 commit(s)", "the day file and its new summary"
     assert state["records"]["last_ok"] == state["records"]["at"]
     assert len((repo.root / ".pm/run/push.log").read_text().splitlines()) == 6
     assert state["summary"]["message"].startswith("summarized"), "the new day file changed the activity"
@@ -1361,63 +1197,9 @@ def test_day_summarize_skips_unchanged_activity_and_regenerates_on_change(repo):
     assert json.loads(repo.pm("show", "--json").stdout)["today"]["summary"] == "Summary 2."
 
 
-@IN_PROCESS
-def test_site_lists_open_work_that_sits_in_no_sprint():
-    """A task filed directly under a project shows on its project page and the overview; a task with no parent on the
-    overview only, with no project, a need with no parent too; a task under a sprint, a need under the project and a
-    closed task nowhere; an overview with none has no section. In process: the work store refuses an open item with
-    no parent, so the repo fixture cannot seed one; bd allows it."""
-    from conftest import ISSUES, RECORDS
-    from pm.records import parse_record
-    from pm.site import render_index, render_record
-    recs = [parse_record(Path(rel), rel.removesuffix(".md"), text) for rel, text in RECORDS.items()
-            if rel.startswith("projects/")]
-    beads = {i["id"]: dict(i) for i in ISSUES}
-    for i in [{"id": "repo-demo.3", "title": "Loose under project", "status": "open", "issue_type": "task", "parent": "repo-demo"},
-              {"id": "repo-demo.4", "title": "Need under project", "status": "open", "issue_type": "task", "parent": "repo-demo",
-               "labels": ["human"]},
-              {"id": "repo-demo.5", "title": "Closed under project", "status": "closed", "issue_type": "task",
-               "parent": "repo-demo"},
-              {"id": "repo-demo.1.3", "title": "In a sprint", "status": "open", "issue_type": "task", "parent": "repo-demo.1"},
-              {"id": "orphan", "title": "No parent at all", "status": "open", "issue_type": "bug"},
-              {"id": "orphan-need", "title": "A need with no parent", "status": "open", "issue_type": "task",
-               "labels": ["human"]}]:
-        beads[i["id"]] = {"created_at": "2026-10-01T12:00:00Z", **i}
-    table = lambda page: re.search(r'id="not-in-a-sprint">Not in a sprint</h\d>\n(.*?)</table>', page, re.S).group(1)
-    rows = lambda page: re.findall(r"<tr><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td></tr>", table(page))
-    assert rows(render_index(recs, beads, "site")) == [
-        ("orphan", "bug", "No parent at all", "—"),
-        ("orphan-need", "task", "A need with no parent", "—"),
-        ("repo-demo.3", "task", "Loose under project", '<a href="projects/demo.html">Demo</a>')]
-    demo, old = sorted(recs, key=lambda r: r.rel)
-    assert rows(render_record(demo, recs, beads)) == [
-        ("repo-demo.3", "task", "Loose under project", '<a href="../projects/demo.html">Demo</a>')]
-    assert "Not in a sprint" not in render_record(old, recs, beads)
-    assert "Not in a sprint" not in render_index(recs, {i["id"]: dict(i) for i in ISSUES}, "site")
+# ---------------------------------------------------------------- the work store's one access path
 
-
-@IN_PROCESS
-def test_index_lists_every_sprint_not_done_and_only_the_latest_closed_done_ones():
-    from pm.records import Record
-    from pm.site import DONE_SPRINTS_SHOWN, render_index
-    project = Record(Path("p.md"), "projects/p", {"type": "project", "bead": "p", "title": "P"}, "")
-    beads = {"p": {"id": "p", "title": "P", "issue_type": "epic", "status": "open"}}
-    for n in range(12):  # done sprints d00..d11, d11 closed last
-        beads[f"p.d{n:02}"] = {"id": f"p.d{n:02}", "parent": "p", "issue_type": "epic", "status": "closed",
-                               "title": f"done-{n:02}", "closed_at": f"2026-10-{n + 1:02}T00:00:00Z"}
-    for n, status in enumerate(["open", "in_progress", "open"]):
-        beads[f"p.o{n}"] = {"id": f"p.o{n}", "parent": "p", "issue_type": "epic", "status": status,
-                            "title": f"live-{n}"}
-    page = render_index([project], beads, "site")
-    assert DONE_SPRINTS_SHOWN == 8
-    assert all(f"live-{n}" in page for n in range(3))
-    assert [n for n in range(12) if f"done-{n:02}" in page] == list(range(4, 12))
-    assert "4 older done sprints not shown" in page
-
-
-# ---------------------------------------------------------------- the work store's one access path (Go pm)
-
-# Every Go pm command that reads or writes work items, as an agent runs it: each reaches the work store only through
+# Every pm command that reads or writes work items, as an agent runs it: each reaches the work store only through
 # the pm service (the pm-go page, Store access), so with the service stopped each fails hard, naming the fix, and writes
 # nothing. pm where reports it in its work line instead, and the hooks fail open; pm record link reads no item.
 STORE_COMMANDS = [
@@ -1448,7 +1230,6 @@ STORE_COMMANDS = [
 ]
 
 
-@pytest.mark.impl("go", reason="Python pm reaches Beads through bd; only Go pm's store is held by the service")
 def test_every_store_command_fails_hard_with_the_service_stopped(repo):
     repo.stop_service()
     want = (f"error: the pm service does not answer on {repo.root / '.pm/run/work.sock'}; pm reaches the work store "
