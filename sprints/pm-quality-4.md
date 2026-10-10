@@ -69,6 +69,13 @@ None yet.
   TestMoveSprintAcrossClonesKeepsTheOtherClonesWrites covers it: the other
   clone comments on and renames the sprint during the move's push race.
 
+- --text=Open edge, not fixed: two clones can both write the records step. A
+  rerun runs the step when the sprint is in the target project and its record
+  still has the old name. On a clone whose records branch has not synced,
+  another clone's finished move looks the same, so the rerun writes the rename
+  and both decisions again, and the decisions are duplicated once the branches
+  sync.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
