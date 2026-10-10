@@ -60,6 +60,17 @@ None yet.
   plus the stamp compare, 0 of ~60 loads per run (8 runs) passed short; each
   such read becomes a service.Partial, read again under the records lock.
 
+- TestCreateRacingALocalWriter, linux race (clone: invalid connection): git
+  2.47+ (CI runs 2.55.0, this machine 2.43.0) starts a fetch's auto
+  maintenance detached; the detached git takes and drops
+  objects/maintenance.lock after the fetch returned, while DOLT_CLONE walks
+  the new database's .dolt (CanCreateDatabaseAtPath), and Dolt's localFS.iter
+  dereferences the nil FileInfo of the vanished lock. 0 failures in 224 runs
+  with git 2.43; reproduced with git 2.55.0 built from source plus a
+  GIT_EXEC_PATH shim starting the detached maintenance 0-19 ms late: 2 of 40
+  runs failed with the CI panic stack. Fix: the host sets
+  maintenance.autoDetach=false and gc.autoDetach=false via GIT_CONFIG_COUNT.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
