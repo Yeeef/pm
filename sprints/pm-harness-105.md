@@ -41,7 +41,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+Moved yeeef-agents-9va.115.1 to pm-d2k5.2: The owner moved pm's quality work (code, architecture, tests, feedback) to its own project, pm-quality, on 2026-10-10.
+This sprint's open work continues in pm-quality sprint 2.
+:::
 
 ## Findings
 
