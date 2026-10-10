@@ -2,7 +2,7 @@ UV ?= uv
 # The harness (tests/, pytest) runs in the environment uv keeps at .venv, from pyproject.toml's dev group.
 PYRUN := $(UV) run --quiet
 
-.PHONY: test test-full test-live test-go go-build go-vet go-test go-test-race
+.PHONY: test test-full test-live test-go go-build go-vet go-test go-test-race merge-ready
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
 ARGS ?=
@@ -26,6 +26,12 @@ test-full: go-build
 # its prompt. PM_LIVE_RUNS sets the runs per case (default 3).
 test-live: go-build
 	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -s -k owner_request_prompt_live
+
+# Check that PR N may be merged: its head contains origin's base branch and every check on that head passed, so its
+# CI tested what the merge lands (release/merge_ready.py). Run it right before merging: make merge-ready PR=N
+merge-ready:
+	@test -n "$(PR)" || { echo 'make merge-ready: give the PR number, make merge-ready PR=<n>' >&2; exit 2; }
+	python3 release/merge_ready.py $(PR)
 
 # Build pm as the release builds it (cgo, -tags gms_pure_go, stripped) into .go/pm, and the harness's page renderer
 # (tests/render-pages) into .go/render-pages. A release takes its version from its tag (release/build.sh); this build
