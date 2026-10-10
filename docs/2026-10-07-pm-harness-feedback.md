@@ -117,3 +117,7 @@ Closing a project because it moved to another repo: pm task close closed tasks h
 ### 2026-10-10 13:04 UTC, session `ff5f58e0-8448-5f34-be91-c55611ad9ce8`
 
 In a clone that installs pm without committing .pm/config.toml (this Yeeef/pm checkout), a session whose cwd is a worktree branched from origin/main runs the Stop hooks there: `pm hook owner-request` and `pm hook stop` refuse ("this repo has no .pm/config.toml"), exit 1, and Claude Code treats that as non-blocking, so a request asked only in chat went out unchecked (sprint 79, 2026-10-10). The same refusal from pm's pre-commit hook blocked every commit on that branch. What would have helped: the hooks finding the config through the main checkout (git's common dir) rather than the cwd, or failing with exit 2 so the miss is visible.
+
+### 2026-10-10 14:00 UTC, session `ffa2f713-c138-5cf7-8379-c247d20c2e2a`
+
+pm finding add --text="…" is accepted and stores the literal '--text=' prefix in the finding, while every other body command takes --text; it should either take --text like them or refuse it. Hit in pm-quality sprint 8.
