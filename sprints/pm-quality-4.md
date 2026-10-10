@@ -84,7 +84,7 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: `pm sprint move <sprint> --to <project>` moves an open sprint whole in one command, keeping its id, and a rerun finishes a move cut short (PR #24, pending merge).
+done: `pm sprint move <sprint> --to <project>` moves an open sprint whole in one command, keeping its id, and a rerun finishes a move cut short (PR #24, merged as fcae7a7).
 
 - Design on the work-store page (Ids, Moving a sprint), with the alternatives not chosen; rows on the pm-cli and pm-go pages.
 - The work store's write runs through the child-id compare-and-swap (`pm_move_sprint(?)`). It sets the parent, mints the new project's next number and adds a move note.
