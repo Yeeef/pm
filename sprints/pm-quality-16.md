@@ -69,6 +69,15 @@ The service follows the main checkout's pin, so the main checkout is the one the
   service on the same main pin and fixes nothing; pm doctor's service drift
   said the same.
 
+- Fresh-context review of PR #37: no high or medium findings; two low ones
+  fixed in 2a0fd00 (a worktree pinned past the move was told to rebase, which
+  would not help it; a worktree git could not read failed pm upgrade after its
+  writes). Harness pin-move test: 1 passed in 1.80s; touched integration tests
+  (-k 'strands or worktree or upgrade or doctor or stale or pin or where'): 41
+  passed; make test: 145 passed, 63 skipped; make go-vet go-test go-test-race:
+  all ok. .go/pm-before adds one link step to make go-build (0.17 s on a warm
+  cache).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
