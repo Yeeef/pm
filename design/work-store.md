@@ -193,7 +193,7 @@ Across clones, two copies can change the same item before they sync. The merge i
 | Field | Both sides changed it |
 |---|---|
 | `id`, `type` | never changed: unequal values fail the merge |
-| `number` | changed only by `pm sprint move`, which runs through the compare-and-swap, so never by both sides: unequal values fail the merge |
+| `number` | changed only by `pm sprint move`, which runs through the compare-and-swap, so by one side at most: that side's value; both sides changed it fails the merge. A sprint's title keeps its `Sprint <n>: ` prefix at the merged number, whichever side's title won |
 | `comments` | union by comment id: rows, merged by Dolt |
 | `labels`, `blocked_by` | per entry, three-way: an entry is kept unless a side removed it from the base and the other side left it as in the base; an add on either side is kept. Rows, merged by Dolt |
 | `status` | `closed` wins |
@@ -257,7 +257,7 @@ Steps 1 and 2 need the remote. With the remote unreachable, a create refuses. A 
 | Order | the work store first, then the records: the store write is one transaction; the records write is one commit on the records branch, which renames the record and adds a `source=agent` decision to both projects' records, naming the sprint, both numbers and the reason |
 | Interrupted | between the two writes the store holds the sprint in the new project with its new number, and the record keeps its old name. `pm show` and the site place a sprint by its `parent` and name it by its `number`, never by its record's file name, so both show it under the new project only. A rerun of the same command finds the sprint in the target project, its record not yet named for it, and writes the records step alone, from the move note. A records step that fails is not undone in the store, for the same reason |
 | Another clone | a task another clone adds under the sprint before it syncs mints its id under the sprint's id, which did not change, so it lands in the moved sprint; claims, closes and edits change other rows, or cells the merge table settles (`parent` and `title` by the later `updated_at`). The move note merges as a comment. `number` changes only in the compare-and-swap, so two clones never both change it from one base |
-| Refuses | a closed sprint; an unknown or closed target project; the project the sprint is in, once its record carries the new name; a reason under two lines |
+| Refuses | a move while the sprint's last move has no records step yet (its record keeps the old name), naming the rerun that finishes it; a closed sprint; an unknown or closed target project; the project the sprint is in, once its record carries the new name; a reason under two lines |
 
 ### Ready and blocked
 
