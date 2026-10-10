@@ -22,23 +22,19 @@ only.
 
 ## [Unreleased]
 
-### Added
-
-- `pm init --import FILE` loads a `pm export` file into an empty work store and keeps every item's id, so a project
-  moves from one clone's store to another's. It refuses a store that holds items, and a malformed or unknown line
-  fails with its line number.
-
-## [0.3.1] - 2026-10-10
+## [0.4.0] - 2026-10-10
 
 pm's rule on requests to the owner, the owner-request Stop hook's judge and its block message now state one rule:
 ask the owner only for what you cannot do yourself, as a need under a task or sprint, or with AskUserQuestion when
 the owner is in the chat. The hook no longer exempts requests that no sprint waits on, a condition it never checked.
+Python pm is retired: a repo still pinned below 0.2.0 must run `pm upgrade` before any other pm command (Breaking
+changes). `pm init --import` moves a project from one clone's work store to another's.
 
 ### Upgrade guide
 
 1. On each machine, install the release:
-   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.3.1/install.sh | sh`.
-2. In the repo, run `pm upgrade --to 0.3.1`, then commit what it changes and merge it, as an ordinary PR. A repo
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.4.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.4.0`, then commit what it changes and merge it, as an ordinary PR. A repo
    still pinned below 0.2.0 needs this step before any other pm command runs there.
 
 ### Breaking changes
@@ -46,6 +42,12 @@ the owner is in the chat. The hook no longer exempts requests that no sprint wai
 - pm no longer runs a repo pinned to a Python release (below 0.2.0) through `uv`: every command there fails, naming
   the fix, `pm upgrade --to <X>` with a release from 0.2.0 on (step 2). Python pm is retired, and pm no longer needs
   `uv` on a machine, but for the one-time move of a clone off the pre-package harness, which `pm init` names.
+
+### Added
+
+- `pm init --import FILE` loads a `pm export` file into an empty work store and keeps every item's id, so a project
+  moves from one clone's store to another's. It refuses a store that holds items, and a malformed or unknown line
+  fails with its line number.
 
 ### Changed
 
@@ -190,8 +192,8 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
-[Unreleased]: https://github.com/Yeeef/pm/compare/pm-v0.3.1...HEAD
-[0.3.1]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...pm-v0.3.1
+[Unreleased]: https://github.com/Yeeef/pm/compare/pm-v0.4.0...HEAD
+[0.4.0]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...pm-v0.4.0
 [0.3.0]: https://github.com/Yeeef/pm/compare/pm-v0.2.2...pm-v0.3.0
 [0.2.2]: https://github.com/Yeeef/pm/compare/pm-v0.2.1...pm-v0.2.2
 [0.2.1]: https://github.com/Yeeef/pm/compare/pm-v0.2.0...pm-v0.2.1
