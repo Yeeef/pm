@@ -1,6 +1,7 @@
 # The release build test (tests/test_release.py with PM_RELEASE_BUILD=1: release/build.sh, twice, in a scratch clone,
 # tagged then untagged), on both release targets, only when a change can alter the release build: release/, install.sh,
-# go.mod and go.sum, the version stamp's target (internal/buildinfo), the test, or this file; and on every pm-v* tag
+# go.mod and go.sum, the version stamp's target (internal/buildinfo), the path pm version takes through main (cmd/pm)
+# and the launcher (internal/launch), the test, or this file; and on every pm-v* tag
 # (GitHub does not apply paths to tag pushes). Every other change builds pm the same way in pm-go.yml's go-build.
 name: pm release build
 
@@ -12,6 +13,8 @@ on:
       - go.mod
       - go.sum
       - internal/buildinfo/**
+      - cmd/pm/**
+      - internal/launch/**
       - tests/test_release.py
       - .github/workflows/pm-release-build.yml
   push:
@@ -23,6 +26,8 @@ on:
       - go.mod
       - go.sum
       - internal/buildinfo/**
+      - cmd/pm/**
+      - internal/launch/**
       - tests/test_release.py
       - .github/workflows/pm-release-build.yml
 
