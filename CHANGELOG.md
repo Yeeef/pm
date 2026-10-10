@@ -33,7 +33,7 @@ only.
 
 - pm no longer runs a repo pinned to a Python release (below 0.2.0) through `uv`: every command there fails, naming
   the fix, `pm upgrade --to <X>` with a release from 0.2.0 on (step 2). Python pm is retired, and pm no longer needs
-  `uv` on a machine.
+  `uv` on a machine, but for the one-time move of a clone off the pre-package harness, which `pm init` names.
 
 ### Changed
 

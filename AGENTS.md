@@ -232,5 +232,6 @@ A change to setup, the hooks, the site or replies gets a live check besides its 
 ## Elsewhere
 
 - A clone set up by the old harness (a `.records` store, the old push job, path-based hook entries) is refused by
-  `pm init`, which names the Python release (0.1.x) that moves it onto installed pm; `internal/install/legacy.go` lists
-  what it looks for.
+  `pm init`, which names the one-time move: the retired Python release (0.1.x) run once through `uvx`, then
+  `pm upgrade --to <X>` to a release from 0.2.0 on, then `pm init`; `internal/install/legacy.go` lists what it looks
+  for.

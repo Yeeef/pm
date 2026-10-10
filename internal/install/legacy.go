@@ -169,10 +169,12 @@ func LegacyClone(main string) []string {
 	return out
 }
 
-// LegacyFix is how to move a clone off the pre-package harness: Python pm's pm init, then Go pm's.
+// LegacyFix is how to move a clone off the pre-package harness: Python pm's pm init, which pins its own retired
+// release, then the pin moved to a release pm runs, then pm init.
 func LegacyFix() string {
 	return fmt.Sprintf("Go pm does not move them: run pm init once with Python pm %s, which moves them "+
-		"(uvx --from \"git+https://github.com/Yeeef/pm@pm-v%s\" pm init), then pm init again",
+		"(uvx --from \"git+https://github.com/Yeeef/pm@pm-v%s\" pm init; this needs uv), then move the pin it "+
+		"leaves to a release from 0.2.0 on (pm upgrade --to <X>) and run pm init",
 		LegacyRelease, LegacyRelease)
 }
 

@@ -599,7 +599,7 @@ def test_commit_commits_only_its_callers_records_beside_another_sessions_edit(re
     assert "session A" in a.read_text()
 
 
-SERVE_BEHIND = 10  # seconds a served page may be behind, as pm/site.py has it
+SERVE_BEHIND = 10  # seconds a served page may be behind, as internal/site's ServeBehind has it
 
 
 def asof(page: str) -> float:
