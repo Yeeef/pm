@@ -120,7 +120,7 @@ func (s *server) collect() GCState {
 	before, err := dirSize(s.d.WorkDir)
 	if err == nil {
 		st.Before = before
-		ctx, cancel := context.WithTimeout(context.Background(), GCTimeout)
+		ctx, cancel := context.WithTimeout(s.ctx, GCTimeout)
 		err = s.d.GC(ctx)
 		cancel()
 	}
