@@ -75,6 +75,16 @@ None yet.
   keys and deletes info/sparse-checkout, after which core.sparseCheckout is
   unset in the main checkout and a new worktree.
 
+- Live check (scratch origin and clone under /tmp, fake
+  HOME/CODEX_HOME/supervisor): a repo installed by the pm 0.4.0 release with
+  main's copy made by the copy Action's own git subtree add; this build's pm
+  doctor named 3 retired files and the tracked copy, pm upgrade removed them
+  and its printed commit untracked records/ (12 files changed), after merge
+  and push git ls-tree origin/main records was empty with no workflows, pm
+  init turned the sparse checkout off, a new worktree got the link with
+  core.sparseCheckout unset, pm doctor was clean in both, and an old branch
+  was fixed by merging main.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
