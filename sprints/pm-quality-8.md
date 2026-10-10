@@ -95,7 +95,7 @@ The work store syncs between clones through refs/pm/work and every clone checks 
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: `pm task close` drops a task with a reason and no commit, names work in another repo or a PR, warns about the tree only when HEAD stands in, and refuses a live session's task; `pm task move` takes a project-level task into a sprint (PR #21, pending merge).
+done: `pm task close` drops a task with a reason and no commit, names work in another repo or a PR, warns about the tree only when HEAD stands in, and refuses a live session's task; `pm task move` takes a project-level task into a sprint (PR #21, merged as d0e08f3).
 
 - `--dropped`: resolution `dismissed` (sprint decision: no new resolution, no cross-clone upgrade), shown as dropped in `pm show --sprint`, the task graph and legend, the day page and the day summary; left out of both numbers of "n of m tasks done".
 - `--commit OWNER/REPO@SHA` (`gh api`) and a PR URL (`gh pr view`); this repo's refs first; an unresolvable one, or a PR closed unmerged, refused.
