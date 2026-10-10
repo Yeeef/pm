@@ -65,6 +65,11 @@ Option C ships as a Go port in Yeeef/pm (internal/install pieces.go, clone.go), 
 PR #76 changes the Python pm in yeeef-agents, which Go pm replaced; pm-harness moved to Yeeef/pm on 2026-10-10.
 :::
 
+::: decision {source=agent date=2026-10-10}
+Moved yeeef-agents-9va.65.6 to pm-d2k5.1: The owner moved pm's quality work (code, architecture, tests, feedback) to its own project, pm-quality, on 2026-10-10.
+The Go port of option C continues in pm-quality sprint 1.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
