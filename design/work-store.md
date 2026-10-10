@@ -299,7 +299,7 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 | `bd unclaim` | `pm task release <id>` | clears this session's holder |
 | `bd comments add`, `bd comment` | `pm comment add <id>` | text through `--text` or `--text-file`; a `note` |
 | `bd close` | `pm task close` (exists) | |
-| `bd human dismiss` | `pm need dismiss <id> --reason "…"` | `resolution=dismissed`; for `[TEST]` needs and replaced reviews |
+| `bd human dismiss` | `pm need dismiss <id> --reason "…"` | `resolution=dismissed`; for `[TEST]` needs, replaced reviews and needs that became moot |
 | `bd human respond` (owner at a shell) | `pm reply add <id>` | owner's answer through `--text` or `--text-file`; a `reply` comment, as a reply on the site writes. The need stays open: the session that raised it reads the reply, then records it (`pm decision add --need`, `pm decision close`, `pm action done`), which closes it with its `resolution` |
 | `bd list`, `bd search`, `bd count` | `pm show` filters; `pm export` | `pm export` prints the store as JSONL for ad hoc `jq` |
 | `bd remember`, `bd memories`, `bd forget` | none | see Session context |
