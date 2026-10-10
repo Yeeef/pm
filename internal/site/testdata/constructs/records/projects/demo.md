@@ -8,7 +8,7 @@ bead: demo
 
 > Why do we do it? What is it? What outcome do we expect?
 
-A demo project for the page parity corpus: every construct a record or a request can hold.
+A demo project for the site's golden pages: every construct a record or a request can hold.
 
 ## Progress
 
