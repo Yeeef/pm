@@ -127,6 +127,17 @@ Owner in chat, 2026-10-10: why make it more complicated; that agent should not r
   owner or names them as the one to act. A PR said to wait on "your review and
   merge" still blocks (contrast case).
 
+- Fresh-context review of PR #25: the judge cannot see who merges, so clauses
+  that passed the coordinator's status lines passed real requests too
+  ('**Merge #20 first.**', 'PR #12 is green and waits on review and merge').
+  Rule adopted: a PR review or merge pending with no actor named is a request
+  to the owner; naming the agent or its subagents as the actor is a plan; a
+  request cited by id as open on the site is a report, whichever session holds
+  it. The five coordinator lines are labelled block as written, each paired
+  with a reworded pass form. make test-live, PM_LIVE_RUNS=3: all 63 cases 3/3
+  in three full runs (189 hook runs each; per run median 2.09 s, 2.05 s, 2.09
+  s; max 9.80 s, 9.32 s, 7.83 s).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
