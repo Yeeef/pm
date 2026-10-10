@@ -56,7 +56,8 @@ Raised by the pm feedback triage of 2026-10-10 across pm, formal-methods, ai-saf
 
 > Where is the detail?
 
-None yet.
+- [pm in Go](../design/pm-go.md): Store access, the Startup table (session start, `pm service stop`, `pm uninstall` with the service down) and its alternatives
+- [pm versioning](../design/pm-versioning.md): What the user sees today, the newer-release row
 
 ## Progress
 
@@ -113,10 +114,27 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a clone's pm service can be stopped and stays stopped through session start, pm uninstall works with it down, pm record link --local gives the localhost URL, and pm doctor names a newer release (PR #22, pending merge).
+
+- `pm service stop`: it disables and stops the unit, and checks that the socket and the site no longer answer. The supervisor's disabled state is the record. Session start leaves the service stopped and names `pm service restart`; `pm service restart` and `pm init` enable it again.
+- `pm uninstall` with the service down runs its own `pm service run` (on `PORT=0`) for the unsynced-work check, which keeps the one access path.
+- `pm record link --local`.
+- `pm doctor`'s release line: it names a newer release, or says that the release list cannot be read. The exit code is unchanged.
+- Help texts, `prime.md`, CLAUDE.md, CHANGELOG `[Unreleased]` and the pm-go and pm-versioning design pages are updated.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Harness tests with `fake_sched`: met.
+  - Stop disables the unit and the socket stops answering. A typed `pm init --session-start` then leaves the service stopped with no enable, restart or bootstrap call, and `pm service restart` brings it back: `test_stop_keeps_the_service_stopped_at_session_start_until_restart`.
+  - `pm uninstall` with the service stopped refuses with one unsynced commit, and succeeds once the store is synced: `test_uninstall_with_the_service_stopped_checks_for_unsynced_work`.
+  - `pm record link --local` prints `http://127.0.0.1:<port>/…` while `site_url` is set: `test_service_install_status_restart_and_logs_end_to_end`.
+  - `pm doctor` against a local release API that holds `pm-v99.0.0` prints the line; when the API holds the pin it prints nothing; when nothing answers it prints the "cannot read" line: `test_doctor_names_a_release_newer_than_the_pin`.
+  - Go tests cover stop, restart and install for both systemd and launchd, a stop while the socket still answers, a failed `is-enabled`, and `Newer`.
+- These integration tests pass locally and in CI: met. `uv run pytest -n 8 tests/test_lifecycle.py tests/test_service.py -k "stop or uninstall or doctor or end_to_end"` gave 12 passed. `make test` gave 112 passed and 40 skipped, and `make test-go` passed. CI on PR #22 is in its Findings and the PR's checks.
+- A live check in a scratch clone under a temp `HOME` runs stop, then session start, then restart, and its output goes in Findings: met.
+  - It used the real systemd user instance; only `XDG_CONFIG_HOME` was real, so that systemd could see the scratch unit.
+  - Stop took 0.23 s and left the unit disabled and inactive. Session start left it so. Restart took 0.46 s and left it enabled and active.
+  - Uninstall with the service down refused in 0.14 s with one unsynced commit, and succeeded in 0.29 s once synced.
+  - Doctor read the real GitHub API and named 0.4.0 to a clone pinned at 0.3.0.
