@@ -63,6 +63,11 @@ None yet.
 A decision need has one checked layout (question, facts, options with costs, default, 25-word sentences); a free body would bypass those checks, so the edit rebuilds it through the same code.
 :::
 
+::: decision {source=agent date=2026-10-10}
+The work store itself refuses a new description for a need that is closed or holds a reply (`Dolt.Edit`, inside the write transaction), besides the CLI refusal.
+A reply that lands between the CLI check and the write would otherwise let the body change under an answer; the store check closes that window on one clone.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
