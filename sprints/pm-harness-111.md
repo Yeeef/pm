@@ -51,7 +51,13 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- PR #10 merged as ef8c15c after PR #9 (retire Python pm, another session's
+  sprint 109). The merge put #9's Breaking changes entry (a repo pinned below
+  0.2.0 fails every pm command until pm upgrade) inside the 0.3.1 section; the
+  summary written for #7 alone does not mention it. AGENTS.md's rule bumps the
+  minor for a breaking change while pm is 0.x, so the tag waits on the owner's
+  choice of 0.4.0 or 0.3.1 (decision need 121.3). PR #10's checks ran on its
+  own head, before #9 was on main; the changelog check on ef8c15c passed.
 
 ## Delivery report
 
