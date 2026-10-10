@@ -57,6 +57,22 @@ type Site interface {
 	FillStatus(page string, asOf time.Time, digest string, now time.Time) string
 }
 
+// Partial is Load's error when the records moved while it read them (git rewrites a file by unlinking it, as a
+// records sync's rebase does): Pages renders what it read, without the files in Gone and any the walk missed. The
+// service reads again under the records lock, which that rebase holds; a Partial there (a git command or an editor in
+// the store, which take no lock) is served as it is.
+type Partial struct {
+	Pages Pages
+	Gone  []string
+}
+
+func (p *Partial) Error() string {
+	if p.Gone == nil {
+		return "the records changed while read"
+	}
+	return "the records changed while read: " + strings.Join(p.Gone, ", ") + " went"
+}
+
 // Pages renders the pages of one Load.
 type Pages interface {
 	// Page is the page at path (index.html, sprints/x.html); found false when the site has no such page.
@@ -353,6 +369,10 @@ func (s *server) refresh(old *snapshot) *snapshot {
 				return err
 			}
 			pages, err = s.d.Site.Load(items)
+			if p := (*Partial)(nil); errors.As(err, &p) {
+				s.logf("refresh under the records lock: %v; served without them", err)
+				pages, err = p.Pages, nil
+			}
 			if err != nil {
 				snap.err = "error: " + err.Error() // a render error: served until the records or the store move
 			}

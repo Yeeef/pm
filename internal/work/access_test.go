@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,19 +21,14 @@ func TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt(t *testing.T) {
 		"github.com/dolthub/dolt/go/cmd/dolt/commands/engine": true}
 	got := map[string][]string{} // call -> the files that make it
 	root := filepath.Join("..", "..")
-	err := filepath.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if e.IsDir() && (e.Name() == ".git" || e.Name() == ".go" || e.Name() == "testdata" || e.Name() == ".venv") {
-			return filepath.SkipDir
-		}
-		if e.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
+	files, err := moduleGoFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range files {
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
 		if err != nil {
-			return err
+			t.Fatal(err)
 		}
 		imports := map[string]string{} // the name a file calls a package by -> its path
 		for _, im := range f.Imports {
@@ -70,10 +66,6 @@ func TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt(t *testing.T) {
 			}
 			return true
 		})
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 	for name, files := range got {
 		sort.Strings(files)
@@ -90,6 +82,61 @@ func TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt(t *testing.T) {
 		if len(got[name]) == 0 {
 			t.Errorf("no call of %s found: the scan is broken", name)
 		}
+	}
+}
+
+// moduleGoFiles is every non-test Go file of the module at root, as the go command counts it: a directory with a
+// go.mod of its own (another module, or a worktree of this repo under .claude/worktrees) is not in it, nor is .git,
+// testdata, .go (the build output) or .venv.
+func moduleGoFiles(root string) ([]string, error) {
+	var files []string
+	err := filepath.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if e.IsDir() {
+			if e.Name() == ".git" || e.Name() == ".go" || e.Name() == "testdata" || e.Name() == ".venv" {
+				return filepath.SkipDir
+			}
+			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil && path != root {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files, err
+}
+
+// A worktree of the repo inside the checkout (.claude/worktrees/<name>) holds its own copy of every file; the scan
+// leaves it out, so the access test passes from the main checkout too.
+func TestModuleGoFilesLeaveOutNestedModulesAndWorktrees(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{"go.mod", "a.go", "a_test.go", "sub/b.go", "testdata/c.go", "nested/go.mod", "nested/d.go",
+		".claude/worktrees/x/go.mod", ".claude/worktrees/x/internal/work/host.go", ".claude/settings.go"} {
+		p := filepath.Join(root, f)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := moduleGoFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, f := range files {
+		rel, _ := filepath.Rel(root, f)
+		got = append(got, filepath.ToSlash(rel))
+	}
+	sort.Strings(got)
+	if want := []string{".claude/settings.go", "a.go", "sub/b.go"}; strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("module files %v, want %v", got, want)
 	}
 }
 

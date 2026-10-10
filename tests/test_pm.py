@@ -501,6 +501,27 @@ def test_sprint_move_takes_the_sprint_whole_and_a_rerun_finishes_a_move_cut_shor
         assert res.returncode == 0 and f"opened sprint {n} of {name}" in res.stdout, res.stderr
 
 
+def test_sprint_move_rerun_on_a_clone_whose_records_lag_writes_the_same_records_step(repo):
+    """Another clone finished the move; this clone's work store holds it, but its records branch has not synced the
+    other's records commit, so a rerun here writes the records step again. It writes the same step, whatever the day
+    or time zone the clone runs in (the move decisions carry the move note's UTC date), so the records sync's rebase
+    onto the other clone's commit drops it, and each project holds its move decision once."""
+    site_project(repo)
+    env = repo.env
+    repo.env = {**env, "TZ": "Pacific/Kiritimati"}  # UTC+14: the clone that finished the move
+    res = repo.pm("sprint", "move", "repo-demo.1", "--to", "site", text=MOVE_REASON)
+    assert res.returncode == 0, res.stderr
+    finished = repo.git("rev-parse", "HEAD", cwd=repo.store).strip()
+    repo.git("reset", "-q", "--hard", "HEAD~1", cwd=repo.store)  # this clone, whose records lag
+    repo.env = {**env, "TZ": "Pacific/Pago_Pago"}  # UTC-11: a day behind the other clone's
+    res = repo.pm("sprint", "move", "repo-demo.1", "--to", "site", text=MOVE_REASON)
+    assert res.returncode == 0 and "finished moving" in res.stdout, res.stderr
+    repo.git("rebase", "-q", finished, cwd=repo.store)  # the records sync rebases onto the remote's records
+    assert repo.git("rev-parse", "HEAD", cwd=repo.store).strip() == finished
+    for name in ("demo", "site"):
+        assert (repo.store / f"projects/{name}.md").read_text().count("repo-demo.1") == 1
+
+
 def test_sprint_move_in_one_go_and_its_refusals(repo):
     site_project(repo)
     refused(repo, "sprint", "move", "repo-demo.1.3", "--to", "site", text=MOVE_REASON,
@@ -867,6 +888,18 @@ def test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that
     assert "committed records/sprints/demo-1.md as " in res.stdout
     assert committed(repo, ["Sharpen the sprint 1 goal"])
     refused(repo, "commit", "-m", "Nothing", "records/sprints/demo-1.md", match=r"error: nothing to commit in .*\.pm/store/records")
+
+
+def test_pm_check_and_commit_refuse_a_record_link_to_nothing(repo):
+    """A .md link whose file is gone is no record anyone can read: pm check names it, and pm commit will not commit it."""
+    link = repo.store / "docs/2026-10-07-gone.md"
+    link.parent.mkdir()
+    link.symlink_to("nowhere.md")
+    said = r"docs/2026-10-07-gone.md: a link to nowhere.md, which does not exist; remove the link or restore its file"
+    before = repo.git("status", "--porcelain", cwd=repo.store)
+    refused(repo, "check", match="error: " + said)
+    refused(repo, "commit", "-m", "Add a link", "records/docs/2026-10-07-gone.md", match="error: " + said)
+    assert repo.git("status", "--porcelain", cwd=repo.store) == before
 
 
 def test_pm_check_and_commit_take_image_files_beside_a_record(repo):

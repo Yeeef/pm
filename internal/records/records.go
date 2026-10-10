@@ -289,15 +289,17 @@ func Parse(path, rel, text string) (*Record, error) {
 }
 
 // Texts is the text of every .md file under root, by resolved path. A file or directory the walk listed but that is
-// gone when it is read (git rewrites a file by unlinking it) is left out, as it is no longer there.
-func Texts(root string) (map[string]string, error) {
-	root, err := filepath.EvalSymlinks(root)
+// gone when it is read (git rewrites a file by unlinking it) is left out, as it is no longer there, and named in gone;
+// a link to nothing is an error, as no read of it will open it.
+func Texts(root string) (texts map[string]string, gone []string, err error) {
+	root, err = filepath.EvalSymlinks(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	out := map[string]string{}
+	texts = map[string]string{}
 	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) && p != root {
+			gone = append(gone, p)
 			return nil
 		}
 		if err != nil {
@@ -308,15 +310,32 @@ func Texts(root string) (map[string]string, error) {
 		}
 		b, err := os.ReadFile(p)
 		if errors.Is(err, fs.ErrNotExist) {
+			if err := LinkToNothing(root, p); err != nil {
+				return err
+			}
+			gone = append(gone, p)
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		out[p] = string(b)
+		texts[p] = string(b)
 		return nil
 	})
-	return out, err
+	return texts, gone, err
+}
+
+// LinkToNothing is the error for a path under root that is a link to nothing, which no read opens; nil for any other.
+func LinkToNothing(root, p string) error {
+	if fi, err := os.Lstat(p); err != nil || fi.Mode()&fs.ModeSymlink == 0 {
+		return nil
+	}
+	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	rel, _ := filepath.Rel(root, p)
+	target, _ := os.Readlink(p)
+	return errorf("%s: a link to %s, which does not exist; remove the link or restore its file", rel, target)
 }
 
 // ParseAll is the records of texts (resolved path to text, as Texts gives), in path order: by path parts, as Python
@@ -363,7 +382,7 @@ func lessParts(a, b string) bool {
 
 // Read is every record under root; overrides maps a path to planned text, existing or new.
 func Read(root string, overrides map[string]string) ([]*Record, error) {
-	texts, err := Texts(root)
+	texts, _, err := Texts(root)
 	if err != nil {
 		return nil, err
 	}

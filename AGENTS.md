@@ -45,7 +45,7 @@ the new state, and the trail of findings stays in the sprint record.
 | `make test-full ARGS="-k serve"` | The harness tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
 | `uv run pytest -q -n auto tests/test_hooks.py` | One file, or `-k name` for one test, after `make go-build` |
 | `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH, logged in |
-| `make test-go` | `go vet` and `go test ./...` with `-tags gms_pure_go` (Dolt needs it), then `internal/service` and the work store's concurrency tests (`RACE_TESTS`) again under `-race`: its parts `go-build`, `go-vet`, `go-test` (`GO_PKGS` narrows it: `make go-test GO_PKGS=./internal/work`) and `go-test-race`. `.github/workflows/pm-go.yml` runs the parts as parallel jobs on macOS and Linux (build, vet and every package's tests but `internal/work`'s; `internal/work`'s; the race tests), with `-count=1` and the Go caches the last push to main saved. The bd import's round trip runs on `internal/work/testdata`; `PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=$(pm where records)` runs it on a real export |
+| `make test-go` | `go vet` and `go test ./...` with `-tags gms_pure_go` (Dolt needs it), then `internal/service` and the work store's concurrency tests (`RACE_TESTS`) again under `-race`: its parts `go-build`, `go-vet`, `go-test` (`GO_PKGS` narrows it: `make go-test GO_PKGS=./internal/work`), `go-test-but-work` and `go-test-race`. `.github/workflows/pm-go.yml` runs the parts as parallel jobs on macOS and Linux (build, vet and every package's tests but `internal/work`'s; `internal/work`'s; the race tests), with `-count=1` and the Go caches the last push to main saved. The bd import's round trip runs on `internal/work/testdata`; `PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=$(pm where records)` runs it on a real export |
 
 Run `make test` while working. When a change touches what an integration test covers (the service and its site,
 `init`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
@@ -168,7 +168,9 @@ workflow:
   that each add an entry merge without a conflict and reach the release together; `test_release.py` checks the rest:
   `install.sh` against a local server, and (in `pm-release-build.yml`, `PM_RELEASE_BUILD=1`, as it builds twice) the
   build in a scratch clone, tagged then untagged. `pm-release-build.yml` runs on a PR or push that changes `release/`,
-  `install.sh`, `go.mod`, `go.sum`, `internal/buildinfo`, the test or itself, and on every `pm-v*` tag.
+  `install.sh`, `go.mod`, `go.sum`, `internal/buildinfo`, `cmd/pm`, `internal/launch`, the test or itself, and on
+  every `pm-v*` tag. `test_ci.py` holds its two path lists equal and naming those, and `make go-test-but-work`
+  (pm-go.yml's every package but `internal/work`) failing when `go list` fails.
 
 ## The judge and its live eval
 

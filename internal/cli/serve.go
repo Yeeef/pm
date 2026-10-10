@@ -225,13 +225,18 @@ func (s *servedSite) Stamp() (string, error) {
 }
 
 // Load reads the records as they are on disk, uncommitted edits included, and checks them against items. The design
-// pages' dates come from git, read again only when the stamp moved.
+// pages' dates come from git, read again only when the stamp moved. Records that moved while it read them (a file gone,
+// or the stamp after the read not the stamp before) make it a service.Partial.
 func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	stamp, err := s.Stamp() // before the read: a write between the two moves the stamp again, and the next look reads
 	if err != nil {
 		return nil, err
 	}
-	recs, err := records.Read(s.records, nil)
+	texts, gone, err := records.Texts(s.records)
+	if err != nil {
+		return nil, err
+	}
+	recs, err := records.ParseAll(s.records, texts)
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +257,11 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	served, err := site.Serve(recs, records.NewItems(items), s.name, dates, summaries)
 	if err != nil {
 		return nil, err
+	}
+	// A records sync rewrote them mid-read: a file listed went, or the walk missed one being rewritten, which only the
+	// stamp shows. The service reads again under the records lock.
+	if after, err := s.Stamp(); err != nil || after != stamp || gone != nil {
+		return nil, &service.Partial{Pages: served, Gone: gone}
 	}
 	return served, nil
 }

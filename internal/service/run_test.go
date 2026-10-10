@@ -477,6 +477,31 @@ func TestARenderErrorIsServedAsTheErrorAndTakesNoReply(t *testing.T) {
 	}
 }
 
+// A read that found the records moving (a Partial) is repeated under the records lock; one that still finds them
+// moving there (no pm write moves them under it) is served as read, never as the error page.
+func TestAPartialReadIsRepeatedUnderTheLockAndServedThere(t *testing.T) {
+	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
+	s := serve(t, w, "")
+	if resp, body := s.get("/"); resp.StatusCode != 200 || !strings.Contains(body, "[form p-1.2.1") {
+		t.Fatalf("the first read: %d %q", resp.StatusCode, body)
+	}
+	s.site.mu.Lock()
+	start := s.site.loads
+	s.site.loadErr = &Partial{Pages: fakePages{}, Gone: []string{"sprints/x.md"}} // read without the need's page
+	s.site.stamp = 1
+	s.site.mu.Unlock()
+	eventually(t, "the partial read served", func() bool {
+		resp, body := s.get("/")
+		return resp.StatusCode == 200 && strings.Contains(body, "<nav>home</nav>") && !strings.Contains(body, "[form")
+	})
+	s.site.mu.Lock()
+	loads := s.site.loads - start
+	s.site.mu.Unlock()
+	if loads < 2 {
+		t.Fatalf("a partial read is not repeated under the lock: %d loads", loads)
+	}
+}
+
 func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *testing.T) {
 	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
 	failing := true
