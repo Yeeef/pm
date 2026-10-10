@@ -78,6 +78,11 @@ None yet.
   then SUCCESS, on the same head. merge_ready.py judges each check by its
   latest run, and treats a check with any run not completed as pending.
 
+- Live: make merge-ready PR=32 right after the push of b05fcd9 listed 5 checks
+  queued or in progress and 'no check of workflow pm go … on its head yet':
+  the pm go workflow had not registered a check yet, so a rollup of only the
+  checks present would have under-counted.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
