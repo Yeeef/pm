@@ -110,6 +110,8 @@ another project (`pm sprint move`), stop the pm service (`pm service stop`) and 
   project's next sprint number, and its record is renamed to match. The old record path and site page still lead to
   it, and the old project never reuses the moved number. If the move stops part way, run the same command again to
   finish it.
+- `pm finding add` takes the finding with `--text` or `--text-file` too, as every body command does, and refuses a
+  text that starts with `--` (a misspelt option such as `--txt=…`), which it used to store as the finding.
 
 ### Changed
 

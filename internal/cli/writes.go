@@ -97,7 +97,17 @@ func undoCreate(ws work.Store, id string, err error) error {
 // ---------------------------------------------------------------- finding, feedback, doc, design, postmortem
 
 func cmdFindingAdd(e *env, p *Parsed) (string, error) {
-	text := strip(strings.Join(p.values["text"], " "))
+	text := p.Get("text") // --text, or --text-file's body (runAgent)
+	if words, body := p.values["words"], p.values["text"]; len(words) > 0 {
+		if body != nil {
+			return "", refuse("give the finding as one argument or with %s, not both", textForms)
+		}
+		text = strip(strings.Join(words, " "))
+		if strings.HasPrefix(text, "--") {
+			return "", refuse("the finding text starts with --, an option pm finding add does not have: %s; give "+
+				"the text as one quoted argument, with --text=\"…\", or with --text-file - <<'EOF'", pyRepr(text))
+		}
+	}
 	if text == "" {
 		return "", refuse("the finding text is empty")
 	}

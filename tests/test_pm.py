@@ -373,6 +373,29 @@ def test_decision_close_without_an_answer_names_need_dismiss_for_a_moot_need(rep
     assert repo.items()["repo-demo.1.2"]["resolution"] == "dismissed"
 
 
+# ---------------------------------------------------------------- pm finding add
+
+
+def test_finding_add_takes_the_text_as_an_argument_with_text_or_with_text_file(repo):
+    """The finding is one argument, or the body as every body command takes it: --text or --text-file."""
+    for args, stdin in [(("It parses 9 of 10.",), None), (("--text=It parses 8 of 10.",), None),
+                        (("--text", "It parses 7 of 10."), None), (("--text-file", "-"), "It parses 6 of 10.\n")]:
+        res = repo.pm("finding", "add", "--sprint", "repo-demo.1", *args, stdin=stdin)
+        assert res.returncode == 0, res.stderr
+    findings = (repo.records / "sprints/demo-1.md").read_text().split("## Findings", 1)[1]
+    assert all(f"- It parses {n} of 10." in findings for n in (9, 8, 7, 6)) and "--text" not in findings
+
+
+def test_finding_add_refuses_a_text_that_starts_with_two_dashes_and_two_texts(repo):
+    """A misspelt option is not a finding: three agents stored a literal `--text=…` before pm finding add took
+    --text."""
+    refused(repo, "finding", "add", "--sprint", "repo-demo.1", "--txt=It parses 9 of 10.",
+            match=r"the finding text starts with --, an option pm finding add does not have: '--txt=It parses 9 of "
+                  r"10\.'; give the text as one quoted argument")
+    refused(repo, "finding", "add", "--sprint", "repo-demo.1", "It parses.", "--text=It parses too.",
+            match=r"give the finding as one argument or with --text or --text-file - <<'EOF', not both")
+
+
 # ---------------------------------------------------------------- pm task add
 
 

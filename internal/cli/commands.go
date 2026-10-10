@@ -61,11 +61,15 @@ var tree = &command{
 			subDest: "sub",
 			subs: []*command{
 				{
-					name: "add",
-					help: "append a bullet to a sprint's Findings",
+					name:        "add",
+					help:        "append a bullet to a sprint's Findings; the text as one argument, or with --text",
+					description: "Append the finding, as a bullet, to the open sprint's Findings, with its numbers. Give the text as one quoted argument, or as the body: --text=\"…\" for one plain line, or --text-file - <<'EOF' … EOF. Refuses a text that starts with --, which is an option misspelt rather than a finding.",
+					groups:      []bool{false},
 					args: []arg{
 						{flags: []string{"--sprint"}, dest: "sprint", metavar: []string{"ID"}, required: true, kind: value, help: "the sprint's id"},
-						{dest: "text", nargs: "+", required: true, kind: value},
+						{dest: "words", metavar: []string{"TEXT"}, nargs: "*", kind: value, help: "the finding, as one quoted argument (words given apart are joined by spaces)"},
+						{flags: []string{"--text-file"}, dest: "text_file", metavar: []string{"PATH"}, kind: value, group: 1, help: "the finding instead, read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{flags: []string{"--text"}, dest: "text", kind: value, def: "", group: 1, help: "the finding instead, inline, for one plain line only; backticks, $ or quotes go in --text-file"},
 					},
 				},
 			},
