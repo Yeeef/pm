@@ -25,6 +25,11 @@ A fix for a defect that can recur ships with the mechanism that catches its clas
 Owner, 2026-10-10: prefer structural fixes; also added to the global agent rules (Yeeef/yeeef-agents PR #104).
 :::
 
+::: decision {source=owner date=2026-10-10}
+The coordinating agent merges pm-quality PRs once CI is green and a fresh-context review finds no correctness issue, and cuts releases; no PR review need is raised.
+Owner, 2026-10-10: you have agency to merge PRs and take actions; autopilot mode.
+:::
+
 ## Design pages
 
 > Where is the detail?
