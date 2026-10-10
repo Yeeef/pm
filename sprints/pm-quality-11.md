@@ -97,6 +97,14 @@ None yet.
   0.3.0; what changed: https://github.com/Yeeef/pm/releases/tag/pm-v0.4.0 ...'
   with exit 0.
 
+- --text=Tests: make test 112 passed, 40 skipped; make test-go all ok (race
+  runs included); the new and touched integration tests (pytest -k 'stop or
+  uninstall or doctor or end_to_end' over test_lifecycle.py and
+  test_service.py) 12 passed in 13.5 s. The fake supervisor (fake_sched.py)
+  now models systemd's enabled units and launchd's disabled labels, and
+  systemctl restart starts an inactive unit as systemd does; conftest points
+  PM_RELEASE_API at a refusing port so no test reaches GitHub.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
