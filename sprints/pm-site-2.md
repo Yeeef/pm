@@ -79,6 +79,10 @@ The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, i
   diagram drew from unpkg.com. Screenshots: ![light](pm-site-2-light.png)
   ![light, scrolled](pm-site-2-light-scrolled.png) ![dark](pm-site-2-dark.png)
 
+- pm check and pm commit already took image files beside a record (Committed
+  reads only .md, and pm commit commits any changed store path); no code
+  change was needed, and a harness test now holds it byte for byte.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
