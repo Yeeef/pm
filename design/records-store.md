@@ -146,8 +146,8 @@ already validated them, and code-branch hooks do not apply to records.
 
 ### Retired pieces
 
-`pm doctor` reports these where a repo still has them, and `pm upgrade` and
-`pm init` remove them:
+`pm doctor` reports these where a repo still has them; `pm upgrade` (and
+`pm uninstall`) removes the tracked files, and `pm init` the sparse checkout:
 
 | Piece | What it did |
 |---|---|
