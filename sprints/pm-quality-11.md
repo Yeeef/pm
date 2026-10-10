@@ -75,7 +75,7 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-- --text=Live check, real systemd user instance, scratch clone of a scratch
+- Live check, real systemd user instance, scratch clone of a scratch
   origin under /tmp (temp HOME and CODEX_HOME; XDG_CONFIG_HOME real so systemd
   sees the scratch unit local.pm.clone.13e3e6dc): pm service stop exit 0 in
   0.23 s, after it systemctl is-enabled=disabled, is-active=inactive; pm init
@@ -86,7 +86,7 @@ None yet.
   service restart; pm service restart exit 0 in 0.46 s, is-enabled=enabled,
   is-active=active, pm show exit 0.
 
-- --text=Live check, same scratch clone: with the service stopped and one
+- Live check, same scratch clone: with the service stopped and one
   unsynced work-store commit (pm project open), pm uninstall refused in 0.14 s
   ('holds 1 commit(s) origin's refs/pm/work lacks') through its own pm service
   run, leaving no process behind; after pm service restart, pm sync (pushed 1
@@ -98,7 +98,7 @@ None yet.
   0.3.0; what changed: https://github.com/Yeeef/pm/releases/tag/pm-v0.4.0 ...'
   with exit 0.
 
-- --text=Tests: make test 112 passed, 40 skipped; make test-go all ok (race
+- Tests: make test 112 passed, 40 skipped; make test-go all ok (race
   runs included); the new and touched integration tests (pytest -k 'stop or
   uninstall or doctor or end_to_end' over test_lifecycle.py and
   test_service.py) 12 passed in 13.5 s. The fake supervisor (fake_sched.py)
