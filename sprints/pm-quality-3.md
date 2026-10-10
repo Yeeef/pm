@@ -169,7 +169,7 @@ A refreshed cache would otherwise let cached test results stand in for test runs
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: with warm Go caches, the slowest check is 3:08 on PR #25 (internal/cli, internal/hooks) and 3:24 on PR #27, against 9:31 on Linux and 10:16 on macOS before. PR #27, pending merge, also saves the cache when a run's tests fail; that would have closed the cold window that slowed PRs #21 and #22.
+done: with warm Go caches, the slowest check is 3:08 on PR #25 (internal/cli, internal/hooks) and 3:24 on PR #27, against 9:31 on Linux and 10:16 on macOS before. PR #27, merged as 424ac21, also saves the cache when a run's tests fail; that would have closed the cold window that slowed PRs #21 and #22.
 
 - `pm-go.yml`: three parallel jobs per target: build, vet and every package's tests except internal/work's; internal/work's tests; the race tests. Each job uses the Go caches (GOMODCACHE, GOCACHE). A push to main saves them, keyed by target, Go version, kind and go.sum. A PR whose go.sum has no saved cache saves its own once. Tests run with `GOFLAGS=-count=1`.
 - `pm-release-build.yml`: the release build test. It runs only on changes to `release/`, `install.sh`, `go.mod`, `go.sum`, `internal/buildinfo`, the test or the workflow itself, and on every `pm-v*` tag.
@@ -184,4 +184,4 @@ done: with warm Go caches, the slowest check is 3:08 on PR #25 (internal/cli, in
 - Two PRs after the change, neither touching release/ nor go.sum, each with its slowest check under 5 minutes: **met**. PR #25 (internal/cli, internal/hooks, prime.md; run 38063079302): 3:08 (work, macOS). PR #27 (run 38063238733): 3:24 (work, macOS). Both restored main's Go cache. PRs #21 and #22 had measured about 6:00-6:28 earlier: every job logged "Cache not found", because the first push to main after #16 failed its tests and its success-gated save step never ran. PR #27 fixes that. Before the merge, PR #16's own pushes measured 3:47 (warm rerun) and 3:14 (rebased push) on the checks every PR runs.
 - A PR touching release/ still runs the release build test, and it passes: **met**. Draft PR #17 changed only `release/build.sh` against `ci-fast`. `pm release build` ran on it (run 38056855929) and passed: 4:43 on Linux, 5:48 on macOS, cold. PR #16 itself (go.mod, go.sum and the workflow) ran it too: 2:35 on Linux and 3:59 on macOS, warm.
 - PR #16, merged as 4c36803 after a fresh-context review (merge; two low gaps carried to sprint 13).
-- PR #27 (the cache saved when tests fail), pending merge.
+- PR #27 (the cache saved when tests fail), merged as 424ac21.
