@@ -65,12 +65,21 @@ only.
   uncommitted changes or commits never pushed, the main checkout, the records store and the worktree it runs in.
   It removes with `git worktree remove` (never `--force`) and deletes a branch only once it is merged.
 
-### Added
-
 - The site serves image files (`.svg`, `.png`, `.jpg`, `.jpeg`, `.webp`) kept in the records store, next to the
   record's page, so a record shows a figure with `![…](fig.png)` instead of a base64 data URI. Paths that leave the
   store (`..`, a symlink out of it) or name a dot file get 404. `pm check` and `pm commit` take such files beside a
   record, and the stylesheet keeps images, figures and captions inside the column.
+
+- `pm service stop` stops a clone's pm service and keeps it stopped: it disables the unit at its supervisor
+  (systemd or launchd), so neither login nor a crash starts it again, waits until the work store's socket and the site
+  no longer answer, and says so. Session start leaves a stopped service stopped and its state names
+  `pm service restart`; a typed `pm service restart` or `pm init` starts it again.
+- `pm uninstall` works with the pm service stopped: it runs a `pm service run` of its own for its unsynced-work check,
+  so it still refuses a work store that holds what the remote lacks.
+- `pm record link --local` prints the record's `http://127.0.0.1:<port>/…` URL, which the clone's service answers on,
+  even when `site_url` names a public site behind a login, for a check from this machine (a headless browser).
+- `pm doctor` names a pm release newer than the repo's pin, with its notes' URL and the move (`pm upgrade --to X`),
+  or says that the release list cannot be read. The line does not change doctor's exit code.
 
 ### Changed
 
@@ -92,7 +101,8 @@ only.
   exact Mermaid release (11.17.2), from a second CDN when the first fails, instead of whatever `mermaid@11` is today.
 
 - `pm init --help` now says what `--session-start` does with the service: it starts an installed service that does
-  not answer, as session start has done since 0.3.0, so a session in a clone always brings its service up.
+  not answer, as session start has done since 0.3.0, so a session in a clone brings its service up (unless
+  `pm service stop` stopped it).
 - The site no longer shows "error: open …: no such file or directory" in place of every page when a records sync
   rewrites record files while the service reads them: a record file, directory or day summary that is gone by the
   time it is read is left out, and the next look reads the files that replaced it.

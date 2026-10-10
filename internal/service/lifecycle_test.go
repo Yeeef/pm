@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,24 +15,33 @@ import (
 	pmsync "github.com/Yeeef/pm/internal/sync"
 )
 
-// The supervisor's tools as recorders: each call is a line in $FAKE_LOG, and what is loaded or active a line in
-// $FAKE_UP. $FAKE_NO_SYSTEMD makes systemctl answer as on a machine without a user instance.
+// The supervisor's tools as recorders: each call is a line in $FAKE_LOG, what is loaded or active a line in
+// $FAKE_UP, and what is disabled (launchd) or enabled (systemd) a line in $FAKE_UP.en. $FAKE_NO_SYSTEMD makes
+// systemctl answer as on a machine without a user instance.
 const (
 	recLaunchctl = `echo "launchctl $*" >> "$FAKE_LOG"
 eval "last=\${$#}"
 name=$(basename "$last" .plist)
+drop() { grep -vxF "$1" "$2" > "$2.t" 2>/dev/null; mv "$2.t" "$2"; }
 case "$1" in
   print) grep -qxF "$name" "$FAKE_UP" 2>/dev/null && exit 0; exit 113;;
-  bootstrap) echo "$name" >> "$FAKE_UP";;
-  bootout) grep -vxF "$name" "$FAKE_UP" > "$FAKE_UP.t"; mv "$FAKE_UP.t" "$FAKE_UP";;
+  print-disabled) echo "disabled services = {"; while read -r l; do printf '\t"%s" => disabled\n' "$l"; done < "$FAKE_UP.en" 2>/dev/null; echo "}";;
+  disable) echo "$name" >> "$FAKE_UP.en";;
+  enable) drop "$name" "$FAKE_UP.en";;
+  bootstrap) grep -qxF "$name" "$FAKE_UP.en" 2>/dev/null && exit 5; echo "$name" >> "$FAKE_UP";;
+  bootout) drop "$name" "$FAKE_UP";;
 esac
 exit 0`
 	recSystemctl = `echo "systemctl $*" >> "$FAKE_LOG"
 [ -n "$FAKE_NO_SYSTEMD" ] && exit 1
+drop() { grep -vxF "$1" "$2" > "$2.t" 2>/dev/null; mv "$2.t" "$2"; }
+eval "u=\${$#}"
 case "$2" in
   is-active) grep -qxF "$3" "$FAKE_UP" 2>/dev/null && exit 0; exit 3;;
-  enable) echo "$4" >> "$FAKE_UP";;
-  disable) grep -vxF "$4" "$FAKE_UP" > "$FAKE_UP.t"; mv "$FAKE_UP.t" "$FAKE_UP";;
+  is-enabled) grep -qxF "$3" "$FAKE_UP.en" 2>/dev/null && { echo enabled; exit 0; }; echo disabled; exit 1;;
+  enable) echo "$u" >> "$FAKE_UP.en"; [ "$3" = --now ] && echo "$u" >> "$FAKE_UP";;
+  disable) drop "$u" "$FAKE_UP.en"; [ "$3" = --now ] && drop "$u" "$FAKE_UP";;
+  restart) grep -qxF "$u" "$FAKE_UP" 2>/dev/null || echo "$u" >> "$FAKE_UP";;
 esac
 exit 0`
 )
@@ -123,14 +133,20 @@ func TestSystemdUnitRunsThisPmRestartsItAndQuotesPaths(t *testing.T) {
 		t.Fatalf("installed, current and active: %q", said)
 	}
 	for _, c := range m.calls()[n:] {
-		if !strings.Contains(c, "show-environment") && !strings.Contains(c, "is-active") {
+		if !strings.Contains(c, "show-environment") && !strings.Contains(c, "is-active") &&
+			!strings.Contains(c, "is-enabled") {
 			t.Fatalf("a current install ran %q", c)
 		}
 	}
 	if said := m.install(8124); !strings.HasPrefix(said, "updated the pm service") {
 		t.Fatal(said)
 	}
-	c := m.calls()
+	var c []string
+	for _, call := range m.calls() {
+		if !strings.Contains(call, "is-enabled") {
+			c = append(c, call)
+		}
+	}
 	if strings.Join(c[len(c)-2:], "|") != "systemctl --user daemon-reload|systemctl --user restart "+filepath.Base(unit) {
 		t.Fatalf("calls %v", c)
 	}
@@ -370,5 +386,108 @@ func stopServices(t *testing.T, state string) {
 				time.Sleep(20 * time.Millisecond)
 			}
 		}
+	}
+}
+
+// pm service stop disables the unit and stops it; the stop holds at session start (StartIfDown) and shows in health
+// and drift, and pm service restart and pm service install each enable and start it again.
+func TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall(t *testing.T) {
+	for _, kind := range []string{Systemd, Launchd} {
+		t.Run(kind, func(t *testing.T) {
+			m := newMachine(t, kind)
+			if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "is not installed") {
+				t.Fatal("stop of no unit:", err)
+			}
+			m.install(8123)
+			up := true // the stand-in site answers while the supervisor holds the unit
+			probe = func(int) *Served {
+				if up && Loaded(m.main, kind) {
+					return &Served{store(m.main), m.build}
+				}
+				return nil
+			}
+			n := len(m.calls())
+			said, err := Stop(m.main)
+			if err != nil || !strings.HasPrefix(said, "stopped the pm service: "+kind+" "+Label(m.main)) ||
+				!strings.Contains(said, "pm service restart or pm init starts it again") {
+				t.Fatal(said, err)
+			}
+			var acts []string
+			for _, c := range m.calls()[n:] {
+				if !strings.Contains(c, " print") && !strings.Contains(c, "is-") && !strings.Contains(c, "show-env") {
+					acts = append(acts, c)
+				}
+			}
+			want := "systemctl --user disable --now " + Label(m.main) + ".service"
+			if kind == Launchd {
+				gui := "gui/" + strconv.Itoa(os.Getuid()) + "/" + Label(m.main)
+				want = "launchctl disable " + gui + "|launchctl bootout " + gui
+			}
+			if strings.Join(acts, "|") != want {
+				t.Fatalf("stop ran %v", acts)
+			}
+			if !Disabled(m.main, kind) || Loaded(m.main, kind) {
+				t.Fatal("the unit is not disabled and stopped")
+			}
+			if ok, line := Health(m.main); ok || !strings.HasSuffix(line, Stopped) {
+				t.Fatal(line)
+			}
+			if d := Drift(m.main, 8123); len(d) != 1 || !strings.HasSuffix(d[0], Stopped) {
+				t.Fatal(d)
+			}
+			n = len(m.calls())
+			if said, stopped, err := StartIfDown(m.main); said != "" || !stopped || err != nil {
+				t.Fatal(said, stopped, err)
+			}
+			for _, c := range m.calls()[n:] {
+				if strings.Contains(c, " enable") || strings.Contains(c, "restart") || strings.Contains(c, "bootstrap") {
+					t.Fatalf("session start started a stopped service: %q", c)
+				}
+			}
+			saved := waitUp
+			waitUp = func(string, int, string, string) (string, error) { return "up", nil }
+			defer func() { waitUp = saved }()
+			if _, err := Restart(m.main); err != nil || Disabled(m.main, kind) || !Loaded(m.main, kind) {
+				t.Fatal("restart ends the stop:", err)
+			}
+			if _, err := Stop(m.main); err != nil {
+				t.Fatal(err)
+			}
+			exe, _ := Exe()
+			if _, err := Install(m.main, 8123, exe); err != nil || Disabled(m.main, kind) || !Loaded(m.main, kind) {
+				t.Fatal("install (pm init) ends the stop:", err)
+			}
+		})
+	}
+}
+
+// A stop that leaves something answering on the socket fails, naming it.
+func TestStopFailsWhileTheSocketStillAnswers(t *testing.T) {
+	m := newMachine(t, Systemd)
+	m.install(8123)
+	probe = func(int) *Served { return nil }
+	saved := RestartWait
+	RestartWait = 300 * time.Millisecond
+	defer func() { RestartWait = saved }()
+	sock := filepath.Join(m.main, ".pm/run/work.sock")
+	os.MkdirAll(filepath.Dir(sock), 0o755)
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skip("socket path too long here:", err)
+	}
+	defer ln.Close()
+	if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "the work store's socket "+sock+" still answer") {
+		t.Fatal(err)
+	}
+}
+
+// A systemctl that cannot reach the user instance exits non-zero for is-enabled too: that is no stop, so session
+// start still starts the service and health says down, not stopped.
+func TestASupervisorThatDoesNotAnswerIsNoStop(t *testing.T) {
+	m := newMachine(t, Systemd)
+	m.install(8123)
+	fakeBin(t, map[string]string{"systemctl": `[ "$2" = is-enabled ] && { echo "Failed to connect to bus" >&2; exit 1; }; exit 0`})
+	if Disabled(m.main, Systemd) {
+		t.Fatal("a failed is-enabled reads as a stop")
 	}
 }

@@ -8,9 +8,12 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
@@ -20,6 +23,7 @@ import (
 	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // pm init, pm doctor, pm upgrade, pm uninstall and the git hooks. The pieces and
@@ -400,10 +404,14 @@ func initSteps(here, top, main string, s install.Settings, fresh, sessionStart b
 	if sessionStart && service.Installed(main) {
 		// A service that does not answer is started, once for parallel session starts (the clone's install lock); a
 		// running one, a stale one included, is left as it is and reported, since a restart from a session start
-		// would restart it under every other session too.
-		said, err := service.StartIfDown(main)
+		// would restart it under every other session too; a stopped one (pm service stop) is left stopped.
+		said, stopped, err := service.StartIfDown(main)
 		if err != nil {
 			return "", err
+		}
+		if stopped { // pm service stop's stop holds until a typed pm init or pm service restart
+			*out = append(*out, "left the pm service stopped: it was "+service.Stopped)
+			return strings.Join(*out, "\n"), nil
 		}
 		if said != "" {
 			*out = append(*out, said)
@@ -490,13 +498,33 @@ func cmdDoctor(here string, stdout io.Writer) error {
 	for _, d := range append(found, install.LegacyClone(main)...) {
 		diffs = append(diffs, "legacy: "+d+"; "+install.LegacyFix())
 	}
+	release := releaseLine(c.Version)
 	if len(diffs) > 0 {
-		fmt.Fprintln(stdout, strings.Join(diffs, "\n"))
+		fmt.Fprintln(stdout, strings.Join(append(diffs, release...), "\n"))
 		return &exitCode{1}
 	}
 	_, err = fmt.Fprintf(stdout, "pm %s (%s): every managed piece and the clone's setup match what pm init makes\n",
 		buildinfo.Version, launch.How())
+	if err == nil && len(release) > 0 {
+		_, err = fmt.Fprintln(stdout, strings.Join(release, "\n"))
+	}
 	return err
+}
+
+// releaseLine is pm doctor's line on a release newer than the pin, or on why it cannot tell; none when the pin is
+// the latest release. It informs, and leaves the exit code to the clone's own pieces.
+func releaseLine(pin string) []string {
+	r, err := launch.Latest()
+	if err != nil {
+		return []string{fmt.Sprintf("release: cannot read pm's latest release, so whether one is newer than the pin "+
+			"%s is not known: %v", pin, err)}
+	}
+	if !launch.Newer(r.Version, pin) {
+		return nil
+	}
+	return []string{fmt.Sprintf("release: pm %s is out, newer than this repo's pin %s; what changed: %s. To move: "+
+		"install it (curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v%s/install.sh | sh), then "+
+		"pm upgrade --to %s in a PR", r.Version, pin, r.Notes, r.Version, r.Version)}
 }
 
 // cmdUpgrade is pm upgrade: move the pin to the running pm, rewrite every managed piece as it writes them, take out
@@ -636,7 +664,7 @@ func cmdUninstall(here string, stdout io.Writer) error {
 	}
 	// the work store goes with the clone's .pm/store; the remote's refs/pm/work keeps the project's items, so a store
 	// holding what the remote lacks is refused, as uncommitted records are
-	if why, err := install.WorkUnsynced(main, c.Remote); err != nil {
+	if why, err := uninstallUnsynced(main, c.Remote); err != nil {
 		return err
 	} else if why != "" {
 		return refuse("%s, and pm uninstall would delete it with the clone's .pm/store: push it with pm sync, or keep "+
@@ -770,6 +798,86 @@ func cmdUninstall(here string, stdout io.Writer) error {
 	}
 	_, err = fmt.Fprintln(stdout, strings.Join(out, "\n"))
 	return err
+}
+
+// uninstallUnsynced is install.WorkUnsynced, which reads the store through the clone's pm service. When that service
+// does not answer (stopped, say), the check runs through a pm service run of pm uninstall's own, since only pm service
+// run may host the store (the pm-go page, Store access: Startup). A clone with no work store has nothing to check.
+func uninstallUnsynced(main, remote string) (string, error) {
+	why, err := install.WorkUnsynced(main, remote)
+	if !errors.Is(err, work.ErrNoService) {
+		return why, err
+	}
+	if dir, _ := work.Locations(main); !isDir(dir) {
+		return "", nil
+	}
+	stop, err := serveForCheck(main)
+	if err != nil {
+		return "", err
+	}
+	why, err = install.WorkUnsynced(main, remote)
+	return why, errors.Join(err, stop())
+}
+
+// serveForCheck runs this pm as pm service run in the main checkout, on PORT=0 so it takes no site port, and waits
+// up to service.RestartWait for the work store's socket; stop ends it (SIGTERM, as a supervisor stops the service)
+// and waits for it to exit. Fails, with the run's output, when it exits or does not answer in time.
+func serveForCheck(main string) (stop func() error, err error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	out, err := os.CreateTemp("", "pm-uninstall-service-*.log")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(out.Name()) // the open file stays readable
+	cmd := exec.Command(exe, "service", "run")
+	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = main, append(os.Environ(), "PORT=0"), out, out
+	// in pm uninstall's process group, so a Ctrl-C of pm uninstall stops it too
+	if err := cmd.Start(); err != nil {
+		out.Close()
+		return nil, err
+	}
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
+	said := func() string {
+		data, _ := os.ReadFile(out.Name())
+		return strings.TrimSpace(string(data))
+	}
+	end := func() error {
+		defer out.Close()
+		cmd.Process.Signal(syscall.SIGTERM)
+		select {
+		case <-exited:
+			return nil
+		case <-time.After(service.RestartWait):
+			cmd.Process.Kill()
+			<-exited
+			return refuse("the pm service run that pm uninstall started for its check did not exit %d s after "+
+				"SIGTERM, and was killed", int(service.RestartWait.Seconds()))
+		}
+	}
+	sock := work.Sock(main)
+	deadline := time.Now().Add(service.RestartWait)
+	for !service.SockAnswers(sock) {
+		select {
+		case err := <-exited:
+			text := said()
+			out.Close()
+			return nil, refuse("the clone's pm service does not answer, so pm uninstall ran pm service run for its "+
+				"unsynced-work check, and it exited (%v) before it answered on %s:\n%s", err, sock, text)
+		case <-time.After(50 * time.Millisecond):
+		}
+		if time.Now().After(deadline) {
+			text := said()
+			end()
+			return nil, refuse("the clone's pm service does not answer, so pm uninstall ran pm service run for its "+
+				"unsynced-work check, and it did not answer on %s within %d s:\n%s", sock,
+				int(service.RestartWait.Seconds()), text)
+		}
+	}
+	return end, nil
 }
 
 // hookGitPostCheckout is pm hook git-post-checkout: in a new worktree (previous HEAD all zeros), pm init's clone and

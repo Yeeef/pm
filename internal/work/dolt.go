@@ -114,9 +114,12 @@ func CheckVersion(service, command, main string) error {
 		"checkout that pins pm %s", command, service, path, service)
 }
 
+// ErrNoService is a socket nothing answers on: the clone's pm service is down.
+var ErrNoService = errors.New("the pm service does not answer")
+
 func notAnswering(sock string) error {
-	return fmt.Errorf("the pm service does not answer on %s; pm reaches the work store only through it: run pm "+
-		"service restart", sock)
+	return fmt.Errorf("%w on %s; pm reaches the work store only through it: run pm service restart", ErrNoService,
+		sock)
 }
 
 // dial opens one connection to the socket and holds it.

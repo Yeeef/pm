@@ -4,9 +4,11 @@ upgrade moves the pin and rewrites pm's parts only, uninstall removes pm's parts
 
 from __future__ import annotations
 
+import http.server
 import json
 import socket
 import subprocess
+import threading
 import tomllib
 from pathlib import Path
 
@@ -60,8 +62,12 @@ def loaded(tmp: Path) -> list[str]:
 
 
 def doctor(repo: Path) -> tuple[int, list[str]]:
+    """pm doctor's exit code and its lines on the clone, without its line on the latest release, which no test here
+    can read (conftest's NO_RELEASE_API)."""
     res = pm(repo, "doctor")
-    return res.returncode, res.stdout.splitlines()
+    lines = res.stdout.splitlines()
+    assert lines[-1].startswith("release: cannot read pm's latest release"), res.stdout
+    return res.returncode, lines[:-1]
 
 
 def write(path: Path, text: str) -> None:
@@ -499,3 +505,111 @@ def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
     res = subprocess.run(["git", "commit", "-qm", "Upgrade pm"], cwd=existing, env=env(existing.parent),
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
+def answers(sock: Path) -> bool:
+    """Whether a process accepts connections on the work store's socket."""
+    with socket.socket(socket.AF_UNIX) as s:
+        try:
+            s.connect(str(sock))
+            return True
+        except OSError:
+            return False
+
+
+def supervisor_calls(tmp: Path) -> list[list[str]]:
+    path = tmp / "sched.log"
+    return [json.loads(l) for l in path.read_text().splitlines()] if path.exists() else []
+
+
+def test_stop_keeps_the_service_stopped_at_session_start_until_restart(new_repo: Path, tmp_path: Path):
+    """pm service stop disables the unit and stops it, and says the socket no longer answers; session start leaves it
+    stopped and names pm service restart; pm service restart brings it back."""
+    assert pm(new_repo, "init").returncode == 0
+    sock = new_repo / ".pm/run/work.sock"
+    assert loaded(tmp_path) and answers(sock)
+    res = pm(new_repo, "service", "stop")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.startswith("stopped the pm service: ") and f"socket {sock}" in res.stdout, res.stdout
+    assert loaded(tmp_path) == [] and not answers(sock)
+    status = pm(new_repo, "service", "status")
+    assert status.returncode == 1 and "stopped by pm service stop" in status.stdout.splitlines()[0], status.stdout
+    n = len(supervisor_calls(tmp_path))
+    res = pm(new_repo, "init", "--session-start")
+    assert res.returncode == 0, res.stderr
+    assert "left the pm service stopped: it was stopped by pm service stop" in res.stdout, res.stdout
+    assert "run pm service restart to start it" in res.stdout
+    started = [c for c in supervisor_calls(tmp_path)[n:] if {"enable", "restart", "bootstrap", "kickstart"} & set(c)]
+    assert started == [] and loaded(tmp_path) == [] and not answers(sock), started
+    show = pm(new_repo, "show")
+    assert show.returncode == 1 and "run pm service restart" in show.stderr, show
+    res = pm(new_repo, "service", "restart")
+    assert res.returncode == 0, res.stderr
+    assert loaded(tmp_path) and answers(sock)
+    assert pm(new_repo, "show").returncode == 0
+    assert "stopped" not in pm(new_repo, "service", "status").stdout.splitlines()[0]
+
+
+def test_uninstall_with_the_service_stopped_checks_for_unsynced_work(new_repo: Path, tmp_path: Path):
+    """With the clone's service stopped, pm uninstall runs a pm service run of its own for the unsynced-work check:
+    refused while the store holds a commit the remote lacks, done once it is synced; nothing is left running."""
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    res = pm(new_repo, "project", "open", "demo", "--title", "Demo", "--text=A goal.")
+    assert res.returncode == 0, res.stderr
+    assert pm(new_repo, "service", "stop").returncode == 0
+    sock = new_repo / ".pm/run/work.sock"
+    res = pm(new_repo, "uninstall")
+    assert res.returncode == 1 and "holds 1 commit(s) origin's refs/pm/work lacks" in res.stderr, res
+    assert (new_repo / ".pm/store/work").is_dir() and sched_units(tmp_path) and not answers(sock)
+    assert pm(new_repo, "service", "restart").returncode == 0
+    assert pm(new_repo, "sync").returncode == 0
+    assert pm(new_repo, "service", "stop").returncode == 0
+    res = pm(new_repo, "uninstall")
+    assert res.returncode == 0, res.stderr
+    assert "removed the pm service" in res.stdout, res.stdout
+    assert not (new_repo / ".pm").exists() and sched_units(tmp_path) == [] and not answers(sock)
+
+
+def release_api(tmp: Path, tag: str) -> tuple[http.server.ThreadingHTTPServer, str]:
+    """A stand-in for GitHub's API that names `tag` as pm's latest release."""
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"tag_name": tag, "html_url": f"https://example.test/releases/tag/{tag}"}).encode()
+            ok = self.path == "/repo/releases/latest"
+            self.send_response(200 if ok else 404)
+            self.end_headers()
+            self.wfile.write(body if ok else b"{}")
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, f"http://127.0.0.1:{server.server_port}/repo/"
+
+
+def test_doctor_names_a_release_newer_than_the_pin(new_repo: Path, tmp_path: Path):
+    """pm doctor reads the latest release: it names one newer than the pin with its notes and the move, says nothing
+    of the pin itself, and says so when the list cannot be read; the line leaves the exit code alone."""
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    for tag, want in (("pm-v99.0.0", "release: pm 99.0.0 is out, newer than this repo's pin " + VERSION +
+                       "; what changed: https://example.test/releases/tag/pm-v99.0.0. To move: install it "
+                       "(curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v99.0.0/install.sh | sh), then "
+                       "pm upgrade --to 99.0.0 in a PR"),
+                      (f"pm-v{VERSION}", None)):
+        server, api = release_api(tmp_path, tag)
+        try:
+            res = subprocess.run([*PM, "doctor"], cwd=new_repo, env=dict(env(tmp_path), PM_RELEASE_API=api),
+                                 capture_output=True, text=True)
+        finally:
+            server.shutdown()
+            server.server_close()
+        lines = res.stdout.splitlines()
+        assert res.returncode == 0 and lines[0].startswith(f"pm {VERSION} ("), res
+        assert lines[1:] == ([want] if want else []), res.stdout
+    res = pm(new_repo, "doctor")  # conftest's NO_RELEASE_API: nothing answers
+    assert res.returncode == 0 and res.stdout.splitlines()[-1].startswith(
+        f"release: cannot read pm's latest release, so whether one is newer than the pin {VERSION} is not known: "
+        "GET http://127.0.0.1:9/no-release-api/releases/latest: "), res.stdout
