@@ -6,41 +6,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
 	"github.com/Yeeef/pm/internal/work"
 )
-
-// goOnly runs the commands Go pm has and Python pm does not: pm version, pm export [--store DIR], pm init --import-bd FILE,
-// pm init --import FILE, and the work-store commands in store_commands.go. They stay out of the command tree in
-// commands.go, which pm --help and pm prime's noun list read; pm init --import-bd and --import do the import only. ok is
-// false for any other argv.
-func goOnly(argv []string, stdin io.Reader, stdout io.Writer) (ok bool, err error) {
-	if name, args, ok := storeCommandOf(argv); ok {
-		return true, runStoreCommand(name, args, openStore, stdin, stdout)
-	}
-	switch {
-	case len(argv) == 1 && argv[0] == "version": // this build's version, outside any repo too; dev when untagged
-		_, err := fmt.Fprintln(stdout, buildinfo.Version)
-		return true, err
-	case len(argv) == 1 && argv[0] == "export":
-		return true, cmdExport(stdout)
-	case len(argv) == 3 && argv[0] == "export" && argv[1] == "--store":
-		return true, exportStore(argv[2], stdout)
-	case len(argv) == 3 && argv[0] == "init" && argv[1] == "--import-bd":
-		return true, cmdImportBD(argv[2], stdout)
-	case len(argv) == 2 && argv[0] == "init" && strings.HasPrefix(argv[1], "--import-bd="):
-		return true, cmdImportBD(strings.TrimPrefix(argv[1], "--import-bd="), stdout)
-	case len(argv) == 3 && argv[0] == "init" && argv[1] == "--import":
-		return true, cmdImport(argv[2], stdout)
-	case len(argv) == 2 && argv[0] == "init" && strings.HasPrefix(argv[1], "--import="):
-		return true, cmdImport(strings.TrimPrefix(argv[1], "--import="), stdout)
-	}
-	return false, nil
-}
 
 // mainCheckout is the main checkout of the clone containing here, after the config check every command passes.
 func mainCheckout() (string, error) {

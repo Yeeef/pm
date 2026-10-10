@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/spf13/pflag"
+
 	"github.com/Yeeef/pm/internal/hooks"
 )
 
@@ -28,7 +30,7 @@ var tree = &command{
 		{
 			name:        "show",
 			help:        "compact status of open projects for agents, level by level",
-			description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record with --section.",
+			description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).",
 			args: []arg{
 				{flags: []string{"--json"}, dest: "json", kind: flagTrue, help: "every level's data as one JSON object"},
 				{flags: []string{"--project"}, dest: "project", metavar: []string{"NAME"}, kind: value, help: "one open project (its name or id): its goal, owner requests in full, the repo's pm feedback doc, open sprints with their tasks, and last decisions"},
@@ -170,6 +172,24 @@ var tree = &command{
 			},
 		},
 		{
+			name:    "need",
+			help:    "needs of any kind: decisions, actions and reviews",
+			subDest: "sub",
+			subs: []*command{
+				{
+					name: "dismiss",
+					help: "close an open need as dismissed: a [TEST] need, a replaced review, or one that became moot",
+					store: &storeCommand{
+						usage: "need dismiss ID --reason REASON",
+						about: "Close an open need as dismissed, with no answer: a [TEST] need, a replaced review, or a decision or action that became moot. pm sprint close skips a dismissed review.",
+						flags: func(fs *pflag.FlagSet) { fs.String("reason", "", "why it is dismissed (required)") },
+						args:  1,
+						run:   needDismiss,
+					},
+				},
+			},
+		},
+		{
 			name:    "reply",
 			help:    "the owner's replies from the site",
 			subDest: "sub",
@@ -180,6 +200,17 @@ var tree = &command{
 					description: "Print the requests' site replies not yet delivered and their reviews' PR merges not yet reported, with what to do next, and mark them delivered; it does not wait. The pm service pushes each reply and merge into the inbox of the session that raised the request when it can; what it could not deliver (the session had ended, or has no inbox) waits here and is flagged by pm show. Without ids, this session's open requests ($CLAUDE_CODE_SESSION_ID); with ids, those, closed ones too.",
 					args: []arg{
 						{dest: "ids", metavar: []string{"ID"}, nargs: "*", kind: value, help: "a decision need, action or review (default: this session's)"},
+					},
+				},
+				{
+					name: "add",
+					help: "the owner's answer to an open need, at a shell, as a reply on the site writes; the answer with --text",
+					store: &storeCommand{
+						usage: "reply add ID (--text TEXT | --text-file FILE)",
+						about: "The owner's answer to an open need, at a shell: a reply, as a reply on the site writes. The need stays open; the session that raised it reads the reply and records it, which closes the need.",
+						flags: func(fs *pflag.FlagSet) { textFlags(fs, "the answer") },
+						args:  1,
+						run:   replyAdd,
 					},
 				},
 			},
@@ -311,9 +342,10 @@ var tree = &command{
 			subDest: "sub",
 			subs: []*command{
 				{
-					name:   "add",
-					help:   "create a task in an open sprint; description with --text (optional)",
-					groups: []bool{false},
+					name:        "add",
+					help:        "create a task in an open sprint, or a sub-task (--parent); description with --text (optional)",
+					description: "Create a task in an open sprint. pm task add --parent TASK --title TITLE, in place of --sprint, adds a sub-task under the open task TASK instead (pm task add --parent TASK --help).",
+					groups:      []bool{false},
 					args: []arg{
 						{flags: []string{"--sprint"}, dest: "sprint", metavar: []string{"ID"}, required: true, kind: value, help: "the open sprint's id"},
 						{flags: []string{"--title"}, dest: "title", required: true, kind: value},
@@ -353,6 +385,90 @@ var tree = &command{
 						{flags: []string{"--text"}, dest: "text", kind: value, def: "", group: 1, help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
+				{
+					name: "ready",
+					help: "list the tasks an agent can claim now",
+					store: &storeCommand{
+						usage: "task ready [--sprint ID] [--json]",
+						about: "The tasks an agent can claim now: open, under open ancestors, held by no live session, with no open blocker of their own or an ancestor's. By sprint number, then id; tasks directly under a project last. A task whose holder is not live is ready and marked a stale holder; pm task claim takes it over.",
+						flags: func(fs *pflag.FlagSet) {
+							fs.String("sprint", "", "only the tasks under this sprint")
+							fs.Bool("json", false, "the ready tasks as a JSON array of items")
+						},
+						run: taskReady,
+					},
+				},
+				{
+					name: "edit",
+					help: "set a task's title or description; description with --text",
+					store: &storeCommand{
+						usage: "task edit ID [--title TITLE] [--text TEXT | --text-file FILE]",
+						about: "Set a task's title, its description (the body: --text, or --text-file - <<'EOF' … EOF), or both. A scope change is still pm task move or a sprint decision.",
+						flags: func(fs *pflag.FlagSet) {
+							fs.String("title", "", "the new title")
+							textFlags(fs, "the new description")
+						},
+						args: 1,
+						run:  taskEdit,
+					},
+				},
+				{
+					name: "release",
+					help: "clear the holder of a task this session holds",
+					store: &storeCommand{
+						usage: "task release ID",
+						about: "Clear the holder of a task this session ($CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) holds.",
+						args:  1,
+						run:   taskRelease,
+					},
+				},
+			},
+		},
+		{
+			name:    "dep",
+			help:    "dependencies: what an item waits on",
+			subDest: "sub",
+			subs: []*command{
+				{
+					name: "add",
+					help: "make an item, and every task under it, wait until a blocker closes",
+					store: &storeCommand{
+						usage: "dep add ID --on BLOCKER",
+						about: "BLOCKER blocks ID: ID, and every task under it, waits until BLOCKER closes. Refuses a blocker that does not exist and a cycle over blocked_by, ancestors included.",
+						flags: onFlag,
+						args:  1,
+						run:   func(c *storeCall) error { return dep(c, true) },
+					},
+				},
+				{
+					name: "rm",
+					help: "remove a blocker",
+					store: &storeCommand{
+						usage: "dep rm ID --on BLOCKER",
+						about: "BLOCKER no longer blocks ID.",
+						flags: onFlag,
+						args:  1,
+						run:   func(c *storeCall) error { return dep(c, false) },
+					},
+				},
+			},
+		},
+		{
+			name:    "comment",
+			help:    "notes on items",
+			subDest: "sub",
+			subs: []*command{
+				{
+					name: "add",
+					help: "add a note to an item; the note with --text",
+					store: &storeCommand{
+						usage: "comment add ID (--text TEXT | --text-file FILE)",
+						about: "Add a note to an item: --text, or --text-file - <<'EOF' … EOF. Its author is this session, or owner when no session runs the command.",
+						flags: func(fs *pflag.FlagSet) { textFlags(fs, "the note") },
+						args:  1,
+						run:   commentAdd,
+					},
+				},
 			},
 		},
 		{
@@ -374,6 +490,15 @@ var tree = &command{
 		{
 			name: "check",
 			help: "check that every record renders with the work store, writing nothing; the check before a commit, and the one pm commit runs",
+		},
+		{
+			name: "sync",
+			help: "sync the work store with the remote now, as the pm service does every 10 minutes",
+			store: &storeCommand{
+				usage: "sync",
+				about: "Sync the work store with the repo's remote now: the pm service pulls, resolves conflicts by the merge rules and pushes, as it does every 10 minutes. A conflict no rule settles fails, names the item and field, and leaves the store as it was.",
+				run:   syncNow,
+			},
 		},
 		{
 			name:        "service",
@@ -436,9 +561,12 @@ var tree = &command{
 			name:        "init",
 			help:        "install pm: the repo's files on first install (--site-url sets the public site link), then this clone, this worktree and the pm service (PORT=<n> sets its port, and on a first install the config's; PORT=<n> pm service install moves only the service's); session start runs it; never commits on the code branch",
 			description: "Install pm, doing only what is missing. Repo, on first install only (no .pm/config.toml yet): write .pm/ (config.toml, README.md, .gitignore), pm's hook entries in .claude/settings.json and .codex/hooks.json, pm's git hook .pm/hooks/post-checkout and pm's .gitignore lines; create the records branch with an empty store and push it when the remote has none; print the commit to make. After that pm init leaves the repo's files alone: pm doctor reports a changed or missing piece and pm upgrade rewrites it. Clone and worktree, every run: copy this pm into the bin dir when another is there, take out Beads' hook entries, CLAUDE.md block and hooks path, install the git hooks (core.hooksPath .pm/hooks), list .pm/store/ and .pm/run/ in .git/info/exclude, check out the records store at <main checkout>/.pm/store/records if missing, link this worktree's records/ to it and turn off the sparse checkout an earlier pm set once HEAD and the index track no records/, add the clone's .git and the stores to the writable roots of $CODEX_HOME/config.toml and the store to this worktree's .claude/settings.local.json, then install the pm service (pm service install) and have it attach the work store, which only the service opens (cloned from the remote's refs/pm/work, or created and pushed). Session start runs it in every worktree, and starts an installed service that does not answer; once all is set up it prints 'already set up'. Refuses a core.hooksPath other than .pm/hooks or Beads' .beads/hooks. Site port: a new repo's config gets $PORT, else the first free port from 8000 up that no pm service unit on this machine names; a clone's service serves on $PORT, else its unit's port, else the config's. Refuses, writing nothing, when another server holds that port, and names a free one: PORT=<n> pm init. .pm/config.toml, tracked: version (the pm every session must run; pm upgrade moves it), remote and main_branch (origin and its default branch), port (the site port) and site_url (--site-url).",
+			groups:      []bool{false},
 			args: []arg{
 				{flags: []string{"--session-start"}, dest: "session_start", kind: flagTrue, help: "what session start runs, without $PORT: install the pm service when it is missing and start an installed one that does not answer, so a session in a clone brings its service up; one pm service stop stopped is left stopped and reported (pm service restart starts it); a running one, a stale one included, is left as it is and reported (pm service restart restarts it)"},
 				{flags: []string{"--site-url"}, dest: "site_url", metavar: []string{"URL"}, kind: value, help: "the site's public base URL (a tunnel to the pm service), written to site_url in .pm/config.toml for you to commit: every link pm prints (pm record link, pm show, pm where) uses it instead of http://localhost:<port>, and the site accepts the owner's replies from its host besides localhost; '' clears it"},
+				{flags: []string{"--import-bd"}, dest: "import_bd", metavar: []string{"FILE"}, kind: value, group: 1, help: "only import the bd export in FILE into this clone's work store, through the pm service, as one commit; refuses a store that holds any item, and an export it cannot map; nothing else runs"},
+				{flags: []string{"--import"}, dest: "import", metavar: []string{"FILE"}, kind: value, group: 1, help: "only import the pm export in FILE (what pm export printed in another clone) into this clone's work store, ids kept, as --import-bd does"},
 			},
 		},
 		{
@@ -460,6 +588,18 @@ var tree = &command{
 			args: []arg{
 				{flags: []string{"--apply"}, dest: "apply", kind: flagTrue, help: "remove the worktrees the dry run lists as remove; without it pm clean changes nothing"},
 			},
+		},
+		{
+			name:        "export",
+			help:        "print every item of the work store, one JSON object per line, ordered by id; pm init --import reads it in another clone",
+			description: "Print every item of this clone's work store, one JSON object per line, ordered by id. pm init --import FILE in another clone reads it, to move a project's items into a new repo's store.",
+			args: []arg{
+				{flags: []string{"--store"}, dest: "store", metavar: []string{"DIR"}, kind: value, help: "the work store at DIR (<main checkout>/.pm/store/work), read through the pm service of the clone DIR belongs to, without the repo's config"},
+			},
+		},
+		{
+			name: "version",
+			help: "print this pm's version, dev for an untagged build; outside any repo too",
 		},
 		{
 			name:   "prime",

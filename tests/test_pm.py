@@ -1527,3 +1527,18 @@ def test_every_store_command_fails_hard_with_the_service_stopped(repo):
     assert repo.snapshot() == before, "a command wrote with the service stopped"
     repo.start_service()
     assert repo.unchanged()
+
+
+# ---------------------------------------------------------------- pm --help
+
+
+def test_pm_help_lists_the_commands_that_ran_outside_the_command_tree():
+    """pm dep answered "invalid choice: 'dep'" and pm need dismiss was found only in the source: every command pm runs
+    is in pm --help and its noun's --help (internal/cli/commands_test.go walks them all)."""
+    def helped(*cmd):
+        res = subprocess.run([*PM, *cmd, "--help"], cwd="/", capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr
+        return re.search(r"\{([a-z,-]+)\} \.\.\.", res.stdout.split("\n\n", 1)[0]).group(1).split(",")
+    assert {"dep", "need", "comment", "sync", "export", "version"} <= set(helped())
+    assert helped("dep") == ["add", "rm"] and helped("need") == ["dismiss"] and "add" in helped("comment")
+    assert {"ready", "edit", "release"} <= set(helped("task")) and "add" in helped("reply")

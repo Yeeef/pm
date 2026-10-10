@@ -155,6 +155,11 @@ another project (`pm sprint move`), stop the pm service (`pm service stop`) and 
 - `pm hook stop` no longer blocks a session over a record that only the prompt of its still-running subagent names;
   the subagent may be writing it. Once the subagent returns, or a tool call of the session itself names the record,
   the hook blocks as before.
+- `pm --help`, each `pm <noun> --help` and the noun list `pm prime` injects name every command pm runs:
+  `pm dep`, `pm need`, `pm comment`, `pm sync`, `pm export` and `pm version`, and `pm task ready`, `edit` and
+  `release` and `pm reply add`, which ran but were listed nowhere (`pm dep --help` said "invalid choice"). `pm show
+  --help` names `pm show ID`, `pm task add --help` names `--parent`, and `pm init --help` names `--import-bd` and
+  `--import`. Their flags and behaviour are unchanged.
 
 ## [0.4.0] - 2026-10-10
 
