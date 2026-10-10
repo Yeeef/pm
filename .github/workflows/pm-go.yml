@@ -36,7 +36,7 @@ jobs:
           - suite: build-vet-test
             cache: build
             save: true
-            run: make go-build go-vet go-test GO_PKGS="$(go list -tags gms_pure_go ./... | grep -v '/internal/work$')"
+            run: make go-build go-vet go-test GO_PKGS="$(go list -tags gms_pure_go ./... | grep -v '/internal/work$' | tr '\n' ' ')"
           - suite: work
             cache: build  # what it compiles is a subset of build-vet-test's, which saves it
             save: false
