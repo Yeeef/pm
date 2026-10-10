@@ -190,7 +190,11 @@ prompt is `prompts/owner_request_system.txt`).
 Its labelled cases are `tests/owner_request_cases.json`: a final reply, the open needs Beads holds and the
 verdict the rule gives. After editing the prompt, run `make test-live`: each case runs `PM_LIVE_RUNS` times
 (default 3), 8 calls at once, and every run must give the case's verdict; it prints pass counts and latency.
+It runs the hook with the user's `HOME` and Claude config (`REAL` in `conftest.py`), where the judge's `claude` login is.
 A case's label comes from the rule, never from what the judge answers: a miss is a prompt change, not a relabel.
+The rule is one rule in three texts: the request rule in both `prime.md` files, the judge prompt and the block
+reasons (`owner_request_reason.txt`, `owner_request_needless.txt`). A rule change edits all of them in one commit and
+adds a labelled case for each case it moves.
 
 ## Changing prime.md and the hooks
 
