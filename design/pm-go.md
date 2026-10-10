@@ -192,6 +192,7 @@ A command never restarts the service: parallel commands would restart it many ti
 |---|---|---|---|
 | Sync: fetch, pull with conflict resolution by the merge rules, push | every 600 s; `pm sync`; `pm push`'s work step | `CALL pm_sync()` | one row per line: what it did, then a warning per claim a merge overrode |
 | Child id compare-and-swap | `work.Store.Create` of a child in a store with a remote (`pm task add`, `pm sprint open`, a need) | `CALL pm_create(?)`, the `work.New` as JSON | the created item as JSON |
+| Sprint move | `work.Store.MoveSprint` in a store with a remote (`pm sprint move`): the same compare-and-swap, since it mints a sprint number | `CALL pm_move_sprint(?)`, the sprint, the project and the reason as JSON | the moved sprint as JSON |
 | Setup: clone from the remote, or create and push, or attach a remote | `pm init` | `CALL pm_setup()`, on a connection with no database | one row per line of what it did; its refusals, `install.SetupWork`'s texts, as the error |
 | Garbage collection: `CALL DOLT_GC()` | every 24 h (`GCInterval`), `GCTimeout` 10 min | none | logged; `.pm/run/gc.json` for `pm service status` |
 
