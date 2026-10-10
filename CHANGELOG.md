@@ -125,6 +125,9 @@ only.
   of a request already raised (also one held in another clone), and an answer to a question the owner asked. When
   a reply asks again for what another session's open need already asks, the block now says to drop the ask or report
   the need as open, not to raise a duplicate.
+- `pm hook stop` no longer blocks a session over a record that only the prompt of its still-running subagent names;
+  the subagent may be writing it. Once the subagent returns, or a tool call of the session itself names the record,
+  the hook blocks as before.
 
 ## [0.4.0] - 2026-10-10
 

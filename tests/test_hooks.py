@@ -227,6 +227,43 @@ def test_stop_passes_another_sessions_edit(repo, tmp_path):
     assert res.returncode == 0 and res.stdout == ""
 
 
+def subagent_lines(path, prompt, done):
+    """A Claude Code transcript whose assistant starts a background subagent with `prompt`, as Claude Code writes it,
+    then, with `done`, the task notification of its return."""
+    lines = [{"type": "user", "message": {"role": "user", "content": "go"}},
+             {"type": "assistant", "message": {"role": "assistant", "content": [
+                 {"type": "tool_use", "id": "toolu_a1", "name": "Agent", "input": {"prompt": prompt}}]}},
+             {"type": "user", "message": {"role": "user", "content": [
+                 {"type": "tool_result", "tool_use_id": "toolu_a1", "content": [{"type": "text", "text": "launched"}]}]},
+              "toolUseResult": {"isAsync": True, "status": "async_launched", "prompt": prompt}}]
+    if done:
+        lines.append({"type": "user", "message": {"role": "user", "content": (
+            "<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>toolu_a1</tool-use-id>\n"
+            "<status>completed</status>\n</task-notification>")}})
+    return [json.dumps(l) for l in lines]
+
+
+@pytest.mark.parametrize("done", [False, True])
+@pytest.mark.parametrize("own_edit", [False, True])
+def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tmp_path, done, own_edit):
+    """A subagent shares its session's id, and the parent's transcript holds only its prompt: a path that prompt alone
+    names is the running subagent's to commit. Once it returns, or when the session's own tool call names the path too,
+    the path is the session's."""
+    edit_sprint(repo)
+    path = str(repo.records / "sprints/demo-1.md")
+    lines = subagent_lines(tmp_path, f"Write the frame in {path} and commit it.", done)
+    if own_edit:
+        lines.append(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "toolu_e1", "name": "Edit", "input": {"file_path": path}}]}}))
+    (tmp_path / "t.jsonl").write_text("\n".join(lines) + "\n")
+    res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(tmp_path / "t.jsonl")}, repo.env, repo.root)
+    assert res.returncode == 0, res.stderr
+    if done or own_edit:
+        assert json.loads(res.stdout)["decision"] == "block" and "- records/sprints/demo-1.md" in res.stdout
+    else:
+        assert res.stdout == ""
+
+
 def test_stop_passes_when_stop_hook_active(repo, tmp_path):
     edit_sprint(repo)
     t = claude_transcript(tmp_path / "t.jsonl", {"command": "sed -i '' s/a/b/ records/sprints/demo-1.md"})
