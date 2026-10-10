@@ -303,7 +303,11 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 			}
 			for _, t := range tasks {
 				if t.Status == work.Closed {
-					s.done++
+					if site.State(t, r.x) == "done" {
+						s.done++
+					} else { // dropped: not done, and no longer to do
+						s.total--
+					}
 					continue
 				}
 				status := string(t.Status)

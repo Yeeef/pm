@@ -37,8 +37,8 @@ type Dates = map[string]store.Dates
 
 func errorf(format string, a ...any) error { return &records.Error{Msg: fmt.Sprintf(format, a...)} }
 
-var pills = map[string][2]string{"done": {"done", "DONE"}, "running": {"run", "RUNNING"},
-	"blocked": {"blocked", "BLOCKED"}, "ready": {"queued", "READY"}}
+var pills = map[string][2]string{"done": {"done", "DONE"}, "dropped": {"dropped", "DROPPED"},
+	"running": {"run", "RUNNING"}, "blocked": {"blocked", "BLOCKED"}, "ready": {"queued", "READY"}}
 
 func pill(st string) string {
 	p := pills[st]
@@ -49,10 +49,13 @@ func pill(st string) string {
 
 func isEpic(it *Item) bool { return it.Type == work.Project || it.Type == work.Sprint }
 
-// State is one of done, running, blocked and ready: done once closed, running while held or, for a project or sprint,
-// once any child has started or finished; blocked while a blocker is not closed.
+// State is one of done, dropped, running, blocked and ready: done once closed, dropped for a task closed as dismissed
+// (pm task close --dropped: not done), running while held or, for a project or sprint, once any child has started or
+// finished; blocked while a blocker is not closed.
 func State(it *Item, items *Items) string {
 	switch {
+	case it.Status == work.Closed && it.Type == work.Task && it.Resolution == work.Dismissed:
+		return "dropped"
 	case it.Status == work.Closed:
 		return "done"
 	case it.Holder != nil:
@@ -160,10 +163,12 @@ func TaskGraph(sprints []*Item, items *Items) string {
 	lines = append(lines, edges...)
 	lines = append(lines,
 		"  classDef done fill:#e4f2e7,stroke:#2c7a3f,color:#1d2321",
+		"  classDef dropped fill:#eceeed,stroke:#5d6763,color:#5d6763,stroke-dasharray:4 3",
 		"  classDef running fill:#e3edf8,stroke:#1d5fa8,color:#1d2321",
 		"  classDef ready fill:#f6efd9,stroke:#8a6a12,color:#1d2321",
 		"  classDef blocked fill:#f7e3e1,stroke:#a8322d,color:#1d2321")
-	legend := `<p class="meta">` + pill("done") + " " + pill("running") + " " + pill("ready") + " " + pill("blocked") +
+	legend := `<p class="meta">` + pill("done") + " " + pill("dropped") + " " + pill("running") + " " + pill("ready") +
+		" " + pill("blocked") +
 		"<span>arrows: must finish first</span></p>\n"
 	return `<pre class="mermaid">` + esc(strings.Join(lines, "\n")) + "</pre>\n" + legend
 }
@@ -357,6 +362,9 @@ func dayActivity(day string, items *Items, under string, recs []*Record, frm *Re
 		for _, t := range items.Children(sp.ID) {
 			for _, v := range dayVerbs {
 				if LocalDay(v.at(t)) == day {
+					if v.verb == "closed" && State(t, items) == "dropped" {
+						v.verb, v.class = "dropped", "dropped"
+					}
 					rows = append(rows, `<li><span class="pill `+v.class+`">`+strings.ToUpper(v.verb)+"</span> "+
 						esc(t.Title)+` <span class="k">`+esc(t.ID)+"</span></li>")
 					moved = true
@@ -1043,11 +1051,14 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 		var rows []string
 		for _, sp := range sprints {
 			if sp.Status != work.Closed || shown[sp.ID] {
-				tasks := items.Children(sp.ID)
-				n := 0
-				for _, t := range tasks {
-					if t.Status == work.Closed {
-						n++
+				n, m := 0, 0
+				for _, t := range items.Children(sp.ID) {
+					switch State(t, items) {
+					case "dropped": // not done, and no longer to do
+					case "done":
+						n, m = n+1, m+1
+					default:
+						m++
 					}
 				}
 				title := esc(sp.Title)
@@ -1055,7 +1066,7 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 					title = `<a href="` + r.Out() + `">` + esc(sp.Title) + "</a>"
 				}
 				rows = append(rows, "<li>"+pill(State(sp, items))+" "+title+
-					fmt.Sprintf(`<span class="k">%d of %d tasks done</span></li>`, n, len(tasks)))
+					fmt.Sprintf(`<span class="k">%d of %d tasks done</span></li>`, n, m))
 			}
 		}
 		if hidden := len(done) - DoneSprintsShown; hidden > 0 {

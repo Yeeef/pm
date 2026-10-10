@@ -188,14 +188,21 @@ func (r *repo) dayActivity(day string) (string, error) {
 			if on(sp.CreatedAt) {
 				rows = append(rows, "    sprint opened")
 			}
-			for _, t := range children(sp.ID, func(it *work.Item) bool { return it.Resolution != work.Dismissed }) {
+			// a dismissed need is a [TEST] or replaced one; a dismissed task is a dropped one, which moved the day
+			for _, t := range children(sp.ID, func(it *work.Item) bool {
+				return it.Resolution != work.Dismissed || it.Type == work.Task
+			}) {
 				request := t.Type == work.Need
 				noun := "task"
 				if request {
 					noun = "request to the owner (" + site.Kind(t) + ")"
 				}
 				if on(t.ClosedAt) {
-					row := "    " + noun + " closed: " + t.Title
+					verb := "closed"
+					if t.Resolution == work.Dismissed {
+						verb = "dropped"
+					}
+					row := "    " + noun + " " + verb + ": " + t.Title
 					if t.CloseReason != "" {
 						row += " (" + t.CloseReason + ")"
 					}

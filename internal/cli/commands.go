@@ -311,12 +311,13 @@ var tree = &command{
 				},
 				{
 					name:        "close",
-					help:        "close a task with a reason naming its commit",
-					description: "Close a task. The reason ends with '(commit <hash>)': HEAD if it was committed after the task started, or the commit given with --commit; with neither, a warning.",
+					help:        "close a task with a reason naming its commit, or drop it",
+					description: "Close a task as done. The reason ends with what holds the work: '(commit <hash>)' for HEAD if it was committed after the task started, else the --commit given: a commit of this repo, OWNER/REPO@SHA for another repo's commit, or a PR URL, the last two resolved with gh; one that does not resolve, or a PR closed without merging, is refused. Without --commit, a warning when HEAD is older than the task or the working tree has uncommitted changes. --dropped closes it as not done instead (resolution dismissed, shown as dropped and left out of a sprint's task counts), with a required --reason and no commit; a task it blocks no longer waits on it. Refuses a task that another live session holds, as pm task claim does; that session closes it or releases it with pm task release.",
 					args: []arg{
 						{dest: "task_id", required: true, kind: value, help: "the task's id"},
-						{flags: []string{"--reason"}, dest: "reason", kind: value, help: "what was done (default: Done)"},
-						{flags: []string{"--commit"}, dest: "commit", metavar: []string{"REF"}, kind: value, help: "the commit holding the work (default: HEAD, if newer than the task)"},
+						{flags: []string{"--reason"}, dest: "reason", kind: value, help: "what was done (default: Done); with --dropped, required: why it is not done"},
+						{flags: []string{"--commit"}, dest: "commit", metavar: []string{"REF"}, kind: value, help: "what holds the work: a commit of this repo, OWNER/REPO@SHA or a PR URL (default: HEAD, if newer than the task)"},
+						{flags: []string{"--dropped"}, dest: "dropped", kind: flagTrue, help: "close it as not done: no commit, a reason required"},
 					},
 				},
 				{
@@ -330,8 +331,8 @@ var tree = &command{
 				},
 				{
 					name:        "move",
-					help:        "move a task to another open sprint; reason with --text",
-					description: "Move an open task to another open sprint and record the scope change as a source=agent decision in the sprint it leaves. The reason (--text) states why, on at least two lines.",
+					help:        "move a task to another open sprint, or into a sprint from directly under a project; reason with --text",
+					description: "Move an open task to another open sprint and record the scope change as a source=agent decision in the sprint it leaves. A task filed directly under a project (the site's Not in a sprint) moves into one of that project's open sprints, and the decision records the scope added in the sprint it joins. The reason (--text) states why, on at least two lines.",
 					groups:      []bool{false},
 					args: []arg{
 						{dest: "task_id", required: true, kind: value, help: "the task's id"},

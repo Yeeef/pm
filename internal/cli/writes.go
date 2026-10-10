@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
@@ -819,55 +821,148 @@ func cmdTaskClose(e *env, p *Parsed) (string, error) {
 		return "", refuse("%s is a need; answer a decision with pm decision add --need %s (or pm "+
 			"decision close if the answer sets no rule), close an action with pm action done %s", id, id, id)
 	}
-	reason := strip(p.Get("reason"))
-	if reason == "" {
-		reason = "Done"
-	}
-	commit := ""
-	if ref, ok := given(p, "commit"); ok && ref != "" {
-		out, err := store.Git(r.root, "rev-parse", "--verify", "--quiet", "--short", ref+"^{commit}")
-		if err != nil {
-			return "", refuse("--commit %s is not a commit", ref)
-		}
-		commit = out
-	} else {
-		// HEAD names the work only if it was committed after the task started.
-		started := task.StartedAt
-		if started.IsZero() {
-			started = task.CreatedAt
-		}
-		if out, err := store.Git(r.root, "log", "-1", "--format=%h %cI"); err == nil {
-			head, when, _ := strings.Cut(out, " ")
-			if t, err := time.Parse(time.RFC3339, when); err == nil && head != "" && !t.Before(started) {
-				commit = head
-			}
-		}
-	}
-	if commit == "" {
-		fmt.Fprintf(e.stderr, "warning: no commit since %s started, so the reason names none; name one with --commit "+
-			"if the work is committed\n", id)
-	} else {
-		reason += fmt.Sprintf(" (commit %s)", commit)
-	}
-	status, err := store.Git(r.root, "status", "--porcelain")
-	if err != nil {
+	if err := heldElsewhere(id, task, currentSession(),
+		" to close it, or to release it with pm task release "+id); err != nil {
 		return "", err
 	}
-	if status != "" {
-		fmt.Fprintf(e.stderr, "warning: the working tree has uncommitted changes; the commit may not contain the work "+
-			"of %s\n", id)
+	reason := strip(p.Get("reason"))
+	ref, _ := given(p, "commit")
+	resolution := work.Done
+	if p.Get("dropped") != "" {
+		if ref != "" {
+			return "", refuse("--dropped closes %s as not done, so no commit holds its work; drop --commit", id)
+		}
+		if reason == "" {
+			return "", refuse("--dropped needs --reason: why %s is dropped and not done", id)
+		}
+		resolution = work.Dismissed
+	} else {
+		if reason == "" {
+			reason = "Done"
+		}
+		commit := ""
+		if ref != "" {
+			if commit, err = closeCommit(r.root, ref); err != nil {
+				return "", err
+			}
+		} else {
+			// HEAD names the work only if it was committed after the task started.
+			started := task.StartedAt
+			if started.IsZero() {
+				started = task.CreatedAt
+			}
+			if out, err := store.Git(r.root, "log", "-1", "--format=%h %cI"); err == nil {
+				head, when, _ := strings.Cut(out, " ")
+				if t, err := time.Parse(time.RFC3339, when); err == nil && head != "" && !t.Before(started) {
+					commit = "commit " + head
+				}
+			}
+			if commit == "" {
+				fmt.Fprintf(e.stderr, "warning: no commit since %s started, so the reason names none; name one with "+
+					"--commit if the work is committed\n", id)
+			}
+			// HEAD stands in for the work, so a dirty tree may hold work it lacks; a named commit is the work.
+			status, err := store.Git(r.root, "status", "--porcelain")
+			if err != nil {
+				return "", err
+			}
+			if status != "" {
+				fmt.Fprintf(e.stderr, "warning: the working tree has uncommitted changes; the commit may not contain "+
+					"the work of %s\n", id)
+			}
+		}
+		if commit != "" {
+			reason += " (" + commit + ")"
+		}
 	}
-	if err := r.checkPlanned(nil, r.with(closedCopy(task, reason))); err != nil {
+	closed := closedCopy(task, reason)
+	closed.Resolution = resolution
+	if err := r.checkPlanned(nil, r.with(closed)); err != nil {
 		return "", err
 	}
 	ws, err := e.work()
 	if err != nil {
 		return "", err
 	}
-	if err := ws.Close(id, reason, work.Done, closer(task)); err != nil {
+	if err := ws.Close(id, reason, resolution, closer(task)); err != nil {
 		return "", err
 	}
+	if resolution == work.Dismissed {
+		return fmt.Sprintf("dropped %s: %s", id, reason), nil
+	}
 	return fmt.Sprintf("closed %s: %s", id, reason), nil
+}
+
+var (
+	otherRepoCommit = regexp.MustCompile(`^([\w.-]+/[\w.-]+)@([0-9a-fA-F]{4,40})$`)
+	pullURL         = regexp.MustCompile(`^https://github\.com/([\w.-]+/[\w.-]+)/pull/[0-9]+$`)
+)
+
+// ghTimeout bounds one gh call of pm task close.
+const ghTimeout = 60 * time.Second
+
+// closeCommit is how a close names the work --commit ref gives: "commit <short>" for a commit of this repo,
+// "commit OWNER/REPO@<short>" for OWNER/REPO@SHA and "PR <url>" (with its merge commit once merged) for a PR URL, the
+// last two resolved on GitHub with gh. A ref that does not resolve is refused.
+func closeCommit(root, ref string) (string, error) {
+	if out, err := store.Git(root, "rev-parse", "--verify", "--quiet", "--short", ref+"^{commit}"); err == nil {
+		return "commit " + out, nil // this repo's first: a branch may be named like OWNER/REPO@SHA
+	}
+	if m := otherRepoCommit.FindStringSubmatch(ref); m != nil {
+		var c struct {
+			SHA string `json:"sha"`
+		}
+		if err := ghJSON(root, &c, "api", "repos/"+m[1]+"/commits/"+m[2]); err != nil {
+			return "", refuse("--commit %s is not a commit of %s on GitHub: %v", ref, m[1], err)
+		}
+		if len(c.SHA) < 7 {
+			return "", refuse("--commit %s is not a commit of %s on GitHub: gh api gave no sha", ref, m[1])
+		}
+		return "commit " + m[1] + "@" + c.SHA[:7], nil
+	}
+	if m := pullURL.FindStringSubmatch(strings.TrimSuffix(ref, "/")); m != nil {
+		ref = strings.TrimSuffix(ref, "/")
+		var pr struct {
+			State       string `json:"state"`
+			MergeCommit *struct {
+				OID string `json:"oid"`
+			} `json:"mergeCommit"`
+		}
+		if err := ghJSON(root, &pr, "pr", "view", ref, "--json", "state,mergeCommit"); err != nil {
+			return "", refuse("--commit %s is not a pull request on GitHub: %v", ref, err)
+		}
+		switch {
+		case pr.State == "MERGED" && pr.MergeCommit != nil && len(pr.MergeCommit.OID) >= 7:
+			return "PR " + ref + ", merged as " + m[1] + "@" + pr.MergeCommit.OID[:7], nil
+		case pr.State == "CLOSED":
+			return "", refuse("--commit %s was closed without merging, so it holds no work; name the commit or PR "+
+				"that does, or close the task with --dropped", ref)
+		}
+		return "PR " + ref, nil
+	}
+	return "", refuse("--commit %s is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL", ref)
+}
+
+// ghJSON runs gh in dir and decodes the JSON it prints into v; a gh that fails, runs past ghTimeout or prints no
+// JSON is an error naming why.
+func ghJSON(dir string, v any, args ...string) error {
+	cmd := "gh " + strings.Join(args, " ")
+	res, err := proc.Run(append([]string{"gh"}, args...), proc.Options{Cwd: &dir, Timeout: ghTimeout,
+		TimeoutText: strconv.Itoa(int(ghTimeout.Seconds()))})
+	switch {
+	case err != nil:
+		return fmt.Errorf("%s did not run: %v", cmd, err)
+	case res.Code != 0:
+		why := strings.TrimSpace(res.Stderr)
+		if why == "" {
+			why = fmt.Sprintf("exit %d", res.Code)
+		}
+		return fmt.Errorf("%s failed: %s", cmd, why)
+	}
+	if err := json.Unmarshal([]byte(res.Stdout), v); err != nil {
+		return fmt.Errorf("%s printed no JSON: %v", cmd, err)
+	}
+	return nil
 }
 
 func cmdTaskClaim(e *env, p *Parsed) (string, error) {
@@ -907,11 +1002,10 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	h := holderOf(task)
-	if h != nil && h.Session != sid && h.Live {
-		return "", refuse("%s is held by live session %s (claimed %s ago; its transcript was written in the last %d "+
-			"minutes); leave it, or ask that session", id, h.Session, age(h.ClaimedAt), liveWindow/60)
+	if err := heldElsewhere(id, task, sid, ""); err != nil {
+		return "", err
 	}
+	h := holderOf(task)
 	ws, err := e.work()
 	if err != nil {
 		return "", err
@@ -930,6 +1024,17 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 		was = "; took it over from idle session " + h.Session
 	}
 	return fmt.Sprintf("claimed %s for session %s at %s%s", id, sid, now, was), nil
+}
+
+// heldElsewhere refuses a write to task id while a live session other than sid holds it; then says what to ask that
+// session for.
+func heldElsewhere(id string, task *work.Item, sid, then string) error {
+	h := holderOf(task)
+	if h != nil && h.Session != sid && h.Live {
+		return refuse("%s is held by live session %s (claimed %s ago; its transcript was written in the last %d "+
+			"minutes); leave it, or ask that session%s", id, h.Session, age(h.ClaimedAt), liveWindow/60, then)
+	}
+	return nil
 }
 
 // decisionBody checks a decision body: two lines or more, no block opened.
@@ -968,29 +1073,45 @@ func cmdTaskMove(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// The scope change is a decision in the sprint the task leaves, or, for a task filed directly under a project,
+	// in the sprint it joins, which must be one of that project's.
 	source := task.Parent
-	inSprint := false
-	for _, rec := range r.recs {
-		inSprint = inSprint || rec.Type() == "sprint" && source != "" && rec.Bead() == source
+	var rec *records.Record
+	fromProject := false
+	for _, x := range r.recs {
+		if source != "" && x.Bead() == source && (x.Type() == "sprint" || x.Type() == "project") {
+			rec, fromProject = x, x.Type() == "project"
+		}
 	}
-	if !inSprint {
-		return "", refuse("%s is not in a sprint with a record, so no sprint can record the scope change", id)
+	if rec == nil {
+		return "", refuse("%s is not in a sprint or a project with a record, so no sprint can record the scope change", id)
 	}
-	rec, err := r.sprint(source)
-	if err != nil {
-		return "", err
+	if to == source && fromProject {
+		return "", refuse("%s is already directly under project %s; move it into one of that project's open sprints",
+			id, rec.Name())
 	}
 	if to == source {
 		return "", refuse("%s is already in sprint %s", id, source)
 	}
-	if _, err := r.openSprint(to); err != nil {
+	dest, err := r.openSprint(to)
+	if err != nil {
 		return "", err
+	}
+	if fromProject {
+		if sp := r.item(to); sp.Parent != source {
+			return "", refuse("sprint %s is not in project %s, which holds %s; move it into one of that project's open "+
+				"sprints", to, rec.Name(), id)
+		}
 	}
 	if err := decisionBody(reason); err != nil {
 		return "", err
 	}
-	updated, err := records.InsertEntry(rec.Text, "Decisions",
-		decisionBlock("agent", fmt.Sprintf("Moved %s to %s: %s", id, to, reason)))
+	text := fmt.Sprintf("Moved %s to %s: %s", id, to, reason)
+	if fromProject {
+		rec = dest
+		text = fmt.Sprintf("Moved %s into this sprint from project %s: %s", id, source, reason)
+	}
+	updated, err := records.InsertEntry(rec.Text, "Decisions", decisionBlock("agent", text))
 	if err != nil {
 		return "", err
 	}
@@ -1007,7 +1128,11 @@ func cmdTaskMove(e *env, p *Parsed) (string, error) {
 	if err := ws.Move(id, to); err != nil {
 		return "", err
 	}
-	out, err := r.apply(w, fmt.Sprintf("moved %s from %s to %s and added a sprint decision to %s", id, source, to,
+	from := source
+	if fromProject {
+		from = "project " + source
+	}
+	out, err := r.apply(w, fmt.Sprintf("moved %s from %s to %s and added a sprint decision to %s", id, from, to,
 		r.rel(rec.Path)), "", "pm: ")
 	if err != nil {
 		if uerr := ws.Move(id, source); uerr != nil {
