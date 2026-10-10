@@ -116,7 +116,7 @@ The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, i
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: a wide Mermaid diagram keeps 16 px labels and scrolls sideways at 390 px, redraws on a theme switch, survives a jsdelivr outage, and a record shows an image file kept beside it (PR #23, pending merge).
+done: a wide Mermaid diagram keeps 16 px labels and scrolls sideways at 390 px, redraws on a theme switch, survives a jsdelivr outage, and a record shows an image file kept beside it (PR #23, merged as 214d486).
 
 - Mermaid pinned to 11.17.2 (jsdelivr, then unpkg), `useMaxWidth` off for every diagram type Mermaid's defaults give one (27), redrawn from source on a `prefers-color-scheme` or `data-theme` change; `TestMermaidLoadsOneExactVersionAtNaturalWidth` fails on an unpinned URL.
 - The service serves `.svg`, `.png`, `.jpg`, `.jpeg`, `.webp` from the records store with their content types, `nosniff` and a sandboxing CSP, confined by a dot-part check on the path asked for and on the file it resolves to, and by `os.Root`.
