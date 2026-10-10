@@ -551,6 +551,8 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return cmdCheck(here, stdout)
 	case "where":
 		return cmdWhere(p, here, stdout)
+	case "clean":
+		return cmdClean(p, here, stdout)
 	}
 	if cmd, ok := agentCommands[name]; ok {
 		return runAgent(name, cmd, p, here, stdin, stdout, stderr)

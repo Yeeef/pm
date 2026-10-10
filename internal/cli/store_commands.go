@@ -612,6 +612,15 @@ func currentSession() string {
 	return ""
 }
 
+// claudeConfigDir is Claude Code's config dir, which holds its transcripts under projects/.
+func claudeConfigDir() string {
+	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+		return d
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".claude")
+}
+
 // live is whether one of the session's transcripts changed within LiveWindow: Claude Code's
 // <config>/projects/<project dir>/<id>.jsonl (any project dir, since each worktree has its own), or Codex's
 // $CODEX_HOME/sessions/<date>/rollout-<time>-<id>.jsonl.
@@ -620,10 +629,7 @@ func live(session string) bool {
 		return false
 	}
 	home, _ := os.UserHomeDir()
-	claude := os.Getenv("CLAUDE_CONFIG_DIR")
-	if claude == "" {
-		claude = filepath.Join(home, ".claude")
-	}
+	claude := claudeConfigDir()
 	codex := os.Getenv("CODEX_HOME")
 	if codex == "" {
 		codex = filepath.Join(home, ".codex")

@@ -43,6 +43,15 @@ only.
   keep the copy away from the link; each existed only for the copy (step 2). A branch that still tracks `records/`
   gets that copy where its link goes: `pm init`, `pm doctor` and `pm where` say to merge the main branch (step 3).
 
+### Added
+
+- `pm clean` lists every worktree of the clone with keep or remove and the reason, and `pm clean --apply` removes
+  the agent worktrees under `.claude/worktrees/` that nobody needs: clean, with their branch on `origin/main`
+  (squash merges checked with `gh`) or pushed with nothing beyond. It keeps a worktree that a live process locks
+  (Claude Code's lock, with its pid and start time) or that a live session used in the last 30 minutes, one with
+  uncommitted changes or commits never pushed, the main checkout, the records store and the worktree it runs in.
+  It removes with `git worktree remove` (never `--force`) and deletes a branch only once it is merged.
+
 ### Changed
 
 - `pm doctor` names each piece an earlier pm wrote for the copy (the two workflows, the `pre-commit` section, the
