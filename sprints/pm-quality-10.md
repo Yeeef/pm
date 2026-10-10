@@ -138,6 +138,12 @@ Owner in chat, 2026-10-10: why make it more complicated; that agent should not r
   in three full runs (189 hook runs each; per run median 2.09 s, 2.05 s, 2.09
   s; max 9.80 s, 9.32 s, 7.83 s).
 
+- main at 4c36803 was red: its first rules chunk was 10,018 characters (over
+  the 10,000 cap) and [Unreleased] held two '### Added'. PR #25 cuts the rules
+  into three chunks at '## 3. Records' (3,677, 6,417 and 6,329 characters; the
+  hook entries follow len(hooks.Starts), golden pieces updated) and merges the
+  two Added lists.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
