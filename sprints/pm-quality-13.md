@@ -101,6 +101,14 @@ None yet.
   (Lstat says link, Stat says gone) now tells it from a file a sync unlinked;
   both commands refuse, changing nothing.
 
+- pm uninstall (task .3): with the clone's install lock held (as a session
+  start starting the service holds it), pm uninstall finished at once before;
+  now it waits, removing nothing, until the lock is free, as it holds the lock
+  from its unsynced check to the store's removal. A crashed systemd unit
+  (inactive, enabled) stayed in the fake supervisor's enabled list after
+  uninstall; it is now disabled (disable --now when active or is-enabled says
+  enabled).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
