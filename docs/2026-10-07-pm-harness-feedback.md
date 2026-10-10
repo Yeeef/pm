@@ -109,3 +109,7 @@ Triaging open sprints after the move to Go pm hit four snags.
 - `pm decision close` stores its body as the owner's answer, even for a need the owner never answered and that became moot. A moot close with only a reason, or a body labelled as the agent's note, would help.
 - `pm task close --commit REF` still warns that the main checkout has uncommitted changes, although REF was given. A task closed as obsolete has no commit, so I passed a records commit as a stand-in. A `--obsolete` close that needs no commit would help.
 - `pm decision add` refuses while the record holds an uncommitted hand edit; the order (commit, then add) is fine once known, but the frame edit plus decision is one step in practice.
+
+### 2026-10-10 04:00 UTC, session `d2440053-39b8-519d-8887-8ecd90d4282a`
+
+Closing a project because it moved to another repo: pm task close closed tasks held by other live sessions without a warning, while pm task claim refuses them; and there is no single command for a move, so the close-out took 14 hand-written delivery reports and 22 task closes with an unrelated --commit. A pm project move-out command, or a warning on closing a held task, would have helped.
