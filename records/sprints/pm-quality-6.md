@@ -1,7 +1,7 @@
 ---
 type: sprint
 title: pm clean removes agent worktrees nobody needs
-bead: yeeef-agents-9va.64
+bead: pm-d2k5.6
 ---
 
 ## Goal
@@ -9,6 +9,8 @@ bead: yeeef-agents-9va.64
 > What should be true when this sprint ends, and why now?
 
 The owner or an agent runs `pm clean` and every agent worktree that no live session owns and whose work is saved is removed, while anything live, dirty or unsaved is kept with the reason printed.
+
+Moved from pm-harness sprint 55 on 2026-10-10.
 
 ## Scope
 
@@ -23,9 +25,9 @@ The owner or an agent runs `pm clean` and every agent worktree that no live sess
 
 > What evidence will show the goal is met?
 
-- `pm clean` lists each worktree with keep or remove and a reason; `--apply` removes exactly the remove set and never the main checkout, the `.records` store or the calling worktree.
+- `pm clean` lists each worktree with keep or remove and a reason; `--apply` removes exactly the remove set and never the main checkout, the records store (`.pm/store/records`) or the calling worktree.
 - Harness tests cover dirty, unpushed commit, merged, squash-merged, live lock, stale lock and the store, and `make test` passes.
-- A run on this clone removes the merged leftovers (as of 2026-10-06: `agent-a9bd…`, `bridge-cse_01MBJ…`) and keeps `bridge-cse_01QAb…`, whose commit was never pushed.
+- A run on this clone removes the merged leftovers and keeps any worktree with a commit never pushed.
 
 ## Design pages
 
@@ -35,7 +37,7 @@ None yet.
 
 ## Progress
 
-> Where is the sprint now? Generated from Beads when the page is rendered.
+> Where is the sprint now? Generated from the work store when the page is rendered.
 > Do not write here.
 
 ## Decisions
@@ -44,12 +46,12 @@ None yet.
 
 ::: decision {source=agent date=2026-10-10}
 `pm clean` is built in Go pm in Yeeef/pm (internal/cli), not in the Python harness.
-pm-harness moved to Yeeef/pm on 2026-10-10, and Go pm is its only implementation; the Python pm is being retired.
+Carried from pm-harness sprint 55 (agent, 2026-10-10): pm-harness moved to Yeeef/pm on 2026-10-10, and Go pm is its only implementation; the Python pm is being retired.
 :::
 
-::: decision {source=agent date=2026-10-10}
-Moved yeeef-agents-9va.64.1 to pm-d2k5.6: The owner moved pm-harness sprint 55 to pm-quality on 2026-10-10: pm clean is pm's own tooling quality, which pm-quality holds.
-This sprint's open work continues in pm-quality sprint 6.
+::: decision {source=owner date=2026-10-10}
+This sprint is pm-harness sprint 55, moved to pm-quality; its Done when names the Go records store (.pm/store/records) instead of the retired .records store, and drops the 2026-10-06 worktree names.
+The owner asked in chat on 2026-10-10 to move it to pm-quality; the .records store and those worktrees no longer exist.
 :::
 
 ## Findings
@@ -57,17 +59,18 @@ This sprint's open work continues in pm-quality sprint 6.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-- Claude Code locks each agent worktree with `claude agent <name> (pid N start
-  T)` in `.git/worktrees/<name>/locked`, so a lock whose pid is dead or whose
-  start time differs is stale.
+- --text=From pm-harness sprint 55: Claude Code locks each agent worktree with
+  `claude agent <name> (pid N start T)` in `.git/worktrees/<name>/locked`, so
+  a lock whose pid is dead or whose start time differs is stale.
 
-- One `claude rc` process (pid 3711007) held the locks on three bridge
-  worktrees, so a live pid cannot tell bridge sessions apart; recent
-  transcript writes in the worktree's `~/.claude/projects/` dir can.
+- --text=From pm-harness sprint 55: one `claude rc` process (pid 3711007) held
+  the locks on three bridge worktrees, so a live pid cannot tell bridge
+  sessions apart; recent transcript writes in the worktree's
+  `~/.claude/projects/` dir can.
 
-- On 2026-10-06 the clone had 8 agent worktrees: 4 locked by live processes, 2
-  clean with nothing beyond main (removable), and `bridge-cse_01QAb…` with 1
-  commit never pushed, which must be kept.
+- --text=From pm-harness sprint 55: on 2026-10-06 the clone had 8 agent
+  worktrees: 4 locked by live processes, 2 clean with nothing beyond main
+  (removable), and one with 1 commit never pushed, which must be kept.
 
 ## Delivery report
 
@@ -77,14 +80,10 @@ This sprint's open work continues in pm-quality sprint 6.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: the sprint's open work moved to pm-quality sprint 6 on 2026-10-10, where it continues.
-
-- Nothing shipped here; its one task moved to [pm-quality sprint 6](../sprints/pm-quality-6.md).
+Not closed yet.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- `pm clean` lists each worktree with keep or remove and a reason; `--apply` removes exactly the remove set: moved: continues in pm-quality sprint 6.
-- Harness tests cover each case, and `make test` passes: moved: continues in pm-quality sprint 6.
-- A run on this clone removes the merged leftovers and keeps the unpushed one: moved: continues in pm-quality sprint 6.
+Not closed yet.

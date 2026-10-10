@@ -130,8 +130,8 @@ An item has a fixed set of typed fields, stored as the columns and tables under 
 | `status` | `open` \| `closed` | create, close | "in progress" is derived: an open item with a holder |
 | `resolution` | `done` \| `answered` \| `no-decision` \| `dismissed`, or null while open | close | replaces matching on the close reason text `Responded` / `Dismissed` and the `no-decision` label |
 | `close_reason` | string | close | free text; a review keeps `merged as <sha>` |
-| `number` | int, only on `type=sprint` | minted at create | the sprint's number in its record name (`pm-harness-77`); see Ids |
-| `parent` | id or null | create, `pm task move` | the id does not follow a move: 11 sample items have a parent that is not their id's prefix |
+| `number` | int, only on `type=sprint` | minted at create, and again by `pm sprint move` | the sprint's number in its record name (`pm-harness-77`); see Ids |
+| `parent` | id or null | create, `pm task move`, `pm sprint move` | the id does not follow a move: 11 sample items have a parent that is not their id's prefix |
 | `blocked_by` | list of ids | `pm dep add/rm` | the only dependency kind; bd's `parent-child` link becomes `parent` |
 | `labels` | set of strings | create | free tags for what no field covers (`bug`, `[TEST]` marks); pm's logic reads no label |
 | `holder` | `{session, host, claimed_at}` or null | `pm task claim`, `release`, close | replaces `assignee` and the `claimed_by`/`claimed_at` metadata |
@@ -193,7 +193,7 @@ Across clones, two copies can change the same item before they sync. The merge i
 | Field | Both sides changed it |
 |---|---|
 | `id`, `type` | never changed: unequal values fail the merge |
-| `number` | never changed: unequal values fail the merge |
+| `number` | changed only by `pm sprint move`, which runs through the compare-and-swap, so never by both sides: unequal values fail the merge |
 | `comments` | union by comment id: rows, merged by Dolt |
 | `labels`, `blocked_by` | per entry, three-way: an entry is kept unless a side removed it from the base and the other side left it as in the base; an add on either side is kept. Rows, merged by Dolt |
 | `status` | `closed` wins |
@@ -233,7 +233,7 @@ Format, unchanged so records links stay valid:
 
 - Every existing id keeps its text. The store indexes by the id string and never re-derives it.
 - A child's id is `<parent id>.<n>` at create time, with `n` one more than the highest `n` of any item whose id starts with `<parent id>.` and has one more segment, wherever it sits now (moved-away children count, so a number is never reused). The counter is not stored; it is derived from the ids on each mint. The id does not change on a move.
-- A sprint's number, which names its record (`pm-harness-77`), is the field `number`, not the id's last segment (sprint 77 is `9va.86`). It is the highest `number` among the project's sprints plus 1, minted in the same compare-and-swap as the id, so two clones cannot both open `pm-harness-N`.
+- A sprint's number, which names its record (`pm-harness-77`), is the field `number`, not the id's last segment (sprint 77 is `9va.86`). It is one more than the highest of the project's sprints' numbers and the numbers moved away from the project (Moving a sprint), minted in the same compare-and-swap as the id, so two clones cannot both open `pm-harness-N`, and a moved sprint's old name never names another sprint.
 - A root id is 4 random base36 characters (1,679,616 values; bd used 3), checked against the store, and longer on a hit.
 
 **Minting without collisions across clones.** A root id collides with negligible chance at 4 random characters. A child number does not: two clones that both see `9va.88` as the last sprint both mint `9va.89`, and both open the same sprint number. pm prevents it with a compare-and-swap on the remote. The pm service runs it, one at a time, when a command creates a child in a store with a remote; other sessions keep writing to `main` meanwhile, so the swap works on a scratch branch and never resets `main`:
@@ -245,6 +245,19 @@ Format, unchanged so records links stay valid:
 5. Once the push landed, the service merges `pm-cas` into `main` in one write transaction (a fast-forward when no session wrote since `C0`; else a merge that adds one row nobody else can know of), deletes `pm-cas`, and returns the item. A merge that fails here says the item is on the remote, not to create it again, and that the next sync brings it.
 
 Steps 1 and 2 need the remote. With the remote unreachable, a create refuses. A create costs a pull and a push, about 0.8 s from the sync timings; the whole create is not measured. A project's root id, and any id in a store with no remote, is minted by an ordinary write.
+
+**Moving a sprint.** `pm sprint move <sprint> --to <project>` moves an open sprint, with its tasks, needs, frame, decisions, findings and report, to another open project.
+
+| Part | Design |
+|---|---|
+| Id | stays. The id names the sprint in chat, records, review targets, blockers and its tasks' ids, so the old id is the new place: `pm show <id>` shows the sprint under its new project. Only `parent` changes, as for `pm task move`; the tasks, needs, holders, blockers and comments under it are not written |
+| Number | the next number of the new project, minted as at create. The title's `Sprint <n>:` becomes `Sprint <m>:`, and the record moves from `sprints/<old project>-<n>.md` to `sprints/<new project>-<m>.md`, its text unchanged |
+| Move note | the same write adds a comment to the sprint, kind `note`, author `pm`, its first line `pm sprint move: from <old project id> sprint <n> to <new project id> sprint <m>`, then the reason. It is the pointer from the old name: `pm show <id>` lists it; the site serves the old page path, and `pm show --record` and `pm record link` take the old record path, each as the sprint's record now; and the old project's next number counts `<n>`, so `<old project>-<n>` never names another sprint |
+| Compare-and-swap | a move mints a number, so in a store with a remote the service runs it as it runs a create (Minting without collisions, steps 1 to 5, CALL `pm_move_sprint(?)`): a move into a project and a sprint opened in it, on two clones, mint one after the other. A move that finds the sprint in the target project already writes nothing and returns it, so a rerun after an unknown push outcome is safe |
+| Order | the work store first, then the records: the store write is one transaction; the records write is one commit on the records branch, which renames the record and adds a `source=agent` decision to both projects' records, naming the sprint, both numbers and the reason |
+| Interrupted | between the two writes the store holds the sprint in the new project with its new number, and the record keeps its old name. `pm show` and the site place a sprint by its `parent` and name it by its `number`, never by its record's file name, so both show it under the new project only. A rerun of the same command finds the sprint in the target project, its record not yet named for it, and writes the records step alone, from the move note. A records step that fails is not undone in the store, for the same reason |
+| Another clone | a task another clone adds under the sprint before it syncs mints its id under the sprint's id, which did not change, so it lands in the moved sprint; claims, closes and edits change other rows, or cells the merge table settles (`parent` and `title` by the later `updated_at`). The move note merges as a comment. `number` changes only in the compare-and-swap, so two clones never both change it from one base |
+| Refuses | a closed sprint; an unknown or closed target project; the project the sprint is in, once its record carries the new name; a reason under two lines |
 
 ### Ready and blocked
 
@@ -440,6 +453,10 @@ One row per row of "Where bd constrains pm".
 | A stored `in_progress` status | Two facts for one: in progress is an open item with a holder |
 | Keep `bd remember` as `pm memory` | All 4 memories have a better home, and a memory loaded every session is context no check keeps true |
 | Clone-tagged child ids (`9va.77.k3x`) to mint offline | Breaks the sequential child numbers; refusing a create while the remote is unreachable is simpler |
+| Renumber a moved sprint with a pointer: a new sprint id under the new project, its tasks moved there, the old sprint closed naming the new id | Every reference to the old id (review targets, blockers, records, chat) must follow the pointer; a task another clone adds under the old id before it syncs lands under a closed sprint |
+| Keep a moved sprint's number | A record name `<project>-<n>` is unique per project; the old number may be taken in the new project |
+| A schema column or table for sprint moves | A schema version change: every clone must upgrade before it syncs again (as 0.3.0's did). The move note carries the same facts in a comment row, which merges by union |
+| A closed placeholder sprint left in the old project to keep its number | An item that every list of sprints (the site, day pages, `pm show`) would have to skip |
 
 ## Prior art
 

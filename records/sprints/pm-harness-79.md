@@ -249,12 +249,16 @@ Answers `yeeef-agents-9va.88.13`.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: both clones, this Mac's and the Linux server's, run Go pm from the public Yeeef/pm on the Dolt work store, with bd retired; deleting Python pm after the soak remains.
+done: both clones, this Mac's and the Linux server's, run Go pm from the public Yeeef/pm on the Dolt work store, with bd retired and Python pm deleted from yeeef-agents after the soak; the design pages' update moved to Sprint 109 by owner decision.
+
+Merged as eb97cac (PR #99). Merged as 2e1ae91 (PR #13).
 
 - Cut-over preparation ([#97](https://github.com/Yeeef/yeeef-agents/pull/97)) and the bridge release 0.1.6; the rehearsal on scratch clones.
 - The live switch on this Mac: final bd export (580 issues), Go pm installed from Yeeef/pm, pin 0.2.0 ([#98](https://github.com/Yeeef/yeeef-agents/pull/98)), import, `pm init`, the work store pushed to `refs/pm/work`, the service on Go pm.
 - bd retired: a `.beads` file blocks every bd command, `bd init` included ([#99](https://github.com/Yeeef/yeeef-agents/pull/99)); Beads history kept in `.beads.retired/`.
 - The [cut-over runbook](../docs/2026-10-09-go-pm-cut-over-runbook.md).
+- Python pm deleted from yeeef-agents after the soak ([#102](https://github.com/Yeeef/yeeef-agents/pull/102)).
+- `pm init --session-start` help says session start starts a down service (Yeeef/pm [#13](https://github.com/Yeeef/pm/pull/13)).
 
 ### Against "Done when"
 
@@ -264,5 +268,5 @@ partial: both clones, this Mac's and the Linux server's, run Go pm from the publ
 - **Met:** `grep -w bd` over `CLAUDE.md`, `.claude/settings.json`, `.codex/hooks.json`, `.pm/hooks`, `commands/` and `skills/` finds no use.
 - **Met:** the site before and after the switch: 152 pages, 125 equal after normalisation; every difference on the other 27 is records changed between the crawls or ids in natural order instead of text order; no Go rendering difference.
 - **Met:** `pm export` equals the final bd export on every field of 580 of 580 items, 297 comments on each side.
-- **Not yet:** deleting Python pm after the soak, and the named docs describing Go pm.
-- **Met so far:** the sprint's PRs are on main: [#97](https://github.com/Yeeef/yeeef-agents/pull/97) as `d8ba52d`, [#98](https://github.com/Yeeef/yeeef-agents/pull/98) as `945d025`, [#99](https://github.com/Yeeef/yeeef-agents/pull/99) as `eb97cac`; the PR deleting Python pm comes after the soak.
+- **Met:** after the soak, Python pm (`pm/`) is deleted from yeeef-agents' main ([#102](https://github.com/Yeeef/yeeef-agents/pull/102) as `c597b69`), and Yeeef/pm's `AGENTS.md` describes Go pm alone (Yeeef/pm [#9](https://github.com/Yeeef/pm/pull/9)). The pm-product and work store design pages moved to Sprint 109 task .119.2 (owner decision above).
+- **Met:** the sprint's PRs are on main: [#97](https://github.com/Yeeef/yeeef-agents/pull/97) as `d8ba52d`, [#98](https://github.com/Yeeef/yeeef-agents/pull/98) as `945d025`, [#99](https://github.com/Yeeef/yeeef-agents/pull/99) as `eb97cac`, [#102](https://github.com/Yeeef/yeeef-agents/pull/102) as `c597b69`, and Yeeef/pm [#13](https://github.com/Yeeef/pm/pull/13) (the `--session-start` help) as `2e1ae91`.

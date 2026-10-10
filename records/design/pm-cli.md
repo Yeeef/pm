@@ -81,6 +81,7 @@ device) is refused before reading. No other command reads stdin.
 | `pm project open` | `<name>` `--title "…"`, Goal in the body | Creates `records/projects/<name>.md` with every section, the rest as placeholders | `bd create --type epic` | The name exists; Goal is empty |
 | `pm sprint open` | `<project>` `--title "…"`, frame in the body (Goal, Scope with **In**/**Out**, Done when) | Creates `records/sprints/<project>-<n>.md` with every section, the rest as placeholders | `bd create --type epic --parent <project epic>` | Goal, Scope (In and Out) or Done when missing or empty; the project epic is closed |
 | `pm sprint close` | `<sprint-id>` | Appends "Merged as <sha> (PR #N)." to the Outcome after its verdict paragraph and commits the record on the records branch as `[SPRINT] …`; a sprint with no review gets no stamp | `bd close <epic> --reason="<outcome> (records commit <records HEAD>)"` | Uncommitted changes in the store; the committed Outcome or Against "Done when" still "Not closed yet.", or Outcome not done/partial/voided; a child task open, a review included; a review not closed as `merged as <sha>` (a dismissed review, such as a replaced PR's or a [TEST] one, is skipped) |
+| `pm sprint move` | `<sprint-id>` `--to PROJECT`, reason in the body (two lines at least) | Renames the record to `sprints/<project>-<m>.md` and appends a `::: decision {source=agent …}` naming the sprint, both numbers and the reason to both projects' records, in one records commit | The work store first: the sprint's parent, its next number in the new project and a move note, in one write through the compare-and-swap ([work store](work-store.md), Moving a sprint); a rerun after a failed records step writes the records step alone | The sprint is unknown, not a sprint, closed or has no record; the project is unknown or closed, or already holds the sprint under its name; reason empty or one line |
 | `pm project close` | `<name>` | Reads only | `bd close <project epic> --reason="… (commit <records HEAD>)"` | Uncommitted changes in the store; the committed `## Outcome` still "Not closed yet."; a sprint of the project still open |
 | `pm task add` | `--sprint ID` `--title "…"`, description in the body (optional) | None | `bd create --type=task --parent=ID` | `--sprint` missing, unknown, closed, not an epic, or outside every project with a record; title empty |
 | `pm task close` | `<id>` `[--reason "…"]` `[--commit REF]` | None | `bd close <id> --reason="<reason> (commit <hash>)"`: HEAD if committed after the task started, or `--commit`; with neither, no hash and a warning. A dirty working tree warns but proceeds | Unknown, closed, an epic (use `pm sprint close`), or labelled `human` (use `pm decision add --need`, `pm decision close` or `pm action done`); `--commit` is not a commit |
@@ -137,8 +138,8 @@ The installed `pm` binary, which runs the repo's pinned version ([pm as an insta
 
 | Level | Command | Prints | Size in this repo |
 |---|---|---|---|
-| Top | `pm show` | A push-failure warning; a warning listing tasks other live sessions hold; the `site:` line; a pointer to `pm show --project NAME`; one line per open project (name, bead, open and running sprint counts, owner requests), each followed by one line per owner request: kind, short id, title cut at 60 characters, its sprint, and `[undelivered reply: pm reply read ID]` when a site reply has not reached a session | 1,238 characters |
-| Project | `pm show --project NAME\|ID` | Goal; the decisions and actions awaiting the owner in full, each with `-> bd show ID`; feedback; each open sprint with its goal, done-when count and open tasks with holders; open sprints without tasks; the last 3 decisions | 6,141 characters for pm-harness |
+| Top | `pm show` | A push-failure warning; a warning listing tasks other live sessions hold; the `site:` line; the `feedback:` line (the repo's one feedback doc, `records/docs/pm-feedback.md`: its entry count, its link and how to add to it); a pointer to `pm show --project NAME`; one line per open project (name, bead, open and running sprint counts, owner requests), each followed by one line per owner request: kind, short id, title cut at 60 characters, its sprint, and `[undelivered reply: pm reply read ID]` when a site reply has not reached a session | 1,238 characters |
+| Project | `pm show --project NAME\|ID` | Goal; the decisions and actions awaiting the owner in full, each with `-> bd show ID`; the same `feedback:` line; each open sprint with its goal, done-when count and open tasks with holders; open sprints without tasks; the last 3 decisions | 6,141 characters for pm-harness |
 | Sprint | `pm show --sprint ID` | One sprint's frame, findings and tasks | Not measured |
 | Section | `pm show --record TARGET --section NAME` | One record section | Not measured |
 
@@ -150,6 +151,7 @@ The top level, for this repo:
 warning: other live sessions hold these tasks; do not start or delegate them:
   yeeef-agents-9va.84.1  held by 905fe774, 4m, live
 site: https://pm.yeeefs.com (the pm service); a record's page is <site>/<its path under records/, without .md>.html; pm record link <target> prints one
+feedback: 24 entries -> https://pm.yeeefs.com/docs/pm-feedback.html; when pm gets in your way, run pm feedback add [--project NAME] --text="…"
 projects: pm show --project NAME prints one's sprints, tasks, owner requests and last decisions
   agent-setup  yeeef-agents-2sn  1 open sprints, 1 running, 0 owner requests
   pm-harness  yeeef-agents-9va  12 open sprints, 5 running, 5 owner requests
@@ -167,8 +169,7 @@ decisions await you (1):
 actions await you (5):
   .76.2  Review PR #70  (sprint 67)  -> bd show yeeef-agents-9va.76.2
   ...
-feedback: 7 entries -> https://pm.yeeefs.com/docs/2026-10-07-pm-harness-feedback.html
-feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"
+feedback: 24 entries -> https://pm.yeeefs.com/docs/pm-feedback.html; when pm gets in your way, run pm feedback add [--project NAME] --text="…"
 pm-harness  yeeef-agents-9va  sprints and decisions:
 Sprint 57: pm show discloses project state level by level  .66  running  0/4 done
   held by: d0e6676f
