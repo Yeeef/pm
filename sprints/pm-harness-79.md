@@ -82,6 +82,12 @@ The soak ends after a few days of normal use of Go pm on this repo (sessions, ho
 The frame says Python pm is deleted after a soak but sets no length; a condition, not a date, keeps the cheap rollback until Go pm has run the real workload.
 :::
 
+::: decision {source=owner date=2026-10-10}
+The done-when item "the named docs describe Go pm" (pm-product page, work store page Storage section) moves to Sprint 109 task .119.2; Sprint 79 closes once task .12 is on main.
+The owner chose handoff: those pages are already Sprint 109 scope, held by its session, and one item has one owner.
+Answers `yeeef-agents-9va.88.13`.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
