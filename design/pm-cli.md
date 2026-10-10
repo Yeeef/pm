@@ -137,8 +137,8 @@ The installed `pm` binary, which runs the repo's pinned version ([pm as an insta
 
 | Level | Command | Prints | Size in this repo |
 |---|---|---|---|
-| Top | `pm show` | A push-failure warning; a warning listing tasks other live sessions hold; the `site:` line; a pointer to `pm show --project NAME`; one line per open project (name, bead, open and running sprint counts, owner requests), each followed by one line per owner request: kind, short id, title cut at 60 characters, its sprint, and `[undelivered reply: pm reply read ID]` when a site reply has not reached a session | 1,238 characters |
-| Project | `pm show --project NAME\|ID` | Goal; the decisions and actions awaiting the owner in full, each with `-> bd show ID`; feedback; each open sprint with its goal, done-when count and open tasks with holders; open sprints without tasks; the last 3 decisions | 6,141 characters for pm-harness |
+| Top | `pm show` | A push-failure warning; a warning listing tasks other live sessions hold; the `site:` line; the `feedback:` line (the repo's one feedback doc, `records/docs/pm-feedback.md`: its entry count, its link and how to add to it); a pointer to `pm show --project NAME`; one line per open project (name, bead, open and running sprint counts, owner requests), each followed by one line per owner request: kind, short id, title cut at 60 characters, its sprint, and `[undelivered reply: pm reply read ID]` when a site reply has not reached a session | 1,238 characters |
+| Project | `pm show --project NAME\|ID` | Goal; the decisions and actions awaiting the owner in full, each with `-> bd show ID`; the same `feedback:` line; each open sprint with its goal, done-when count and open tasks with holders; open sprints without tasks; the last 3 decisions | 6,141 characters for pm-harness |
 | Sprint | `pm show --sprint ID` | One sprint's frame, findings and tasks | Not measured |
 | Section | `pm show --record TARGET --section NAME` | One record section | Not measured |
 
@@ -150,6 +150,7 @@ The top level, for this repo:
 warning: other live sessions hold these tasks; do not start or delegate them:
   yeeef-agents-9va.84.1  held by 905fe774, 4m, live
 site: https://pm.yeeefs.com (the pm service); a record's page is <site>/<its path under records/, without .md>.html; pm record link <target> prints one
+feedback: 24 entries -> https://pm.yeeefs.com/docs/pm-feedback.html; when pm gets in your way, run pm feedback add [--project NAME] --text="…"
 projects: pm show --project NAME prints one's sprints, tasks, owner requests and last decisions
   agent-setup  yeeef-agents-2sn  1 open sprints, 1 running, 0 owner requests
   pm-harness  yeeef-agents-9va  12 open sprints, 5 running, 5 owner requests
@@ -167,8 +168,7 @@ decisions await you (1):
 actions await you (5):
   .76.2  Review PR #70  (sprint 67)  -> bd show yeeef-agents-9va.76.2
   ...
-feedback: 7 entries -> https://pm.yeeefs.com/docs/2026-10-07-pm-harness-feedback.html
-feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"
+feedback: 24 entries -> https://pm.yeeefs.com/docs/pm-feedback.html; when pm gets in your way, run pm feedback add [--project NAME] --text="…"
 pm-harness  yeeef-agents-9va  sprints and decisions:
 Sprint 57: pm show discloses project state level by level  .66  running  0/4 done
   held by: d0e6676f
