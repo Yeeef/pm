@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T15:19:44+00:00",
- "digest": "2b29c68fa2399817",
+ "generated_at": "2026-10-10T15:30:08+00:00",
+ "digest": "7a014df733db9f59",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm only:** Python pm is gone from Yeeef/pm and yeeef-agents. The harness suite checks only Go pm, and the Linux server's clone runs Go pm and syncs with GitHub.\n- **Harness tracking move:** pm-harness is now tracked in Yeeef/pm with its full history. The yeeef-agents copy is closed.\n- **Site and records:** The site no longer shows \"no such file\" errors while git rewrites records. Wide diagrams scroll sideways on phones and keep readable labels.\n- **Release and commands:** A new pm release is published with a structured note, and CI requires one. pm uninstall works while the pm service is down."
+ "text": "- **Go implementation only:** Yeeef/pm and yeeef-agents no longer contain Python pm. The harness suite tests only Go pm. The Linux server clone now runs Go pm and syncs with GitHub.\n- **pm-harness move:** pm-harness tracking now lives in Yeeef/pm, with its full history. The old copy in yeeef-agents is closed.\n- **Release and CI checks:** pm published a new release with structured release notes. CI now refuses a pull request or release tag that lacks a changelog entry. The slowest PR check finishes much faster than before.\n- **Site and records reads:** The site no longer shows \"no such file\" errors while git rewrites records. Diagrams stay readable and scroll sideways on phones. Image files kept beside records now appear on the site."
 }
