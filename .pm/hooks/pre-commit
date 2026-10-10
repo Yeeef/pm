@@ -1,4 +1,0 @@
-#!/usr/bin/env sh
-# --- BEGIN PM v0.4.0 ---
-pm hook git-pre-commit "$@" || exit $?
-# --- END PM ---

@@ -1,7 +1,0 @@
-{
- "date": "2026-10-09",
- "generated_at": "2026-10-10T03:39:19+00:00",
- "digest": "b0c6934dc8af05a6",
- "model": "claude-haiku-5-5",
- "text": "- **Go pm cut-over:** Go pm now runs the agent commands, the service and the release steps, and this repo's live clone uses it. Its work store runs inside the pm service and imports this repo's bd data without loss.\n- **Public pm release:** pm now lives in its own public, MIT-licensed repo. Anyone can download pm from it without a token.\n- **Site and tests:** The site lists open work outside every sprint and sorts sprints and tasks by number. The flaky pm tests no longer fail on CI.\n- **For you:** Restore the network on the Linux server, so its clone can move to Go pm. Decide how to clear the records/ conflicts on the open pull request."
-}
