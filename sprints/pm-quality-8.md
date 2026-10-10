@@ -73,7 +73,11 @@ The work store syncs between clones through refs/pm/work and every clone checks 
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- --text=The Done-when harness tests pass: 8 tests (-k 'task_close or
+  task_move or task_claim', 5 new) in 2.4 s; make test 117 passed, 40 skipped
+  in 6.4 s; make test-go ok (13 packages); the integration tests that render
+  pages or the day summary (-k 'serve_shows_each_change or day_summarize or
+  every_store_command') 4 passed.
 
 ## Delivery report
 
