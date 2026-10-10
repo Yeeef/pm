@@ -73,6 +73,11 @@ None yet.
   notes for 0.2.0..0.5.0 and 0.5.0-rc.1 are byte-identical between main's
   changelog.py and the new one.
 
+- A head's statusCheckRollup can hold one check twice: PR #27's has 'pm
+  changelog / changelog' CANCELLED (cancel-in-progress when a label changed)
+  then SUCCESS, on the same head. merge_ready.py judges each check by its
+  latest run, and treats a check with any run not completed as pending.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
