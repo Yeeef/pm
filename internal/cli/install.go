@@ -565,6 +565,11 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if err := install.CheckHooksPath(top, main); err != nil {
 		return err
 	}
+	// read before any write, so a worktree git cannot read refuses the upgrade before it changes anything
+	stranded, err := strandedWorktrees(top, main, records, c.MainBranch)
+	if err != nil {
+		return err
+	}
 	planned, err := install.Rewrite(top, settingsOf(c))
 	if err != nil {
 		return err
@@ -580,10 +585,6 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	}
 	// the main branch's records/ copy an earlier pm kept: no branch tracks records/ now
 	tracks, err := install.TracksRecords(top)
-	if err != nil {
-		return err
-	}
-	stranded, err := strandedWorktrees(top, main, records, c.MainBranch)
 	if err != nil {
 		return err
 	}
@@ -649,8 +650,11 @@ func strandedWorktrees(top, main, records, mainBranch string) ([]string, error) 
 		} else {
 			branch = "branch " + branch
 		}
-		out = append(out, fmt.Sprintf("  %s  %s pins pm %s: merge or rebase it onto the pin move", t, branch,
-			c.Version))
+		fix := "merge or rebase it onto the pin move"
+		if launch.Newer(c.Version, buildinfo.Version) {
+			fix = "it moves the pin further ahead, and pm runs there once that move is on " + mainBranch
+		}
+		out = append(out, fmt.Sprintf("  %s  %s pins pm %s: %s", t, branch, c.Version, fix))
 	}
 	if len(out) == 0 {
 		return nil, nil

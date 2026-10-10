@@ -59,8 +59,9 @@ def test_every_config_key_is_named_in_some_commands_help():
 def test_a_pin_move_names_the_worktrees_it_strands(repo):
     """Main pins VERSION_BEFORE; three worktrees are cut from it, and one moves the pin to VERSION. pm upgrade there
     lists the other two, whose branches still pin VERSION_BEFORE. Once the move is on main and the service runs
-    VERSION, a worktree rebased onto the move drops off the list, and in the one that is not, the pm its branch pins
-    names the mismatch and the fix in pm where, pm doctor and any work-store command."""
+    VERSION, a worktree rebased onto the move drops off the list, one that moves the pin further is listed with its own
+    fix, and in the one that is not rebased, the pm its branch pins names the mismatch and the fix in pm where, pm
+    doctor and any work-store command."""
     cfg = repo.root / ".pm/config.toml"
     repo.stop_service()  # the service follows main's pin: it runs VERSION again once the move is on main
     cfg.write_text(cfg.read_text().replace(f'version = "{VERSION}"', f'version = "{VERSION_BEFORE}"'))
@@ -93,6 +94,10 @@ def test_a_pin_move_names_the_worktrees_it_strands(repo):
     repo.git("merge", "-q", "--ff-only", "move")  # the move reaches main and the main checkout
     repo.start_service()
     repo.git("rebase", "-q", "main", cwd=trees["fresh"])
+    ahead = repo.worktree("ahead")  # a branch that moves the pin further: rebasing would not help it
+    (ahead / ".pm/config.toml").write_text(
+        (ahead / ".pm/config.toml").read_text().replace(f'version = "{VERSION}"', 'version = "9.9.9"'))
+    repo.git("commit", "-qam", "pm 9.9.9", cwd=ahead)
 
     res = repo.pm("upgrade", "--to", VERSION, cwd=trees["move"])
     assert res.returncode == 0, res.stderr
@@ -100,7 +105,9 @@ def test_a_pin_move_names_the_worktrees_it_strands(repo):
     head, entries = stranded(res.stdout)
     assert head == (f"the main checkout pins pm {VERSION}, so the pm service runs it, and pm refuses every "
                     "work-store command in these worktrees, whose branches pin another pm:")
-    assert entries == {trees["stale"].resolve(): f"branch stale {fix}"}
+    assert entries == {trees["stale"].resolve(): f"branch stale {fix}", ahead.resolve():
+                       "branch ahead pins pm 9.9.9: it moves the pin further ahead, and pm runs there once that move "
+                       "is on main"}
 
     def before(*args: str) -> subprocess.CompletedProcess:
         """pm in the stale worktree, as its launcher runs it there: the pm its branch pins."""
