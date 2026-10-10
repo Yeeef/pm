@@ -99,10 +99,18 @@ Subagents run in their parent session cwd and hold no worktree lock, so a per-wo
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: `pm clean` shipped in PR #19 (pending merge) with its harness tests; the run that removes this clone's merged leftovers waits until the sprint agents now working here are idle.
+
+- `pm clean` (dry run) and `pm clean --apply`: each worktree listed with keep or remove and the reason. Only agent worktrees under `.claude/worktrees/` are ever removed.
+- Owners: Claude Code's worktree lock (pid plus `/proc` start time), and a live session's transcript entry from the last 30 minutes, matched by its cwd or by a tool call naming the worktree's path.
+- Saved: clean, and on `origin/main` (ancestor, or a squash merge that `gh` confirms), or pushed with nothing beyond. A branch is deleted only once merged.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Done when | Status | Evidence |
+|---|---|---|
+| `pm clean` lists each worktree with keep or remove and a reason; `--apply` removes exactly the remove set and never the main checkout, the records store or the calling worktree | met | `tests/test_clean.py`: the dry run's lines match the expected verdicts exactly and change nothing. `--apply` removes exactly the 4 listed worktrees and keeps the main checkout, the store (still clean) and the caller |
+| Harness tests cover dirty, unpushed commit, merged, squash-merged, live lock, stale lock and the store, and `make test` passes | met | 4 integration tests in `tests/test_clean.py`, all passing. Besides those cases they cover gh unavailable, pushed with and without `-u`, a foreign lock, a reused pid and live transcript use. `make test`: 112 passed, 40 skipped. CI on PR #19 |
+| A run on this clone removes the merged leftovers and keeps any worktree with a commit never pushed | not met yet | Dry run of the built binary on this clone on 2026-10-10: 0 of 13 to remove. All 11 agent worktrees were kept as used by live session ffa2f713, whose sprint agents were working in them. With `CLAUDE_CONFIG_DIR` pointed at an empty dir: 7 of 13 to remove (4 merged, 3 pushed), and kept were the worktrees with uncommitted changes and those with commits never pushed. `--apply` on this clone waits until those agents are idle (30 minutes after their last use) and PR #19 is merged |
