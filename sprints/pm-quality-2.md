@@ -50,7 +50,12 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- --text=A git-checkout race test (40 checkouts between two commits of 200
+  record files, the second also dropping a directory of 20) failed on main in
+  every run: Stamp() failed 44, 38 and 33 times and records.Texts 45, 36 and
+  45 times of 144-148 calls each; the first error was the dropped directory's
+  ReadDir (open …/gone: no such file or directory). With the fix: 0 and 0 in 5
+  of 5 runs (131-134 calls each), 0.57 s per run.
 
 ## Delivery report
 
