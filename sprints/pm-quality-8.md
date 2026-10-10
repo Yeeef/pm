@@ -63,7 +63,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+A dropped task closes with the existing dismissed resolution: pm task close ID --dropped --reason "…" writes it with no commit, and pm show --sprint, the site and the day page show a dismissed task as dropped. No new resolution.
+The work store syncs between clones through refs/pm/work and every clone checks each item (work/check.go accepts done, answered, no-decision, dismissed), so a new resolution would make every clone still on an older pm refuse the synced store until it upgrades: a cross-clone migration. dismissed already means closed without delivering, which is what a dropped task is; on a task only the bd import (a Dismissed close reason) wrote it before, since undoCreate closes only projects and sprints, so the label dropped misrepresents nothing.
+:::
 
 ## Findings
 
