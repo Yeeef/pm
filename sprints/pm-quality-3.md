@@ -55,7 +55,13 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- From pm-harness sprint 110: PR #7 Linux build-and-parity, 11m29s, from the
+  job log: setup 0:30; build, vet and Go tests 1:56 (internal/work 81 s);
+  -race tests 3:47 (tests 6 s and 39 s, the rest compiling with -race); parity
+  0:20; make test-go-suite 1:51; release build test 2:56 (release/build.sh
+  twice). The setup-go cache hit its primary key and logged 'not saving
+  cache'; the cache dates from 2026-10-09, the last go.sum change. That the
+  -race compile is uncached is inferred from those dates, not measured.
 
 ## Delivery report
 
