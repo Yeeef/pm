@@ -105,22 +105,23 @@ The Go port of option C continues in pm-quality sprint 1.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: you chose option C, and PR #76 builds it: main drops its `records/` copy and what existed for it, and each worktree keeps its `records/` link.
+done: the sprint's open work moved to pm-quality sprint 1 on 2026-10-10, where it continues.
+
+What this sprint delivered:
 
 - [Readers of the records/ link and of main's records/ copy](../docs/2026-10-07-records-layout-readers.md): every reader, with file and line.
-- PR #76 (https://github.com/Yeeef/yeeef-agents/pull/76): deletes the copy Action, the PR guard, pm's pre-commit guard, the sparse checkout and main's `records/`. `pm doctor` reports these pieces in an installed repo, and `pm upgrade` and `pm init` remove them. pm becomes 0.1.3.
-- Design pages updated to the new layout: [records store](../design/records-store.md), pm product, pm CLI, agent lifecycle.
-- After the merge: push tag `pm-v0.1.3` on the merge commit, or every pm command in this repo fails.
+- A decision need with four options, A to D, each with a cost and default C; the owner chose option C.
+- Option C built for Python pm in yeeef-agents PR #76: 4 code files and 4 test files, 2 workflows and main's records/ deleted; CI passed on 0e1e0de.
+- PR #76 did not ship: Go pm replaced Python pm, so its review was dismissed and the Go port moved to [pm-quality sprint 1](../sprints/pm-quality-1.md).
+- Design pages describe the option C layout: [records store](../design/records-store.md), pm product, pm CLI, agent lifecycle.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-| Item | Met | Evidence |
-|---|---|---|
-| A doc lists each reader of the link and of main's copy, with evidence | met | [the readers doc](../docs/2026-10-07-records-layout-readers.md) |
-| A decision need states the options, the cost of each, and a default | met | four options A to D, each with a cost, default C |
-| The owner's answer is recorded as a project decision | met | source=owner decision in the [pm-harness project](../projects/pm-harness.md) |
-| `git ls-tree origin/main records` prints nothing and `.github/workflows` holds only `pm-tests.yml` | met on the PR head, pending merge | on `origin/drop-records-copy` 0e1e0de: `git ls-tree … records` gives 0 lines; workflows: `pm-tests.yml` only |
-| In a new worktree, `pm init` makes the link and no sparse checkout | met in tests, pending release | `test_init.py` new-worktree test; on this clone once `pm-v0.1.3` is tagged |
-| The pm test suite passes in CI | met | run 37723220273: light pass 22s, integration pass 1m3s; local `make test-full` 140 passed, 35 skipped |
+- A doc lists each reader of the link and of main's copy, with evidence: met, [the readers doc](../docs/2026-10-07-records-layout-readers.md).
+- A decision need states the options, the cost of each, and a default: met, four options A to D, each with a cost, default C.
+- The owner's answer is recorded as a project decision: met, a source=owner decision in the [pm-harness project](../projects/pm-harness.md).
+- `git ls-tree origin/main records` prints nothing and `.github/workflows` holds only `pm-tests.yml`: moved: continues in pm-quality sprint 1.
+- In a new worktree, `pm init` makes the link and no sparse checkout: moved: continues in pm-quality sprint 1.
+- The pm test suite passes in CI: moved: continues in pm-quality sprint 1.

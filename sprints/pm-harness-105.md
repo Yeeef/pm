@@ -61,10 +61,13 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the sprint's open work moved to pm-quality sprint 2 on 2026-10-10, where it continues.
+
+- Nothing shipped here; its one task moved to [pm-quality sprint 2](../sprints/pm-quality-2.md).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- The new test fails on Yeeef/pm main and passes with the fix, and the Go tests pass: moved: continues in pm-quality sprint 2.
+- The PR is on Yeeef/pm's main: moved: continues in pm-quality sprint 2.

@@ -66,10 +66,14 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the sprint's open work moved to pm-codex sprint 1 on 2026-10-10, where it continues.
+
+- Nothing shipped here; both tasks moved to [pm-codex sprint 1](../sprints/pm-codex-1.md).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- A gap list of Codex against Claude Code is written, each gap closed or recorded as a decision to leave it: moved: continues in pm-codex sprint 1.
+- A real Codex session raises a need, is woken by the owner's reply, and commits a record: moved: continues in pm-codex sprint 1.
+- The setup docs say what a Codex user runs, and nothing else is needed: moved: continues in pm-codex sprint 1.

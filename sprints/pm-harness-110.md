@@ -69,10 +69,13 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the sprint's open work moved to pm-quality sprint 3 on 2026-10-10, where it continues.
+
+- Nothing shipped here; the frame and the PR #7 job-time finding moved to [pm-quality sprint 3](../sprints/pm-quality-3.md).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Two PRs after the change, neither touching release/ nor go.sum, each with its slowest check under 5 minutes: moved: continues in pm-quality sprint 3.
+- A PR touching release/ still runs the release build test, and passes: moved: continues in pm-quality sprint 3.
