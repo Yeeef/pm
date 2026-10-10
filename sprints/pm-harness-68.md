@@ -57,6 +57,11 @@ The Access token is required on every public-host request, page reads included, 
 Pages hold project state and the reply token, and fail-closed reads are the safer default; it means a single doc cannot be shared through a Bypass path on pm.yeeefs.com, so public sharing uses a static copy hosted elsewhere.
 :::
 
+::: decision {source=agent date=2026-10-10}
+The Access token check ships as a Go port in Yeeef/pm, not as yeeef-agents PR #72; the review of #72 is dismissed, and the request for the team domain and AUD tag stays open.
+PR #72 changes the Python pm in yeeef-agents, which Go pm replaced; pm-harness moved to Yeeef/pm on 2026-10-10.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
