@@ -69,6 +69,12 @@ None yet.
   directory and relinking. The merge of this PR meets the same conflicts while
   the copy Action runs, so the branch needs a rebase right before the merge.
 
+- git sparse-checkout disable leaves core.sparseCheckout=false and the
+  patterns file, and git worktree add copied that false into a new worktree
+  (live check, git 2.43.0); Unsparse now also unsets the worktree's sparse
+  keys and deletes info/sparse-checkout, after which core.sparseCheckout is
+  unset in the main checkout and a new worktree.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
