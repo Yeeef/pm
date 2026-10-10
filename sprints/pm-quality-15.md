@@ -86,10 +86,24 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `service.Run` returns only once every goroutine it started has ended, so a stopped pm service no longer reaches the work store after its caller closes the store's host.
+
+- Cause: a real bug, not the test. Run returned as soon as the HTTP server stopped. It did not wait for its loops (writer, refresher, merge watch, syncer, collector) or a reply's retry timer, and `pm service run` closes the host right after Run returns.
+- Fix: a stop signal the loops watch, then HTTP server `Shutdown` so the requests under way end, then a wait over every spawned goroutine.
+  - The reply retry is now a spawned goroutine instead of `time.AfterFunc`.
+  - `put` drops a job once Run has stopped; the reply stays in the spool for the next start.
+  - The writer takes no further job once stopped. The merge watch stops between PRs.
+  - A sync or gc under way runs to its end or its timeout.
+- Checks:
+  - The test fake counts every store call made after Run returned. Every served test checks that count at cleanup.
+  - `TestRunReturnsOnlyOnceTheGoroutinesItStartedEnded` holds the writer in `Open` while the pin moves.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| The new test fails on main and passes with the fix | met | `go test -race -count=20 -run TestRunReturnsOnlyOnce ./internal/service` on main's `run.go` (0665de2) with the new tests: 20 of 20 fail ("Run returned while the writer it started was still opening the work store"; "4 calls reached the work store after Run returned"). With the fix: 20 of 20 pass |
+| `go test -race -count=100 ./internal/service` is clean | met | At a7e5ce1 with `-timeout 40m`: ok in 605.9 s, 0 failures, 0 data races. Before, on main: 0 data races in 100 runs. With the late-call check, the original test showed 0 late calls in 300 runs, and 0 in 300 at `-cpu=1`. The CI race window is too narrow to hit on this machine, so the deterministic test is the check |
+| The PR's CI passes | met | PR #36, all 9 checks pass at a7e5ce1, including both race jobs. PR #36, pending merge |
