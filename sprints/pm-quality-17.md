@@ -64,7 +64,7 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: CI fails on Go code that gofmt would change: `make go-fmt` runs in `make test-go` and in pm-go.yml's build-vet-test job on both targets, and main's one unformatted file is formatted (PR #38, pending merge).
+done: CI fails on Go code that gofmt would change: `make go-fmt` runs in `make test-go` and in pm-go.yml's build-vet-test job on both targets, and main's one unformatted file is formatted (PR #38).
 
 - `make go-fmt`: `gofmt -l` on the files `go list` gives for the module's packages (every build tag's and the tests'), naming each file it lists and failing; a file that does not parse fails it with gofmt's error.
 - `internal/cli/cli.go` gofmt'd; the developer guide's `make test-go` row names `go-fmt`.
@@ -79,4 +79,4 @@ done: CI fails on Go code that gofmt would change: `make go-fmt` runs in `make t
 | `make go-fmt` fails on a branch with one unformatted file (shown in the PR) | met | Locally, with `internal/config/zz_unformatted.go` added unformatted and cli.go's fix reverted: it prints both files and `make go-fmt: gofmt would change the files above`, rc=2 (output in PR #38's body). On origin/main's tree before the cli.go commit it lists `internal/cli/cli.go`, rc=2. |
 | passes on the PR's head | met | `make go-fmt` prints nothing, rc=0; its file list covers 122 files, all 122 tracked `.go` files. |
 | the PR's CI passes | met | PR #38 head 262cf39: all 9 checks pass; build-vet-test (linux-amd64, darwin-arm64) ran `make go-build go-fmt go-vet go-test-but-work`. |
-| `make merge-ready` says ready | met | `make merge-ready PR=38`: "PR #38 is ready: its head 262cf39 contains origin/main 6752e93, and every check on it passed". Merge sha: PR #38, pending merge. |
+| `make merge-ready` says ready | met | `make merge-ready PR=38`: "PR #38 is ready: its head 262cf39 contains origin/main 6752e93, and every check on it passed". Merge sha: PR #38. |
