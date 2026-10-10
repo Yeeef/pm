@@ -93,6 +93,12 @@ The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, i
   style guide's diagram line leaves chunk 1 at 9,947: 53 characters of
   headroom for the next rule.
 
+- Review fix: an in-store symlink to a dot file (docs/leak.svg ->
+  ../.hidden.svg) was served 200, as the dot-part check saw only the path
+  asked for and os.Root allows a symlink that stays in the store. The resolved
+  file now passes the same check; the serve test adds that symlink and one
+  into .git (404 each) and fails without the check.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
