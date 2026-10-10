@@ -22,6 +22,12 @@ only.
 
 ## [Unreleased]
 
+### Added
+
+- `pm init --import FILE` loads a `pm export` file into an empty work store and keeps every item's id, so a project
+  moves from one clone's store to another's. It refuses a store that holds items, and a malformed or unknown line
+  fails with its line number.
+
 ## [0.3.1] - 2026-10-10
 
 pm's rule on requests to the owner, the owner-request Stop hook's judge and its block message now state one rule:
