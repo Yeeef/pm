@@ -65,12 +65,13 @@ None yet.
 
 - Before this sprint 11 commands ran outside the argparse tree (goOnly: task
   ready/edit/release, dep add/rm, comment add, need dismiss, reply add, sync,
-  version, export) plus init --import-bd/--import; pm --help listed 23 nouns,
-  now 29 (dep, need, comment, sync, export, version added). Every one is a
+  version, export) plus init --import-bd/--import; pm prime's noun list named
+  23 nouns, now 29 (dep, need, comment, sync, export, version; pm --help 26,
+  now 32). Every one is a
   tree leaf now; only the forms pm show ID and pm task add --parent are routed
   before the tree, and their tree command's help names them.
 
-- --text=Single source rather than a list-vs-tree test: a work-store leaf
+- Single source rather than a list-vs-tree test: a work-store leaf
   carries its storeCommand and storeCommands is derived from the tree, so a
   store command cannot exist outside pm --help. Mutation check: deleting the
   need noun from commands.go fails TestTheCommandsOnceOutsideTheTreeAreInIt
@@ -78,8 +79,12 @@ None yet.
   store command).
 
 - Rules chunks with the six new nouns: 3,647 / 6,417 / 6,837 characters
-  against the 10,000 cap (16,737 without titles, +269 over main's recorded
-  16,468); no change to hooks.Starts needed.
+  against the 10,000 cap (16,737 without titles); no change to hooks.Starts
+  needed.
+
+- The defect showed itself during this sprint: pm finding add --text="…" run
+  with the installed release (0.5.0's pin) stored the literal "--text=" as
+  this sprint's second finding, fixed here by hand.
 
 ## Delivery report
 
