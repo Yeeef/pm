@@ -648,7 +648,7 @@ var tree = &command{
 			description: "Commit only the named records, so other sessions' uncommitted edits in the shared store are left alone. With no path, it lists what is uncommitted and commits nothing. A record uses only these fenced blocks: ::: decision, ::: result and ```mermaid; put a one-line reading under each diagram or large table. An image file (.svg, .png, .jpg, .webp) beside a record is named and committed like one; the site serves it next to the record's page.",
 			args: []arg{
 				{flags: []string{"-m", "--message"}, dest: "message", required: true, kind: value, help: "what the hand edit changed"},
-				{dest: "paths", metavar: []string{"PATH"}, nargs: "*", kind: value, help: "a record you edited: records/<…>.md, a path in the store, or relative to it from inside it"},
+				{dest: "paths", metavar: []string{"PATH"}, nargs: "*", kind: value, help: "a record you edited: records/<…>.md, a path in the store, relative to it from inside it, or relative to the store from anywhere (sprints/<…>.md)"},
 			},
 		},
 	},

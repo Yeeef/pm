@@ -1057,6 +1057,25 @@ def test_sprints_list_in_natural_id_order_on_the_overview_the_project_page_and_p
                         "updated_at": "2026-10-01T12:00:00Z"})
     titles = ("Number 9", "Number 39", "Number 100")
     in_order = lambda text: -1 < text.index(titles[0]) < text.index(titles[1]) < text.index(titles[2])
+def test_commit_takes_a_path_relative_to_the_store_from_anywhere(repo):
+    """sprints/x.md names records/sprints/x.md from the main checkout or a worktree, as it does from inside the store;
+    a path outside the store that the store does not hold is still refused."""
+    wt = repo.worktree("feature-c")
+    for cwd, line in ((repo.root, "Ship it, from main."), (wt, "Ship it, from a worktree.")):
+        path = repo.store / "sprints/demo-1.md"
+        path.write_text(re.sub(r"Ship it[^\n]*", line, path.read_text(), count=1))
+        res = repo.pm("commit", "-m", line, "sprints/demo-1.md", cwd=cwd)
+        assert res.returncode == 0, res.stderr
+        assert res.stdout.startswith("committed records/sprints/demo-1.md as "), res.stdout
+        assert committed(repo, [line])
+    (repo.store / "docs").mkdir()
+    (repo.store / "docs/2026-10-07-new.md").write_text("---\ntype: doc\ntitle: New\ndate: 2026-10-07\nproject: demo\n---\n\nBody.\n")
+    refused(repo, "commit", "-m", "Not here", ".gitignore", match=r"\.gitignore is not in the records store")
+    res = repo.pm("commit", "-m", "A new doc", "docs/2026-10-07-new.md")
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, ["A new doc"])
+
+
     pages = repo.pages()
     assert in_order(pages["index.html"])
     project = pages["projects/demo.html"]

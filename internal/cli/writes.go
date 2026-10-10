@@ -1384,7 +1384,14 @@ func cmdCommit(e *env, p *Parsed) (string, error) {
 		}
 		path := resolvedPath(g)
 		inside, err := filepath.Rel(root, path)
-		if err != nil || inside == ".." || strings.HasPrefix(inside, "../") {
+		outside := err != nil || inside == ".." || strings.HasPrefix(inside, "../")
+		// A path relative to the store, such as sprints/x.md, from anywhere outside it.
+		rel := filepath.ToSlash(filepath.Clean(name))
+		if outside && !filepath.IsAbs(name) && rel != ".." && !strings.HasPrefix(rel, "../") &&
+			(changed[rel] || exists(filepath.Join(e.records, rel))) {
+			path, inside, outside = resolvedPath(filepath.Join(e.records, rel)), rel, false
+		}
+		if outside {
 			return "", refuse("%s is not in the records store %s", name, e.records)
 		}
 		inside = filepath.ToSlash(inside)
