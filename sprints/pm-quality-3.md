@@ -74,6 +74,22 @@ None yet.
   the -race compile cold (internal/service: 6.5 s of tests in a 3:01 step). Go
   test results were cached across runs too (pyjson "(cached)").
 
+- The UpdateGCGen fatal is a race inside Dolt, not a GC outliving its test
+  (Host.GC is synchronous; cleanup is Close then RemoveAll). In Dolt
+  a6690826d767 (pinned), ChunkJournal.PruneTableFiles
+  (store/nbs/journal.go:350-361) protects the journal only if a writer exists
+  when it starts; a concurrent write that bootstraps the journal
+  (journal.go:512, outside pruneMu) gets its file deleted by the prune
+  (file_table_persister.go:373-420), its writes land in an unlinked file, and
+  the next GC panics in dropJournalWriter (journal.go:455). PR #16 race job
+  114223542469 reproduced it in 10.7 s with a DATA RACE report: dolt_fetch (pm
+  sync) bootstrapJournalWriter vs GC PruneTableFiles. Upstream fix
+  dolthub/dolt#11312 (b130ee82ebe9, 2026-07-17): its regression test fails
+  20/20 on the pinned Dolt, passes 20/20 (and 5/5 -race) on the fix. pm level,
+  no local repro in 330 runs (0 failures) before; after the bump, -run GC
+  -count=30 ok (93.2 s), -race -run GC -count=5 ok (20.6 s). Production
+  exposed: the service GCs while commands and syncs write.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
