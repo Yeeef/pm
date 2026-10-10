@@ -69,6 +69,15 @@ None yet.
   TestRunReturnsOnlyOnceTheGoroutinesItStartedEnded holds the writer in Open
   across the pin move and fails 20 of 20 runs against main's run.go.
 
+- With the fix (a7e5ce1): go test -race -tags gms_pure_go -timeout 40m
+  -count=100 ./internal/service: ok in 605.9 s, 0 failures, 0 data races (an
+  earlier run hit go test's default 10 min timeout at run ~99 with no test
+  hung: the package takes ~6 s a run under -race here). The new test passes 20
+  of 20. A fresh-context review found the first version canceled a sync or gc
+  under way, which returns the client while the host's statement still runs;
+  fixed to let them run to their timeouts, and the merge watch now stops
+  between PRs.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
