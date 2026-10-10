@@ -76,7 +76,7 @@ func resolvePath(p string) string {
 	return filepath.Clean(p)
 }
 
-// runService runs pm service install, status, restart, logs and run (serve.go wires the service to the clone).
+// runService runs pm service install, status, restart, stop, logs and run (serve.go wires the service to the clone).
 func runService(sub string, p *Parsed, here string, stdout, stderr io.Writer) error {
 	cfg, err := config.Load(here)
 	if err != nil {
@@ -89,12 +89,15 @@ func runService(sub string, p *Parsed, here string, stdout, stderr io.Writer) er
 	switch sub {
 	case "run":
 		return serviceRun(cfg, here, main, records, stdout, stderr)
-	case "install", "restart":
+	case "install", "restart", "stop":
 		var said string
-		if sub == "install" {
+		switch sub {
+		case "install":
 			said, err = serviceInstall(cfg, main)
-		} else {
+		case "restart":
 			said, err = service.Restart(main)
+		default:
+			said, err = service.Stop(main)
 		}
 		if err != nil {
 			return err

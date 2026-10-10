@@ -12,7 +12,7 @@ import urllib.request
 
 import pytest
 
-from conftest import PM, VERSION, stop_services
+from conftest import PM, VERSION, stop_services, write_config
 
 
 def service_run(repo, port: str) -> tuple[subprocess.Popen, int]:
@@ -54,6 +54,11 @@ def test_service_install_status_restart_and_logs_end_to_end(repo, tmp_path):
                      repo.pm("service", "logs", "-n", "50").stdout, re.M)
     link = repo.pm("record", "link", "repo-demo.1")  # no $PORT: links use the port the unit serves on
     assert link.stdout == f"http://localhost:{port}/sprints/demo-1.html\n", link
+    write_config(repo.root, site_url="https://pm.example.test")  # a public site, which a headless check cannot open
+    assert repo.pm("record", "link", "repo-demo.1").stdout == "https://pm.example.test/sprints/demo-1.html\n"
+    local = repo.pm("record", "link", "repo-demo.1", "--local")
+    assert local.stdout == f"http://127.0.0.1:{port}/sprints/demo-1.html\n", local
+    write_config(repo.root)
     again = repo.pm("service", "install")
     assert again.returncode == 0 and again.stdout.startswith("already installed and current"), again
     stop_services(tmp_path)  # the process dies; nothing restarts it here

@@ -527,7 +527,7 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		} else {
 			return &exitCode{code}
 		}
-	case "service install", "service status", "service restart", "service logs", "service run":
+	case "service install", "service status", "service restart", "service stop", "service logs", "service run":
 		return runService(strings.TrimPrefix(name, "service "), p, here, stdout, stderr)
 	case "push":
 		cfg, err := config.Load(here)

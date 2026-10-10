@@ -110,8 +110,8 @@ func needRaisedBy(it *work.Item) *work.RaisedBy {
 	return it.Need.RaisedBy
 }
 
-// cmdRecordLink is pm record link: the rendered page's URL once the pm service for this store answers on its port;
-// otherwise the command that fixes it.
+// cmdRecordLink is pm record link: the rendered page's URL once the pm service for this store answers on its port
+// (with --local, its localhost URL even when site_url is set); otherwise the command that fixes it.
 func cmdRecordLink(e *env, p *Parsed) (string, error) {
 	recs, err := records.Read(e.records, nil)
 	if err != nil {
@@ -140,6 +140,9 @@ func cmdRecordLink(e *env, p *Parsed) (string, error) {
 	}
 	if showPosixAbs(served.Store) != resolvePath(e.records) {
 		return "", refuse("the pm service on :%d renders another store (%s); stop it, then %s", port, served.Store, fix)
+	}
+	if p.Get("local") != "" {
+		return fmt.Sprintf("http://127.0.0.1:%d/%s", port, rec.Out()), nil
 	}
 	url, err := showSiteURL(e.here, main)
 	if err != nil {

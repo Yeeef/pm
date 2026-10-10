@@ -17,6 +17,7 @@ import (
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	pmsync "github.com/Yeeef/pm/internal/sync"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 const (
@@ -95,6 +96,59 @@ func Loaded(main, kind string) bool {
 	}
 	code, _, ran := quiet("systemctl", "--user", "is-active", Label(main)+".service")
 	return ran && code == 0
+}
+
+// Disabled is whether the supervisor keeps the unit from starting at login and after a crash: pm service stop's
+// record, the one there is. systemd: is-enabled says no; launchd: print-disabled lists the label as disabled.
+func Disabled(main, kind string) bool {
+	if kind == Launchd {
+		code, out, ran := quietOut("launchctl", "print-disabled", gui())
+		if !ran || code != 0 {
+			return false
+		}
+		for _, line := range strings.Split(out, "\n") {
+			name, state, found := strings.Cut(strings.TrimSpace(line), "=>")
+			if found && strings.Trim(strings.TrimSpace(name), `"`) == Label(main) {
+				state = strings.TrimSpace(state)
+				return state == "disabled" || state == "true"
+			}
+		}
+		return false
+	}
+	code, _, ran := quiet("systemctl", "--user", "is-enabled", Label(main)+".service")
+	return ran && code != 0
+}
+
+// quietOut runs a supervisor command and returns its stdout.
+func quietOut(argv ...string) (code int, out string, ran bool) {
+	path, err := exec.LookPath(argv[0])
+	if err != nil {
+		return 0, "", false
+	}
+	c := exec.Command(path, argv[1:]...)
+	c.Args[0] = argv[0]
+	var stdout bytes.Buffer
+	c.Stdout = &stdout
+	err = c.Run()
+	var exit *exec.ExitError
+	switch {
+	case err == nil:
+		return 0, stdout.String(), true
+	case errors.As(err, &exit):
+		return exit.ExitCode(), stdout.String(), true
+	}
+	return -1, "", true
+}
+
+// enable lets the supervisor start a unit pm service stop disabled; nothing for an enabled one.
+func enable(main, kind string) error {
+	if !Disabled(main, kind) {
+		return nil
+	}
+	if kind == Launchd {
+		return checked("launchctl", "enable", gui()+"/"+Label(main))
+	}
+	return checked("systemctl", "--user", "enable", filepath.Base(UnitFile(main, kind)))
 }
 
 // PortFree is whether a server could bind 127.0.0.1:port now, as the service does: with SO_REUSEADDR (Go sets it on
@@ -214,7 +268,7 @@ func installLocked(main string, port int, exe string) (string, error) {
 	have, err := os.ReadFile(unit)
 	changed := err != nil || !bytes.Equal(have, want)
 	up := Loaded(main, kind)
-	if !changed && up {
+	if !changed && up && !Disabled(main, kind) {
 		if s := probe(port); s != nil && *s == (Served{store(main), Version()}) {
 			return "", nil // a unit held but answering on another build or not at all is restarted
 		}
@@ -238,6 +292,9 @@ func installLocked(main string, port int, exe string) (string, error) {
 				return "", err
 			}
 		}
+		if err := enable(main, kind); err != nil { // a stopped unit: pm init starts it again
+			return "", err
+		}
 		if err := checked("launchctl", "bootstrap", gui(), unit); err != nil {
 			return "", err
 		}
@@ -249,6 +306,8 @@ func installLocked(main string, port int, exe string) (string, error) {
 		argv := []string{"systemctl", "--user", "restart", filepath.Base(unit)}
 		if !up {
 			argv = []string{"systemctl", "--user", "enable", "--now", filepath.Base(unit)}
+		} else if err := enable(main, kind); err != nil { // running, but stopped by pm service stop: enabled again
+			return "", err
 		}
 		if err := checked(argv...); err != nil {
 			return "", err
@@ -367,6 +426,9 @@ func Health(main string) (bool, string) {
 			strings.Join(want, " "))
 	}
 	if !Loaded(main, kind) {
+		if Disabled(main, kind) {
+			return false, head + Stopped
+		}
 		return false, head + fmt.Sprintf("down: %s does not hold it; run pm service restart", kind)
 	}
 	served := probe(port)
@@ -385,6 +447,10 @@ func Health(main string) (bool, string) {
 	}
 	return true, head + fmt.Sprintf("running; the site answers on :%d", port)
 }
+
+// Stopped is the health of a service pm service stop stopped.
+const Stopped = "stopped by pm service stop: it stays stopped at login and at session start; run pm service restart to " +
+	"start it"
 
 // Status is pm service status: the service's health, its pushes and its garbage collection; non-zero when it is
 // down or a push needs attention.
@@ -421,6 +487,9 @@ func Restart(main string) (string, error) {
 	if _, err := os.Stat(unit); err != nil {
 		return "", refuse("the pm service is not installed (%s is missing); run pm service install", unit)
 	}
+	if err := enable(main, kind); err != nil { // a stopped unit: restart ends the stop
+		return "", err
+	}
 	switch {
 	case kind == Launchd && Loaded(main, kind):
 		err = checked("launchctl", "kickstart", "-k", gui()+"/"+name)
@@ -445,25 +514,100 @@ func Restart(main string) (string, error) {
 
 // StartIfDown starts the installed service when it does not answer, under the clone's install lock, so parallel
 // session starts start it once: "" when it answers (a stale one too: it is left as it is), else what the restart
-// said. Refused when the service is not installed.
-func StartIfDown(main string) (string, error) {
+// said. A service pm service stop stopped is left stopped: stopped is true, and nothing is started. Refused when the
+// service is not installed.
+func StartIfDown(main string) (said string, stopped bool, err error) {
 	unlock, err := lockInstall(main)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	defer unlock()
 	kind, err := Supervisor()
 	if err != nil {
+		return "", false, err
+	}
+	port, err := UnitPort(main, kind)
+	if err != nil {
+		return "", false, err
+	}
+	if s := probe(port); s != nil && s.Store != "" && resolve(s.Store) == store(main) {
+		return "", false, nil
+	}
+	if Disabled(main, kind) {
+		return "", true, nil
+	}
+	said, err = Restart(main)
+	return said, false, err
+}
+
+// Stop disables this clone's service and stops it, under the clone's install lock, so a parallel session start does
+// not start it meanwhile; then waits up to RestartWait until neither the work store's socket nor the site answers,
+// and fails naming what still answers. The supervisor's disabled state is the record of the stop: it starts the
+// service neither at login nor after a crash, and session start leaves it stopped. Refused when it is not installed.
+func Stop(main string) (string, error) {
+	kind, err := Supervisor()
+	if err != nil {
 		return "", err
+	}
+	unit, name := UnitFile(main, kind), Label(main)
+	if _, err := os.Stat(unit); err != nil {
+		return "", refuse("the pm service is not installed (%s is missing); there is nothing to stop", unit)
 	}
 	port, err := UnitPort(main, kind)
 	if err != nil {
 		return "", err
 	}
-	if s := probe(port); s != nil && s.Store != "" && resolve(s.Store) == store(main) {
-		return "", nil
+	unlock, err := lockInstall(main)
+	if err != nil {
+		return "", err
 	}
-	return Restart(main)
+	defer unlock()
+	if kind == Launchd {
+		if err := checked("launchctl", "disable", gui()+"/"+name); err != nil {
+			return "", err
+		}
+		if Loaded(main, kind) {
+			if err := bootout(main); err != nil {
+				return "", refuse("%s", strings.Replace(err.Error(), "run pm service install again",
+					"run pm service stop again", 1))
+			}
+		}
+	} else if err := checked("systemctl", "--user", "disable", "--now", filepath.Base(unit)); err != nil {
+		return "", err
+	}
+	sock := work.Sock(main)
+	deadline := time.Now().Add(RestartWait)
+	for {
+		var still []string
+		if SockAnswers(sock) {
+			still = append(still, "the work store's socket "+sock)
+		}
+		if s := probe(port); s != nil && s.Store != "" && resolve(s.Store) == store(main) {
+			still = append(still, fmt.Sprintf("the site on :%d", port))
+		}
+		if len(still) == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			return "", refuse("%s disabled and stopped %s, but %s still answer(s) %d s later: a pm service run of this "+
+				"clone outside the supervisor (started by hand?) holds the store; stop that process", kind, name,
+				strings.Join(still, " and "), int(RestartWait.Seconds()))
+		}
+		time.Sleep(poll)
+	}
+	return fmt.Sprintf("stopped the pm service: %s %s (%s); neither the work store's socket %s nor the site on :%d "+
+		"answers. It stays stopped at login and at session start, and every pm command that reads or writes work "+
+		"items refuses meanwhile; pm service restart or pm init starts it again", kind, name, unit, sock, port), nil
+}
+
+// SockAnswers is whether a process accepts connections on the work store's socket sock.
+func SockAnswers(sock string) bool {
+	c, err := net.DialTimeout("unix", sock, ProbeTimeout)
+	if err != nil {
+		return false
+	}
+	c.Close()
+	return true
 }
 
 // Logs is the last n lines of the service log.
@@ -531,7 +675,11 @@ func Drift(main string, port int) []string {
 	}
 	var out []string
 	if !Loaded(main, kind) {
-		out = append(out, fmt.Sprintf("%s does not hold %s; run pm service restart", kind, Label(main)))
+		if Disabled(main, kind) {
+			out = append(out, fmt.Sprintf("%s is %s", Label(main), Stopped))
+		} else {
+			out = append(out, fmt.Sprintf("%s does not hold %s; run pm service restart", kind, Label(main)))
+		}
 	}
 	have, err := UnitPort(main, kind)
 	if err != nil {
