@@ -57,6 +57,12 @@ None yet.
   ReadDir (open …/gone: no such file or directory). With the fix: 0 and 0 in 5
   of 5 runs (131-134 calls each), 0.57 s per run.
 
+- --text=Same window in the service's Load, fixed too: records.Texts (WalkDir
+  then ReadFile) and records.ReadSummaries (Glob then ReadFile).
+  work.Fingerprint, named in the frame as the precedent, no longer exists on
+  main. internal/service/gc.go dirSize walks the work store (not records) with
+  the same pattern; left as is, outside this sprint's scope.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
