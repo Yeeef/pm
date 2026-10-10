@@ -43,6 +43,13 @@ only.
   keep the copy away from the link; each existed only for the copy (step 2). A branch that still tracks `records/`
   gets that copy where its link goes: `pm init`, `pm doctor` and `pm where` say to merge the main branch (step 3).
 
+### Added
+
+- The site serves image files (`.svg`, `.png`, `.jpg`, `.jpeg`, `.webp`) kept in the records store, next to the
+  record's page, so a record shows a figure with `![…](fig.png)` instead of a base64 data URI. Paths that leave the
+  store (`..`, a symlink out of it) or name a dot file get 404. `pm check` and `pm commit` take such files beside a
+  record, and the stylesheet keeps images, figures and captions inside the column.
+
 ### Changed
 
 - `pm doctor` names each piece an earlier pm wrote for the copy (the two workflows, the `pre-commit` section, the

@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"strings"
 	gosync "sync"
@@ -466,7 +467,8 @@ func (l *logged) WriteHeader(code int) {
 	l.ResponseWriter.WriteHeader(code)
 }
 
-// ServeHTTP answers GET and HEAD for the pages, /style.css and /version, and POST for /reply; it logs one line each.
+// ServeHTTP answers GET and HEAD for the pages, /style.css, /version and the image files in the records store, and
+// POST for /reply; it logs one line each.
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	lw := &logged{ResponseWriter: w}
@@ -513,9 +515,46 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		s.reply(w, 200, "application/json", []byte(body))
 		return
 	}
+	if ctype, ok := ImageTypes[strings.ToLower(path.Ext(r.URL.Path))]; ok {
+		s.image(w, strings.TrimPrefix(r.URL.Path, "/"), ctype)
+		return
+	}
 	code, text, snap := s.page(pathOf(r.URL.Path))
 	text = s.d.Site.FillStatus(text, snap.asOf, digest(text), time.Now())
 	s.reply(w, code, "text/html; charset=utf-8", []byte(text))
+}
+
+// ImageTypes are the image files the service serves from the records store, by extension, so a record shows a figure
+// kept next to it.
+var ImageTypes = map[string]string{".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
+	".jpeg": "image/jpeg", ".webp": "image/webp"}
+
+// image serves the file at rel in the records store, confined to it: a path with an empty, dot-led (.., .git) or
+// absolute part is refused, and os.Root refuses a symlink that leads out of the store. The file runs nothing: an SVG
+// opened alone is sandboxed.
+func (s *server) image(w http.ResponseWriter, rel, ctype string) {
+	data, err := readInStore(s.d.Records, rel)
+	if err != nil {
+		s.reply(w, 404, "text/plain; charset=utf-8", []byte("No file "+rel+" in the records store\n"))
+		return
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+	s.reply(w, 200, ctype, data)
+}
+
+func readInStore(store, rel string) ([]byte, error) {
+	for _, part := range strings.Split(rel, "/") {
+		if part == "" || strings.HasPrefix(part, ".") || strings.Contains(part, "\\") {
+			return nil, fmt.Errorf("%q is not a path in the records store", rel)
+		}
+	}
+	root, err := os.OpenRoot(store)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return root.ReadFile(rel)
 }
 
 var replyID = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
