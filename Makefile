@@ -2,7 +2,7 @@ UV ?= uv
 # The harness (tests/, pytest) runs in the environment uv keeps at .venv, from pyproject.toml's dev group.
 PYRUN := $(UV) run --quiet
 
-.PHONY: test test-full test-live test-go go-build go-vet go-test go-test-but-work go-test-race merge-ready
+.PHONY: test test-full test-live test-go go-build go-fmt go-vet go-test go-test-but-work go-test-race merge-ready
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
 ARGS ?=
@@ -50,10 +50,23 @@ go-build:
 # The work store's concurrency tests, which make test-go runs again under the race detector (about a minute; the whole
 # internal/work package under -race would take several): the write lock, the slot, gc and merges racing writers.
 RACE_TESTS := Racing|Migrating|Eight|Opposite|OutsideTheLock|NotStarved|Outlasting|HungFetch|WriteLock|PmLock|ASecondLock
-# Build, then go vet and the Go tests (with the same tag: the embedded Dolt needs it), then the pm service and the work
-# store's concurrency tests (RACE_TESTS) again under -race. pm-go.yml runs the parts as parallel jobs: go-build, go-vet
-# and go-test-but-work, go-test on internal/work (GO_PKGS), and go-test-race.
-test-go: go-build go-vet go-test go-test-race
+# Build, then the gofmt check, go vet and the Go tests (with the same tag: the embedded Dolt needs it), then the pm
+# service and the work store's concurrency tests (RACE_TESTS) again under -race. pm-go.yml runs the parts as parallel
+# jobs: go-build, go-fmt, go-vet and go-test-but-work, go-test on internal/work (GO_PKGS), and go-test-race.
+test-go: go-build go-fmt go-vet go-test go-test-race
+
+# Fail when gofmt would change a Go file of the module, naming each one. The files are those of go list's packages,
+# every build tag's and the tests' included, so the module's own: no testdata, vendor or other worktree under .claude/
+# (gofmt given a directory would walk all of them). The listing is taken before gofmt runs, so a go list that fails
+# fails the target instead of checking nothing. Fix with gofmt -w on the files it names.
+GO_FILES = {{$$d := .Dir}}{{range .GoFiles}}{{$$d}}/{{.}} {{end}}{{range .CgoFiles}}{{$$d}}/{{.}} {{end}}\
+{{range .TestGoFiles}}{{$$d}}/{{.}} {{end}}{{range .XTestGoFiles}}{{$$d}}/{{.}} {{end}}\
+{{range .IgnoredGoFiles}}{{$$d}}/{{.}} {{end}}{{range .InvalidGoFiles}}{{$$d}}/{{.}} {{end}}
+go-fmt:
+	@files=$$(go list -tags gms_pure_go -f '$(GO_FILES)' ./...) && files=$$(gofmt -l $$files) && \
+	  if [ -n "$$files" ]; then \
+	    printf '%s\n' "$$files" | sed 's|^$(CURDIR)/||'; \
+	    echo 'make go-fmt: gofmt would change the files above; run gofmt -w on them' >&2; exit 1; fi
 
 # GO_PKGS narrows go-test: make go-test GO_PKGS=./internal/work.
 GO_PKGS ?= ./...

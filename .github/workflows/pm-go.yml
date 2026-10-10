@@ -1,7 +1,7 @@
-# pm on every pull request: built on both release targets as the release builds it (cgo, native runners), go vet and
-# the Go tests (make test-go), split into parallel jobs per target: the build, vet and every package's tests but
-# internal/work's; internal/work's tests, the longest; the race tests. The step summary records the binary's size per
-# target. pm-release-build.yml runs the release build test, pm-tests.yml the harness suite.
+# pm on every pull request: built on both release targets as the release builds it (cgo, native runners), the gofmt
+# check, go vet and the Go tests (make test-go), split into parallel jobs per target: the build, gofmt, vet and every
+# package's tests but internal/work's; internal/work's tests, the longest; the race tests. The step summary records the
+# binary's size per target. pm-release-build.yml runs the release build test, pm-tests.yml the harness suite.
 #
 # The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
 # and go.sum, and a pull request restores main's latest, so a PR compiles only what it changed. A run that finds none
@@ -39,7 +39,7 @@ jobs:
           - suite: build-vet-test
             cache: build
             save: true
-            run: make go-build go-vet go-test-but-work
+            run: make go-build go-fmt go-vet go-test-but-work
           - suite: work
             cache: build  # what it compiles is a subset of build-vet-test's, which saves it
             save: false
