@@ -589,6 +589,11 @@ pm-harness, the project the owner follows most, now lives in Yeeef/pm; the owner
 Answers `yeeef-agents-9va.116.9`.
 :::
 
+::: decision {source=owner date=2026-10-10}
+Quality work (code, architecture, tests, feedback) lives in project pm-quality and Codex integration in project pm-codex; pm-harness sprints 34, 56, 105 and 110 moved there on 2026-10-10
+the owner split pm's work by kind so each project holds one kind of sprint
+:::
+
 ## Design pages
 
 > Where is the detail?
