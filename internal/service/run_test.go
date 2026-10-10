@@ -2,7 +2,6 @@ package service
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -711,7 +710,7 @@ func TestRunReturnsOnlyOnceTheGoroutinesItStartedEnded(t *testing.T) {
 func TestSyncStepsSyncTheStoreSummarizeAndPushTheRecords(t *testing.T) {
 	w, log := newFakeWork(), &syncBuffer{}
 	w.syncWarnings = []string{"warning: demo-1.1: the claim by s1 (t1) was overridden by the later claim of s2 (t2)"}
-	s := &server{ctx: context.Background(), d: Deps{Main: t.TempDir(), Records: filepath.Join(t.TempDir(), "none"), Remote: "origin",
+	s := &server{d: Deps{Main: t.TempDir(), Records: filepath.Join(t.TempDir(), "none"), Remote: "origin",
 		Open: w.Open, Sync: w.Sync, Summarize: func() (bool, string) { return true, "summarized" }, Log: log}}
 	var names, said []string
 	for _, step := range s.SyncSteps() {
@@ -735,7 +734,7 @@ func TestGCRunsWhenDueAndRecordsTheSizes(t *testing.T) {
 		t.Fatal(err)
 	}
 	w, log := newFakeWork(), &syncBuffer{}
-	s := &server{ctx: context.Background(), d: Deps{Main: main, WorkDir: main, Open: w.Open, GC: w.GC, Log: log}}
+	s := &server{d: Deps{Main: main, WorkDir: main, Open: w.Open, GC: w.GC, Log: log}}
 	if due, err := gcDue(main, time.Now()); !due || err != nil {
 		t.Fatalf("no collection recorded: due %v (%v)", due, err)
 	}

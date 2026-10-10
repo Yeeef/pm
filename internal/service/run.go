@@ -154,9 +154,8 @@ type server struct {
 	queue                 chan job
 	wake                  chan struct{}
 	stopped               chan string
-	ctx                   context.Context // canceled when Run stops: every loop ends, and a sync or gc under way is canceled
-	stop                  context.CancelFunc
-	done                  <-chan struct{}  // ctx.Done()
+	stop                  context.CancelFunc // Run stopping: done closes and every loop ends
+	done                  <-chan struct{}
 	wg                    gosync.WaitGroup // every goroutine Run started; Run returns only once they all ended
 	serveCheck, mergePoll time.Duration    // ServeCheck and MergePoll as Run started
 	logMu                 gosync.Mutex
@@ -223,8 +222,8 @@ func (s *server) poke() {
 // MergePoll, hands reviews' merges to main to the writer, then has it sweep the open needs for anything their running
 // session has not received. Every look reads the pin again: once it pins another version, Run returns that error.
 // Run returns only once every goroutine it started has ended, so a stopped service never touches the work store (the
-// caller closes the store's host next): it cancels them, waits for the requests under way, then for each loop to finish
-// what it was doing.
+// caller closes the store's host next): it tells them to stop, waits for the requests under way, then for each loop to
+// finish what it was doing (a sync or gc under way runs to its end or its timeout, as the host's statement does).
 func Run(d Deps) error {
 	if d.Open == nil || d.Mark == nil || d.Sync == nil || d.GC == nil || d.Site == nil || d.Summarize == nil || d.Out == nil || d.Log == nil ||
 		d.Main == "" || d.Records == "" || d.Spool == "" || d.Pin == "" || d.WorkDir == "" {
@@ -238,8 +237,8 @@ func Run(d Deps) error {
 		replies: map[string]Reply{}, merges: map[string]bool{}, swept: map[string]sweepState{},
 		queue: make(chan job, 1024), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
 		serveCheck: ServeCheck, mergePoll: MergePoll}
-	s.ctx, s.stop = context.WithCancel(context.Background())
-	s.done = s.ctx.Done()
+	ctx, stop := context.WithCancel(context.Background())
+	s.stop, s.done = stop, ctx.Done()
 	defer s.stop()
 	_, err := exec.LookPath("gh")
 	s.gh = err == nil
@@ -813,7 +812,7 @@ func (s *server) writeReply(j job) {
 		s.replies[e.ID] = Reply{State: "failed", Text: e.Text, RID: e.RID, Error: err.Error()}
 		s.mu.Unlock()
 		s.logf("reply %s failed total=%dms: %v", e.ID, time.Since(start).Milliseconds(), err)
-		s.spawn(func() { // on the writer, so Run is not yet waiting
+		s.spawn(func() { // from the writer, which Run's wait still counts, so the Add never races the wait
 			if s.sleep(Backoff(j.tries)) {
 				s.put(job{entry: &e, id: e.ID, tries: j.tries + 1})
 			}
@@ -885,6 +884,11 @@ func (s *server) ticker() {
 			if !s.gh {
 				break
 			}
+			select {
+			case <-s.done: // each look may take GHTimeout; a stopped service looks no further
+				return
+			default:
+			}
 			pr := reviewPR(n)
 			s.mu.Lock()
 			queued := s.merges[n.ID]
@@ -913,7 +917,7 @@ var SyncTimeout = 120 * time.Second
 func (s *server) SyncSteps() []pmsync.Step {
 	return []pmsync.Step{
 		{Name: "work", Run: func() (bool, string) {
-			ctx, cancel := context.WithTimeout(s.ctx, SyncTimeout)
+			ctx, cancel := context.WithTimeout(context.Background(), SyncTimeout)
 			defer cancel()
 			lines, err := s.d.Sync(ctx)
 			if err != nil {
