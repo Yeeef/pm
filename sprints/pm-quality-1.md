@@ -93,10 +93,22 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: Go pm builds option C in Yeeef/pm PR #20 (pending merge): it no longer writes main's records/ copy or the pieces that served it, and each worktree keeps its records/ link.
+
+- `pm init` writes no copy workflow, no PR guard and no pre-commit section, and sets no sparse checkout. It turns an earlier pm's sparse checkout off, leaving its config and file unset, once the worktree tracks no `records/`.
+- The three tracked pieces are retired pieces. `pm doctor` names them, and `pm upgrade` and `pm uninstall` remove them. `pm doctor` also names a branch that still tracks `records/`, and `pm upgrade` prints the commit that untracks it. `pm init` and `pm where` tell a worktree on such a branch to merge main.
+- `pm hook git-pre-commit` is a no-op, so an old pre-commit section in the main checkout does not block a worktree on the new pin.
+- In this repo, main's `records/` is untracked from the index only (the store is untouched), and both workflows and `.pm/hooks/pre-commit` are deleted.
+- Docs updated: `prime.md`, CLAUDE.md's layout, the `--help` texts, the CHANGELOG (a breaking change with an upgrade guide), and the records-store and pm-cli design pages.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `git ls-tree origin/main records` prints nothing and `.github/workflows` has neither workflow: met on the PR branch, where `git ls-tree HEAD records` is empty and `.github/workflows` holds pm-changelog, pm-go, pm-release-notes, pm-release and pm-tests. It holds on origin/main only after PR #20 is merged. The merge needs a rebase right before it, because the copy Action keeps changing `records/` on main (see Findings).
+- In a new worktree, `pm init` makes the link and `core.sparseCheckout` is unset: met for this build. The live check shows the link and `core.sparseCheckout` unset in the main checkout and in a new worktree. `tests/test_init.py` checks the same for a fresh install. This repo pins 0.4.0, and that release's `pm init` still sets the sparse checkout. So this holds here only once a release with this change is pinned, which is an ordinary PR after the release.
+- In a repo installed by an older pm, `pm doctor` reports the copy pieces and `pm upgrade` removes them: met.
+  - Harness: `test_upgrade_retires_the_main_branchs_records_copy`, plus the retired workflow in `test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it` and the sparse pattern in `test_doctor_reports_each_changed_clone_setup`.
+  - Go: `TestRetiredPiecesAreReportedAndRemoved` and the golden table.
+  - Live check against a repo installed by the real 0.4.0 release (Findings).
+- The pm test suite passes in CI: PR #20, pending at the time of writing. Locally, `make test` gives 112 passed, 40 skipped. `test_hooks.py`, `test_init.py` and `test_lifecycle.py` give 27 passed. `go test` passes for install, cli, hooks and site.
