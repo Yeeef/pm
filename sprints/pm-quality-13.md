@@ -109,6 +109,15 @@ None yet.
   uninstall; it is now disabled (disable --now when active or is-enabled says
   enabled).
 
+- access_test and CI (tasks .5, .6): with a module copy under
+  .claude/worktrees/copy the access test failed on three calls in the copy;
+  the scan now stops at a nested go.mod, the go command's module boundary.
+  pm-go.yml's GO_PKGS="$(go list ... | grep | tr)" with a go list that prints
+  one package and fails tested that package and exited 0; make
+  go-test-but-work takes the list first and fails. pm-release-build.yml's
+  paths now include cmd/pm/** and internal/launch/** (pm version goes through
+  both); tests/test_ci.py holds both.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
