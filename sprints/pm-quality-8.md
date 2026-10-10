@@ -73,13 +73,13 @@ The work store syncs between clones through refs/pm/work and every clone checks 
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-- --text=The Done-when harness tests pass: 8 tests (-k 'task_close or
+- The Done-when harness tests pass: 8 tests (-k 'task_close or
   task_move or task_claim', 5 new) in 2.4 s; make test 117 passed, 40 skipped
   in 6.4 s; make test-go ok (13 packages); the integration tests that render
   pages or the day summary (-k 'serve_shows_each_change or day_summarize or
   every_store_command') 4 passed.
 
-- --text=make test-go run from the main checkout fails
+- make test-go run from the main checkout fails
   TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt
   (internal/work/access_test.go): its walk from the repo root skips .git, .go,
   testdata and .venv but not .claude, so the 12 agent worktrees under
