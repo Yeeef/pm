@@ -157,7 +157,7 @@ done: the owner-request judge gives every labelled case its verdict 3/3, includi
 - 23 new cases in `tests/owner_request_cases.json` (40 to 63): one per reported sentence (7), the five status lines from the coordinator's session as written (block) each with a form that names the agent as the actor (pass), and six contrast cases.
 - One rule in three texts (judge prompt, block reason, `prime.md`): a PR review or merge pending with no actor named asks the owner; naming the agent or its subagents is a plan; a request cited by its id as open on the site is a report, whichever session holds it; asking again for an open request blocks (owner: option mine), and the block says to drop the ask or name the request's id, never to raise a duplicate.
 - `pm hook stop` leaves out a path named only by the prompt of a subagent call that has not returned.
-- main's rules outgrew the hook cap: the rules now run as three chunks.
+- The rules run as three chunks (cut at "## 3. Records": 3,647, 6,417 and 6,329 characters), leaving room under the hook cap.
 
 ### Against "Done when"
 
@@ -166,4 +166,4 @@ done: the owner-request judge gives every labelled case its verdict 3/3, includi
 - At least 7 new cases, one per reported sentence: met. 23 new cases (40 to 63), each named after its feedback entry or review finding; the 2026-10-08 21:47 entry holds two sentences, so two cases. The formal-methods 2026-10-10 03:31 summary, which tells the owner to do another session's needs, is labelled block (option mine); a reply that reports them as open by id is labelled pass.
 - `make test-live` with `PM_LIVE_RUNS=3` passes every case 3/3: met. All 63 cases 3/3 in three full runs (189 hook runs each; per run median 2.09 s, 2.05 s and 2.09 s; max 9.80 s, 9.32 s and 7.83 s). Baseline before the change: 6 of the first 9 new cases failed.
 - A harness test of `pm hook stop` shows no block for a path named only by a running subagent call and a block for the same path edited by the session's own call: met. `test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names` (running, returned, own edit, both); its running case fails on the old code. Go: `TestTouchedCountsASubagentsPathOnceItsCallReturns`.
-- `make test` and the PR's CI pass: `make test` passes on head d242761; CI on that head passes every check (light, integration, changelog, Go build-vet-test, work and race on linux-amd64 and darwin-arm64).
+- `make test` and the PR's CI pass: `make test` passes on head 3c07ecf (rebased on main a274b65); CI on that head passes every check (light, integration, changelog, Go build-vet-test, work and race on linux-amd64 and darwin-arm64), the slowest work (darwin-arm64) at 3m8s.
