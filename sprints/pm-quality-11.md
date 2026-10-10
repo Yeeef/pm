@@ -74,7 +74,16 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- --text=Live check, real systemd user instance, scratch clone of a scratch
+  origin under /tmp (temp HOME and CODEX_HOME; XDG_CONFIG_HOME real so systemd
+  sees the scratch unit local.pm.clone.13e3e6dc): pm service stop exit 0 in
+  0.23 s, after it systemctl is-enabled=disabled, is-active=inactive; pm init
+  --session-start exit 0, printed 'left the pm service stopped: it was stopped
+  by pm service stop ... run pm service restart to start it', unit still
+  disabled/inactive; pm prime --state carried the service line 'stopped by pm
+  service stop ... run pm service restart' and pm show refused naming pm
+  service restart; pm service restart exit 0 in 0.46 s, is-enabled=enabled,
+  is-active=active, pm show exit 0.
 
 ## Delivery report
 
