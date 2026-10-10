@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T17:11:21+00:00",
- "digest": "fd2d43840b3a1076",
+ "generated_at": "2026-10-10T17:21:56+00:00",
+ "digest": "2206545585fb69fc",
  "model": "claude-haiku-5-5",
- "text": "- **Go-only pm release:** A new pm release is published with only the Go implementation. Python pm is removed from both repos.\n- **Harness project move:** pm-harness is now tracked in Yeeef/pm with its full history. The old yeeef-agents copy is closed and points to the new home.\n- **Owner-request rule:** The owner-request hook now follows one rule everywhere. Agents do the work themselves first, and open a task before they ask the owner.\n- **Site and checks:** The site no longer shows errors while git rewrites its records. Pull request checks finish much sooner than before."
+ "text": "- **Go pm replaces Python pm:** The pm repo and the agents repo no longer contain Python pm. Harness tracking now lives in the pm repo, with its full history.\n- **Owner requests and pm tools:** Agents now try the work first. They open a tracked need before they ask the owner. A sprint now moves to another project in one command.\n- **Site reliability:** The site no longer fails every page while git rewrites the records. Wide diagrams scroll sideways on phones, and images kept beside a record now show.\n- **Release notes and CI:** Every pm release note now comes from the changelog, and CI enforces it. The slowest pm check runs much faster than before."
 }
