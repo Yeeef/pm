@@ -49,6 +49,11 @@ None yet.
 Carried from pm-harness sprint 55 (agent, 2026-10-10): pm-harness moved to Yeeef/pm on 2026-10-10, and Go pm is its only implementation; the Python pm is being retired.
 :::
 
+::: decision {source=owner date=2026-10-10}
+This sprint is pm-harness sprint 55, moved to pm-quality; its Done when names the Go records store (.pm/store/records) instead of the retired .records store, and drops the 2026-10-06 worktree names.
+The owner asked in chat on 2026-10-10 to move it to pm-quality; the .records store and those worktrees no longer exist.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
