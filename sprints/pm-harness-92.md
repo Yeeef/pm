@@ -44,7 +44,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+The behind flag is built in Go pm in Yeeef/pm: beside the push flags of internal/sync/push.go, in pm show, pm service status and the site.
+pm-harness moved to Yeeef/pm on 2026-10-10 and Go pm is its only implementation; pm where already prints ahead and behind, for the records store only.
+:::
 
 ## Findings
 
