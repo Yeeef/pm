@@ -85,6 +85,16 @@ None yet.
   -count=100 on 2 shared CPUs: 5 of 8 raced before, 0 of 8 after the deep
   copy; -count=50 clean.
 
+- pm sprint move on a lagging clone (task .4): the records step's decisions
+  were dated the clone's local day, so a rerun on a clone whose records lagged
+  another clone's finished move wrote a different commit when the day
+  differed, and the records sync's rebase conflicted (test: move at UTC+14,
+  rerun at UTC-11: 'could not apply ... finished moving'). Dating the
+  decisions with the move note's UTC date makes the step identical everywhere;
+  the rebase drops the copy. A fetch-based refusal was rejected: the other
+  clone's records reach the remote only at its next 10-minute sync, while its
+  work-store move is pushed at once, so a fetch misses the main window.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
