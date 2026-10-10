@@ -96,6 +96,8 @@ Answers `yeeef-agents-9va.116.2.1`.
 
 done: pm-harness is tracked in Yeeef/pm with its full history, and the yeeef-agents copy is closed.
 
+Merged as 310df2d (PR #11). Merged as 080c352 (PR #6).
+
 - Work store: 594 items imported with ids kept (14 open and 95 closed sprints, 20 open and 261 closed tasks, 4 open and 199 closed needs, 280 comments, 63 deps); a re-export equals the import.
 - Records: 142 moved (109 sprints, 19 design pages, 11 docs, 2 postmortems, the project), scrubbed of the owner email, home paths, session ids, the machine hostname and claude.ai links; pm.yeeefs.com kept by owner decision.
 - `pm init --import FILE` merged in PR 6 as 080c352; pm's repo files, the AGENTS.md change and `site_url` merged in PR 11 as 310df2d.
