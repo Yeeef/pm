@@ -66,10 +66,14 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: pm 0.5.0 is published and this repo runs it.
+
+- Release notes: PR #28, merged as fe3631e and tagged `pm-v0.5.0`; release workflow run 38068685509 (version, both builds, release) succeeded.
+- Pin move: PR #29, merged as a996c8a; `pm upgrade --to 0.5.0` also wrote the third rules hook entry.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `gh release view pm-v0.5.0` lists the four assets and the installed `pm version` prints 0.5.0: met. Assets: install.sh, pm-0.5.0-darwin-arm64.tar.gz, pm-0.5.0-linux-amd64.tar.gz, SHA256SUMS (not a pre-release); `pm version` outside a repo prints 0.5.0 after install.sh.
+- This repo pins 0.5.0 on main, `pm where` shows 0.5.0, the service answers, and `pm doctor` reports nothing to fix: met. After `pm service restart`, `pm where` shows pm 0.5.0 and the service running with the site on :8001. `pm doctor` first named the sparse checkout an earlier pm set in the main checkout; `pm init` turned it off (`git config core.sparseCheckout` now unset), and `pm doctor` then reported every managed piece and the clone's setup matching (exit 0).
