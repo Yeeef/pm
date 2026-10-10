@@ -38,7 +38,7 @@
    "rel": ".pm/README.md",
    "text": null,
    "present": "false",
-   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
    "remove": null,
    "drift": [
     ".pm/README.md: pm's part is missing"
@@ -49,7 +49,7 @@
    "rel": ".pm/README.md",
    "text": "",
    "present": "true",
-   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
    "remove": null,
    "drift": [
     ".pm/README.md: pm's part is missing"
@@ -60,7 +60,7 @@
    "rel": ".pm/README.md",
    "text": "old\n",
    "present": "true",
-   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
    "remove": null,
    "drift": [
     ".pm/README.md: pm's part differs from what pm 0.9.9 writes"
@@ -396,171 +396,6 @@
    "remove": "error: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
    "drift": [
     ".pm/hooks/post-checkout: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": null,
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "",
-   "present": "false",
-   "apply": "# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/bin/sh\necho mine",
-   "present": "false",
-   "apply": "#!/bin/sh\necho mine\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/bin/sh\necho mine",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\nmine\n",
-   "present": "true",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\nmine\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\nmine\n",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part differs from what pm 0.9.9 writes"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\nno end\n",
-   "present": "true",
-   "apply": "error: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
-   "remove": "error: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
-   "drift": [
-    ".pm/hooks/pre-commit: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".github/workflows/pm-records-guard.yml",
-   "text": null,
-   "present": "false",
-   "apply": "# pm: records live on the records branch; main's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-guard.yml: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".github/workflows/pm-records-guard.yml",
-   "text": "",
-   "present": "true",
-   "apply": "# pm: records live on the records branch; main's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-guard.yml: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".github/workflows/pm-records-guard.yml",
-   "text": "old\n",
-   "present": "true",
-   "apply": "# pm: records live on the records branch; main's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-guard.yml: pm's part differs from what pm 0.9.9 writes"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".github/workflows/pm-records-copy.yml",
-   "text": null,
-   "present": "false",
-   "apply": "# pm: copy the records branch into main's records/ after every push to main, so\n# main carries the records with their per-file history.\nname: Copy records to main\n\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:main\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-copy.yml: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".github/workflows/pm-records-copy.yml",
-   "text": "",
-   "present": "true",
-   "apply": "# pm: copy the records branch into main's records/ after every push to main, so\n# main carries the records with their per-file history.\nname: Copy records to main\n\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:main\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-copy.yml: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".github/workflows/pm-records-copy.yml",
-   "text": "old\n",
-   "present": "true",
-   "apply": "# pm: copy the records branch into main's records/ after every push to main, so\n# main carries the records with their per-file history.\nname: Copy records to main\n\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:main\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-copy.yml: pm's part differs from what pm 0.9.9 writes"
    ]
   },
   {
@@ -667,7 +502,7 @@
    "rel": ".pm/README.md",
    "text": null,
    "present": "false",
-   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
    "remove": null,
    "drift": [
     ".pm/README.md: pm's part is missing"
@@ -678,7 +513,7 @@
    "rel": ".pm/README.md",
    "text": "",
    "present": "true",
-   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
    "remove": null,
    "drift": [
     ".pm/README.md: pm's part is missing"
@@ -689,7 +524,7 @@
    "rel": ".pm/README.md",
    "text": "old\n",
    "present": "true",
-   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+   "apply": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
    "remove": null,
    "drift": [
     ".pm/README.md: pm's part differs from what pm 0.9.9 writes"
@@ -1029,171 +864,6 @@
   },
   {
    "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": null,
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "",
-   "present": "false",
-   "apply": "# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/bin/sh\necho mine",
-   "present": "false",
-   "apply": "#!/bin/sh\necho mine\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/bin/sh\necho mine",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\nmine\n",
-   "present": "true",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\nmine\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\nmine\n",
-   "drift": [
-    ".pm/hooks/pre-commit: pm's part differs from what pm 0.9.9 writes"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/pre-commit",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\nno end\n",
-   "present": "true",
-   "apply": "error: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
-   "remove": "error: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
-   "drift": [
-    ".pm/hooks/pre-commit: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".github/workflows/pm-records-guard.yml",
-   "text": null,
-   "present": "false",
-   "apply": "# pm: records live on the records branch; trunk's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-guard.yml: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".github/workflows/pm-records-guard.yml",
-   "text": "",
-   "present": "true",
-   "apply": "# pm: records live on the records branch; trunk's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-guard.yml: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".github/workflows/pm-records-guard.yml",
-   "text": "old\n",
-   "present": "true",
-   "apply": "# pm: records live on the records branch; trunk's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-guard.yml: pm's part differs from what pm 0.9.9 writes"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".github/workflows/pm-records-copy.yml",
-   "text": null,
-   "present": "false",
-   "apply": "# pm: copy the records branch into trunk's records/ after every push to trunk, so\n# trunk carries the records with their per-file history.\nname: Copy records to trunk\n\non:\n  push:\n    branches: [trunk]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:trunk\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-copy.yml: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".github/workflows/pm-records-copy.yml",
-   "text": "",
-   "present": "true",
-   "apply": "# pm: copy the records branch into trunk's records/ after every push to trunk, so\n# trunk carries the records with their per-file history.\nname: Copy records to trunk\n\non:\n  push:\n    branches: [trunk]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:trunk\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-copy.yml: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".github/workflows/pm-records-copy.yml",
-   "text": "old\n",
-   "present": "true",
-   "apply": "# pm: copy the records branch into trunk's records/ after every push to trunk, so\n# trunk carries the records with their per-file history.\nname: Copy records to trunk\n\non:\n  push:\n    branches: [trunk]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:trunk\n",
-   "remove": null,
-   "drift": [
-    ".github/workflows/pm-records-copy.yml: pm's part differs from what pm 0.9.9 writes"
-   ]
-  },
-  {
-   "settings": 1,
    "rel": ".gitignore",
    "text": null,
    "present": "false",
@@ -1259,6 +929,110 @@
    ]
   }
  ],
+ "retired": [
+  {
+   "rel": ".github/workflows/pm-records-copy.yml",
+   "text": null,
+   "remove": null,
+   "drift": []
+  },
+  {
+   "rel": ".github/workflows/pm-records-copy.yml",
+   "text": "",
+   "remove": null,
+   "drift": [
+    ".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+   ]
+  },
+  {
+   "rel": ".github/workflows/pm-records-copy.yml",
+   "text": "old\n",
+   "remove": null,
+   "drift": [
+    ".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+   ]
+  },
+  {
+   "rel": ".github/workflows/pm-records-guard.yml",
+   "text": null,
+   "remove": null,
+   "drift": []
+  },
+  {
+   "rel": ".github/workflows/pm-records-guard.yml",
+   "text": "",
+   "remove": null,
+   "drift": [
+    ".github/workflows/pm-records-guard.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+   ]
+  },
+  {
+   "rel": ".github/workflows/pm-records-guard.yml",
+   "text": "old\n",
+   "remove": null,
+   "drift": [
+    ".github/workflows/pm-records-guard.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+   ]
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": null,
+   "remove": null,
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": "",
+   "remove": null,
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": "#!/usr/bin/env sh\n",
+   "remove": null,
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
+   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
+   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
+   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": "#!/bin/sh\necho mine",
+   "remove": "#!/bin/sh\necho mine",
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\nmine\n",
+   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\nmine\n",
+   "drift": [
+    ".pm/hooks/pre-commit: an earlier pm's section, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+   ]
+  },
+  {
+   "rel": ".pm/hooks/pre-commit",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\nno end\n",
+   "remove": "error: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
+   "drift": [
+    ".pm/hooks/pre-commit: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand"
+   ]
+  }
+ ],
  "trees": [
   {
    "settings": 0,
@@ -1273,14 +1047,6 @@
      "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n"
     ],
     [
-     ".github/workflows/pm-records-copy.yml",
-     "# pm: copy the records branch into main's records/ after every push to main, so\n# main carries the records with their per-file history.\nname: Copy records to main\n\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:main\n"
-    ],
-    [
-     ".github/workflows/pm-records-guard.yml",
-     "# pm: records live on the records branch; main's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n"
-    ],
-    [
      ".gitignore",
      "# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n"
     ],
@@ -1290,7 +1056,7 @@
     ],
     [
      ".pm/README.md",
-     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
+     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
     ],
     [
      ".pm/config.toml",
@@ -1299,10 +1065,6 @@
     [
      ".pm/hooks/post-checkout",
      "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
-    ],
-    [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "drift": [
@@ -1312,9 +1074,6 @@
     ".claude/settings.json: pm's part is missing",
     ".codex/hooks.json: pm's part is missing",
     ".pm/hooks/post-checkout: pm's part is missing",
-    ".pm/hooks/pre-commit: pm's part is missing",
-    ".github/workflows/pm-records-guard.yml: pm's part is missing",
-    ".github/workflows/pm-records-copy.yml: pm's part is missing",
     ".gitignore: pm's part is missing"
    ],
    "rewrite": [
@@ -1327,14 +1086,6 @@
      "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n"
     ],
     [
-     ".github/workflows/pm-records-copy.yml",
-     "# pm: copy the records branch into main's records/ after every push to main, so\n# main carries the records with their per-file history.\nname: Copy records to main\n\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:main\n"
-    ],
-    [
-     ".github/workflows/pm-records-guard.yml",
-     "# pm: records live on the records branch; main's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n"
-    ],
-    [
      ".gitignore",
      "# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n"
     ],
@@ -1344,7 +1095,7 @@
     ],
     [
      ".pm/README.md",
-     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
+     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
     ],
     [
      ".pm/config.toml",
@@ -1353,10 +1104,6 @@
     [
      ".pm/hooks/post-checkout",
      "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
-    ],
-    [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "removals": []
@@ -1379,14 +1126,6 @@
      "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n"
     ],
     [
-     ".github/workflows/pm-records-copy.yml",
-     "# pm: copy the records branch into main's records/ after every push to main, so\n# main carries the records with their per-file history.\nname: Copy records to main\n\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:main\n"
-    ],
-    [
-     ".github/workflows/pm-records-guard.yml",
-     "# pm: records live on the records branch; main's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n"
-    ],
-    [
      ".gitignore",
      "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n"
     ],
@@ -1401,10 +1140,6 @@
     [
      ".pm/hooks/post-checkout",
      "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
-    ],
-    [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
     ]
    ],
    "drift": [
@@ -1415,9 +1150,6 @@
     ".claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm 0.9.9 removes",
     ".codex/hooks.json: pm's part is missing",
     ".pm/hooks/post-checkout: pm's part is missing",
-    ".pm/hooks/pre-commit: pm's part is missing",
-    ".github/workflows/pm-records-guard.yml: pm's part is missing",
-    ".github/workflows/pm-records-copy.yml: pm's part is missing",
     ".gitignore: pm's part is missing"
    ],
    "rewrite": [
@@ -1430,14 +1162,6 @@
      "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n"
     ],
     [
-     ".github/workflows/pm-records-copy.yml",
-     "# pm: copy the records branch into main's records/ after every push to main, so\n# main carries the records with their per-file history.\nname: Copy records to main\n\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:main\n"
-    ],
-    [
-     ".github/workflows/pm-records-guard.yml",
-     "# pm: records live on the records branch; main's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n"
-    ],
-    [
      ".gitignore",
      "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n"
     ],
@@ -1447,7 +1171,7 @@
     ],
     [
      ".pm/README.md",
-     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
+     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
     ],
     [
      ".pm/config.toml",
@@ -1456,10 +1180,6 @@
     [
      ".pm/hooks/post-checkout",
      "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
-    ],
-    [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
     ]
    ],
    "removals": [
@@ -1478,14 +1198,12 @@
    "files": {
     ".claude/settings.json": "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\"\n    ]\n  },\n  \"model\": \"café\",\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"\"\n      }\n    ],\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./lint.sh\",\n            \"type\": \"command\"\n          }\n        ],\n        \"matcher\": \"Bash\"\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./mine.sh\",\n            \"type\": \"command\"\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ],\n        \"matcher\": \"\"\n      }\n    ]\n  }\n}\n",
     ".codex/hooks.json": "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n",
-    ".github/workflows/pm-records-copy.yml": "# pm: copy the records branch into main's records/ after every push to main, so\n# main carries the records with their per-file history.\nname: Copy records to main\n\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:main\n",
-    ".github/workflows/pm-records-guard.yml": "# pm: records live on the records branch; main's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n",
     ".gitignore": "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n",
     ".pm/.gitignore": "store/\nrun/\n",
-    ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+    ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
     ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"origin\"\nmain_branch = \"main\"\nport = 8123         # the site port; the PORT environment variable overrides it for one run\n",
     ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-    ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
+    ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
    },
    "plan": [],
    "drift": [],
@@ -1516,20 +1234,98 @@
      null
     ],
     [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
+     ".gitignore",
+     "*.log\nbuild/\n"
+    ]
+   ]
+  },
+  {
+   "settings": 0,
+   "files": {
+    ".claude/settings.json": "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\"\n    ]\n  },\n  \"model\": \"café\",\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"\"\n      }\n    ],\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./lint.sh\",\n            \"type\": \"command\"\n          }\n        ],\n        \"matcher\": \"Bash\"\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./mine.sh\",\n            \"type\": \"command\"\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ],\n        \"matcher\": \"\"\n      }\n    ]\n  }\n}\n",
+    ".codex/hooks.json": "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n",
+    ".github/workflows/pm-records-copy.yml": "name: Copy records to main\n",
+    ".github/workflows/pm-records-guard.yml": "name: Records guard\n",
+    ".gitignore": "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n",
+    ".pm/.gitignore": "store/\nrun/\n",
+    ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+    ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"origin\"\nmain_branch = \"main\"\nport = 8123         # the site port; the PORT environment variable overrides it for one run\n",
+    ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
+    ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
+   },
+   "plan": [
+    [
+     ".github/workflows/pm-records-copy.yml",
+     "(file removed)"
     ],
     [
      ".github/workflows/pm-records-guard.yml",
+     "(file removed)"
+    ],
+    [
+     ".pm/hooks/pre-commit",
+     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
+    ]
+   ],
+   "drift": [
+    ".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it",
+    ".github/workflows/pm-records-guard.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it",
+    ".pm/hooks/pre-commit: an earlier pm's section, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+   ],
+   "rewrite": [
+    [
+     ".github/workflows/pm-records-copy.yml",
+     "(file removed)"
+    ],
+    [
+     ".github/workflows/pm-records-guard.yml",
+     "(file removed)"
+    ],
+    [
+     ".pm/hooks/pre-commit",
+     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
+    ]
+   ],
+   "removals": [
+    [
+     ".pm/config.toml",
      null
+    ],
+    [
+     ".pm/README.md",
+     null
+    ],
+    [
+     ".pm/.gitignore",
+     null
+    ],
+    [
+     ".claude/settings.json",
+     "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\"\n    ]\n  },\n  \"model\": \"café\",\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./lint.sh\",\n            \"type\": \"command\"\n          }\n        ],\n        \"matcher\": \"Bash\"\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./mine.sh\",\n            \"type\": \"command\"\n          }\n        ]\n      }\n    ]\n  }\n}\n"
+    ],
+    [
+     ".codex/hooks.json",
+     null
+    ],
+    [
+     ".pm/hooks/post-checkout",
+     null
+    ],
+    [
+     ".gitignore",
+     "*.log\nbuild/\n"
     ],
     [
      ".github/workflows/pm-records-copy.yml",
      null
     ],
     [
-     ".gitignore",
-     "*.log\nbuild/\n"
+     ".github/workflows/pm-records-guard.yml",
+     null
+    ],
+    [
+     ".pm/hooks/pre-commit",
+     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
     ]
    ]
   },
@@ -1546,14 +1342,6 @@
      "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n"
     ],
     [
-     ".github/workflows/pm-records-copy.yml",
-     "# pm: copy the records branch into trunk's records/ after every push to trunk, so\n# trunk carries the records with their per-file history.\nname: Copy records to trunk\n\non:\n  push:\n    branches: [trunk]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:trunk\n"
-    ],
-    [
-     ".github/workflows/pm-records-guard.yml",
-     "# pm: records live on the records branch; trunk's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n"
-    ],
-    [
      ".gitignore",
      "# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n"
     ],
@@ -1563,7 +1351,7 @@
     ],
     [
      ".pm/README.md",
-     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
+     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
     ],
     [
      ".pm/config.toml",
@@ -1572,10 +1360,6 @@
     [
      ".pm/hooks/post-checkout",
      "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
-    ],
-    [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "drift": [
@@ -1585,9 +1369,6 @@
     ".claude/settings.json: pm's part is missing",
     ".codex/hooks.json: pm's part is missing",
     ".pm/hooks/post-checkout: pm's part is missing",
-    ".pm/hooks/pre-commit: pm's part is missing",
-    ".github/workflows/pm-records-guard.yml: pm's part is missing",
-    ".github/workflows/pm-records-copy.yml: pm's part is missing",
     ".gitignore: pm's part is missing"
    ],
    "rewrite": [
@@ -1600,14 +1381,6 @@
      "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n"
     ],
     [
-     ".github/workflows/pm-records-copy.yml",
-     "# pm: copy the records branch into trunk's records/ after every push to trunk, so\n# trunk carries the records with their per-file history.\nname: Copy records to trunk\n\non:\n  push:\n    branches: [trunk]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:trunk\n"
-    ],
-    [
-     ".github/workflows/pm-records-guard.yml",
-     "# pm: records live on the records branch; trunk's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n"
-    ],
-    [
      ".gitignore",
      "# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n"
     ],
@@ -1617,7 +1390,7 @@
     ],
     [
      ".pm/README.md",
-     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
+     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
     ],
     [
      ".pm/config.toml",
@@ -1626,10 +1399,6 @@
     [
      ".pm/hooks/post-checkout",
      "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
-    ],
-    [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "removals": []
@@ -1652,14 +1421,6 @@
      "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n"
     ],
     [
-     ".github/workflows/pm-records-copy.yml",
-     "# pm: copy the records branch into trunk's records/ after every push to trunk, so\n# trunk carries the records with their per-file history.\nname: Copy records to trunk\n\non:\n  push:\n    branches: [trunk]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:trunk\n"
-    ],
-    [
-     ".github/workflows/pm-records-guard.yml",
-     "# pm: records live on the records branch; trunk's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n"
-    ],
-    [
      ".gitignore",
      "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n"
     ],
@@ -1674,10 +1435,6 @@
     [
      ".pm/hooks/post-checkout",
      "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
-    ],
-    [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
     ]
    ],
    "drift": [
@@ -1688,9 +1445,6 @@
     ".claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm 0.9.9 removes",
     ".codex/hooks.json: pm's part is missing",
     ".pm/hooks/post-checkout: pm's part is missing",
-    ".pm/hooks/pre-commit: pm's part is missing",
-    ".github/workflows/pm-records-guard.yml: pm's part is missing",
-    ".github/workflows/pm-records-copy.yml: pm's part is missing",
     ".gitignore: pm's part is missing"
    ],
    "rewrite": [
@@ -1703,14 +1457,6 @@
      "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n"
     ],
     [
-     ".github/workflows/pm-records-copy.yml",
-     "# pm: copy the records branch into trunk's records/ after every push to trunk, so\n# trunk carries the records with their per-file history.\nname: Copy records to trunk\n\non:\n  push:\n    branches: [trunk]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:trunk\n"
-    ],
-    [
-     ".github/workflows/pm-records-guard.yml",
-     "# pm: records live on the records branch; trunk's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n"
-    ],
-    [
      ".gitignore",
      "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n"
     ],
@@ -1720,7 +1466,7 @@
     ],
     [
      ".pm/README.md",
-     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
+     "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
     ],
     [
      ".pm/config.toml",
@@ -1729,10 +1475,6 @@
     [
      ".pm/hooks/post-checkout",
      "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
-    ],
-    [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
     ]
    ],
    "removals": [
@@ -1751,14 +1493,12 @@
    "files": {
     ".claude/settings.json": "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\"\n    ]\n  },\n  \"model\": \"café\",\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"\"\n      }\n    ],\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./lint.sh\",\n            \"type\": \"command\"\n          }\n        ],\n        \"matcher\": \"Bash\"\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./mine.sh\",\n            \"type\": \"command\"\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ],\n        \"matcher\": \"\"\n      }\n    ]\n  }\n}\n",
     ".codex/hooks.json": "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n",
-    ".github/workflows/pm-records-copy.yml": "# pm: copy the records branch into trunk's records/ after every push to trunk, so\n# trunk carries the records with their per-file history.\nname: Copy records to trunk\n\non:\n  push:\n    branches: [trunk]\n  workflow_dispatch:\n\nconcurrency: pm-records-copy\n\njobs:\n  copy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Merge the records branch into records/\n        run: |\n          git config user.name \"github-actions[bot]\"\n          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"\n          git fetch origin records:records\n          if [ -d records ]; then\n            git subtree merge --prefix=records records -m \"Copy records from the records branch\"\n          else\n            git subtree add --prefix=records records -m \"Copy records from the records branch\"\n          fi\n          test \"$(git rev-parse HEAD:records)\" = \"$(git rev-parse 'records^{tree}')\"\n          git push origin HEAD:trunk\n",
-    ".github/workflows/pm-records-guard.yml": "# pm: records live on the records branch; trunk's records/ is a copy the pm-records-copy workflow owns.\n# A pull request that edits records/ would make that copy drift, so it fails here.\nname: Records guard\n\non: pull_request\n\njobs:\n  guard:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n      - name: Fail if the pull request edits records/\n        run: |\n          edited=$(git diff --name-only \"origin/$GITHUB_BASE_REF...HEAD\" -- records/)\n          if [ -n \"$edited\" ]; then\n            echo \"::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:\"\n            echo \"$edited\"\n            exit 1\n          fi\n",
     ".gitignore": "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n",
     ".pm/.gitignore": "store/\nrun/\n",
-    ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+    ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
     ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n",
     ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-    ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
+    ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
    },
    "plan": [],
    "drift": [],
@@ -1789,20 +1529,98 @@
      null
     ],
     [
-     ".pm/hooks/pre-commit",
-     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
+     ".gitignore",
+     "*.log\nbuild/\n"
+    ]
+   ]
+  },
+  {
+   "settings": 1,
+   "files": {
+    ".claude/settings.json": "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\"\n    ]\n  },\n  \"model\": \"café\",\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"\"\n      }\n    ],\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./lint.sh\",\n            \"type\": \"command\"\n          }\n        ],\n        \"matcher\": \"Bash\"\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./mine.sh\",\n            \"type\": \"command\"\n          }\n        ]\n      },\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ],\n        \"matcher\": \"\"\n      }\n    ]\n  }\n}\n",
+    ".codex/hooks.json": "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm prime --state --hook-json\",\n            \"statusMessage\": \"Loading pm init, pm where and pm show\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          }\n        ],\n        \"matcher\": \"startup|resume|clear\"\n      }\n    ],\n    \"SubagentStart\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm prime --rules 1 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (1 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --rules 2 --hook-json\",\n            \"statusMessage\": \"Loading pm rules (2 of 2)\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          },\n          {\n            \"command\": \"pm prime --subagent --hook-json\",\n            \"statusMessage\": \"Loading pm's git rule for agents\",\n            \"type\": \"command\",\n            \"timeout\": 15\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"pm hook owner-request || exit 1\",\n            \"statusMessage\": \"Checking for owner requests asked only in chat\",\n            \"type\": \"command\",\n            \"timeout\": 30\n          },\n          {\n            \"command\": \"pm hook stop || exit 1\",\n            \"statusMessage\": \"Checking for uncommitted records\",\n            \"type\": \"command\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}\n",
+    ".github/workflows/pm-records-copy.yml": "name: Copy records to main\n",
+    ".github/workflows/pm-records-guard.yml": "name: Records guard\n",
+    ".gitignore": "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n",
+    ".pm/.gitignore": "store/\nrun/\n",
+    ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
+    ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n",
+    ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
+    ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
+   },
+   "plan": [
+    [
+     ".github/workflows/pm-records-copy.yml",
+     "(file removed)"
     ],
     [
      ".github/workflows/pm-records-guard.yml",
+     "(file removed)"
+    ],
+    [
+     ".pm/hooks/pre-commit",
+     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
+    ]
+   ],
+   "drift": [
+    ".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it",
+    ".github/workflows/pm-records-guard.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it",
+    ".pm/hooks/pre-commit: an earlier pm's section, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+   ],
+   "rewrite": [
+    [
+     ".github/workflows/pm-records-copy.yml",
+     "(file removed)"
+    ],
+    [
+     ".github/workflows/pm-records-guard.yml",
+     "(file removed)"
+    ],
+    [
+     ".pm/hooks/pre-commit",
+     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
+    ]
+   ],
+   "removals": [
+    [
+     ".pm/config.toml",
      null
+    ],
+    [
+     ".pm/README.md",
+     null
+    ],
+    [
+     ".pm/.gitignore",
+     null
+    ],
+    [
+     ".claude/settings.json",
+     "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\"\n    ]\n  },\n  \"model\": \"café\",\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./lint.sh\",\n            \"type\": \"command\"\n          }\n        ],\n        \"matcher\": \"Bash\"\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"command\": \"./mine.sh\",\n            \"type\": \"command\"\n          }\n        ]\n      }\n    ]\n  }\n}\n"
+    ],
+    [
+     ".codex/hooks.json",
+     null
+    ],
+    [
+     ".pm/hooks/post-checkout",
+     null
+    ],
+    [
+     ".gitignore",
+     "*.log\nbuild/\n"
     ],
     [
      ".github/workflows/pm-records-copy.yml",
      null
     ],
     [
-     ".gitignore",
-     "*.log\nbuild/\n"
+     ".github/workflows/pm-records-guard.yml",
+     null
+    ],
+    [
+     ".pm/hooks/pre-commit",
+     "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
     ]
    ]
   }

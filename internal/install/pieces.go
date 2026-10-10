@@ -3,10 +3,10 @@
 // path, the excludes, the Codex and Claude Code settings), pm's own binary on the machine, and the bootstrap of a
 // brand-new repo's records branch.
 //
-// A piece is either a whole file pm owns (.pm/config.toml, .pm/README.md, .pm/.gitignore, the two workflows) or pm's
-// part of a shared file: its hook entries in .claude/settings.json and .codex/hooks.json (a hook is pm's when its
-// command starts with "pm prime" or "pm hook "), its marked section in its own git hook files .pm/hooks/post-checkout
-// and pre-commit, and its marked block in .gitignore. Each piece has Present, whether pm's part is there,
+// A piece is either a whole file pm owns (.pm/config.toml, .pm/README.md, .pm/.gitignore) or pm's part of a shared
+// file: its hook entries in .claude/settings.json and .codex/hooks.json (a hook is pm's when its command starts with
+// "pm prime" or "pm hook "), its marked section in its own git hook file .pm/hooks/post-checkout, and its marked block
+// in .gitignore. Each piece has Present, whether pm's part is there,
 // Apply, the file with pm's part as this version writes it and every other byte kept, Part, pm's part alone (what pm
 // doctor compares with Part(Apply(text))), and Remove, the file without pm's part (nil: nothing else is left, so the
 // file goes). pm init applies a piece only when it is not present, so a second run changes nothing; pm upgrade applies
@@ -16,6 +16,9 @@
 // Go pm runs no bd, so pm init and pm upgrade also take Beads' own pieces out of the tracked files (the work-store
 // page, Cut-over): bd's hook entries in the runtimes' settings and the Beads block in CLAUDE.md and AGENTS.md
 // (leftovers below); pm doctor names each one left. pm uninstall leaves them, as they are not pm's.
+//
+// A retired piece (Retired) is one an earlier pm wrote and this one does not: pm doctor names each one left, and pm
+// init, pm upgrade and pm uninstall remove it.
 package install
 
 import (
@@ -90,76 +93,13 @@ const README = "# pm\n" +
 	"- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n" +
 	"  `refs/pm/work`.\n" +
 	"- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n" +
-	"  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.\n" +
+	"  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n" +
 	"- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook <name>`); run `pm --help` for the\n" +
 	"  commands.\n" +
 	"- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n"
 
 // PMGitignore is .pm/.gitignore.
 const PMGitignore = "store/\nrun/\n"
-
-// GuardWorkflow is .github/workflows/pm-records-guard.yml.
-func GuardWorkflow(s Settings) string {
-	return "# pm: records live on the records branch; " + s.MainBranch + "'s records/ is a copy the pm-records-copy workflow owns.\n" +
-		`# A pull request that edits records/ would make that copy drift, so it fails here.
-name: Records guard
-
-on: pull_request
-
-jobs:
-  guard:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Fail if the pull request edits records/
-        run: |
-          edited=$(git diff --name-only "origin/$GITHUB_BASE_REF...HEAD" -- records/)
-          if [ -n "$edited" ]; then
-            echo "::error::This pull request edits records/, which only the records branch may change. Write records with pm; drop these edits:"
-            echo "$edited"
-            exit 1
-          fi
-`
-}
-
-// CopyWorkflow is .github/workflows/pm-records-copy.yml.
-func CopyWorkflow(s Settings) string {
-	b := s.MainBranch
-	return "# pm: copy the records branch into " + b + "'s records/ after every push to " + b + ", so\n" +
-		"# " + b + " carries the records with their per-file history.\n" +
-		"name: Copy records to " + b + "\n" +
-		`
-on:
-  push:
-    branches: [` + b + `]
-  workflow_dispatch:
-
-concurrency: pm-records-copy
-
-jobs:
-  copy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Merge the records branch into records/
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin records:records
-          if [ -d records ]; then
-            git subtree merge --prefix=records records -m "Copy records from the records branch"
-          else
-            git subtree add --prefix=records records -m "Copy records from the records branch"
-          fi
-          test "$(git rev-parse HEAD:records)" = "$(git rev-parse 'records^{tree}')"
-          git push origin HEAD:` + b + "\n"
-}
 
 func whole(rel, content string) Piece {
 	return Piece{
@@ -504,7 +444,7 @@ func hooksPiece(rel string, want entries) Piece {
 
 // GitHooks are the git hooks pm runs: its own files in .pm/hooks (HooksRel), and the Beads hook files Python pm put its
 // section in.
-var GitHooks = []string{"post-checkout", "pre-commit"}
+var GitHooks = []string{"post-checkout"}
 
 // HooksRel is pm's git hook directory under a worktree, which core.hooksPath names (the work-store page, Constraints
 // resolved, row 8: pm owns its hook directory).
@@ -522,7 +462,7 @@ var (
 )
 
 // GitHookSection is pm's section in a git hook file: one line, so the logic ships in pm. `|| exit $?` keeps a
-// failure (pm missing, or the pre-commit guard refusing) from being lost when lines follow it.
+// failure (pm missing, say) from being lost when lines follow it.
 func GitHookSection(name string) string {
 	return "# --- BEGIN PM v" + buildinfo.Version + " ---\npm hook git-" + name + " \"$@\" || exit $?\n" + sectionEnd + "\n"
 }
@@ -767,20 +707,55 @@ func Pieces(s Settings) []Piece {
 		hooksPiece(".codex/hooks.json", codexHooks()),
 	}
 	for _, name := range GitHooks {
-		rel := HooksRel + "/" + name
-		out = append(out, Piece{rel, marked(beginAny), gitHookApply(rel, name), sectionPart(section),
-			sectionRemove(rel, section, beginAny, "", shebang), 0o755})
+		out = append(out, gitHookPiece(name))
 	}
 	return append(out,
-		whole(".github/workflows/pm-records-guard.yml", GuardWorkflow(s)),
-		whole(".github/workflows/pm-records-copy.yml", CopyWorkflow(s)),
 		Piece{".gitignore", marked(gitignoreBeginRe), gitignoreApply, sectionPart(gitignoreSection),
 			sectionRemove(".gitignore", gitignoreSection, gitignoreBeginRe, ""), 0o644},
 	)
 }
 
+func gitHookPiece(name string) Piece {
+	rel := HooksRel + "/" + name
+	return Piece{rel, marked(beginAny), gitHookApply(rel, name), sectionPart(section),
+		sectionRemove(rel, section, beginAny, "", shebang), 0o755}
+}
+
+// Retired is each piece an earlier pm wrote and this one does not, all retired with the main branch's records/ copy:
+// the workflow that copied the records branch into it, the one that failed a pull request editing it, and pm's
+// pre-commit section that refused a code-branch commit editing it. Its Apply is never used.
+var Retired = []Piece{
+	whole(".github/workflows/pm-records-copy.yml", ""),
+	whole(".github/workflows/pm-records-guard.yml", ""),
+	gitHookPiece("pre-commit"),
+}
+
+const retiredWhy = "retired with the main branch's records/ copy"
+
+// retire is the file at path without the retired piece p: nil when it holds none, Gone when nothing else is left.
+// Read-only.
+func retire(p Piece, path string) (*Planned, error) {
+	text, err := Read(path)
+	if err != nil || text == nil {
+		return nil, err
+	}
+	if there, err := p.Present(text); err != nil || !there {
+		return nil, err
+	}
+	n, err := p.Remove(*text)
+	if err != nil {
+		return nil, err
+	}
+	pl := Planned{Piece: p, Path: path, Text: text, Retired: true, Gone: n == nil}
+	if n != nil {
+		pl.New = *n
+	}
+	return &pl, nil
+}
+
 // Planned is one file to write: its piece (for a file holding only Beads' pieces, one with just its Rel and Mode), path,
-// current text (nil: absent) and new text; Wrote is whether pm's part in it changes, Removed what of Beads' it loses.
+// current text (nil: absent) and new text; Wrote is whether pm's part in it changes, Removed what of Beads' it loses,
+// Retired whether it loses a retired piece, and Gone whether the file goes with it.
 type Planned struct {
 	Piece   Piece
 	Path    string
@@ -788,13 +763,21 @@ type Planned struct {
 	New     string
 	Wrote   bool
 	Removed []string
+	Retired bool
+	Gone    bool
 }
 
 // Said is what writing the planned files does, one line each: "wrote <file>" for pm's part, "removed <what> from
-// <file>" for Beads'.
+// <file>" for Beads', and "removed <file>" or "removed pm's section from <file>" for a retired piece.
 func Said(planned []Planned) []string {
 	var out []string
 	for _, p := range planned {
+		switch {
+		case p.Retired && p.Gone:
+			out = append(out, "removed "+p.Piece.Rel+", "+retiredWhy)
+		case p.Retired:
+			out = append(out, "removed pm's section from "+p.Piece.Rel+", "+retiredWhy)
+		}
 		if p.Wrote {
 			out = append(out, "wrote "+p.Piece.Rel)
 		}
@@ -806,7 +789,8 @@ func Said(planned []Planned) []string {
 }
 
 // plan is each file under top to write: with all, every piece as this version writes it (pm upgrade); else each piece
-// not present (pm init); either way without Beads' pieces. Read-only, so a refusal leaves the worktree as it was.
+// not present (pm init); either way without Beads' pieces and the retired ones. Read-only, so a refusal leaves the
+// worktree as it was.
 func plan(top string, s Settings, all bool) ([]Planned, error) {
 	var out []Planned
 	add := func(p Piece, path string, text *string, n string, wrote bool) error {
@@ -824,7 +808,7 @@ func plan(top string, s Settings, all bool) ([]Planned, error) {
 			}
 		}
 		if text == nil || n != *text {
-			out = append(out, Planned{p, path, text, n, wrote, removed})
+			out = append(out, Planned{Piece: p, Path: path, Text: text, New: n, Wrote: wrote, Removed: removed})
 		}
 		return nil
 	}
@@ -875,6 +859,15 @@ func plan(top string, s Settings, all bool) ([]Planned, error) {
 			}
 		}
 	}
+	for _, p := range Retired {
+		pl, err := retire(p, filepath.Join(top, p.Rel))
+		if err != nil {
+			return nil, err
+		}
+		if pl != nil {
+			out = append(out, *pl)
+		}
+	}
 	return out, nil
 }
 
@@ -892,12 +885,12 @@ func Read(path string) (*string, error) {
 	return ptr(string(b)), nil
 }
 
-// Plan is each piece not present under top, and each file holding Beads' pieces, with its path, current text and new
+// Plan is each piece not present under top, and each file holding Beads' or retired pieces, with its path, current text and new
 // text. Planning reads only, so a refusal leaves the worktree as it was.
 func Plan(top string, s Settings) ([]Planned, error) { return plan(top, s, false) }
 
-// Drift is each piece whose pm part under top is not what this version writes, and each Beads piece left, as one
-// line saying how.
+// Drift is each piece whose pm part under top is not what this version writes, and each Beads or retired piece left,
+// as one line saying how.
 func Drift(top string, s Settings) ([]string, error) {
 	var out []string
 	note := func(rel string, line string, err error) (bool, error) {
@@ -956,6 +949,20 @@ func Drift(top string, s Settings) ([]string, error) {
 			return nil, err
 		}
 	}
+	for _, p := range Retired {
+		pl, err := retire(p, filepath.Join(top, p.Rel))
+		line := ""
+		if pl != nil {
+			what := "section"
+			if pl.Gone {
+				what = "file"
+			}
+			line = fmt.Sprintf("%s: an earlier pm's %s, %s; pm %s removes it", p.Rel, what, retiredWhy, buildinfo.Version)
+		}
+		if _, err := note(p.Rel, line, err); err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
 }
 
@@ -991,7 +998,7 @@ type Removal struct {
 	New  *string
 }
 
-// Removals is each file under top holding a pm part, with the file without it; read-only.
+// Removals is each file under top holding a pm part, a retired one too, with the file without it; read-only.
 func Removals(top string, s Settings) ([]Removal, error) {
 	var out []Removal
 	for _, p := range Pieces(s) {
@@ -1014,13 +1021,34 @@ func Removals(top string, s Settings) ([]Removal, error) {
 		}
 		out = append(out, Removal{path, n})
 	}
+	for _, p := range Retired {
+		pl, err := retire(p, filepath.Join(top, p.Rel))
+		if err != nil {
+			return nil, err
+		}
+		if pl != nil {
+			r := Removal{Path: pl.Path}
+			if !pl.Gone {
+				r.New = ptr(pl.New)
+			}
+			out = append(out, r)
+		}
+	}
 	return out, nil
 }
 
-// Write writes the planned pieces, a new file with its piece's mode; the paths written, as pieces name them.
+// Write writes the planned pieces, a new file with its piece's mode, and deletes each file a retired piece leaves
+// empty; the paths written or deleted, as pieces name them.
 func Write(planned []Planned) ([]string, error) {
 	var out []string
 	for _, p := range planned {
+		if p.Gone {
+			if err := os.Remove(p.Path); err != nil {
+				return out, err
+			}
+			out = append(out, p.Piece.Rel)
+			continue
+		}
 		if err := os.MkdirAll(filepath.Dir(p.Path), 0o755); err != nil {
 			return out, err
 		}

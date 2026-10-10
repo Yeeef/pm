@@ -36,8 +36,7 @@ Each fact has one home: the work store holds the status, the records hold the wh
 ## 3. Records
 
 **Where records live.** Each clone has one store: the `records` branch, checked out at `<main checkout>/.pm/store/records`. Each worktree's `records/` is a git-ignored link to it, made by `pm init`. So a write from any branch or worktree shows everywhere at once, as the work store does.
-- Code branches never commit `records/`.
-- A GitHub Action copies the store into `main`'s `records/` on each push to `main`.
+- No code branch tracks `records/`, `main` included: people read records on the site or on the `records` branch.
 - Many sessions write in one store. Commit only the paths that you edited.
 
 **Format.** A record is Markdown with a small header and fixed `##` sections. The header holds ids only, never a status. Each section opens with a `>` prompt line that says what goes there. A record has all its sections from the start. An empty section holds "None yet.". A close-time section holds "Not closed yet.".

@@ -369,7 +369,6 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 		".codex/hooks.json: holds Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart, " +
 			"bd codex-hook UserPromptSubmit), which pm " + v + " removes",
 		".pm/hooks/post-checkout: pm's part is missing",
-		".pm/hooks/pre-commit: pm's part is missing",
 		"CLAUDE.md: holds the Beads block (<!-- BEGIN BEADS INTEGRATION … -->), which pm " + v + " removes",
 	}
 	if strings.Join(drift, "\n") != strings.Join(wantDrift, "\n") {
@@ -388,7 +387,6 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 		"removed Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart, bd codex-hook " +
 			"UserPromptSubmit) from .codex/hooks.json",
 		"wrote .pm/hooks/post-checkout",
-		"wrote .pm/hooks/pre-commit",
 		"removed the Beads block (<!-- BEGIN BEADS INTEGRATION … -->) from CLAUDE.md",
 	}
 	if got := Said(planned); strings.Join(got, "\n") != strings.Join(wantSaid, "\n") {
@@ -398,7 +396,6 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 		".claude/settings.json":      applied(t, ".claude/settings.json", userClaude),
 		".codex/hooks.json":          applied(t, ".codex/hooks.json", userCodex),
 		"CLAUDE.md":                  "# Repo\n\nIntro.\n",
-		".pm/hooks/pre-commit":       "#!/usr/bin/env sh\n" + GitHookSection("pre-commit"),
 		".pm/hooks/post-checkout":    "#!/usr/bin/env sh\n" + GitHookSection("post-checkout"),
 		".beads/hooks/pre-commit":    files[".beads/hooks/pre-commit"],
 		".beads/hooks/post-checkout": files[".beads/hooks/post-checkout"],
@@ -440,8 +437,114 @@ func TestPlanInANewRepoWritesNoBeadsPiece(t *testing.T) {
 			t.Errorf("%s: wrote %v, removed %q:\n%s", p.Piece.Rel, p.Wrote, p.Removed, p.New)
 		}
 	}
-	if !contains(rels, ".pm/hooks/post-checkout") || !contains(rels, ".pm/hooks/pre-commit") {
+	if !contains(rels, ".pm/hooks/post-checkout") {
 		t.Errorf("%q", rels)
+	}
+	for _, p := range Retired {
+		if contains(rels, p.Rel) {
+			t.Errorf("%q: pm writes the retired %s", rels, p.Rel)
+		}
+	}
+}
+
+// An older pm's pieces retired with the main branch's records/ copy: pm doctor names each, pm upgrade removes each
+// (a workflow file whole, pm's pre-commit section with the repo's own lines kept), and pm uninstall removes them too.
+func TestRetiredPiecesAreReportedAndRemoved(t *testing.T) {
+	s := Settings{"origin", "main", 8000, ""}
+	old := "#!/usr/bin/env sh\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n"
+	for _, mine := range []string{"", "# mine\necho done\n"} {
+		top := t.TempDir()
+		files := map[string]string{
+			".github/workflows/pm-records-copy.yml":  "name: Copy records to main\n",
+			".github/workflows/pm-records-guard.yml": "name: Records guard\n",
+			".github/workflows/ci.yml":               "name: CI\n",
+			HooksRel + "/pre-commit":                 old + mine,
+		}
+		writeTree(t, top, files)
+		for _, p := range Pieces(s) {
+			text, _ := p.Apply(nil)
+			writeTree(t, top, map[string]string{p.Rel: text})
+		}
+		what := "file"
+		if mine != "" {
+			what = "section"
+		}
+		v := buildinfo.Version
+		wantDrift := []string{
+			".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's records/ copy; pm " + v + " removes it",
+			".github/workflows/pm-records-guard.yml: an earlier pm's file, retired with the main branch's records/ copy; pm " + v + " removes it",
+			".pm/hooks/pre-commit: an earlier pm's " + what + ", retired with the main branch's records/ copy; pm " + v + " removes it",
+		}
+		if drift, err := Drift(top, s); err != nil || strings.Join(drift, "\n") != strings.Join(wantDrift, "\n") {
+			t.Fatalf("drift: %q, %v\nwant: %q", drift, err, wantDrift)
+		}
+		removals, err := Removals(top, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var removed []string
+		for _, r := range removals {
+			removed = append(removed, r.Path)
+		}
+		for _, p := range Retired {
+			if !contains(removed, filepath.Join(top, p.Rel)) {
+				t.Errorf("pm uninstall's removals %q lack %s", removed, p.Rel)
+			}
+		}
+		for _, plan := range []func(string, Settings) ([]Planned, error){Rewrite, Plan} {
+			planned, err := plan(top, s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hook := "removed .pm/hooks/pre-commit, retired with the main branch's records/ copy"
+			if mine != "" {
+				hook = "removed pm's section from .pm/hooks/pre-commit, retired with the main branch's records/ copy"
+			}
+			wantSaid := []string{
+				"removed .github/workflows/pm-records-copy.yml, retired with the main branch's records/ copy",
+				"removed .github/workflows/pm-records-guard.yml, retired with the main branch's records/ copy",
+				hook,
+			}
+			if got := Said(planned); strings.Join(got, "\n") != strings.Join(wantSaid, "\n") {
+				t.Fatalf("said:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(wantSaid, "\n"))
+			}
+		}
+		planned, err := Rewrite(top, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		written, err := Write(planned)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := []string{".github/workflows/pm-records-copy.yml", ".github/workflows/pm-records-guard.yml",
+			HooksRel + "/pre-commit"}; strings.Join(written, " ") != strings.Join(want, " ") {
+			t.Errorf("written %q, want %q", written, want)
+		}
+		for _, rel := range []string{".github/workflows/pm-records-copy.yml", ".github/workflows/pm-records-guard.yml"} {
+			if exists(filepath.Join(top, rel)) {
+				t.Errorf("%s is still there", rel)
+			}
+		}
+		if b, err := os.ReadFile(filepath.Join(top, ".github/workflows/ci.yml")); err != nil || string(b) != "name: CI\n" {
+			t.Errorf("ci.yml: %q, %v; the repo's own workflow must stay", b, err)
+		}
+		hook, err := Read(filepath.Join(top, HooksRel, "pre-commit"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch {
+		case mine == "" && hook != nil:
+			t.Errorf("pre-commit holding only pm's section is still there: %q", *hook)
+		case mine != "" && (hook == nil || *hook != "#!/usr/bin/env sh\n"+mine):
+			t.Errorf("pre-commit: %v, want the repo's own lines kept", hook)
+		}
+		if drift, err := Drift(top, s); err != nil || len(drift) != 0 {
+			t.Fatalf("drift after the rewrite: %q, %v", drift, err)
+		}
+		if planned, err := Rewrite(top, s); err != nil || len(planned) != 0 {
+			t.Fatalf("a second rewrite: %v, %v; want nothing", Said(planned), err)
+		}
 	}
 }
 

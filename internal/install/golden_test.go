@@ -144,10 +144,19 @@ type codexCase struct {
 	Remove string   `json:"remove"`
 }
 
+// retiredCase is a retired piece on one text: the file without it and pm doctor's line.
+type retiredCase struct {
+	Rel    string   `json:"rel"`
+	Text   *string  `json:"text"`
+	Remove *string  `json:"remove"`
+	Drift  []string `json:"drift"`
+}
+
 type golden struct {
-	Pieces []pieceCase `json:"pieces"`
-	Trees  []treeCase  `json:"trees"`
-	Codex  []codexCase `json:"codex"`
+	Pieces  []pieceCase   `json:"pieces"`
+	Retired []retiredCase `json:"retired"`
+	Trees   []treeCase    `json:"trees"`
+	Codex   []codexCase   `json:"codex"`
 }
 
 func result(s string, err error) string {
@@ -167,7 +176,11 @@ func pairs(t *testing.T, how func(string, Settings) ([]Planned, error), top stri
 	}
 	out := [][2]string{}
 	for _, p := range planned {
-		out = append(out, [2]string{p.Piece.Rel, p.New})
+		n := p.New
+		if p.Gone {
+			n = "(file removed)"
+		}
+		out = append(out, [2]string{p.Piece.Rel, n})
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a][0] < out[b][0] })
 	return out
@@ -205,7 +218,36 @@ func results(t *testing.T) golden {
 				g.Pieces = append(g.Pieces, c)
 			}
 		}
-		for tree := 0; tree < 3; tree++ { // nothing; the user's files; the user's files with pm installed
+		if n == 0 { // a retired piece names no setting
+			for _, p := range Retired {
+				for _, text := range goldenTexts[kindOf(p.Rel)] {
+					c := retiredCase{Rel: p.Rel, Text: text, Drift: []string{}}
+					if text != nil {
+						removed, err := p.Remove(*text)
+						if err != nil {
+							removed = sp("error: " + err.Error())
+						}
+						c.Remove = removed
+					}
+					top := t.TempDir()
+					if text != nil {
+						writeTree(t, top, map[string]string{p.Rel: *text})
+					}
+					lines, err := Drift(top, s)
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, l := range lines {
+						if strings.HasPrefix(l, p.Rel+":") {
+							c.Drift = append(c.Drift, l)
+						}
+					}
+					g.Retired = append(g.Retired, c)
+				}
+			}
+		}
+		// nothing; the user's files; the user's files with pm installed; those with an older pm's retired pieces too
+		for tree := 0; tree < 4; tree++ {
 			top := t.TempDir()
 			files := map[string]string{}
 			if tree > 0 {
@@ -213,14 +255,22 @@ func results(t *testing.T) golden {
 					HooksRel + "/pre-commit": beadsHook + "\n# mine\necho done\n", ".gitignore": "*.log\nbuild/",
 					".pm/README.md": "old\n"}
 			}
+			if tree == 3 {
+				files[HooksRel+"/pre-commit"] = beadsHook + "# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || " +
+					"exit $?\n# --- END PM ---\n\n# mine\necho done\n"
+				files[".github/workflows/pm-records-copy.yml"] = "name: Copy records to main\n"
+				files[".github/workflows/pm-records-guard.yml"] = "name: Records guard\n"
+			}
 			writeTree(t, top, files)
-			if tree == 2 {
+			if tree >= 2 {
 				rewrite, err := Rewrite(top, s)
 				if err != nil {
 					t.Fatal(err)
 				}
 				for _, p := range rewrite {
-					files[p.Piece.Rel] = p.New
+					if !p.Retired { // pm as an older one installed it: the retired pieces stay
+						files[p.Piece.Rel] = p.New
+					}
 				}
 				writeTree(t, top, files)
 			}

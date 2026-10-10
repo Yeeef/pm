@@ -116,7 +116,7 @@ func LegacyRepo(top string) ([]string, error) {
 			out = append(out, fmt.Sprintf("%s: %d hook entries running bin/pm or harness/*_hook.py by path", rel, found))
 		}
 	}
-	for _, name := range GitHooks {
+	for _, name := range []string{"post-checkout", "pre-commit"} { // the harness's, pre-commit included
 		rel := ".beads/hooks/" + name
 		t, err := Read(filepath.Join(top, rel))
 		if err != nil {
@@ -128,7 +128,7 @@ func LegacyRepo(top string) ([]string, error) {
 	}
 	for _, rel := range legacyWorkflows {
 		if exists(filepath.Join(top, rel)) {
-			out = append(out, rel+": the pre-package harness's workflow (pm writes pm-"+filepath.Base(rel)+")")
+			out = append(out, rel+": the pre-package harness's workflow")
 		}
 	}
 	t, err := Read(filepath.Join(top, ".gitignore"))

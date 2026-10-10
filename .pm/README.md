@@ -9,7 +9,7 @@ them as a site.
 - The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's
   `refs/pm/work`.
 - Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads
-  it through `records/`, a git-ignored link. `records/` on the main branch is a copy a workflow keeps.
+  it through `records/`, a git-ignored link; no other branch tracks `records/`.
 - Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook <name>`); run `pm --help` for the
   commands.
 - `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.

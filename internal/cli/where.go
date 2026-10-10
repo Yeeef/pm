@@ -112,7 +112,8 @@ func whereAll(here string) (string, error) {
 	case !whereExists(link) && !whereIsLink(link):
 		state = "no records link; run " + whereSetup
 	case !whereIsLink(link) && whereGit(top, "ls-files", "--", "records") != "":
-		state = "records/ is main's tracked copy, not the link; run " + whereSetup
+		state = "records/ is this branch's tracked copy, not the link; merge the main branch, which tracks none, then run " +
+			whereSetup
 	default:
 		state = "records is not a link to the store; move it away and run " + whereSetup
 	}
@@ -132,7 +133,7 @@ func whereAll(here string) (string, error) {
 		}
 		hooks = resolvedPath(hooks)
 		var have []string
-		for _, h := range []string{"post-checkout", "pre-commit"} {
+		for _, h := range install.GitHooks {
 			st := "missing"
 			if syscall.Access(filepath.Join(hooks, h), 0x1) == nil {
 				st = "installed"
