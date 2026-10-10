@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// Expected values are Python pm's (cli.parse_sections, cli.first_sentence, textwrap.fill as cmd_finding_add calls it)
-// on the same inputs: Python's \s and str.strip take Unicode spaces, Go's \s only ASCII.
+// Expected values were Python pm 0.1.x's on the same inputs (its section parser, first sentence and textwrap.fill as
+// pm finding add wraps), frozen: Python's \s and str.strip take Unicode spaces, Go's \s only ASCII.
 
 func TestParseSectionsTakesUnicodeSpaceAfterAHeading(t *testing.T) {
 	got, err := parseSections("## Goal \nShip.\n## Scope \n**In:** a. **Out:** b.\n", frame)

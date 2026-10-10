@@ -1,6 +1,6 @@
 // Package site renders records joined with live work-store status: the pages the pm service serves and pm check
-// renders. Python source: site.py. Pages are equal to Python pm's after HTML normalisation (normalise.go), not byte for
-// byte: page assembly uses html/template, and fragments are escaped with the standard library's html.EscapeString.
+// renders. Page assembly uses html/template, and fragments are escaped with the standard library's html.EscapeString;
+// golden_test.go holds every page of testdata/constructs to its frozen copy.
 package site
 
 import (

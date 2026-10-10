@@ -10,9 +10,9 @@ import (
 	"testing"
 )
 
-// The unit files Go pm writes equal Python pm's for the same inputs: testdata/units holds Python's output for each
-// case (test_service.py checks Python against the same files), and Go must write it byte for byte.
-func TestUnitFilesEqualPythonsForTheSameInputs(t *testing.T) {
+// The unit files pm writes for each case of testdata/units, byte for byte: the files Python pm 0.1.x wrote for the
+// same inputs, frozen.
+func TestUnitFilesEqualTheFrozenOnes(t *testing.T) {
 	data, err := os.ReadFile("testdata/units/cases.json")
 	if err != nil {
 		t.Fatal(err)

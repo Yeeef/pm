@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-// The expected values are Python pm's: sentences, words, plain and PR_NAMED/REVIEW_ASKED in cli.py on these inputs.
+// The expected values were Python pm 0.1.x's on these inputs (sentences, words, plain, and its PR-named and
+// review-asked patterns), frozen.
 
 func TestSentencesAndWordsAsPython(t *testing.T) {
 	for _, c := range []struct {

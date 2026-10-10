@@ -294,7 +294,7 @@ func pieceAt(t *testing.T, rel string) Piece {
 	return Piece{}
 }
 
-// applied is text with pm's part as this version writes it, as Python pm 0.1.x writes it too (parity_test.go).
+// applied is text with pm's part as this version writes it.
 func applied(t *testing.T, rel, text string) string {
 	t.Helper()
 	out, err := pieceAt(t, rel).Apply(&text)

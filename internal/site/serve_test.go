@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// testdata/serve/filled.html is Python pm's fill_replies then fill_status of the same page, replies and times
-// (site.py), made once with TZ=America/New_York: a reply saving, one sent and not delivered, one failed whose text
+// testdata/serve/filled.html is the page below with its reply slots and status filled, frozen, in
+// America/New_York: a reply saving, one sent and not delivered, one failed whose text
 // and id go back in the box, escaped, and one sent with no known delivery; then the status 13 s behind.
-func TestFillRepliesAndStatusEqualPythons(t *testing.T) {
+func TestFillRepliesAndStatus(t *testing.T) {
 	loc, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		t.Fatal("no time zone data:", err)
@@ -30,6 +30,6 @@ func TestFillRepliesAndStatusEqualPythons(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != string(want) {
-		t.Fatalf("differs from Python pm's:\n%s\n%s", got, want)
+		t.Fatalf("differs from testdata/serve/filled.html:\n%s\n%s", got, want)
 	}
 }
