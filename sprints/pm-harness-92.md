@@ -69,10 +69,10 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+voided: moved, unstarted, to [pm-site sprint 1](https://pm.yeeefs.com/sprints/pm-site-1.html), the new home of site sprints.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+Not met here: the work, its task and its decision moved to pm-site sprint 1.
