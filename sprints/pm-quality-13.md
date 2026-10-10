@@ -129,10 +129,42 @@ The coordinator filed them into this sprint during the wave; each is a review or
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: every follow-up in Scope and the four tasks added to it ship in PR #31 (pending merge), each with a test that failed before its fix, and the TestCreateRacingALocalWriter flake has two root causes, both fixed.
+
+- The site no longer passes a records read that missed a file a sync was rewriting. Such a read is now a `service.Partial`, read again under the records lock.
+- `pm check` and `pm commit` refuse a `.md` link to nothing.
+- `pm uninstall` holds the install lock from its unsynced check to the store's removal, and it disables a crashed systemd unit.
+- A `pm sprint move` rerun writes the same records step on every clone, because the decisions are dated with the move note's UTC date.
+- The access test stops at nested modules.
+- `pm-release-build.yml` also runs on `cmd/pm` and `internal/launch` changes. `make go-test-but-work` fails when `go list` fails.
+- The flake had a Linux cause and a macOS cause:
+  - Linux: since git 2.47, a fetch's auto maintenance runs detached and removes `objects/maintenance.lock` while DOLT_CLONE walks `.dolt`. The pm service host now keeps git maintenance attached.
+  - macOS: the crash is golang/go#79804. The fix is Go 1.26.9.
+- The service test fake hands out deep copies of its items.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **Each item has a test that fails before its fix and passes after: met.** Before and after, per item (the Findings give the full numbers):
+
+| Item | Test | Before | After |
+|---|---|---|---|
+| Records read missing a file | `TestLoadNeverPassesARecordSetMissingAFileGitRewrote` | 4-15 of ~45 loads passed short | 0 of ~60 |
+| Records read missing a file | `TestAPartialReadIsRepeatedUnderTheLockAndServedThere` | timed out on the error page | pass |
+| Link to nothing | `test_pm_check_and_commit_refuse_a_record_link_to_nothing` | pm check: "all 6 pages render" | refused |
+| `pm uninstall` | `test_uninstall_waits_for_a_session_start_that_holds_the_install_lock` | did not wait | waits |
+| `pm uninstall` | `test_uninstall_disables_an_enabled_unit_that_is_not_running` | unit still enabled | disabled |
+| Sprint move rerun | `test_sprint_move_rerun_on_a_clone_whose_records_lag_writes_the_same_records_step` | rebase conflict | the copy is dropped |
+| Access test | `TestModuleGoFilesLeaveOutNestedModulesAndWorktrees` | 3 false failures with a module copy under `.claude/worktrees` | pass |
+| CI | `tests/test_ci.py` | `'cmd/pm/**'` missing; a failing go list exited 0 | pass |
+| Flake, Linux | `TestTheHostsFetchLeavesNoMaintenanceRunning`, with git 2.55 | 10 of 10 maintenances detached | none |
+| Flake, Linux | create race test, git 2.55, detached maintenance delayed 0-19 ms | 5 of 80 runs failed | 0 of 160 |
+| Service fake | `go test -race -run TestAReplyIsSpooled`, 8 runs of `-count=100` on 2 CPUs | 5 of 8 raced | 0 of 8 |
+
+- **`make test`, `make test-go` and the PR's CI pass: met.**
+  - `make test`: 136 passed.
+  - `make test-go`: every package ok, including internal/work (34.6 s) and its race tests (96.3 s).
+  - The touched integration tests: 27 passed.
+  - PR #31's CI: see the PR.
+  - The macOS half of the flake was not reproduced here (Linux machine). The evidence for it is the Go issue's mechanism and the PR's macOS race job, one green run so far.
