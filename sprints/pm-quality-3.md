@@ -147,6 +147,12 @@ A refreshed cache would otherwise let cached test results stand in for test runs
   cold window, not compile or test time, made those PRs slow. PR #27 also
   saves the cache when the suite fails.
 
+- PR #25 head 3c07ecf on main a274b65 (touches internal/hooks,
+  internal/install, internal/cli and prompts, not release/ or go.sum): slowest
+  check work (darwin-arm64) 3m8s, then race (darwin-arm64) 2m40s and
+  build-vet-test (darwin-arm64) 2m8s. Second PR under 5 minutes, alongside PR
+  #26 (3m20s); PR #21 (6m2s) and PR #22 (6m28s) were over it.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
