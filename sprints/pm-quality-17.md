@@ -66,6 +66,8 @@ None yet.
 
 done: CI fails on Go code that gofmt would change: `make go-fmt` runs in `make test-go` and in pm-go.yml's build-vet-test job on both targets, and main's one unformatted file is formatted (PR #38).
 
+Merged as eedbafd (PR #38).
+
 - `make go-fmt`: `gofmt -l` on the files `go list` gives for the module's packages (every build tag's and the tests'), naming each file it lists and failing; a file that does not parse fails it with gofmt's error.
 - `internal/cli/cli.go` gofmt'd; the developer guide's `make test-go` row names `go-fmt`.
 - Labelled `no-changelog`: users would not notice it.
