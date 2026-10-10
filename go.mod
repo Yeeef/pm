@@ -1,6 +1,8 @@
 module github.com/Yeeef/pm
 
-go 1.26.2
+// 1.26.5 or later: before it, a child that os/exec starts can die of SIGSEGV between fork and exec under -race on
+// darwin (golang/go#79804), as Dolt's git did in the work store's race tests on macOS.
+go 1.26.9
 
 require (
 	github.com/BurntSushi/toml v1.6.0
