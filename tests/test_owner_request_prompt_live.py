@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FAKE_BD, PM, write_config
+from conftest import FAKE_BD, PM, REAL, write_config
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("PM_LIVE_TESTS") != "1" or shutil.which("claude") is None,
@@ -45,8 +45,10 @@ def run_case(case: dict, bindir: Path, tmp: Path, root: Path) -> tuple[str, floa
     """The hook's verdict on `case` (pass or block) and the call's seconds."""
     with tempfile.NamedTemporaryFile("w", suffix=".json", dir=tmp, delete=False) as f:
         json.dump(issues(case), f)
+    # the user's HOME and Claude config, not the tests' temp ones: the real judge needs the user's claude login
     env = dict(os.environ, PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}", FAKE_BD_STATE=f.name,
-               FAKE_BD_LOG=os.devnull)
+               FAKE_BD_LOG=os.devnull, HOME=REAL["HOME"],
+               CLAUDE_CONFIG_DIR=REAL["CLAUDE_CONFIG_DIR"] or str(Path(REAL["HOME"]) / ".claude"))
     event = {"session_id": SESSIONS["me"], "hook_event_name": "Stop", "stop_hook_active": False,
              "last_assistant_message": case["reply"]}
     start = time.monotonic()

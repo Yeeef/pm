@@ -301,7 +301,7 @@ def pytest_collection_modifyitems(config, items):
 # never here; each test then checks that nothing here changed.
 # xdist workers start after the controller's pytest_configure, so the user's values come from PM_TESTS_REAL_*.
 REAL = {k: os.environ.get(f"PM_TESTS_REAL_{k}", os.environ.get(k, "")) for k in ("HOME", "CODEX_HOME",
-                                                                                 "XDG_CONFIG_HOME")}
+                                                                                 "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR")}
 REAL_HOME = Path(REAL["HOME"])
 REAL_CODEX_CONFIG = Path(REAL["CODEX_HOME"] or REAL_HOME / ".codex") / "config.toml"
 REAL_UNITS = (REAL_HOME / "Library/LaunchAgents",
