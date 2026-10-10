@@ -99,6 +99,15 @@ The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, i
   file now passes the same check; the serve test adds that symlink and one
   into .git (404 each) and fails without the check.
 
+- Review fix: useMaxWidth was off for 7 diagram types only. The script now
+  takes every key of Mermaid's defaultConfig that has a useMaxWidth: 27 types
+  in 11.17.2 (pie, gitGraph, mindmap, timeline, quadrantChart, xyChart,
+  sankey, requirement, c4, block, architecture and the rest). Live at 390 px:
+  flowchart 2,756 px, classDiagram 2,799, gitGraph 1,354, timeline 2,790 and
+  sequence 2,626 px wide, each at scale 1.0 in a 356 px scrolling pre.
+  classDiagram has no useMaxWidth key of its own and drew at scale 1.0 without
+  one.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
