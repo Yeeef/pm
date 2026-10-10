@@ -93,7 +93,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A postmortem is due when an incident cost more than a day, or broke other sessions or the owner's view.
 - A day page is generated. Nobody writes one.
 - Session start runs `pm init --session-start`, then injects `pm where` and `pm show`. When it says init failed or timed out, run `pm init` by hand.
-- **Never leave a request only in chat.** Ask the owner only for what you cannot do yourself: as a need under its task or sprint (open one if none holds it), or with AskUserQuestion when they are plainly in the chat. The owner-request hook blocks any other ask and says how.
+- **Never leave a request only in chat.** Ask the owner only for what you cannot do yourself: as a need under its task or sprint (open one if none holds it; if one does, cite its id instead of asking again), or with AskUserQuestion when they are plainly in the chat. The owner-request hook blocks any other ask and says how.
 
 # How
 

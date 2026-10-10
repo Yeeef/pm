@@ -54,7 +54,7 @@ def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     init_ready(repo)
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(RULE_STARTS) + 1)]
-    assert got == chunks() and got[0].startswith("# pm rules (1 of 2): the introduction; ")
+    assert got == chunks() and got[0].startswith("# pm rules (1 of 3): the introduction; ")
     text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
     ran, _, rest = text.partition("\n\n")
@@ -165,14 +165,14 @@ def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
     their titles are the rules and the command list: nothing lost, nothing twice. A failure here means prime.md
     outgrew its chunks: move a heading in RULE_STARTS and pm's, or add one and its hook entries."""
     cs = chunks()
-    assert len(cs) == len(RULE_STARTS) == 2
+    assert len(cs) == len(RULE_STARTS) == 3
     assert all(len(c) <= CAP for c in cs), [len(c) for c in cs]
     titles, bodies = zip(*(c.split("\n\n", 1) for c in cs))
     assert "\n\n".join(bodies) == head()
     assert [b.split("\n", 1)[0] for b in bodies] == list(RULE_STARTS)
     for n, t in enumerate(titles, 1):  # hooks arrive in any order, so each title names its place and its sections
-        assert t.startswith(f"# pm rules ({n} of 2): ") and "\n" not in t
-    assert "What — 1. The layers" in titles[0] and "How; Commands" in titles[1]
+        assert t.startswith(f"# pm rules ({n} of {len(cs)}): ") and "\n" not in t
+    assert "What — 1. The layers" in titles[0] and "What — 3. Records" in titles[1] and "How; Commands" in titles[2]
 
 
 def test_subagent_start_envelope(tmp_path):
@@ -225,6 +225,43 @@ def test_stop_passes_another_sessions_edit(repo, tmp_path):
     t.write_text(t.read_text() + (tmp_path / "other.jsonl").read_text())
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(t)}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == ""
+
+
+def subagent_lines(path, prompt, done):
+    """A Claude Code transcript whose assistant starts a background subagent with `prompt`, as Claude Code writes it,
+    then, with `done`, the task notification of its return."""
+    lines = [{"type": "user", "message": {"role": "user", "content": "go"}},
+             {"type": "assistant", "message": {"role": "assistant", "content": [
+                 {"type": "tool_use", "id": "toolu_a1", "name": "Agent", "input": {"prompt": prompt}}]}},
+             {"type": "user", "message": {"role": "user", "content": [
+                 {"type": "tool_result", "tool_use_id": "toolu_a1", "content": [{"type": "text", "text": "launched"}]}]},
+              "toolUseResult": {"isAsync": True, "status": "async_launched", "prompt": prompt}}]
+    if done:
+        lines.append({"type": "user", "message": {"role": "user", "content": (
+            "<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>toolu_a1</tool-use-id>\n"
+            "<status>completed</status>\n</task-notification>")}})
+    return [json.dumps(l) for l in lines]
+
+
+@pytest.mark.parametrize("done", [False, True])
+@pytest.mark.parametrize("own_edit", [False, True])
+def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tmp_path, done, own_edit):
+    """A subagent shares its session's id, and the parent's transcript holds only its prompt: a path that prompt alone
+    names is the running subagent's to commit. Once it returns, or when the session's own tool call names the path too,
+    the path is the session's."""
+    edit_sprint(repo)
+    path = str(repo.records / "sprints/demo-1.md")
+    lines = subagent_lines(tmp_path, f"Write the frame in {path} and commit it.", done)
+    if own_edit:
+        lines.append(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "toolu_e1", "name": "Edit", "input": {"file_path": path}}]}}))
+    (tmp_path / "t.jsonl").write_text("\n".join(lines) + "\n")
+    res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(tmp_path / "t.jsonl")}, repo.env, repo.root)
+    assert res.returncode == 0, res.stderr
+    if done or own_edit:
+        assert json.loads(res.stdout)["decision"] == "block" and "- records/sprints/demo-1.md" in res.stdout
+    else:
+        assert res.stdout == ""
 
 
 def test_stop_passes_when_stop_hook_active(repo, tmp_path):

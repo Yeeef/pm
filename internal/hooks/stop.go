@@ -3,7 +3,8 @@ package hooks
 // pm hook stop: an agent may not hand back with records it edited by hand left uncommitted in the store. The store is
 // <main checkout>/.pm/store/records, found from the clone's common git dir. When it has uncommitted files that this
 // session's tool calls name (Claude Code tool_use inputs; Codex function_call arguments, custom_tool_call inputs and
-// local_shell_call actions), the hook blocks the stop once with a reason naming them. On stop_hook_active it always
+// local_shell_call actions), the hook blocks the stop once with a reason naming them. A path that only the prompt of a
+// subagent call still running names is left out: the subagent may be writing it. On stop_hook_active it always
 // lets the stop through, so it never loops. Prints {"decision": "block", "reason": ...} to block, nothing otherwise.
 
 import (
@@ -70,8 +71,12 @@ func Dirty(store string) ([]string, *proc.Error) {
 	return paths, nil
 }
 
-// ToolInputs is the tool-call inputs in one transcript line, as text.
-func ToolInputs(entry *pyjson.Object) ([]string, error) {
+// call is one tool call in a transcript line: its input as text, and its id when it starts a subagent (Claude Code's
+// Agent or Task tool), else "".
+type call struct{ input, agent string }
+
+// toolCalls is the tool calls in one transcript line.
+func toolCalls(entry *pyjson.Object) ([]call, error) {
 	switch entry.Get("type") {
 	case "assistant":
 		var content any
@@ -87,10 +92,14 @@ func ToolInputs(entry *pyjson.Object) ([]string, error) {
 		if !ok {
 			return nil, nil
 		}
-		var out []string
+		var out []call
 		for _, b := range blocks {
 			if o, ok := b.(*pyjson.Object); ok && o.Get("type") == "tool_use" {
-				out = append(out, pyjson.Dumps(o.Get("input"), false))
+				c := call{input: pyjson.Dumps(o.Get("input"), false)}
+				if name := o.Get("name"); name == "Agent" || name == "Task" {
+					c.agent, _ = o.Get("id").(string)
+				}
+				out = append(out, c)
 			}
 		}
 		return out, nil
@@ -107,24 +116,79 @@ func ToolInputs(entry *pyjson.Object) ([]string, error) {
 		}
 		switch payload.Get("type") {
 		case "function_call":
-			return []string{pyjson.Str(field("arguments"))}, nil
+			return []call{{input: pyjson.Str(field("arguments"))}}, nil
 		case "custom_tool_call":
-			return []string{pyjson.Str(field("input"))}, nil
+			return []call{{input: pyjson.Str(field("input"))}}, nil
 		case "local_shell_call":
-			return []string{pyjson.Dumps(payload.Get("action"), false)}, nil
+			return []call{{input: pyjson.Dumps(payload.Get("action"), false)}}, nil
 		}
 	}
 	return nil, nil
 }
 
-// Touched is the paths among paths that some tool call in the transcript names. Lines that name none are not parsed.
+// returns is the ids among pending of the subagent calls that this transcript line says have returned: a tool result
+// that is not a background launch, or a task notification naming the call.
+func returns(entry *pyjson.Object, pending []string) []string {
+	var texts []string                              // the line's text, where a task notification can be
+	if c, ok := entry.Get("content").(string); ok { // a queued message
+		texts = append(texts, c)
+	}
+	var blocks []any
+	if m, ok := entry.Get("message").(*pyjson.Object); ok {
+		switch c := m.Get("content").(type) {
+		case string:
+			texts = append(texts, c)
+		case []any:
+			blocks = c
+		}
+	}
+	launch, _ := entry.Get("toolUseResult").(*pyjson.Object)
+	background := launch != nil && pyjson.Truthy(launch.Get("isAsync"))
+	var out []string
+	for _, id := range pending {
+		done := false
+		for _, b := range blocks {
+			o, ok := b.(*pyjson.Object)
+			if !ok {
+				continue
+			}
+			switch o.Get("type") {
+			case "tool_result":
+				done = done || (o.Get("tool_use_id") == id && !background)
+			case "text":
+				if t, ok := o.Get("text").(string); ok {
+					texts = append(texts, t)
+				}
+			}
+		}
+		for _, t := range texts {
+			done = done || (strings.Contains(t, "<task-notification>") && strings.Contains(t, "<tool-use-id>"+id+"</tool-use-id>"))
+		}
+		if done {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// touches is what a scan of a transcript has found so far.
+type touches struct {
+	paths    []string
+	own      map[string]bool     // paths a tool call other than a subagent's start names
+	byAgent  map[string][]string // a subagent call's id: the paths its prompt names
+	returned map[string]bool     // subagent calls that have returned
+}
+
+// Touched is the paths among paths that some tool call in the transcript names, leaving out a path that only the
+// prompt of a subagent call still running names: that subagent may be writing it. Lines that name none of the paths
+// and no running subagent call that names one are not parsed.
 func Touched(transcript string, paths []string) ([]string, error) {
 	f, err := os.Open(transcript)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	found := map[string]bool{}
+	t := &touches{paths: paths, own: map[string]bool{}, byAgent: map[string][]string{}, returned: map[string]bool{}}
 	r := bufio.NewReader(f)
 	for {
 		raw, rerr := r.ReadString('\n')
@@ -134,11 +198,20 @@ func Touched(transcript string, paths []string) ([]string, error) {
 		if raw == "" {
 			break
 		}
-		if err := scanLines(raw, paths, found); err != nil {
+		if err := t.scanLines(raw); err != nil {
 			return nil, err
 		}
 		if rerr == io.EOF {
 			break
+		}
+	}
+	found := map[string]bool{}
+	for p := range t.own {
+		found[p] = true
+	}
+	for id, ps := range t.byAgent {
+		for _, p := range ps {
+			found[p] = found[p] || t.returned[id]
 		}
 	}
 	var mine []string
@@ -150,22 +223,28 @@ func Touched(transcript string, paths []string) ([]string, error) {
 	return mine, nil
 }
 
-// scanLines marks the paths that the tool calls on these lines name. raw ends at a newline or the file's end; read as
-// Python reads text (invalid UTF-8 replaced, a lone \r ending a line too), it can hold more than one line.
-func scanLines(raw string, paths []string, found map[string]bool) error {
+// scanLines records the paths that the tool calls on these lines name, and the subagent calls they say returned. raw
+// ends at a newline or the file's end; read as Python reads text (invalid UTF-8 replaced, a lone \r ending a line too),
+// it can hold more than one line.
+func (t *touches) scanLines(raw string) error {
 	text := strings.ToValidUTF8(raw, string(utf8.RuneError))
 	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
 	for _, line := range strings.SplitAfter(text, "\n") {
 		if line == "" {
 			continue
 		}
-		var hits []string
-		for _, p := range paths {
-			if !found[p] && strings.Contains(line, p) {
+		var hits, pending []string
+		for _, p := range t.paths {
+			if !t.own[p] && strings.Contains(line, p) {
 				hits = append(hits, p)
 			}
 		}
-		if len(hits) == 0 {
+		for id := range t.byAgent {
+			if !t.returned[id] && strings.Contains(line, id) {
+				pending = append(pending, id)
+			}
+		}
+		if len(hits) == 0 && len(pending) == 0 {
 			continue
 		}
 		v, err := pyjson.Loads(line)
@@ -176,15 +255,21 @@ func scanLines(raw string, paths []string, found map[string]bool) error {
 		if !ok {
 			continue
 		}
-		calls, err := ToolInputs(entry)
+		for _, id := range returns(entry, pending) {
+			t.returned[id] = true
+		}
+		calls, err := toolCalls(entry)
 		if err != nil {
 			return err
 		}
 		for _, p := range hits {
 			for _, c := range calls {
-				if strings.Contains(c, p) {
-					found[p] = true
-					break
+				switch {
+				case !strings.Contains(c.input, p):
+				case c.agent == "":
+					t.own[p] = true
+				default:
+					t.byAgent[c.agent] = append(t.byAgent[c.agent], p)
 				}
 			}
 		}

@@ -89,6 +89,8 @@ only.
 
 ### Changed
 
+- Session and subagent start inject pm's rules as three hooks instead of two: the first chunk had outgrown the
+  10,000 characters Claude Code passes inline. `pm upgrade` (step 2) rewrites the hook entries as it moves the pin.
 - `pm doctor` names each piece an earlier pm wrote for the copy (the two workflows, the `pre-commit` section, the
   sparse checkout, the tracked `records/` copy). `pm upgrade` and `pm uninstall` remove the workflows and the
   section, `pm init` turns the sparse checkout off, and the commit `pm upgrade` prints untracks the copy.
@@ -120,6 +122,15 @@ only.
 - The pm service's garbage collection could delete the work store's live journal when a write or a sync raced it,
   losing the writes since and crashing the service at its next collection ("error dropping journal writer during
   UpdateGCGen"). pm now builds with a Dolt that holds the fix (dolthub/dolt#11312).
+- The owner-request Stop hook no longer blocks text that asks the owner nothing: the agent's plan or progress
+  (including what its own subagents do, and a review or merge it names itself as doing), a fact no step of the agent
+  waits on, a request cited by its id as already open on the site (whichever session or clone holds it), and an
+  answer to a question the owner asked. A PR review or merge left pending without saying who does it still counts as
+  a request to the owner. When a reply asks again for what an open request already asks, the block now says to drop
+  the ask or say by its id that the request is open, not to raise a duplicate.
+- `pm hook stop` no longer blocks a session over a record that only the prompt of its still-running subagent names;
+  the subagent may be writing it. Once the subagent returns, or a tool call of the session itself names the record,
+  the hook blocks as before.
 
 ## [0.4.0] - 2026-10-10
 
