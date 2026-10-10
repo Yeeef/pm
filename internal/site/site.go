@@ -729,7 +729,9 @@ try { mermaid = (await import(at[0])).default; } catch { mermaid = (await import
 const nodes = [...document.querySelectorAll("pre.mermaid")];
 const sources = nodes.map(n => n.textContent);
 const scheme = matchMedia("(prefers-color-scheme: dark)");
-const wide = { useMaxWidth: false };
+// Every diagram type that Mermaid's defaults give a useMaxWidth draws at natural width.
+const types = Object.entries(mermaid.mermaidAPI.defaultConfig).filter(([, v]) => v && typeof v === "object" && "useMaxWidth" in v);
+const wide = Object.fromEntries(types.map(([k]) => [k, { useMaxWidth: false }]));
 let shown, queue = Promise.resolve();
 async function draw() {
   const set = document.documentElement.dataset.theme;
@@ -737,8 +739,7 @@ async function draw() {
   if (theme === shown) return;
   shown = theme;
   nodes.forEach((n, i) => { n.removeAttribute("data-processed"); n.textContent = sources[i]; });
-  mermaid.initialize({ startOnLoad: false, theme, flowchart: wide, sequence: wide, class: wide, state: wide, er: wide,
-    gantt: wide, journey: wide });
+  mermaid.initialize({ startOnLoad: false, theme, ...wide });
   await mermaid.run({ nodes });
 }
 const redraw = () => { queue = queue.then(draw).catch(console.error); }; // one failed draw does not stop the next

@@ -19,7 +19,9 @@ func TestMermaidLoadsOneExactVersionAtNaturalWidth(t *testing.T) {
 			t.Errorf("%s does not name mermaid@%s exactly", u, MermaidVersion)
 		}
 	}
-	for _, want := range []string{"flowchart: wide", "useMaxWidth: false", `addEventListener("change"`,
+	// useMaxWidth goes off for every type Mermaid's own defaults give one, not for a list that misses new types.
+	for _, want := range []string{`Object.entries(mermaid.mermaidAPI.defaultConfig)`, `"useMaxWidth" in v`,
+		"{ useMaxWidth: false }", "...wide", `addEventListener("change"`,
 		`attributeFilter: ["data-theme"]`} {
 		if !strings.Contains(mermaidScript, want) {
 			t.Errorf("the script lacks %q", want)
