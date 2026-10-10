@@ -109,6 +109,10 @@ A refreshed cache would otherwise let cached test results stand in for test runs
   Linux / 10:16 macOS). macOS cache restore takes about 1 min of each macOS
   job.
 
+- Path filter checked: draft PR #17 against ci-fast changed only
+  release/build.sh (one comment); pm-release-build.yml ran on it (run
+  38056855929) and passed, 4:43 Linux / 5:48 macOS, cold. Closed unmerged.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
