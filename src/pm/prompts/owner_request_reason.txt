@@ -5,4 +5,4 @@ Raise each request left, then end your reply (it needs no id). Its parent is the
 - an action (run, apply, configure, ...): pm action need --title "..." --parent <id> --text-file - <<'EOF', then what to do and why, then EOF;
 - a PR review or merge: pm action need --pr URL --sprint ID --focus "...".
 If there is a clear reason not to raise a need (for example, the owner is plainly in the chat and wants to answer there), ask with the AskUserQuestion tool, never as a question in plain text.
-Else end your reply without the request.
+Then end your reply, with no plain-text question to the owner left in it.
