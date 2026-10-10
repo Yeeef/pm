@@ -60,7 +60,14 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- --text=Rebasing the branch that deletes main's records/ copy onto a main the
+  copy Action had moved (11 records files changed or added) stopped on 9
+  modify/delete conflicts, and git wrote those 9 files into a real records/
+  directory in place of the worktree's git-ignored link (git treats an ignored
+  path as expendable). The store was untouched (status clean, its own HEAD);
+  resolved by git rm --cached --sparse of every records/ path, removing the
+  directory and relinking. The merge of this PR meets the same conflicts while
+  the copy Action runs, so the branch needs a rebase right before the merge.
 
 ## Delivery report
 
