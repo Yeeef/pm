@@ -59,6 +59,16 @@ None yet.
   store. The test-side race (cleanup reading w.open without the fake's lock)
   only surfaced it.
 
+- Failure rate on main (0665de2), measured here: go test -race -count=100
+  ./internal/service gave 0 data races in 100 runs (4 failures, all
+  TestServiceInstallStatusRestartAndLogsEndToEnd on port 8002 held by a second
+  concurrent run of mine, not this bug). With the fake counting store calls
+  after Run returned, TestAReplyIsRefusedWithItsReason showed 0 late calls in
+  300 runs and 0 in 300 at -cpu=1: the window is too narrow to hit locally, as
+  CI's one failure then pass on rerun suggests.
+  TestRunReturnsOnlyOnceTheGoroutinesItStartedEnded holds the writer in Open
+  across the pin move and fails 20 of 20 runs against main's run.go.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
