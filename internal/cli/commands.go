@@ -181,6 +181,22 @@ var tree = &command{
 			subDest: "sub",
 			subs: []*command{
 				{
+					name:        "edit",
+					help:        "rewrite an open action's or decision need's body before the owner replies",
+					description: "Rewrite the body of an open need that holds no reply yet: an action's description (--text), or a decision need's parts, given as pm decision need takes them (--question, --fact, --option, --cost, --default; pm decision need --help), which pm lays out and checks the same way. The title stays. Refuses a closed need, a need that holds a reply (the owner answered the body it had: raise a new need and dismiss this one with pm need dismiss), and a PR review, whose card pm builds from its PR, sprints and focus.",
+					groups:      []bool{false},
+					args: []arg{
+						{dest: "need_id", required: true, kind: value, help: "the open need's id"},
+						{flags: []string{"--text-file"}, dest: "text_file", metavar: []string{"PATH"}, kind: value, group: 1, help: "an action's new description: what the owner should do and why; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{flags: []string{"--text"}, dest: "text", kind: value, def: "", group: 1, help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
+						{flags: []string{"--question"}, dest: "question", metavar: []string{"TEXT"}, kind: appendValue, help: "a decision need's question"},
+						{flags: []string{"--fact"}, dest: "fact", metavar: []string{"TEXT"}, kind: appendValue, help: "a decision need's fact; repeat it for each fact"},
+						{flags: []string{"--option"}, dest: "option", metavar: []string{"LABEL", "TEXT"}, nargs: "2", kind: appendValue, help: "a decision need's choice; two or more"},
+						{flags: []string{"--cost"}, dest: "cost", metavar: []string{"LABEL", "TEXT"}, nargs: "2", kind: appendValue, help: "what the option with this label costs; one for each option"},
+						{flags: []string{"--default"}, dest: "default", metavar: []string{"LABEL", "REASON"}, nargs: "2", kind: appendValue, help: "the option taken if the owner does not answer, and why"},
+					},
+				},
+				{
 					name: "dismiss",
 					help: "close an open need as dismissed: a [TEST] need, a replaced review, or one that became moot",
 					store: &storeCommand{
@@ -321,9 +337,23 @@ var tree = &command{
 				{
 					name:        "close",
 					help:        "close a sprint epic once its report is written, every task is closed and each PR review is closed as merged",
-					description: "Close a sprint epic at the committed records. Refuses until the Delivery report is written and every task is closed, and each PR review naming the sprint is closed with pm action done <id> --reason \"merged as <sha>\" once its PR is on main; it does not ask GitHub. With reviews, it stamps 'Merged as <sha> (PR #N).' into the Outcome after the verdict and commits it on the records branch; the close reason names the records commit. Only the Outcome's first paragraph becomes the close reason.",
+					description: "Close a sprint epic at the committed records. Refuses until the Delivery report is written and every task is closed, and each PR review naming the sprint is closed with pm action done <id> --reason \"merged as <sha>\" once its PR is on main; it does not ask GitHub. With reviews, it stamps 'Merged as <sha> (PR #N).' into the Outcome after the verdict and commits it on the records branch; the close reason names the records commit. A PR an agent merged has no review: --merged SHA [--pr URL] gives its merge commit, which must be on the remote's main branch (pm fetches it first), and stamps the same line ('Merged as <sha>.' without --pr); it refuses a sprint that holds a PR review, whose close stamps the merge instead. Only the Outcome's first paragraph becomes the close reason.",
 					args: []arg{
 						{dest: "sprint_id", required: true, kind: value, help: "the sprint's id"},
+						{flags: []string{"--merged"}, dest: "merged", metavar: []string{"SHA"}, kind: value, help: "the merge commit of the sprint's PR, merged with no PR review: a commit on the remote's main branch"},
+						{flags: []string{"--pr"}, dest: "pr", metavar: []string{"URL"}, kind: value, help: "with --merged: the merged pull request, named in the stamp"},
+					},
+				},
+				{
+					name:        "edit",
+					help:        "rename an open sprint; reason with --text",
+					description: "Give an open sprint a new title: its work-store title, which keeps its 'Sprint <n>: ' prefix, and its record's title header, in one records commit that also adds the rename as a source=agent decision to the sprint's Decisions. The work store is written first; when the records step fails, the old title is put back. The reason (--text) states why, on at least two lines. Refuses a closed sprint, an unchanged title, and a title that carries its own 'Sprint <n>: ' prefix. A scope change is still a sprint decision.",
+					groups:      []bool{false},
+					args: []arg{
+						{dest: "sprint_id", required: true, kind: value, help: "the sprint's id"},
+						{flags: []string{"--title"}, dest: "title", required: true, kind: value, help: "the new title, without 'Sprint <n>: '"},
+						{flags: []string{"--text-file"}, dest: "text_file", metavar: []string{"PATH"}, kind: value, group: 1, help: "required: why the title changes, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{flags: []string{"--text"}, dest: "text", kind: value, def: "", group: 1, help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
 				{

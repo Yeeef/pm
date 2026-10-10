@@ -575,6 +575,21 @@ func statusText(it *work.Item) string {
 }
 
 func cmdSprintClose(e *env, p *Parsed) (string, error) {
+	merged, agentMerge := given(p, "merged")
+	pr, prGiven := given(p, "pr")
+	if prGiven && !agentMerge {
+		return "", refuse("--pr names the PR whose merge --merged gives; give --merged SHA with it")
+	}
+	var mergedSHA string
+	if agentMerge {
+		if pr = strip(pr); prGiven && !urlRE.MatchString(pr) {
+			return "", refuse("--pr %s is not a URL; give the pull request's link", pyRepr(pr))
+		}
+		var err error
+		if mergedSHA, err = onMain(e, strip(merged)); err != nil { // before the records lock: it fetches
+			return "", err
+		}
+	}
 	r, err := e.load(false)
 	if err != nil {
 		return "", err
@@ -634,6 +649,11 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		if rv.Resolution == work.Dismissed { // a replaced PR's review, or a [TEST] one: it delivers nothing
 			continue
 		}
+		if agentMerge {
+			return "", refuse("sprint %s holds PR review %s (%s), whose close stamps the merge; close it with pm action "+
+				"done %s --reason \"merged as <sha>\" if it is not closed yet, then run pm sprint close %s without --merged",
+				id, rv.ID, rv.Need.Review.PR, rv.ID, id)
+		}
 		m := mergedAs.FindStringSubmatch(rv.CloseReason)
 		if m == nil {
 			why := "no reason"
@@ -650,6 +670,16 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		}
 		merges = append(merges, merge{m[1][:7], pr})
 	}
+	if agentMerge {
+		label := ""
+		if prGiven {
+			label = pr
+			if strings.Contains(pr, "/pull/") {
+				label = site.PRLabel(pr)
+			}
+		}
+		merges = append(merges, merge{mergedSHA[:7], label})
+	}
 	b, err := os.ReadFile(rec.Path)
 	if err != nil {
 		return "", err
@@ -658,6 +688,9 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	stamps, shas := make([]string, len(merges)), make([]string, len(merges))
 	for i, m := range merges {
 		stamps[i] = fmt.Sprintf("Merged as %s (%s).", m.sha, m.pr)
+		if m.pr == "" {
+			stamps[i] = fmt.Sprintf("Merged as %s.", m.sha)
+		}
 		shas[i] = m.sha
 	}
 	stamp := strings.Join(stamps, " ")
@@ -702,6 +735,37 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		out += "; stamped the Outcome: " + stamp
 	}
 	return out, nil
+}
+
+// shaRE is a commit's hex sha, as --merged takes it.
+var shaRE = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+
+// onMain is the full sha of the commit sha names, refused unless it is on the remote's main branch, fetched first.
+func onMain(e *env, sha string) (string, error) {
+	if !shaRE.MatchString(sha) {
+		return "", refuse("--merged %s is not a commit sha: 7 to 40 hex digits", pyRepr(sha))
+	}
+	cfg, err := config.Load(e.here)
+	if err != nil {
+		return "", err
+	}
+	root, err := store.CodeRoot(e.here, e.records)
+	if err != nil {
+		return "", err
+	}
+	main := cfg.Remote + "/" + cfg.MainBranch
+	if _, err := store.Git(root, "fetch", "--quiet", cfg.Remote, fmt.Sprintf("refs/heads/%s:refs/remotes/%s",
+		cfg.MainBranch, main)); err != nil {
+		return "", refuse("--merged %s: pm cannot see %s, so it cannot check the commit is on it: %v", sha, main, err)
+	}
+	full, err := store.Git(root, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
+	if err != nil {
+		return "", refuse("--merged %s is no commit of this repo, %s included", sha, main)
+	}
+	if _, err := store.Git(root, "merge-base", "--is-ancestor", full, "refs/remotes/"+main); err != nil {
+		return "", refuse("--merged %s is not on %s; give the merge commit once the PR is on main", sha, main)
+	}
+	return full, nil
 }
 
 func containsItem(list []*work.Item, it *work.Item) bool {
@@ -1340,6 +1404,80 @@ func (r *repo) moveWrites(rec *records.Record, id string, mv work.SprintMove, da
 	}
 	return []store.Write{{Path: path, Text: rec.Text}, {Path: rec.Path, Remove: true},
 		{Path: from.Path, Text: fromText}, {Path: to.Path, Text: toText}}, nil
+}
+
+// sprintPrefix is the "Sprint <n>: " a sprint's work-store title starts with, which its record's title has not.
+var sprintPrefix = regexp.MustCompile(`^Sprint [0-9]+: `)
+
+// cmdSprintEdit renames an open sprint, as pm task move moves a task: the work store first (its title, the
+// "Sprint <n>: " prefix kept, which the work-store merge keeps at the sprint's number), then one records commit with the
+// record's title header and the rename as a sprint decision; a failed records step puts the old title back.
+func cmdSprintEdit(e *env, p *Parsed) (string, error) {
+	title, reason := strip(p.Get("title")), p.Get("text")
+	if title == "" {
+		return "", refuse("--title is empty")
+	}
+	if sprintPrefix.MatchString(title) {
+		return "", refuse("--title %s carries a 'Sprint <n>: ' prefix; give the title alone, and pm keeps the sprint's "+
+			"number in front of it", pyRepr(title))
+	}
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	id := p.Get("sprint_id")
+	sp := r.item(id)
+	if sp == nil || sp.Type != work.Sprint {
+		return "", refuse("%s is not a sprint in the work store", id)
+	}
+	if sp.Status == work.Closed {
+		return "", refuse("sprint %s is closed; only an open sprint is renamed", id)
+	}
+	rec, err := r.sprint(id)
+	if err != nil {
+		return "", err
+	}
+	old := rec.Title()
+	if title == old {
+		return "", refuse("sprint %s is titled %s already", id, pyRepr(title))
+	}
+	if err := decisionBody(reason); err != nil {
+		return "", err
+	}
+	full := title
+	if sprintPrefix.MatchString(sp.Title) {
+		full = fmt.Sprintf("Sprint %d: %s", sp.Number, title)
+	}
+	text, err := records.WithTitle(rec.Text, r.rel(rec.Path), title)
+	if err != nil {
+		return "", err
+	}
+	if text, err = records.InsertEntry(text, "Decisions", decisionBlock("agent",
+		fmt.Sprintf("Renamed the sprint from \"%s\" to \"%s\": %s", old, title, reason))); err != nil {
+		return "", err
+	}
+	renamed := *sp
+	renamed.Title = full
+	w := []store.Write{{Path: rec.Path, Text: text}}
+	if err := r.checkPlanned(w, r.with(renamed)); err != nil {
+		return "", err
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	if err := ws.Edit(id, &full, nil); err != nil {
+		return "", err
+	}
+	out, err := r.apply(w, fmt.Sprintf("renamed sprint %s to %s and added a sprint decision to %s", id, pyRepr(full),
+		r.rel(rec.Path)), "", "pm: ")
+	if err != nil {
+		if uerr := ws.Edit(id, &sp.Title, nil); uerr != nil {
+			return "", fmt.Errorf("%w; putting back the title %s failed too: %v", err, pyRepr(sp.Title), uerr)
+		}
+		return "", fmt.Errorf("%w; the work-store step is undone: %s is titled %s again", err, id, pyRepr(sp.Title))
+	}
+	return out, nil
 }
 
 // ---------------------------------------------------------------- pm commit

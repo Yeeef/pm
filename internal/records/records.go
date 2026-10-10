@@ -250,6 +250,26 @@ func header(text string) (string, int, bool) {
 	return text[4 : 4+i], 4 + i + 5, true
 }
 
+// WithTitle is a record's text with its header's one-line title: set to title, the rest of the text as it is.
+func WithTitle(text, rel, title string) (string, error) {
+	head, end, ok := header(text)
+	if !ok {
+		return "", errorf("%s: missing YAML header", rel)
+	}
+	lines := strings.Split(head, "\n")
+	at := -1
+	for i, l := range lines {
+		if strings.HasPrefix(l, "title:") {
+			at = i
+		}
+	}
+	if at < 0 || at+1 < len(lines) && strings.HasPrefix(lines[at+1], " ") {
+		return "", errorf("%s: the header has no one-line title: to set", rel)
+	}
+	lines[at] = "title: " + YAMLStr(title)
+	return "---\n" + strings.Join(lines, "\n") + "\n---\n" + text[end:], nil
+}
+
 // Parse parses one record file and checks its header and blocks.
 func Parse(path, rel, text string) (*Record, error) {
 	head, end, ok := header(text)
