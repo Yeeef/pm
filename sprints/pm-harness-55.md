@@ -77,10 +77,14 @@ This sprint's open work continues in pm-quality sprint 6.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the sprint's open work moved to pm-quality sprint 6 on 2026-10-10, where it continues.
+
+- Nothing shipped here; its one task moved to [pm-quality sprint 6](../sprints/pm-quality-6.md).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `pm clean` lists each worktree with keep or remove and a reason; `--apply` removes exactly the remove set: moved: continues in pm-quality sprint 6.
+- Harness tests cover each case, and `make test` passes: moved: continues in pm-quality sprint 6.
+- A run on this clone removes the merged leftovers and keeps the unpushed one: moved: continues in pm-quality sprint 6.
