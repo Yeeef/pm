@@ -435,6 +435,14 @@ var tree = &command{
 			},
 		},
 		{
+			name:        "clean",
+			help:        "list each worktree with keep or remove and the reason; --apply removes the agent worktrees (.claude/worktrees/) that no live session owns and whose work is saved",
+			description: "List every worktree of this clone with keep or remove and the reason; a dry run unless --apply. Only an agent worktree, under <main checkout>/.claude/worktrees/, is ever removed; never the main checkout, the records store (.pm/store/records) or the worktree pm clean runs in. Owned, so kept: a worktree Claude Code locked for a live process (`claude <kind> <name> (pid N start T)` in .git/worktrees/<name>/locked; the lock is stale when pid N is gone or, on Linux, started at another time than T; on macOS a live pid owns it), a worktree someone else locked, and one a live session used: an entry of a Claude Code transcript (<config dir>/projects/) written in the last 30 minutes whose directory is in the worktree or whose tool call names the worktree's path (a subagent runs in its parent's directory). Removed, when clean (no change, no untracked file): one whose commits are on <remote>/<main branch> (its branch deleted too), one whose branch a merged PR took at its tip (a squash merge, asked of gh; kept when gh is missing or fails; its branch deleted too), and one whose branch has nothing beyond where it was pushed: its upstream, unless that is the main branch, else <remote>/<branch> (its branch kept, as it is not merged). Everything else is kept: uncommitted changes, commits never pushed. The branches compare with <remote>/<main branch> as last fetched: run git fetch first. --apply takes a stale lock off, runs git worktree remove (never --force, so git refuses a worktree that changed meanwhile), deletes a merged branch, then git worktree prune. Exits 1 when a removal failed, naming why on its line.",
+			args: []arg{
+				{flags: []string{"--apply"}, dest: "apply", kind: flagTrue, help: "remove the worktrees the dry run lists as remove; without it pm clean changes nothing"},
+			},
+		},
+		{
 			name:   "prime",
 			help:   fmt.Sprintf("pm's rules, then pm init, pm where and pm show: the context a session starts with; the SessionStart hooks run --rules 1 to --rules %d and --state, and an agent may run it by hand", len(hooks.Starts)),
 			groups: []bool{false},

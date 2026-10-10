@@ -15,7 +15,7 @@ pm is one Go module (`go.mod`); the pytest suite in `tests/` is its black-box ha
 | `prime.md` | The rules `pm prime` prints, naming the work store and pm's commands for it |
 | `prompts/` | The model prompts and hook texts: the owner-request judge's system prompt and block reasons, `pm day summarize`'s prompt |
 | `style.css` | The one stylesheet every page of the site gets |
-| `internal/cli` | Every command: `commands.go` holds the command tree and every help text, `cli.go` the parser and `main`, `agentcmds.go` the agent commands (bodies in `writes.go`, `needs.go`, `day.go`, `show*.go`, `where.go`; shared context and checks in `agent.go`), `install.go` `pm init`, `doctor`, `upgrade`, `uninstall` and the git hooks, `serve.go` `pm service run`, `push.go` `pm push`, `ownerrequest.go` the owner-request hook's work-store read. The commands outside the command tree (`pm version`, `pm export [--store DIR]`, `pm init --import-bd FILE`, and in `store_commands.go` `task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`, and the forms `show ID` and `task add --parent TASK`) are dispatched by `goOnly` in `work.go` |
+| `internal/cli` | Every command: `commands.go` holds the command tree and every help text, `cli.go` the parser and `main`, `agentcmds.go` the agent commands (bodies in `writes.go`, `needs.go`, `day.go`, `show*.go`, `where.go`; shared context and checks in `agent.go`), `install.go` `pm init`, `doctor`, `upgrade`, `uninstall` and the git hooks, `serve.go` `pm service run`, `clean.go` `pm clean`, `push.go` `pm push`, `ownerrequest.go` the owner-request hook's work-store read. The commands outside the command tree (`pm version`, `pm export [--store DIR]`, `pm init --import-bd FILE`, and in `store_commands.go` `task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`, and the forms `show ID` and `task add --parent TASK`) are dispatched by `goOnly` in `work.go` |
 | `internal/hooks` | `pm prime` (SessionStart and SubagentStart context), `pm hook stop` (uncommitted records) and `pm hook owner-request` (the Haiku judge and its `claude -p` arguments) |
 | `internal/work` | The work store on embedded Dolt: schema, invariant checks, ids, ready and blocked, the bd import, `pm export` and its import (`pm init --import`), sync through the git remote under `refs/pm/work` with the merge rules in `merge.go` and the child-id compare-and-swap on the scratch branch `pm-cas` in `sync.go`. `host.go` is the host, which only `pm service run` starts: the Dolt engine held open and served on `<main>/.pm/run/work.sock` with `pm_version()`, `pm_sync()`, `pm_create(?)` and `pm_setup()`; `dolt.go` the client every command and the service's own loops use, `work.Dial`, with the version handshake, and every write under the store's fair write lock, `lock.go`, which the host serves as `pm_lock()` and `pm_unlock()`. `sync_test.go` runs two hosted clones on a local bare repo, `access_test.go` holds the one access path (only `host.go` loads an engine, only `pm service run` starts a host), `bench_test.go` the store benchmarks, which run with `PM_BENCH_STORE=<a copy of a clone's .pm/store/work>`; `worktest` holds `Serve` (a host and a client on a short temp clone, for a Go test that needs a store) and a read-only fake store |
 | `internal/records`, `internal/store` | Record parsing and checks; the records store (the `records` worktree, its lock, design dates) |
@@ -89,6 +89,8 @@ What the tests are:
   repo against a fake judge. `test_owner_request_prompt_live.py`: the judge's accuracy, with the real model.
   `test_release.py`: `install.sh` against a local server, and (in `pm-go.yml`, `PM_RELEASE_BUILD=1`, as it builds
   twice) the release build in a scratch clone, tagged then untagged.
+  `test_clean.py`: `pm clean` on agent worktrees beside a bare origin: dirty, unpushed, merged, squash-merged,
+  pushed, locked by a live or a dead process, used by a live session, and the main checkout, store and caller kept.
 - Fixtures (`conftest.py`): `repo` is a temp main checkout with its store at `.pm/store/records` on branch
   `records` and the `records/` link, as `pm init` leaves a clone; it also starts `pm service run` for the clone
   (`Repo.start_service`, on a free port), which every work-store read and write goes through, and stops it at
@@ -102,8 +104,8 @@ What the tests are:
   the user's files; an autouse check fails a test that changes the user's Codex config or pm service units.
   `test_pm.py` adds `served` (a `pm service run` on a free port), `origin` (a cut-over origin, for `pm init` in a
   second clone) and `pushed` (a bare origin plus a second clone, for `pm push`).
-- Fakes: `fake_gh.py` answers `gh pr view` from `$FAKE_GH_STATE`. `fake_claude.py` stands in for `claude -p` and logs
-  each call. `fake_sched.py` stands in for `launchctl`, `systemctl` and `crontab`.
+- Fakes: `fake_gh.py` answers `gh pr view` and `gh pr list --head` from `$FAKE_GH_STATE`. `fake_claude.py` stands
+  in for `claude -p` and logs each call. `fake_sched.py` stands in for `launchctl`, `systemctl` and `crontab`.
 
 ## Releasing pm
 
