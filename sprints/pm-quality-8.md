@@ -112,4 +112,4 @@ done: `pm task close` drops a task with a reason and no commit, names work in an
 - `--commit Yeeef/pm@<sha>` answered by `fake_gh` puts that commit in the reason; an unknown one is refused with `repo.unchanged()`: met, `test_task_close_resolves_another_repos_commit_or_a_pr_with_gh` (also a merged, an open and a closed PR, and a local branch named like `OWNER/REPO@SHA`).
 - A close of a task another live session holds is refused with `repo.unchanged()`: met, `test_task_close_refuses_a_task_another_live_session_holds`.
 - A project-level task moves into a sprint and that sprint's record gains the decision: met, `test_task_move_takes_a_task_from_directly_under_a_project_into_its_sprint`.
-- `make test` and the PR's CI pass: `make test` 117 passed, 40 skipped; `make test-go` ok; CI on PR #21 at 9a87b36 (rebased on main 7c5df11): light, integration, changelog and build-and-test on linux-amd64 and darwin-arm64 all pass.
+- `make test` and the PR's CI pass: `make test` 117 passed, 40 skipped; `make test-go` ok; CI on PR #21 at 108545a (rebased on main 963fb75): light, integration, changelog and build-and-test on linux-amd64 and darwin-arm64 all pass.
