@@ -1,0 +1,82 @@
+---
+type: sprint
+title: Site diagrams and images read on a phone
+bead: pm-bfli.2
+---
+
+## Goal
+
+> What should be true when this sprint ends, and why now?
+
+A wide Mermaid diagram stays legible at phone width and survives a CDN blip and a theme switch, and a record can show an image file kept next to it.
+
+Today the site loads `mermaid@11` with no exact version and no fallback, lets `useMaxWidth` shrink wide flowcharts to 3-6 px text at 390 px, and sets the theme once at load (`internal/site/site.go:716-720`) (ai-safety 2026-10-07 20:41). The site serves no image files from the store and `style.css` has no img or figure rule, so figures are inlined as base64 (ai-safety 2026-10-07 20:58).
+
+Raised by the pm feedback triage of 2026-10-10 across pm, formal-methods, ai-safety and yeeef-agents.
+
+## Scope
+
+> What's in, and what's explicitly out? Keep this high level; implementation
+> details go in a design page.
+
+**In:**
+- Pin an exact Mermaid version.
+- `flowchart.useMaxWidth=false`, with `pre.mermaid` scrolling sideways.
+- Diagrams re-render when the colour scheme changes.
+- The service serves `.svg`, `.png`, `.jpg` and `.webp` files from the records store with their content types, confined to the store.
+- `pm commit` and `pm check` accept such files.
+- An `img`, `figure` and `figcaption` rule in `style.css`.
+- Golden pages updated.
+
+**Out:**
+- Serving Mermaid from the binary, unless the pin alone does not answer the blip. Record that as a decision.
+- Image processing.
+
+## Done when
+
+> What evidence will show the goal is met?
+
+- A golden page with a diagram loads the pinned version with `useMaxWidth` off.
+- A serve test gets `200 image/svg+xml` for `records/docs/x.svg` and `404` for a path escaping the store.
+- A live check at a 390 px device-emulated viewport, in light and then dark, shows the wide diagram scrolling and the figure inside the column (screenshots in Findings).
+- `make test`, `make test-go` and the PR's CI pass.
+
+## Design pages
+
+> Where is the detail?
+
+None yet.
+
+## Progress
+
+> Where is the sprint now? Generated from the work store when the page is rendered.
+> Do not write here.
+
+## Decisions
+
+> What did we choose inside this sprint, and why?
+
+None yet.
+
+## Findings
+
+> What did we learn that changes the design, the plan, or how we work? Add
+> results with their numbers.
+
+None yet.
+
+## Delivery report
+
+> Written at close. Each part holds "Not closed yet." until then.
+
+### Outcome
+
+> Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
+
+Not closed yet.
+
+### Against "Done when"
+
+> Each item, met or not, with its evidence (a page, a command, a number).
+
+Not closed yet.
