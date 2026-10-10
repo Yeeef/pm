@@ -125,6 +125,13 @@ A refreshed cache would otherwise let cached test results stand in for test runs
   build-vet-test (darwin-arm64) 2m34s, all 9 checks green. First of the two
   PRs Done when asks for.
 
+- PR #21 on main a274b65 (touches internal/cli and internal/site, not release/
+  or go.sum): slowest check build-vet-test linux 6m2s and darwin 6m1s, work
+  darwin 5m3s; over the 5-minute goal, while PR #26 (hooks only) was 3m20s. So
+  the build cache does not keep build-vet-test under 5 minutes for a PR that
+  changes a widely imported package; measure which step dominates before
+  calling the goal met.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
