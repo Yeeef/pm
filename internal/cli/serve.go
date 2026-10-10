@@ -182,7 +182,13 @@ func newServedSite(records, name string) (*servedSite, error) {
 // Stamp is a digest of every record file and day summary (path and bytes), the store's HEAD files and today's date.
 func (s *servedSite) Stamp() (string, error) {
 	h := sha256.New()
+	// A file or directory the walk listed can be gone when it is read: git rewrites a record by unlinking it, so a records
+	// sync that rebases opens that window on every file it changes. One that went is not in the stamp; the next look sees
+	// the files that replaced it.
 	err := filepath.WalkDir(s.records, func(p string, d fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && p != s.records {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -193,6 +199,9 @@ func (s *servedSite) Stamp() (string, error) {
 			return nil
 		}
 		data, err := os.ReadFile(p)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}

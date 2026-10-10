@@ -26,6 +26,9 @@ only.
 
 - `pm init --help` now says what `--session-start` does with the service: it starts an installed service that does
   not answer, as session start has done since 0.3.0, so a session in a clone always brings its service up.
+- The site no longer shows "error: open …: no such file or directory" in place of every page when a records sync
+  rewrites record files while the service reads them: a record file, directory or day summary that is gone by the
+  time it is read is left out, and the next look reads the files that replaced it.
 
 ## [0.4.0] - 2026-10-10
 
