@@ -583,6 +583,12 @@ The Go cut-over soak is over: delete Python pm from yeeef-agents (pm/) and from 
 Owner, 2026-10-10: ready to decommission the Python code for pm; Go pm has run this repo since 2026-10-09.
 :::
 
+::: decision {source=owner date=2026-10-10}
+pm.yeeefs.com serves the Yeeef/pm pm site (localhost:8001); agents.yeeefs.com serves the yeeef-agents pm site (localhost:8000)
+pm-harness, the project the owner follows most, now lives in Yeeef/pm; the owner set the Cloudflare routes on 2026-10-10
+Answers `yeeef-agents-9va.116.9`.
+:::
+
 ## Design pages
 
 > Where is the detail?
