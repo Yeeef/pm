@@ -51,7 +51,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+Also remove the launcher path that ran Python pins: a pin below 0.2.0 fails hard naming pm upgrade --to <X>; this ships as a breaking change in the changelog, not as a no-release change.
+Every known repo pins 0.3.0 (all local .pm/config.toml checked), so the uv path only kept Python pm alive; end-to-end decommission asked for by the owner.
+:::
 
 ## Findings
 
