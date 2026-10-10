@@ -98,7 +98,7 @@ A reply that lands between the CLI check and the write would otherwise let the b
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: the four write-path gaps are closed in PR #33, pending merge: a sprint can be renamed, an open need's body edited, an agent's merge stamped at close, and a store-relative path committed.
+done: the four write-path gaps are closed in PR #33, merged as b61f12d: a sprint can be renamed, an open need's body edited, an agent's merge stamped at close, and a store-relative path committed.
 
 - `pm sprint edit ID --title "…"`: work-store title (its `Sprint <n>: ` kept), record `title:` header and a sprint decision with the reason, in one records commit; the old title is put back if the records step fails.
 - `pm need edit ID`: an action's description, or a decision need's parts with `pm decision need`'s flags and checks; refused once the need holds a reply or is closed, and for a PR review. The work store's `Edit` refuses the same inside its write transaction.
