@@ -322,7 +322,7 @@ func TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt(t *testing.T) {
 	recs := store(s.main)
 	svg := `<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>`
 	files := map[string]string{"docs/x.svg": svg, "docs/fig.png": "\x89PNG\r\n", "docs/a.jpg": "jpg", "docs/b.webp": "webp",
-		"docs/notes.txt": "text", ".git/x.svg": svg}
+		"docs/notes.txt": "text", ".git/x.svg": svg, ".hidden.svg": svg}
 	for rel, body := range files {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(recs, rel)), 0o755); err != nil {
 			t.Fatal(err)
@@ -335,7 +335,8 @@ func TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt(t *testing.T) {
 	if err := os.WriteFile(secret, []byte(svg), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for link, target := range map[string]string{"docs/out.svg": "../../secret.svg", "docs/abs.svg": secret, "docs/in.svg": "x.svg"} {
+	for link, target := range map[string]string{"docs/out.svg": "../../secret.svg", "docs/abs.svg": secret, "docs/in.svg": "x.svg",
+		"docs/leak.svg": "../.hidden.svg", "docs/git.svg": "../.git/x.svg"} {
 		if err := os.Symlink(target, filepath.Join(recs, link)); err != nil {
 			t.Fatal(err)
 		}
@@ -353,7 +354,7 @@ func TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt(t *testing.T) {
 	}
 	for _, path := range []string{"/docs/missing.svg", "/../secret.svg", "/docs/../../secret.svg",
 		"/docs/%2e%2e/%2e%2e/secret.svg", "/%2e%2e/secret.svg", "//" + strings.TrimPrefix(secret, "/"), "/docs/out.svg",
-		"/docs/abs.svg", "/.git/x.svg", "/docs/./x.svg", "/docs"} {
+		"/docs/abs.svg", "/.git/x.svg", "/docs/./x.svg", "/docs", "/docs/leak.svg", "/docs/git.svg"} {
 		if code, _ := s.raw(path); code != 404 {
 			t.Errorf("GET %s: %d, want 404", path, code)
 		}

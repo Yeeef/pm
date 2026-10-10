@@ -205,7 +205,8 @@ labelled case for each case it moves.
   service serves the site on the port in `.pm/config.toml` (`PORT=` overrides it).
 - One stylesheet, `style.css`, for every page; a look it cannot express is added there, never to a record.
 - The service also serves the records store's image files (`ImageTypes` in `internal/service/run.go`) at their store
-  path, confined to the store: dot-led and empty path parts are refused, and `os.Root` refuses `..` and symlinks out.
+  path, confined to the store: dot-led and empty path parts are refused, in the path asked for and in the file it
+  resolves to, and `os.Root` refuses `..` and symlinks out.
   The pages load Mermaid at one exact version (`MermaidVersion` in `internal/site/site.go`), which
   `TestMermaidLoadsOneExactVersionAtNaturalWidth` holds.
 - A record that does not validate shows as the error instead of its page: fix the record, not the renderer. A

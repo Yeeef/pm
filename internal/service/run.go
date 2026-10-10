@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	gosync "sync"
@@ -544,17 +545,38 @@ func (s *server) image(w http.ResponseWriter, rel, ctype string) {
 }
 
 func readInStore(store, rel string) ([]byte, error) {
-	for _, part := range strings.Split(rel, "/") {
-		if part == "" || strings.HasPrefix(part, ".") || strings.Contains(part, "\\") {
-			return nil, fmt.Errorf("%q is not a path in the records store", rel)
-		}
+	if !storePath(rel) {
+		return nil, fmt.Errorf("%q is not a path in the records store", rel)
 	}
-	root, err := os.OpenRoot(store)
+	// A symlink in the store may lead to a dot file in it: the file it resolves to must pass the same check.
+	top, err := filepath.EvalSymlinks(store)
+	if err != nil {
+		return nil, err
+	}
+	real, err := filepath.EvalSymlinks(filepath.Join(top, filepath.FromSlash(rel)))
+	if err != nil {
+		return nil, err
+	}
+	resolved, err := filepath.Rel(top, real)
+	if err != nil || !storePath(filepath.ToSlash(resolved)) {
+		return nil, fmt.Errorf("%q resolves to %s, not a path in the records store", rel, real)
+	}
+	root, err := os.OpenRoot(top)
 	if err != nil {
 		return nil, err
 	}
 	defer root.Close()
-	return root.ReadFile(rel)
+	return root.ReadFile(resolved)
+}
+
+// storePath is whether rel names a file the service may serve: no empty, dot-led (.., .git) or backslashed part.
+func storePath(rel string) bool {
+	for _, part := range strings.Split(rel, "/") {
+		if part == "" || strings.HasPrefix(part, ".") || strings.Contains(part, "\\") {
+			return false
+		}
+	}
+	return true
 }
 
 var replyID = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
