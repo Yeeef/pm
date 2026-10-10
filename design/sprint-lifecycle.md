@@ -90,7 +90,8 @@ decision, not a renamed task or rewritten description.
 session holds. Code goes on a branch off main. Findings go in with
 `pm finding add`, decisions with `pm decision add`. Owner input is raised as
 a need (`pm decision need` or `pm action need`), and work continues on other
-ready tasks meanwhile. `pm task close` stamps the commit in its reason.
+ready tasks meanwhile. `pm task close` stamps the commit in its reason; a task
+that will not be done closes with `pm task close --dropped` and its reason.
 
 ### Report
 

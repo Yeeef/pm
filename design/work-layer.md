@@ -78,7 +78,7 @@ Ids are placeholders. Real ids take the repo name as prefix (`yeeef-agents-9va`,
 | Action | Tool | Why |
 |---|---|---|
 | Find work, claim it, link dependencies | `bd` directly | Beads already does this well. Use `bd ready --exclude-type=epic`: plain `bd ready` lists epics too |
-| Create, close or move a task | `pm task add`, `pm task close`, `pm task move` | Keeps every task in an open sprint, names the commit on close, and records a move as a sprint decision |
+| Create, close or move a task | `pm task add`, `pm task close`, `pm task move` | Keeps every task in an open sprint, names the commit on close (this repo's, `OWNER/REPO@SHA` or a PR URL, the last two resolved with `gh`) or closes it as dropped (`--dropped`: not done, a reason, no commit), refuses to close a task another live session holds, and records a move as a sprint decision (a task from directly under a project: in the project's sprint it joins) |
 | Open or close a sprint; add a finding, decision, doc or design page | `pm` | Changes Beads and the record together and enforces the gates |
 | Raise, answer or close a need | `pm decision need`, `pm decision add --need`, `pm decision close`; `pm action need` (with `--pr` for a PR review), `pm action done` | Creates the owner task in the agreed shape; an answer that sets a rule becomes a decision, a small one is marked `no-decision`; an action closes with what showed it done |
 | Read state at session start | `pm show` | Combines Beads status with record context in one summary |

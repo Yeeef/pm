@@ -128,7 +128,7 @@ An item has a fixed set of typed fields, stored as the columns and tables under 
 | `title` | string | create, `pm task edit` | |
 | `description` | Markdown | create, `pm task edit` | bd `notes` merge into it at migration |
 | `status` | `open` \| `closed` | create, close | "in progress" is derived: an open item with a holder |
-| `resolution` | `done` \| `answered` \| `no-decision` \| `dismissed`, or null while open | close | replaces matching on the close reason text `Responded` / `Dismissed` and the `no-decision` label |
+| `resolution` | `done` \| `answered` \| `no-decision` \| `dismissed`, or null while open | close | replaces matching on the close reason text `Responded` / `Dismissed` and the `no-decision` label. On a task, `dismissed` is a dropped task (`pm task close --dropped`: not done), shown as dropped; no separate resolution, so no clone's store check must change |
 | `close_reason` | string | close | free text; a review keeps `merged as <sha>` |
 | `number` | int, only on `type=sprint` | minted at create, and again by `pm sprint move` | the sprint's number in its record name (`pm-harness-77`); see Ids |
 | `parent` | id or null | create, `pm task move`, `pm sprint move` | the id does not follow a move: 11 sample items have a parent that is not their id's prefix |
@@ -168,7 +168,7 @@ An item has a fixed set of typed fields, stored as the columns and tables under 
 | `task` | a sprint, a task (sub-task), or a project | `yeeef-agents-9va.77.2`, `…77.2.1`, `9va.26` | task (221), bug (5) |
 | `need` | any item | `yeeef-agents-9va.41.2` | task labelled `human` (154; 79 also `action`; 59 with a review) |
 
-- A task directly under a project is allowed: work that no sprint has taken up yet (4 open in the sample). It orders after every sprint's tasks in `pm task ready`. `pm task move` puts it into a sprint.
+- A task directly under a project is allowed: work that no sprint has taken up yet (4 open in the sample). It orders after every sprint's tasks in `pm task ready`. `pm task move` puts it into one of the project's open sprints, with the decision in that sprint.
 - Only a project has no parent. A task or need with no parent fails a write, and fails the import unless it is closed (see Migration).
 
 Statuses: `open` and `closed` only. bd's `in_progress`, `blocked`, `deferred` and `hooked` go: in progress is "open with a holder", blocked is computed, and pm defers nothing.
