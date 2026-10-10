@@ -42,7 +42,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+`pm clean` is built in Go pm in Yeeef/pm (internal/cli), not in the Python harness.
+pm-harness moved to Yeeef/pm on 2026-10-10, and Go pm is its only implementation; the Python pm is being retired.
+:::
 
 ## Findings
 
