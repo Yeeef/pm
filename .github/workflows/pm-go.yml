@@ -6,7 +6,9 @@
 # The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
 # and go.sum, and a pull request restores main's latest, so a PR compiles only what it changed. A run that finds none
 # for its go.sum (a dependency change, a new Go version, an evicted cache) restores the latest of its kind and saves its
-# own, so the PR's next push is warm. GOFLAGS=-count=1: the restored cache never stands in for a test run.
+# own, so the PR's next push is warm. A run whose tests fail saves too: what it compiled is as good as a passing run's,
+# and a failed push to main would otherwise leave every PR cold until the next green one. GOFLAGS=-count=1: the
+# restored cache never stands in for a test run.
 name: pm go
 
 on:
@@ -76,6 +78,7 @@ jobs:
             ${{ steps.paths.outputs.kind }}${{ steps.paths.outputs.sum }}
             ${{ steps.paths.outputs.kind }}
       - name: ${{ matrix.suite }}
+        id: suite
         run: ${{ matrix.run }}
       - name: Record the binary
         if: matrix.suite == 'build-vet-test'
@@ -85,7 +88,7 @@ jobs:
           echo "Go pm ${{ matrix.target }}: $size bytes, stripped (-s -w), cgo" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Save the Go cache
         if: >-
-          matrix.save && (github.ref == 'refs/heads/main' ||
+          !cancelled() && steps.suite.outcome != 'skipped' && matrix.save && (github.ref == 'refs/heads/main' ||
           !startsWith(steps.restore.outputs.cache-matched-key, format('{0}{1}', steps.paths.outputs.kind, steps.paths.outputs.sum)))
         uses: actions/cache/save@v4
         with:
