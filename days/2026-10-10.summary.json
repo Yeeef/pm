@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T03:39:35+00:00",
- "digest": "04e5163099c183c0",
+ "generated_at": "2026-10-10T03:56:12+00:00",
+ "digest": "4b29a4fc09519804",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm cut-over:** The Linux server's clone now runs the installed Go pm and syncs with GitHub. This repo uses only Go pm; Python pm and Beads are removed.\n- **Owner-request rules:** Requests now follow one rule across the rules, the judge and the reprompt. The agent does the work itself first, and a request with no sprint or task gets one opened first.\n- **Release notes:** Each pm release now publishes its changelog section as its note, with an upgrade guide. CI refuses a pull request or release tag without a changelog section.\n- **Harness move rehearsal:** A scratch rehearsal of the move to Yeeef/pm passed offline. Work to remove Python pm from Yeeef/pm has started."
+ "text": "- **Go pm cut-over:** This repo removed Beads and now runs Go pm, with every imported item matching its source. The Linux server's clone runs Go pm too, and it syncs with GitHub again.\n- **Owner-request hook rules:** The owner-request hook now uses one rule in all its prompts. The rule says: do it yourself first, open needed work, prefer structured questions, and never ask permission for authorized steps.\n- **Release note enforcement:** Every pm release note now comes from its changelog section, with an upgrade guide. CI refuses a pull request or release tag that lacks a changelog entry.\n- **For you:** Review the open release pull request."
 }
