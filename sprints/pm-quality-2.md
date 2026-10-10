@@ -63,6 +63,14 @@ None yet.
   main. internal/service/gc.go dirSize walks the work store (not records) with
   the same pattern; left as is, outside this sprint's scope.
 
+- Fresh-context review (merge): the root stays fatal; race test 16/16 with the
+  fix and 8/8 failing without. Two low findings left for a follow-up:
+  records.Texts now skips a vanished file, so Load no longer falls back to its
+  retry under the records lock; an identical-bytes save by rename landing
+  between Load's Stamp and Read leaves that record off the pages until the
+  stamp moves. And a dangling .md symlink in the store is no longer an error
+  for pm check or pm commit.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
