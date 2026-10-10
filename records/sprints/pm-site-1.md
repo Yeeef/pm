@@ -1,7 +1,7 @@
 ---
 type: sprint
 title: Show a main checkout that is behind on the site
-bead: yeeef-agents-9va.101
+bead: pm-bfli.1
 ---
 
 ## Goal
@@ -37,7 +37,7 @@ None yet.
 
 ## Progress
 
-> Where is the sprint now? Generated from Beads when the page is rendered.
+> Where is the sprint now? Generated from the work store when the page is rendered.
 > Do not write here.
 
 ## Decisions
@@ -46,12 +46,7 @@ None yet.
 
 ::: decision {source=agent date=2026-10-10}
 The behind flag is built in Go pm in Yeeef/pm: beside the push flags of internal/sync/push.go, in pm show, pm service status and the site.
-pm-harness moved to Yeeef/pm on 2026-10-10 and Go pm is its only implementation; pm where already prints ahead and behind, for the records store only.
-:::
-
-::: decision {source=agent date=2026-10-10}
-Moved yeeef-agents-9va.101.1 to pm-bfli.1: Sprint 92 is about the site, the owner's interface, and moves to pm-site, the new home of site sprints (owner request, 2026-10-10).
-Its frame and decision move with it to pm-site sprint 1; sprint 92 closes as voided.
+Carried from pm-harness sprint 92 (2026-10-10): pm-harness moved to Yeeef/pm and Go pm is its only implementation; pm where already prints ahead and behind, for the records store only.
 :::
 
 ## Findings
@@ -69,10 +64,10 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-voided: moved, unstarted, to [pm-site sprint 1](https://pm.yeeefs.com/sprints/pm-site-1.html), the new home of site sprints.
+Not closed yet.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not met here: the work, its task and its decision moved to pm-site sprint 1.
+Not closed yet.
