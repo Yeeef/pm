@@ -4,9 +4,9 @@ go 1.26.2
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/dolthub/dolt/go v0.40.5-0.20260715172757-a6690826d767
+	github.com/dolthub/dolt/go v0.40.5-0.20260717204848-b130ee82ebe9
 	github.com/dolthub/driver/v2 v2.2.0
-	github.com/dolthub/go-mysql-server v0.20.1-0.20260713210757-6d01d00bbbf3
+	github.com/dolthub/go-mysql-server v0.20.1-0.20260717195005-e77c2d65f1a5
 	github.com/dolthub/vitess v0.0.0-20260624214226-81d034e0fde8
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/sirupsen/logrus v1.9.3
@@ -14,6 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.9
 	github.com/yuin/goldmark v1.8.5
 	go.yaml.in/yaml/v3 v3.0.5
+	golang.org/x/mod v0.38.0
 	golang.org/x/term v0.45.0
 )
 
@@ -69,7 +70,7 @@ require (
 	github.com/cockroachdb/apd/v3 v3.2.3 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1 // indirect
 	github.com/dolthub/aws-sdk-go-ini-parser v0.0.0-20250305001723-2821c37f6c12 // indirect
-	github.com/dolthub/eventsapi_schema v0.0.0-20260310172945-37a9265ade69 // indirect
+	github.com/dolthub/eventsapi_schema v0.0.0-20260715220557-d9b4a1c6b4d4 // indirect
 	github.com/dolthub/flatbuffers/v23 v23.3.3-dh.2 // indirect
 	github.com/dolthub/fslock v0.0.5 // indirect
 	github.com/dolthub/go-icu-regex v0.0.0-20260610153742-72563bc7ca83 // indirect
@@ -149,7 +150,6 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20240205201215-2c58cdc269a3 // indirect
-	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect

@@ -26,6 +26,9 @@ only.
 
 - `pm init --help` now says what `--session-start` does with the service: it starts an installed service that does
   not answer, as session start has done since 0.3.0, so a session in a clone always brings its service up.
+- The pm service's garbage collection could delete the work store's live journal when a write or a sync raced it,
+  losing the writes since and crashing the service at its next collection ("error dropping journal writer during
+  UpdateGCGen"). pm now builds with a Dolt that holds the fix (dolthub/dolt#11312).
 
 ## [0.4.0] - 2026-10-10
 
