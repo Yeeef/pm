@@ -56,7 +56,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+Mermaid stays on the CDN, pinned to mermaid@11.17.2 with unpkg as a second CDN; it is not served from the binary.
+The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, immutable, so a browser that loaded it once keeps it; with jsdelivr blocked in the live check the diagram drew from unpkg. Serving it would embed some 3 MB of chunked ESM in every pm binary.
+:::
 
 ## Findings
 
