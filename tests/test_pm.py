@@ -196,6 +196,15 @@ def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
                   r"doc's entries into it")
 
 
+def test_feedback_add_refuses_to_overwrite_another_record_at_the_feedback_doc_s_path(repo):
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
+    (repo.records / "docs").mkdir()
+    repo.write("docs/pm-feedback.md", "---\ntype: day\ndate: 2026-10-01\n---\n\nKeep this.\n")
+    repo.commit("a record at the feedback doc's path")
+    refused(repo, "feedback", "add", text="x",
+            match=r"records/docs/pm-feedback.md exists but is no pm feedback doc \(type: doc\); move it")
+
+
 @pytest.mark.integration
 def test_sprint_closes_after_its_pr_merges(repo):
     """The whole loop: a written report, a review under the sprint, a refusal while the review is open, the review

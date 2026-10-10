@@ -29,7 +29,7 @@ Each fact has one home: the work store holds the status, the records hold the wh
 | Decision | none | `::: decision` block in a project or sprint record | A ruling that changes what the team does, with its reason. |
 | Finding | none | bullet in a sprint's Findings | What the work showed, with its numbers. |
 | Design page | none | `records/design/<name>.md` | The reference for one area of a design, in its final state. |
-| Doc | none | `records/docs/<date>-<slug>.md` | A free-form result or explainer, tied to a bead or a project. |
+| Doc | none | `records/docs/<date>-<slug>.md` | A free-form result or explainer, tied to a bead or a project, or the repo's one feedback doc. |
 | Postmortem | none | `records/postmortems/<date>-<slug>.md` | A costly incident: timeline, cost, root cause, what changed, what would have caught it earlier. |
 | Day page | none | generated; nobody writes it | What moved on one date, across all projects. |
 
