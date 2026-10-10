@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T13:09:59+00:00",
- "digest": "734ea94240fa9f7e",
+ "generated_at": "2026-10-10T13:20:24+00:00",
+ "digest": "36db80bc2d479210",
  "model": "claude-haiku-5-5",
- "text": "- **Harness tracking move:** The pm-harness project now lives in the pm repository, with its full history. Its items moved over unchanged.\n- **Go-only pm release:** Python pm is removed from both repositories. A new pm release is published. CI now requires a release note for each pull request and tag.\n- **Linux server sync:** The Linux server reaches GitHub again. Its clone now runs installed pm and syncs through its pm service.\n- **Owner-request rules:** The owner-request hook now uses one four-item rule everywhere. The rule shipped in the pm repository."
+ "text": "- **Go pm only:** Python pm is gone from both repos, and the harness suite tests only Go pm. The Linux server's clone runs Go pm and syncs with GitHub.\n- **Harness tracking move:** Yeeef/pm now tracks pm-harness with its full history. Its import loads an export into an empty store. The yeeef-agents copy is closed.\n- **Release notes:** pm published a new release with a breaking change. Each release note now comes from the changelog, with an upgrade guide. CI refuses a pull request or tag without a changelog section.\n- **Owner-request rules:** The owner-request judge and reminders now state one rule. Agents do the step themselves first. A request with no sprint or task gets one opened first."
 }
