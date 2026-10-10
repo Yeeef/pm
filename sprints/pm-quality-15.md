@@ -50,7 +50,14 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Cause: a real bug, not the test stopping the wrong thing. service.Run closed
+  its done channel and returned as soon as srv.Serve returned, without waiting
+  for the five loops it started (writer, refresher, ticker, syncer, collector)
+  or a reply's time.AfterFunc retry; internal/cli/serve.go then closes the
+  work store's host (defer h.Close()), so a writer mid-job
+  (deliverReply/pushUndelivered -> withStore -> Open) could reach a closing
+  store. The test-side race (cleanup reading w.open without the fake's lock)
+  only surfaced it.
 
 ## Delivery report
 
