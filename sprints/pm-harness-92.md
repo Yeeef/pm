@@ -15,7 +15,12 @@ The site shows when this clone's main checkout is behind the remote main branch,
 > What's in, and what's explicitly out? Keep this high level; implementation
 > details go in a design page.
 
-**In:** a flag beside the push flags (`push.flags` in pm/src/pm/push.py, shown on the site through cli.py's site state, and in `pm service status`) that names how many commits the main checkout is behind `<remote>/<main>` and the `git pull --ff-only` command that fixes it; a main checkout off the main branch is flagged as such.
+**In:** in Go pm (Yeeef/pm), a flag beside the push flags that names how many commits the main checkout is behind `<remote>/<main>`, and the `git pull --ff-only` command that fixes it; a main checkout off the main branch is flagged as such.
+
+- The push flags come from `Flags` in `internal/sync/push.go`; `pm show` (`internal/cli/show.go`) and `pm service status` (`internal/service/lifecycle.go`) print them.
+- The Go site shows no push flags yet, so showing the flags on the site is in scope.
+- `pm where` (`internal/cli/where.go`) prints ahead and behind only for the records store's branch, not for the main checkout.
+
 **Out:** the service pulling main itself (the owner declined that); fetching more often than the service already does.
 
 ## Done when
