@@ -82,6 +82,10 @@ Answers `yeeef-agents-9va.116.2.1`.
   format only, so a small Go change adds pm init --import for pm's own export
   (about +60/-11 in internal/work/export.go and internal/cli/work.go).
 
+- The first linux CI run of PR 6 failed in internal/work with a Dolt fatal
+  during GC (UpdateGCGen); the rerun passed, and 6 local runs passed, so it is
+  a flaky GC test, tracked as pm-d2k5.3.1 in pm-quality.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
