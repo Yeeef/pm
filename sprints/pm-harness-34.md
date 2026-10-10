@@ -46,6 +46,11 @@ Moved yeeef-agents-9va.39.1 to pm-v498.1: The owner moved pm's Codex integration
 This sprint's open work continues in pm-codex sprint 1.
 :::
 
+::: decision {source=agent date=2026-10-10}
+Moved yeeef-agents-9va.39.2 to pm-v498.1: The owner moved pm's Codex integration work to its own project, pm-codex, on 2026-10-10.
+This sprint's open work continues in pm-codex sprint 1.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
