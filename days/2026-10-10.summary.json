@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T13:35:07+00:00",
- "digest": "24e8f45388d8d60f",
+ "generated_at": "2026-10-10T13:45:30+00:00",
+ "digest": "a1eee0da4e0dccdc",
  "model": "claude-haiku-5-5",
- "text": "- **One pm implementation:** Python pm is gone from Yeeef/pm and yeeef-agents. Both clones and the Linux server now run Go pm, and pm-harness lives in Yeeef/pm.\n- **Release notes:** The pm release is published. Each release now needs a structured note, and CI refuses one without it.\n- **Owner-request hook rule:** The hook and its prompts now state one rule. The agent does a task itself first, and opens a sprint or task before it files a need.\n- **For you:** Decide two hook questions. Say whether the hook passes how-to answers, and whether it passes replies that restate open needs."
+ "text": "- **Go pm is the only version:** Yeeef/pm and yeeef-agents no longer contain Python pm. The harness suite checks only Go pm. The Linux server's clone now runs Go pm too.\n- **Harness tracking moved:** pm-harness is now tracked in Yeeef/pm, with its full history. The yeeef-agents copy is closed.\n- **Release and release notes:** pm is released as the higher version, not the patch version, because main has a breaking change. Every release now needs a structured release note. CI refuses a pull request or release tag without one.\n- **Owner-request hook rules:** One rule for owner requests now appears in the guidance, the judge prompt and the reprompt. Sessions run in autopilot. The interactive mode was dropped."
 }
