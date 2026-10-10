@@ -65,14 +65,10 @@ only.
   uncommitted changes or commits never pushed, the main checkout, the records store and the worktree it runs in.
   It removes with `git worktree remove` (never `--force`) and deletes a branch only once it is merged.
 
-### Added
-
 - The site serves image files (`.svg`, `.png`, `.jpg`, `.jpeg`, `.webp`) kept in the records store, next to the
   record's page, so a record shows a figure with `![…](fig.png)` instead of a base64 data URI. Paths that leave the
   store (`..`, a symlink out of it) or name a dot file get 404. `pm check` and `pm commit` take such files beside a
   record, and the stylesheet keeps images, figures and captions inside the column.
-
-### Added
 
 - `pm service stop` stops a clone's pm service and keeps it stopped: it disables the unit at its supervisor
   (systemd or launchd), so neither login nor a crash starts it again, waits until the work store's socket and the site

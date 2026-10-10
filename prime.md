@@ -13,7 +13,7 @@ A project lives in two layers. The work store is the work layer: items, holders,
 | Work tracking: the work store | What exists, who holds it, its status, what blocks what: projects, sprints, tasks, needs. A Dolt database per clone at `<main checkout>/.pm/store/work`, synced through the remote. | Agents, through `pm` |
 | Record layer: Markdown under `records/` | Why and Context: goals, sprint frames, decisions, findings, designs, reports. | Agents, through `pm` and hand edits that `pm commit` commits |
 | `pm` cli | The orchestration: it writes records, runs the actions that touch both layers, and checks each write. | |
-| `pm` service | One background process per clone (`pm service install`, `status`, `restart`, `stop`, `logs`). It holds the work store, which every `pm` command reaches through it; with the service down, `pm` refuses and names `pm service restart`. It serves the site from the records and the work store, delivers the owner's replies to the sessions that asked, and syncs the records and the work store. | |
+| `pm` service | One background process per clone (`pm service --help`). It holds the work store, which every `pm` command reaches through it; with the service down, `pm` refuses and names `pm service restart`. It serves the site from the records and the work store, delivers the owner's replies to the sessions that asked, and syncs the records and the work store. | |
 | Interface | **The owner's interface is the site.** The owner reads status there and answers there. **The agent's interface is `pm` and the records.** | Nobody; it is rendered |
 
 Each fact has one home: the work store holds the status, the records hold the why. Two copies of one fact drift. Every write to either goes through `pm`.
