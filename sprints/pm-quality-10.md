@@ -94,6 +94,14 @@ Answers `pm-d2k5.10.4`.
   failed TestChunksFitTheCapAndAddUpToTheHead, so the next prime.md addition
   before '# How' needs a new heading in hooks.Starts.
 
+- pm hook stop on this coordinator session's real transcript (2026-10-10, 9
+  Agent calls naming records/sprints/pm-quality-N.md): Touched now gives
+  pm-quality-1 to -6 (one named by the session's own Edit, the rest by
+  subagents whose task notification arrived) and leaves out pm-quality-8, -10
+  and -11, named only by subagents still running; the old scan named all nine.
+  A subagent that reported an interim result (it may resume) counts as
+  returned.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
