@@ -132,6 +132,21 @@ A refreshed cache would otherwise let cached test results stand in for test runs
   changes a widely imported package; measure which step dominates before
   calling the goal met.
 
+- Done-when 1 after the merge: PRs #21 (run 38062150013) and #22 (run
+  38061115763) measured build-vet-test about 6:00-6:28 and work on macOS 5:03,
+  and every job logged 'Cache not found'. The first push to main after PR #16
+  (run 38060906610, 4c36803) failed TestChunksFitTheCapAndAddUpToTheHead
+  (Linux and macOS) and TestCreateRacingALocalWriter (macOS -race: 'push to
+  the remote: unknown push error; git command failed (exit -1)'). Its save
+  steps are gated on success, so main had no Go cache until the next green
+  push (run 38062078397, saved 15:08 Linux and 15:13 macOS). A PR that
+  restored main's cache (#26, run 38062477107) took 1:07 Linux and 2:34 macOS
+  on build-vet-test; the macOS 2:34 is setup 0:21, restore 0:38 (888 MB),
+  build 0:33, vet 0:07, tests 0:48 (internal/cli 15.2 s). Its race job took
+  1:29 Linux and 2:31 macOS, its work job 1:54 Linux and 3:20 macOS. So the
+  cold window, not compile or test time, made those PRs slow. PR #27 also
+  saves the cache when the suite fails.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
