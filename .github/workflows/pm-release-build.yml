@@ -66,8 +66,10 @@ jobs:
           path: |
             ${{ steps.paths.outputs.mod }}
             ${{ steps.paths.outputs.build }}
-          key: go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-build-${{ github.sha }}
-          restore-keys: go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-build-
+          key: go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-build-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-build-${{ hashFiles('go.sum') }}-
+            go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-build-
       - uses: astral-sh/setup-uv@v6
       - name: Build pm (make go-build), which the harness's conftest requires
         run: make go-build
