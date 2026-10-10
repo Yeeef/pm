@@ -54,6 +54,11 @@ This sprint is pm-harness sprint 55, moved to pm-quality; its Done when names th
 The owner asked in chat on 2026-10-10 to move it to pm-quality; the .records store and those worktrees no longer exist.
 :::
 
+::: decision {source=agent date=2026-10-10}
+pm clean counts a worktree as used by a live session when a Claude Code transcript entry from the last 30 minutes has its cwd in the worktree or a tool call naming its path; it reads no per-worktree transcript dir, and only agent worktrees under .claude/worktrees/ are ever removed.
+Subagents run in their parent session cwd and hold no worktree lock, so a per-worktree transcript dir misses them (7 live worktrees read as removable on this clone); tool outputs do not count, so listing worktrees uses none; limiting removal to .claude/worktrees/ leaves hand-made worktrees alone.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
