@@ -74,7 +74,12 @@ Answers `pm-d2k5.10.4`.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- --text=Baseline, before any prompt change: the 0.4.0 judge on 49 cases (40
+  existing + 9 new reported ones), make test-live with PM_LIVE_RUNS=3: 43 pass
+  3/3; 6 new cases fail: how-to answer 0/3, fix takes effect once installed
+  0/3, review need held in another clone 0/3, formal-methods restated needs
+  0/3, review-then-merge status 0/3, uncited restatement (block) 1/3. 147 hook
+  runs in 47.9 s, per run median 2.07 s, max 11.13 s.
 
 ## Delivery report
 
