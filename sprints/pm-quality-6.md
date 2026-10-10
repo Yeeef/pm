@@ -59,7 +59,9 @@ The owner asked in chat on 2026-10-10 to move it to pm-quality; the .records sto
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- --text=From pm-harness sprint 55: Claude Code locks each agent worktree with
+  `claude agent <name> (pid N start T)` in `.git/worktrees/<name>/locked`, so
+  a lock whose pid is dead or whose start time differs is stale.
 
 ## Delivery report
 
