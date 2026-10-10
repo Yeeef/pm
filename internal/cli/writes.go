@@ -1390,6 +1390,9 @@ func cmdCommit(e *env, p *Parsed) (string, error) {
 			text := string(b)
 			changes[path] = &text
 		} else if errors.Is(err, os.ErrNotExist) {
+			if err := records.LinkToNothing(root, path); err != nil {
+				return "", err
+			}
 			changes[path] = nil
 		} else {
 			return "", err

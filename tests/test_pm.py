@@ -869,6 +869,18 @@ def test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that
     refused(repo, "commit", "-m", "Nothing", "records/sprints/demo-1.md", match=r"error: nothing to commit in .*\.pm/store/records")
 
 
+def test_pm_check_and_commit_refuse_a_record_link_to_nothing(repo):
+    """A .md link whose file is gone is no record anyone can read: pm check names it, and pm commit will not commit it."""
+    link = repo.store / "docs/2026-10-07-gone.md"
+    link.parent.mkdir()
+    link.symlink_to("nowhere.md")
+    said = r"docs/2026-10-07-gone.md: a link to nowhere.md, which does not exist; remove the link or restore its file"
+    before = repo.git("status", "--porcelain", cwd=repo.store)
+    refused(repo, "check", match="error: " + said)
+    refused(repo, "commit", "-m", "Add a link", "records/docs/2026-10-07-gone.md", match="error: " + said)
+    assert repo.git("status", "--porcelain", cwd=repo.store) == before
+
+
 def test_pm_check_and_commit_take_image_files_beside_a_record(repo):
     """A figure kept next to its doc is checked with the records and committed byte for byte."""
     docs = repo.store / "docs"

@@ -289,7 +289,8 @@ func Parse(path, rel, text string) (*Record, error) {
 }
 
 // Texts is the text of every .md file under root, by resolved path. A file or directory the walk listed but that is
-// gone when it is read (git rewrites a file by unlinking it) is left out, as it is no longer there, and named in gone.
+// gone when it is read (git rewrites a file by unlinking it) is left out, as it is no longer there, and named in gone;
+// a link to nothing is an error, as no read of it will open it.
 func Texts(root string) (texts map[string]string, gone []string, err error) {
 	root, err = filepath.EvalSymlinks(root)
 	if err != nil {
@@ -309,6 +310,9 @@ func Texts(root string) (texts map[string]string, gone []string, err error) {
 		}
 		b, err := os.ReadFile(p)
 		if errors.Is(err, fs.ErrNotExist) {
+			if err := LinkToNothing(root, p); err != nil {
+				return err
+			}
 			gone = append(gone, p)
 			return nil
 		}
@@ -319,6 +323,19 @@ func Texts(root string) (texts map[string]string, gone []string, err error) {
 		return nil
 	})
 	return texts, gone, err
+}
+
+// LinkToNothing is the error for a path under root that is a link to nothing, which no read opens; nil for any other.
+func LinkToNothing(root, p string) error {
+	if fi, err := os.Lstat(p); err != nil || fi.Mode()&fs.ModeSymlink == 0 {
+		return nil
+	}
+	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	rel, _ := filepath.Rel(root, p)
+	target, _ := os.Readlink(p)
+	return errorf("%s: a link to %s, which does not exist; remove the link or restore its file", rel, target)
 }
 
 // ParseAll is the records of texts (resolved path to text, as Texts gives), in path order: by path parts, as Python
