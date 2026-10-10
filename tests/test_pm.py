@@ -228,6 +228,42 @@ def test_sprint_closes_after_its_pr_merges(repo):
     assert "<p>Done: shipped the thing.</p>\n<p>Merged as 8f5c618 (PR #12).</p>" in page
 
 
+@pytest.mark.integration
+def test_sprint_close_merged_stamps_an_agent_s_merge_on_main(repo, tmp_path):
+    """A PR an agent merged has no review: pm sprint close --merged SHA --pr URL checks the commit is on the remote's
+    main, fetched first, and stamps the line a review's close stamps; a commit not on main, a bad sha, --pr alone and a
+    sprint that holds a review are refused with nothing written."""
+    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
+    repo.git("init", "-q", "--bare", str(tmp_path / "origin.git"))
+    repo.git("remote", "add", "origin", str(tmp_path / "origin.git"))
+    repo.git("push", "-q", "origin", "main")
+    on_main = repo.git("rev-parse", "HEAD").strip()
+    wt = repo.worktree("unmerged")
+    (wt / "x.txt").write_text("x\n")
+    repo.git("add", "x.txt", cwd=wt)
+    repo.git("commit", "-qm", "not on main", cwd=wt)
+    off_main = repo.git("rev-parse", "HEAD", cwd=wt).strip()
+    report(repo, "Done: shipped the thing.")
+    assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.2", "--focus", "F").returncode == 0
+    assert repo.pm("action", "done", "repo-demo.2.1", "--reason", f"merged as {SHA}").returncode == 0
+    repo.mark()
+    refused(repo, "sprint", "close", "repo-demo.1", "--merged", off_main, "--pr", PR,
+            match=rf"--merged {off_main} is not on origin/main; give the merge commit once the PR is on main")
+    refused(repo, "sprint", "close", "repo-demo.1", "--merged", "HEAD", match=r"--merged 'HEAD' is not a commit sha")
+    refused(repo, "sprint", "close", "repo-demo.1", "--pr", PR, match=r"--pr names the PR whose merge --merged gives")
+    refused(repo, "sprint", "close", "repo-demo.2", "--merged", on_main,
+            match=r"sprint repo-demo.2 holds PR review repo-demo.2.1 \(https://github.com/o/r/pull/12\), whose close "
+                  r"stamps the merge")
+    res = repo.pm("sprint", "close", "repo-demo.1", "--merged", on_main[:10], "--pr", PR)
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, [f"[SPRINT] demo sprint 1: closed, merged as {on_main[:7]}"])
+    assert repo.changes() == {"repo-demo.1": {"status": "closed", "resolution": "done", "close_reason":
+                                              f"Done: shipped the thing. (records commit {store_head(repo)})"}}
+    text = (repo.records / "sprints/demo-1.md").read_text()
+    assert f"Done: shipped the thing.\n\nMerged as {on_main[:7]} (PR #12).\n" in text
+    assert repo.pm("check").returncode == 0
+
+
 # ---------------------------------------------------------------- needs: answer with a decision or close
 
 DECISION = "Use the small parser."
@@ -543,6 +579,77 @@ def test_sprint_move_in_one_go_and_its_refusals(repo):
     repo.mark()
     refused(repo, "sprint", "move", "repo-demo.2", "--to", "site", text=MOVE_REASON,
             match="sprint repo-demo.2 is closed; only an open sprint moves")
+
+
+RENAME_REASON = "The goal now covers the parser's tables too.\nThe old title named the parser alone."
+
+
+def test_sprint_edit_renames_the_sprint_in_both_stores_and_records_why(repo):
+    """pm sprint edit --title: the work-store title keeps its "Sprint <n>: ", the record's title header changes, and the
+    reason lands as a sprint decision, in one records commit; each refusal writes nothing."""
+    refused(repo, "sprint", "edit", "repo-demo.1.2", "--title", "X", text=RENAME_REASON,
+            match="repo-demo.1.2 is not a sprint in the work store")
+    refused(repo, "sprint", "edit", "repo-demo.1", "--title", "First", text=RENAME_REASON,
+            match="sprint repo-demo.1 is titled 'First' already")
+    refused(repo, "sprint", "edit", "repo-demo.1", "--title", "Sprint 1: Tables", text=RENAME_REASON,
+            match=r"--title 'Sprint 1: Tables' carries a 'Sprint <n>: ' prefix; give the title alone")
+    refused(repo, "sprint", "edit", "repo-demo.1", "--title", "Tables", text="One line.",
+            match="the decision body is a single line")
+    res = repo.pm("sprint", "edit", "repo-demo.1", "--title", "Parse: tables too", text=RENAME_REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo.1": {"title": "Sprint 1: Parse: tables too"}}
+    assert committed(repo, ["pm: renamed sprint repo-demo.1 to 'Sprint 1: Parse: tables too' and added a sprint "
+                            "decision to records/sprints/demo-1.md"])
+    text = (repo.records / "sprints/demo-1.md").read_text()
+    assert text.startswith('---\ntype: sprint\ntitle: "Parse: tables too"\nbead: repo-demo.1\n---\n')
+    assert (f"::: decision {{source=agent date={TODAY}}}\nRenamed the sprint from \"First\" to \"Parse: tables too\": "
+            f"{RENAME_REASON}\n:::") in text
+    assert "Sprint 1: Parse: tables too  .1  " in repo.pm("show", "--project", "demo").stdout
+    assert repo.pm("check").returncode == 0
+    repo.mark()
+    assert repo.pm("sprint", "close", "repo-demo.2").returncode == 0
+    repo.mark()
+    refused(repo, "sprint", "edit", "repo-demo.2", "--title", "Later", text=RENAME_REASON,
+            match="sprint repo-demo.2 is closed; only an open sprint is renamed")
+
+
+def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
+    """pm need edit: an action takes a new description, a decision need new parts in the one layout; a need that holds
+    a reply, a closed need, a PR review and a task are refused, as is the wrong form of body for the kind."""
+    assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
+    assert repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL).returncode == 0
+    assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.2", "--focus", "F").returncode == 0
+    action, decision, review = "repo-demo.1.3", "repo-demo.1.4", "repo-demo.2.1"
+    assert {repo.items()[i]["need"]["kind"] for i in (action, decision, review)} == {"action", "decision", "review"}
+    repo.mark()
+    res = subprocess.run([*PM, "need", "edit", action, "--text-file", "-"], cwd=repo.root, env=repo.env,
+                         input="Restart the site on port 8768.\nThe proxy moved to `8768`.\n", capture_output=True,
+                         text=True)
+    assert res.returncode == 0 and res.stdout == f"edited the body of action {action}\n", res.stderr
+    assert repo.changes() == {action: {"description": "Restart the site on port 8768.\nThe proxy moved to `8768`."}}
+    repo.mark()
+    res = repo.pm("need", "edit", decision, *NEED)
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {decision: {"description": (
+        "**Question:** Which parser should we use?\n\n**Facts:**\n\n- Records hold no tables yet.\n\n**Options:**\n\n"
+        "- **(small) The small parser.** *Cost:* no tables.\n- **(full) The full parser.** *Cost:* a new dependency.\n\n"
+        "**Default:** (small). It is cheap.")}}
+    repo.mark()
+    refused(repo, "need", "edit", decision, *NEED, match=f"{decision} has this body already")
+    refused(repo, "need", "edit", decision, text="Free text.",
+            match=f"{decision} is a decision need; its body is its parts, given as flags, not --text")
+    refused(repo, "need", "edit", decision, *NEED[:2], match="give exactly one --default")
+    refused(repo, "need", "edit", action, *NEED, match=f"{action} is an action; its body is the description")
+    refused(repo, "need", "edit", action, text="Please review and merge PR #12.", match="raise it with the review form")
+    refused(repo, "need", "edit", review, text="X.", match=f"{review} is a PR review, whose card pm builds")
+    refused(repo, "need", "edit", "repo-demo.2", text="X.", match="repo-demo.2 is a sprint, not a need")
+    assert repo.pm("reply", "add", action, "--text=Done it.").returncode == 0
+    repo.mark()
+    refused(repo, "need", "edit", action, text="Restart it twice.",
+            match=f"{action} holds the owner's reply, which answers the body it has; raise a new need")
+    assert repo.pm("need", "dismiss", decision, "--reason", "[TEST] done").returncode == 0
+    repo.mark()
+    refused(repo, "need", "edit", decision, *SITE_URL, match=rf"{decision} is closed \(dismissed\)")
 
 
 # ---------------------------------------------------------------- pm task close
@@ -948,6 +1055,25 @@ def test_commit_commits_only_its_callers_records_beside_another_sessions_edit(re
         "Session B", "", "projects/demo.md"]
     assert repo.git("status", "--porcelain", cwd=repo.store) == " M sprints/demo-1.md\n?? docs/\n"
     assert "session A" in a.read_text()
+
+
+def test_commit_takes_a_path_relative_to_the_store_from_anywhere(repo):
+    """sprints/x.md names records/sprints/x.md from the main checkout or a worktree, as it does from inside the store;
+    a path outside the store that the store does not hold is still refused."""
+    wt = repo.worktree("feature-c")
+    for cwd, line in ((repo.root, "Ship it, from main."), (wt, "Ship it, from a worktree.")):
+        path = repo.store / "sprints/demo-1.md"
+        path.write_text(re.sub(r"Ship it[^\n]*", line, path.read_text(), count=1))
+        res = repo.pm("commit", "-m", line, "sprints/demo-1.md", cwd=cwd)
+        assert res.returncode == 0, res.stderr
+        assert res.stdout.startswith("committed records/sprints/demo-1.md as "), res.stdout
+        assert committed(repo, [line])
+    (repo.store / "docs").mkdir()
+    (repo.store / "docs/2026-10-07-new.md").write_text("---\ntype: doc\ntitle: New\ndate: 2026-10-07\nproject: demo\n---\n\nBody.\n")
+    refused(repo, "commit", "-m", "Not here", ".gitignore", match=r"\.gitignore is not in the records store")
+    res = repo.pm("commit", "-m", "A new doc", "docs/2026-10-07-new.md")
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, ["A new doc"])
 
 
 SERVE_BEHIND = 10  # seconds a served page may be behind, as internal/site's ServeBehind has it
@@ -1577,7 +1703,8 @@ STORE_COMMANDS = [
     ["project", "open", "p", "--title", "P", "--text=x"], ["project", "close", "demo"],
     ["sprint", "open", "demo", "--title", "S",
      "--text=## Goal\n\nx\n\n## Scope\n\n**In:** a.\n\n**Out:** b.\n\n## Done when\n\n- x."],
-    ["sprint", "close", "repo-demo.1"],
+    ["sprint", "close", "repo-demo.1"], ["sprint", "edit", "repo-demo.1", "--title", "S", "--text=a\nb"],
+    ["need", "edit", "repo-demo.1.2", "--text=x"],
     ["decision", "add", "--level", "project", "--project", "demo", "--decision", "x", "--reason", "y"],
     ["decision", "need", "--title", "Q?", "--parent", "repo-demo.1", "--question", "q", "--fact", "f",
      "--option", "a", "a", "--cost", "a", "c", "--option", "b", "b", "--cost", "b", "c", "--default", "a", "why"],
@@ -1617,5 +1744,5 @@ def test_pm_help_lists_the_commands_that_ran_outside_the_command_tree():
         assert res.returncode == 0, res.stderr
         return re.search(r"\{([a-z,-]+)\} \.\.\.", res.stdout.split("\n\n", 1)[0]).group(1).split(",")
     assert {"dep", "need", "comment", "sync", "export", "version"} <= set(helped())
-    assert helped("dep") == ["add", "rm"] and helped("need") == ["dismiss"] and "add" in helped("comment")
+    assert helped("dep") == ["add", "rm"] and helped("need") == ["edit", "dismiss"] and "add" in helped("comment")
     assert {"ready", "edit", "release"} <= set(helped("task")) and "add" in helped("reply")

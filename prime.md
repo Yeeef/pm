@@ -112,12 +112,14 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - close a task: `pm task close <id> --reason "…"`. The reason names the commit: HEAD when newer than the task, else `--commit REF` (a commit here, `OWNER/REPO@SHA` or a PR URL). A task not done closes with `--dropped --reason "<why>"` and no commit. It refuses a task another live session holds.
 - move a task: `pm task move <id> --to SPRINT_ID`; body: the reason, two lines or more. It records the scope change as a decision in the sprint it leaves, or, for a task directly under a project, in the project's sprint it joins.
 - move a sprint: `pm sprint move <id> --to PROJECT`; body: the reason, two lines or more. It keeps the id, takes the project's next number and records the move in both projects. If it stops part way, run it again.
+- rename a sprint: `pm sprint edit <id> --title "…"`; body: the reason, two lines or more. It renames the sprint in the work store and its record, and records the reason as a sprint decision.
 - need a decision from owner: `pm decision need --title "…" --parent ID`, with each part as a flag, one line each, in single quotes:
   - one `--question '…'`;
   - one or more `--fact '…'`;
   - two or more `--option LABEL '<what it does>'`, each with its `--cost LABEL '<what it costs>'`;
   - one `--default LABEL '<why>'`.
 - need an action from owner: `pm action need --title "…" --parent ID`; body: what to do and why. Examples: run a command, apply a setting. An action is done: check the evidence, then run `pm action done <id> --reason "<what showed it>"`.
+- fix a need's body before the owner replies: `pm need edit <id>`, with an action's body, or a decision need's parts as flags.
 - need a pr review from owner: `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`; body (optional): extra context. The review blocks the sprint close until the PR is on main; close it then with `pm action done <id> --reason "merged as <sha>"`.
 - Read a reply from owner with `pm reply read <id>` first. Each close below refuses while the request holds a reply that has not reached a session.
 - add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`, with `--decision '…'` and `--reason '…'`, one line each, in single quotes. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
@@ -125,7 +127,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - add a finding: `pm finding add --sprint ID "<text>"`, as it occurs, with its numbers. A large result table is a `::: result` block in the record.
 - create a design page record: `pm design new <slug> --title "…" --project NAME` writes every section with its prompt line; then edit it by hand and `pm commit`. Put no date in the slug.
 - create a free-form doc record: `pm doc new <slug> --title "…" --bead ID\|--project NAME`; body: the doc's text, or `--text-file PATH` to read a file; later edits by hand and `pm commit`.
-- close a sprint: `pm sprint close <id>`. It refuses an unwritten report, any open task or review, and a review closed without `merged as <sha>`. It skips a dismissed review, such as a replaced PR's.
+- close a sprint: `pm sprint close <id>`. It refuses an unwritten report, any open task or review, and a review closed without `merged as <sha>`. It skips a dismissed review, such as a replaced PR's. For a PR merged with no review: `pm sprint close <id> --merged <sha> --pr URL`; the sha must be on the remote's main.
 - close a project: Close every sprint. Write Outcome by hand: the results against the goal in numbers, what was learned and what was retired. Link the sprints' delivery reports. Commit it with `pm commit`, then run `pm project close <name>`.
 - create a postmortem: `pm postmortem new <slug> --title "…" --sprint ID\|--project NAME` writes every section; then by hand and `pm commit`. Write it once the incident is fixed, under the sprint it hit.
 - find a link: Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.

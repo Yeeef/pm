@@ -76,6 +76,16 @@ type Item struct {
 	Need        *NeedInfo  `json:"need,omitempty"` // needs only
 }
 
+// HasReply is whether the item holds an owner's reply: a need the owner answered.
+func HasReply(it *Item) bool {
+	for _, c := range it.Comments {
+		if c.Kind == Reply {
+			return true
+		}
+	}
+	return false
+}
+
 // Holder is the session that holds an item it works on. It replaces bd's assignee and claimed_by metadata.
 type Holder struct {
 	Session   string    `json:"session"`

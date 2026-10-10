@@ -559,6 +559,70 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 		made.ID), nil
 }
 
+// cmdNeedEdit rewrites an open action's or decision need's body, with raiseNeed's checks, until the owner replies.
+func cmdNeedEdit(e *env, p *Parsed) (string, error) {
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	id := p.Get("need_id")
+	need := r.item(id)
+	if need == nil {
+		return "", refuse("%s is not in the work store", id)
+	}
+	if need.Type != work.Need || need.Need == nil {
+		return "", refuse("%s is a %s, not a need; a task's description is pm task edit's, a sprint's title pm "+
+			"sprint edit's", id, need.Type)
+	}
+	if need.Status == work.Closed {
+		return "", refuse("%s is closed (%s); only an open need's body is edited", id, need.Resolution)
+	}
+	if work.HasReply(need) {
+		return "", refuse("%s holds the owner's reply, which answers the body it has; raise a new need for the changed "+
+			"ask, and close this one with pm need dismiss %s --reason \"…\"", id, id)
+	}
+	parts := needText(p)
+	_, textGiven := given(p, "text")
+	var desc string
+	switch need.Need.Kind {
+	case work.Review:
+		return "", refuse("%s is a PR review, whose card pm builds from its PR, sprints and focus; raise the review "+
+			"again with %s and dismiss this one with pm need dismiss %s --reason \"…\"", id, reviewForm, id)
+	case work.Action:
+		if parts != "" {
+			return "", refuse("%s is an action; its body is the description, given with %s, not a decision need's "+
+				"parts", id, textForms)
+		}
+		if desc = p.Get("text"); desc == "" {
+			return "", refuse("the description is empty; pass it with %s: %s", textForms, actionShape)
+		}
+	case work.Decision:
+		if textGiven {
+			return "", refuse("%s is a decision need; its body is its parts, given as flags, not --text: %s", id,
+				needShape)
+		}
+		if desc, err = needMarkdown(p); err != nil {
+			return "", err
+		}
+	}
+	if asksReview(need.Title + "\n" + p.Get("text") + parts) {
+		return "", refuse("this asks the owner to review or merge a PR; raise it with the review form, so its card links "+
+			"the PR, the sprints and design pages and its wait wakes on the merge: %s. If it only mentions the PR, say "+
+			"what you ask without review, merge or approve", reviewForm)
+	}
+	if desc == need.Description {
+		return "", refuse("%s has this body already", id)
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	if err := ws.Edit(id, nil, &desc); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("edited the body of %s %s", need.Need.Kind, id), nil
+}
+
 // ---------------------------------------------------------------- answering needs
 
 // humanIssue is the need id, refused unless it waits for want (decision or action).
