@@ -69,6 +69,12 @@ The owner asked and nothing waits on the step, so the reply asks nothing; owner 
 Answers `pm-d2k5.10.4`.
 :::
 
+::: decision {source=owner date=2026-10-10}
+The owner-request judge lists every open need of the clone, each marked; a request matching a need of another session passes only when the reply names its id.
+It passes a summary restating open needs while an uncited restatement still blocks; owner chose option cited.
+Answers `pm-d2k5.10.5`.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
