@@ -63,6 +63,11 @@ The owner asked in chat on 2026-10-10 to move it to pm-quality; the .records sto
   `claude agent <name> (pid N start T)` in `.git/worktrees/<name>/locked`, so
   a lock whose pid is dead or whose start time differs is stale.
 
+- --text=From pm-harness sprint 55: one `claude rc` process (pid 3711007) held
+  the locks on three bridge worktrees, so a live pid cannot tell bridge
+  sessions apart; recent transcript writes in the worktree's
+  `~/.claude/projects/` dir can.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
