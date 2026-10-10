@@ -113,6 +113,13 @@ A refreshed cache would otherwise let cached test results stand in for test runs
   release/build.sh (one comment); pm-release-build.yml ran on it (run
   38056855929) and passed, 4:43 Linux / 5:48 macOS, cold. Closed unmerged.
 
+- PR #22 on main 4c36803 (first PR after #16): slowest check build-vet-test
+  linux 6m28s, darwin 6m07s, race darwin 5m46s, over the 5-minute goal; likely
+  cold caches, since #16 changed go.sum and main's first post-merge run saves
+  them. race linux failed once in TestCreateRacingALocalWriter (clone: invalid
+  connection, a go-mysql-server caught panic in Dolt's localFS.iter) and
+  passed on rerun; watch for it on the new Dolt.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
