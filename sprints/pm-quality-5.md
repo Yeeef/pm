@@ -80,7 +80,7 @@ A fixed path makes a second doc impossible for pm to write, and the title check 
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: pm keeps one feedback doc per repo, records/docs/pm-feedback.md, in PR #18, merged as 963fb75; merging this repo's two docs waits for the release and the pin move.
+done: pm keeps one feedback doc per repo, records/docs/pm-feedback.md, in PR #18, merged as 963fb75; this repo's two docs were merged into it (27 entries) once 0.5.0 was pinned.
 
 - `pm feedback add` appends to the one doc, creating it on first use; `--project` is optional and tags the entry, with `--sprint` and `--task`.
 - The record checks allow the fixed path with neither bead nor project, and fail any other doc titled "pm feedback": `pm check` and `pm commit` name the merge, and `pm feedback add` refuses until it is done.
@@ -92,5 +92,5 @@ partial: pm keeps one feedback doc per repo, records/docs/pm-feedback.md, in PR 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
 - A harness test adds feedback for two projects and once with no project, then finds all three in one doc, each tagged; `pm show` and `pm show --project` link it: met. `test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc` passes locally and in CI (light job).
-- This repo's records/docs holds one feedback file with all entries, and its page renders: not met yet. It must wait for the release and the pin move, because an earlier pm cannot read the new doc's header. The merge is ready to apply (task pm-d2k5.5.2). On a copy of the store with the work store's 621 items, the merged store gives 164 pages and no error, and docs/pm-feedback renders 24 entries, each tagged.
+- This repo's records/docs holds one feedback file with all entries, and its page renders: met after 0.5.0 was pinned (PR #29, a996c8a). The merge script joined the two docs (23 + 4 = 27 entries, each tagged with its project) into `records/docs/pm-feedback.md`, records commit 38459e7; `pm check` renders all 174 pages, `/docs/pm-feedback.html` answers 200 with 27 "About project" tags, and `pm show` links it. `ls records/docs | grep feedback` also lists `2026-10-10-pm-feedback-triage.md`, which is a triage doc titled "pm feedback triage", not a feedback doc.
 - The PR is on main with CI green: met, PR #18 merged as 963fb75 with every check green.
