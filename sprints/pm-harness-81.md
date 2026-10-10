@@ -64,10 +64,14 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+voided: Go pm's service already collects the work store's garbage on a schedule, so this sprint's Beads-era work has nothing left to build.
+
+- Nothing shipped in this sprint; the collection is `internal/service/gc.go` in Yeeef/pm (see Findings).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- The service runs the collection on its schedule and logs the size before and after: met by Go pm, not by this sprint. `pm service status` on this clone on 2026-10-10 prints `gc ok at 2026-10-10T03:45:54Z: 8.0 MB -> 0.6 MB in 55 ms`. The 123 MB to 47 MB target was for the Beads store, which is gone.
+- `bd list --all --json` keeps its 466 or more issues and `bd dolt push` succeeds: moot. Beads is no longer pm's work store, and this clone has no `bd` store.
+- The collection never deletes an item or squashes a commit, by a test of the command: partly met. `Host.GC` in `internal/work/host.go` runs the literal `CALL DOLT_GC()` with no flags. `TestGCRunsWhenDueAndRecordsTheSizes` in `internal/service/run_test.go` tests the schedule and the sizes with a fake store, not the SQL text.
