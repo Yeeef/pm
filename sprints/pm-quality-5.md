@@ -65,6 +65,13 @@ A fixed path makes a second doc impossible for pm to write, and the title check 
   this sprint ran. So the merge (.5.2) is a script rerun at apply time, not a
   frozen file.
 
+- --text=Against a copy of the real records store with the real work store's
+  items (621 items), the new checks fail the store before the merge
+  (docs/2026-10-07-pm-harness-feedback: a repo keeps one pm feedback doc …)
+  and pass after it: 164 pages, docs/pm-feedback renders 24 entries, 24 tagged
+  with their project; entry bodies equal the old ones (24 = 24) and headings
+  are in time order.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
