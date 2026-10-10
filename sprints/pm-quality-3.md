@@ -169,17 +169,19 @@ A refreshed cache would otherwise let cached test results stand in for test runs
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: in PR #16, with warm caches, the slowest check is 3:47 for the checks every PR runs (it was 9:31 on Linux and 10:16 on macOS) and 3:59 when the release build test runs; the steady state across two later PRs can be read only after the merge.
+done: with warm Go caches, the slowest check is 3:08 on PR #25 (internal/cli, internal/hooks) and 3:24 on PR #27, against 9:31 on Linux and 10:16 on macOS before. PR #27, pending merge, also saves the cache when a run's tests fail; that would have closed the cold window that slowed PRs #21 and #22.
 
 - `pm-go.yml`: three parallel jobs per target: build, vet and every package's tests except internal/work's; internal/work's tests; the race tests. Each job uses the Go caches (GOMODCACHE, GOCACHE). A push to main saves them, keyed by target, Go version, kind and go.sum. A PR whose go.sum has no saved cache saves its own once. Tests run with `GOFLAGS=-count=1`.
 - `pm-release-build.yml`: the release build test. It runs only on changes to `release/`, `install.sh`, `go.mod`, `go.sum`, `internal/buildinfo`, the test or the workflow itself, and on every `pm-v*` tag.
 - `Makefile`: `test-go` split into `go-vet`, `go-test` (`GO_PKGS`) and `go-test-race`. `make test-go` runs what it ran before.
 - The flaky GC fatal was a race in Dolt's journal prune. pm now builds with Dolt b130ee82ebe9 (dolthub/dolt#11312). `TestDoltHoldsTheJournalPruneFix` fails when go.mod pins an older Dolt. CHANGELOG has a Fixed entry, because the pm service was exposed.
+- PR #27: the save step also runs when the suite fails (not when the run was cancelled or the suite never started). The first push to main after #16 failed its tests, so it saved no cache, and every PR stayed cold until the next green push.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- Two PRs after the change, neither touching release/ nor go.sum, each with its slowest check under 5 minutes: **not yet checkable**. The sibling sprints' PRs measure it after PR #16 merges and main saves the caches. Expected result, from PR #16's warm rerun (run 38056854222, attempt 2, `gh pr checks 16`): build-vet-test 1:18 on Linux and 2:11 on macOS, work 1:55 and 3:47, race 1:20 and 2:07, light 1:00, integration 1:18. Slowest: 3:47. A PR that leaves release/ and go.sum alone does not run the release build test. The push after the rebase onto main (head 62979dd) had warm caches and measured: build-vet-test 0:52 on Linux and 2:00 on macOS, work 2:05 and 3:14, race 1:22 and 1:56, light 0:58, integration 1:14, release build 3:34 and 4:04. Slowest: 4:04.
+- Two PRs after the change, neither touching release/ nor go.sum, each with its slowest check under 5 minutes: **met**. PR #25 (internal/cli, internal/hooks, prime.md; run 38063079302): 3:08 (work, macOS). PR #27 (run 38063238733): 3:24 (work, macOS). Both restored main's Go cache. PRs #21 and #22 had measured about 6:00-6:28 earlier: every job logged "Cache not found", because the first push to main after #16 failed its tests and its success-gated save step never ran. PR #27 fixes that. Before the merge, PR #16's own pushes measured 3:47 (warm rerun) and 3:14 (rebased push) on the checks every PR runs.
 - A PR touching release/ still runs the release build test, and it passes: **met**. Draft PR #17 changed only `release/build.sh` against `ci-fast`. `pm release build` ran on it (run 38056855929) and passed: 4:43 on Linux, 5:48 on macOS, cold. PR #16 itself (go.mod, go.sum and the workflow) ran it too: 2:35 on Linux and 3:59 on macOS, warm.
 - PR #16, merged as 4c36803 after a fresh-context review (merge; two low gaps carried to sprint 13).
+- PR #27 (the cache saved when tests fail), pending merge.
