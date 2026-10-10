@@ -114,7 +114,7 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: a clone's pm service can be stopped and stays stopped through session start, pm uninstall works with it down, pm record link --local gives the localhost URL, and pm doctor names a newer release (PR #22, pending merge).
+done: a clone's pm service can be stopped and stays stopped through session start, pm uninstall works with it down, pm record link --local gives the localhost URL, and pm doctor names a newer release (PR #22, merged as a274b65).
 
 - `pm service stop`: it disables and stops the unit, and checks that the socket and the site no longer answer. The supervisor's disabled state is the record. Session start leaves the service stopped and names `pm service restart`; `pm service restart` and `pm init` enable it again.
 - `pm uninstall` with the service down runs its own `pm service run` (on `PORT=0`) for the unsynced-work check, which keeps the one access path.
