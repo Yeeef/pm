@@ -95,10 +95,21 @@ The work store syncs between clones through refs/pm/work and every clone checks 
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm task close` drops a task with a reason and no commit, names work in another repo or a PR, warns about the tree only when HEAD stands in, and refuses a live session's task; `pm task move` takes a project-level task into a sprint (PR #21, pending merge).
+
+- `--dropped`: resolution `dismissed` (sprint decision: no new resolution, no cross-clone upgrade), shown as dropped in `pm show --sprint`, the task graph and legend, the day page and the day summary; left out of both numbers of "n of m tasks done".
+- `--commit OWNER/REPO@SHA` (`gh api`) and a PR URL (`gh pr view`); this repo's refs first; an unresolvable one, or a PR closed unmerged, refused.
+- `pm task close` refuses a task another live session holds, with claim's wording, naming `pm task release`.
+- `pm task move` from directly under a project into one of its open sprints; the decision goes in the sprint it joins.
+- `--help`, `prime.md`, CHANGELOG `[Unreleased]`, the day-summary prompt and the design pages work-layer, work-store and sprint-lifecycle.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- A `--dropped` close writes its resolution and reason, warns nothing, needs no commit: met, `test_task_close_dropped_records_why_and_needs_no_commit` (resolution `dismissed`, reason kept, stderr empty in a dirty tree, `pm show --sprint` prints `dropped`, `pm show --project` counts 1/2).
+- A close with `--commit` in a dirty tree prints no warning: met, `test_task_close_with_commit_warns_nothing_about_a_dirty_tree` (and without `--commit` it still warns).
+- `--commit Yeeef/pm@<sha>` answered by `fake_gh` puts that commit in the reason; an unknown one is refused with `repo.unchanged()`: met, `test_task_close_resolves_another_repos_commit_or_a_pr_with_gh` (also a merged, an open and a closed PR, and a local branch named like `OWNER/REPO@SHA`).
+- A close of a task another live session holds is refused with `repo.unchanged()`: met, `test_task_close_refuses_a_task_another_live_session_holds`.
+- A project-level task moves into a sprint and that sprint's record gains the decision: met, `test_task_move_takes_a_task_from_directly_under_a_project_into_its_sprint`.
+- `make test` and the PR's CI pass: `make test` 117 passed, 40 skipped; `make test-go` ok; CI on PR #21: see the PR's checks (the first push passed light, integration, changelog, guard and linux build-and-test).
