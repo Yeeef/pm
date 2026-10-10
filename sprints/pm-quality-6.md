@@ -68,6 +68,10 @@ The owner asked in chat on 2026-10-10 to move it to pm-quality; the .records sto
   sessions apart; recent transcript writes in the worktree's
   `~/.claude/projects/` dir can.
 
+- --text=From pm-harness sprint 55: on 2026-10-06 the clone had 8 agent
+  worktrees: 4 locked by live processes, 2 clean with nothing beyond main
+  (removable), and one with 1 commit never pushed, which must be kept.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
