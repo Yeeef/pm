@@ -50,7 +50,11 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- On main at 6752e93, gofmt -l over the module's 122 Go files lists one:
+  internal/cli/cli.go (a trailing comment gofmt aligns with the line above).
+  gofmt -l given a directory walks everything below it, so the check lists
+  files through go list: on a main checkout, gofmt -l . would also walk other
+  sessions' worktrees under .claude/worktrees/, which git does not ignore.
 
 ## Delivery report
 
