@@ -75,6 +75,11 @@ It passes a summary restating open needs while an uncited restatement still bloc
 Answers `pm-d2k5.10.5`.
 :::
 
+::: decision {source=owner date=2026-10-10}
+The owner-request judge lists only the open needs this session raised (option mine); a reply must not ask again for, or raise a duplicate of, a request another session holds: it drops the ask or reports the need as open. This supersedes the site reply cited on pm-d2k5.10.5.
+Owner in chat, 2026-10-10: why make it more complicated; that agent should not raise the same request again.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
