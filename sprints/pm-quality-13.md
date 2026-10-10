@@ -95,6 +95,12 @@ None yet.
   clone's records reach the remote only at its next 10-minute sync, while its
   work-store move is pushed at once, so a fetch misses the main window.
 
+- Dangling record link (task .2): pm check printed 'all 6 pages render' with
+  docs/2026-10-07-gone.md -> nowhere.md in the store, and pm commit named on
+  it took it as a deletion and committed the link. records.LinkToNothing
+  (Lstat says link, Stat says gone) now tells it from a file a sync unlinked;
+  both commands refuse, changing nothing.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
