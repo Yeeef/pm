@@ -578,11 +578,11 @@ var tree = &command{
 		},
 		{
 			name: "doctor",
-			help: "compare every managed piece with what this pm writes, and the clone and worktree with what pm init makes; report each difference, exit 1 on any; and name a pm release newer than the pin, with its notes (or say the release list cannot be read), which leaves the exit code alone",
+			help: "compare every managed piece with what this pm writes, and the clone and worktree with what pm init makes; report each difference, exit 1 on any (in a checkout whose pin is not the version the clone's pm service runs, the work store cannot be checked: its line names the mismatch and the fix); and name a pm release newer than the pin, with its notes (or say the release list cannot be read), which leaves the exit code alone",
 		},
 		{
 			name: "upgrade",
-			help: "move the pin in .pm/config.toml to this pm and rewrite every managed piece as it writes them (the fix pm doctor names for a changed one), removing the pre-package harness's and the ones an earlier pm wrote and this one retired (the records/ copy and guard workflows, the pre-commit section); writes files and prints the commit to make, never commits",
+			help: "move the pin in .pm/config.toml to this pm and rewrite every managed piece as it writes them (the fix pm doctor names for a changed one), removing the pre-package harness's and the ones an earlier pm wrote and this one retired (the records/ copy and guard workflows, the pre-commit section); writes files and prints the commit to make, never commits; then lists the clone's other worktrees whose checked-out branch pins another pm, where pm refuses every work-store command once the main checkout pins this one, each with 'merge or rebase it onto the pin move'",
 			args: []arg{
 				{flags: []string{"--to"}, dest: "to", metavar: []string{"X"}, kind: value, help: "the version to move to: the running pm's (the default), or another, which the installed pm launches to make the move; without it pm upgrade refuses a pin newer than the running pm (--to the pin rewrites the pieces at it)"},
 			},
@@ -610,7 +610,7 @@ var tree = &command{
 		},
 		{
 			name: "where",
-			help: "list every location with its state: the store, this checkout, the work store, the hooks, the Codex sandbox roots, the pm service, the last push, and the site; 'pm where records' prints only the store's path",
+			help: "list every location with its state: the store, this checkout, the work store (in a checkout whose pin is not the version the clone's pm service runs, the mismatch and the fix: merge or rebase onto main's pin move, or pm service restart), the hooks, the Codex sandbox roots, the pm service, the last push, and the site; 'pm where records' prints only the store's path",
 			args: []arg{
 				{dest: "what", nargs: "?", choices: []string{"records"}, kind: value, help: "print only this location's path"},
 			},

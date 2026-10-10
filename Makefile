@@ -36,12 +36,16 @@ merge-ready:
 # Build pm as the release builds it (cgo, -tags gms_pure_go, stripped) into .go/pm, and the harness's page renderer
 # (tests/render-pages) into .go/render-pages. A release takes its version from its tag (release/build.sh); this build
 # reports VERSION, which no release has: the harness's test repos pin it (the renderer's work-store handshake needs the
-# same), and its tests place it above the older Go pins they use (0.2.0, 0.3.0) and below the newer one (9.0.0).
+# same), and its tests place it above the older Go pins they use (0.2.0, 0.3.0) and below the newer one (9.0.0). The
+# same pm stamped VERSION_BEFORE, .go/pm-before, is the pm a branch from before a pin move to VERSION runs, for the
+# harness's pin-move tests (only the link step differs, so it adds seconds).
 VERSION := 0.9.0-dev
-GO_FLAGS = -trimpath -tags gms_pure_go -ldflags "-s -w -X github.com/Yeeef/pm/internal/buildinfo.Version=$(VERSION)"
+VERSION_BEFORE := 0.8.0-dev
+GO_FLAGS = -trimpath -tags gms_pure_go -ldflags "-s -w -X github.com/Yeeef/pm/internal/buildinfo.Version=$(1)"
 go-build:
-	CGO_ENABLED=1 go build $(GO_FLAGS) -o .go/pm ./cmd/pm
-	CGO_ENABLED=1 go build $(GO_FLAGS) -o .go/render-pages ./tests/render-pages
+	CGO_ENABLED=1 go build $(call GO_FLAGS,$(VERSION)) -o .go/pm ./cmd/pm
+	CGO_ENABLED=1 go build $(call GO_FLAGS,$(VERSION)) -o .go/render-pages ./tests/render-pages
+	CGO_ENABLED=1 go build $(call GO_FLAGS,$(VERSION_BEFORE)) -o .go/pm-before ./cmd/pm
 
 # The work store's concurrency tests, which make test-go runs again under the race detector (about a minute; the whole
 # internal/work package under -race would take several): the write lock, the slot, gc and merges racing writers.

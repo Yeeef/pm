@@ -40,7 +40,7 @@ the new state, and the trail of findings stays in the sprint record.
 
 | Command | Runs |
 |---|---|
-| `make go-build` | pm built as released (cgo, `-tags gms_pure_go`, stripped) into `.go/pm`, and the harness's page renderer into `.go/render-pages`, both reporting `VERSION` (Makefile), the version the harness's test repos pin. Every target below runs it first |
+| `make go-build` | pm built as released (cgo, `-tags gms_pure_go`, stripped) into `.go/pm`, and the harness's page renderer into `.go/render-pages`, both reporting `VERSION` (Makefile), the version the harness's test repos pin, and `.go/pm-before`, the same pm reporting `VERSION_BEFORE`, which a branch from before a pin move runs in the pin-move test. Every target below runs it first |
 | `make test` | The light harness set: `tests/run.py -n auto -m "not integration"` against `.go/pm` |
 | `make test-full ARGS="-k serve"` | The harness tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
 | `uv run pytest -q -n auto tests/test_hooks.py` | One file, or `-k name` for one test, after `make go-build` |
@@ -87,7 +87,9 @@ names them).
 What the tests are:
 
 - `test_pm.py`: each command against a temp repo; every refusal changes nothing, every happy path writes what it says.
-  `test_config.py`: the config check, and each config key named in some `--help`. `test_launch.py`: the launcher; a
+  `test_config.py`: the config check, each config key named in some `--help`, and a pin move: `pm upgrade` naming
+  the worktrees it strands, and `pm where`, `pm doctor` and the handshake in one, run by `.go/pm-before`.
+  `test_launch.py`: the launcher; a
   pin below 0.2.0 refused, and a pin against releases a local HTTP server serves through `PM_RELEASE_URL` (fixture
   `release`; each tarball holds a fake `pm` script that prints its argv, markers and stdin) or, when that download
   fails, through a stand-in for GitHub's API (`GitHub`, fixture `github`: the token, and none to the storage host an

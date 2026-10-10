@@ -41,11 +41,31 @@ func TestAServiceOnAnotherVersionIsRefused(t *testing.T) {
 		t.Fatalf("a stale service: %v", err)
 	}
 	pin("9.9.9-old")
+	cfg := filepath.Join(main, ".pm", "config.toml")
 	if _, err := Dial(main); err == nil || err.Error() != "this checkout pins pm "+v+", but the clone's pm service "+
-		"runs pm 9.9.9-old, which "+filepath.Join(main, ".pm", "config.toml")+" pins: run it from a checkout that pins "+
-		"pm 9.9.9-old" {
+		"runs pm 9.9.9-old, which "+cfg+" pins: merge or rebase this branch onto origin/main, or run pm from a "+
+		"checkout that pins pm 9.9.9-old" {
 		t.Fatalf("a checkout on another pin: %v", err)
 	}
+	// the fix follows which side moved: a branch from before main's pin move, or the branch that moves it
+	pin("0.7.0")
+	if err := CheckVersion("0.7.0", "0.6.0", main); err == nil || err.Error() != "this checkout pins pm 0.6.0, but "+
+		"the clone's pm service runs pm 0.7.0, which "+cfg+" pins: this branch is from before main moved the pin to pm "+
+		"0.7.0; merge or rebase it onto that pin move (git rebase origin/main), then pm runs pm 0.7.0 here" {
+		t.Fatalf("a branch from before the pin move: %v", err)
+	}
+	if err := CheckVersion("0.7.0", "0.8.0", main); err == nil || err.Error() != "this checkout pins pm 0.8.0, but "+
+		"the clone's pm service runs pm 0.7.0, which "+cfg+" pins: this branch moves the pin ahead of the main "+
+		"checkout; until the move is merged and the main checkout pulls it, run pm from a checkout that pins pm 0.7.0" {
+		t.Fatalf("the branch that moves the pin: %v", err)
+	}
+	if err := CheckVersion("0.5.0", "0.6.0", main); err == nil || err.Error() != "this checkout pins pm 0.6.0, but "+
+		"the clone's pm service runs pm 0.5.0 and "+cfg+" pins pm 0.7.0: run pm service restart in the main checkout "+
+		main+", then this branch is from before main moved the pin to pm 0.7.0; merge or rebase it onto that pin move "+
+		"(git rebase origin/main), then pm runs pm 0.7.0 here" {
+		t.Fatalf("a stale service and a branch from before the pin move: %v", err)
+	}
+	pin("9.9.9-old")
 	if _, err := DialSetup(main); err == nil {
 		t.Fatal("pm init's connection skipped the handshake")
 	}

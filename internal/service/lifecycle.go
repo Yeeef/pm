@@ -451,10 +451,22 @@ func Health(main string) (bool, string) {
 		}
 		return false, head + fmt.Sprintf("down: :%d is held by %s; stop it, then run pm service restart", port, what)
 	}
+	if offPin(main, served.Version) {
+		return false, head + fmt.Sprintf("running pm %s, the main checkout's pin, and the site answers on :%d; pm "+
+			"refuses this checkout's work-store commands: %s",
+			served.Version, port, work.CheckVersion(served.Version, Version(), main))
+	}
 	if served.Version != Version() {
 		return false, head + "stale: " + stale(served.Version)
 	}
 	return true, head + fmt.Sprintf("running; the site answers on :%d", port)
+}
+
+// offPin is whether a service running pm build runs the main checkout's pin while this checkout pins another pm: the
+// service is not stale, this checkout's branch is off main's pin (work.CheckVersion names the fix).
+func offPin(main, build string) bool {
+	c, err := config.Read(main)
+	return err == nil && build != Version() && c.Version == build
 }
 
 // Stopped is the health of a service pm service stop stopped.
@@ -710,7 +722,9 @@ func Drift(main string, port int) []string {
 			strings.Join(want, " ")))
 	}
 	if err == nil && have != 0 {
-		if s := probe(have); s != nil && s.Store != "" && resolve(s.Store) == store(main) && s.Version != Version() {
+		// a service on the main checkout's pin is not stale here: the work store's line names this checkout's pin
+		if s := probe(have); s != nil && s.Store != "" && resolve(s.Store) == store(main) && s.Version != Version() &&
+			!offPin(main, s.Version) {
 			out = append(out, fmt.Sprintf("the service on :%d is stale: %s", have, stale(s.Version)))
 		}
 	}
