@@ -51,22 +51,36 @@ func (d *Dolt) CallSync() ([]string, error) { return d.lines("CALL pm_sync()") }
 // push it, or point it at the remote; what it did, one line each.
 func (d *Dolt) CallSetup() ([]string, error) { return d.lines("CALL pm_setup()") }
 
+// callMoveSprint asks the service to move a sprint through the compare-and-swap (CALL pm_move_sprint(?)).
+func (d *Dolt) callMoveSprint(id, to, reason string) (Item, error) {
+	spec, err := json.Marshal(sprintMoveSpec{ID: id, To: to, Reason: reason})
+	if err != nil {
+		return Item{}, err
+	}
+	return d.callItem("pm_move_sprint", string(spec))
+}
+
 // callCreate asks the service to create n through the child-id compare-and-swap (CALL pm_create(?)).
 func (d *Dolt) callCreate(n New) (Item, error) {
 	spec, err := json.Marshal(n)
 	if err != nil {
 		return Item{}, err
 	}
-	out, err := d.lines("CALL pm_create(?)", string(spec))
+	return d.callItem("pm_create", string(spec))
+}
+
+// callItem runs a procedure that answers one item as JSON.
+func (d *Dolt) callItem(proc, spec string) (Item, error) {
+	out, err := d.lines("CALL "+proc+"(?)", spec)
 	if err != nil {
 		return Item{}, err
 	}
 	if len(out) != 1 {
-		return Item{}, fmt.Errorf("work store: pm_create answered %d rows, not 1", len(out))
+		return Item{}, fmt.Errorf("work store: %s answered %d rows, not 1", proc, len(out))
 	}
 	var it Item
 	if err := json.Unmarshal([]byte(out[0]), &it); err != nil {
-		return Item{}, fmt.Errorf("work store: pm_create answered %q: %w", out[0], err)
+		return Item{}, fmt.Errorf("work store: %s answered %q: %w", proc, out[0], err)
 	}
 	return it, nil
 }

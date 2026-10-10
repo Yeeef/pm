@@ -652,3 +652,52 @@ func TestCreateRefusesWithTheRemoteUnreachable(t *testing.T) {
 		}
 	})
 }
+
+// A sprint moved on one clone while the other writes under it (the work-store page, Moving a sprint, Another clone):
+// B claims a task, edits the sprint and comments on it offline, then moves the sprint to Q through the
+// compare-and-swap; before B's push, A opens a sprint in Q and adds a task under the sprint, both through A's service.
+// B's push is rejected, B pulls A's writes and moves again: the sprint takes Q's next number, A's task lands in the
+// moved sprint, every offline write survives, and the old project does not mint the moved number again.
+func TestMoveSprintAcrossClonesKeepsTheOtherClonesWrites(t *testing.T) {
+	x := newPair(t)
+	da := x.openA(t)
+	q := must(da.Create(New{Type: Project, Title: "Q"}))
+	x.a.sync()
+	x.b.sync()
+	var qa, ta, moved Item
+	x.b.do(func(d *Dolt) {
+		must(0, d.Claim(x.t1.ID, Holder{Session: "sb"}, func(string) bool { return false }))
+		desc := "from B"
+		must(0, d.Edit(x.s.ID, nil, &desc))
+		must(d.Comment(x.s.ID, Note, "sb", "from B"))
+		raced := false
+		d.pushFn = func(push func() error) error {
+			if !raced {
+				raced = true
+				qa = must(da.Create(New{Type: Sprint, Parent: q.ID, Title: "Sprint 1: QA"}))
+				ta = must(da.Create(New{Type: Task, Parent: x.s.ID, Title: "from A"}))
+			}
+			return push()
+		}
+		moved = must(d.moveSprintShared(sprintMoveSpec{ID: x.s.ID, To: q.ID, Reason: "r\nr"}))
+	})
+	if qa.Number != 1 || moved.Number != 2 || moved.Parent != q.ID {
+		t.Fatalf("A's sprint #%d, the moved sprint #%d under %s", qa.Number, moved.Number, moved.Parent)
+	}
+	items := x.converge(t)
+	s, t1, task := find(items, x.s.ID), find(items, x.t1.ID), find(items, ta.ID)
+	if s.Parent != q.ID || s.Number != 2 || s.Description != "from B" || len(s.Comments) != 2 ||
+		!slices.Equal(SprintMoves(&s), []SprintMove{{x.p.ID, 1, q.ID, 2, "r\nr"}}) {
+		t.Errorf("sprint %+v", s)
+	}
+	if t1.Holder == nil || t1.Holder.Session != "sb" || task.Parent != x.s.ID {
+		t.Errorf("t1 holder %+v, A's task under %s", t1.Holder, task.Parent)
+	}
+	if next := must(da.Create(New{Type: Sprint, Parent: x.p.ID, Title: "Sprint 2: P"})); next.Number != 2 {
+		t.Errorf("P's next sprint #%d, want 2: 1 was moved away", next.Number)
+	}
+	if err := da.Shutdown(); err != nil {
+		t.Fatal(err)
+	}
+	x.converge(t)
+}

@@ -977,12 +977,7 @@ func (d *Dolt) createLocal(n New) (Item, error) {
 			it.ID = NextChild(ids, n.Parent)
 		}
 		if n.Type == Sprint {
-			for _, o := range x.items {
-				if o.Type == Sprint && o.Parent == n.Parent {
-					it.Number = max(it.Number, o.Number)
-				}
-			}
-			it.Number++
+			it.Number = LastSprintNumber(x.all(), n.Parent) + 1
 		}
 		it.Labels = slices.Compact(slices.Sorted(slices.Values(n.Labels)))
 		it.Need = cloneItem(Item{Need: n.Need}).Need
