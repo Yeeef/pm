@@ -474,6 +474,23 @@ def test_task_close_refuses_a_task_another_live_session_holds(repo):
     assert repo.items()["repo-demo.1.3"]["status"] == "closed"
 
 
+def test_task_move_takes_a_task_from_directly_under_a_project_into_its_sprint(repo):
+    """A task filed directly under a project joins one of the project's sprints; the scope it adds is a decision in
+    the sprint it joins."""
+    repo.add_issue({"id": "repo-demo.3", "title": "Backlog item", "status": "open", "issue_type": "task",
+                    "parent": "repo-demo", "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"})
+    refused(repo, "task", "move", "repo-demo.3", "--to", "repo-demo", text="Into the project.\nNot a sprint.",
+            match=r"repo-demo\.3 is already directly under project demo; move it into one of that project's open "
+                  r"sprints")
+    res = repo.pm("task", "move", "repo-demo.3", "--to", "repo-demo.1", text="Sprint 1 needs it.\nThe parser uses it.")
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo.3": {"parent": "repo-demo.1"}}
+    assert committed(repo, ["pm: moved repo-demo.3 from project repo-demo to repo-demo.1 and added a sprint decision "
+                            "to records/sprints/demo-1.md"])
+    record = (repo.records / "sprints/demo-1.md").read_text()
+    assert "Moved repo-demo.3 into this sprint from project repo-demo: Sprint 1 needs it.\nThe parser uses it." in record
+
+
 # ---------------------------------------------------------------- the store: pm init in a clone
 
 GIT_ENV = dict(__import__("os").environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",

@@ -73,6 +73,8 @@ only.
   record's page, so a record shows a figure with `![…](fig.png)` instead of a base64 data URI. Paths that leave the
   store (`..`, a symlink out of it) or name a dot file get 404. `pm check` and `pm commit` take such files beside a
   record, and the stylesheet keeps images, figures and captions inside the column.
+- `pm task move` takes a task filed directly under a project (the site's Not in a sprint) into one of that
+  project's open sprints, recording the scope added as a decision in the sprint it joins.
 
 - `pm service stop` stops a clone's pm service and keeps it stopped: it disables the unit at its supervisor
   (systemd or launchd), so neither login nor a crash starts it again, waits until the work store's socket and the site

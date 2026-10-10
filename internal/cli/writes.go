@@ -1074,29 +1074,45 @@ func cmdTaskMove(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// The scope change is a decision in the sprint the task leaves, or, for a task filed directly under a project,
+	// in the sprint it joins, which must be one of that project's.
 	source := task.Parent
-	inSprint := false
-	for _, rec := range r.recs {
-		inSprint = inSprint || rec.Type() == "sprint" && source != "" && rec.Bead() == source
+	var rec *records.Record
+	fromProject := false
+	for _, x := range r.recs {
+		if source != "" && x.Bead() == source && (x.Type() == "sprint" || x.Type() == "project") {
+			rec, fromProject = x, x.Type() == "project"
+		}
 	}
-	if !inSprint {
-		return "", refuse("%s is not in a sprint with a record, so no sprint can record the scope change", id)
+	if rec == nil {
+		return "", refuse("%s is not in a sprint or a project with a record, so no sprint can record the scope change", id)
 	}
-	rec, err := r.sprint(source)
-	if err != nil {
-		return "", err
+	if to == source && fromProject {
+		return "", refuse("%s is already directly under project %s; move it into one of that project's open sprints",
+			id, rec.Name())
 	}
 	if to == source {
 		return "", refuse("%s is already in sprint %s", id, source)
 	}
-	if _, err := r.openSprint(to); err != nil {
+	dest, err := r.openSprint(to)
+	if err != nil {
 		return "", err
+	}
+	if fromProject {
+		if sp := r.item(to); sp.Parent != source {
+			return "", refuse("sprint %s is not in project %s, which holds %s; move it into one of that project's open "+
+				"sprints", to, rec.Name(), id)
+		}
 	}
 	if err := decisionBody(reason); err != nil {
 		return "", err
 	}
-	updated, err := records.InsertEntry(rec.Text, "Decisions",
-		decisionBlock("agent", fmt.Sprintf("Moved %s to %s: %s", id, to, reason)))
+	text := fmt.Sprintf("Moved %s to %s: %s", id, to, reason)
+	if fromProject {
+		rec = dest
+		text = fmt.Sprintf("Moved %s into this sprint from project %s: %s", id, source, reason)
+	}
+	updated, err := records.InsertEntry(rec.Text, "Decisions", decisionBlock("agent", text))
 	if err != nil {
 		return "", err
 	}
@@ -1113,7 +1129,11 @@ func cmdTaskMove(e *env, p *Parsed) (string, error) {
 	if err := ws.Move(id, to); err != nil {
 		return "", err
 	}
-	out, err := r.apply(w, fmt.Sprintf("moved %s from %s to %s and added a sprint decision to %s", id, source, to,
+	from := source
+	if fromProject {
+		from = "project " + source
+	}
+	out, err := r.apply(w, fmt.Sprintf("moved %s from %s to %s and added a sprint decision to %s", id, from, to,
 		r.rel(rec.Path)), "", "pm: ")
 	if err != nil {
 		if uerr := ws.Move(id, source); uerr != nil {

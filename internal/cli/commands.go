@@ -331,8 +331,8 @@ var tree = &command{
 				},
 				{
 					name:        "move",
-					help:        "move a task to another open sprint; reason with --text",
-					description: "Move an open task to another open sprint and record the scope change as a source=agent decision in the sprint it leaves. The reason (--text) states why, on at least two lines.",
+					help:        "move a task to another open sprint, or into a sprint from directly under a project; reason with --text",
+					description: "Move an open task to another open sprint and record the scope change as a source=agent decision in the sprint it leaves. A task filed directly under a project (the site's Not in a sprint) moves into one of that project's open sprints, and the decision records the scope added in the sprint it joins. The reason (--text) states why, on at least two lines.",
 					groups:      []bool{false},
 					args: []arg{
 						{dest: "task_id", required: true, kind: value, help: "the task's id"},
