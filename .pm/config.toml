@@ -2,3 +2,4 @@ version = "0.3.0"   # the pm version every session must run
 remote = "origin"
 main_branch = "main"
 port = 8001         # the site port; the PORT environment variable overrides it for one run
+site_url = "https://pm.yeeefs.com"
