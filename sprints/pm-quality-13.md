@@ -166,5 +166,6 @@ done: every follow-up in Scope and the four tasks added to it ship in PR #31 (pe
   - `make test`: 136 passed.
   - `make test-go`: every package ok, including internal/work (34.6 s) and its race tests (96.3 s).
   - The touched integration tests: 27 passed.
-  - PR #31's CI: see the PR.
+  - PR #31's CI: all 11 checks passed on head 329de4c, and `make merge-ready PR=31` says the PR is ready.
+  - On the first run, `work (linux-amd64)` failed on a proxy.golang.org download error (a cold cache after the Go bump). It passed when rerun once.
   - The macOS half of the flake was not reproduced here (Linux machine). The evidence for it is the Go issue's mechanism and the PR's macOS race job, one green run so far.
