@@ -4,3 +4,9 @@ __pycache__/
 /.venv/
 # pm and the harness's page renderer, built by make go-build
 /.go/
+# --- BEGIN PM ---
+# each worktree's records/ is a link to the clone's records store
+/records
+# per-machine Claude Code settings: pm adds the store's absolute path to them
+/.claude/settings.local.json
+# --- END PM ---

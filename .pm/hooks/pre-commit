@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# --- BEGIN PM v0.3.0 ---
+pm hook git-pre-commit "$@" || exit $?
+# --- END PM ---
