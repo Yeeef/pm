@@ -110,10 +110,18 @@ Answers `pm-d2k5.10.4`.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the owner-request judge passes every reported non-request on 12 new labelled cases and keeps all 40 existing verdicts, and `pm hook stop` leaves out a record only a running subagent's prompt names; PR #25, pending merge.
+
+- 12 new cases in `tests/owner_request_cases.json`: one per reported sentence (7), three from the coordinator's session of 2026-10-10, and two contrast cases that must still block.
+- One rule in three texts, changed in one commit: the judge prompt, the block reason and `prime.md`'s request rule.
+- The judge sees every open need of the clone, another session's marked; a match on another session's need counts only when the reply names its id (default of decision need pm-d2k5.10.5, still open).
+- `pm hook stop` leaves out a path named only by the prompt of a subagent call that has not returned.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- At least 7 new cases, one per reported sentence: met. 12 new cases (40 to 52), each named after its feedback entry; the 2026-10-08 21:47 entry holds two sentences, so two cases.
+- `make test-live` with `PM_LIVE_RUNS=3` passes every case 3/3: met. All 52 cases 3/3 in two consecutive full runs (156 hook runs each; per run median 2.29 s and 2.28 s, max 11.31 s and 14.42 s). Baseline before the change: 6 of the first 9 new cases failed. One run in between errored on a `claude -p` call that hit the 15 s judge timeout, not on a verdict.
+- A harness test of `pm hook stop` shows no block for a path named only by a running subagent call and a block for the same path edited by the session's own call: met. `test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names` (4 parametrizations: running, returned, own edit, both); its running case fails on the old code. Go: `TestTouchedCountsASubagentsPathOnceItsCallReturns`.
+- `make test` and the PR's CI pass: `make test` passes (118 passed, 52 skipped); CI on PR #25: see the coordinator's merge check.
