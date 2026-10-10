@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T14:06:34+00:00",
- "digest": "73bb80fc17737bf4",
+ "generated_at": "2026-10-10T14:17:03+00:00",
+ "digest": "9ef3141eb6078169",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm replaces Python pm:** Both repos no longer contain Python pm, and the harness suite checks only Go pm. The pm-harness project now lives in Yeeef/pm, with its full history.\n- **Records layout and pm commands:** Go pm no longer writes a records copy into main, and each worktree keeps its link. New commands move a sprint to another project and remove unneeded agent worktrees.\n- **Release notes and CI:** The new pm release is published and carries a breaking change. Release notes now come from the changelog. CI refuses a pull request or release tag without a changelog section.\n- **Site display and checks:** Diagrams redraw when the colour theme changes, and images from records now show on the site. The change check no longer fails when git rewrites a file mid-walk."
+ "text": "- **Go pm release:** The Go release of pm is published. Python pm is deleted from both repositories, and the harness tests only Go pm.\n- **Project tracking move:** pm-harness is now tracked in Yeeef/pm with its full history. The old copy in yeeef-agents is closed.\n- **Site stability and diagrams:** The site no longer shows errors on every page during a records sync. Diagrams and images now read well on a phone.\n- **Worktrees and server:** pm clean removes agent worktrees that nobody needs. The Linux server now runs Go pm and syncs with GitHub."
 }
