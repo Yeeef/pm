@@ -153,6 +153,14 @@ A refreshed cache would otherwise let cached test results stand in for test runs
   build-vet-test (darwin-arm64) 2m8s. Second PR under 5 minutes, alongside PR
   #26 (3m20s); PR #21 (6m2s) and PR #22 (6m28s) were over it.
 
+- Once main had its Go cache (run 38063087073 saved it again at 15:18), two
+  PRs that touch neither release/ nor go.sum came in under 5 minutes. PR #25
+  (internal/cli, internal/hooks, prime.md; run 38063079302): slowest check
+  work macOS 3:08. The rest: build-vet-test 1:07 Linux / 2:08 macOS, race 1:09
+  / 2:40, work Linux 2:03, light 1:01, integration 1:29. PR #27 (run
+  38063238733): slowest check work macOS 3:24. The rest: build-vet-test 1:07 /
+  1:42, race 1:19 / 2:33, work Linux 1:54, light 1:22, integration 1:18.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
