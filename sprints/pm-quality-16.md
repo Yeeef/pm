@@ -46,7 +46,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-10}
+pm doctor keeps exiting 1 in a checkout whose pin is not the version the clone's pm service runs; its work store line names the mismatch and the fix
+The work store is a piece of the clone's setup pm doctor checks through the service, and from an off-pin checkout the handshake refuses that check; exit 0 would claim a setup it could not check. The release line, which concerns no piece, stays informational
+:::
 
 ## Findings
 
