@@ -52,7 +52,11 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- 2026-10-10: PRs #18 and #23 each passed the rules chunk cap alone, but main
+  after both was 10,018 of 10,000 characters, and main's CHANGELOG had '###
+  Added' twice. Each PR's CI ran against its own base, not the merged result,
+  so main went red. Two PRs that touch disjoint lines can still break a
+  whole-file invariant together.
 
 ## Delivery report
 
