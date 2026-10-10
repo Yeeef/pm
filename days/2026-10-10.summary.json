@@ -1,7 +1,7 @@
 {
  "date": "2026-10-10",
- "generated_at": "2026-10-10T18:12:36+00:00",
- "digest": "e49f6f4489fbfa10",
+ "generated_at": "2026-10-10T18:33:02+00:00",
+ "digest": "d557e2db7e0d30d7",
  "model": "claude-haiku-5-5",
- "text": "- **Go pm replaces Python pm:** Python pm is deleted from Yeeef/pm and yeeef-agents, so Go pm is the only pm. pm-harness tracking now lives in Yeeef/pm with its full history.\n- **Release notes and CI:** Every pm release note now comes from its CHANGELOG.md section. CI refuses a pull request or tag without one, and the slowest pull request check now runs much faster.\n- **Owner-request hook:** The owner-request hook now applies one rule to every session. Agents act first, then open a sprint or task before they ask the owner.\n- **Site reliability and display:** The site no longer fails to load pages while git rewrites the records. Records can show image files, and wide diagrams scroll sideways on a phone."
+ "text": "- **Go pm only:** Python pm is deleted from Yeeef/pm and yeeef-agents. Every clone now runs Go pm, including the Linux server.\n- **Harness records in Yeeef/pm:** pm-harness is tracked in Yeeef/pm with its full history. The yeeef-agents copy is closed.\n- **Command and hook changes:** pm can move a sprint to another project in one command. pm clean removes merged agent worktrees. The owner-request hook now applies one rule.\n- **Site and CI checks:** Wide diagrams stay readable and scroll sideways on a phone. The site keeps serving pages while git rewrites records. The slowest pull request check runs much faster."
 }
