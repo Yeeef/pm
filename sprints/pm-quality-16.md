@@ -88,6 +88,8 @@ The service follows the main checkout's pin, so the main checkout is the one the
 
 done: a pin move now names the worktrees it strands, and a stranded worktree's pm where, pm doctor, pm init and every work-store refusal name the mismatch and the fix (PR #37).
 
+Merged as 6752e93 (PR #37).
+
 - `pm upgrade` lists the clone's other worktrees whose branch pins another pm, each with its fix: "merge or rebase it onto the pin move", or, for one pinned past the move, that it runs once its own move is on main.
 - The version handshake says which side of a pin move a checkout is on (`git rebase <remote>/<main branch>`, or wait for the merge), and no longer claims the main checkout pins the service's version when it does not.
 - `pm where`'s service line and `pm doctor`'s service drift no longer call a service on the main checkout's pin stale from an off-pin checkout, so they no longer send that checkout to `pm service restart`, which fixed nothing.
