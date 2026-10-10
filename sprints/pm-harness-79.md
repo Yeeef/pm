@@ -251,6 +251,8 @@ Answers `yeeef-agents-9va.88.13`.
 
 done: both clones, this Mac's and the Linux server's, run Go pm from the public Yeeef/pm on the Dolt work store, with bd retired and Python pm deleted from yeeef-agents after the soak; the design pages' update moved to Sprint 109 by owner decision.
 
+Merged as eb97cac (PR #99). Merged as 2e1ae91 (PR #13).
+
 - Cut-over preparation ([#97](https://github.com/Yeeef/yeeef-agents/pull/97)) and the bridge release 0.1.6; the rehearsal on scratch clones.
 - The live switch on this Mac: final bd export (580 issues), Go pm installed from Yeeef/pm, pin 0.2.0 ([#98](https://github.com/Yeeef/yeeef-agents/pull/98)), import, `pm init`, the work store pushed to `refs/pm/work`, the service on Go pm.
 - bd retired: a `.beads` file blocks every bd command, `bd init` included ([#99](https://github.com/Yeeef/yeeef-agents/pull/99)); Beads history kept in `.beads.retired/`.
