@@ -96,6 +96,9 @@ only.
 - The site no longer shows "error: open …: no such file or directory" in place of every page when a records sync
   rewrites record files while the service reads them: a record file, directory or day summary that is gone by the
   time it is read is left out, and the next look reads the files that replaced it.
+- The pm service's garbage collection could delete the work store's live journal when a write or a sync raced it,
+  losing the writes since and crashing the service at its next collection ("error dropping journal writer during
+  UpdateGCGen"). pm now builds with a Dolt that holds the fix (dolthub/dolt#11312).
 
 ## [0.4.0] - 2026-10-10
 

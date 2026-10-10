@@ -1,0 +1,77 @@
+# The release build test (tests/test_release.py with PM_RELEASE_BUILD=1: release/build.sh, twice, in a scratch clone,
+# tagged then untagged), on both release targets, only when a change can alter the release build: release/, install.sh,
+# go.mod and go.sum, the version stamp's target (internal/buildinfo), the test, or this file; and on every pm-v* tag
+# (GitHub does not apply paths to tag pushes). Every other change builds pm the same way in pm-go.yml's go-build.
+name: pm release build
+
+on:
+  pull_request:
+    paths:  # the same list as push's
+      - release/**
+      - install.sh
+      - go.mod
+      - go.sum
+      - internal/buildinfo/**
+      - tests/test_release.py
+      - .github/workflows/pm-release-build.yml
+  push:
+    branches: [main]
+    tags: ['pm-v*']
+    paths:
+      - release/**
+      - install.sh
+      - go.mod
+      - go.sum
+      - internal/buildinfo/**
+      - tests/test_release.py
+      - .github/workflows/pm-release-build.yml
+
+concurrency:
+  group: pm-release-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  release-build:
+    name: release build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-14
+          - target: linux-amd64
+            runner: ubuntu-22.04  # glibc 2.35, the oldest the release links against
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the test clones it
+      - uses: actions/setup-go@v5
+        id: go
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: The Go cache paths
+        id: paths
+        run: |
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+      - name: Restore main's latest Go build cache (pm-go.yml saves it)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ steps.paths.outputs.mod }}
+            ${{ steps.paths.outputs.build }}
+          key: go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-build-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-build-${{ hashFiles('go.sum') }}-
+            go-${{ matrix.target }}-${{ steps.go.outputs.go-version }}-build-
+      - uses: astral-sh/setup-uv@v6
+      - name: Build pm (make go-build), which the harness's conftest requires
+        run: make go-build
+      - name: The release build takes its version from the tag alone (release/build.sh, twice, in a scratch clone)
+        run: PM_RELEASE_BUILD=1 uv run --quiet python -m pytest -q -p no:cacheprovider tests/test_release.py
