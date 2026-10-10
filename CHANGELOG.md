@@ -22,6 +22,11 @@ only.
 
 ## [Unreleased]
 
+### Fixed
+
+- `pm init --help` now says what `--session-start` does with the service: it starts an installed service that does
+  not answer, as session start has done since 0.3.0, so a session in a clone always brings its service up.
+
 ## [0.4.0] - 2026-10-10
 
 pm's rule on requests to the owner, the owner-request Stop hook's judge and its block message now state one rule:
