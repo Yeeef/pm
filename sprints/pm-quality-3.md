@@ -120,6 +120,11 @@ A refreshed cache would otherwise let cached test results stand in for test runs
   connection, a go-mysql-server caught panic in Dolt's localFS.iter) and
   passed on rerun; watch for it on the new Dolt.
 
+- PR #26 on main a274b65 (touches no release/ or go.sum; caches warm after
+  main's post-#16 runs): slowest check work (darwin-arm64) 3m20s, then
+  build-vet-test (darwin-arm64) 2m34s, all 9 checks green. First of the two
+  PRs Done when asks for.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
