@@ -552,7 +552,7 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 		return nil, err
 	} else if tracks {
 		out = append(out, fmt.Sprintf("records copy: %s tracks records/, a copy no branch keeps now; untrack it with git "+
-			"rm -r -q --cached --sparse records and commit, or merge the main branch once it has", top))
+			"rm -r -q --cached --sparse --ignore-unmatch records and commit, or merge the main branch once it has", top))
 	}
 	hp, err := GitConfig(main, "core.hooksPath")
 	if err != nil {

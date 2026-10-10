@@ -28,7 +28,7 @@ only.
 2. In the repo, run `pm upgrade --to <X>`. Besides moving the pin, it deletes `.github/workflows/pm-records-copy.yml`
    and `.github/workflows/pm-records-guard.yml` and pm's section in `.pm/hooks/pre-commit` (the file goes when
    nothing else is in it), and the commit it prints also untracks the main branch's `records/` copy
-   (`git rm -r -q --cached --sparse records`; the records stay on the `records` branch, and each worktree's link
+   (`git rm -r -q --cached --sparse --ignore-unmatch records`; the records stay on the `records` branch, and each worktree's link
    stays). Make that commit and merge it as an ordinary PR.
 3. Once the PR is on the main branch, pull it into the main checkout. `pm init` (session start runs it) then turns
    off the sparse checkout an earlier pm set in each worktree. A branch cut before the merge still tracks
@@ -46,7 +46,8 @@ only.
 ### Changed
 
 - `pm doctor` names each piece an earlier pm wrote for the copy (the two workflows, the `pre-commit` section, the
-  sparse checkout, the tracked `records/` copy), and `pm upgrade` and `pm uninstall` remove them.
+  sparse checkout, the tracked `records/` copy). `pm upgrade` and `pm uninstall` remove the workflows and the
+  section, `pm init` turns the sparse checkout off, and the commit `pm upgrade` prints untracks the copy.
 - `pm hook git-pre-commit` does nothing: an earlier pm's `pre-commit` section still runs it until `pm upgrade`
   removes that section, so a commit goes through in the meantime.
 

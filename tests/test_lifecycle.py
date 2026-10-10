@@ -264,15 +264,15 @@ def test_upgrade_retires_the_main_branchs_records_copy(new_repo: Path, tmp_path:
         *(f"repo: {rel}: an earlier pm's file, {retired}" for rel in RETIRED_WORKFLOWS),
         f"repo: {HOOKS}/pre-commit: an earlier pm's file, {retired}",
         f"records copy: {new_repo} tracks records/, a copy no branch keeps now; untrack it with git rm -r -q --cached "
-        "--sparse records and commit, or merge the main branch once it has"]), lines
+        "--sparse --ignore-unmatch records and commit, or merge the main branch once it has"]), lines
     res = pm(new_repo, "init")
     assert res.returncode == 0 and "sparse" not in res.stdout, res.stdout
     assert "!/records/" in git(new_repo, "sparse-checkout", "list").split(), "kept while HEAD tracks the copy"
 
     res = pm(new_repo, "upgrade")
     assert res.returncode == 0, res.stderr
-    commit = (f"git add -- {' '.join(RETIRED_WORKFLOWS)} {HOOKS}/pre-commit && git rm -r -q --cached --sparse records && "
-              f'git commit -m "Upgrade pm to {VERSION}"')
+    commit = (f"git add -- {' '.join(RETIRED_WORKFLOWS)} {HOOKS}/pre-commit && git rm -r -q --cached --sparse "
+              f'--ignore-unmatch records && git commit -m "Upgrade pm to {VERSION}"')
     assert res.stdout.splitlines() == [
         f"pin stays {VERSION}",
         *(f"removed {rel}, {retired}" for rel in RETIRED_WORKFLOWS),
@@ -280,6 +280,7 @@ def test_upgrade_retires_the_main_branchs_records_copy(new_repo: Path, tmp_path:
         "this branch tracks records/, a copy no branch keeps now; the commit below untracks it",
         f"pm commits nothing on main; commit pm's files there: {commit}"], res.stdout
     assert not any((new_repo / rel).exists() for rel in [*RETIRED_WORKFLOWS, f"{HOOKS}/pre-commit"])
+    git(new_repo, "rm", "-r", "-q", "--cached", "--sparse", "records")  # an interrupted first try: the commit still runs
     res = subprocess.run(["sh", "-c", commit], cwd=new_repo, env=env(tmp_path), capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
     assert git(new_repo, "ls-tree", "HEAD", "records") == ""

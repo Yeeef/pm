@@ -1001,7 +1001,7 @@ type Removal struct {
 // Removals is each file under top holding a pm part, a retired one too, with the file without it; read-only.
 func Removals(top string, s Settings) ([]Removal, error) {
 	var out []Removal
-	for _, p := range append(Pieces(s), Retired...) {
+	for _, p := range Pieces(s) {
 		path := filepath.Join(top, p.Rel)
 		text, err := Read(path)
 		if err != nil {
@@ -1020,6 +1020,19 @@ func Removals(top string, s Settings) ([]Removal, error) {
 			return nil, err
 		}
 		out = append(out, Removal{path, n})
+	}
+	for _, p := range Retired {
+		pl, err := retire(p, filepath.Join(top, p.Rel))
+		if err != nil {
+			return nil, err
+		}
+		if pl != nil {
+			r := Removal{Path: pl.Path}
+			if !pl.Gone {
+				r.New = ptr(pl.New)
+			}
+			out = append(out, r)
+		}
 	}
 	return out, nil
 }

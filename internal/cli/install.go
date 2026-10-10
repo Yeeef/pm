@@ -580,7 +580,7 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	}
 	if tracks {
 		lines = append(lines, "this branch tracks records/, a copy no branch keeps now; the commit below untracks it")
-		steps = append(steps, "git rm -r -q --cached --sparse records")
+		steps = append(steps, "git rm -r -q --cached --sparse --ignore-unmatch records")
 	}
 	lines = append(lines, fmt.Sprintf("pm commits nothing on %s; commit pm's files there: %s && git commit -m \"Upgrade "+
 		"pm to %s\"", branch, strings.Join(steps, " && "), buildinfo.Version))
