@@ -88,6 +88,11 @@ The pinned jsdelivr URL is served with Cache-Control public, max-age=31536000, i
   as well, ../, %2e%2e, a symlink out and an absolute symlink were served.
   With both, all 11 escape paths get 404.
 
+- The figure line pushed rules chunk 1 to 10,117 characters, over the 10,000
+  cap, and TestChunksFitTheCapAndAddUpToTheHead caught it. Folding it into the
+  style guide's diagram line leaves chunk 1 at 9,947: 53 characters of
+  headroom for the next rule.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
