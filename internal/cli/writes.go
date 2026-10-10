@@ -754,7 +754,7 @@ func onMain(e *env, sha string) (string, error) {
 		return "", err
 	}
 	main := cfg.Remote + "/" + cfg.MainBranch
-	if _, err := store.Git(root, "fetch", "--quiet", cfg.Remote, fmt.Sprintf("refs/heads/%s:refs/remotes/%s",
+	if _, err := store.Git(root, "fetch", "--quiet", cfg.Remote, fmt.Sprintf("+refs/heads/%s:refs/remotes/%s",
 		cfg.MainBranch, main)); err != nil {
 		return "", refuse("--merged %s: pm cannot see %s, so it cannot check the commit is on it: %v", sha, main, err)
 	}
