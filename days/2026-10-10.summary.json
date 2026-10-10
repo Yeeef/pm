@@ -1,0 +1,7 @@
+{
+ "date": "2026-10-10",
+ "generated_at": "2026-10-10T03:39:35+00:00",
+ "digest": "04e5163099c183c0",
+ "model": "claude-haiku-5-5",
+ "text": "- **Go pm cut-over:** The Linux server's clone now runs the installed Go pm and syncs with GitHub. This repo uses only Go pm; Python pm and Beads are removed.\n- **Owner-request rules:** Requests now follow one rule across the rules, the judge and the reprompt. The agent does the work itself first, and a request with no sprint or task gets one opened first.\n- **Release notes:** Each pm release now publishes its changelog section as its note, with an upgrade guide. CI refuses a pull request or release tag without a changelog section.\n- **Harness move rehearsal:** A scratch rehearsal of the move to Yeeef/pm passed offline. Work to remove Python pm from Yeeef/pm has started."
+}
