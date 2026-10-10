@@ -72,6 +72,14 @@ The owner asked in chat on 2026-10-10 to move it to pm-quality; the .records sto
   worktrees: 4 locked by live processes, 2 clean with nothing beyond main
   (removable), and one with 1 commit never pushed, which must be kept.
 
+- --text=On 2026-10-10 the clone had 11 agent worktrees, none locked, and
+  their sprint agents' transcripts record cwd = the main checkout (a subagent
+  runs in its parent's directory), so neither Claude Code's lock nor a
+  transcript dir per worktree saw them. Without another signal, pm clean's dry
+  run marked 7 of 13 worktrees remove while their agents were working.
+  Counting a live transcript entry (last 30 min) whose tool call names the
+  worktree's path keeps all 11: 0 of 13 to remove.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
