@@ -339,13 +339,23 @@ func OldSparse(top string) (bool, error) {
 	return !tracks, err
 }
 
-// Unsparse turns the worktree's sparse checkout off, and the setting an earlier pm set with it.
+// Unsparse turns the worktree's sparse checkout off, then takes out what it leaves behind: its settings in the
+// worktree's config (git sparse-checkout disable leaves core.sparseCheckout false, and git worktree add copies that
+// into each new worktree) and its patterns file.
 func Unsparse(top string) error {
 	if _, err := Git(top, "sparse-checkout", "disable"); err != nil {
 		return err
 	}
-	proc.Run([]string{"git", "config", "--worktree", "--unset", "sparse.expectFilesOutsideOfPatterns"},
-		proc.Options{Cwd: &top})
+	for _, key := range []string{"core.sparseCheckout", "core.sparseCheckoutCone", "sparse.expectFilesOutsideOfPatterns"} {
+		proc.Run([]string{"git", "config", "--worktree", "--unset", key}, proc.Options{Cwd: &top}) // unset already: fine
+	}
+	file, err := Git(top, "rev-parse", "--path-format=absolute", "--git-path", "info/sparse-checkout")
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return nil
 }
 

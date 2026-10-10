@@ -288,8 +288,9 @@ def test_upgrade_retires_the_main_branchs_records_copy(new_repo: Path, tmp_path:
     res = pm(new_repo, "init")
     assert res.returncode == 0 and f"turned off the sparse checkout an earlier pm set in {new_repo}" in res.stdout, \
         res.stdout
-    assert git(new_repo, "config", "--get", "--default=", "core.sparseCheckout").strip() in ("", "false")
-    assert git(new_repo, "config", "--worktree", "--get", "--default=", "sparse.expectFilesOutsideOfPatterns") == "\n"
+    for key in ("core.sparseCheckout", "core.sparseCheckoutCone", "sparse.expectFilesOutsideOfPatterns"):
+        assert git(new_repo, "config", "--get", "--default=", key) == "\n", key
+    assert not Path(git(new_repo, "rev-parse", "--path-format=absolute", "--git-path", "info/sparse-checkout").strip()).exists()
     assert (new_repo / "records").is_symlink() and (new_repo / "records/sprints").is_dir()
     assert git(new_repo, "status", "--porcelain") == ""
     code, lines = doctor(new_repo)
