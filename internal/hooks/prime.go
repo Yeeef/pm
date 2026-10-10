@@ -41,7 +41,7 @@ var Machinery = map[string]bool{"prime": true, "hook": true, "push": true}
 // the rules run as one hook per chunk. The hooks of one entry run in parallel and arrive in any order, so each chunk
 // starts with a title naming its place and its sections. The hook entries name each chunk by number: a new chunk is a
 // new hook entry in every runtime's settings.
-var Starts = []string{"# pm rules", "# How"}
+var Starts = []string{"# pm rules", "## 4. Invariants"}
 
 // Self is the pm that pm prime --state runs for init, where and show: this binary, as Python runs its own
 // interpreter. A test may point it at another program.

@@ -43,7 +43,7 @@ FAKE_CLAUDE = Path(__file__).resolve().parent / "fake_claude.py"
 # additionalContext inline only up to 10,000 characters), each under a title naming its place and its sections.
 RULES = CHECKOUT / "prime.md"
 CAP = 10_000
-RULE_STARTS = ("# pm rules", "# How")
+RULE_STARTS = ("# pm rules", "## 4. Invariants")
 MACHINERY = {"prime", "hook", "push"}  # what the runtimes and the scheduler call, not agents
 
 

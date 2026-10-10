@@ -175,8 +175,8 @@ labelled case for each case it moves.
   one arrives as a 2 KB preview and a file path), per hook, and the hooks of one entry arrive in any order. So the
   rules run as one hook per chunk: `hooks.Chunks` cuts them at the headings in `hooks.Starts` and puts a title
   line naming each chunk's place and sections on top (`pm prime --rules N`), and the state runs as its own hook,
-  cut at a line. 2026-10-07: 4 chunks of 8,447, 5,749, 6,317 and 4,708 characters, 24,872 without titles.
-  `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` (and `TestChunksFitTheCapAndAddUpToTheHead`) fails when a
+  cut at a line. 2026-10-10: 2 chunks, cut at `## 4. Invariants`, of 6,692 and 9,632 characters, 16,179 without
+  titles. `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` (and `TestChunksFitTheCapAndAddUpToTheHead`) fails when a
   chunk outgrows the cap: move a heading in `Starts` and in the harness's `RULE_STARTS`, or add one plus its hook
   entries; `test_init_bootstraps_a_brand_new_repo` checks the entries.
 - `prime.md` carries only what a user's agents need (owner decision, 2026-10-07). Guidance for developing pm,
