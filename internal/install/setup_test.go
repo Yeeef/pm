@@ -226,12 +226,10 @@ func TestInstallBinary(t *testing.T) {
 	}
 }
 
-// The pm uv tool's link in the bin dir gives way to the Go binary, and the uv tool stays: repos pinned to Python pm
-// run their pin through it, and their service units run its interpreter.
-func TestInstallBinaryReplacesTheUVToolsLinkAndKeepsTheTool(t *testing.T) {
+// A link in the bin dir, such as the retired pm uv tool's, gives way to the binary; what it pointed at stays.
+func TestInstallBinaryReplacesALinkAndLeavesItsTarget(t *testing.T) {
 	bin, tools := t.TempDir(), t.TempDir()
 	t.Setenv("PM_BIN_DIR", bin)
-	t.Setenv("UV_TOOL_DIR", tools)
 	old := buildinfo.Version
 	buildinfo.Version = "9.9.9"
 	t.Cleanup(func() { buildinfo.Version = old })
@@ -246,8 +244,7 @@ func TestInstallBinaryReplacesTheUVToolsLinkAndKeepsTheTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	said, err := InstallBinary()
-	want := "replaced the pm uv tool's link " + filepath.Join(bin, "pm") + "; the uv tool stays installed for repos " +
-		"pinned to Python pm; installed pm 9.9.9 at " + filepath.Join(bin, "pm")
+	want := "installed pm 9.9.9 at " + filepath.Join(bin, "pm")
 	if err != nil || said != want {
 		t.Fatalf("got %q, %v", said, err)
 	}
@@ -255,7 +252,7 @@ func TestInstallBinaryReplacesTheUVToolsLinkAndKeepsTheTool(t *testing.T) {
 		t.Fatalf("the bin-dir pm is not a file: %v", err)
 	}
 	if b, err := os.ReadFile(tool); err != nil || string(b) != "#!/bin/sh\n" {
-		t.Fatalf("the uv tool's pm changed: %q, %v", b, err)
+		t.Fatalf("the link's target changed: %q, %v", b, err)
 	}
 }
 
@@ -294,7 +291,7 @@ func pieceAt(t *testing.T, rel string) Piece {
 	return Piece{}
 }
 
-// applied is text with pm's part as this version writes it, as Python pm 0.1.x writes it too (parity_test.go).
+// applied is text with pm's part as this version writes it.
 func applied(t *testing.T, rel, text string) string {
 	t.Helper()
 	out, err := pieceAt(t, rel).Apply(&text)

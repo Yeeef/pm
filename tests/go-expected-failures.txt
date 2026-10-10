@@ -1,5 +1,0 @@
-# Tests expected to fail on Go pm (PM_IMPL=go), one per line: <test file>::<test name with its parameters>.
-# Under PM_IMPL=go, conftest marks each xfail(strict=True), so a listed test that passes fails the run until it
-# leaves this list. The list only shrinks: a test that passed on Go and fails now is a regression to fix, never a
-# new entry; only a new test of a command Go pm does not have yet joins it.
-# test_go_expected_failures.py fails on an entry naming a test function its file no longer has.

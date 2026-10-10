@@ -1,6 +1,4 @@
-// Code moved verbatim from the argparse tree in src/pm/cli.py (parser()): every command, its help, description and
-// arguments, in the order Python defines them. A help text changes here and in cli.py together; the parity test
-// compares every command's --help with Python pm's.
+// Every command, its help, description and arguments, in the order pm --help lists them.
 
 package cli
 
@@ -24,7 +22,7 @@ func chunkNumbers() []string {
 var tree = &command{
 	name:        "pm",
 	description: "pm: the write path for project records, and project actions that touch both records and the work store.",
-	epilog:      "pm runs the pm version the repo pins in .pm/config.toml: another Go version's release binary, a Python version through uv; pm where names the version running and why.",
+	epilog:      "pm runs the pm version the repo pins in .pm/config.toml: another version's release binary, downloaded once; a pin below 0.2.0 (a retired Python release) is refused. pm where names the version running and why.",
 	subDest:     "cmd",
 	subs: []*command{
 		{

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>First</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head><body><div class="wrap"><!--pm-status-->
+<nav class="topbar"><a href="../index.html">Home</a> / <a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a></nav>
+<div class="eyebrow">sprint</div>
+<h1>First</h1>
+<p class="meta"><span class="pill run">RUNNING</span><span>demo.1</span><span>opened 2026-10-01</span></p><h2 id="goal">Goal</h2>
+<blockquote>
+<p>What should be true when this sprint ends, and why now?</p>
+</blockquote>
+<p>Ship the <em>parser</em>, because the site needs <a href="../design/parser.html#tables">tables</a> and <code>code</code>.</p>
+<p>Second paragraph.</p>
+<h2 id="scope">Scope</h2>
+<blockquote>
+<p>What's in, and what's explicitly out? Keep this high level; implementation
+details go in a design page.</p>
+</blockquote>
+<p><strong>In:</strong> the parser.</p>
+<p><strong>Out:</strong> styling.</p>
+<h2 id="done-when">Done when</h2>
+<blockquote>
+<p>What evidence will show the goal is met?</p>
+</blockquote>
+<ul>
+<li><code>make test</code> passes.</li>
+<li>The page renders &amp; links.</li>
+</ul>
+<h2 id="design-pages">Design pages</h2>
+<blockquote>
+<p>Where is the detail?</p>
+</blockquote>
+<ul>
+<li><a href="../design/parser.html">The parser</a></li>
+</ul>
+<h2 id="progress">Progress</h2>
+<blockquote>
+<p>Where is the sprint now? Generated from Beads when the page is rendered.
+Do not write here.</p>
+</blockquote>
+<pre class="mermaid">flowchart LR
+  subgraph demo_1[&#34;Sprint 1: First&#34;]
+    direction TB
+    demo_1_1[&#34;Write the &lt;parser&gt;&#34;]:::done
+    demo_1_2[&#34;Render #quot;tables#quot;&#34;]:::running
+    demo_1_3[&#34;Which parser?&#34;]:::done
+    demo_1_4[&#34;Pick the table style&#34;]:::ready
+    demo_1_5[&#34;Restart the site&#34;]:::blocked
+    demo_1_6[&#34;Review PR #7&#34;]:::ready
+    demo_1_7[&#34;Follow-up task&#34;]:::blocked
+    demo_1_8[&#34;Old question&#34;]:::done
+    demo_1_10[&#34;Answered, no rule&#34;]:::done
+  end
+  demo_1_2 --&gt; demo_1_5
+  demo_1_2 --&gt; demo_1_7
+  classDef done fill:#e4f2e7,stroke:#2c7a3f,color:#1d2321
+  classDef running fill:#e3edf8,stroke:#1d5fa8,color:#1d2321
+  classDef ready fill:#f6efd9,stroke:#8a6a12,color:#1d2321
+  classDef blocked fill:#f7e3e1,stroke:#a8322d,color:#1d2321</pre>
+<p class="meta"><span class="pill done">DONE</span> <span class="pill run">RUNNING</span> <span class="pill queued">READY</span> <span class="pill blocked">BLOCKED</span><span>arrows: must finish first</span></p>
+<h2 id="decisions-await-you">Decisions await you</h2>
+<blockquote><p>The owner chooses; the agent records the answer. Generated from the work store: open decision needs.</p></blockquote>
+<div class="card need" id="need-demo.1.7.1"><h4><span class="pill queued">READY</span>Ask about the follow-up</h4><p class="k"><a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a> · <a href="../sprints/demo-1.html">Sprint 1: First</a> · task Follow-up task · demo.1.7.1</p><p class="empty">No details given.</p><p class="k">Reply below, or answer with <code>pm reply add demo.1.7.1</code>; the agent that asked records your answer.</p><!--pm-reply demo.1.7.1 decision--></div><div class="card need" id="need-demo.1.4"><h4><span class="pill queued">READY</span>Pick the table style</h4><p class="k"><a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a> · <a href="../sprints/demo-1.html">Sprint 1: First</a> · demo.1.4</p><p><strong>Question:</strong> which style?</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a</td>
+<td>small</td>
+</tr>
+</tbody>
+</table></div>
+<pre class="mermaid">flowchart LR
+  a --&gt; b
+</pre>
+<p><em>raw</em></p>
+<p class="k">Reply below, or answer with <code>pm reply add demo.1.4</code>; the agent that asked records your answer.</p><div class="replies"><p class="k">Replies</p><div class="reply-item"><p class="k">you, on the site · 2026-10-03 09:00:00 UTC · <span class="picked">delivered to the agent&#x27;s session</span></p><p>Take <strong>a</strong>.</p>
+</div><div class="reply-item"><p class="k">s1 · 2026-10-03 09:30:00 UTC</p><p>Noted &lt;script&gt;x&lt;/script&gt;</p>
+</div><div class="reply-item"><p class="k">you, on the site · 2026-10-03 10:00:00 UTC · <span class="replied">not delivered yet: the session that asked is not running, or the push failed and the pm service tries again; the next session sees it</span></p><p>Or b.</p>
+</div></div><!--pm-reply demo.1.4 decision--></div>
+<h2 id="actions-await-you">Actions await you</h2>
+<blockquote><p>The owner does something; the agent closes it once it sees it done. Generated from the work store: open action and PR review needs.</p></blockquote>
+<div class="card need" id="need-demo.1.6"><h4><span class="pill queued">READY</span>Review PR #7</h4><p class="k"><a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a> · <a href="../sprints/demo-1.html">Sprint 1: First</a> · demo.1.6</p><ul class="list review"><li>Pull request: <a href="https://github.com/x/y/pull/7">https://github.com/x/y/pull/7</a></li><li>Delivers: <a href="../sprints/demo-1.html">Sprint 1: First</a>, <a href="../sprints/demo-2.html">Sprint 2: Second</a>, Sprint 9: Old 9 · <a href="../sprints/demo-2.html#delivery-report">delivery report: Second: the follow-up</a></li><li>Design pages: <a href="../design/empty.html">Empty</a>, <a href="../design/parser.html">The parser</a></li></ul><p class="m-sec">Focus</p><p>The <strong>parser</strong> &amp; its <code>tables</code>.</p>
+<p class="k">Reply below with the evidence once done; the agent checks it and closes this.</p><!--pm-reply demo.1.6 action--></div><div class="card need" id="need-demo.1.5"><h4><span class="pill blocked">BLOCKED</span>Restart the site</h4><p class="k"><a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a> · <a href="../sprints/demo-1.html">Sprint 1: First</a> · demo.1.5</p><p>Restart it on port 8767.</p>
+<p class="k">Reply below with the evidence once done; the agent checks it and closes this.</p><!--pm-reply demo.1.5 action--></div>
+<h2 id="decisions">Decisions</h2>
+<blockquote>
+<p>What did we choose inside this sprint, and why?</p>
+</blockquote>
+<div class="decision"><div class="meta"><span>agent</span><span>2026-10-02</span></div>
+<p>Use goldmark.
+It is CommonMark.</p>
+</div>
+<h2 id="findings">Findings</h2>
+<blockquote>
+<p>What did we learn that changes the design, the plan, or how we work? Add
+results with their numbers.</p>
+</blockquote>
+<ul>
+<li>Parsing takes 3 ms.</li>
+</ul>
+<div class="result"><p class="m-sec">Render time</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th style="text-align:right">Pages</th>
+<th style="text-align:left">Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">126</td>
+<td style="text-align:left">0.4 s</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+<p>Reading: fast enough.</p>
+<h2 id="docs">Docs</h2><ul class="list"><li><a href="../docs/2026-10-02-notes.html">Notes on the parser</a><span class="k">2026-10-02</span></li></ul>
+<h2 id="postmortems">Postmortems</h2><ul class="list"><li><a href="../postmortems/2026-10-03-outage.html">The outage</a><span class="k">2026-10-03</span></li></ul>
+<h2 id="delivery-report">Delivery report</h2>
+<blockquote>
+<p>Written at close. Each part holds &quot;Not closed yet.&quot; until then.</p>
+</blockquote>
+<h3 id="outcome">Outcome</h3>
+<blockquote>
+<p>Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.</p>
+</blockquote>
+<p>Not closed yet.</p>
+<h3 id="against-done-when">Against &quot;Done when&quot;</h3>
+<blockquote>
+<p>Each item, met or not, with its evidence (a page, a command, a number).</p>
+</blockquote>
+<p>Not closed yet.</p>
+
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "default" });
+</script>
+</body></html>

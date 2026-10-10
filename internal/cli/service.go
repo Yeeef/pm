@@ -18,7 +18,7 @@ type exitCode struct{ code int }
 
 func (e *exitCode) Error() string { return "exit " + strconv.Itoa(e.code) }
 
-// git runs git in dir and returns its stripped stdout; a failure is store.py's RecordError.
+// git runs git in dir and returns its stripped stdout; a failure is a records error.
 func git(dir string, args ...string) (string, error) {
 	res, err := proc.Run(append([]string{"git"}, args...), proc.Options{Cwd: &dir})
 	if err != nil {
@@ -35,7 +35,7 @@ func git(dir string, args ...string) (string, error) {
 }
 
 // findStore is the clone's main checkout and its records store, checked: a worktree of this clone on the records
-// branch (store.py's find_store). Never a fallback.
+// branch. Never a fallback.
 func findStore(cwd string) (main, records string, err error) {
 	common, err := git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {

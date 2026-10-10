@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// The JSON field names are the work-store page's (Data model); pm export prints this shape and the parity harness
-// maps bd's JSON to it.
+// The JSON field names are the work-store page's (Data model); pm export prints this shape.
 func TestItemJSONUsesThePagesFieldNames(t *testing.T) {
 	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	review := Item{ID: "demo-9va.84.4", Type: Need, Parent: "demo-9va.84", Title: "Review PR #80", Status: Closed,

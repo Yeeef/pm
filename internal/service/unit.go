@@ -1,8 +1,8 @@
 // Package service is the pm service: one supervised background process per clone, `pm service run` in the main
 // checkout, that serves the site from the records and the work store, delivers the owner's site replies and reviewed
 // PRs' merges into the sessions that raised them, and syncs the stores. This file holds its unit under the machine's
-// supervisor: a launchd agent with KeepAlive on macOS, a systemd user service on Linux, byte for byte what Python pm
-// writes for the same inputs. Python source: service.py.
+// supervisor: a launchd agent with KeepAlive on macOS, a systemd user service on Linux, byte for byte the files in
+// testdata/units for the same inputs.
 package service
 
 import (

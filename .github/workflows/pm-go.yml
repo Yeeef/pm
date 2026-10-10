@@ -1,7 +1,6 @@
-# Go pm on every pull request: built on both release targets as the release builds it (cgo, native runners), then
-# go vet, the Go tests and the parity tests against Python pm (make test-go), then the shared pytest suite on Go pm
-# against tests/go-expected-failures.txt and its transcripts against Python pm's (make test-go-suite), then the
-# release build (release/build.sh) tagged and untagged. The step summary records the binary's size per target.
+# pm on every pull request: built on both release targets as the release builds it (cgo, native runners), then go vet
+# and the Go tests (make test-go), then the release build (release/build.sh) tagged and untagged. The step summary
+# records the binary's size per target. pm-tests.yml runs the harness suite.
 name: pm go
 
 on:
@@ -17,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  build-and-parity:
+  build-and-test:
     strategy:
       fail-fast: false
       matrix:
@@ -28,21 +27,17 @@ jobs:
             runner: ubuntu-22.04  # glibc 2.35, the oldest the release links against
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
-    env:
-      UV_PYTHON: "3.13"  # the parity tests' reference help layout is 3.13's argparse
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # the launcher's integration test builds release 0.1.0 from this clone's tag pm-v0.1.0, and the release-build test clones it
+          fetch-depth: 0  # the release-build test clones it
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
       - uses: astral-sh/setup-uv@v6
-      - name: Build, vet, Go tests and parity (make test-go)
+      - name: Build, vet and Go tests (make test-go)
         run: make test-go
-      - name: Shared suite on Go pm against its expected failures, then transcripts against Python's (make test-go-suite)
-        run: make test-go-suite
       - name: The release build takes its version from the tag alone (release/build.sh, twice, in a scratch clone)
         run: PM_RELEASE_BUILD=1 uv run --quiet python -m pytest -q -p no:cacheprovider tests/test_release.py
       - name: Record the binary

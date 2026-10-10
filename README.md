@@ -33,8 +33,9 @@ clone (the records store, the work store, the pm service). It changes only what 
 what differs and `pm upgrade` rewrites it. One `pm` on PATH serves every repo: in a repo that pins another version,
 it downloads that release once and runs it.
 
-Needs: `git`; `gh` for pull-request features; `claude` for the owner-request hook's judge; `uv` only for a repo
-pinned to a Python release (0.1.x).
+Needs: `git`; `gh` for pull-request features; `claude` for the owner-request hook's judge; `uv` only for the
+one-time move of a clone off the pre-package harness, which `pm init` names. A repo pinned below 0.2.0 (a retired
+release) must move its pin with `pm upgrade --to <X>` first.
 
 ## Docs
 

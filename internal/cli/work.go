@@ -15,9 +15,8 @@ import (
 )
 
 // goOnly runs the commands Go pm has and Python pm does not: pm version, pm export [--store DIR], pm init --import-bd FILE, and the work-store
-// commands in store_commands.go. The argparse tree mirrors Python pm's, whose help texts and pm prime noun list the
-// parity tests hold equal, so these stay out of it until Python pm has them or the cut-over. In Go pm today, pm init
-// --import-bd does the import only; the rest of pm init comes with the install sprint. ok is false for any other argv.
+// commands in store_commands.go. They stay out of the command tree in commands.go, which pm --help and pm prime's noun
+// list read; pm init --import-bd does the import only. ok is false for any other argv.
 func goOnly(argv []string, stdin io.Reader, stdout io.Writer) (ok bool, err error) {
 	if name, args, ok := storeCommandOf(argv); ok {
 		return true, runStoreCommand(name, args, openStore, stdin, stdout)

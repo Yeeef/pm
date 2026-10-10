@@ -1,0 +1,1734 @@
+{
+ "yaml_str": [
+  [
+   "",
+   "\"\""
+  ],
+  [
+   " a",
+   "\" a\""
+  ],
+  [
+   "!a",
+   "\"!a\""
+  ],
+  [
+   "\"Plan: next\"",
+   "\"\\\"Plan: next\\\"\""
+  ],
+  [
+   "\"Second: the follow-up\"",
+   "\"\\\"Second: the follow-up\\\"\""
+  ],
+  [
+   "\"a\"",
+   "\"\\\"a\\\"\""
+  ],
+  [
+   "#a",
+   "\"#a\""
+  ],
+  [
+   "%a",
+   "\"%a\""
+  ],
+  [
+   "&a",
+   "\"&a\""
+  ],
+  [
+   "'a'",
+   "\"'a'\""
+  ],
+  [
+   "*a",
+   "\"*a\""
+  ],
+  [
+   "+1",
+   "\"+1\""
+  ],
+  [
+   "- a",
+   "\"- a\""
+  ],
+  [
+   "-.Inf",
+   "\"-.Inf\""
+  ],
+  [
+   "-1",
+   "\"-1\""
+  ],
+  [
+   "-a",
+   "-a"
+  ],
+  [
+   ".5",
+   "\".5\""
+  ],
+  [
+   ".inf",
+   "\".inf\""
+  ],
+  [
+   ".nan",
+   "\".nan\""
+  ],
+  [
+   "0",
+   "\"0\""
+  ],
+  [
+   "010",
+   "\"010\""
+  ],
+  [
+   "08",
+   "08"
+  ],
+  [
+   "0b101",
+   "\"0b101\""
+  ],
+  [
+   "0x1F",
+   "\"0x1F\""
+  ],
+  [
+   "1",
+   "\"1\""
+  ],
+  [
+   "1.0e+3",
+   "\"1.0e+3\""
+  ],
+  [
+   "1.2.3",
+   "1.2.3"
+  ],
+  [
+   "1.5",
+   "\"1.5\""
+  ],
+  [
+   "12:30",
+   "\"12:30\""
+  ],
+  [
+   "12:30:00",
+   "\"12:30:00\""
+  ],
+  [
+   "1:20",
+   "\"1:20\""
+  ],
+  [
+   "1_000",
+   "\"1_000\""
+  ],
+  [
+   "1e3",
+   "1e3"
+  ],
+  [
+   "2026-1-8 10:00:00",
+   "\"2026-1-8 10:00:00\""
+  ],
+  [
+   "2026-10-01",
+   "\"2026-10-01\""
+  ],
+  [
+   "2026-10-02",
+   "\"2026-10-02\""
+  ],
+  [
+   "2026-10-03",
+   "\"2026-10-03\""
+  ],
+  [
+   "2026-10-04",
+   "\"2026-10-04\""
+  ],
+  [
+   "2026-10-08",
+   "\"2026-10-08\""
+  ],
+  [
+   "2026-10-08T10:00:00Z",
+   "\"2026-10-08T10:00:00Z\""
+  ],
+  [
+   "2026-13-45",
+   null
+  ],
+  [
+   "3.14",
+   "\"3.14\""
+  ],
+  [
+   ":a",
+   ":a"
+  ],
+  [
+   "<<",
+   "\"<<\""
+  ],
+  [
+   "=",
+   "\"=\""
+  ],
+  [
+   ">a",
+   "\">a\""
+  ],
+  [
+   "? a",
+   "\"? a\""
+  ],
+  [
+   "?a",
+   "?a"
+  ],
+  [
+   "@a",
+   "\"@a\""
+  ],
+  [
+   "Demo",
+   "Demo"
+  ],
+  [
+   "Demo & \"friends\"",
+   "Demo & \"friends\""
+  ],
+  [
+   "Drift",
+   "Drift"
+  ],
+  [
+   "Empty",
+   "Empty"
+  ],
+  [
+   "First",
+   "First"
+  ],
+  [
+   "Go port: records and site (P4)",
+   "\"Go port: records and site (P4)\""
+  ],
+  [
+   "No",
+   "\"No\""
+  ],
+  [
+   "Notes on the parser",
+   "Notes on the parser"
+  ],
+  [
+   "Null",
+   "\"Null\""
+  ],
+  [
+   "OFF",
+   "\"OFF\""
+  ],
+  [
+   "Old",
+   "Old"
+  ],
+  [
+   "Second",
+   "Second"
+  ],
+  [
+   "Sprint 1: x",
+   "\"Sprint 1: x\""
+  ],
+  [
+   "The outage",
+   "The outage"
+  ],
+  [
+   "The parser",
+   "The parser"
+  ],
+  [
+   "[a]",
+   "\"[a]\""
+  ],
+  [
+   "`a`",
+   "\"`a`\""
+  ],
+  [
+   "a\tb",
+   "\"a\\tb\""
+  ],
+  [
+   "a\nb",
+   "\"a\\nb\""
+  ],
+  [
+   "a ",
+   "\"a \""
+  ],
+  [
+   "a #b",
+   "\"a #b\""
+  ],
+  [
+   "a · b",
+   "a · b"
+  ],
+  [
+   "a\"b",
+   "a\"b"
+  ],
+  [
+   "a#b",
+   "a#b"
+  ],
+  [
+   "a'b",
+   "a'b"
+  ],
+  [
+   "a, b",
+   "a, b"
+  ],
+  [
+   "a: b",
+   "\"a: b\""
+  ],
+  [
+   "a:b",
+   "a:b"
+  ],
+  [
+   "a]",
+   "a]"
+  ],
+  [
+   "day",
+   "day"
+  ],
+  [
+   "demo",
+   "demo"
+  ],
+  [
+   "demo.1",
+   "demo.1"
+  ],
+  [
+   "demo.1.1",
+   "demo.1.1"
+  ],
+  [
+   "demo.2",
+   "demo.2"
+  ],
+  [
+   "design",
+   "design"
+  ],
+  [
+   "doc",
+   "doc"
+  ],
+  [
+   "n",
+   "n"
+  ],
+  [
+   "null",
+   "\"null\""
+  ],
+  [
+   "old",
+   "old"
+  ],
+  [
+   "on",
+   "\"on\""
+  ],
+  [
+   "plain",
+   "plain"
+  ],
+  [
+   "pm-v0.1.0",
+   "pm-v0.1.0"
+  ],
+  [
+   "postmortem",
+   "postmortem"
+  ],
+  [
+   "project",
+   "project"
+  ],
+  [
+   "repo-demo",
+   "repo-demo"
+  ],
+  [
+   "repo-demo.1",
+   "repo-demo.1"
+  ],
+  [
+   "repo-demo.2",
+   "repo-demo.2"
+  ],
+  [
+   "repo-old",
+   "repo-old"
+  ],
+  [
+   "sprint",
+   "sprint"
+  ],
+  [
+   "true",
+   "\"true\""
+  ],
+  [
+   "x\u0001",
+   "\"x\\u0001\""
+  ],
+  [
+   "y",
+   "y"
+  ],
+  [
+   "yes",
+   "\"yes\""
+  ],
+  [
+   "{a}",
+   "\"{a}\""
+  ],
+  [
+   "|a",
+   "\"|a\""
+  ],
+  [
+   "~",
+   "\"~\""
+  ],
+  [
+   "Ünïcødé",
+   "Ünïcødé"
+  ],
+  [
+   "日本語",
+   "日本語"
+  ]
+ ],
+ "header_type": [
+  [
+   "",
+   [
+    "NoneType",
+    "None",
+    false
+   ]
+  ],
+  [
+   " a",
+   [
+    "str",
+    "a",
+    true
+   ]
+  ],
+  [
+   "!a",
+   null
+  ],
+  [
+   "\"Plan: next\"",
+   [
+    "str",
+    "Plan: next",
+    true
+   ]
+  ],
+  [
+   "\"Second: the follow-up\"",
+   [
+    "str",
+    "Second: the follow-up",
+    true
+   ]
+  ],
+  [
+   "\"a\"",
+   [
+    "str",
+    "a",
+    true
+   ]
+  ],
+  [
+   "#a",
+   [
+    "NoneType",
+    "None",
+    false
+   ]
+  ],
+  [
+   "%a",
+   null
+  ],
+  [
+   "&a",
+   [
+    "NoneType",
+    "None",
+    false
+   ]
+  ],
+  [
+   "'a'",
+   [
+    "str",
+    "a",
+    true
+   ]
+  ],
+  [
+   "*a",
+   null
+  ],
+  [
+   "+1",
+   [
+    "int",
+    "1",
+    true
+   ]
+  ],
+  [
+   "- a",
+   null
+  ],
+  [
+   "-.Inf",
+   [
+    "float",
+    "-inf",
+    true
+   ]
+  ],
+  [
+   "-1",
+   [
+    "int",
+    "-1",
+    true
+   ]
+  ],
+  [
+   "-a",
+   [
+    "str",
+    "-a",
+    true
+   ]
+  ],
+  [
+   ".5",
+   [
+    "float",
+    "0.5",
+    true
+   ]
+  ],
+  [
+   ".inf",
+   [
+    "float",
+    "inf",
+    true
+   ]
+  ],
+  [
+   ".nan",
+   [
+    "float",
+    "nan",
+    true
+   ]
+  ],
+  [
+   "0",
+   [
+    "int",
+    "0",
+    false
+   ]
+  ],
+  [
+   "010",
+   [
+    "int",
+    "8",
+    true
+   ]
+  ],
+  [
+   "08",
+   [
+    "str",
+    "08",
+    true
+   ]
+  ],
+  [
+   "0b101",
+   [
+    "int",
+    "5",
+    true
+   ]
+  ],
+  [
+   "0x1F",
+   [
+    "int",
+    "31",
+    true
+   ]
+  ],
+  [
+   "1",
+   [
+    "int",
+    "1",
+    true
+   ]
+  ],
+  [
+   "1.0e+3",
+   [
+    "float",
+    "1000.0",
+    true
+   ]
+  ],
+  [
+   "1.2.3",
+   [
+    "str",
+    "1.2.3",
+    true
+   ]
+  ],
+  [
+   "1.5",
+   [
+    "float",
+    "1.5",
+    true
+   ]
+  ],
+  [
+   "12:30",
+   [
+    "int",
+    "750",
+    true
+   ]
+  ],
+  [
+   "12:30:00",
+   [
+    "int",
+    "45000",
+    true
+   ]
+  ],
+  [
+   "1:20",
+   [
+    "int",
+    "80",
+    true
+   ]
+  ],
+  [
+   "1_000",
+   [
+    "int",
+    "1000",
+    true
+   ]
+  ],
+  [
+   "1e3",
+   [
+    "str",
+    "1e3",
+    true
+   ]
+  ],
+  [
+   "2026-1-8 10:00:00",
+   [
+    "datetime",
+    "2026-01-08 10:00:00",
+    true
+   ]
+  ],
+  [
+   "2026-10-01",
+   [
+    "date",
+    "2026-10-01",
+    true
+   ]
+  ],
+  [
+   "2026-10-02",
+   [
+    "date",
+    "2026-10-02",
+    true
+   ]
+  ],
+  [
+   "2026-10-03",
+   [
+    "date",
+    "2026-10-03",
+    true
+   ]
+  ],
+  [
+   "2026-10-04",
+   [
+    "date",
+    "2026-10-04",
+    true
+   ]
+  ],
+  [
+   "2026-10-08",
+   [
+    "date",
+    "2026-10-08",
+    true
+   ]
+  ],
+  [
+   "2026-10-08T10:00:00Z",
+   [
+    "datetime",
+    "2026-10-08 10:00:00+00:00",
+    true
+   ]
+  ],
+  [
+   "2026-13-45",
+   null
+  ],
+  [
+   "3.14",
+   [
+    "float",
+    "3.14",
+    true
+   ]
+  ],
+  [
+   ":a",
+   [
+    "str",
+    ":a",
+    true
+   ]
+  ],
+  [
+   "<<",
+   null
+  ],
+  [
+   "=",
+   null
+  ],
+  [
+   ">a",
+   null
+  ],
+  [
+   "? a",
+   null
+  ],
+  [
+   "?a",
+   [
+    "str",
+    "?a",
+    true
+   ]
+  ],
+  [
+   "@a",
+   null
+  ],
+  [
+   "Demo",
+   [
+    "str",
+    "Demo",
+    true
+   ]
+  ],
+  [
+   "Demo & \"friends\"",
+   [
+    "str",
+    "Demo & \"friends\"",
+    true
+   ]
+  ],
+  [
+   "Drift",
+   [
+    "str",
+    "Drift",
+    true
+   ]
+  ],
+  [
+   "Empty",
+   [
+    "str",
+    "Empty",
+    true
+   ]
+  ],
+  [
+   "First",
+   [
+    "str",
+    "First",
+    true
+   ]
+  ],
+  [
+   "Go port: records and site (P4)",
+   null
+  ],
+  [
+   "No",
+   [
+    "bool",
+    "False",
+    false
+   ]
+  ],
+  [
+   "Notes on the parser",
+   [
+    "str",
+    "Notes on the parser",
+    true
+   ]
+  ],
+  [
+   "Null",
+   [
+    "NoneType",
+    "None",
+    false
+   ]
+  ],
+  [
+   "OFF",
+   [
+    "bool",
+    "False",
+    false
+   ]
+  ],
+  [
+   "Old",
+   [
+    "str",
+    "Old",
+    true
+   ]
+  ],
+  [
+   "Second",
+   [
+    "str",
+    "Second",
+    true
+   ]
+  ],
+  [
+   "Sprint 1: x",
+   null
+  ],
+  [
+   "The outage",
+   [
+    "str",
+    "The outage",
+    true
+   ]
+  ],
+  [
+   "The parser",
+   [
+    "str",
+    "The parser",
+    true
+   ]
+  ],
+  [
+   "[a]",
+   [
+    "list",
+    "['a']",
+    true
+   ]
+  ],
+  [
+   "`a`",
+   null
+  ],
+  [
+   "a\tb",
+   null
+  ],
+  [
+   "a\nb",
+   null
+  ],
+  [
+   "a ",
+   [
+    "str",
+    "a",
+    true
+   ]
+  ],
+  [
+   "a #b",
+   [
+    "str",
+    "a",
+    true
+   ]
+  ],
+  [
+   "a · b",
+   [
+    "str",
+    "a · b",
+    true
+   ]
+  ],
+  [
+   "a\"b",
+   [
+    "str",
+    "a\"b",
+    true
+   ]
+  ],
+  [
+   "a#b",
+   [
+    "str",
+    "a#b",
+    true
+   ]
+  ],
+  [
+   "a'b",
+   [
+    "str",
+    "a'b",
+    true
+   ]
+  ],
+  [
+   "a, b",
+   [
+    "str",
+    "a, b",
+    true
+   ]
+  ],
+  [
+   "a: b",
+   null
+  ],
+  [
+   "a:b",
+   [
+    "str",
+    "a:b",
+    true
+   ]
+  ],
+  [
+   "a]",
+   [
+    "str",
+    "a]",
+    true
+   ]
+  ],
+  [
+   "day",
+   [
+    "str",
+    "day",
+    true
+   ]
+  ],
+  [
+   "demo",
+   [
+    "str",
+    "demo",
+    true
+   ]
+  ],
+  [
+   "demo.1",
+   [
+    "str",
+    "demo.1",
+    true
+   ]
+  ],
+  [
+   "demo.1.1",
+   [
+    "str",
+    "demo.1.1",
+    true
+   ]
+  ],
+  [
+   "demo.2",
+   [
+    "str",
+    "demo.2",
+    true
+   ]
+  ],
+  [
+   "design",
+   [
+    "str",
+    "design",
+    true
+   ]
+  ],
+  [
+   "doc",
+   [
+    "str",
+    "doc",
+    true
+   ]
+  ],
+  [
+   "n",
+   [
+    "str",
+    "n",
+    true
+   ]
+  ],
+  [
+   "null",
+   [
+    "NoneType",
+    "None",
+    false
+   ]
+  ],
+  [
+   "old",
+   [
+    "str",
+    "old",
+    true
+   ]
+  ],
+  [
+   "on",
+   [
+    "bool",
+    "True",
+    true
+   ]
+  ],
+  [
+   "plain",
+   [
+    "str",
+    "plain",
+    true
+   ]
+  ],
+  [
+   "pm-v0.1.0",
+   [
+    "str",
+    "pm-v0.1.0",
+    true
+   ]
+  ],
+  [
+   "postmortem",
+   [
+    "str",
+    "postmortem",
+    true
+   ]
+  ],
+  [
+   "project",
+   [
+    "str",
+    "project",
+    true
+   ]
+  ],
+  [
+   "repo-demo",
+   [
+    "str",
+    "repo-demo",
+    true
+   ]
+  ],
+  [
+   "repo-demo.1",
+   [
+    "str",
+    "repo-demo.1",
+    true
+   ]
+  ],
+  [
+   "repo-demo.2",
+   [
+    "str",
+    "repo-demo.2",
+    true
+   ]
+  ],
+  [
+   "repo-old",
+   [
+    "str",
+    "repo-old",
+    true
+   ]
+  ],
+  [
+   "sprint",
+   [
+    "str",
+    "sprint",
+    true
+   ]
+  ],
+  [
+   "true",
+   [
+    "bool",
+    "True",
+    true
+   ]
+  ],
+  [
+   "x\u0001",
+   null
+  ],
+  [
+   "y",
+   [
+    "str",
+    "y",
+    true
+   ]
+  ],
+  [
+   "yes",
+   [
+    "bool",
+    "True",
+    true
+   ]
+  ],
+  [
+   "{a}",
+   [
+    "dict",
+    "{'a': None}",
+    true
+   ]
+  ],
+  [
+   "|a",
+   null
+  ],
+  [
+   "~",
+   [
+    "NoneType",
+    "None",
+    false
+   ]
+  ],
+  [
+   "Ünïcødé",
+   [
+    "str",
+    "Ünïcødé",
+    true
+   ]
+  ],
+  [
+   "日本語",
+   [
+    "str",
+    "日本語",
+    true
+   ]
+  ]
+ ],
+ "section_text": [
+  [
+   "",
+   "Goal",
+   ""
+  ],
+  [
+   "",
+   "Scope",
+   ""
+  ],
+  [
+   "",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Goal\n",
+   "Goal",
+   ""
+  ],
+  [
+   "## Goal\n",
+   "Scope",
+   ""
+  ],
+  [
+   "## Goal\n",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Goal\nx\n",
+   "Goal",
+   "x"
+  ],
+  [
+   "## Goal\nx\n",
+   "Scope",
+   ""
+  ],
+  [
+   "## Goal\nx\n",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Goal\n> p\n\ntext\n\n## Scope\ny\n",
+   "Goal",
+   "text"
+  ],
+  [
+   "## Goal\n> p\n\ntext\n\n## Scope\ny\n",
+   "Scope",
+   "y"
+  ],
+  [
+   "## Goal\n> p\n\ntext\n\n## Scope\ny\n",
+   "Delivery report",
+   ""
+  ],
+  [
+   "# T\n## Goal\na\n### Sub\nb\n## Next\nc",
+   "Goal",
+   "a\n### Sub\nb"
+  ],
+  [
+   "# T\n## Goal\na\n### Sub\nb\n## Next\nc",
+   "Scope",
+   ""
+  ],
+  [
+   "# T\n## Goal\na\n### Sub\nb\n## Next\nc",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Goals\nno\n## Goal\nyes\n",
+   "Goal",
+   "yes"
+  ],
+  [
+   "## Goals\nno\n## Goal\nyes\n",
+   "Scope",
+   ""
+  ],
+  [
+   "## Goals\nno\n## Goal\nyes\n",
+   "Delivery report",
+   ""
+  ],
+  [
+   "x## Goal\nno\n## Goal\n\n> p\n> q\nbody\n",
+   "Goal",
+   "body"
+  ],
+  [
+   "x## Goal\nno\n## Goal\n\n> p\n> q\nbody\n",
+   "Scope",
+   ""
+  ],
+  [
+   "x## Goal\nno\n## Goal\n\n> p\n> q\nbody\n",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Goal\n## Scope\n",
+   "Goal",
+   ""
+  ],
+  [
+   "## Goal\n## Scope\n",
+   "Scope",
+   ""
+  ],
+  [
+   "## Goal\n## Scope\n",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Goal",
+   "Goal",
+   ""
+  ],
+  [
+   "## Goal",
+   "Scope",
+   ""
+  ],
+  [
+   "## Goal",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Goal\r\nx\n",
+   "Goal",
+   ""
+  ],
+  [
+   "## Goal\r\nx\n",
+   "Scope",
+   ""
+  ],
+  [
+   "## Goal\r\nx\n",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Goal\n  ## not a heading\n##no\n## Scope\n",
+   "Goal",
+   "## not a heading\n##no"
+  ],
+  [
+   "## Goal\n  ## not a heading\n##no\n## Scope\n",
+   "Scope",
+   ""
+  ],
+  [
+   "## Goal\n  ## not a heading\n##no\n## Scope\n",
+   "Delivery report",
+   ""
+  ],
+  [
+   "### Outcome\ndone, it works.\n### Against\nok",
+   "Goal",
+   ""
+  ],
+  [
+   "### Outcome\ndone, it works.\n### Against\nok",
+   "Scope",
+   ""
+  ],
+  [
+   "### Outcome\ndone, it works.\n### Against\nok",
+   "Delivery report",
+   ""
+  ],
+  [
+   "## Delivery report\n\n### Outcome\n\n> p\n\nDone: shipped.\n- a\n\n### Against \"Done when\"\n\n- ok\n",
+   "Goal",
+   ""
+  ],
+  [
+   "## Delivery report\n\n### Outcome\n\n> p\n\nDone: shipped.\n- a\n\n### Against \"Done when\"\n\n- ok\n",
+   "Scope",
+   ""
+  ],
+  [
+   "## Delivery report\n\n### Outcome\n\n> p\n\nDone: shipped.\n- a\n\n### Against \"Done when\"\n\n- ok\n",
+   "Delivery report",
+   "### Outcome\n\n\nDone: shipped.\n- a\n\n### Against \"Done when\"\n\n- ok"
+  ]
+ ],
+ "subsection_text": [
+  [
+   "",
+   "Sub",
+   ""
+  ],
+  [
+   "",
+   "Outcome",
+   ""
+  ],
+  [
+   "## Goal\n",
+   "Sub",
+   ""
+  ],
+  [
+   "## Goal\n",
+   "Outcome",
+   ""
+  ],
+  [
+   "## Goal\nx\n",
+   "Sub",
+   ""
+  ],
+  [
+   "## Goal\nx\n",
+   "Outcome",
+   ""
+  ],
+  [
+   "## Goal\n> p\n\ntext\n\n## Scope\ny\n",
+   "Sub",
+   ""
+  ],
+  [
+   "## Goal\n> p\n\ntext\n\n## Scope\ny\n",
+   "Outcome",
+   ""
+  ],
+  [
+   "# T\n## Goal\na\n### Sub\nb\n## Next\nc",
+   "Sub",
+   "b\n## Next\nc"
+  ],
+  [
+   "# T\n## Goal\na\n### Sub\nb\n## Next\nc",
+   "Outcome",
+   ""
+  ],
+  [
+   "## Goals\nno\n## Goal\nyes\n",
+   "Sub",
+   ""
+  ],
+  [
+   "## Goals\nno\n## Goal\nyes\n",
+   "Outcome",
+   ""
+  ],
+  [
+   "x## Goal\nno\n## Goal\n\n> p\n> q\nbody\n",
+   "Sub",
+   ""
+  ],
+  [
+   "x## Goal\nno\n## Goal\n\n> p\n> q\nbody\n",
+   "Outcome",
+   ""
+  ],
+  [
+   "## Goal\n## Scope\n",
+   "Sub",
+   ""
+  ],
+  [
+   "## Goal\n## Scope\n",
+   "Outcome",
+   ""
+  ],
+  [
+   "## Goal",
+   "Sub",
+   ""
+  ],
+  [
+   "## Goal",
+   "Outcome",
+   ""
+  ],
+  [
+   "## Goal\r\nx\n",
+   "Sub",
+   ""
+  ],
+  [
+   "## Goal\r\nx\n",
+   "Outcome",
+   ""
+  ],
+  [
+   "## Goal\n  ## not a heading\n##no\n## Scope\n",
+   "Sub",
+   ""
+  ],
+  [
+   "## Goal\n  ## not a heading\n##no\n## Scope\n",
+   "Outcome",
+   ""
+  ],
+  [
+   "### Outcome\ndone, it works.\n### Against\nok",
+   "Sub",
+   ""
+  ],
+  [
+   "### Outcome\ndone, it works.\n### Against\nok",
+   "Outcome",
+   "done, it works."
+  ],
+  [
+   "## Delivery report\n\n### Outcome\n\n> p\n\nDone: shipped.\n- a\n\n### Against \"Done when\"\n\n- ok\n",
+   "Sub",
+   ""
+  ],
+  [
+   "## Delivery report\n\n### Outcome\n\n> p\n\nDone: shipped.\n- a\n\n### Against \"Done when\"\n\n- ok\n",
+   "Outcome",
+   "Done: shipped.\n- a"
+  ]
+ ],
+ "outcome": [
+  [
+   "",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Goal\n",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Goal\nx\n",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Goal\n> p\n\ntext\n\n## Scope\ny\n",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "# T\n## Goal\na\n### Sub\nb\n## Next\nc",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Goals\nno\n## Goal\nyes\n",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "x## Goal\nno\n## Goal\n\n> p\n> q\nbody\n",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Goal\n## Scope\n",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Goal",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Goal\r\nx\n",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Goal\n  ## not a heading\n##no\n## Scope\n",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "### Outcome\ndone, it works.\n### Against\nok",
+   null,
+   "sprints/x: Delivery report needs a '### Outcome' subsection"
+  ],
+  [
+   "## Delivery report\n\n### Outcome\n\n> p\n\nDone: shipped.\n- a\n\n### Against \"Done when\"\n\n- ok\n",
+   "Done: shipped. - a",
+   null
+  ]
+ ],
+ "first_para": [
+  [
+   "",
+   ""
+  ],
+  [
+   "## Goal\n",
+   "## Goal"
+  ],
+  [
+   "## Goal\nx\n",
+   "## Goal x"
+  ],
+  [
+   "## Goal\n> p\n\ntext\n\n## Scope\ny\n",
+   "## Goal > p"
+  ],
+  [
+   "# T\n## Goal\na\n### Sub\nb\n## Next\nc",
+   "# T ## Goal a ### Sub b ## Next c"
+  ],
+  [
+   "## Goals\nno\n## Goal\nyes\n",
+   "## Goals no ## Goal yes"
+  ],
+  [
+   "x## Goal\nno\n## Goal\n\n> p\n> q\nbody\n",
+   "x## Goal no ## Goal"
+  ],
+  [
+   "## Goal\n## Scope\n",
+   "## Goal ## Scope"
+  ],
+  [
+   "## Goal",
+   "## Goal"
+  ],
+  [
+   "## Goal\r\nx\n",
+   "## Goal x"
+  ],
+  [
+   "## Goal\n  ## not a heading\n##no\n## Scope\n",
+   "## Goal ## not a heading ##no ## Scope"
+  ],
+  [
+   "### Outcome\ndone, it works.\n### Against\nok",
+   "### Outcome done, it works. ### Against ok"
+  ],
+  [
+   "## Delivery report\n\n### Outcome\n\n> p\n\nDone: shipped.\n- a\n\n### Against \"Done when\"\n\n- ok\n",
+   "## Delivery report"
+  ]
+ ],
+ "summary_line": [
+  [
+   "",
+   ""
+  ],
+  [
+   "One line.",
+   "One line."
+  ],
+  [
+   "- a\n- b\n",
+   "a · b"
+  ],
+  [
+   "* a  \n\n  - b\nc",
+   "a · b"
+  ],
+  [
+   "x\n -  y ",
+   "y"
+  ]
+ ],
+ "templates": {
+  "sprint": "---\ntype: sprint\ntitle: Go port\nbead: demo.9\n---\n\n## Goal\n\n> What should be true when this sprint ends, and why now?\n\nG.\n\n## Scope\n\n> What's in, and what's explicitly out? Keep this high level; implementation\n> details go in a design page.\n\n**In:** a.\n\n## Done when\n\n> What evidence will show the goal is met?\n\n- d.\n\n## Design pages\n\n> Where is the detail?\n\nNone yet.\n\n## Progress\n\n> Where is the sprint now? Generated from the work store when the page is rendered.\n> Do not write here.\n\n## Decisions\n\n> What did we choose inside this sprint, and why?\n\nNone yet.\n\n## Findings\n\n> What did we learn that changes the design, the plan, or how we work? Add\n> results with their numbers.\n\nNone yet.\n\n## Delivery report\n\n> Written at close. Each part holds \"Not closed yet.\" until then.\n\n### Outcome\n\n> Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.\n\nNot closed yet.\n\n### Against \"Done when\"\n\n> Each item, met or not, with its evidence (a page, a command, a number).\n\nNot closed yet.\n",
+  "project": "---\ntype: project\ntitle: Demo\nbead: demo\n---\n\n## Goal\n\n> Why do we do it? What is it? What outcome do we expect?\n\nGoal.\n\n## Progress\n\n> Where are we now, and what's next? Generated from the work store and the\n> sprint records when the page is rendered. Do not write here.\n\n## Decisions\n\n> What constrains every future sprint? Sprint-only choices live in the sprint\n> record.\n\nNone yet.\n\n## Design pages\n\n> Where is the detail?\n\nNone yet.\n\n## Outcome\n\n> Written when the project closes: what was achieved against the goal, what\n> was learned, what was retired, and links to the sprint delivery reports.\n\nNot closed yet.\n",
+  "design": "---\ntype: design\ntitle: The parser\nproject: demo\n---\n\n## Problem\n\n> What are we solving, and why now?\n\nNone yet.\n\n## Goals and non-goals\n\n> What must the design achieve, and what does it deliberately leave out?\n\nNone yet.\n\n## Constraints and key facts\n\n> Which facts, findings and constraints shaped the design? Only those that\n> still hold; sprint records keep the findings as they happened.\n\nNone yet.\n\n## Design\n\n> What is it, in its final state? Free `###` subsections. Decisions and plans\n> live in the project and sprint records.\n\nNone yet.\n\n## Alternatives considered\n\n> What else was considered and not adopted, and why not?\n\nNone yet.\n\n## Prior art\n\n> Optional. What existing work did we learn from, and what did we take?\n\nNone yet.\n\n## Open questions\n\n> What is still unresolved?\n\nNone yet.\n",
+  "postmortem": "---\ntype: postmortem\ntitle: Outage\ndate: 2026-10-03\nsprint: demo.1\n---\n\n## Summary\n\n> What broke, for whom, and how was it noticed?\n\nNone yet.\n\n## Timeline\n\n> What happened when? Times with their zone, from the first cause to the fix.\n\nNone yet.\n\n## Cost\n\n> What did it cost: time lost, sessions or people blocked, work redone?\n\nNone yet.\n\n## Root cause\n\n> Why did it happen? The cause under the trigger.\n\nNone yet.\n\n## What changed\n\n> What was fixed, and what changed so it does not recur? Name the commits and PRs.\n\nNone yet.\n\n## What would have caught it earlier\n\n> Which test, check or rule would have caught it before it cost anything?\n\nNone yet.\n"
+ },
+ "insert_entry": [
+  [
+   "## Findings\n\n> p\n\nNone yet.\n\n## Next\n",
+   "Findings",
+   "- a",
+   "## Findings\n\n> p\n\n- a\n\n## Next\n"
+  ],
+  [
+   "## Findings\n\n> p\n\n- old\n\n## Next\n",
+   "Findings",
+   "- a\n- b\n",
+   "## Findings\n\n> p\n\n- old\n\n- a\n- b\n\n## Next\n"
+  ],
+  [
+   "## Findings\n> p\n## Next\n",
+   "Findings",
+   "x",
+   "## Findings\n> p\n\nx\n## Next\n"
+  ],
+  [
+   "## Findings",
+   "Findings",
+   "x",
+   "## Findings\n\nx"
+  ],
+  [
+   "## Other\n",
+   "Findings",
+   "x",
+   "error: no '## Findings' section"
+  ],
+  [
+   "## Findings\n\nNone yet.\nmore\n",
+   "Findings",
+   "x",
+   "## Findings\n\nNone yet.\nmore\n\nx\n"
+  ]
+ ]
+}

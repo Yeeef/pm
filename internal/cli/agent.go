@@ -20,7 +20,7 @@ import (
 )
 
 // The context the agent commands share: the records store, the work store, the records and the items, and the checks
-// a write passes. Python source: Repo, load, check_planned, apply_writes and the session helpers in cli.py.
+// a write passes.
 
 // refuse is a command's refusal: "error: <message>" on stderr, exit 1, nothing changed.
 func refuse(format string, a ...any) error { return &refusal{fmt.Sprintf(format, a...)} }

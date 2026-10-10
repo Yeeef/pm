@@ -1,6 +1,5 @@
-"""Go pm's release tooling: install.sh against a local release server, and the release build (release/build.sh),
-which takes the version from the release tag alone. Neither runs a pm implementation under test, so both run on
-Python's suite only."""
+"""pm's release tooling: install.sh against a local release server, and the release build (release/build.sh),
+which takes the version from the release tag alone."""
 
 from __future__ import annotations
 
@@ -18,7 +17,6 @@ import pytest
 from test_launch import PLATFORM, TOKEN, GitHub, tarball
 
 PM_DIR = Path(__file__).resolve().parents[1]
-TOOLING = pytest.mark.impl("python", reason="tests the release tooling, not a pm implementation")
 FAKE = b"#!/bin/sh\necho the installed pm\n"
 
 
@@ -56,7 +54,6 @@ def served(tmp_path):
     server.server_close()
 
 
-@TOOLING
 def test_install_sh_installs_the_checked_binary_into_the_bin_dir(served):
     """With no token; a token at hand is not used when the download with none works."""
     env = dict(served.env, GH_TOKEN=TOKEN, PM_RELEASE_API="http://127.0.0.1:1/api")  # never asked
@@ -72,7 +69,6 @@ def test_install_sh_installs_the_checked_binary_into_the_bin_dir(served):
     assert subprocess.run([str(pm)], capture_output=True, text=True).stdout == "the installed pm\n"
 
 
-@TOOLING
 def test_install_sh_refuses_a_checksum_mismatch_and_installs_nothing(served):
     sums = served.tar.with_name("SHA256SUMS")
     sums.write_text(f"{'1' * 64}  {served.tar.name}\n")
@@ -85,7 +81,6 @@ def test_install_sh_refuses_a_checksum_mismatch_and_installs_nothing(served):
     assert [p.name for p in served.bin.iterdir()] == ["pm"] and (served.bin / "pm").read_bytes() == b"the pm before\n"
 
 
-@TOOLING
 def test_install_sh_refuses_a_release_with_no_line_for_this_platform(served):
     served.tar.with_name("SHA256SUMS").write_text(f"{served.sha}  pm-0.2.0-plan9-amd64.tar.gz\n")
     res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True)
@@ -103,7 +98,6 @@ def api(served, tmp_path):
     gh.close()
 
 
-@TOOLING
 @pytest.mark.parametrize("source", ["GH_TOKEN", "gh auth token"])
 def test_install_sh_downloads_through_the_github_api_with_a_token_sent_to_the_api_alone(served, api, source):
     env = dict(api.env, **({"GH_TOKEN": TOKEN} if source == "GH_TOKEN" else {"FAKE_GH_TOKEN": TOKEN}))
@@ -118,7 +112,6 @@ def test_install_sh_downloads_through_the_github_api_with_a_token_sent_to_the_ap
     assert all(token for path, token in api.gh.requests if path.startswith("/api/"))
 
 
-@TOOLING
 def test_install_sh_that_fails_with_no_token_and_has_none_fails_hard_naming_that_download(served, api):
     res = subprocess.run(["sh", str(served.script)], env=api.env, capture_output=True, text=True)
     assert (res.returncode, res.stdout) == (1, "")
@@ -127,7 +120,6 @@ def test_install_sh_that_fails_with_no_token_and_has_none_fails_hard_naming_that
     assert api.gh.requests == [("/download/pm-v0.2.0/SHA256SUMS", False)] and not served.bin.exists()
 
 
-@TOOLING
 def test_install_sh_refuses_a_release_without_this_platforms_asset(served, api):
     served.tar.unlink()
     res = subprocess.run(["sh", str(served.script)], env=dict(api.env, GH_TOKEN=TOKEN), capture_output=True, text=True)
@@ -146,9 +138,8 @@ def version_of(tar: Path, tmp: Path) -> str:
     return res.stdout
 
 
-@TOOLING
 @pytest.mark.integration
-@pytest.mark.skipif(not os.environ.get("PM_RELEASE_BUILD"), reason="builds Go pm twice; pm-go.yml sets PM_RELEASE_BUILD")
+@pytest.mark.skipif(not os.environ.get("PM_RELEASE_BUILD"), reason="builds pm twice; pm-go.yml sets PM_RELEASE_BUILD")
 def test_the_release_build_takes_its_version_from_the_tag_alone(tmp_path):
     """A scratch clone at this commit, nothing committed: tagged pm-v<X>, the release build reports X; untagged, dev."""
     clone = tmp_path / "clone"

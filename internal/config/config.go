@@ -1,6 +1,6 @@
 // Package config reads the repo's pm settings: .pm/config.toml in the main checkout, tracked, pinning the pm version
 // every session runs. Every pm command reads it first and fails hard when it is missing, malformed, or pins a version
-// other than the one running; nothing falls back to a default. Python source: config.py.
+// other than the one running; nothing falls back to a default.
 package config
 
 import (

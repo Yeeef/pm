@@ -26,7 +26,7 @@ var (
 	showEmptyATX = regexp.MustCompile(`^ {0,3}#{1,6}(?:[ \t]+#*)?[ \t]*$`)
 )
 
-// showHeadings is records.py's headings(): each heading as the renderer parses the body (CommonMark, raw HTML and
+// showHeadings is each heading as the renderer parses the body (CommonMark, raw HTML and
 // tables), so a '#' line inside a code fence or an HTML block is no heading.
 func showHeadings(body string) []showHeading {
 	src := []byte(body)

@@ -1,11 +1,10 @@
-# Go pm's release (AGENTS.md, Releasing pm): a tag pm-v<X> pushed on a main commit is the whole release (a
-# pre-release tag, pm-v<X>-rc.<n>, may name any commit, a PR's included). X comes from the tag name alone; no file holds it. A Python tag (X below 0.2.0, such as pm-v0.1.5) builds nothing and
-# succeeds: Python releases are their tag and the commit it names. For a Go X, each release target is built natively
-# (cgo needs it) by release/build.sh, which stamps X into the binary; then one GitHub release pm-v<X> gets both
-# tarballs, SHA256SUMS and install.sh with X filled in, marked a pre-release when X has a "-" suffix (pm-v0.2.0-rc.1).
-# Its notes are X's section of CHANGELOG.md at the tagged commit (a pre-release's: X's section, else [Unreleased]),
-# which opens with its upgrade guide: release/changelog.py notes. A Go tag whose changelog has no such section fails
-# before any build. pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
+# pm's release (AGENTS.md, Releasing pm): a tag pm-v<X> pushed on a main commit is the whole release (a pre-release
+# tag, pm-v<X>-rc.<n>, may name any commit, a PR's included). X comes from the tag name alone; no file holds it. Each
+# release target is built natively (cgo needs it) by release/build.sh, which stamps X into the binary; then one GitHub
+# release pm-v<X> gets both tarballs, SHA256SUMS and install.sh with X filled in, marked a pre-release when X has a "-"
+# suffix (pm-v0.3.0-rc.1). Its notes are X's section of CHANGELOG.md at the tagged commit (a pre-release's: X's
+# section, else [Unreleased]), which opens with its upgrade guide: release/changelog.py notes. A tag whose changelog has
+# no such section fails before any build. pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
 name: pm release
 
 on:
@@ -20,38 +19,31 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.v.outputs.version }}
-      go: ${{ steps.v.outputs.go }}
       prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Take X from the tag; a Go version is at least 0.2.0, a pre-release suffix left out
+      - name: Take X from the tag, a version of at least 0.2.0 (below it, Python pm's, retired), a pre-release suffix left out
         id: v
         env:
           TAG: ${{ github.ref_name }}
         run: |
           x=${TAG#pm-v}
-          go=$(python3 -c '
-          import sys
-          try:
-              key = tuple(int(p) for p in sys.argv[1].split("-", 1)[0].split("."))
-          except ValueError:
-              sys.exit(f"tag pm-v{sys.argv[1]} names no version")
-          print("true" if key >= (0, 2, 0) else "false")' "$x")
+          echo "${x%%-*}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::tag $TAG names no version"; exit 1; }
+          [ "$(printf '0.2.0\n%s\n' "${x%%-*}" | sort -V | head -n 1)" = 0.2.0 ] ||
+            { echo "::error::tag $TAG names a version below 0.2.0, Python pm's, whose releases are retired"; exit 1; }
           case $x in *-*) pre=true ;; *) pre=false ;; esac
           # a release is a main commit; a pre-release (a release candidate) may name a PR's commit, to check the build
           # before that PR merges
-          if [ "$go" = true ] && [ "$pre" = false ]; then
+          if [ "$pre" = false ]; then
             git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
               { echo "::error::tag $TAG names $GITHUB_SHA, which is not on main"; exit 1; }
           fi
           echo "version=$x" >> "$GITHUB_OUTPUT"
-          echo "go=$go" >> "$GITHUB_OUTPUT"
           echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
-          echo "tag $TAG: version $x, Go $go, pre-release $pre" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: A Go release has its notes in CHANGELOG.md (release/changelog.py)
-        if: steps.v.outputs.go == 'true'
+          echo "tag $TAG: version $x, pre-release $pre" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: The release has its notes in CHANGELOG.md (release/changelog.py)
         env:
           X: ${{ steps.v.outputs.version }}
         run: |
@@ -61,7 +53,6 @@ jobs:
 
   build:
     needs: version
-    if: needs.version.outputs.go == 'true'
     strategy:
       matrix:
         include:

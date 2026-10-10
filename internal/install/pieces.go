@@ -1,7 +1,7 @@
 // Package install is what pm init, pm doctor, pm upgrade and pm uninstall manage: the pieces pm puts in a repo's
 // tracked files, the clone's and the worktree's setup (the work store, the records store and its link, the git hooks
 // path, the excludes, the Codex and Claude Code settings), pm's own binary on the machine, and the bootstrap of a
-// brand-new repo's records branch. Python source: install.py and the setup in cli.py.
+// brand-new repo's records branch.
 //
 // A piece is either a whole file pm owns (.pm/config.toml, .pm/README.md, .pm/.gitignore, the two workflows) or pm's
 // part of a shared file: its hook entries in .claude/settings.json and .codex/hooks.json (a hook is pm's when its

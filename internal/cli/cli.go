@@ -1,6 +1,6 @@
 // Package cli is pm's command tree: every command with its help, built on cobra from the table in commands.go, the
 // argument checks argparse makes, the config check every command passes first, and the dispatch to each command's
-// body. Python source: the argparse tree and main() in cli.py.
+// body.
 //
 // Cobra routes to the command; each command then parses its own arguments with pflag (cobra's flag parsing is off on
 // leaves) so that the checks and the messages follow argparse: required arguments, mutually exclusive groups, choices,

@@ -22,7 +22,6 @@ import (
 )
 
 // cmdWhere is pm where: with records, the store's path alone, for scripts; without, every location with its state.
-// Python source: cmd_where and where_all in cli.py.
 func cmdWhere(p *Parsed, here string, stdout io.Writer) error {
 	if p.Get("what") == "" {
 		out, err := whereAll(here)

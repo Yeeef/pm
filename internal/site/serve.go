@@ -12,8 +12,7 @@ import (
 )
 
 // What the pm service adds to the pages: each is rendered when first asked for from one read of the records and
-// items, its reply slots filled with forms and its status slot with the data's age. Python source: render_page,
-// fill_replies and fill_status in site.py.
+// items, its reply slots filled with forms and its status slot with the data's age.
 
 // Served is one read of the records and the items, checked, whose pages render on demand.
 type Served struct {

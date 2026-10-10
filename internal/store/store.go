@@ -1,7 +1,7 @@
 // Package store is the records store: the `records` branch, checked out once per clone at
 // <main checkout>/.pm/store/records. Every worktree finds it through the clone's common git dir, so a write is visible
 // from every branch and worktree at once. It finds and checks the store, locks it, writes records atomically and
-// commits exactly the files written. Python source: store.py, and the context and writes in cli.py.
+// commits exactly the files written.
 package store
 
 import (

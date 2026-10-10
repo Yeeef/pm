@@ -25,7 +25,7 @@ import (
 )
 
 // The pm service wired to the clone: pm service run with the work store, the records and the site, and pm service
-// install of a unit that runs the installed pm. Python source: cmd_serve and cmd_service_* in cli.py.
+// install of a unit that runs the installed pm.
 
 // serviceRun is pm service run: the work store held open and served on its socket (work.NewHost; the only call
 // of it), then service.Run on this clone's config, records store, that store and the site.
@@ -161,7 +161,7 @@ type servedSite struct {
 }
 
 // newServedSite reads where the records store keeps its HEAD: the worktree's HEAD, the records branch's loose ref and
-// packed-refs, read as files so a look runs no git (store.py's head_files).
+// packed-refs, read as files so a look runs no git.
 func newServedSite(records, name string) (*servedSite, error) {
 	out, err := git(records, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
 	if err != nil {

@@ -1,63 +1,95 @@
-"""Fixtures: a temp clone whose records store holds a small record set, and a fake `bd` serving a JSON issue list."""
+"""Fixtures: a temp clone whose records store holds a small record set and whose work store holds a few seeded items,
+served by a per-test pm service; the pm under test is the Go binary `make go-build` builds at .go/pm."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
 import time
-import tomllib
 from pathlib import Path
 
 import pytest
-
-from pm import __version__
-
-import transcript
-from work_items import items as work_items
 
 # subprocess.Popen as it is before light_unless_integration replaces it: the repo fixture's per-test pm service is no
 # integration test's (the pm-go page, Tests), so it starts through this one.
 POPEN = subprocess.Popen
 
-# This checkout: pm's repo, whose paths a transcript names <checkout>.
+# This checkout: pm's repo.
 CHECKOUT = Path(__file__).resolve().parents[1]
-# The pm the tests run: PM_IMPL=python (the default) runs pm from the package environment the tests run in (make
-# test); PM_IMPL=go runs the Go binary at $PM_GO_BIN. A test for one implementation only is marked with it and the
-# reason: @pytest.mark.impl("python", reason="…"). The renderer (Repo.pages) is Python's either way.
-IMPL = os.environ.get("PM_IMPL", "python")
-if IMPL == "python":
-    PM = [str(Path(sys.executable).with_name("pm"))]
-elif IMPL == "go":
-    if not os.access(os.environ.get("PM_GO_BIN", ""), os.X_OK):
-        raise RuntimeError(f"PM_IMPL=go runs the Go pm at $PM_GO_BIN, which is not an executable: "
-                           f"{os.environ.get('PM_GO_BIN')!r}")
-    PM = [os.environ["PM_GO_BIN"]]
-else:
-    raise RuntimeError(f"PM_IMPL={IMPL!r}: give python or go")
-# The rules pm prime prints: Python pm's src/pm/prime.md names Beads and bd, which it runs on; Go pm's own prime.md
-# names the work store and pm's commands. On Go, hooks.rules() reads Go's, so hooks.chunks() and hooks.head(), which
-# the tests compare pm prime against, are what Go pm prints.
-GO_RULES = Path(__file__).resolve().parents[1] / "prime.md"
-GO_SUBAGENT = ("Git: commit and push are routine for agents unless your brief says otherwise; only the PR review and "
-               "the merge wait on the owner.")
-if IMPL == "go":
-    from pm import hooks as _hooks
-    _hooks.rules = lambda: GO_RULES.read_text(encoding="utf-8").strip()
-FAKE_BD = Path(__file__).resolve().parent / "fake_bd.py"
+# The pm the tests run, and the page renderer Repo.pages runs: both built by `make go-build`, with one version stamped.
+BIN = CHECKOUT / ".go"
+for _b in ("pm", "render-pages"):
+    if not os.access(BIN / _b, os.X_OK):
+        raise RuntimeError(f"{BIN / _b} is not an executable: build it with make go-build (make test does)")
+PM = [str(BIN / "pm")]
+RENDER_PAGES = BIN / "render-pages"
+# The version the build reports, which every test repo pins.
+VERSION = subprocess.run([*PM, "version"], cwd="/", check=True, capture_output=True, text=True).stdout.strip()
+SUBAGENT_RULE = ("Git: commit and push are routine for agents unless your brief says otherwise; only the PR review and "
+                 "the merge wait on the owner.")
 FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"
 FAKE_SCHED = Path(__file__).resolve().parent / "fake_sched.py"
 FAKE_CLAUDE = Path(__file__).resolve().parent / "fake_claude.py"
-RENDER_PAGES = Path(__file__).resolve().parent / "render_pages.py"
+
+# What pm prime prints, written out from the design (the pm rules' hook chunks), not taken from pm's code: prime.md and
+# the noun list, cut at RULE_STARTS into chunks of at most CAP characters (Claude Code passes a hook's
+# additionalContext inline only up to 10,000 characters), each under a title naming its place and its sections.
+RULES = CHECKOUT / "prime.md"
+CAP = 10_000
+RULE_STARTS = ("# pm rules", "# How")
+MACHINERY = {"prime", "hook", "push"}  # what the runtimes and the scheduler call, not agents
+
+
+def nouns() -> list[str]:
+    """pm's commands as pm --help lists them."""
+    usage = subprocess.run([*PM, "--help"], cwd="/", check=True, capture_output=True, text=True).stdout
+    return re.search(r"\{([a-z,-]+)\}", usage).group(1).split(",")
+
+
+def commands() -> str:
+    return "# Commands\n\n`pm` nouns: " + ", ".join(f"`{n}`" for n in nouns() if n not in MACHINERY) + "."
+
+
+def rules() -> str:
+    return RULES.read_text(encoding="utf-8").strip()
+
+
+def head() -> str:
+    """The rules and the command list, whole and in order: what chunks() cuts."""
+    return rules() + "\n\n" + commands()
+
+
+def chunks() -> list[str]:
+    """head() cut at the lines in RULE_STARTS, each chunk under a title line such as "# pm rules (1 of 2): the
+    introduction; What — 1. The layers, …"."""
+    lines = head().split("\n")
+    at = [lines.index(s) for s in RULE_STARTS]
+    assert at[0] == 0 and at == sorted(at), f"the chunk headings {RULE_STARTS} are not in order at the top of prime.md"
+    bodies = ["\n".join(lines[a:b]).strip() for a, b in zip(at, at[1:] + [len(lines)])]
+    out, part = [], ""
+    for i, body in enumerate(bodies, 1):
+        groups = [] if body.startswith("# ") else [[part, []]]  # a chunk that starts inside a part names it
+        for line in body.split("\n"):
+            if line.startswith("# "):
+                part = line[2:]
+                groups.append([part, []])
+            elif line.startswith("## "):
+                groups[-1][1].append(line[3:])
+        what = "; ".join(("the introduction" if p == "pm rules" else p) + (" — " + ", ".join(s) if s else "")
+                         for p, s in groups)
+        out.append(f"# pm rules ({i} of {len(bodies)}): {what}\n\n{body}")
+    return out
 
 
 def write_config(root: Path, **settings) -> Path:
     """Write the repo's .pm/config.toml under `root`: this pm's version and the defaults, as overridden."""
-    values = {"version": __version__, "remote": "origin", "main_branch": "main", "port": 8000, **settings}
+    values = {"version": VERSION, "remote": "origin", "main_branch": "main", "port": 8000, **settings}
     path = root / ".pm/config.toml"
     path.parent.mkdir(exist_ok=True)
     (path.parent / ".gitignore").write_text("store/\nrun/\n")
@@ -69,7 +101,8 @@ def uv_dir(*args: str) -> str:
     return subprocess.run(["uv", "--color", "never", *args], check=True, capture_output=True, text=True).stdout.strip()
 
 
-# HOME is a temp dir in tests, so pm service install writes its unit there; uv keeps the real cache and Pythons.
+# HOME is a temp dir in tests, so pm service install writes its unit there; uv, which the launcher runs for a Python
+# pin (test_launch.py), keeps the real cache and Pythons.
 UV_DIRS = {"UV_CACHE_DIR": uv_dir("cache", "dir"), "UV_PYTHON_INSTALL_DIR": uv_dir("python", "dir")}
 
 SPRINT_TAIL = '''## Design pages
@@ -159,38 +192,9 @@ ISSUES = [
 ]
 
 
-# the git commit the tests' pm says it was built from: pm refuses to install or check the tool from a pm not from git
-TEST_SOURCE = {"url": "https://github.com/Yeeef/yeeef-agents", "subdirectory": "pm",
-               "vcs_info": {"vcs": "git", "commit_id": "c0ffee" + "0" * 34}}
-
-
-def git_build(site: Path) -> None:
-    """A dist-info under `site` naming TEST_SOURCE (PEP 610), which a pm with `site` first on PYTHONPATH reads as its
-    own: the tests' pm, an editable install of this checkout, then counts as a build from git."""
-    dist = site / f"pm-{__version__}.dist-info"
-    dist.mkdir(parents=True, exist_ok=True)
-    (dist / "METADATA").write_text(f"Metadata-Version: 2.1\nName: pm\nVersion: {__version__}\n")
-    (dist / "direct_url.json").write_text(json.dumps(TEST_SOURCE))
-
-
-def install_tool(tools: Path, bindir: Path) -> None:
-    """The pm uv tool as `uv tool install` lays it out under UV_TOOL_DIR and UV_TOOL_BIN_DIR, running the pm the
-    tests run as the git build git_build names, so the service's unit and the hooks' `pm` run this checkout's code
-    as the build the tests' pm is."""
-    env_bin, site = tools / "pm/bin", tools / "pm/site"
-    env_bin.mkdir(parents=True, exist_ok=True)
-    git_build(site)
-    for name, target in (("python", sys.executable), ("pm", PM[0])):
-        (env_bin / name).write_text(f'#!/bin/sh\nPYTHONPATH="{site}" exec "{target}" "$@"\n')
-        (env_bin / name).chmod(0o755)
-    bindir.mkdir(parents=True, exist_ok=True)
-    if not (bindir / "pm").is_symlink():
-        (bindir / "pm").symlink_to(env_bin / "pm")
-
-
 def stop_services(tmp: Path) -> None:
-    """Stop every process the fake supervisor started under `tmp`, and mark them stopped: Go pm reads the work store
-    only through the clone's service, so from here a transcript records no store read (Repo.pm)."""
+    """Stop every process the fake supervisor started under `tmp`, and mark them stopped: pm reaches the work store
+    only through the clone's service, so from here Repo.items reads it through a service started anew."""
     (tmp / "services-stopped").touch()
     path = tmp / "sched.json"
     if not path.exists():
@@ -214,8 +218,6 @@ def integration_only(args) -> str | None:
     if str(RENDER_PAGES) in map(str, args):
         return "the whole site rendered (Repo.pages)"
     name, rest = Path(str(args[0])).name, [str(a) for a in args[1:]]
-    if rest[:2] == ["-m", "pm.cli"]:  # how pm's hooks and service run pm (hooks.INIT, the service unit)
-        name, rest = "pm", rest[2:]
     if name == "git":
         sub = next((a for i, a in enumerate(rest) if not a.startswith("-") and rest[i - 1:i] not in (["-C"], ["-c"])),
                    "")
@@ -223,8 +225,8 @@ def integration_only(args) -> str | None:
             return f"git {sub}"
         if "--bare" in rest:
             return "a bare git repo (git --bare)"
-    if name == "pm" and rest:
-        if rest[:2] == ["init", "--import-bd"]:  # Go pm's import into its work store only: how Repo seeds Go pm
+    if name == "pm" and rest and "--help" not in rest:  # a command's --help starts nothing
+        if rest[:2] == ["init", "--import-bd"]:  # the import into the work store alone: how Repo seeds it
             return None
         if rest[0] in HEAVY_PM:
             return f"pm {rest[0]}"
@@ -257,44 +259,6 @@ def no_service_left(tmp_path: Path):
     stop_services(tmp_path)
 
 
-# Each test's Repo.pm calls, written as one transcript per test under $PM_TRANSCRIPTS/<impl> (default
-# .transcripts/<impl>), which a run empties first: the same file from each implementation must be equal.
-TRANSCRIPTS = Path(os.environ.get("PM_TRANSCRIPTS") or Path(__file__).resolve().parents[1] / ".transcripts") / IMPL
-
-
-@pytest.fixture(autouse=True)
-def recorded(request, tmp_path: Path):
-    transcript.start()
-    yield
-    paths = {str(tmp_path): "<tmp>", str(tmp_path.resolve()): "<tmp>", str(request.config.pm_home): "<home>",
-             str(Path(request.config.pm_home).resolve()): "<home>", str(Path(PM[0]).parent): "<pm-bin>",
-             str(CHECKOUT): "<checkout>", **{v: f"<{k}>" for k, v in UV_DIRS.items()},
-             tempfile.gettempdir(): "<systmp>", str(Path(tempfile.gettempdir()).resolve()): "<systmp>"}
-    transcript.write(TRANSCRIPTS, request.node.nodeid, paths)
-
-
-GO_EXPECTED_FAILURES = Path(__file__).resolve().parent / "go-expected-failures.txt"
-
-
-def go_expected_failures() -> set[str]:
-    """The tests expected to fail on Go pm, as <test file>::<test name>: the list's lines without comments."""
-    lines = GO_EXPECTED_FAILURES.read_text().splitlines()
-    return {line for line in lines if line.strip() and not line.startswith("#")}
-
-
-def pytest_collection_modifyitems(config, items):
-    """Skip a test marked for another implementation, with the mark's reason. Under PM_IMPL=go, a test on the
-    expected-failures list must fail: a listed test that passes fails the run (strict xfail), so the list only
-    shrinks."""
-    expected = go_expected_failures() if IMPL == "go" else set()
-    for item in items:
-        if (mark := item.get_closest_marker("impl")) and IMPL not in mark.args:
-            item.add_marker(pytest.mark.skip(reason=f"only for {', '.join(mark.args)}: {mark.kwargs['reason']}"))
-        elif f"{item.path.name}::{item.name}" in expected:
-            item.add_marker(pytest.mark.xfail(strict=True, reason=f"listed in {GO_EXPECTED_FAILURES.name}: Go pm "
-                                                                    "does not pass it yet; remove it once it passes"))
-
-
 # The user's files pm writes outside a repo: Codex's config (pm init's writable roots) and the service units.
 # pytest_configure points HOME, CODEX_HOME and CLAUDE_CONFIG_DIR at a temp dir for the whole test process, so
 # whatever a test runs with the inherited environment (git and the pm hooks it runs, in-process calls) writes there,
@@ -324,44 +288,34 @@ def real_home_untouched():
     assert after[1] == REAL_BEFORE[1], f"a test added or removed the user's pm service units: {after[1]}"
 
 
-def fake_bd_env(tmp: Path, base) -> dict[str, str]:
-    """`base` with the fake bd and gh first on PATH, bd serving ISSUES from tmp/bd.json and logging calls to
-    tmp/bd.log, gh serving PRs from tmp/gh.json (none at first), claude a fake logging to tmp/claude.log; made on first use in `tmp`, so later calls keep
-    their state and log. CODEX_HOME is tmp/codex, absent until a test makes it, so no test reads or edits the
-    user's Codex config. HOME is tmp/home and launchctl, systemctl and crontab are fakes logging to tmp/sched.log,
-    so no test installs a real service; UV_TOOL_DIR and UV_TOOL_BIN_DIR are under tmp/uv, which holds the pm uv
-    tool (install_tool), so no test reads or installs the user's tools; PYTHONPATH makes pm the tool's git build.
-    For Go pm, tmp/home/.local/bin/pm, second on PATH, links the Go binary instead of the uv tool."""
+def fake_env(tmp: Path, base) -> dict[str, str]:
+    """`base` with the fakes first on PATH: gh serving PRs from tmp/gh.json (none at first), claude logging to
+    tmp/claude.log, and launchctl, systemctl and crontab logging to tmp/sched.log, so no test installs a real service;
+    made on first use in `tmp`, so later calls keep their state and log. HOME is tmp/home, whose .local/bin/pm, second
+    on PATH, links the pm under test, as install.sh and pm init put it. CODEX_HOME is tmp/codex, absent until a test
+    makes it, so no test reads or edits the user's Codex config."""
     bindir = tmp / "bin"
     if not bindir.exists():
         bindir.mkdir()
         # each runs with this interpreter, whatever python3 the PATH a unit gets holds
-        for tool, script in (("bd", FAKE_BD), ("gh", FAKE_GH), ("claude", FAKE_CLAUDE), ("launchctl", FAKE_SCHED),
+        for tool, script in (("gh", FAKE_GH), ("claude", FAKE_CLAUDE), ("launchctl", FAKE_SCHED),
                              ("systemctl", FAKE_SCHED), ("crontab", FAKE_SCHED)):
             (bindir / tool).write_text(f'#!/bin/sh\nFAKE_TOOL={tool} exec "{sys.executable}" "{script}" "$@"\n')
             (bindir / tool).chmod(0o755)
-        (tmp / "home").mkdir()
+        (tmp / "home/.local/bin").mkdir(parents=True)
+        (tmp / "home/.local/bin/pm").symlink_to(PM[0])
         (tmp / "gh.json").write_text("{}")
-        (tmp / "bd.json").write_text(json.dumps(ISSUES))
-        (tmp / "bd.log").write_text("")
-        if IMPL == "go":  # Go pm installed as install.sh and pm init put it: the binary at $HOME/.local/bin/pm
-            (tmp / "home/.local/bin").mkdir(parents=True)
-            (tmp / "home/.local/bin/pm").symlink_to(PM[0])
-        else:
-            install_tool(tmp / "uv/tools", tmp / "uv/bin")
+        (tmp / "issues.json").write_text(json.dumps(ISSUES))
     # a test names its session itself, and its transcripts live under tmp/claude, not the user's
     base = {k: v for k, v in base.items() if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID",
                                                          "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
                                                          "GH_TOKEN")}
-    path = f"{bindir}{os.pathsep}{tmp / 'home/.local/bin'}{os.pathsep}{base['PATH']}" if IMPL == "go" else \
-        f"{bindir}{os.pathsep}{base['PATH']}"
-    return dict(base, PATH=path, FAKE_BD_STATE=str(tmp / "bd.json"),
-                FAKE_BD_LOG=str(tmp / "bd.log"), FAKE_GH_STATE=str(tmp / "gh.json"), CODEX_HOME=str(tmp / "codex"),
+    return dict(base, PATH=f"{bindir}{os.pathsep}{tmp / 'home/.local/bin'}{os.pathsep}{base['PATH']}",
+                FAKE_GH_STATE=str(tmp / "gh.json"), CODEX_HOME=str(tmp / "codex"),
                 CLAUDE_CONFIG_DIR=str(tmp / "claude"), HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "home/.config"),
                 XDG_DATA_HOME=str(tmp / "home/.local/share"),
                 FAKE_SCHED_LOG=str(tmp / "sched.log"), FAKE_SCHED_STATE=str(tmp / "sched.json"),
-                FAKE_CLAUDE_LOG=str(tmp / "claude.log"), UV_TOOL_DIR=str(tmp / "uv/tools"),
-                UV_TOOL_BIN_DIR=str(tmp / "uv/bin"), PYTHONPATH=str(tmp / "uv/tools/pm/site"), **UV_DIRS)
+                FAKE_CLAUDE_LOG=str(tmp / "claude.log"), **UV_DIRS)
 
 
 class Repo:
@@ -369,60 +323,20 @@ class Repo:
 
     def __init__(self, root: Path, tmp: Path):
         self.root, self.store, self.records = root, root / ".pm/store/records", root / "records"
-        self.state, self.log, self.sched = tmp / "bd.json", tmp / "bd.log", tmp / "sched.json"
-        self.noms = root / ".beads/embeddeddolt/demo/.dolt/noms"  # the Dolt store bd context points at; see dolt()
-        self.env = fake_bd_env(tmp, os.environ)
+        self.issues, self.sched = tmp / "issues.json", tmp / "sched.json"
+        self.env = fake_env(tmp, os.environ)
         self.base: dict[str, dict] = {}  # the items changes() counts from; the repo fixture marks them once set up
-        self.seeded: set[str] = set()  # ids pm did not mint: a transcript keeps them as they are
-        self.bd_mark = 0  # the fake bd's calls before the mark, which unchanged() leaves out
-        self.imported: dict[str, dict] = {}  # Go pm: the items its store held right after the seeds were imported
+        self.imported: dict[str, dict] = {}  # the items the store held right after the seeds were imported
         self.tmp = tmp
-        self.known: dict[str, dict] = {}  # the store as last read
-        self.unread: dict[str, dict] | None = None  # the store as last read before the transcript stopped reading it
-        self.config_text = ""  # the config as the fixture wrote it, which the teardown check reads the store under
-        self.service: subprocess.Popen | None = None  # Go pm: the per-test pm service that holds the work store
+        self.service: subprocess.Popen | None = None  # the per-test pm service that holds the work store
 
     def pm(self, *args: str, text: str = "", stdin: str | None = None,
            cwd: Path | None = None) -> subprocess.CompletedProcess:
         """Run pm; a non-empty text goes in as --text. stdin is closed unless given: only `pm hook` reads it, for the
-        hook input JSON. The call goes into the test's transcript with the record files it changed and the store
-        export after it."""
+        hook input JSON."""
         feed = {"stdin": subprocess.DEVNULL} if stdin is None else {"input": stdin}
         argv = [*args, *([f"--text={text}"] if text else [])]
-        before = self.record_files()
-        res = subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
-        after = self.record_files()
-        try:
-            if (pin := self.pin()) is None:  # the service stops on its next look, finding no pin
-                export = "the repo has no readable pin in .pm/config.toml, so its pm service stops"
-            elif pin != __version__:  # that pm's service holds the store, not this one's
-                export = f"the repo pins pm {pin}, whose pm service holds the work store"
-            elif (self.tmp / "services-stopped").exists():  # the test stopped the clone's service
-                export = "the clone's pm service is stopped; Go pm reads the work store only through it"
-            else:
-                self.known = self.items()
-                export = sorted(self.known.values(), key=lambda i: i["id"])
-                self.unread = None  # reading resumed: what the store holds now is read, after this call's own writes
-        except subprocess.CalledProcessError as e:  # a pm whose export fails here (no config, say): that is the record
-            export = f"pm export failed ({e.returncode}): {e.stderr}"
-        if isinstance(export, str) and self.unread is None:
-            self.unread = self.known  # check_unread holds the store to it at teardown
-        transcript.record({
-            "argv": argv, "stdin": stdin, "stdout": res.stdout, "stderr": res.stderr, "exit": res.returncode,
-            "records": {p: after[p].decode(errors="replace") if p in after else None
-                        for p in sorted(before.keys() | after.keys()) if before.get(p) != after.get(p)},
-            "export": export}, roots=[i["id"] for i in export if isinstance(export, list) and i["parent"] is None
-                                      and i["id"] not in self.seeded])
-        return res
-
-    def pin(self) -> str | None:
-        """The pm version the main checkout's config pins; None without a readable one. Go pm's service stops once
-        the pin moves off its version (the supervisor then starts the pinned one) or it cannot read it, so a transcript
-        records no store read while the repo pins another pm or none, for either implementation."""
-        try:
-            return str(tomllib.loads((self.root / ".pm/config.toml").read_text())["version"])
-        except (OSError, KeyError, tomllib.TOMLDecodeError):
-            return None
+        return subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
         res = subprocess.run(["git", *args], cwd=cwd or self.root, capture_output=True, text=True)
@@ -444,9 +358,8 @@ class Repo:
         return path
 
     def pages(self, cwd: Path | None = None) -> dict[str, str]:
-        """Every page of the site by path, as the pm service renders it from the records and Beads now."""
-        res = subprocess.run([sys.executable, str(RENDER_PAGES)], cwd=cwd or self.root, env=self.env,
-                             capture_output=True, text=True)
+        """Every page of the site by path, as the pm service renders it from the records and the work store now."""
+        res = subprocess.run([str(RENDER_PAGES)], cwd=cwd or self.root, env=self.env, capture_output=True, text=True)
         assert res.returncode == 0, res.stderr
         return json.loads(res.stdout)
 
@@ -464,32 +377,31 @@ class Repo:
         return {p.relative_to(self.store).as_posix(): p.read_bytes() for p in sorted(self.store.rglob("*"))
                 if p.is_file() and ".git" not in p.relative_to(self.store).parts}
 
-    # Work data, store-neutral: tests read it as work-store items (work_items.py has the fields), never as bd JSON or
-    # bd calls. Seeds are given as the issues bd exports, which the work store imports; set_issue and add_issue
-    # are the one place a test writes them.
+    # Work data: tests read it as work-store items, as `pm export` gives them. Seeds are given as the issues bd
+    # exports, which `pm init --import-bd` imports; set_issue and add_issue are the one place a test writes them.
 
     def items(self) -> dict[str, dict]:
-        """Every work-store item by id, as `pm export` gives them: for Python pm, the fake bd's issues mapped; for Go
-        pm, its store read by path from outside the repo, so a test that broke the repo's config or pins another
-        version still reads it, and the launcher never runs the pin for this read."""
-        if IMPL == "python":
-            return work_items(json.loads(self.state.read_text()))
+        """Every work-store item by id, read by path from outside the repo, so a test that broke the repo's config
+        or pins another version still reads it, and the launcher never runs the pin for this read. With the clone's
+        service stopped (stop_services), the per-test one is started anew to read it."""
+        if (self.tmp / "services-stopped").exists():
+            self.stop_service()
+            self.start_service()
         res = subprocess.run([*PM, "export", "--store", str(self.root / ".pm/store/work")], cwd=self.root.parent,
                              env=self.env, capture_output=True, text=True, check=True)
         return {i["id"]: i for i in map(json.loads, res.stdout.splitlines())}
 
-    def start_service(self, pm: list[str] | None = None) -> None:
-        """Go pm: start `pm service run` for this clone on a free port, as the supervisor would, and wait for its
-        work-store socket: every Go pm command reaches the work store only through the service (the pm-go page, Store
-        access). The fake supervisor stops it when a test starts the clone's installed service (fake_sched.py). pm
-        names the Go pm to run where the suite runs Python pm (test_go_parity.py)."""
-        if (pm is None and IMPL != "go") or self.service is not None and self.service.poll() is None:
+    def start_service(self) -> None:
+        """Start `pm service run` for this clone on a free port, as the supervisor would, and wait for its work-store
+        socket: every pm command reaches the work store only through the service. The fake supervisor stops it when
+        a test starts the clone's installed service (fake_sched.py)."""
+        if self.service is not None and self.service.poll() is None:
             return
         (self.tmp / "services-stopped").unlink(missing_ok=True)
         sock = self.root / ".pm/run/work.sock"
         sock.unlink(missing_ok=True)  # one a killed service left: the new one removes it too, but only once it starts
         with open(self.tmp / "fixture-service.log", "ab") as log:
-            self.service = POPEN([*(pm or PM), "service", "run"], cwd=self.root, env=dict(self.env, PORT="0"),
+            self.service = POPEN([*PM, "service", "run"], cwd=self.root, env=dict(self.env, PORT="0"),
                                  stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
         state = json.loads(self.sched.read_text()) if self.sched.exists() else {"loaded": []}
         state.setdefault("pids", {})["fixture"] = self.service.pid
@@ -501,25 +413,8 @@ class Repo:
                                      (self.tmp / "fixture-service.log").read_text())
             time.sleep(0.01)
 
-    def check_unread(self) -> None:
-        """At teardown: once a transcript stopped reading the store (the repo pins another pm, or the test stopped the
-        clone's services), no command may have written it, which nothing read showed. Read it now through a service on
-        this pm, with the fixture's config back, and require it as it was when the reading stopped."""
-        if self.unread is None:
-            return
-        (self.root / ".pm/config.toml").write_text(self.config_text)
-        try:
-            now = self.items()
-        except subprocess.CalledProcessError:  # no service answers: start the per-test one
-            if self.service is not None:  # one stopping (its pin moved, say): let it exit first
-                self.service.wait(timeout=30)
-                self.service = None
-            self.start_service()
-            now = self.items()
-        assert now == self.unread, "a command wrote the work store while the transcript could not read it"
-
     def stop_service(self) -> None:
-        """Go pm: stop the per-test pm service, before a test starts its own `pm service run` for the clone."""
+        """Stop the per-test pm service, before a test starts its own `pm service run` for the clone."""
         if self.service is None:
             return
         self.service.terminate()
@@ -527,10 +422,10 @@ class Repo:
         self.service = None
 
     def import_seeds(self) -> None:
-        """Go pm: its work store made anew from the fake bd's issues, as `pm init --import-bd` imports a bd export,
-        through the per-test service, restarted on the removed store."""
-        issues = json.loads(self.state.read_text())
-        export = self.state.with_name("bd-export.jsonl")
+        """The work store made anew from the seed issues, as `pm init --import-bd` imports a bd export, through the
+        per-test service, restarted on the removed store."""
+        issues = json.loads(self.issues.read_text())
+        export = self.issues.with_name("bd-export.jsonl")
         export.write_text("".join(json.dumps({"_type": "issue", **i}) + "\n" for i in issues))
         if (self.root / ".pm/store/work").exists():
             self.stop_service()
@@ -538,22 +433,17 @@ class Repo:
         self.start_service()
         res = subprocess.run([*PM, "init", "--import-bd", str(export)], cwd=self.root, env=self.env,
                              capture_output=True, text=True)
-        assert res.returncode == 0, f"the seeds do not import into Go pm's work store: {res.stderr}"
-        self.imported = self.known = self.items()
+        assert res.returncode == 0, f"the seeds do not import into the work store: {res.stderr}"
+        self.imported = self.items()
 
     def mark(self) -> None:
         """Count changes() from now on."""
-        self.base = self.known = self.items()
-        self.seeded |= self.base.keys()
-        self.bd_mark = len(self.bd_calls()) if IMPL == "python" else 0
+        self.base = self.items()
 
     def unchanged(self) -> bool:
         """Nothing at all changed in the work store since the repo was set up or marked, seeds aside: every item
-        equal, stamps included; for Python pm also no bd write, a no-op one included."""
-        reads = lambda c: (c[:1] in (["list"], ["show"]) or c in (["context", "--json"], ["export"])
-                           or (c[:1] == ["comments"] and c[2:] == ["--json"]))
-        writes = [c for c in self.bd_calls()[self.bd_mark:] if not reads(c)] if IMPL == "python" else []
-        return self.items() == self.base and writes == []
+        equal, stamps included."""
+        return self.items() == self.base
 
     def changes(self) -> dict[str, dict]:
         """What pm changed in the work store since the repo was set up or marked, seeds aside: for each item it made,
@@ -578,37 +468,24 @@ class Repo:
                 if i["id"] == issue_id:
                     i.update(fields)
         self.seed(update)
-        if self.noms.is_dir():
-            with open(self.noms / "journal", "a") as f:
-                f.write(json.dumps([issue_id, fields]) + "\n")
 
     def add_issue(self, issue: dict) -> None:
         """Seed: add an issue as bd exports it."""
         self.seed(lambda issues: issues.append(dict(issue)))
 
     def seed(self, edit) -> None:
-        """Apply a seed edit to the fake bd's issues, and its items to the base changes() counts from, so a seed is
-        no change of pm's."""
-        if IMPL == "go" and self.items() != self.imported:  # Go pm's store is imported anew from the seeds alone
-            raise NotImplementedError("PM_IMPL=go: a seed after Go pm wrote its work store would undo that write; "
-                                      "seed before the first pm write")
-        issues = json.loads(self.state.read_text())
+        """Apply a seed edit to the seed issues and import them anew, and take the seeded items into the base
+        changes() counts from, so a seed is no change of pm's."""
+        if self.items() != self.imported:  # the store is imported anew from the seeds alone
+            raise NotImplementedError("a seed after pm wrote its work store would undo that write; seed before the "
+                                      "first pm write")
+        issues = json.loads(self.issues.read_text())
         before = {i["id"]: json.dumps(i, sort_keys=True) for i in issues}
         edit(issues)
-        self.state.write_text(json.dumps(issues))
-        if IMPL == "go":
-            self.import_seeds()
-        now = self.imported if IMPL == "go" else work_items(issues)
+        self.issues.write_text(json.dumps(issues))
+        self.import_seeds()
         seeded = {i["id"] for i in issues if before.get(i["id"]) != json.dumps(i, sort_keys=True)}
-        self.base.update({iid: now[iid] for iid in seeded})
-        self.seeded |= seeded
-
-    def dolt(self) -> None:
-        """Make the embedded Dolt store the pm service watches: a manifest and a journal that every bd write (fake bd or
-        set_issue) grows, as Dolt's chunk journal does."""
-        (self.noms / "oldgen").mkdir(parents=True, exist_ok=True)  # bd bootstrap may have made it
-        (self.noms / "manifest").write_text("5:fake\n")
-        (self.noms / "journal").write_text("")
+        self.base.update({iid: self.imported[iid] for iid in seeded})
 
     def set_pr(self, url: str, state: str, merge: str | None = None) -> None:
         """What the fake gh reports for a PR: its state and, once merged, its merge commit."""
@@ -617,12 +494,8 @@ class Repo:
         prs[url] = {"state": state, "mergeCommit": {"oid": merge} if merge else None}
         path.write_text(json.dumps(prs))
 
-    def bd_calls(self) -> list[list[str]]:
-        """The calls Python pm made to the fake bd: only for an assertion about Python pm's use of bd."""
-        return [json.loads(l) for l in self.log.read_text().splitlines()]
-
     def snapshot(self) -> dict[str, bytes]:
-        """Every file of the main checkout but git's, and but the index of Go pm's Dolt chunk journal, a cache of the
+        """Every file of the main checkout but git's, and but the index of the Dolt chunk journal, a cache of the
         journal that a read (the pm service's too) may write; items() holds the store's content."""
         return {p.relative_to(self.root).as_posix(): p.read_bytes()
                 for p in sorted(self.root.rglob("*")) if p.is_file() and ".git" not in p.parts
@@ -643,9 +516,18 @@ def unstamped(item: dict) -> dict:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Repo:
-    root = tmp_path / "repo"
+    r = make_repo(tmp_path)
+    yield r
+    r.stop_service()
+
+
+def make_repo(tmp: Path, issues: list[dict] = ISSUES) -> Repo:
+    """A clone as pm init leaves it, under tmp: its records store holds RECORDS and its work store the seed `issues`,
+    held by the per-test pm service, which the caller stops."""
+    root = tmp / "repo"
     root.mkdir()
-    r = Repo(root, tmp_path)
+    r = Repo(root, tmp)
+    r.issues.write_text(json.dumps(issues))
     r.git("init", "-q", "-b", "main")
     r.git("config", "user.email", "t@example.com")
     r.git("config", "user.name", "t")
@@ -664,26 +546,22 @@ def repo(tmp_path: Path) -> Repo:
         (r.store / rel).write_text(text)
     r.commit("records")
     r.records.symlink_to(r.store)
-    if IMPL == "go":
-        r.import_seeds()
+    r.import_seeds()
     r.mark()
-    r.config_text = (root / ".pm/config.toml").read_text()
-    yield r
-    try:
-        r.check_unread()
-    finally:
-        r.stop_service()
+    return r
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
-    # a short temp root: Go pm's service socket, <tmp>/<test>/repo/.pm/run/work.sock, must fit the kernel's 104 bytes,
+    # a short temp root: the pm service's socket, <tmp>/<test>/repo/.pm/run/work.sock, must fit the kernel's 104 bytes,
     # which pytest's default under $TMPDIR passes on macOS; the xdist workers take theirs under the controller's
     if not config.option.basetemp and not os.environ.get("PYTEST_XDIST_WORKER"):
         config.option.basetemp = tempfile.mkdtemp(prefix="pmt", dir="/tmp")
     # before any test module is imported, so module-level environments (test_init's GIT_ENV) get the temp dirs too
     os.environ.update({f"PM_TESTS_REAL_{k}": v for k, v in REAL.items()})
     home = config.pm_home = Path(tempfile.mkdtemp(prefix="pm-tests-home-"))
+    # the pm under test first on PATH, for what runs `pm` with the inherited environment: the git hooks pm installs
+    os.environ["PATH"] = f"{BIN}{os.pathsep}{os.environ['PATH']}"
     os.environ.update(HOME=str(home / "home"), CODEX_HOME=str(home / "codex"), CLAUDE_CONFIG_DIR=str(home / "claude"),
                       XDG_CONFIG_HOME=str(home / "home/.config"), XDG_DATA_HOME=str(home / "home/.local/share"),
                       **UV_DIRS)
@@ -693,9 +571,6 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: starts the pm service, renders the whole site, sets a clone up, "
                                        "reaches a git remote or runs the session-start hook; `make test` skips it, "
                                        "CI and `make test-full` run it")
-    config.addinivalue_line("markers", "impl(*impls, reason): a test for these implementations only (PM_IMPL), and why")
-    if not os.environ.get("PYTEST_XDIST_WORKER"):  # once per run, before any worker writes
-        shutil.rmtree(TRANSCRIPTS, ignore_errors=True)
 
 
 def pytest_unconfigure(config):

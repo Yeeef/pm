@@ -2,33 +2,33 @@
 
 Guidance for an agent changing pm itself: its code, tests, hooks and site. `CLAUDE.md` is a symlink to this file.
 An agent that only uses pm in a repo gets its context from `pm prime`, `pm show` and `pm <noun> --help`; nothing here
-is for them, and nothing here ships: the wheel holds only `src/pm/` (`[tool.hatch.build.targets.wheel]` in
-`pyproject.toml`), so `prime.md`, `style.css` and `prompts/` ship and this file does not.
+is for them, and nothing here ships: the release binary embeds `prime.md`, `style.css` and `prompts/` (`assets.go`),
+and not this file.
 
 ## Layout
 
+pm is one Go module (`go.mod`); the pytest suite in `tests/` is its black-box harness, which drives the built binary.
+
 | Path | Holds |
 |---|---|
-| `src/pm/cli.py` | The commands and their `--help` texts; `parser()` builds the argparse tree |
-| `src/pm/hooks.py` | `pm prime` (SessionStart and SubagentStart context) and `pm hook stop` (uncommitted records) |
-| `src/pm/owner_request.py` | `pm hook owner-request`: the Haiku judge and its `claude -p` arguments |
-| `src/pm/prompts/` | The model prompts and hook texts both implementations read (`pm.prompt()`, `assets.go`): the owner-request judge's system prompt and block reasons, `pm day summarize`'s prompt |
-| `src/pm/prime.md` | The rules Python `pm prime` prints, naming Beads and `bd`; the only prose the package ships to agents |
-| `prime.md` | The rules Go `pm prime` prints (`assets.go` embeds it), naming the work store and pm's commands for it |
-| `src/pm/records.py`, `store.py`, `beads.py` | Record parsing and checks, the store (the `records` worktree and its lock), `bd` calls |
-| `src/pm/site.py`, `style.css` | The site the pm service serves and `pm check` renders; the one stylesheet every page gets |
-| `src/pm/service.py`, `push.py` | `pm service`: one supervised process per clone serves the site and runs `pm push` |
-| `src/pm/install.py`, `tool.py`, `legacy.py` | `pm init`, `doctor`, `upgrade`, `uninstall`: the repo's pieces, the pm uv tool, the pre-package harness's pieces |
-| `src/pm/config.py` | `.pm/config.toml`: every command fails hard without it or on another pinned version |
-| `src/pm/launch.py` | The launcher: `main()` first runs the repo's pinned version when it is not this one, through `uv tool run`, or for a Go pin (0.2.0 and up) its release binary, downloaded once into `<data dir>/pm/pins/<pin>/pm` |
-| `tests/` | pytest suite, fakes and the live eval (below) |
-| `go.mod`, `cmd/pm`, `internal/…`, `assets.go` | Go pm, the port the `pm-go` design page plans: built and tested on main, run by no repo until the cut-over. `internal/cli/commands.go` holds every command and help text, `internal/cli/agentcmds.go` runs the agent commands Go pm has ported (`show`, `record link`, `where`, `commit`, `day summarize`, the task, record, project and sprint writes, the decision, action and reply commands; bodies in `writes.go`, `needs.go`, `day.go`, `show*.go`, `where.go`, shared context and checks in `agent.go`), `internal/hooks` `pm prime`, `pm hook stop` and `pm hook owner-request` (its work-store read in `internal/cli/ownerrequest.go`), `internal/work` the work store on embedded Dolt (schema, invariant checks, ids, ready and blocked, the bd import and `pm export`, sync through the git remote under `refs/pm/work` with the merge rules in `merge.go` and the child-id compare-and-swap on the scratch branch `pm-cas` in `sync.go`; `host.go` the host, which only `pm service run` starts: the Dolt engine held open and served on `<main>/.pm/run/work.sock` with `pm_version()`, `pm_sync()`, `pm_create(?)` and `pm_setup()`; `dolt.go` the client every command and the service's own loops use, `work.Dial`, with the version handshake, and every write under the store's fair write lock, `lock.go`, which the host serves as `pm_lock()` and `pm_unlock()`), whose Go-only commands, `pm export [--store DIR]`, `pm init --import-bd FILE` (the import into a new or empty store) and the work-store commands in `internal/cli/store_commands.go` (`task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`, and the forms `show ID` and `task add --parent TASK` of two argparse commands), stay out of the argparse tree, dispatched by `goOnly` in `internal/cli/work.go`; `internal/work/sync_test.go` runs two hosted clones on a local bare repo, `access_test.go` holds the one access path (only `host.go` loads an engine, only `pm service run` starts a host), and `bench_test.go` the store benchmarks, which run with `PM_BENCH_STORE=<a copy of a clone's .pm/store/work>`; `internal/work/worktest` `Serve` (a host and a client on a short temp clone, for a Go test that needs a store) and a read-only fake store, `internal/records` record parsing and checks, `internal/store` the records store, `internal/site` the pages; `internal/service` the pm service (`service.Run` against the work store's client, its change mark, sync and gc, and a `Site` interface, its unit files and lifecycle), which `internal/cli/serve.go` wires to the clone: `pm service run` hosts the work store (`work.NewHost`) and reaches it through its own socket, and `internal/site` (`serve.go` there: pages rendered on demand, reply forms, the status line), and `pm service install` and `restart` of a unit that runs the pm at `config.BinPath()`; `internal/sync` the push steps and their state, which `pm push` (`internal/cli/push.go`) runs once; `internal/service/testdata/units` holds Python's unit files, which Go's and Python's tests both compare against; `assets.go` embeds `src/pm/prime.md`, `style.css` and `prompts/`, so both implementations read one copy |
-| `internal/launch` | Go pm's launcher, which `cmd/pm` runs before anything else: `launch.py` ported, the same cases and texts (`test_launch.py` runs on both). A Go pin execs `pins/<pin>/pm`, downloaded once from release `pm-v<pin>` with no token (`$PM_RELEASE_URL` replaces GitHub's release download URL), and when that fails, through the GitHub API with a token from `$GH_TOKEN` or `gh auth token` (`$PM_RELEASE_API` replaces the API URL), then checked against `SHA256SUMS` and the kept `sha256` (`go.go`); a Python pin runs `uv tool run` of its tag's commit in Yeeef/pm, kept in `pins/<pin>/commit-Yeeef-pm` (`python.go`); `How()` is `pm where`'s line. `pm version` (Go-only, in `goOnly`) prints the build's version, `dev` when untagged |
-| `CHANGELOG.md`, `release/changelog.py` | Go releases' notes, and their checker: `check`, `notes X`, `pr BASE` (Releasing pm) |
+| `cmd/pm`, `assets.go` | The binary's entry point, which runs the launcher before anything else; `assets.go` embeds `prime.md`, `style.css` and `prompts/` |
+| `prime.md` | The rules `pm prime` prints, naming the work store and pm's commands for it |
+| `prompts/` | The model prompts and hook texts: the owner-request judge's system prompt and block reasons, `pm day summarize`'s prompt |
+| `style.css` | The one stylesheet every page of the site gets |
+| `internal/cli` | Every command: `commands.go` holds the command tree and every help text, `cli.go` the parser and `main`, `agentcmds.go` the agent commands (bodies in `writes.go`, `needs.go`, `day.go`, `show*.go`, `where.go`; shared context and checks in `agent.go`), `install.go` `pm init`, `doctor`, `upgrade`, `uninstall` and the git hooks, `serve.go` `pm service run`, `push.go` `pm push`, `ownerrequest.go` the owner-request hook's work-store read. The commands outside the command tree (`pm version`, `pm export [--store DIR]`, `pm init --import-bd FILE`, and in `store_commands.go` `task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`, and the forms `show ID` and `task add --parent TASK`) are dispatched by `goOnly` in `work.go` |
+| `internal/hooks` | `pm prime` (SessionStart and SubagentStart context), `pm hook stop` (uncommitted records) and `pm hook owner-request` (the Haiku judge and its `claude -p` arguments) |
+| `internal/work` | The work store on embedded Dolt: schema, invariant checks, ids, ready and blocked, the bd import and `pm export`, sync through the git remote under `refs/pm/work` with the merge rules in `merge.go` and the child-id compare-and-swap on the scratch branch `pm-cas` in `sync.go`. `host.go` is the host, which only `pm service run` starts: the Dolt engine held open and served on `<main>/.pm/run/work.sock` with `pm_version()`, `pm_sync()`, `pm_create(?)` and `pm_setup()`; `dolt.go` the client every command and the service's own loops use, `work.Dial`, with the version handshake, and every write under the store's fair write lock, `lock.go`, which the host serves as `pm_lock()` and `pm_unlock()`. `sync_test.go` runs two hosted clones on a local bare repo, `access_test.go` holds the one access path (only `host.go` loads an engine, only `pm service run` starts a host), `bench_test.go` the store benchmarks, which run with `PM_BENCH_STORE=<a copy of a clone's .pm/store/work>`; `worktest` holds `Serve` (a host and a client on a short temp clone, for a Go test that needs a store) and a read-only fake store |
+| `internal/records`, `internal/store` | Record parsing and checks; the records store (the `records` worktree, its lock, design dates) |
+| `internal/site` | The pages, rendered on demand by the service (`serve.go`: reply forms, the status line) and by `pm check` |
+| `internal/service` | The pm service: `service.Run` against the work store's client, its change mark, sync and gc, and a `Site` interface; its unit files and lifecycle. `internal/cli/serve.go` wires it to the clone: `pm service run` hosts the work store (`work.NewHost`) and reaches it through its own socket; `pm service install` and `restart` manage a unit that runs the pm at `config.BinPath()` |
+| `internal/sync` | The push steps and their state, which `pm push` (`internal/cli/push.go`) runs once |
+| `internal/install` | `pm init`, `doctor`, `upgrade`, `uninstall`: the repo's pieces (`pieces.go`; pm's git hook sections live in its own tracked `.pm/hooks/post-checkout` and `pre-commit`), Beads' pieces taken out by `pm init` and `pm upgrade` and named by `pm doctor` (bd's hook entries in `.claude/settings.json` and `.codex/hooks.json`, the Beads block in `CLAUDE.md` and a non-link `AGENTS.md`; `.beads/` itself stays), the records-branch bootstrap, the clone's setup (`clone.go`) with the work store attached to the remote's `refs/pm/work` (`workstore.go`: cloned, or created and pushed), `core.hooksPath` set to the main checkout's `.pm/hooks` (moved off Beads' `.beads/hooks`), Codex roots (`codex.go`), pm copied into the bin dir (`binary.go`), and the pre-package harness's pieces found and refused (`legacy.go`) |
+| `internal/launch` | The launcher, which `cmd/pm` runs first: the installed pm runs each repo's pinned version. A Go pin (0.2.0 and up) execs `pins/<pin>/pm`, downloaded once from release `pm-v<pin>` with no token (`$PM_RELEASE_URL` replaces GitHub's release download URL), and when that fails, through the GitHub API with a token from `$GH_TOKEN` or `gh auth token` (`$PM_RELEASE_API` replaces the API URL), then checked against `SHA256SUMS` and the kept `sha256` (`go.go`); a pin below 0.2.0 (a retired Python release) or one that names no release fails hard, naming `pm upgrade --to <X>`; `How()` is `pm where`'s line. `pm version` prints the build's version, `dev` when untagged |
+| `internal/config`, `buildinfo`, `proc`, `pyjson` | `.pm/config.toml` (every command fails hard without it or on another pinned version); the build's version; subprocess runs; JSON written as pm has always written it |
 | `release/build.sh`, `install.sh` | The release build: `build.sh OUT_DIR [pm-v<X>]` builds this machine's binary with `X` from the tag (else the `pm-v*` tag on HEAD, else `dev`) and packs `pm-<X>-<os>-<arch>.tar.gz`; `.github/workflows/pm-release.yml` runs it (Releasing pm). `install.sh`, a release asset with `@VERSION@` filled in, installs that release's binary to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` after checking it against `SHA256SUMS`, downloading as the launcher does (with curl or wget; the token path needs curl); `tests/test_release.py` runs both |
-| `internal/install`, `internal/cli/install.go` | Go pm's `pm init`, `doctor`, `upgrade`, `uninstall` and `pm hook git-post-checkout`/`git-pre-commit`: the repo's pieces as Python pm 0.1.x writes them, byte for byte, but for pm's git hook sections, which live in its own tracked `.pm/hooks/post-checkout` and `pre-commit`, and two texts that name the work store where Python's name Beads: `.pm/README.md` (which installs with the release's `install.sh`) and the Codex SubagentStart hook's status message (`pieces.go`; `parity_test.go` holds them equal to Python's on `$PM_PARITY/install.json`, which `go_parity_corpus.py` writes, relaxing only that path, those two texts and the Beads removal), Beads' pieces taken out by `pm init` and `pm upgrade` and named by `pm doctor` (bd's hook entries in `.claude/settings.json` and `.codex/hooks.json`, the Beads block in `CLAUDE.md` and a non-link `AGENTS.md`; `.beads/` itself stays), the records-branch bootstrap, the clone's setup (`clone.go`) with the work store attached to the remote's `refs/pm/work` in place of bd bootstrap (`workstore.go`: cloned, or created and pushed), `core.hooksPath` set to the main checkout's `.pm/hooks` by `pm init` and `pm upgrade` (moved off Beads' `.beads/hooks`, where Python pm left it), Codex roots without `.beads` or uv's cache (`codex.go`), pm copied into the bin dir (`binary.go`), and the pre-package harness's pieces found and refused, naming Python pm's release (`legacy.go`) |
-| The pm uv tool | The `pm` on PATH that hooks, agents and the service run; `pm init` installs it from git (`tool.py`). It runs each repo's pinned version (`launch.py`). Run this checkout's code with `uv run --project <this checkout> pm …` in a scratch repo: it runs in process where the repo pins this checkout's version, and launches the pin elsewhere |
-| `.github/workflows/` | CI (`pm-tests.yml`, `pm-go.yml`, `pm-changelog.yml`) on every PR and push to main, the release (`pm-release.yml`) on a `pm-v*` tag, and a release's notes re-rendered by hand (`pm-release-notes.yml`) |
+| `tests/` | The harness: the pytest suite, its fakes and the live eval (below); `tests/render-pages` prints every page as the service renders it, for the harness's page tests. `pyproject.toml` and `uv.lock` are its environment |
+| `CHANGELOG.md`, `release/changelog.py` | Releases' notes, and their checker: `check`, `notes X`, `pr BASE` (Releasing pm) |
+| `.github/workflows/` | CI (`pm-tests.yml`: the harness; `pm-go.yml`: the Go build and tests; `pm-changelog.yml`) on every PR and push to main, the release (`pm-release.yml`) on a `pm-v*` tag, and a release's notes re-rendered by hand (`pm-release-notes.yml`) |
 
 This repo does not use pm itself: no `.pm/config.toml`, no hooks, no records. pm's plans, decisions and design pages
 (`pm-harness.md` and its sub pages, `pm-go.md`, `pm-versioning.md`) live in the records of the repo where pm's work is
@@ -39,12 +39,12 @@ sprint record.
 
 | Command | Runs |
 |---|---|
-| `make test` | The light set: `tests/run.py -n auto -m "not integration"` in the package environment |
-| `make test-full ARGS="-k serve"` | The tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
-| `uv run pytest -q -n auto tests/test_hooks.py` | One file, or `-k name` for one test |
-| `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH |
-| `make test-go` | Go pm built as released (cgo, stripped) into `.go/pm`; `tests/go_parity_corpus.py` writes Python pm's pages, `pm check` results and reference outputs into `.go/parity` (`PM_PARITY_LIVE=<a clone that uses pm>` adds its records and Beads data, which needs `bd`); `go vet` and `go test ./...` with `-tags gms_pure_go` (Dolt needs it) against that corpus (`PM_PARITY`; the corpus tests skip without it), `internal/service` and the work store's concurrency tests (`RACE_TESTS`) again under `-race`, then `tests/test_go_parity.py` against Python pm (`PM_GO`; skipped without it). `.github/workflows/pm-go.yml` runs it on macOS and Linux. The bd import's round trip and its agreement with `tests/work_items.py` run on `internal/work/testdata`; `PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=$(pm where records)` runs both on a real export |
-| `make test-go-suite` | The whole shared suite on Go pm (`PM_IMPL=go`), each test on `tests/go-expected-failures.txt` a strict xfail, so a listed test that passes fails the run until it leaves the list (it only shrinks); then `tests/compare_transcripts.py` runs the tests that pass on Go on Python pm and diffs their transcripts. `pm-go.yml` runs it after `make test-go` |
+| `make go-build` | pm built as released (cgo, `-tags gms_pure_go`, stripped) into `.go/pm`, and the harness's page renderer into `.go/render-pages`, both reporting `VERSION` (Makefile), the version the harness's test repos pin. Every target below runs it first |
+| `make test` | The light harness set: `tests/run.py -n auto -m "not integration"` against `.go/pm` |
+| `make test-full ARGS="-k serve"` | The harness tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
+| `uv run pytest -q -n auto tests/test_hooks.py` | One file, or `-k name` for one test, after `make go-build` |
+| `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH, logged in |
+| `make test-go` | `go vet` and `go test ./...` with `-tags gms_pure_go` (Dolt needs it), then `internal/service` and the work store's concurrency tests (`RACE_TESTS`) again under `-race`. `.github/workflows/pm-go.yml` runs it on macOS and Linux. The bd import's round trip runs on `internal/work/testdata`; `PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=$(pm where records)` runs it on a real export |
 
 Run `make test` while working. When a change touches what an integration test covers (the service and its site,
 `init`, `push`, the session-start hook), run just those tests with `-k` while iterating, not the whole set.
@@ -53,86 +53,60 @@ Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> -
 Do not run the whole integration set locally: CI runs it on every PR, and that run is the check. Push, then watch
 it; to reproduce a CI failure, run only the failing tests with `make test-full ARGS="-k …"`.
 
-The suite runs against either implementation (the `pm-go` design page, Tests): `PM_IMPL=python` (the default) runs
-this checkout's pm, `PM_IMPL=go` the Go binary at `$PM_GO_BIN`. A test for one implementation only is marked
-`@pytest.mark.impl("python", reason="…")` and skipped on the other; today that is a test of Python code in process
-(`pm.hooks`, `pm.service`, `pm.launch`, the parser) or of what Go retires (`tool.py`, `legacy.py`).
+Frozen expectations in the Go tests: `internal/site/golden_test.go` holds every page of
+`internal/site/testdata/constructs` (a fixture for each construct a page renders) to its copy under
+`testdata/constructs/pages`, and `internal/install/golden_test.go` the managed pieces on a table of inputs to
+`testdata/pieces.json`; after an intended change, rewrite them with
+`go test -tags gms_pure_go ./internal/<pkg> -run Golden -update` and review the diff in the PR. `internal/records`
+holds the scanning functions and YAML 1.1 typing to `testdata/expected.json`, edited by hand.
 
-A test reads work data as work-store items, never as bd JSON or bd calls: `repo.items()` (for Python, the fake bd's
-issues through `tests/work_items.py`, the work store's bd import mapping), and `repo.changes()`, what pm changed since
-the repo was set up or `repo.mark()`, without store stamps; `repo.unchanged()` is the strict "nothing written" check
-(every item equal, stamps included, and for Python no bd write). Seeds are bd issues, the form the work store imports,
+A harness test reads work data as work-store items, as `pm export` gives them: `repo.items()`, and `repo.changes()`,
+what pm changed since the repo was set up or `repo.mark()`, without store stamps; `repo.unchanged()` is the strict
+"nothing written" check (every item equal, stamps included). Seeds are bd issues, the form the work store imports,
 written only through `repo.set_issue` and `repo.add_issue`: ids `<prefix>-<root>(.<n>)*` (`repo-demo.1`), stamps as bd
-writes them, an `in_progress` issue with its `claimed_by`. For Go, the fixture imports them with `pm init --import-bd`
-and reads items with `pm export --store`; a seed imports them anew, so it must come before Go pm's first write.
-`repo.bd_calls()` stays for an assertion about Python pm's use of bd, under `if IMPL == "python"`. The setup tests
-(`test_init.py`, `test_lifecycle.py`) check what bd wrote (bd init's files, the agent profile, its exclude line) and
-uv's cache root on Python, and the work store's counterpart on Go (`BD_WRITES`, `CLONE_ROOTS`).
-
-Each test writes one transcript, `.transcripts/<impl>/<test file>/<test>.json` (or under `$PM_TRANSCRIPTS`; a run
-empties it first): every `repo.pm` call's argv, stdin, stdout, stderr, exit code, changed record files and store
-export, normalised by `tests/transcript.py` keeping each value's shape (temp and checkout paths, random temp names,
-commit ids and UUIDs numbered with their length, timestamps and today's date with digits as 0, durations, ports,
-minted root ids, `pm where`'s work-layer line, Beads in Python and the work store in Go, `pm init`'s lines connecting
-the clone to it (dropped), `pm push`'s work-layer step,
-`bd dolt push` in Python and the work store's sync in Go, `pm service logs` kept to its Serving lines, the gc line of
-`pm service status`, which only Go's service has, the git hooks directory, `.beads/hooks` in Python and `.pm/hooks`
-in Go, the installed pm `pm init`'s refusal names, and the comment that holds the answer a need closes with, bd's
-note "Response: …" in Python and the work store's reply in Go). While the repo pins another pm than the one under
-test or none it can read, or once the test stopped the clone's services (`stop_services`), a call's store export is
-recorded as a fixed line for both implementations: Go pm reads its store only through the clone's service, which
-that pm would run, or which stops or is down. At teardown the fixture then reads the store through a service on this
-pm, with its config back, and fails the test if a command wrote it meanwhile (`Repo.check_unread`). The same test's
-transcript from Python and Go must be equal; a test for Go only (`@pytest.mark.impl("go", …)`) has no Python
-transcript and is not compared. Calls that bypass `repo.pm` (a direct `PM` subprocess) are not recorded.
-`test_go_refusals.py` is the static check that each refusal text of a command Go pm runs (`PORTED`) appears, its
-constant parts, in Go pm's source; a command ported to Go joins `PORTED`, and a part Go words otherwise by design goes
-on `REWORDED` with its reason.
+writes them, an `in_progress` issue with its `claimed_by`. The fixture imports them with `pm init --import-bd` and reads
+items with `pm export --store`; a seed imports them anew, so it must come before pm's first write.
 
 A test is marked `integration` when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
 (`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a
-bare repo), runs `pm push` or the session-start hook (`pm prime` without `--rules` or `--subagent`, also run as
-`python -m pm.cli`). The autouse fixture `light_unless_integration` in `conftest.py` fails an unmarked test that
-starts one of these (`integration_only` names them).
+bare repo), runs `pm push` or the session-start hook (`pm prime` without `--rules` or `--subagent`). The autouse
+fixture `light_unless_integration` in `conftest.py` fails an unmarked test that starts one of these (`integration_only`
+names them).
 
 What the tests are:
 
-- `test_pm.py`: each command against a temp repo and a fake `bd`; every refusal changes nothing, every happy path
-  writes what it says. `test_config.py`: the config check. `test_launch.py`: the
-  launcher against a fake `uv` (logs argv, stdin and the `PM_LAUNCHED` markers) and a fake `git ls-remote`, and for
-  a Go pin against Go releases a local HTTP server serves through `PM_RELEASE_URL` (fixture `release`; each tarball
-  holds a fake `pm` script that prints its argv, markers and stdin) or, when that download fails, through a stand-in
-  for GitHub's API (`GitHub`, fixture `github`: the token, and none to the storage host an asset redirects to); its
-  integration test builds release 0.1.0 with real uv from this clone's tag `pm-v0.1.0` (the release URL rewritten
-  to this clone, so nothing reaches GitHub) and runs `pm show` in a repo pinned to it; another moves a repo's pin to
-  a release tagged in a scratch origin (Releasing pm) through real git hooks and real uv. A test that pins another
-  version and does not test the launch sets `PM_LAUNCHED=<pin>`, as a launched pm has it, or it would reach GitHub. `test_service.py`: the service's units in process and
-  `pm service` end to end. `test_tool.py`: the pm uv tool. `test_init.py`, `test_lifecycle.py`, `test_migrate.py`:
-  `pm init`, `doctor`, `upgrade` and `uninstall` on temp clones, and the move off the pre-package harness.
-  `test_hooks.py`: `pm prime` and `pm hook stop`, run as the runtimes run them (JSON on stdin). `test_owner_request_hook.py`: the owner-request hook in a temp repo against a
-  fake judge. `test_owner_request_prompt_live.py`: the judge's accuracy, with the real model.
+- `test_pm.py`: each command against a temp repo; every refusal changes nothing, every happy path writes what it says.
+  `test_config.py`: the config check, and each config key named in some `--help`. `test_launch.py`: the launcher; a
+  pin below 0.2.0 refused, and a pin against releases a local HTTP server serves through `PM_RELEASE_URL` (fixture
+  `release`; each tarball holds a fake `pm` script that prints its argv, markers and stdin) or, when that download
+  fails, through a stand-in for GitHub's API (`GitHub`, fixture `github`: the token, and none to the storage host an
+  asset redirects to); fakes of `uv` and `git ls-remote` log any call, which no launch makes. A test that pins another
+  version and does not test the launch sets `PM_LAUNCHED=<pin>`, as a launched pm has it, or it would reach GitHub. `test_service.py`: `pm service` end to end.
+  `test_init.py`, `test_lifecycle.py`: `pm init`, `doctor`, `upgrade` and `uninstall` on temp clones.
+  `test_hooks.py`: `pm prime` and `pm hook stop`, run as the runtimes run them (JSON on stdin), against the rules'
+  chunks `conftest.chunks()` writes out from the design. `test_owner_request_hook.py`: the owner-request hook in a temp
+  repo against a fake judge. `test_owner_request_prompt_live.py`: the judge's accuracy, with the real model.
+  `test_release.py`: `install.sh` against a local server, and (in `pm-go.yml`, `PM_RELEASE_BUILD=1`, as it builds
+  twice) the release build in a scratch clone, tagged then untagged.
 - Fixtures (`conftest.py`): `repo` is a temp main checkout with its store at `.pm/store/records` on branch
-  `records` and the `records/` link, as `pm init` leaves a clone. For Go pm it also starts `pm service run` for the
-  clone (`Repo.start_service`, on a free port), which every work-store read and write goes through, and stops it at
+  `records` and the `records/` link, as `pm init` leaves a clone; it also starts `pm service run` for the clone
+  (`Repo.start_service`, on a free port), which every work-store read and write goes through, and stops it at
   teardown; it is no `integration` test's service. A test that starts the clone's own `pm service run` calls
   `repo.stop_service()` first and `repo.start_service()` after; the fake supervisor stops it itself when it starts
   the clone's installed service. The socket path must fit the kernel's 104 bytes, so `pytest_configure` sets a short
-  `--basetemp` under `/tmp` unless one is given. Its env puts the fakes first on PATH and points
-  `HOME`, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` at temp dirs. `pytest_configure` points the test process's own
-  `HOME`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME` at a temp dir too, so git and the pm hooks it
-  runs never touch the user's files, and an autouse check fails a test that changes the user's Codex config or
-  pm service units. `test_pm.py` adds `served` (a `pm service run` on a free port), `origin` (a cut-over origin,
-  for `pm init` in a second clone) and `pushed` (a bare origin plus a second clone, for `pm push`).
-- Fakes: `fake_bd.py` serves issues from `$FAKE_BD_STATE` and logs calls to `$FAKE_BD_LOG`; `$FAKE_BD_FAIL`
-  makes one call fail until `$FAKE_BD_HEAL` exists, `$FAKE_BD_HOLD` makes one wait. `fake_gh.py` answers
-  `gh pr view` from `$FAKE_GH_STATE`. `fake_claude.py` stands in for `claude -p` and logs each call. `fake_sched.py`
-  stands in for `launchctl`, `systemctl` and `crontab`.
+  `--basetemp` under `/tmp` unless one is given. Its env puts the fakes first on PATH, links the pm under test as
+  `$HOME/.local/bin/pm`, and points `HOME`, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` at temp dirs. `pytest_configure`
+  puts `.go` first on the test process's own PATH, for the git hooks pm installs, and points its `HOME`,
+  `CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME` at a temp dir, so git and the pm hooks it runs never touch
+  the user's files; an autouse check fails a test that changes the user's Codex config or pm service units.
+  `test_pm.py` adds `served` (a `pm service run` on a free port), `origin` (a cut-over origin, for `pm init` in a
+  second clone) and `pushed` (a bare origin plus a second clone, for `pm push`).
+- Fakes: `fake_gh.py` answers `gh pr view` from `$FAKE_GH_STATE`. `fake_claude.py` stands in for `claude -p` and logs
+  each call. `fake_sched.py` stands in for `launchctl`, `systemctl` and `crontab`.
 
 ## Releasing pm
 
-### Go pm (0.2.0 and up)
-
-A Go release is its notes and a tag: a PR that gives `X` its section in `CHANGELOG.md`, then
+A release is its notes and a tag: a PR that gives `X` its section in `CHANGELOG.md`, then
 `git tag pm-v<X> <a commit on main> && git push origin pm-v<X>`. No bump commit, and no code file holds `X`:
 `.github/workflows/pm-release.yml` takes `X` from the tag name, and `release/build.sh` stamps it into the binary
 (`-ldflags -X …/buildinfo.Version=<X>`); an untagged build reports `dev`, which no repo pins. On the tag push the
@@ -140,7 +114,7 @@ workflow:
 
 | Job | Does |
 |---|---|
-| `version` | Takes `X` from the tag. A Python `X` (below 0.2.0) builds nothing and succeeds; a Go `X` must name a commit on main, unless it is a pre-release, and its `CHANGELOG.md` must pass `release/changelog.py check` and hold `X`'s notes (`changelog.py notes X`) |
+| `version` | Takes `X` from the tag; it must be at least 0.2.0 (below it are Python pm's retired releases) and name a commit on main, unless it is a pre-release, and its `CHANGELOG.md` must pass `release/changelog.py check` and hold `X`'s notes (`changelog.py notes X`) |
 | `build` | `release/build.sh dist pm-v<X>` natively on `macos-14` (darwin-arm64) and `ubuntu-22.04` (linux-amd64), cgo needing native runners; checks the tarball holds one `pm` whose `pm version` prints `X` |
 | `release` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets, `--prerelease` when `X` has a `-` suffix, and notes `changelog.py notes X`: `X`'s section, its upgrade guide first |
 
@@ -157,8 +131,9 @@ workflow:
   whose changelog has no `X` section fails before any build.
 - Fix or backfill a published release's notes by changing its section on main, then
   `gh workflow run pm-release-notes.yml -f version=<X>`: it replaces the release's notes alone (`gh release edit`).
+
 - Cut a release candidate as `pm-v<X>-rc.<n>` (a GitHub pre-release), on any commit, a PR's included, to check the
-  release build before the PR merges; the launcher treats it as Go version `X`'s pre-release, so a repo can pin it to
+  release build before the PR merges; the launcher treats it as version `X`'s pre-release, so a repo can pin it to
   try it. Its notes are `X`'s section when the changelog has one, else `[Unreleased]`, which must have an upgrade guide.
 - Never move or recreate a release tag, and never rebuild a release's assets: launchers keep each binary's sha256
   in `<data dir>/pm/pins/<X>/sha256` and fail hard when a later download differs.
@@ -170,105 +145,73 @@ workflow:
 - `test_changelog.py` checks `changelog.py`'s rules, notes and PR check; `test_release.py` checks the rest:
   `install.sh` against a local server, and (in `pm-go.yml`, `PM_RELEASE_BUILD=1`, as it builds twice) the build in a
   scratch clone, tagged then untagged.
-- Until the cut-over `make go-build` stamps `pyproject.toml`'s version instead, so the shared suite's config check
-  passes on Go pm.
-
-### Python pm (0.1.x): the bridge, until Python pm is deleted
-
-Only a release of the Python bridge (the pm uv tool's launcher, which runs a Go pin's release binary) follows this
-procedure, until the soak after the cut-over ends and Python pm is deleted with this section. Its merge-commit rule
-and its "the tag names the commit whose `pyproject.toml` says `X`" rule hold for such a release alone; a Go release
-has neither.
-
-A release is tag `pm-v<X>` on the commit whose `pyproject.toml` says `X`. A repo's pre-commit hook runs the pm uv
-tool, which launches that repo's pin and resolves its tag in Yeeef/pm with `git ls-remote` (`launch.commit()`): a
-commit that moves a pin to a version with no tag yet is refused. So the tag comes first:
-
-| Step | Where | Does |
-|---|---|---|
-| 1. Commit A | here, on a branch from main | `version` in `pyproject.toml` to `X`, `uv lock` |
-| 2. Tag A | here | `git tag -a pm-v<X> -m "pm <X>: …" <A>`, `git push origin pm-v<X>` (the push sends A too) |
-| 3. PR | here | push the branch, open the PR, CI green; merge it with a merge commit |
-| 4. Pins | each repo that moves to `X` | `pm upgrade --to X`, an ordinary PR there; its pre-commit hook runs pm `X`, built from A |
-
-- Never commit with `--no-verify` in a repo that moves its pin: the hook there is the check that the tag builds the
-  pinned pm.
-- Never move or recreate a release tag: launchers keep its commit in `<data dir>/pm/pins/<X>/commit-Yeeef-pm` and
-  never resolve it again. (Launchers from before pm left yeeef-agents keep that repo's commit in `pins/<X>/commit`.)
-- Merge with a merge commit, never squash or rebase: either rewrites A, and main would then hold no commit the tag
-  names.
-- `test_a_pin_moves_only_to_a_tagged_release_so_its_commit_passes_the_hook` (`test_launch.py`) runs these steps.
 
 ## The judge and its live eval
 
-The owner-request Stop hook calls Haiku through `claude -p` (`JUDGE_ARGS` in `owner_request.py`, thinking off; its
-prompt is `prompts/owner_request_system.txt`).
-Its labelled cases are `tests/owner_request_cases.json`: a final reply, the open needs Beads holds and the
+The owner-request Stop hook calls Haiku through `claude -p` (`judgeArgs` in `internal/hooks/ownerrequest.go`, thinking
+off; its prompt is `prompts/owner_request_system.txt`).
+Its labelled cases are `tests/owner_request_cases.json`: a final reply, the open needs the work store holds and the
 verdict the rule gives. After editing the prompt, run `make test-live`: each case runs `PM_LIVE_RUNS` times
 (default 3), 8 calls at once, and every run must give the case's verdict; it prints pass counts and latency.
-It runs the hook with the user's `HOME` and Claude config (`REAL` in `conftest.py`), where the judge's `claude` login is.
 A case's label comes from the rule, never from what the judge answers: a miss is a prompt change, not a relabel.
-The rule is one rule in three texts: the request rule in both `prime.md` files, the judge prompt and the block
-reasons (`owner_request_reason.txt`, `owner_request_needless.txt`). A rule change edits all of them in one commit and
-adds a labelled case for each case it moves.
+It runs the hook with the user's `HOME` and Claude config (`REAL` in `conftest.py`), where the judge's `claude` login is.
+The rule is one rule in three texts: the request rule in `prime.md`, the judge prompt and the block reasons
+(`owner_request_reason.txt`, `owner_request_needless.txt`). A rule change edits all of them in one commit and adds a
+labelled case for each case it moves.
 
 ## Changing prime.md and the hooks
 
-- `pm prime` prints `prime.md` then the noun list, which `hooks.commands()` reads from the parser
-  (`MACHINERY` = `prime`, `hook`, `push` are left out). A new noun needs no edit to `prime.md`;
-  `test_prime_lists_every_agent_command_from_the_parser` checks the list. A new command's rules go in its
-  `--help`, and `prime.md` names it only where a procedure runs it.
-- Claude Code passes each hook's `additionalContext` inline only up to `hooks.CAP` (10,000 characters; a longer
+- `pm prime` prints `prime.md` then the noun list, which `hooks.Commands` builds from the command tree
+  (`Machinery` = `prime`, `hook`, `push` are left out). A new noun needs no edit to `prime.md`;
+  `test_prime_lists_every_agent_command_pm_help_lists` checks the list against `pm --help`. A new command's rules go in
+  its `--help`, and `prime.md` names it only where a procedure runs it.
+- Claude Code passes each hook's `additionalContext` inline only up to `hooks.Cap` (10,000 characters; a longer
   one arrives as a 2 KB preview and a file path), per hook, and the hooks of one entry arrive in any order. So the
-  rules run as one hook per chunk: `hooks.chunks()` cuts them at the headings in `hooks.STARTS` and puts a title
+  rules run as one hook per chunk: `hooks.Chunks` cuts them at the headings in `hooks.Starts` and puts a title
   line naming each chunk's place and sections on top (`pm prime --rules N`), and the state runs as its own hook,
   cut at a line. 2026-10-07: 4 chunks of 8,447, 5,749, 6,317 and 4,708 characters, 24,872 without titles.
-  `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` fails when a chunk outgrows the cap: move a heading in
-  `STARTS`, or add one plus its hook entries; `test_init_bootstraps_a_brand_new_repo` checks the entries.
-- Each implementation has its own `prime.md`: Go's (`prime.md`) names the work store and pm's commands for it,
-  Python's (`src/pm/prime.md`) Beads and `bd`; a rule change edits both. `test_go_parity.py` holds Go's chunks to
-  Python's chunker over Go's rules, and its `--help` texts to Python's in Go's wording (`GO_HELP`); `pm prime
-  --subagent` is Go's git rule where Python reads the Beads agent profile.
-- Until Python pm is deleted a change to a command's arguments or help, `pm prime` or `pm hook stop` lands in both
-  implementations: `cli.py` and `internal/cli/commands.go`, `hooks.py` and `internal/hooks`. `make test-go` fails
-  on any difference.
+  `test_rules_chunks_fit_the_cap_and_add_up_to_the_rules` (and `TestChunksFitTheCapAndAddUpToTheHead`) fails when a
+  chunk outgrows the cap: move a heading in `Starts` and in the harness's `RULE_STARTS`, or add one plus its hook
+  entries; `test_init_bootstraps_a_brand_new_repo` checks the entries.
 - `prime.md` carries only what a user's agents need (owner decision, 2026-10-07). Guidance for developing pm,
   `[TEST]` needs and this repo's checks go here, never in `prime.md` or a `--help` text.
-- Keep `prime.md` and `--help` in step with the code: a refusal `prime.md` names must exist in `cli.py` with that
+- Keep `prime.md` and `--help` in step with the code: a refusal `prime.md` names must exist in `internal/cli` with that
   wording, and a flag named in either must parse. `test_pm.py` asserts refusal texts; grep it before rewording one.
-- pm reads stdin only for `--text-file -`, and only from a heredoc or pipe (`read_text_file()` refuses any other
+- pm reads stdin only for `--text-file -`, and only from a heredoc or pipe (`readTextFile` refuses any other
   stdin at once, since an agent's shell may hold it open as a socket or tty that never ends); hooks read their JSON
-  input from stdin. Every body command takes `--text` and `--text-file` through `add_text()`. Docs, `--help` texts
-  and hints give a body with `--text-file - <<'EOF'`, or `--text="…"` for one plain line; never `--text "…"`.
-- `pm init` writes the hook entries (`claude_hooks()` and `codex_hooks()` in `install.py`) into
+  input from stdin. Every body command takes `--text` and `--text-file`. Docs, `--help` texts and hints give a body
+  with `--text-file - <<'EOF'`, or `--text="…"` for one plain line; never `--text "…"`.
+- `pm init` writes the hook entries (`claudeHooks` and `codexHooks` in `internal/install/pieces.go`) into
   `.claude/settings.json` (SessionStart: `pm prime --rules N --hook-json` for each chunk, then `--state
   --hook-json`; SubagentStart: the same chunks, then `--subagent --hook-json`; Stop: `pm hook owner-request` then
   `pm hook stop`, each `|| exit 1`) and `.codex/hooks.json`, with `hooks = true` in `.codex/config.toml`. A hook
-  change edits both functions. Hooks fail open on their own
-  errors (one line on stderr); a `pm` missing from PATH fails each hook with the shell's error.
-- `pm init` is the one install command. Its repo half (pm's pieces, `bd init`, the records branch) runs only when
-  the worktree has no `.pm/config.toml`; after that `pm doctor` reports and `pm upgrade` rewrites a piece. Its clone
-  half (Beads, the store, the `records/` link, excludes, Codex and Claude Code dirs, the pm uv tool, the service)
-  runs every time: `pm prime --state` runs it (`hooks.INIT`, `pm init --session-start` without `$PORT`) at each
-  session start, within `hooks.INIT_TIMEOUT`; that run installs only a missing service and reports a stale or
-  down one, which a typed `pm init` or `pm service restart` restarts. In a linked worktree, a branch without
-  `.pm/config.toml` is refused, and a main checkout on another pin gets the worktree's setup but no tool or service.
+  change edits both functions. Hooks fail open on their own errors (one line on stderr); a `pm` missing from PATH fails
+  each hook with the shell's error.
+- `pm init` is the one install command. Its repo half (pm's pieces, the records branch) runs only when the worktree has
+  no `.pm/config.toml`; after that `pm doctor` reports and `pm upgrade` rewrites a piece. Its clone half (the work
+  store, the records store, the `records/` link, excludes, Codex and Claude Code dirs, pm in the bin dir, the service)
+  runs every time: `pm prime --state` runs it (`pm init --session-start` without `$PORT`) at each session start,
+  within its timeout; that run installs a missing service and starts an installed one that does not answer, once for
+  parallel session starts, and leaves a running one, a stale one included, to a typed `pm init` or
+  `pm service restart`. In a linked worktree, a branch without `.pm/config.toml` is refused, and a main checkout on
+  another pin gets the worktree's setup but no binary or service.
 - Agents change code only in a worktree of their own: `pm task claim` refuses in the main checkout (the worktree whose
   git dir is the common one) and prints how to make one under `.claude/worktrees/`.
 
 ## The site
 
-- `pm check` renders every record with Beads and writes nothing (the check before a records commit); the pm
+- `pm check` renders every record with the work store and writes nothing (the check before a records commit); the pm
   service serves the site on the port in `.pm/config.toml` (`PORT=` overrides it).
-- One stylesheet, `src/pm/style.css`, for every page; a look it cannot express is added there, never to a record.
+- One stylesheet, `style.css`, for every page; a look it cannot express is added there, never to a record.
 - A record that does not validate shows as the error instead of its page: fix the record, not the renderer. A
   generated section (Progress, Decisions await you, Actions await you, a day's Sprints, Not in a sprint) is rendered
-  from Beads. Not in a sprint, on a project's page and the overview, lists each open non-epic item filed directly
-  under a project epic, or (overview only) with no parent; a need under a project is left out, since the await-you
-  sections show it.
+  from the work store. Not in a sprint, on a project's page and the overview, lists each open task or need filed
+  directly under a project, or (overview only) with no parent; a need under a project is left out, since the
+  await-you sections show it.
   `test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that_does` holds the render check.
 - Day summaries live beside the day record as `records/days/<date>.summary.json`, written by `pm day summarize`.
-- Until the cut-over the site lands in both implementations: `site.py` and `internal/site`. Go's pages must equal Python's after `site.Normalise` (entities decoded, attributes sorted, whitespace HTML does not render dropped) on every page of the corpus; a difference no renderer change can remove goes on `internal/site/testdata/parity-allow.txt` with its reason, reviewed in the PR that adds it. A construct the corpus lacks gets a fixture in `internal/site/testdata/constructs`.
+- A page change shows in the golden pages (`internal/site/testdata/constructs/pages`); a construct the fixture lacks
+  gets a record or item in `internal/site/testdata/constructs`.
 
 ## Live checks
 
@@ -276,17 +219,19 @@ A change to setup, the hooks, the site or replies gets a live check besides its 
 "Done when" names.
 
 - A need raised during a test or a live check starts its title with `[TEST]`; once the check is done, close it
-  with a bare `bd human dismiss <id>` (a Go-pinned repo: `pm need dismiss <id> --reason "[TEST] done"`). `pm sprint close` skips a dismissed review, so a `[TEST]` review never
-  blocks a close.
+  with `pm need dismiss <id> --reason "[TEST] done"`. `pm sprint close` skips a dismissed review, so a `[TEST]` review
+  never blocks a close.
 - A scratch worktree checks the session-start path: `git worktree add --no-checkout` then `git reset --hard`
   (Claude Code's own sequence), or a session started with `claude -w <name>`; a headless `claude -p` session
   checks a write through `records/`. Remove the worktree and its branch afterwards (`git worktree remove`,
   `git branch -D`).
 - A check of `pm init`, `pm push` or the service runs in a scratch clone of a scratch origin under a
-  temp directory with `HOME` and `CODEX_HOME` there, as the fixtures do, never on a real clone's Beads, store or service;
-  never run `bd init`.
+  temp directory with `HOME` and `CODEX_HOME` there, as the fixtures do, never on a real clone's store or service.
 - The live check's command, output and numbers go in the sprint's Findings and its delivery report.
 
 ## Elsewhere
 
-- A clone set up by the old harness (a `.records` store, the old push job, path-based hook entries) is moved onto installed pm by `pm init`; the list of what it removes is `legacy.py`.
+- A clone set up by the old harness (a `.records` store, the old push job, path-based hook entries) is refused by
+  `pm init`, which names the one-time move: the retired Python release (0.1.x) run once through `uvx`, then
+  `pm upgrade --to <X>` to a release from 0.2.0 on, then `pm init`; `internal/install/legacy.go` lists what it looks
+  for.

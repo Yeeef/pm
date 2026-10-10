@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The parser</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head><body><div class="wrap"><!--pm-status-->
+<nav class="topbar"><a href="../index.html">Home</a> / <a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a></nav>
+<div class="eyebrow">design</div>
+<h1>The parser</h1>
+<p class="meta"><span>created 2026-10-05</span><span>updated 2026-10-05</span></p><nav class="toc"><p class="cap">CONTENTS</p><ol><li><a href="#problem">Problem</a></li><li><a href="#goals-and-non-goals">Goals and non-goals</a></li><li><a href="#constraints-and-key-facts">Constraints and key facts</a><ul><li><a href="#tables">Tables</a></li><li><a href="#the-parse-fast-path--links">The `parse()` *fast* path &amp; [links](x.md)</a></li><li><a href="#notes">Notes</a></li><li><a href="#notes-1">Notes</a></li></ul></li><li><a href="#design">Design</a><ul><li><a href="#1-steps">1. Steps</a></li></ul></li><li><a href="#setext-heading">Setext heading</a></li><li><a href="#alternatives-considered">Alternatives considered</a></li><li><a href="#prior-art">Prior art</a></li><li><a href="#open-questions">Open questions</a></li></ol></nav><h2 id="problem">Problem</h2>
+<blockquote>
+<p>What are we solving, and why now?</p>
+</blockquote>
+<p>Records need a parser. See <a href="../sprints/demo-1.html">sprint 1</a>, its <a href="../sprints/demo-1.html#goal">goal</a>, the
+<a href="https://example.com/page.md">site</a>, a <a href="notes.md?x=1">query</a> and <a href="https://example.com/auto">https://example.com/auto</a>.
+Line one<br>
+line two, with a hard break, <kbd>inline HTML</kbd>, © © and an escaped *star*.</p>
+<p><img src="pic.png" alt="a diagram" title="Title"></p>
+<h2 id="goals-and-non-goals">Goals and non-goals</h2>
+<blockquote>
+<p>What must the design achieve, and what does it deliberately leave out?</p>
+</blockquote>
+<ol>
+<li>One parser.</li>
+<li>Two outputs:
+<ul>
+<li>
+<p>HTML;</p>
+</li>
+<li>
+<p>text.</p>
+<p>A loose item's paragraph.</p>
+</li>
+</ul>
+</li>
+</ol>
+<ul>
+<li>star list</li>
+<li>item</li>
+</ul>
+<blockquote>
+<p>A quote with <strong>bold</strong> and <code>code</code>.</p>
+</blockquote>
+<h2 id="constraints-and-key-facts">Constraints and key facts</h2>
+<blockquote>
+<p>Which facts, findings and constraints shaped the design? Only those that
+still hold; sprint records keep the findings as they happened.</p>
+</blockquote>
+<h3 id="tables">Tables</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th style="text-align:left">Left</th>
+<th style="text-align:center">Center</th>
+<th style="text-align:right">Right</th>
+<th>None</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">a</td>
+<td style="text-align:center">b</td>
+<td style="text-align:right">c</td>
+<td>d</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>x | y</code></td>
+<td style="text-align:center"><strong>e</strong></td>
+<td style="text-align:right"><a href="../sprints/demo-2.html">f</a></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">short</td>
+<td style="text-align:center"></td>
+<td style="text-align:right"></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Only a header</th>
+</tr>
+</thead>
+</table></div>
+<h3 id="the-parse-fast-path--links">The <code>parse()</code> <em>fast</em> path &amp; <a href="x.html">links</a></h3>
+<p>Text.</p>
+<h3 id="notes">Notes</h3>
+<p>First.</p>
+<h3 id="notes-1">Notes</h3>
+<p>Second.</p>
+<h2 id="design">Design</h2>
+<blockquote>
+<p>What is it, in its final state? Free <code>###</code> subsections. Decisions and plans
+live in the project and sprint records.</p>
+</blockquote>
+<h3 id="1-steps">1. Steps</h3>
+<pre class="mermaid">flowchart LR
+  a[&#34;A &amp; B&#34;] --&gt; b&lt;c&gt;
+</pre>
+<p>Reading: a then b.</p>
+<pre><code class="language-python">def f(x):
+    return x &lt; 1 and &#34;q&#34;
+</code></pre>
+<pre><code>plain fence
+</code></pre>
+<pre><code>indented code
+</code></pre>
+<div class="note">
+<p>A note with a list:</p>
+<ul>
+<li>one</li>
+<li>two</li>
+</ul>
+</div>
+<div class="note">
+<p>Outer.</p>
+<div class="result"><p class="m-sec">Inner &amp; co</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>k</th>
+<th>v</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>2</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+</div>
+<details>
+<summary>Raw HTML block</summary>
+<p>Markdown <em>inside</em>.</p>
+</details>
+<div class="x">
+  <p>raw</p>
+</div>
+<hr>
+<h2 id="setext-heading">Setext heading</h2>
+<h4>Deep heading</h4>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<blockquote>
+<p>What else was considered and not adopted, and why not?</p>
+</blockquote>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Alternative</th>
+<th>Why not</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Regex</td>
+<td>Lookarounds</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="prior-art">Prior art</h2>
+<blockquote>
+<p>Optional. What existing work did we learn from, and what did we take?</p>
+</blockquote>
+<p>markdown-it.</p>
+<h2 id="open-questions">Open questions</h2>
+<blockquote>
+<p>What is still unresolved?</p>
+</blockquote>
+<p>None yet.</p>
+
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "default" });
+</script>
+</body></html>

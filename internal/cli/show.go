@@ -16,8 +16,7 @@ import (
 	"github.com/Yeeef/pm/internal/work"
 )
 
-// cmdShow is pm show: every level. Python source: show_data, show_text, show_project_text, sprint_detail,
-// record_section and cmd_show in cli.py.
+// cmdShow is pm show: every level.
 func cmdShow(e *env, p *Parsed) (string, error) {
 	if p.Get("record") != "" || p.Get("section") != "" {
 		if p.Get("record") == "" || p.Get("section") == "" || p.Get("sprint") != "" || p.Get("project") != "" ||
@@ -112,7 +111,7 @@ func needRaisedBy(it *work.Item) *work.RaisedBy {
 }
 
 // cmdRecordLink is pm record link: the rendered page's URL once the pm service for this store answers on its port;
-// otherwise the command that fixes it. Python source: link_target and cmd_record_link in cli.py.
+// otherwise the command that fixes it.
 func cmdRecordLink(e *env, p *Parsed) (string, error) {
 	recs, err := records.Read(e.records, nil)
 	if err != nil {
@@ -365,7 +364,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 	return data, nil
 }
 
-// showRequestPlace is site.py's request_place: the sprint a need sits under in the project (the ancestor just below
+// showRequestPlace is the sprint a need sits under in the project (the ancestor just below
 // it) and its task (its own parent when that is below the sprint); "" where absent.
 func showRequestPlace(it *work.Item, items *records.Items, project string) (sprint, task string) {
 	chain := items.Ancestors(it.ID)

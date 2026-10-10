@@ -1,8 +1,6 @@
 __pycache__/
 *.pyc
-# the package environment, created by uv run (make test)
+# the harness's environment, created by uv run (make test)
 /.venv/
-# the tests' differential transcripts, one per test (tests/transcript.py)
-/.transcripts/
-# Go pm and its parity corpus, built by make test-go
+# pm and the harness's page renderer, built by make go-build
 /.go/
