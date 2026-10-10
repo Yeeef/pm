@@ -92,16 +92,16 @@ Owner in chat, 2026-10-10: why make it more complicated; that agent should not r
   0/3, review-then-merge status 0/3, uncited restatement (block) 1/3. 147 hook
   runs in 47.9 s, per run median 2.07 s, max 11.13 s.
 
-- After the change (commit 8c279aa): make test-live, PM_LIVE_RUNS=3, 52
+- With option cited (a draft the owner later replaced with mine): make test-live, PM_LIVE_RUNS=3, 52
   cases (40 existing + 12 new): every case 3/3 in two consecutive full runs;
   156 hook runs in 51.9 s and 54.3 s, per run median 2.29 s and 2.28 s, max
   11.31 s and 14.42 s. A third run in between errored on one claude -p call
   that hit the hook's 15 s judge timeout (no verdict mismatch); the max
   latency now runs close to that timeout while five sprints share the machine.
 
-- prime.md's request rule gained one clause (another session's need
-  holds a request if the reply names its id); the first rules chunk is now
-  9,947 of the 10,000-character hook cap. A longer clause put it at 10,154 and
+- prime.md's request rule gained one clause (if a need holds the request,
+  do not ask again); the first rules chunk is now 9,947 of the
+  10,000-character hook cap. A longer clause put it at 10,154 and
   failed TestChunksFitTheCapAndAddUpToTheHead, so the next prime.md addition
   before '# How' needs a new heading in hooks.Starts.
 
@@ -113,6 +113,20 @@ Owner in chat, 2026-10-10: why make it more complicated; that agent should not r
   A subagent that reported an interim result (it may resume) counts as
   returned.
 
+- Final state (owner's choice mine on pm-d2k5.10.5, commit 973f632): make
+  test-live, PM_LIVE_RUNS=3, 55 cases (40 existing + 15 new): every case 3/3 in
+  two full runs; 165 hook runs in 51.6 s and 47.7 s, per run median 1.90 s and
+  1.91 s, max 11.73 s and 7.31 s. A run in between errored once: the judge
+  answered out of shape ({"items": [{…}, {"items": []}]}), which the hook
+  refuses (exit 1, check not run); 1 call in 165, no verdict mismatch.
+
+- The judge read any sentence that names a PR's review or merge as a future
+  event as a request to the owner (five replies of the coordinator, which holds
+  the merge by owner delegation). From the reply alone the judge cannot tell who
+  merges; the prompt now reads a sentence as a review only when it asks the
+  owner or names them as the one to act. A PR said to wait on "your review and
+  merge" still blocks (contrast case).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
@@ -121,18 +135,18 @@ Owner in chat, 2026-10-10: why make it more complicated; that agent should not r
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: the owner-request judge passes every reported non-request on 12 new labelled cases and keeps all 40 existing verdicts, and `pm hook stop` leaves out a record only a running subagent's prompt names; PR #25, pending merge.
+done: the owner-request judge passes every reported non-request on 15 new labelled cases and keeps all 40 existing verdicts, and `pm hook stop` leaves out a record only a running subagent's prompt names; PR #25, pending merge.
 
-- 12 new cases in `tests/owner_request_cases.json`: one per reported sentence (7), three from the coordinator's session of 2026-10-10, and two contrast cases that must still block.
+- 15 new cases in `tests/owner_request_cases.json`: one per reported sentence (7), five from the coordinator's session of 2026-10-10, and three contrast cases (two block, one pass).
 - One rule in three texts, changed in one commit: the judge prompt, the block reason and `prime.md`'s request rule.
-- The judge sees every open need of the clone, another session's marked; a match on another session's need counts only when the reply names its id (default of decision need pm-d2k5.10.5, still open).
+- The judge's list stays this session's needs (owner: option mine); a reply that asks again for another session's need blocks, and the block reason says to drop the ask or report the need as open, never to raise a duplicate.
 - `pm hook stop` leaves out a path named only by the prompt of a subagent call that has not returned.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- At least 7 new cases, one per reported sentence: met. 12 new cases (40 to 52), each named after its feedback entry; the 2026-10-08 21:47 entry holds two sentences, so two cases.
-- `make test-live` with `PM_LIVE_RUNS=3` passes every case 3/3: met. All 52 cases 3/3 in two consecutive full runs (156 hook runs each; per run median 2.29 s and 2.28 s, max 11.31 s and 14.42 s). Baseline before the change: 6 of the first 9 new cases failed. One run in between errored on a `claude -p` call that hit the 15 s judge timeout, not on a verdict.
-- A harness test of `pm hook stop` shows no block for a path named only by a running subagent call and a block for the same path edited by the session's own call: met. `test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names` (4 parametrizations: running, returned, own edit, both); its running case fails on the old code. Go: `TestTouchedCountsASubagentsPathOnceItsCallReturns`.
-- `make test` and the PR's CI pass: `make test` passes (118 passed, 52 skipped); CI on PR #25: see the coordinator's merge check.
+- At least 7 new cases, one per reported sentence: met. 15 new cases (40 to 55), each named after its feedback entry; the 2026-10-08 21:47 entry holds two sentences, so two cases. The formal-methods 2026-10-10 03:31 summary, which restates another session's needs as instructions, is labelled block under the owner's choice mine; a case that reports those needs as open without asking is labelled pass.
+- `make test-live` with `PM_LIVE_RUNS=3` passes every case 3/3: met. All 55 cases 3/3 in two full runs (165 hook runs each; per run median 1.90 s and 1.91 s, max 11.73 s and 7.31 s). Baseline before the change: 6 of the first 9 new cases failed.
+- A harness test of `pm hook stop` shows no block for a path named only by a running subagent call and a block for the same path edited by the session's own call: met. `test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names` (running, returned, own edit, both); its running case fails on the old code. Go: `TestTouchedCountsASubagentsPathOnceItsCallReturns`.
+- `make test` and the PR's CI pass: `make test` passes after the rebase onto main; CI on PR #25: the macOS Go job failed once on the known Dolt journal-writer panic in `internal/work` (not touched here) and was rerun; the rebuilt branch's CI is pending at this writing.
