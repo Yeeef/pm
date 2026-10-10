@@ -153,8 +153,9 @@ already validated them, and code-branch hooks do not apply to records.
 |---|---|
 | `.github/workflows/pm-records-copy.yml` | `git subtree merge --prefix=records` of the store into `main` on each push to `main` |
 | `.github/workflows/pm-records-guard.yml` | Failed a pull request that edited `records/` |
-| pm's section in `.beads/hooks/pre-commit` | Refused a code-branch commit that staged `records/` |
-| Per-worktree sparse checkout `/*` `!/records/` | Kept `main`'s tracked copy from replacing the link |
+| pm's section in `.pm/hooks/pre-commit` (`.beads/hooks/pre-commit` under Python pm) | Refused a code-branch commit that staged `records/`; `pm hook git-pre-commit`, which it runs, does nothing now, so a worktree on the new pin commits until the upgrade reaches the main checkout's hook file |
+| Per-worktree sparse checkout `/*` `!/records/` | Kept `main`'s tracked copy from replacing the link; `pm init` turns it off once the worktree tracks no `records/` |
+| `records/` tracked on a branch | The copy itself; `pm doctor` names it, and the commit `pm upgrade` prints untracks it (`git rm -r -q --cached --sparse records`), leaving the link |
 
 ### Setup and sync
 
