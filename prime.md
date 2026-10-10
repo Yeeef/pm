@@ -129,7 +129,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - create a postmortem: `pm postmortem new <slug> --title "…" --sprint ID\|--project NAME` writes every section; then by hand and `pm commit`. Write it once the incident is fixed, under the sprint it hit.
 - find a link: Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.
 - **Hand edits.** Goal, Scope, Done when, the delivery report, design pages, docs and postmortems are edited by hand in `records/`. Then commit them: `pm commit -m "…" <path>…`. It checks the whole store. With no path, it lists what is uncommitted and commits nothing. `pm check` checks the store without a commit.
-- Report where pm got in your way: `pm feedback add --project NAME`, once, with what happened and what would have helped.
+- Report where pm got in your way: `pm feedback add [--project NAME]`, once, with what happened and what would have helped. It appends to the repo's one feedback doc, `records/docs/pm-feedback.md`.
 - check pm service status: `pm service status`; `pm service --help` holds the detail.
 - setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and its link, and the pm service.
 - set the site link or port: `pm init --site-url URL` sets the public site link. `PORT=<n> pm service install` moves this clone's site port; on a first install, run `PORT=<n> pm init`.

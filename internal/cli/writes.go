@@ -122,16 +122,14 @@ func cmdFindingAdd(e *env, p *Parsed) (string, error) {
 	return r.apply(w, "added a finding to "+r.rel(rec.Path), "", "pm: ")
 }
 
-// feedbackDocs is the project's pm feedback docs, docs/<date>-<project>-feedback.md naming the project.
-func feedbackDocs(recs []*records.Record, project string) []*records.Record {
-	name := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-` + regexp.QuoteMeta(project) + `-feedback\.md$`)
-	var out []*records.Record
+// feedbackDoc is the repo's pm feedback doc, or nil before its first entry.
+func feedbackDoc(recs []*records.Record) *records.Record {
 	for _, r := range recs {
-		if p, ok := r.ID("project"); ok && r.Type() == "doc" && p == project && name.MatchString(filepath.Base(r.Path)) {
-			out = append(out, r)
+		if records.IsFeedbackDoc(r) {
+			return r
 		}
 	}
-	return out
+	return nil
 }
 
 func noSession() error {
@@ -154,12 +152,14 @@ func cmdFeedbackAdd(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	prec, err := r.project(p.Get("project"))
-	if err != nil {
-		return "", err
-	}
-	project := prec.Name()
 	var about []string
+	if name, ok := given(p, "project"); ok {
+		prec, err := r.project(name)
+		if err != nil {
+			return "", err
+		}
+		about = append(about, fmt.Sprintf("project `%s`", prec.Name()))
+	}
 	for _, f := range []struct{ flag, dest, word string }{{"--sprint", "sprint", "sprint"}, {"--task", "task", "task"}} {
 		if id, ok := given(p, f.dest); ok {
 			if r.item(id) == nil {
@@ -168,31 +168,24 @@ func cmdFeedbackAdd(e *env, p *Parsed) (string, error) {
 			about = append(about, fmt.Sprintf("%s `%s`", f.word, id))
 		}
 	}
-	docs := feedbackDocs(r.recs, project)
-	if len(docs) > 1 {
-		names := make([]string, len(docs))
-		for i, d := range docs {
-			names[i] = r.rel(d.Path)
+	for _, rec := range r.recs { // a per-project doc from before the repo's one doc: merged by hand first
+		if err := records.CheckFeedbackDoc(rec); err != nil {
+			return "", refuse("%s", err)
 		}
-		return "", refuse("project %s has %d feedback docs (%s); merge them into one by hand and commit with pm commit",
-			project, len(docs), strings.Join(names, ", "))
 	}
 	entry := fmt.Sprintf("### %s UTC, session `%s`\n\n", time.Now().UTC().Format("2006-01-02 15:04"), sid)
 	if about != nil {
 		entry += "About " + strings.Join(about, ", ") + ".\n\n"
 	}
 	entry += text + "\n"
-	var path, old string
-	if docs != nil {
-		path, old = docs[0].Path, docs[0].Text
+	path := filepath.Join(r.records, records.FeedbackDoc+".md")
+	var old string
+	if doc := feedbackDoc(r.recs); doc != nil {
+		old = doc.Text
 	} else {
-		day := store.Today()
-		path = filepath.Join(r.records, "docs", day+"-"+project+"-feedback.md")
-		if exists(path) {
-			return "", refuse("%s already exists but does not name project %s; fix its header by hand", r.rel(path), project)
-		}
-		old = fmt.Sprintf("---\ntype: doc\ntitle: pm feedback\ndate: %s\nproject: %s\n---\n\n"+
-			"Where pm got in the way, one entry per `pm feedback add`, newest last.\n", day, project)
+		old = fmt.Sprintf("---\ntype: doc\ntitle: %s\ndate: %s\n---\n\n"+
+			"Where pm got in the way, one entry per `pm feedback add`, newest last; each names the project it is about, "+
+			"when it is about one.\n", records.FeedbackTitle, store.Today())
 	}
 	w := []store.Write{{Path: path, Text: strings.TrimRight(old, "\n") + "\n\n" + entry}}
 	if err := r.checkPlanned(w, nil); err != nil {

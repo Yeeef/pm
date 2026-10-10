@@ -33,6 +33,14 @@ only.
 3. Once the PR is on the main branch, pull it into the main checkout. `pm init` (session start runs it) then turns
    off the sparse checkout an earlier pm set in each worktree. A branch cut before the merge still tracks
    `records/`: merge the main branch into it.
+4. Move every clone, and every worktree's branch, to the new pin before anyone runs `pm feedback add` or step 5: an
+   earlier pm fails every command that reads the records once `records/docs/pm-feedback.md` exists, since it reads
+   that doc's header (no date in its name, no project) as invalid, and the records store syncs to every clone.
+5. If the records store holds pm feedback docs from an earlier release (`records/docs/<date>-<project>-feedback.md`,
+   titled `pm feedback`; `pm check` names each one), merge them into one `records/docs/pm-feedback.md`: a header
+   `type: doc`, `title: pm feedback` and `date:` the oldest doc's date, with no `project:`; then every entry, in time
+   order, each with `About project <name>` (with its `sprint` or `task`, if any) as its first line. Delete the old
+   docs and commit all of them with `pm commit`.
 
 ### Breaking changes
 
@@ -42,6 +50,11 @@ only.
   `records/`, or the pre-commit section that refused one, and no longer sets a sparse checkout in each worktree to
   keep the copy away from the link; each existed only for the copy (step 2). A branch that still tracks `records/`
   gets that copy where its link goes: `pm init`, `pm doctor` and `pm where` say to merge the main branch (step 3).
+- A repo keeps one pm feedback doc, `records/docs/pm-feedback.md`. Any other doc titled `pm feedback`, such as the
+  per-project docs earlier releases wrote, fails `pm check` and `pm commit`, and `pm feedback add` refuses, until it
+  is merged into the one doc (step 5). Feedback about pm is read in one place, whatever project it is about.
+- An earlier pm cannot read a records store that holds `records/docs/pm-feedback.md`: move every clone to this
+  release first (step 4).
 
 ### Changed
 
@@ -50,6 +63,11 @@ only.
   section, `pm init` turns the sparse checkout off, and the commit `pm upgrade` prints untracks the copy.
 - `pm hook git-pre-commit` does nothing: an earlier pm's `pre-commit` section still runs it until `pm upgrade`
   removes that section, so a commit goes through in the meantime.
+- `pm feedback add` appends to `records/docs/pm-feedback.md`, creating it on first use. `--project` is optional: when
+  given, it tags the entry, as `--sprint` and `--task` do.
+- `pm show` and `pm show --project` both link the feedback doc, with its entry count. In `pm show --json`, the doc is
+  the top-level `feedback` (`null` before the first entry); a project no longer has a `feedback` list.
+- The site's overview links the feedback doc under Feedback.
 
 ### Fixed
 

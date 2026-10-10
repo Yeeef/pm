@@ -28,10 +28,10 @@ var tree = &command{
 		{
 			name:        "show",
 			help:        "compact status of open projects for agents, level by level",
-			description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record with --section.",
+			description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record with --section.",
 			args: []arg{
 				{flags: []string{"--json"}, dest: "json", kind: flagTrue, help: "every level's data as one JSON object"},
-				{flags: []string{"--project"}, dest: "project", metavar: []string{"NAME"}, kind: value, help: "one open project (its name or id): its goal, owner requests in full, feedback, open sprints with their tasks, and last decisions"},
+				{flags: []string{"--project"}, dest: "project", metavar: []string{"NAME"}, kind: value, help: "one open project (its name or id): its goal, owner requests in full, the repo's pm feedback doc, open sprints with their tasks, and last decisions"},
 				{flags: []string{"--sprint"}, dest: "sprint", metavar: []string{"ID"}, kind: value, help: "one sprint's frame, findings and tasks"},
 				{flags: []string{"--record"}, dest: "record", metavar: []string{"PATH"}, kind: value, help: "with --section: the record to read (a path, sprint id, project name or design slug)"},
 				{flags: []string{"--section"}, dest: "section", metavar: []string{"NAME"}, kind: value, help: "with --record: print that one section, heading included"},
@@ -75,11 +75,11 @@ var tree = &command{
 			subs: []*command{
 				{
 					name:        "add",
-					help:        "append an entry to the project's pm feedback doc; the text with --text",
-					description: "When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say once what happened and what would have helped. Appends a dated entry with this session's id to records/docs/<date of first use>-<project>-feedback.md, creating it on first use.",
+					help:        "append an entry to the repo's pm feedback doc; the text with --text",
+					description: "When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say once what happened and what would have helped. Appends a dated entry with this session's id to the repo's one feedback doc, records/docs/pm-feedback.md, creating it on first use; --project, --sprint and --task tag the entry with what it is about. pm show and pm show --project link the doc.",
 					groups:      []bool{false},
 					args: []arg{
-						{flags: []string{"--project"}, dest: "project", metavar: []string{"NAME"}, required: true, kind: value, help: "the project the feedback doc belongs to"},
+						{flags: []string{"--project"}, dest: "project", metavar: []string{"NAME"}, kind: value, help: "the project the feedback is about"},
 						{flags: []string{"--sprint"}, dest: "sprint", metavar: []string{"ID"}, kind: value, help: "the sprint the feedback is about"},
 						{flags: []string{"--task"}, dest: "task", metavar: []string{"ID"}, kind: value, help: "the task the feedback is about"},
 						{flags: []string{"--text-file"}, dest: "text_file", metavar: []string{"PATH"}, kind: value, group: 1, help: "required: what happened and what would have helped; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},

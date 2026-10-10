@@ -223,6 +223,12 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 		{"doc-two-keys", map[string]string{"docs/2026-10-02-notes.md": "---\ntype: doc\ntitle: Notes\ndate: 2026-10-02\n" +
 			"bead: demo.1\nproject: demo\n---\n\nx\n"}, nil,
 			"docs/2026-10-02-notes: a doc names exactly one of 'bead' or 'project' in its header"},
+		{"feedback-with-project", map[string]string{"docs/pm-feedback.md": "---\ntype: doc\ntitle: pm feedback\n" +
+			"date: 2026-10-02\nproject: demo\n---\n\nx\n"}, nil,
+			"docs/pm-feedback: the pm feedback doc is the repo's, about any project; its header names neither 'bead' nor 'project'"},
+		{"second-feedback-doc", map[string]string{"docs/2026-10-03-demo-feedback.md": "---\ntype: doc\ntitle: pm feedback\n" +
+			"date: 2026-10-03\nproject: demo\n---\n\nx\n"}, nil,
+			"docs/2026-10-03-demo-feedback: a repo keeps one pm feedback doc, records/docs/pm-feedback.md; move this doc's entries into it in time order, each tagged with its project (About project `<name>`.), delete this doc and commit both with pm commit"},
 		{"doc-bad-date", map[string]string{"docs/2026-10-02-notes.md": "---\ntype: doc\ntitle: Notes\ndate: 2026-10\n" +
 			"project: demo\n---\n\nx\n"}, nil,
 			"docs/2026-10-02-notes: date must be YYYY-MM-DD, got '2026-10'"},

@@ -58,7 +58,7 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 		}
 		for _, pr := range data.projects {
 			if name == pr.name || name == pr.bead {
-				return showProjectText(pr), nil
+				return showProjectText(pr, data.feedback), nil
 			}
 		}
 		open := make([]string, len(data.projects))
@@ -164,6 +164,7 @@ type showData struct {
 	push     []string
 	today    string
 	summary  *records.Summary
+	feedback *showFeedback // nil before the repo's pm feedback doc has an entry
 }
 
 type showProject struct {
@@ -171,7 +172,6 @@ type showProject struct {
 	sprints                      []*showSprint
 	needs                        []showNeed
 	decisions                    []showDecision
-	feedback                     []showFeedback
 }
 
 type showSprint struct {
@@ -340,13 +340,12 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 			needs = append(needs, showNeed{sprint: sid, task: tid, id: n.ID, title: n.Title, kind: site.Kind(n),
 				session: session, replied: service.ReplyWaiting(n) || service.MergeWaiting(n) != ""})
 		}
-		var fb []showFeedback
-		for _, doc := range feedbackDocs(r.recs, p.Name()) {
-			fb = append(fb, showFeedback{entries: len(feedbackEntry.FindAllStringIndex(doc.Body, -1)), url: url + "/" + doc.Out()})
-		}
 		data.projects = append(data.projects, &showProject{name: p.Name(), bead: epic, title: p.Title(),
 			url: url + "/" + p.Out(), goal: firstSentence(records.SectionText(p.Body, "Goal"), 110), sprints: sprints,
-			needs: needs, decisions: last, feedback: fb})
+			needs: needs, decisions: last})
+	}
+	if doc := feedbackDoc(r.recs); doc != nil {
+		data.feedback = &showFeedback{entries: len(feedbackEntry.FindAllStringIndex(doc.Body, -1)), url: url + "/" + doc.Out()}
 	}
 	cfg, err := config.Load(e.here)
 	if err != nil {
@@ -436,12 +435,8 @@ func (d *showData) json() any {
 			decisions = append(decisions, showObj{{"date", x.date}, {"source", x.source}, {"level", x.level},
 				{"record", x.record}, {"text", x.text}})
 		}
-		feedback := []any{}
-		for _, f := range p.feedback {
-			feedback = append(feedback, showObj{{"entries", f.entries}, {"url", f.url}})
-		}
 		projects = append(projects, showObj{{"name", p.name}, {"bead", p.bead}, {"title", p.title}, {"url", p.url},
-			{"goal", p.goal}, {"sprints", sprints}, {"needs", needs}, {"decisions", decisions}, {"feedback", feedback}})
+			{"goal", p.goal}, {"sprints", sprints}, {"needs", needs}, {"decisions", decisions}})
 	}
 	push := []any{}
 	for _, l := range d.push {
@@ -452,8 +447,12 @@ func (d *showData) json() any {
 		summary = firstSentence(records.SummaryLine(d.summary.Text), 160)
 		generated = d.summary.GeneratedAt
 	}
+	var feedback any
+	if d.feedback != nil {
+		feedback = showObj{{"entries", d.feedback.entries}, {"url", d.feedback.url}}
+	}
 	return showObj{{"site", d.site}, {"projects", projects}, {"push", push}, {"today", showObj{{"date", d.today},
-		{"page", "days/" + d.today + ".html"}, {"summary", summary}, {"generated_at", generated}}}}
+		{"page", "days/" + d.today + ".html"}, {"summary", summary}, {"generated_at", generated}}}, {"feedback", feedback}}
 }
 
 // ---------------------------------------------------------------- text
@@ -487,8 +486,17 @@ func showSprintNames(p *showProject) map[string]string {
 	return names
 }
 
-// showText is the top level: push failures, tasks other live sessions hold, the site, and one line per project with
-// each open owner request and undelivered reply.
+// showFeedbackLine is the repo's pm feedback doc, which both levels link, and how to add to it.
+func showFeedbackLine(f *showFeedback) string {
+	doc := "none yet"
+	if f != nil {
+		doc = fmt.Sprintf("%d entries -> %s", f.entries, f.url)
+	}
+	return "feedback: " + doc + `; when pm gets in your way, run pm feedback add [--project NAME] --text="…"`
+}
+
+// showText is the top level: push failures, tasks other live sessions hold, the site, the feedback doc, and one line
+// per project with each open owner request and undelivered reply.
 func showText(d *showData) string {
 	var out []string
 	if len(d.push) > 0 {
@@ -514,6 +522,7 @@ func showText(d *showData) string {
 	}
 	out = append(out, "site: "+d.site+" (the pm service); a record's page is <site>/<its path under records/, without .md>"+
 		".html; pm record link <target> prints one")
+	out = append(out, showFeedbackLine(d.feedback))
 	out = append(out, "projects: pm show --project NAME prints one's sprints, tasks, owner requests and last decisions")
 	for _, p := range d.projects {
 		e := p.bead
@@ -541,9 +550,9 @@ func showText(d *showData) string {
 	return strings.Join(out, "\n")
 }
 
-// showProjectText is the project level: its goal, owner requests in full, feedback, each open sprint with its goal,
-// done-when and open tasks, and its last decisions.
-func showProjectText(p *showProject) string {
+// showProjectText is the project level: its goal, owner requests in full, the repo's feedback doc, each open sprint
+// with its goal, done-when and open tasks, and its last decisions.
+func showProjectText(p *showProject, feedback *showFeedback) string {
 	e := p.bead
 	names := showSprintNames(p)
 	out := []string{p.name + "  " + e + "  " + p.goal}
@@ -563,10 +572,7 @@ func showProjectText(p *showProject) string {
 			out = append(out, line)
 		}
 	}
-	for _, f := range p.feedback {
-		out = append(out, fmt.Sprintf("feedback: %d entries -> %s", f.entries, f.url))
-	}
-	out = append(out, `feedback: when pm gets in your way, run pm feedback add --project <p> --text="…"`)
+	out = append(out, showFeedbackLine(feedback))
 	if len(p.sprints) > 0 || len(p.decisions) > 0 {
 		out = append(out, p.name+"  "+e+"  sprints and decisions:")
 		var quiet []string
