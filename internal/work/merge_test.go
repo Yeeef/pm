@@ -56,7 +56,7 @@ func TestMergeAFieldOneSideChangedTakesThatSide(t *testing.T) {
 	}
 }
 
-func TestMergeTypeAndNumberNeverChangeUnequalFails(t *testing.T) {
+func TestMergeTypeNeverChangesAndNumberChangedOnBothSidesFails(t *testing.T) {
 	b, o, th := sides(5, 6)
 	th.Type = Need
 	refused(t, b, o, th, "type")
@@ -64,8 +64,23 @@ func TestMergeTypeAndNumberNeverChangeUnequalFails(t *testing.T) {
 	for _, it := range []*Item{&b, &o, &th} {
 		it.Type, it.Number, it.Parent = Sprint, 7, "demo-abc"
 	}
-	th.Number = 8
+	o.Number, th.Number = 8, 9 // both sides moved it
 	refused(t, b, o, th, "number")
+}
+
+// A sprint moved on one side (parent, number, title) while the other edited it: the move holds, and the title the
+// later side gave keeps the moved number.
+func TestMergeASprintMovedOnOneSideKeepsTheMove(t *testing.T) {
+	b, o, th := sides(5, 6)
+	for _, it := range []*Item{&b, &o, &th} {
+		it.Type, it.Number, it.Parent, it.Title = Sprint, 1, "demo-abc", "Sprint 1: S"
+	}
+	o.Number, o.Parent, o.Title = 4, "demo-xyz", "Sprint 4: S" // ours moved it, earlier
+	th.Title, th.Description = "Sprint 1: S renamed", "d"      // theirs edited it, later
+	m, _ := merged(t, b, o, th)
+	if m.Number != 4 || m.Parent != "demo-xyz" || m.Title != "Sprint 4: S renamed" || m.Description != "d" {
+		t.Fatalf("%+v", m)
+	}
 }
 
 func TestMergeStatusClosedWins(t *testing.T) {

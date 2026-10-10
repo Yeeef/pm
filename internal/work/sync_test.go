@@ -655,7 +655,8 @@ func TestCreateRefusesWithTheRemoteUnreachable(t *testing.T) {
 
 // A sprint moved on one clone while the other writes under it (the work-store page, Moving a sprint, Another clone):
 // B claims a task, edits the sprint and comments on it offline, then moves the sprint to Q through the
-// compare-and-swap; before B's push, A opens a sprint in Q and adds a task under the sprint, both through A's service.
+// compare-and-swap; before B's push, A opens a sprint in Q, adds a task under the sprint, and comments on and renames
+// the sprint itself, all through A's service.
 // B's push is rejected, B pulls A's writes and moves again: the sprint takes Q's next number, A's task lands in the
 // moved sprint, every offline write survives, and the old project does not mint the moved number again.
 func TestMoveSprintAcrossClonesKeepsTheOtherClonesWrites(t *testing.T) {
@@ -676,17 +677,21 @@ func TestMoveSprintAcrossClonesKeepsTheOtherClonesWrites(t *testing.T) {
 				raced = true
 				qa = must(da.Create(New{Type: Sprint, Parent: q.ID, Title: "Sprint 1: QA"}))
 				ta = must(da.Create(New{Type: Task, Parent: x.s.ID, Title: "from A"}))
+				must(da.Comment(x.s.ID, Note, "sa", "from A")) // A writes the sprint's own row too
+				title := "S from A"
+				must(0, da.Edit(x.s.ID, &title, nil))
 			}
 			return push()
 		}
 		moved = must(d.moveSprintShared(sprintMoveSpec{ID: x.s.ID, To: q.ID, Reason: "r\nr"}))
 	})
+	x.b.synced = time.Now() // the move read the remote: B's next fetch waits out the read dedup
 	if qa.Number != 1 || moved.Number != 2 || moved.Parent != q.ID {
 		t.Fatalf("A's sprint #%d, the moved sprint #%d under %s", qa.Number, moved.Number, moved.Parent)
 	}
 	items := x.converge(t)
 	s, t1, task := find(items, x.s.ID), find(items, x.t1.ID), find(items, ta.ID)
-	if s.Parent != q.ID || s.Number != 2 || s.Description != "from B" || len(s.Comments) != 2 ||
+	if s.Parent != q.ID || s.Number != 2 || s.Description != "from B" || s.Title != "S from A" || len(s.Comments) != 3 ||
 		!slices.Equal(SprintMoves(&s), []SprintMove{{x.p.ID, 1, q.ID, 2, "r\nr"}}) {
 		t.Errorf("sprint %+v", s)
 	}

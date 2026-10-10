@@ -99,14 +99,17 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 	b, o, t := &base, &ours, &theirs
 	m := cloneItem(ours)
 
-	// id, type, number: never changed; unequal values fail.
+	// id, type: never changed; unequal values fail.
 	if o.ID != t.ID {
 		return Item{}, nil, conflictError(id, "id", fmt.Sprintf("ours %s, theirs %s", o.ID, t.ID))
 	}
 	if o.Type != t.Type {
 		return Item{}, nil, conflictError(id, "type", fmt.Sprintf("ours %s, theirs %s", o.Type, t.Type))
 	}
-	if o.Number != t.Number {
+	// number: changed only by pm sprint move, in the compare-and-swap, so by one side at most; both changed fails.
+	if v, ok := three(b.Number, o.Number, t.Number); ok {
+		m.Number = v
+	} else {
 		return Item{}, nil, conflictError(id, "number", fmt.Sprintf("ours %d, theirs %d", o.Number, t.Number))
 	}
 	if (o.Need == nil) != (t.Need == nil) {
@@ -204,6 +207,10 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 			return Item{}, nil, err
 		}
 		*f.dst = v
+	}
+	// A sprint's title names its number ("Sprint <n>: "): a title the other side edited keeps the moved number.
+	if m.Type == Sprint && sprintTitle.MatchString(m.Title) {
+		m.Title = sprintTitle.ReplaceAllLiteralString(m.Title, fmt.Sprintf("Sprint %d: ", m.Number))
 	}
 	if m.Need != nil {
 		nf, err := mergeNeed(id, b, o, t)

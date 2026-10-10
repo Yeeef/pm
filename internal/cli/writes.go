@@ -1205,6 +1205,12 @@ func cmdSprintMove(e *env, p *Parsed) (string, error) {
 	if sp.Status == work.Closed {
 		return "", refuse("sprint %s is closed; only an open sprint moves", id)
 	}
+	if mv, ok := lastMove(sp); ok { // a move whose records step has not run: finish it first, or the record skips a project
+		if here, err := r.projectRecord(mv.To); err == nil && rec.Name() != sprintName(here.Name(), sp.Number) {
+			return "", refuse("the move of sprint %s to %s is not finished: its record is still %s; run pm sprint move %s "+
+				"--to %s first", id, here.Name(), r.rel(rec.Path), id, here.Name())
+		}
+	}
 	plan := work.SprintMove{From: sp.Parent, FromNumber: sp.Number, To: to,
 		ToNumber: work.LastSprintNumber(slices.Values(r.x.All()), to) + 1, Reason: reason}
 	planned := *sp

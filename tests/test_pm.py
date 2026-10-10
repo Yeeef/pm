@@ -434,6 +434,10 @@ def test_sprint_move_takes_the_sprint_whole_and_a_rerun_finishes_a_move_cut_shor
 
     placed()
     assert "records/sprints/demo-1.md" in repo.pm("show", "--sprint", "repo-demo.1").stdout  # not renamed yet
+    repo.mark()
+    refused(repo, "sprint", "move", "repo-demo.1", "--to", "demo", text=MOVE_REASON,
+            match=r"the move of sprint repo-demo.1 to site is not finished: its record is still "
+                  r"records/sprints/demo-1.md; run pm sprint move repo-demo.1 --to site first")
 
     repo.mark()
     res = repo.pm("sprint", "move", "repo-demo.1", "--to", "site", text=MOVE_REASON)
