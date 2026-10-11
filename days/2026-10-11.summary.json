@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T18:50:52+00:00",
- "digest": "f5f69ab42c8842d0",
+ "generated_at": "2026-10-11T19:01:13+00:00",
+ "digest": "57d8795ae6a85933",
  "model": "claude-haiku-5-5",
- "text": "- **Public website and README:** pm has a live marketing website on GitHub Pages. The README now describes pm as a human-agent project management suite.\n- **Site access and status:** The Cloudflare Access token check was ported to Go and merged. A flag for a main checkout behind its remote is ready for review.\n- **Codex integration:** The owner answered whether pm init should mark its Codex hooks as trusted.\n- **For you:** Review the pull request that adds the main checkout flag. Its continuous integration checks pass."
+ "text": "- **Public website and README:** pm now has a one-page website on GitHub Pages. The README describes pm as a human-agent project management suite, with real screenshots.\n- **Site access and status:** The Access token check now lives in the Go code. The site and `pm service status` flag a main checkout that is behind its remote.\n- **CI lint gates:** CI now runs lint checks for the Go code and the Python harness. The checks stop sloppy code patterns, and dead code was removed.\n- **For you:** Review the pull requests that wait for your approval."
 }
