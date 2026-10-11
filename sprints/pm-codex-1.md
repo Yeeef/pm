@@ -109,10 +109,25 @@ Review: an inbox block at Stop makes the continuation end with stop_hook_active,
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a Codex session gets the same pm guarantees as a Claude Code session, and both work one project at once, held by a CI parity test and a live eval on real sessions.
+
+- Session identity: `CODEX_SESSION_ID` (root, shared with subagents), with the innermost runtime deciding when both runtimes' ids are set; a Codex session never takes a Claude Code inbox.
+- Codex hooks: SessionStart on compact, SubagentStop running `pm hook stop`, and the same commands as Claude Code's per event.
+- `.codex/rules/pm.rules` runs pm outside Codex's sandbox.
+- Owner replies: a push as soon as the store moves, `pm reply wait`, and `pm hook inbox` at UserPromptSubmit.
+- `pm doctor` names the pm hooks Codex skips, read from `codex app-server`.
+- A typed `pm init` no longer restarts the service for a PATH-only difference.
+- `make test-live-parity`.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Done when | Met | Evidence |
+|---|---|---|
+| A gap list of Codex against Claude Code, each gap closed or recorded as a decision to leave it | met | 12 gaps in Findings and the [pm in Codex](../design/pm-in-codex.md) design page. 9 are closed in PR #47. 3 are left by a pm-codex project decision: an idle TUI is not woken, there is no ask tool, and `.codex/` is read from the main checkout. |
+| A real Codex session raises a need, is woken by the owner's reply, and commits a record, with the transcript as evidence | met | `test_solo_session_gets_pm_guarantees[codex]` in `make test-live-parity`, on real `codex exec` sessions. The session raised a need and waited with `pm reply wait`. The owner replied 30 s later, and the session recorded the decision, which closed the need with `closed_by` set to the session. It committed a doc and a finding and closed its task. Run 6: 67 s, run 7: 88 s, both passing; transcripts are copied into the run's tmp dir. |
+| The setup docs say what a Codex user runs, and nothing else is needed | met | The README's "In Codex" section: `pm init`, then trust the project and pm's hooks once in Codex (`/hooks`). `pm doctor` names any pm hook Codex skips. |
+| Parity check (owner decision, added 2026-10-11): one scenario run by a real Claude Code session and a real Codex session gives the same pm outcomes; a CI test drives every installed hook with each runtime's payload; a mixed run of both on one project | met | CI: `TestClaudeAndCodexRunTheSameHooks` and the harness tests that feed both runtimes' captured payloads to each hook; PR #47 is green on all 9 checks at e8e95ff. Live: 7 scenarios with identical assertions per runtime: solo, Stop hook, reply at the next prompt, and a mixed run with claims refused across runtimes. 7 of 7 passed three times (92 to 94 s) before f6e3419. At HEAD, 5 of 7 passed; the 2 failures were Codex's account usage limit, and the guard against service restarts held in all 7. |
+
+Not run live: Codex's sandboxed path. bubblewrap cannot start on this host (`RTM_NEWADDR`), so the live eval ran Codex with `danger-full-access`.
