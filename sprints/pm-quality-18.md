@@ -73,6 +73,14 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
   within 1 s of the store's last remote read with the remote lost in between.
   The test now restarts A's service first: 9.6 s to 1.1-1.5 s.
 
+- go vet and go test compiled every package a second time because only
+  go-build used -trimpath: a cold GOCACHE after build+vet+test was 2455 MB in
+  57 s (32 cores); with -trimpath on vet and test it is 1269 MB in 39 s. That
+  doubling, not stale entries, is most of the ~930 MB compressed build cache:
+  main's saves grew only 909 to 931 MB over three pushes. Aging the restored
+  cache (mtime now-2h) and deleting what the run left untouched rebuilt cmd/pm
+  afterwards with 0 compiles (12408 files, 7878 removed).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
