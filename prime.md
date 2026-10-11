@@ -97,7 +97,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 
 # How
 
-**Bodies.** Some commands below take a body: a goal, a frame, a description, a reason, an answer. Give it as a quoted heredoc, `--text-file - <<'EOF'` … `EOF`, or as `--text="…"` for one plain line without backticks, `$` or quotes. pm reads stdin only for `--text-file -`, and only from a heredoc or a pipe; any other stdin is refused at once. Hooks read their JSON input from stdin.
+**Bodies.** Some commands below take a body: a goal, a frame, a description, a reason, an answer. Give it as a quoted heredoc, `--text-file - <<'EOF'` … `EOF` (in Codex, a file: `--text-file PATH`), or as `--text="…"` for one plain line without backticks, `$` or quotes. pm reads stdin only for `--text-file -`, and only from a heredoc or a pipe; any other stdin is refused at once. Hooks read their JSON input from stdin.
 
 - check current projects state
   - `pm show`: the top level. It shows what other live sessions hold, each open owner request and undelivered reply, a failed push, and one line per project. Session start injects it, stamped with its UTC time: orient from that copy. Other sessions change the state, so run it again before you tell the owner the project state.

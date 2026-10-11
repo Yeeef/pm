@@ -146,6 +146,24 @@ func notAnswering(sock string) error {
 		sock)
 }
 
+// ErrSandboxed is a connect to the socket that the system refused: a sandbox around the command (Codex's network-off
+// sandbox denies connect() by seccomp), not the pm service.
+var ErrSandboxed = errors.New("this process may not connect to the pm service")
+
+// refusedConnect is ErrSandboxed with what to do: in Codex, run pm where its rule (.codex/rules/pm.rules) takes it out
+// of the sandbox, which is only a command Codex can split into plain pm commands.
+func refusedConnect(sock string, err error) error {
+	why := err.Error()
+	if os.Getenv("CODEX_SESSION_ID") != "" || os.Getenv("CODEX_THREAD_ID") != "" {
+		return fmt.Errorf("%w on %s (%s): Codex's sandbox blocks it, and runs pm outside the sandbox only when the "+
+			"whole command is plain pm commands; a heredoc body (--text-file - <<'EOF') keeps it inside, so give the "+
+			"body with --text-file PATH (a file under the worktree) or --text=\"…\", or rerun the command with "+
+			"escalation", ErrSandboxed, sock, why)
+	}
+	return fmt.Errorf("%w on %s (%s): a sandbox around this command blocks the socket; run pm outside it",
+		ErrSandboxed, sock, why)
+}
+
 // dial opens one connection to the socket and holds it.
 func dial(sock string, c dialConfig) (*Dolt, error) {
 	cfg := mysql.NewConfig()
@@ -165,6 +183,9 @@ func dial(sock string, c dialConfig) (*Dolt, error) {
 	cancel()
 	if err != nil {
 		db.Close()
+		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
+			return nil, refusedConnect(sock, err)
+		}
 		return nil, notAnswering(sock)
 	}
 	d := &Dolt{o: Options{Prefix: c.prefix, Now: c.now}, sock: sock, db: db, conn: conn}
