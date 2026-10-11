@@ -1,6 +1,12 @@
-# pm: the linters (make lint) on every pull request and push to main, as a job of their own beside the tests: golangci-lint
-# (.golangci.yml; its ratcheted linters on the lines a PR changes since its merge base with origin/main, which needs the
-# full history), deadcode and ruff, each at the version the Makefile pins.
+# pm: the linters (make lint) on every pull request and push to main, at the versions the Makefile pins, as three
+# parallel jobs beside the tests: golangci-lint (make lint-go: .golangci.yml; its ratcheted linters on the lines a PR
+# changes since its merge base with origin/main, which needs the full history), deadcode (make lint-deadcode) and ruff
+# (make lint-py).
+#
+# The Go jobs restore, and never save, the Go caches pm-go.yml's linux-amd64 build job saves on main (same runner, Go
+# version and go.sum): golangci-lint type-checks from the compiled packages go vet and go test leave there, so a warm
+# job compiles only what the PR changed, and deadcode finds every module downloaded. golangci-lint-action keeps
+# golangci-lint's own analysis cache.
 name: pm lint
 
 on:
@@ -16,22 +22,54 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
+  go:
+    name: ${{ matrix.lint }}
+    strategy:
+      fail-fast: false
+      matrix:
+        lint: [lint-go, lint-deadcode]
+    runs-on: ubuntu-22.04 # pm-go.yml's linux-amd64 runner, whose Go caches this job restores
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ matrix.lint == 'lint-go' && '0' || '1' }}
       - uses: actions/setup-go@v5
+        id: go
         with:
           go-version-file: go.mod
-          cache-dependency-path: go.sum
-      - uses: astral-sh/setup-uv@v6
+          cache: false
+      - name: The Go cache paths and pm-go.yml's key
+        id: paths
+        run: |
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "kind=go-linux-amd64-${{ steps.go.outputs.go-version }}-build-" >> "$GITHUB_OUTPUT"
+          echo "sum=${{ hashFiles('go.sum') }}-" >> "$GITHUB_OUTPUT"
+      - name: Restore main's latest Go cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ steps.paths.outputs.mod }}
+            ${{ steps.paths.outputs.build }}
+          key: ${{ steps.paths.outputs.kind }}${{ steps.paths.outputs.sum }}${{ github.sha }}
+          restore-keys: |
+            ${{ steps.paths.outputs.kind }}${{ steps.paths.outputs.sum }}
+            ${{ steps.paths.outputs.kind }}
       - name: Install golangci-lint
+        if: matrix.lint == 'lint-go'
         uses: golangci/golangci-lint-action@d583c34f0599d37dbac4a198b9c83201be380893 # v9.3.0
         with:
           version: v2.14.0 # GOLANGCI_LINT_VERSION in the Makefile
           install-only: true
-      - name: make lint
-        run: make lint
+      - name: make ${{ matrix.lint }}
+        run: make ${{ matrix.lint }}
+  ruff:
+    name: lint-py
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: make lint-py
+        run: make lint-py
