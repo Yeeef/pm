@@ -144,6 +144,21 @@ and `pm day summarize`, Codex setups included; `uv` only for the one-time move o
 harness, which `pm init` names. A repo pinned below 0.2.0 (a retired release) must move its pin with
 `pm upgrade --to <X>` first.
 
+### In Codex
+
+`pm init` sets a repo up for Claude Code and Codex alike: it also writes `.codex/hooks.json`, pm's hooks for Codex,
+and `.codex/rules/pm.rules`, a Codex rule that runs `pm` (and nothing else) outside Codex's sandbox, since a pm
+command reaches the pm service through a socket that a network-off sandbox blocks. Then, once per repo and machine:
+
+1. Open Codex in the repo's main checkout and trust the project. Codex reads `.codex/` from the main checkout, also
+   for a session in a worktree, and runs none of a project's hooks or rules until the project is trusted.
+2. In Codex, run `/hooks` and trust pm's hooks. pm never writes that trust; `pm doctor` names each of pm's hooks Codex
+   would skip, and the project when Codex runs none of them.
+
+A Codex session gets no push of the owner's replies: it waits with `pm reply wait <id>`, or the reply reaches it at
+its next prompt or stop. Codex runs a command it cannot split into plain commands, such as one fed a heredoc, inside
+its sandbox, where pm may not reach its service: give such a body with `--text-file PATH` or `--text="…"`.
+
 ## Docs
 
 - `pm --help` and `pm <noun> --help`: every command, its rules and its refusals.
