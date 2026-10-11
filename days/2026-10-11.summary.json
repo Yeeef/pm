@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T18:09:39+00:00",
- "digest": "feccd03bdecd288f",
+ "generated_at": "2026-10-11T18:30:04+00:00",
+ "digest": "0180c7398fbfd94f",
  "model": "claude-haiku-5-5",
- "text": "- **Public host access check:** The pm public host now checks for a valid Cloudflare Access token, in the Go service. Key lookups refetch at most once a minute. Doctor reports the check, and tests cover it.\n- **README and marketing site:** The README now presents pm as a human-agent project management suite, with claims checked against the code. pm now has a one-page marketing site with real screenshots. A workflow deploys it to GitHub Pages on each push to main.\n- **Stale checkout warning:** pm now flags a main checkout that is behind or diverged from its remote. The flag appears on the site, in pm service status, and in pm show.\n- **For you:** Review the open pull requests and enable GitHub Pages. Set the Pages source to GitHub Actions."
+ "text": "- **Site access check:** The Go service now checks Cloudflare Access tokens. It refetches signing keys at most once a minute. The change is not live until the pull request is released.\n- **Public site and README:** The README now presents pm as a human-agent project management suite, with each claim checked against the code. A one-page website with real screenshots deploys to GitHub Pages on each push to main.\n- **Main checkout status:** The pm site and pm service status now flag a main checkout that is behind its remote, diverged, or off main.\n- **For you:** Enable GitHub Pages for the repository, with GitHub Actions as the source. Review the open pull requests for the site access check, the README, the website and the status flag."
 }
