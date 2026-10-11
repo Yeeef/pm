@@ -252,6 +252,7 @@ func TestSyncTwoClonesConcurrentEditsMergePerTheTable(t *testing.T) {
 		must(d.Comment(x.t1.ID, Note, "sa", "from A"))
 		must(0, d.DepAdd(x.t2.ID, x.t1.ID))
 	})
+	x.a.synced = time.Now()                // the create read the remote: A's next fetch waits out the read dedup
 	x.b.clock = x.b.clock.Add(time.Minute) // B's writes are later
 	x.b.do(func(d *Dolt) {
 		cb = must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "child from B"}))
@@ -262,6 +263,7 @@ func TestSyncTwoClonesConcurrentEditsMergePerTheTable(t *testing.T) {
 		must(0, d.UpdateNeed(x.need.ID, NeedUpdate{Delivered: ptr(2)}))
 		must(0, d.Close(x.need.ID, "answered", Answered, "sb"))
 	})
+	x.b.synced = time.Now() // the create read the remote: B's next fetch waits out the read dedup
 	if ca.ID == cb.ID {
 		t.Fatalf("both clones minted %s", ca.ID)
 	}
@@ -704,6 +706,7 @@ func TestCreatePushTimeout(t *testing.T) {
 		t.Setenv("GIT_TRACE2_EVENT", trace)
 		x := x.reseed(t) // A pushes, B pulls (a fetch into B's cache repo)
 		x.b.do(func(d *Dolt) { must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T3"})) })
+		x.b.synced = time.Now() // the create read the remote: the next case's reseed fetch into B waits out the read dedup
 		b, err := os.ReadFile(trace)
 		if err != nil {
 			t.Fatal(err)
