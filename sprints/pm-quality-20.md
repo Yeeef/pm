@@ -71,7 +71,16 @@ A strict 10% keeps 86% of lines but loses 71 of 75 bug guards and most contracts
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Phase 1 (PR #48): non-live tests went from 432 to 164 (-62%): Go top-level
+  tests 228 to 83 (go test -list), non-live pytest items 204 to 81
+  (--collect-only). 150 MERGE rows are folded as rows (Go t.Run, pytest '#
+  folded:' blocks). 73 DROP rows are gone, 46 DROP rows were folded instead
+  and 8 kept by name (unique contract, or named by CLAUDE.md, AGENTS.md or
+  RACE_TESTS). 10 MERGE rows kept by name: 3 race tests whose targets do not
+  match RACE_TESTS, the 2 bench tests,
+  TestMermaidLoadsOneExactVersionAtNaturalWidth,
+  TestChunksFitTheCapAndAddUpToTheHead, and 3 test_pm tests whose ids clash
+  with every target's state.
 
 ## Delivery report
 
