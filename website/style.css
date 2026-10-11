@@ -540,7 +540,17 @@ h1 {
 .frame img {
   width: 100%;
   height: auto;
-  background: var(--bg-2);
+  background: #f5f6f4; /* the pm site's page color, while a screenshot loads */
+}
+
+.frame a {
+  display: block;
+}
+
+.hero-shot .frame img {
+  aspect-ratio: 2640 / 1640;
+  object-fit: cover;
+  object-position: top;
 }
 
 /* Sections */
@@ -960,7 +970,7 @@ h3 {
 }
 
 .shot .frame img {
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
   object-position: top left;
 }
