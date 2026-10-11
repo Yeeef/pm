@@ -8,42 +8,107 @@ project: pm-codex
 
 > What are we solving, and why now?
 
-None yet.
+pm's guarantees were built against Claude Code: session context at start, one holder per task, no records left uncommitted, no owner request left only in chat, owner replies delivered to the session that asked. An owner who runs Codex and Claude Code on one project needs the same guarantees from both, and the two runtimes differ in hook trust, session identity, sandboxing and reply delivery.
 
 ## Goals and non-goals
 
 > What must the design achieve, and what does it deliberately leave out?
 
-None yet.
+- Goal: a Codex session and a Claude Code session get the same pm outcomes for the same work, and can work one project at once, each seeing the other's holds.
+- Goal: every difference between the runtimes is either closed or named here with its reason.
+- Goal: a check that can fail holds the parity: a CI test on both runtimes' hook inputs, and a live eval on real sessions.
+- Non-goal: pm writing Codex's hook trust (owner decision on the pm-codex project).
+- Non-goal: waking an idle Codex TUI from outside; Codex offers no path to it.
 
 ## Constraints and key facts
 
 > Which facts, findings and constraints shaped the design? Only those that
 > still hold; sprint records keep the findings as they happened.
 
-None yet.
+Codex 0.154 (codex-rs `rust-v0.154.0`) against Claude Code 2.1.296:
+
+| Area | Claude Code | Codex |
+|---|---|---|
+| Project hooks | run once the settings file is there | run only once the user trusts the project and each hook (`hooks.state` in the user's `config.toml`, a hash of the entry); `codex exec` skips untrusted hooks silently |
+| Hooks file | the worktree's `.claude/settings.json` | the main checkout's `.codex/hooks.json`, in every linked worktree |
+| Session id in commands | `CLAUDE_CODE_SESSION_ID`, shared with subagents | `CODEX_SESSION_ID`, the root session, shared with subagents; `CODEX_THREAD_ID` is the running thread |
+| Session id in hooks | payload `session_id` | payload `session_id`, the root session |
+| Reply push | `CLAUDE_CODE_MESSAGING_SOCKET` | none; a TUI runs an embedded app-server nobody outside reaches |
+| Subagent tool inputs | plain in the parent transcript | encrypted in the parent rollout; Codex has a SubagentStop event with `agent_transcript_path` |
+| Stop `last_assistant_message` | a string | nullable |
+| SessionStart sources | startup, resume, clear, compact | the same |
+| Sandbox | pm's paths in `permissions.additionalDirectories` | Linux with the network off denies `connect()` by seccomp, so no sandboxed command reaches `work.sock`; an execpolicy `allow` rule runs a command outside the sandbox when every segment matches; a heredoc script is one unsplit segment |
+| Env inheritance | | Codex keeps its launcher's env but `*_TOKEN`, `*_KEY`, `*_SECRET`: a Codex run started from Claude Code sees `CLAUDE_CODE_SESSION_ID` and the messaging socket |
 
 ## Design
 
 > What is it, in its final state? Free `###` subsections. Decisions and plans
 > live in the project and sprint records.
 
-None yet.
+### Pieces pm init writes
+
+| Piece | Holds |
+|---|---|
+| `.claude/settings.json` | SessionStart and SubagentStart: the rules chunks and the state; UserPromptSubmit: `pm hook inbox`; Stop: `pm hook owner-request`, `pm hook stop` |
+| `.codex/hooks.json` | the same commands per event; SessionStart matcher `startup\|resume\|clear\|compact`; plus SubagentStop: `pm hook stop` |
+| `.codex/rules/pm.rules` | `prefix_rule(pattern=["pm"], decision="allow")`: every `pm` command runs outside Codex's sandbox without approval, as pm's hooks already do |
+| `~/.codex/config.toml` | `writable_roots` for the records store and the work store |
+
+`TestClaudeAndCodexRunTheSameHooks` holds the two hook files to the same commands per event, except the differences one allowlist names with a reason: the matchers' syntax and Codex's SubagentStop.
+
+### Session identity
+
+- A command's session is `CODEX_SESSION_ID`, else `CODEX_THREAD_ID` mapped to its root through the rollout's `session_meta`, else `CLAUDE_CODE_SESSION_ID`.
+- With a Claude Code id and a Codex id both set, the nearest Claude Code or Codex process among the command's ancestors decides. With neither found, every command but `version`, `prime` and `pm hook` refuses, naming both ids.
+- Only a Claude Code session stores `CLAUDE_CODE_MESSAGING_SOCKET` as its inbox; a Codex session never takes the one it inherits.
+- Live-session checks and `pm clean` read Codex rollouts as they read Claude Code transcripts.
+
+### Owner replies
+
+| Route | Claude Code | Codex |
+|---|---|---|
+| Push, as soon as the work store moves | yes | no |
+| `pm reply wait <id>`: blocks within the turn until a reply that is undelivered or stamped after the wait began | yes | yes |
+| `pm hook inbox` at UserPromptSubmit: the reply as context, marked delivered once printed | yes (finds nothing a push delivered) | yes |
+| `pm show` flags an undelivered reply; `pm reply read` | yes | yes |
+
+The inbox does not run at Stop: a block there makes the continuation end with `stop_hook_active`, which lets `pm hook stop` and the owner-request check pass the very turn that acts on the reply.
+
+### Hook trust
+
+pm never writes Codex's trust. `pm doctor` and a typed `pm init` ask `codex app-server` (`hooks/list`) which of pm's hooks Codex skips, and name them with the fix: open Codex in the main checkout and trust pm's hooks in `/hooks`. With no Codex home, it says trust was not checked.
+
+### Sandbox
+
+`pm.rules` takes a `pm` command out of the sandbox. A command that is not plain `pm …` (a heredoc body, a `cd x &&` prefix) stays inside; on Linux its connect is refused, and pm says so and names `--text-file PATH` or `--text="…"`. The agent's own `git commit` in a sandboxed worktree asks for approval, as Codex does for any `.git` write.
+
+### Checks
+
+- CI: `TestClaudeAndCodexRunTheSameHooks`; the harness tests that drive each hook with both runtimes' real payloads (`tests/hook_payloads.json`) and assert the same output.
+- Live: `make test-live-parity`, real `claude -p` and `codex exec` sessions on a scratch clone, identical assertions per runtime: the solo scenario (context, claim, finding, need, reply, decision, record, task close), the Stop hook, the reply at the next prompt, and both runtimes on one project at once with claims refused across runtimes.
 
 ## Alternatives considered
 
 > What else was considered and not adopted, and why not?
 
-None yet.
+| Alternative | Not adopted because |
+|---|---|
+| pm writes `hooks.state` for its own hooks | the hash is Codex-internal and undocumented, and writing it bypasses Codex's review (owner decision) |
+| `[sandbox_workspace_write] network_access = true` | opens the whole network to every sandboxed command, to reach one socket |
+| A unix-socket allowlist for `work.sock` | macOS only; Linux's seccomp filter denies `connect()` regardless |
+| Deliver replies by `codex exec resume` from the service | fails while the thread has a writer, and would start agent runs nobody asked for |
+| Deliver replies through a shared Codex app-server (`turn/start`) | reaches only TUIs started after it on the default socket; pm would run Codex's server |
+| `pm hook inbox` at Stop as well | see Owner replies: it disables the stop checks for the turn that acts on the reply |
 
 ## Prior art
 
 > Optional. What existing work did we learn from, and what did we take?
 
-None yet.
+- [Codex hooks docs](https://learn.chatgpt.com/docs/hooks); codex-rs `rust-v0.154.0`: `hooks/src/lib.rs`, `core/src/exec_policy.rs`, `core/src/exec_env.rs`, `linux-sandbox/src/landlock.rs`.
 
 ## Open questions
 
 > What is still unresolved?
 
-None yet.
+- The sandboxed path is not run live: bubblewrap cannot start on the owner's Linux host (`bwrap: loopback: Failed RTM_NEWADDR`), so the live eval runs Codex with `danger-full-access`. `PM_PARITY_CODEX_SANDBOX` unset runs it sandboxed on a host where bubblewrap works, or on macOS.
+- An idle Codex TUI is not woken by a reply; it gets it at its next prompt.

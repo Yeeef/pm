@@ -32,7 +32,7 @@ Moved from pm-harness sprint 34 on 2026-10-10.
 
 > Where is the detail?
 
-None yet.
+- [pm in Codex](../design/pm-in-codex.md): what pm installs for Codex, session identity, owner replies, hook trust, the sandbox, and the parity checks.
 
 ## Progress
 

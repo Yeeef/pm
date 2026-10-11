@@ -30,7 +30,7 @@ Answers `pm-v498.1.1`.
 
 > Where is the detail?
 
-None yet.
+- [pm in Codex](../design/pm-in-codex.md): what pm installs for Codex, session identity, owner replies, hook trust, the sandbox, and the parity checks.
 
 ## Outcome
 
