@@ -43,7 +43,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-11}
+Done when gains a parity check: one scenario run by a real Claude Code session and a real Codex session in a scratch clone must give the same pm outcomes, plus a CI test that drives every installed hook with each runtime payload and holds the outcomes equal; and a mixed run where a Claude session and a Codex session work the same project together.
+Owner asked in chat (2026-10-11) for a success criterion that a test checks: both runtimes work on par, and a user can have Codex and Claude working together on one project.
+:::
 
 ## Findings
 
