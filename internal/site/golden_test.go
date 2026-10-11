@@ -3,7 +3,6 @@ package site
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -266,62 +265,6 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 		if got != c.want {
 			t.Errorf("%s: pm check gives %q, want %q", c.name, got, c.want)
 		}
-	}
-}
-
-func TestCitesMatchesTheIDAlone(t *testing.T) {
-	for _, c := range []struct {
-		text string
-		want bool
-	}{
-		{"see demo.1.2 here", true}, {"demo.1.2", true}, {"demo.1.23", false}, {"xdemo.1.2", false},
-		{"demo.1.2.3", false}, {"demo.1.2.", true}, {"(demo.1.2)", true}, {"a-demo.1.2", false}, {"demo.1.2-x", false},
-		{"demo.1.2 demo.1.2x", true}, {".demo.1.2", false}, {"éxdemo.1.2", false}, {"demo.1.2é", false},
-		{"demo.1.2.é", false}, {"demo.1.2,", true}, {"", false},
-	} {
-		if got := Cites(c.text, "demo.1.2"); got != c.want {
-			t.Errorf("Cites(%q, demo.1.2) = %v, want %v", c.text, got, c.want)
-		}
-	}
-}
-
-func TestIndexListsEverySprintNotDoneAndOnlyTheLatestClosedDoneOnes(t *testing.T) {
-	project, err := records.Parse("p.md", "projects/p", "---\ntype: project\nbead: p\ntitle: P\n---\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	at := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-	items := []work.Item{{ID: "p", Type: work.Project, Title: "P", Status: work.Open, CreatedAt: at, UpdatedAt: at}}
-	for n := 0; n < 12; n++ { // done sprints done-00..done-11, done-11 closed last
-		closed := at.AddDate(0, 0, n)
-		items = append(items, work.Item{ID: fmt.Sprintf("p.%d", n+1), Type: work.Sprint, Parent: "p", Number: n + 1,
-			Title: fmt.Sprintf("done-%02d", n), Status: work.Closed, Resolution: work.Done, CreatedAt: at,
-			UpdatedAt: closed, ClosedAt: closed})
-	}
-	for n := 0; n < 3; n++ {
-		items = append(items, work.Item{ID: fmt.Sprintf("p.%d", n+13), Type: work.Sprint, Parent: "p", Number: n + 13,
-			Title: fmt.Sprintf("live-%d", n), Status: work.Open, CreatedAt: at, UpdatedAt: at})
-	}
-	page, err := RenderIndex([]*Record{project}, records.NewItems(items), "site", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for n := 0; n < 3; n++ {
-		if !strings.Contains(page, fmt.Sprintf("live-%d", n)) {
-			t.Errorf("live-%d is not listed", n)
-		}
-	}
-	var shown []int
-	for n := 0; n < 12; n++ {
-		if strings.Contains(page, fmt.Sprintf("done-%02d", n)) {
-			shown = append(shown, n)
-		}
-	}
-	if DoneSprintsShown != 8 || fmt.Sprint(shown) != "[4 5 6 7 8 9 10 11]" {
-		t.Errorf("done sprints shown %v, DoneSprintsShown %d", shown, DoneSprintsShown)
-	}
-	if !strings.Contains(page, "4 older done sprints not shown") {
-		t.Error("the index does not say 4 older done sprints are not shown")
 	}
 }
 

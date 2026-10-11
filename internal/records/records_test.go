@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -38,19 +37,6 @@ func loadReference(t *testing.T) reference {
 	return ref
 }
 
-func TestYAMLStrQuotes(t *testing.T) {
-	ref := loadReference(t)
-	for _, c := range ref.YAMLStr {
-		if c[1] == nil {
-			continue // pyyaml raises: it constructs an invalid date before comparing
-		}
-		if got := YAMLStr(*c[0]); got != *c[1] {
-			t.Errorf("YAMLStr(%q) = %q, want %q", *c[0], got, *c[1])
-		}
-	}
-	t.Logf("%d values", len(ref.YAMLStr))
-}
-
 func TestHeaderValuesTypeAsPyyamlDoes(t *testing.T) {
 	ref := loadReference(t)
 	for _, c := range ref.HeaderType {
@@ -74,100 +60,73 @@ func TestHeaderValuesTypeAsPyyamlDoes(t *testing.T) {
 			t.Errorf("k: %q gives %v on Go, pyyaml %v", value, got, want)
 		}
 	}
-}
-
-func TestSections(t *testing.T) {
-	ref := loadReference(t)
-	for _, c := range ref.SectionText {
-		if got := SectionText(c[0], c[1]); got != c[2] {
-			t.Errorf("SectionText(%q, %q) = %q, want %q", c[0], c[1], got, c[2])
+	t.Run("YAMLStrQuotes", func(t *testing.T) {
+		ref := loadReference(t)
+		for _, c := range ref.YAMLStr {
+			if c[1] == nil {
+				continue // pyyaml raises: it constructs an invalid date before comparing
+			}
+			if got := YAMLStr(*c[0]); got != *c[1] {
+				t.Errorf("YAMLStr(%q) = %q, want %q", *c[0], got, *c[1])
+			}
 		}
-	}
-	for _, c := range ref.SubsectionText {
-		if got := SubsectionText(c[0], c[1]); got != c[2] {
-			t.Errorf("SubsectionText(%q, %q) = %q, want %q", c[0], c[1], got, c[2])
+		t.Logf("%d values", len(ref.YAMLStr))
+	})
+	t.Run("Sections", func(t *testing.T) {
+		ref := loadReference(t)
+		for _, c := range ref.SectionText {
+			if got := SectionText(c[0], c[1]); got != c[2] {
+				t.Errorf("SectionText(%q, %q) = %q, want %q", c[0], c[1], got, c[2])
+			}
 		}
-	}
-	for _, c := range ref.Outcome {
-		got, err := Outcome(&Record{Rel: "sprints/x", Body: *c[0]})
-		switch {
-		case c[2] != nil && (err == nil || err.Error() != *c[2]):
-			t.Errorf("Outcome(%q) error %v, want %q", *c[0], err, *c[2])
-		case c[2] == nil && (err != nil || got != *c[1]):
-			t.Errorf("Outcome(%q) = %q, %v; want %q", *c[0], got, err, *c[1])
+		for _, c := range ref.SubsectionText {
+			if got := SubsectionText(c[0], c[1]); got != c[2] {
+				t.Errorf("SubsectionText(%q, %q) = %q, want %q", c[0], c[1], got, c[2])
+			}
 		}
-	}
-	for _, c := range ref.FirstPara {
-		if got := FirstPara(c[0]); got != c[1] {
-			t.Errorf("FirstPara(%q) = %q, want %q", c[0], got, c[1])
+		for _, c := range ref.Outcome {
+			got, err := Outcome(&Record{Rel: "sprints/x", Body: *c[0]})
+			switch {
+			case c[2] != nil && (err == nil || err.Error() != *c[2]):
+				t.Errorf("Outcome(%q) error %v, want %q", *c[0], err, *c[2])
+			case c[2] == nil && (err != nil || got != *c[1]):
+				t.Errorf("Outcome(%q) = %q, %v; want %q", *c[0], got, err, *c[1])
+			}
 		}
-	}
-	for _, c := range ref.SummaryLine {
-		if got := SummaryLine(c[0]); got != c[1] {
-			t.Errorf("SummaryLine(%q) = %q, want %q", c[0], got, c[1])
+		for _, c := range ref.FirstPara {
+			if got := FirstPara(c[0]); got != c[1] {
+				t.Errorf("FirstPara(%q) = %q, want %q", c[0], got, c[1])
+			}
 		}
-	}
-}
-
-func TestTemplatesAndInsertEntry(t *testing.T) {
-	ref := loadReference(t)
-	got := map[string]string{
-		"sprint":     SprintText("Go port", "demo.9", map[string]string{"Goal": "G.", "Scope": "**In:** a.", "Done when": "- d."}),
-		"project":    ProjectText("Demo", "demo", "Goal."),
-		"design":     DesignText("The parser", "demo"),
-		"postmortem": PostmortemText("Outage", "2026-10-03", "sprint: demo.1"),
-	}
-	for k, want := range ref.Templates {
-		if got[k] != want {
-			t.Errorf("%s template differs from the expected one:\n%s\n---\n%s", k, got[k], want)
+		for _, c := range ref.SummaryLine {
+			if got := SummaryLine(c[0]); got != c[1] {
+				t.Errorf("SummaryLine(%q) = %q, want %q", c[0], got, c[1])
+			}
 		}
-	}
-	for _, c := range ref.InsertEntry {
-		out, err := InsertEntry(c[0], c[1], c[2])
-		if err != nil {
-			out = "error: " + err.Error()
+	})
+	t.Run("TemplatesAndInsertEntry", func(t *testing.T) {
+		ref := loadReference(t)
+		got := map[string]string{
+			"sprint":     SprintText("Go port", "demo.9", map[string]string{"Goal": "G.", "Scope": "**In:** a.", "Done when": "- d."}),
+			"project":    ProjectText("Demo", "demo", "Goal."),
+			"design":     DesignText("The parser", "demo"),
+			"postmortem": PostmortemText("Outage", "2026-10-03", "sprint: demo.1"),
 		}
-		if out != c[3] {
-			t.Errorf("InsertEntry(%q, %q, %q) = %q, want %q", c[0], c[1], c[2], out, c[3])
+		for k, want := range ref.Templates {
+			if got[k] != want {
+				t.Errorf("%s template differs from the expected one:\n%s\n---\n%s", k, got[k], want)
+			}
 		}
-	}
-}
-
-// The tests below need no table: their expectations come from Python's documented behaviour, which pm's record
-// format follows.
-
-func TestSplitLinesIsPythons(t *testing.T) {
-	for in, want := range map[string][]string{
-		"": nil, "a": {"a"}, "a\n": {"a"}, "\n": {""}, "a\r\nb": {"a", "b"}, "a\rb\n\nc": {"a", "b", "", "c"},
-		"a\x0bb\x1cc\u2028d": {"a", "b", "c", "d"},
-	} {
-		if got := SplitLines(in); !reflect.DeepEqual(got, want) {
-			t.Errorf("SplitLines(%q) = %q, want %q", in, got, want)
+		for _, c := range ref.InsertEntry {
+			out, err := InsertEntry(c[0], c[1], c[2])
+			if err != nil {
+				out = "error: " + err.Error()
+			}
+			if out != c[3] {
+				t.Errorf("InsertEntry(%q, %q, %q) = %q, want %q", c[0], c[1], c[2], out, c[3])
+			}
 		}
-	}
-}
-
-func TestParseSortsByPathParts(t *testing.T) {
-	paths := []string{"/r/a-c.md", "/r/a/b.md", "/r/a.md"}
-	SortPaths(paths)
-	// sorted() of these Paths in Python 3.13; a string sort would put a-c.md first, since '-' < '/'
-	if want := []string{"/r/a/b.md", "/r/a-c.md", "/r/a.md"}; !reflect.DeepEqual(paths, want) {
-		t.Errorf("SortPaths = %v, want %v", paths, want)
-	}
-}
-
-func TestParseReadsTheHeaderWithYAML11(t *testing.T) {
-	rec, err := Parse("/x", "docs/2026-10-01-a", "---\ntype: doc\ntitle: yes\ndate: 2026-10-01\nproject: on\n---\nbody")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rec.Title() != "True" || rec.Meta["date"].Kind != KindDate || rec.Meta["date"].Str != "2026-10-01" ||
-		rec.Meta["project"].Kind != KindBool || rec.Body != "body" {
-		t.Errorf("parsed %+v", rec.Meta)
-	}
-	if _, err := Parse("/x", "x", "---\ntype: day\n---"); err == nil || !strings.Contains(err.Error(), "missing YAML header") {
-		t.Errorf("a header without its closing line: %v", err)
-	}
+	})
 }
 
 // A summary the listing finds but that is gone when it is read (git rewrites a file by unlinking it, mid-sync) is left

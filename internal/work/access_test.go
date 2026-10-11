@@ -83,6 +83,35 @@ func TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt(t *testing.T) {
 			t.Errorf("no call of %s found: the scan is broken", name)
 		}
 	}
+
+	// A worktree of the repo inside the checkout (.claude/worktrees/<name>) holds its own copy of every file; the scan
+	// leaves it out, so the access test passes from the main checkout too.
+	t.Run("ModuleGoFilesLeaveOutNestedModulesAndWorktrees", func(t *testing.T) {
+		root := t.TempDir()
+		for _, f := range []string{"go.mod", "a.go", "a_test.go", "sub/b.go", "testdata/c.go", "nested/go.mod", "nested/d.go",
+			".claude/worktrees/x/go.mod", ".claude/worktrees/x/internal/work/host.go", ".claude/settings.go"} {
+			p := filepath.Join(root, f)
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		files, err := moduleGoFiles(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, f := range files {
+			rel, _ := filepath.Rel(root, f)
+			got = append(got, filepath.ToSlash(rel))
+		}
+		sort.Strings(got)
+		if want := []string{".claude/settings.go", "a.go", "sub/b.go"}; strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("module files %v, want %v", got, want)
+		}
+	})
 }
 
 // moduleGoFiles is every non-test Go file of the module at root, as the go command counts it: a directory with a
@@ -109,35 +138,6 @@ func moduleGoFiles(root string) ([]string, error) {
 		return nil
 	})
 	return files, err
-}
-
-// A worktree of the repo inside the checkout (.claude/worktrees/<name>) holds its own copy of every file; the scan
-// leaves it out, so the access test passes from the main checkout too.
-func TestModuleGoFilesLeaveOutNestedModulesAndWorktrees(t *testing.T) {
-	root := t.TempDir()
-	for _, f := range []string{"go.mod", "a.go", "a_test.go", "sub/b.go", "testdata/c.go", "nested/go.mod", "nested/d.go",
-		".claude/worktrees/x/go.mod", ".claude/worktrees/x/internal/work/host.go", ".claude/settings.go"} {
-		p := filepath.Join(root, f)
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, nil, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	files, err := moduleGoFiles(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got []string
-	for _, f := range files {
-		rel, _ := filepath.Rel(root, f)
-		got = append(got, filepath.ToSlash(rel))
-	}
-	sort.Strings(got)
-	if want := []string{".claude/settings.go", "a.go", "sub/b.go"}; strings.Join(got, " ") != strings.Join(want, " ") {
-		t.Errorf("module files %v, want %v", got, want)
-	}
 }
 
 func dedupe(s []string) []string {

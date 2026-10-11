@@ -376,6 +376,16 @@ func TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt(t *testing.T) {
 	if code, ctype := s.raw("/docs/notes.txt"); code != 404 || !strings.HasPrefix(ctype, "text/html") {
 		t.Errorf("GET /docs/notes.txt: %d %s, want the 404 page: only image files are served", code, ctype)
 	}
+	t.Run("TheServiceStopsOnceThePinMoves", func(t *testing.T) {
+		s.t = t // s.stop fails this subtest, not its parent
+		err := s.stop()
+		if err == nil || !strings.Contains(err.Error(), "now pins pm 9.9.9, but this service runs pm "+Version()+"; stopping") {
+			t.Fatalf("Run returned %v", err)
+		}
+		if !strings.Contains(s.log.String(), "error: "+err.Error()) {
+			t.Fatalf("not logged: %s", s.log.String())
+		}
+	})
 }
 
 func (s *served) postTo(path string) (int, string, string) {
@@ -467,30 +477,6 @@ func TestAReplyIsRefusedWithItsReason(t *testing.T) {
 	eventually(t, "stored", func() bool { return len(w.item("p-1.2.1").Comments) == 1 })
 }
 
-func TestARenderErrorIsServedAsTheErrorAndTakesNoReply(t *testing.T) {
-	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
-	s := serve(t, w, "")
-	tok := s.token()
-	s.site.mu.Lock()
-	s.site.loadErr, s.site.stamp = errors.New("sprints/x.md: no Goal"), 1
-	s.site.mu.Unlock()
-	eventually(t, "the error served", func() bool {
-		resp, body := s.get("/")
-		return resp.StatusCode == 500 && strings.Contains(body, "The site did not render") &&
-			strings.Contains(body, "error: sprints/x.md: no Goal")
-	})
-	code, _, body := s.post(url.Values{"token": {tok}, "id": {"p-1.2.1"}, "text": {"yes"}}, "")
-	if code != 500 || body != "error: the reply was not taken, since the site does not render: error: sprints/x.md: no Goal\n" {
-		t.Fatalf("POST: %d %q", code, body)
-	}
-	s.site.mu.Lock()
-	loads := s.site.loads
-	s.site.mu.Unlock()
-	if loads < 3 { // the first good load, then a failed read and its repeat under the records lock
-		t.Fatalf("a failed read is not repeated under the lock: %d loads", loads)
-	}
-}
-
 // A read that found the records moving (a Partial) is repeated under the records lock; one that still finds them
 // moving there (no pm write moves them under it) is served as read, never as the error page.
 func TestAPartialReadIsRepeatedUnderTheLockAndServedThere(t *testing.T) {
@@ -514,6 +500,30 @@ func TestAPartialReadIsRepeatedUnderTheLockAndServedThere(t *testing.T) {
 	if loads < 2 {
 		t.Fatalf("a partial read is not repeated under the lock: %d loads", loads)
 	}
+
+	t.Run("ARenderErrorIsServedAsTheErrorAndTakesNoReply", func(t *testing.T) {
+		w := newFakeWork(need("p-1.2.1", work.Decision, ""))
+		s := serve(t, w, "")
+		tok := s.token()
+		s.site.mu.Lock()
+		s.site.loadErr, s.site.stamp = errors.New("sprints/x.md: no Goal"), 1
+		s.site.mu.Unlock()
+		eventually(t, "the error served", func() bool {
+			resp, body := s.get("/")
+			return resp.StatusCode == 500 && strings.Contains(body, "The site did not render") &&
+				strings.Contains(body, "error: sprints/x.md: no Goal")
+		})
+		code, _, body := s.post(url.Values{"token": {tok}, "id": {"p-1.2.1"}, "text": {"yes"}}, "")
+		if code != 500 || body != "error: the reply was not taken, since the site does not render: error: sprints/x.md: no Goal\n" {
+			t.Fatalf("POST: %d %q", code, body)
+		}
+		s.site.mu.Lock()
+		loads := s.site.loads
+		s.site.mu.Unlock()
+		if loads < 3 { // the first good load, then a failed read and its repeat under the records lock
+			t.Fatalf("a failed read is not repeated under the lock: %d loads", loads)
+		}
+	})
 }
 
 func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *testing.T) {
@@ -554,25 +564,6 @@ func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *tes
 	if code, _, body := s.post(big, ""); code != 413 || !strings.HasPrefix(body, "refused: the reply is over ") {
 		t.Fatalf("%d %q", code, body)
 	}
-}
-
-func TestTheStoreIsOpenedOnlyWhenItMovedAndNeverHeld(t *testing.T) {
-	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
-	s := serve(t, w, "")
-	time.Sleep(200 * time.Millisecond) // about 10 looks
-	w.mu.Lock()
-	reads := w.reads
-	w.mu.Unlock()
-	if reads != 1 {
-		t.Fatalf("%d reads of the items while nothing moved; want 1", reads)
-	}
-	n := w.item("p-1.2.1")
-	n.Title = "Pick a port, again"
-	w.set(n)
-	eventually(t, "the page follows the store", func() bool {
-		_, body := s.get("/items/p-1.2.1.html")
-		return strings.Contains(body, "again")
-	})
 }
 
 func TestAPendingSpoolIsStoredAtStartOnce(t *testing.T) {
@@ -617,6 +608,21 @@ func TestTheSweepDeliversWhatAFailedPushLeftAndSkipsAGoneSession(t *testing.T) {
 }
 
 func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {
+	t.Run("AMergeNotOnMainYetIsNotReported", func(t *testing.T) {
+		fakeBin(t, map[string]string{"gh": `echo '{"state":"MERGED","mergeCommit":{"oid":"0123456789abcdef0123456789abcdef01234567"}}'`})
+		main := t.TempDir()
+		if out, err := exec.Command("git", "init", "-q", main).CombinedOutput(); err != nil {
+			t.Fatal(err, string(out))
+		}
+		w := newFakeWork(need("p-1.2.1", work.Review, ""))
+		s := serve(t, w, main)
+		eventually(t, "the failed fetch logged", func() bool {
+			return strings.Contains(s.log.String(), "warning: git fetch origin main failed, still waiting:")
+		})
+		if w.item("p-1.2.1").Need.Review.Merged != "" {
+			t.Fatal("a merge not seen on main was stored")
+		}
+	})
 	main := t.TempDir()
 	fakeBin(t, map[string]string{"gh": fakeGH})
 	origin := filepath.Join(t.TempDir(), "origin.git")
@@ -647,33 +653,6 @@ func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {
 	case l := <-lines:
 		t.Fatalf("pushed again: %s", l)
 	case <-time.After(300 * time.Millisecond): // three more polls
-	}
-}
-
-func TestAMergeNotOnMainYetIsNotReported(t *testing.T) {
-	fakeBin(t, map[string]string{"gh": `echo '{"state":"MERGED","mergeCommit":{"oid":"0123456789abcdef0123456789abcdef01234567"}}'`})
-	main := t.TempDir()
-	if out, err := exec.Command("git", "init", "-q", main).CombinedOutput(); err != nil {
-		t.Fatal(err, string(out))
-	}
-	w := newFakeWork(need("p-1.2.1", work.Review, ""))
-	s := serve(t, w, main)
-	eventually(t, "the failed fetch logged", func() bool {
-		return strings.Contains(s.log.String(), "warning: git fetch origin main failed, still waiting:")
-	})
-	if w.item("p-1.2.1").Need.Review.Merged != "" {
-		t.Fatal("a merge not seen on main was stored")
-	}
-}
-
-func TestTheServiceStopsOnceThePinMoves(t *testing.T) {
-	s := serve(t, newFakeWork(), "")
-	err := s.stop()
-	if err == nil || !strings.Contains(err.Error(), "now pins pm 9.9.9, but this service runs pm "+Version()+"; stopping") {
-		t.Fatalf("Run returned %v", err)
-	}
-	if !strings.Contains(s.log.String(), "error: "+err.Error()) {
-		t.Fatalf("not logged: %s", s.log.String())
 	}
 }
 

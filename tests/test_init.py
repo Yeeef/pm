@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import tomllib
@@ -86,18 +87,23 @@ def commands(data: dict, event: str) -> list[str]:
     return [h["command"] for g in data["hooks"].get(event, []) for h in g["hooks"]]
 
 
-@pytest.fixture
-def new_repo(tmp_path: Path) -> Path:
-    """A brand-new repo: one commit on main, pushed to an empty bare remote; no .beads/, no records branch."""
-    git(tmp_path, "init", "-q", "--bare", "remote.git")
-    repo = tmp_path / "repo"
-    git(tmp_path, "init", "-q", "-b", "main", str(repo))
+def brand_new_repo(tmp: Path) -> Path:
+    """A brand-new repo under `tmp`: one commit on main, pushed to an empty bare remote; no .beads/, no records
+    branch."""
+    git(tmp, "init", "-q", "--bare", "remote.git")
+    repo = tmp / "repo"
+    git(tmp, "init", "-q", "-b", "main", str(repo))
     (repo / "README.md").write_text("hello\n")
     git(repo, "add", "README.md")
     git(repo, "commit", "-qm", "first")
-    git(repo, "remote", "add", "origin", str(tmp_path / "remote.git"))
+    git(repo, "remote", "add", "origin", str(tmp / "remote.git"))
     git(repo, "push", "-q", "-u", "origin", "main")
     return repo
+
+
+@pytest.fixture
+def new_repo(tmp_path: Path) -> Path:
+    return brand_new_repo(tmp_path)
 
 
 def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
@@ -208,19 +214,19 @@ def existing(tmp_path: Path) -> Path:
     return tmp_path / "clone"
 
 
-def test_init_refuses_before_writing_anything(new_repo: Path, tmp_path: Path):
-    """A refusal comes before pm writes anything: the repo is left as it was."""
+def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, tmp_path: Path):
+    """PORT names a port a server that is not pm holds: pm init refuses before the work store, the records branch or any
+    file, and names a free port; without PORT a new repo's config gets that first free port from 8000 up."""
+    # folded: test_init_refuses_before_writing_anything
+    # a refusal comes before pm writes anything: the repo is left as it was
     (new_repo / ".claude").mkdir()
     (new_repo / ".claude/settings.json").write_text(json.dumps(USER_SETTINGS))
     head, before = git(new_repo, "rev-parse", "HEAD"), snapshot(new_repo)
     res = pm(new_repo, "init")
     assert res.returncode != 0 and ".claude/settings.json is not laid out as pm writes JSON" in res.stderr, res.stderr
     assert snapshot(new_repo) == before and git(new_repo, "rev-parse", "HEAD") == head
+    shutil.rmtree(new_repo / ".claude")
 
-
-def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, tmp_path: Path):
-    """PORT names a port a server that is not pm holds: pm init refuses before the work store, the records branch or any
-    file, and names a free port; without PORT a new repo's config gets that first free port from 8000 up."""
     with socket.socket() as held:
         held.bind(("127.0.0.1", 0))
         held.listen()

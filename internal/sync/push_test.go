@@ -63,6 +63,23 @@ func TestARunRecordsEachStepAndFlagsAFailure(t *testing.T) {
 	if len(flags) != 3 || !strings.HasPrefix(flags[0], "work push overdue: last successful push 2026-10-08T10:00:00+00:00, 31 min ago (the pm service pushes every 10 min)") {
 		t.Fatal(flags)
 	}
+	t.Run("ASecondRunSkipsWhileOneHoldsTheLock", func(t *testing.T) {
+		main := t.TempDir()
+		release := make(chan struct{})
+		started := make(chan struct{})
+		first := make(chan struct{})
+		go func() {
+			Push(main, []Step{{"work", func() (bool, string) { close(started); <-release; return true, "" }}})
+			close(first)
+		}()
+		<-started
+		code, out, err := Push(main, nil)
+		close(release)
+		<-first
+		if code != 0 || out != "another pm push holds the lock; skipped" || err != nil {
+			t.Fatal(code, out, err)
+		}
+	})
 }
 
 func TestANeverSuccessfulPushIsOverdueFromTheInstall(t *testing.T) {
@@ -79,24 +96,6 @@ func TestANeverSuccessfulPushIsOverdueFromTheInstall(t *testing.T) {
 	flags, _ := Flags(main, "", "origin")
 	if len(flags) != 3 || !strings.HasPrefix(flags[2], "records push overdue: no successful push since 2026-10-08T10:00:00+00:00, 60 min ago") {
 		t.Fatal(flags)
-	}
-}
-
-func TestASecondRunSkipsWhileOneHoldsTheLock(t *testing.T) {
-	main := t.TempDir()
-	release := make(chan struct{})
-	started := make(chan struct{})
-	first := make(chan struct{})
-	go func() {
-		Push(main, []Step{{"work", func() (bool, string) { close(started); <-release; return true, "" }}})
-		close(first)
-	}()
-	<-started
-	code, out, err := Push(main, nil)
-	close(release)
-	<-first
-	if code != 0 || out != "another pm push holds the lock; skipped" || err != nil {
-		t.Fatal(code, out, err)
 	}
 }
 

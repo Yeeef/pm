@@ -34,67 +34,101 @@ func slotStore(t *testing.T, ops Ops) (*served, Item) {
 	return s, p
 }
 
-// A collection that held the slot waited for every command in CALL pm_sync() or pm_create(), each waiting for the
-// slot: a deadlock until the collection's timeout. Outside the slot, each collection racing such calls in a loop
-// finishes at once and succeeds.
-func TestGCRacingSyncsAndCreatesFinishesPromptly(t *testing.T) {
-	s, p := slotStore(t, Ops{Sync: func(c context.Context, d *Dolt) ([]string, error) {
-		_, _, err := d.Remote()
-		return []string{"ok"}, err
-	}})
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var errs []string
-	loop := func(call func(i int) error) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; ; i++ {
-				select {
-				case <-stop:
-					return
-				default:
-				}
-				if err := call(i); err != nil {
-					mu.Lock()
-					errs = append(errs, err.Error())
-					mu.Unlock()
-				}
-			}
-		}()
-	}
-	syncer, creator := s.dial(t), s.dial(t)
-	loop(func(int) error { _, err := syncer.CallSync(); return err })
-	loop(func(i int) error {
-		_, err := creator.Create(New{Type: Task, Parent: p.ID, Title: fmt.Sprint("C", i)})
-		return err
-	})
-	var slowest time.Duration
-	for range 10 {
-		c, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		start := time.Now()
-		err := s.h.GC(c)
-		cancel()
-		slowest = max(slowest, time.Since(start))
-		if err != nil {
-			t.Errorf("gc: %v", err)
-		}
-	}
-	close(stop)
-	wg.Wait()
-	for _, e := range errs {
-		t.Errorf("a call racing the collections: %s", e)
-	}
-	if slowest > 5*time.Second {
-		t.Errorf("the slowest of 10 collections took %s", slowest)
-	}
-	t.Logf("10 collections racing pm_sync and pm_create calls; the slowest took %s", slowest.Round(time.Millisecond))
-}
-
 // An operation that outlasts its bound is stopped and frees the slot; a caller waiting behind it gives up at its own
 // bound, naming what holds the slot, and writes nothing.
 func TestAnOperationOutlastingItsBoundFreesTheSlotAndAWaiterGivesUp(t *testing.T) {
+	// A collection that held the slot waited for every command in CALL pm_sync() or pm_create(), each waiting for the
+	// slot: a deadlock until the collection's timeout. Outside the slot, each collection racing such calls in a loop
+	// finishes at once and succeeds.
+	t.Run("GCRacingSyncsAndCreatesFinishesPromptly", func(t *testing.T) {
+		s, p := slotStore(t, Ops{Sync: func(c context.Context, d *Dolt) ([]string, error) {
+			_, _, err := d.Remote()
+			return []string{"ok"}, err
+		}})
+		stop := make(chan struct{})
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var errs []string
+		loop := func(call func(i int) error) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for i := 0; ; i++ {
+					select {
+					case <-stop:
+						return
+					default:
+					}
+					if err := call(i); err != nil {
+						mu.Lock()
+						errs = append(errs, err.Error())
+						mu.Unlock()
+					}
+				}
+			}()
+		}
+		syncer, creator := s.dial(t), s.dial(t)
+		loop(func(int) error { _, err := syncer.CallSync(); return err })
+		loop(func(i int) error {
+			_, err := creator.Create(New{Type: Task, Parent: p.ID, Title: fmt.Sprint("C", i)})
+			return err
+		})
+		var slowest time.Duration
+		for range 10 {
+			c, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			start := time.Now()
+			err := s.h.GC(c)
+			cancel()
+			slowest = max(slowest, time.Since(start))
+			if err != nil {
+				t.Errorf("gc: %v", err)
+			}
+		}
+		close(stop)
+		wg.Wait()
+		for _, e := range errs {
+			t.Errorf("a call racing the collections: %s", e)
+		}
+		if slowest > 5*time.Second {
+			t.Errorf("the slowest of 10 collections took %s", slowest)
+		}
+		t.Logf("10 collections racing pm_sync and pm_create calls; the slowest took %s", slowest.Round(time.Millisecond))
+	})
+
+	// A fetch that hangs (a remote whose transport never answers) ends at the sync's bound: the git Dolt runs is killed
+	// under the operation's context, and the slot is free for the next caller.
+	t.Run("AHungFetchEndsAtTheSyncsBound", func(t *testing.T) {
+		syncT := SyncTimeout
+		SyncTimeout = time.Second
+		t.Cleanup(func() { SyncTimeout = syncT })
+		// ssh to the remote never answers: it reads until git, killed at the bound, closes its end (true takes git's
+		// arguments), so nothing outlives the test
+		t.Setenv("GIT_SSH_COMMAND", "cat > /dev/null; true")
+		s := host(t, shortMain(t), Options{Prefix: "demo"}, Ops{Sync: func(c context.Context, d *Dolt) ([]string, error) {
+			r, err := d.SyncContext(c)
+			return []string{fmt.Sprint(r)}, err
+		}})
+		d, err := dial(s.h.sock, dialConfig{prefix: "demo"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer d.Shutdown()
+		if err := d.CreateStore(); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.AddRemote("git@example.invalid:never.git"); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 { // the second finds the slot free
+			start := time.Now()
+			_, err := d.CallSync()
+			if took := time.Since(start); err == nil || !strings.Contains(err.Error(), "the sync did not finish within 1s") ||
+				took > 5*time.Second {
+				t.Fatalf("a sync on a hung remote after %s: %v", took, err)
+			}
+		}
+	})
+
 	syncT, createT := SyncTimeout, CreateTimeout
 	SyncTimeout, CreateTimeout = 2*time.Second, 300*time.Millisecond
 	t.Cleanup(func() { SyncTimeout, CreateTimeout = syncT, createT })
@@ -133,39 +167,5 @@ func TestAnOperationOutlastingItsBoundFreesTheSlotAndAWaiterGivesUp(t *testing.T
 	CreateTimeout = createT
 	if _, err := d.Create(New{Type: Task, Parent: p.ID, Title: "after"}); err != nil {
 		t.Fatalf("the slot stayed taken: %v", err)
-	}
-}
-
-// A fetch that hangs (a remote whose transport never answers) ends at the sync's bound: the git Dolt runs is killed
-// under the operation's context, and the slot is free for the next caller.
-func TestAHungFetchEndsAtTheSyncsBound(t *testing.T) {
-	syncT := SyncTimeout
-	SyncTimeout = time.Second
-	t.Cleanup(func() { SyncTimeout = syncT })
-	// ssh to the remote never answers: it reads until git, killed at the bound, closes its end (true takes git's
-	// arguments), so nothing outlives the test
-	t.Setenv("GIT_SSH_COMMAND", "cat > /dev/null; true")
-	s := host(t, shortMain(t), Options{Prefix: "demo"}, Ops{Sync: func(c context.Context, d *Dolt) ([]string, error) {
-		r, err := d.SyncContext(c)
-		return []string{fmt.Sprint(r)}, err
-	}})
-	d, err := dial(s.h.sock, dialConfig{prefix: "demo"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Shutdown()
-	if err := d.CreateStore(); err != nil {
-		t.Fatal(err)
-	}
-	if err := d.AddRemote("git@example.invalid:never.git"); err != nil {
-		t.Fatal(err)
-	}
-	for range 2 { // the second finds the slot free
-		start := time.Now()
-		_, err := d.CallSync()
-		if took := time.Since(start); err == nil || !strings.Contains(err.Error(), "the sync did not finish within 1s") ||
-			took > 5*time.Second {
-			t.Fatalf("a sync on a hung remote after %s: %v", took, err)
-		}
 	}
 }

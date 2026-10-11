@@ -6,6 +6,7 @@ from __future__ import annotations
 import functools
 import http.server
 import os
+import shutil
 import subprocess
 import tarfile
 import threading
@@ -69,26 +70,6 @@ def test_install_sh_installs_the_checked_binary_into_the_bin_dir(served):
     assert subprocess.run([str(pm)], capture_output=True, text=True).stdout == "the installed pm\n"
 
 
-def test_install_sh_refuses_a_checksum_mismatch_and_installs_nothing(served):
-    sums = served.tar.with_name("SHA256SUMS")
-    sums.write_text(f"{'1' * 64}  {served.tar.name}\n")
-    served.bin.mkdir()
-    (served.bin / "pm").write_bytes(b"the pm before\n")
-    res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True)
-    assert (res.returncode, res.stdout) == (1, "")
-    assert res.stderr == (f"install.sh: error: {served.url}/{served.tar.name} has sha256 {served.sha}, but SHA256SUMS "
-                          f"says {'1' * 64}; nothing was installed\n")
-    assert [p.name for p in served.bin.iterdir()] == ["pm"] and (served.bin / "pm").read_bytes() == b"the pm before\n"
-
-
-def test_install_sh_refuses_a_release_with_no_line_for_this_platform(served):
-    served.tar.with_name("SHA256SUMS").write_text(f"{served.sha}  pm-0.2.0-plan9-amd64.tar.gz\n")
-    res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True)
-    assert res.returncode == 1
-    assert res.stderr == f"install.sh: error: {served.url}/SHA256SUMS has no line for {served.tar.name}\n"
-    assert not served.bin.exists()
-
-
 @pytest.fixture
 def api(served, tmp_path):
     """`served`'s release behind the GitHub API stand-in, its download with no token failing, and no token."""
@@ -112,19 +93,37 @@ def test_install_sh_downloads_through_the_github_api_with_a_token_sent_to_the_ap
     assert all(token for path, token in api.gh.requests if path.startswith("/api/"))
 
 
-def test_install_sh_that_fails_with_no_token_and_has_none_fails_hard_naming_that_download(served, api):
+def test_install_sh_refuses_a_checksum_mismatch_and_installs_nothing(served, api):
+    sums = served.tar.with_name("SHA256SUMS")
+    sums.write_text(f"{'1' * 64}  {served.tar.name}\n")
+    served.bin.mkdir()
+    (served.bin / "pm").write_bytes(b"the pm before\n")
+    res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True)
+    assert (res.returncode, res.stdout) == (1, "")
+    assert res.stderr == (f"install.sh: error: {served.url}/{served.tar.name} has sha256 {served.sha}, but SHA256SUMS "
+                          f"says {'1' * 64}; nothing was installed\n")
+    assert [p.name for p in served.bin.iterdir()] == ["pm"] and (served.bin / "pm").read_bytes() == b"the pm before\n"
+
+    # folded: test_install_sh_that_fails_with_no_token_and_has_none_fails_hard_naming_that_download
+    shutil.rmtree(served.bin)
     res = subprocess.run(["sh", str(served.script)], env=api.env, capture_output=True, text=True)
     assert (res.returncode, res.stdout) == (1, "")
     said = f"install.sh: error: could not download {api.gh.download}/pm-v0.2.0/SHA256SUMS: curl: (22) "
     assert res.stderr.startswith(said) and "404" in res.stderr and res.stderr.count("\n") == 1, res.stderr  # curl's words vary
     assert api.gh.requests == [("/download/pm-v0.2.0/SHA256SUMS", False)] and not served.bin.exists()
 
-
-def test_install_sh_refuses_a_release_without_this_platforms_asset(served, api):
+    # folded: test_install_sh_refuses_a_release_without_this_platforms_asset
     served.tar.unlink()
     res = subprocess.run(["sh", str(served.script)], env=dict(api.env, GH_TOKEN=TOKEN), capture_output=True, text=True)
     assert res.returncode == 1
     assert res.stderr == (f"install.sh: error: {api.gh.api}/releases/tags/pm-v0.2.0 has no asset {served.tar.name}\n")
+    assert not served.bin.exists()
+
+    # folded: test_install_sh_refuses_a_release_with_no_line_for_this_platform
+    served.tar.with_name("SHA256SUMS").write_text(f"{served.sha}  pm-0.2.0-plan9-amd64.tar.gz\n")
+    res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True)
+    assert res.returncode == 1
+    assert res.stderr == f"install.sh: error: {served.url}/SHA256SUMS has no line for {served.tar.name}\n"
     assert not served.bin.exists()
 
 

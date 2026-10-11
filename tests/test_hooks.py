@@ -74,40 +74,41 @@ def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("tracked", [False, True], ids=["no-records", "branch-tracks-a-copy"])
-def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo, tracked):
+def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo):
     """Claude Code's worktrees: added with --no-checkout, then reset, so git never runs post-checkout. A branch that
     tracks a copy of records/ (cut from a main branch that still carried an earlier pm's copy) gets that copy where the
     link goes: session start leaves it, and pm init and pm where say to merge the main branch."""
-    if tracked:
-        repo.records.unlink()
-        (repo.records / "sprints").mkdir(parents=True)
-        (repo.records / "sprints/demo-1.md").write_text("copy\n")
-        repo.git("add", "-f", "records")
-        repo.git("commit", "-qm", "copy records")
-        shutil.rmtree(repo.records)
-        repo.records.symlink_to(repo.store)
-    wt = repo.root.parent / "bridge"
-    repo.git("worktree", "add", "-q", "--no-checkout", "-b", "bridge", str(wt))
-    repo.git("reset", "-q", "--hard", cwd=wt)
-    assert (wt / "records").is_dir() == tracked and not (wt / "records").is_symlink()
     init_ready(repo)
-    text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt))
-    assert repo.git("status", "--porcelain", cwd=wt) == ""
-    assert repo.git("config", "--get", "--default=", "core.sparseCheckout", cwd=wt).strip() == ""
-    ran, located, rest = text.split("\n\n", 2)
-    if tracked:
-        assert (wt / "records/sprints/demo-1.md").read_text() == "copy\n", "the tracked copy is left as it is"
-        assert (f"{wt / 'records'} is this branch's tracked copy of records/, not the link to {repo.store}; merge the "
-                "main branch, which tracks none, then run pm init again") in ran, ran
-        assert (f"checkout  {wt}  branch bridge, records/ is this branch's tracked copy, not the link; merge the main "
-                "branch, which tracks none, then run pm init") in located, located
-        return
-    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve(), text
-    assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
-    assert f"checkout  {wt}  branch bridge, records link set up" in located
-    assert rest.startswith("Project state from `pm show` at session start, ")
-    assert "decision .1.2  Ask the owner  (sprint 1)" in rest
+    for tracked, name in ((False, "bridge"), (True, "copy")):
+        if tracked:
+            # folded: test_session_start_sets_up_a_worktree_post_checkout_skipped
+            repo.records.unlink()
+            (repo.records / "sprints").mkdir(parents=True)
+            (repo.records / "sprints/demo-1.md").write_text("copy\n")
+            repo.git("add", "-f", "records")
+            repo.git("commit", "-qm", "copy records")
+            shutil.rmtree(repo.records)
+            repo.records.symlink_to(repo.store)
+        wt = repo.root.parent / name
+        repo.git("worktree", "add", "-q", "--no-checkout", "-b", name, str(wt))
+        repo.git("reset", "-q", "--hard", cwd=wt)
+        assert (wt / "records").is_dir() == tracked and not (wt / "records").is_symlink()
+        text = context_of(run(STATE, {"hook_event_name": "SessionStart", "cwd": str(wt)}, repo.env, wt))
+        assert repo.git("status", "--porcelain", cwd=wt) == ""
+        assert repo.git("config", "--get", "--default=", "core.sparseCheckout", cwd=wt).strip() == ""
+        ran, located, rest = text.split("\n\n", 2)
+        if tracked:
+            assert (wt / "records/sprints/demo-1.md").read_text() == "copy\n", "the tracked copy is left as it is"
+            assert (f"{wt / 'records'} is this branch's tracked copy of records/, not the link to {repo.store}; merge "
+                    "the main branch, which tracks none, then run pm init again") in ran, ran
+            assert (f"checkout  {wt}  branch {name}, records/ is this branch's tracked copy, not the link; merge the "
+                    "main branch, which tracks none, then run pm init") in located, located
+            continue
+        assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve(), text
+        assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
+        assert f"checkout  {wt}  branch {name}, records link set up" in located
+        assert rest.startswith("Project state from `pm show` at session start, ")
+        assert "decision .1.2  Ask the owner  (sprint 1)" in rest
 
 
 @pytest.mark.integration
@@ -142,7 +143,7 @@ def test_session_start_fails_open_with_one_line(repo):
     assert shown.startswith("pm show failed at session start (") and "\n" not in shown
 
 
-def test_prime_lists_every_agent_command_pm_help_lists(repo):
+def test_prime_lists_every_agent_command_pm_help_lists(repo, tmp_path):
     """pm prime's last line names every noun pm --help lists but the runtimes' and the scheduler's (MACHINERY), in its
     order; prime.md points at --help for the rest."""
     last = head().split("\n")[-1]
@@ -151,6 +152,20 @@ def test_prime_lists_every_agent_command_pm_help_lists(repo):
     listed = re.findall(r"`(\w+)`", last[len("`pm` nouns: "):])
     assert listed == [n for n in nouns() if n not in MACHINERY] and "show" in listed and "prime" not in listed
     assert "for more, run `pm <noun> [cmd] --help`." in rules()  # the pointer the compact list relies on
+
+    # folded: test_subagent_start_envelope
+    # the rules chunks and the git line, each a SubagentStart envelope; no pm show
+    bare = tmp_path / "bare"
+    subprocess.run(["git", "init", "-q", str(bare)], check=True)
+    write_config(bare)
+    (bare / "bin").mkdir()
+    (bare / "bin/git").symlink_to(shutil.which("git"))
+    event = {"hook_event_name": "SubagentStart", "cwd": str(bare)}
+    env = {"PATH": str(bare / "bin")}  # git for pm's config check
+    text = context_of(run(SUBAGENT, event, env, bare), "SubagentStart")
+    assert text == SUBAGENT_RULE
+    got = [context_of(run(rules_cmd(n), event, env, bare), "SubagentStart") for n in range(1, len(RULE_STARTS) + 1)]
+    assert got == chunks() and all(len(c) <= CAP for c in got)
 
 
 def test_pm_init_is_the_one_install_command():
@@ -175,20 +190,6 @@ def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
     assert "What — 1. The layers" in titles[0] and "What — 3. Records" in titles[1] and "How; Commands" in titles[2]
 
 
-def test_subagent_start_envelope(tmp_path):
-    """The rules chunks and the git line, each a SubagentStart envelope; no pm show."""
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    write_config(tmp_path)
-    (tmp_path / "bin").mkdir()
-    (tmp_path / "bin/git").symlink_to(shutil.which("git"))
-    event = {"hook_event_name": "SubagentStart", "cwd": str(tmp_path)}
-    env = {"PATH": str(tmp_path / "bin")}  # git for pm's config check
-    text = context_of(run(SUBAGENT, event, env, tmp_path), "SubagentStart")
-    assert text == SUBAGENT_RULE
-    got = [context_of(run(rules_cmd(n), event, env, tmp_path), "SubagentStart") for n in range(1, len(RULE_STARTS) + 1)]
-    assert got == chunks() and all(len(c) <= CAP for c in got)
-
-
 # ---------------------------------------------------------------- uncommitted records
 
 
@@ -204,27 +205,6 @@ def claude_transcript(path, *tool_inputs):
 def edit_sprint(repo):
     (repo.store / "sprints/demo-1.md").write_text(
         (repo.store / "sprints/demo-1.md").read_text().replace("Ship it.", "Ship it soon."))
-
-
-def test_stop_blocks_on_a_record_this_session_edited(repo, tmp_path):
-    edit_sprint(repo)
-    t = claude_transcript(tmp_path / "t.jsonl", {"file_path": str(repo.records / "sprints/demo-1.md")})
-    res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": False}, repo.env, repo.root)
-    out = json.loads(res.stdout)
-    assert out["decision"] == "block"
-    assert "- records/sprints/demo-1.md" in out["reason"] and "pm commit -m" in out["reason"]
-
-
-def test_stop_passes_another_sessions_edit(repo, tmp_path):
-    """A dirty record no tool call of this session names is another session's; a path only in a tool result (here
-    the user's text) does not count either."""
-    edit_sprint(repo)
-    t = tmp_path / "t.jsonl"
-    t.write_text(json.dumps({"type": "user", "message": {"content": "git status: sprints/demo-1.md"}}) + "\n")
-    claude_transcript(tmp_path / "other.jsonl", {"file_path": str(repo.records / "sprints/demo-2.md")})
-    t.write_text(t.read_text() + (tmp_path / "other.jsonl").read_text())
-    res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(t)}, repo.env, repo.root)
-    assert res.returncode == 0 and res.stdout == ""
 
 
 def subagent_lines(path, prompt, done):
@@ -243,29 +223,44 @@ def subagent_lines(path, prompt, done):
     return [json.dumps(l) for l in lines]
 
 
-@pytest.mark.parametrize("done", [False, True])
-@pytest.mark.parametrize("own_edit", [False, True])
-def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tmp_path, done, own_edit):
+def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tmp_path):
     """A subagent shares its session's id, and the parent's transcript holds only its prompt: a path that prompt alone
     names is the running subagent's to commit. Once it returns, or when the session's own tool call names the path too,
     the path is the session's."""
     edit_sprint(repo)
     path = str(repo.records / "sprints/demo-1.md")
-    lines = subagent_lines(tmp_path, f"Write the frame in {path} and commit it.", done)
-    if own_edit:
-        lines.append(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
-            {"type": "tool_use", "id": "toolu_e1", "name": "Edit", "input": {"file_path": path}}]}}))
-    (tmp_path / "t.jsonl").write_text("\n".join(lines) + "\n")
-    res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(tmp_path / "t.jsonl")}, repo.env, repo.root)
-    assert res.returncode == 0, res.stderr
-    if done or own_edit:
-        assert json.loads(res.stdout)["decision"] == "block" and "- records/sprints/demo-1.md" in res.stdout
-    else:
-        assert res.stdout == ""
+    # folded: test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names (its other three cases)
+    for done, own_edit in ((True, True), (False, False), (False, True), (True, False)):
+        lines = subagent_lines(tmp_path, f"Write the frame in {path} and commit it.", done)
+        if own_edit:
+            lines.append(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "toolu_e1", "name": "Edit", "input": {"file_path": path}}]}}))
+        (tmp_path / "t.jsonl").write_text("\n".join(lines) + "\n")
+        res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(tmp_path / "t.jsonl")}, repo.env, repo.root)
+        assert res.returncode == 0, res.stderr
+        if done or own_edit:
+            assert json.loads(res.stdout)["decision"] == "block" and "- records/sprints/demo-1.md" in res.stdout
+        else:
+            assert res.stdout == ""
 
-
-def test_stop_passes_when_stop_hook_active(repo, tmp_path):
-    edit_sprint(repo)
+    # folded: test_stop_passes_when_stop_hook_active
     t = claude_transcript(tmp_path / "t.jsonl", {"command": "sed -i '' s/a/b/ records/sprints/demo-1.md"})
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": True}, repo.env, repo.root)
+    assert res.returncode == 0 and res.stdout == ""
+
+    # folded: test_stop_blocks_on_a_record_this_session_edited
+    t = claude_transcript(tmp_path / "t.jsonl", {"file_path": str(repo.records / "sprints/demo-1.md")})
+    res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": False}, repo.env, repo.root)
+    out = json.loads(res.stdout)
+    assert out["decision"] == "block"
+    assert "- records/sprints/demo-1.md" in out["reason"] and "pm commit -m" in out["reason"]
+
+    # folded: test_stop_passes_another_sessions_edit
+    # A dirty record no tool call of this session names is another session's; a path only in a tool result (here
+    # the user's text) does not count either.
+    t = tmp_path / "t.jsonl"
+    t.write_text(json.dumps({"type": "user", "message": {"content": "git status: sprints/demo-1.md"}}) + "\n")
+    claude_transcript(tmp_path / "other.jsonl", {"file_path": str(repo.records / "sprints/demo-2.md")})
+    t.write_text(t.read_text() + (tmp_path / "other.jsonl").read_text())
+    res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(t)}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == ""

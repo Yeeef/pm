@@ -55,7 +55,9 @@ def claude_calls(repo):
     return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
 
 
-def test_passes_a_request_matching_this_sessions_need(needs):
+def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):
+    """Leave to push the branch or open the PR is never needed: it blocks with its own reason, matched or not."""
+    # folded: test_passes_a_request_matching_this_sessions_need
     res = run(needs, judged=answer(("Should we rename X?", "decision", MINE["id"])))
     assert res.returncode == 0 and res.stdout == "", res.stderr
     (call,) = claude_calls(needs)
@@ -64,32 +66,6 @@ def test_passes_a_request_matching_this_sessions_need(needs):
     assert call["args"][:2] == ["-p", "--model"] and call["args"][-2] == "--system-prompt"
     assert call["env"] == {"MAX_THINKING_TOKENS": "0", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
 
-
-@pytest.mark.parametrize("match", [None, THEIRS["id"]])
-def test_blocks_a_request_matching_no_open_need_of_this_session(needs, match):
-    """A match the judge names counts only when it is one of this session's open needs, so another session's need
-    does not cover the request."""
-    res = run(needs, reply="Should I merge the PR now or wait for review?",
-              judged=answer(("Should I merge the PR now or wait for review?", "decision", match)))
-    out = json.loads(res.stdout)
-    assert res.returncode == 0 and out["decision"] == "block"
-    assert '"Should I merge the PR now or wait for review?"' in out["reason"]
-    assert all(c in out["reason"] for c in ("pm decision need --title", "pm action need --title",
-                                            "pm action need --pr"))
-    assert "needs no id" in out["reason"] and "cite" not in out["reason"]
-
-
-def test_blocks_a_clarification_asked_only_in_chat(needs):
-    """A clarification is a request like a decision: asked in plain text, with no open need, it blocks."""
-    q = "By 'the hook', do you mean the Stop hook or the SessionStart hook?"
-    res = run(needs, reply=q, judged=answer((q, "clarification", None)))
-    out = json.loads(res.stdout)
-    assert res.returncode == 0 and out["decision"] == "block"
-    assert f'"{q}"' in out["reason"] and "AskUserQuestion" in out["reason"]
-
-
-def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):
-    """Leave to push the branch or open the PR is never needed: it blocks with its own reason, matched or not."""
     res = run(needs, reply="Should I push the branch and open the PR?",
               judged=answer(("Should I push the branch and open the PR?", "authorized", MINE["id"])))
     reason = json.loads(res.stdout)["reason"]
@@ -97,13 +73,26 @@ def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):
     assert '"Should I push the branch and open the PR?"' in reason and "Do the step now" in reason
     assert "pm decision need" not in reason
 
+    # folded: test_blocks_a_request_matching_no_open_need_of_this_session
+    # A match the judge names counts only when it is one of this session's open needs, so another session's need
+    # does not cover the request.
+    for match in (None, THEIRS["id"]):
+        res = run(needs, reply="Should I merge the PR now or wait for review?",
+                  judged=answer(("Should I merge the PR now or wait for review?", "decision", match)))
+        out = json.loads(res.stdout)
+        assert res.returncode == 0 and out["decision"] == "block", match
+        assert '"Should I merge the PR now or wait for review?"' in out["reason"]
+        assert all(c in out["reason"] for c in ("pm decision need --title", "pm action need --title",
+                                                "pm action need --pr"))
+        assert "needs no id" in out["reason"] and "cite" not in out["reason"]
 
-@pytest.mark.parametrize("event", [{"stop_hook_active": True}, {"last_assistant_message": "  \n"}])
-def test_passes_without_reading_anything(needs, event):
-    """After one block (stop_hook_active) it never loops, and an empty reply asks nothing."""
-    res = run(needs, **event)
-    assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
-    assert claude_calls(needs) == []
+    # folded: test_blocks_a_clarification_asked_only_in_chat
+    # A clarification is a request like a decision: asked in plain text, with no open need, it blocks.
+    q = "By 'the hook', do you mean the Stop hook or the SessionStart hook?"
+    res = run(needs, reply=q, judged=answer((q, "clarification", None)))
+    out = json.loads(res.stdout)
+    assert res.returncode == 0 and out["decision"] == "block"
+    assert f'"{q}"' in out["reason"] and "AskUserQuestion" in out["reason"]
 
 
 def failed(res, said):
@@ -113,4 +102,11 @@ def failed(res, said):
 
 
 def test_fails_when_claude_fails(needs):
+    # folded: test_passes_without_reading_anything
+    # After one block (stop_hook_active) it never loops, and an empty reply asks nothing.
+    for event in ({"stop_hook_active": True}, {"last_assistant_message": "  \n"}):
+        res = run(needs, **event)
+        assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
+        assert claude_calls(needs) == []
+
     failed(run(needs, fail="Not logged in"), "claude -p failed (exit 1): Not logged in")

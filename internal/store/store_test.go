@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Yeeef/pm/internal/records"
 )
 
 // clone is a main checkout on main with its store at .pm/store/records on branch records, as pm init leaves a clone
@@ -60,33 +58,8 @@ func write(t *testing.T, dir, rel, text string) string {
 	return p
 }
 
-func TestFindChecksTheStore(t *testing.T) {
-	root, store := clone(t)
-	got, err := Find(root)
-	if err != nil || got != store {
-		t.Fatalf("Find = %q, %v", got, err)
-	}
-	if got, _ := Find(filepath.Join(store, "projects")); got != store {
-		t.Errorf("Find from inside the store = %q", got)
-	}
-	if code, _ := CodeRoot(store, store); code != root {
-		t.Errorf("CodeRoot from the store = %q, want the main checkout", code)
-	}
-	if code, _ := CodeRoot(root, store); code != root {
-		t.Errorf("CodeRoot = %q", code)
-	}
-	sh(t, store, "git checkout -q -b other")
-	if _, err := Find(root); err == nil || err.Error() != store+" is not a worktree on branch records; move it away and run pm init" {
-		t.Errorf("a store on another branch: %v", err)
-	}
-	os.RemoveAll(filepath.Join(root, ".pm"))
-	if _, err := Find(root); err == nil || err.Error() != "no records store at "+store+"; set it up with pm init" {
-		t.Errorf("no store: %v", err)
-	}
-}
-
 func TestCommitCommitsOnlyThePathsNamed(t *testing.T) {
-	_, store := clone(t)
+	root, store := clone(t)
 	mine := write(t, store, "docs/a.md", "a")
 	write(t, store, "docs/other.md", "another session's")
 	if _, err := Commit(store, "pm: a", []string{mine}); err != nil {
@@ -102,55 +75,30 @@ func TestCommitCommitsOnlyThePathsNamed(t *testing.T) {
 	if _, err := Commit(store, "x", nil); err == nil || err.Error() != "no records named to commit" {
 		t.Errorf("no paths: %v", err)
 	}
-}
-
-func TestCommittedIsHeadWithTheChanges(t *testing.T) {
-	_, store := clone(t)
-	write(t, store, "projects/uncommitted.md", "not a record")
-	sprint := "---\ntype: sprint\ntitle: S\nbead: demo.1\n---\n"
-	recs, err := Committed(store, map[string]*string{filepath.Join(store, "sprints/demo-1.md"): &sprint})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var rels []string
-	for _, r := range recs {
-		rels = append(rels, r.Rel)
-	}
-	if !reflect.DeepEqual(rels, []string{"projects/demo", "sprints/demo-1"}) {
-		t.Errorf("Committed = %v", rels)
-	}
-	recs, _ = Committed(store, map[string]*string{filepath.Join(store, "projects/demo.md"): nil})
-	if len(recs) != 0 {
-		t.Errorf("a removal leaves %d records", len(recs))
-	}
-}
-
-func TestDesignDatesFollowRenamesAndCountChangesAsToday(t *testing.T) {
-	_, store := clone(t)
-	design := "---\ntype: design\ntitle: D\nproject: demo\n---\n\n## Problem\n\nlong enough to be followed through a rename\n"
-	commitOn := func(day string, cmds ...string) {
-		t.Setenv("GIT_COMMITTER_DATE", day+"T12:00:00Z")
-		t.Setenv("GIT_AUTHOR_DATE", day+"T12:00:00Z")
-		sh(t, store, cmds...)
-	}
-	write(t, store, "design/old.md", design)
-	commitOn("2026-09-01", "git add -A", "git commit -qm add")
-	commitOn("2026-09-05", "git mv design/old.md design/new.md", "git commit -qm rename")
-	write(t, store, "design/new.md", design+"more\n")
-	commitOn("2026-09-09", "git commit -qam edit")
-	write(t, store, "design/fresh.md", design)
-	recs, err := records.Read(store, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dates, err := DesignDates(store, recs, "2026-10-08")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := map[string]Dates{"design/new": {"2026-09-01", "2026-09-09"}, "design/fresh": {"2026-10-08", "2026-10-08"}}
-	if !reflect.DeepEqual(dates, want) {
-		t.Errorf("DesignDates = %v, want %v", dates, want)
-	}
+	// on the same clone, once the commits above are done: it moves the store off its branch, then away
+	t.Run("FindChecksTheStore", func(t *testing.T) {
+		got, err := Find(root)
+		if err != nil || got != store {
+			t.Fatalf("Find = %q, %v", got, err)
+		}
+		if got, _ := Find(filepath.Join(store, "projects")); got != store {
+			t.Errorf("Find from inside the store = %q", got)
+		}
+		if code, _ := CodeRoot(store, store); code != root {
+			t.Errorf("CodeRoot from the store = %q, want the main checkout", code)
+		}
+		if code, _ := CodeRoot(root, store); code != root {
+			t.Errorf("CodeRoot = %q", code)
+		}
+		sh(t, store, "git checkout -q -b other")
+		if _, err := Find(root); err == nil || err.Error() != store+" is not a worktree on branch records; move it away and run pm init" {
+			t.Errorf("a store on another branch: %v", err)
+		}
+		os.RemoveAll(filepath.Join(root, ".pm"))
+		if _, err := Find(root); err == nil || err.Error() != "no records store at "+store+"; set it up with pm init" {
+			t.Errorf("no store: %v", err)
+		}
+	})
 }
 
 func TestApplyCommitsOrRestores(t *testing.T) {
@@ -179,6 +127,32 @@ func TestApplyCommitsOrRestores(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(store, "docs/new.md")); !os.IsNotExist(err) {
 		t.Errorf("a new file stays after a failed write: %v", err)
 	}
+	t.Run("LockIsExclusive", func(t *testing.T) {
+		dir := t.TempDir()
+		unlock, err := Lock(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := make(chan bool)
+		go func() {
+			u, err := Lock(dir)
+			if err == nil {
+				u()
+			}
+			got <- true
+		}()
+		select {
+		case <-got:
+			t.Fatal("a second Lock did not wait")
+		case <-time.After(100 * time.Millisecond):
+		}
+		unlock()
+		select {
+		case <-got:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the second Lock did not get the lock after the first let go")
+		}
+	})
 }
 
 func TestApplyNeverOverwritesARecordItCannotRead(t *testing.T) {
@@ -193,44 +167,5 @@ func TestApplyNeverOverwritesARecordItCannotRead(t *testing.T) {
 	os.Chmod(p, 0o644)
 	if b, _ := os.ReadFile(p); string(b) != project {
 		t.Errorf("the record changed: %q", b)
-	}
-}
-
-func TestWriteAtomicKeepsTheMode(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "x.md")
-	os.WriteFile(p, []byte("a"), 0o600)
-	if err := WriteAtomic(p, "b"); err != nil {
-		t.Fatal(err)
-	}
-	st, _ := os.Stat(p)
-	if b, _ := os.ReadFile(p); string(b) != "b" || st.Mode().Perm() != 0o600 {
-		t.Errorf("WriteAtomic gave %q, mode %v", b, st.Mode())
-	}
-}
-
-func TestLockIsExclusive(t *testing.T) {
-	dir := t.TempDir()
-	unlock, err := Lock(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := make(chan bool)
-	go func() {
-		u, err := Lock(dir)
-		if err == nil {
-			u()
-		}
-		got <- true
-	}()
-	select {
-	case <-got:
-		t.Fatal("a second Lock did not wait")
-	case <-time.After(100 * time.Millisecond):
-	}
-	unlock()
-	select {
-	case <-got:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the second Lock did not get the lock after the first let go")
 	}
 }

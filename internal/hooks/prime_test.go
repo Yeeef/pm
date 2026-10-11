@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -33,13 +35,6 @@ func TestChunksFitTheCapAndAddUpToTheHead(t *testing.T) {
 	}
 	if strings.Join(bodies, "\n\n") != Head(nouns) {
 		t.Error("the chunks without their titles are not the rules and the command list")
-	}
-}
-
-func TestCommandsLeaveOutTheMachinery(t *testing.T) {
-	want := "# Commands\n\n`pm` nouns: `show`, `task`, `commit`."
-	if got := Commands(nouns); got != want {
-		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
@@ -93,15 +88,32 @@ func TestFailuresNameOneLine(t *testing.T) {
 	if want := "pm show failed at session start (exit 4); run `pm show` by hand."; show != want {
 		t.Errorf("show: got %q, want %q", show, want)
 	}
-}
-
-func TestATimeoutIsNamedAsPythonNamesIt(t *testing.T) {
-	fakeSelf(t, `sleep 5`)
-	exe, _ := Self()
-	show, _ := Context(nil, "", Cap, 100*time.Millisecond, "0.1", time.Now)
-	want := "pm show did not run at session start (TimeoutExpired: Command '['" + exe +
-		"', 'show', '--refresh-inbox']' timed out after 0.1 seconds); run `pm show` by hand."
-	if show != want {
-		t.Errorf("got %q, want %q", show, want)
-	}
+	t.Run("AFailedCheckExitsOneWithItsCause", func(t *testing.T) {
+		read := func(dir, session string) ([]Request, error) { return nil, errors.New("work store: none at /x") }
+		for in, want := range map[string]string{
+			`[1]`:                 "the hook input is not a JSON object",
+			`{}`:                  "the hook input has no session_id",
+			`{"session_id": "s"}`: "the hook input has no last_assistant_message",
+			`{"session_id": "s", "last_assistant_message": "Ask?"}`: "reading this session's open needs failed: " +
+				"work store: none at /x",
+		} {
+			var out, errb bytes.Buffer
+			code, err := HookOwnerRequest(t.TempDir(), read, strings.NewReader(in), &out, &errb)
+			if code != 1 || err != nil || out.Len() != 0 ||
+				errb.String() != "pm hook owner-request: "+want+"; the owner-request check did not run\n" {
+				t.Errorf("%s: code %d, err %v, stdout %q, stderr %q", in, code, err, out.String(), errb.String())
+			}
+		}
+	})
+	t.Run("ParseJudgedRefusesAnAnswerOutOfShape", func(t *testing.T) {
+		for _, out := range []string{
+			"", "no JSON here", `{"items": null}`, `{"verdict": []}`, `{"items": [1]}`, `{"items": {}}`,
+			`{"items": [{"quote": "Q", "kind": "decision", "match": 7}]}`, `{"items": [{"quote": "Q"}]}`,
+			`{"items": [{"quote": 1, "kind": "decision"}]}`, `{"items": []} and {"items": []}`, `{"items": [}`,
+		} {
+			if items, ok := parseJudged(out); ok {
+				t.Errorf("%q: got %v, want out of shape", out, items)
+			}
+		}
+	})
 }

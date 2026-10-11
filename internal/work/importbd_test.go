@@ -23,113 +23,6 @@ func fixtureItems(t *testing.T) map[string]Item {
 	return out
 }
 
-func TestImportMapsEachRowOfTheTable(t *testing.T) {
-	got := fixtureItems(t)
-	t1 := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	t2 := time.Date(2026, 10, 2, 9, 30, 0, 0, time.UTC)
-	const P = "demo-p1x"
-	base := func(id string, typ Type, parent, title string) Item {
-		return Item{ID: id, Type: typ, Parent: parent, Title: title, Status: Open, CreatedAt: t1, UpdatedAt: t2}
-	}
-	shut := func(it Item, reason string, r Resolution, by string) Item {
-		it.Status, it.CloseReason, it.Resolution, it.ClosedAt, it.ClosedBy = Closed, reason, r, t2, by
-		return it
-	}
-	want := []Item{
-		func() Item { it := base(P, Project, "", "Demo project"); it.Description = "The goal."; return it }(),
-		// a sprint: number from its title, confirmed by its record demo-1
-		func() Item {
-			it := shut(base(P+".1", Sprint, P, "Sprint 1: First"), "done", Done, "")
-			it.Number = 1
-			return it
-		}(),
-		// closed: claimed_by becomes closed_by; comment authors kept; metadata probe dropped
-		func() Item {
-			it := shut(base(P+".1.1", Task, P+".1", "Closed task"), "shipped", Done, "s-old")
-			it.Comments = []Comment{{ID: "c-0001", Kind: Note, Author: "Yeeef", Text: "a note", CreatedAt: t2}}
-			return it
-		}(),
-		func() Item {
-			it := base(P+".2", Sprint, P, "Sprint 2: Second")
-			it.Number, it.BlockedBy = 2, []string{P + ".1"}
-			return it
-		}(),
-		// in_progress: open with a holder of unknown host; notes under a Notes heading; the site's reply author
-		func() Item {
-			it := base(P+".2.1", Task, P+".2", "Held task")
-			it.Description, it.Labels, it.StartedAt = "Do it.\n\n## Notes\n\nMind X.", []string{"x"}, t1
-			it.Holder = &Holder{Session: "s-1", ClaimedAt: t1}
-			it.Comments = []Comment{{ID: "c-0002", Kind: Reply, Author: "owner", Text: "go ahead", CreatedAt: t2},
-				{ID: "c-0003", Kind: Note, Author: "yeeef", Text: "on it", CreatedAt: t2}}
-			return it
-		}(),
-		func() Item {
-			it := base(P+".2.1.1", Task, P+".2.1", "Sub-task")
-			it.Description = "## Notes\n\nOnly notes."
-			return it
-		}(),
-		// label human: a need; decision without action or review; raised_by and delivered from the metadata
-		func() Item {
-			it := base(P+".2.2", Need, P+".2", "Decision?")
-			it.Need = &NeedInfo{Kind: Decision, Delivered: 2,
-				RaisedBy: &RaisedBy{Session: "s-1", Inbox: "/tmp/s-1.sock", Host: "mac"}}
-			return it
-		}(),
-		// label action: an action need; Responded…: answered
-		func() Item {
-			it := shut(base(P+".2.3", Need, P+".2", "Run this"), "Responded: done it", Answered, "")
-			it.Need = &NeedInfo{Kind: Action, RaisedBy: &RaisedBy{Session: "s-2"}}
-			return it
-		}(),
-		// metadata.review: a review need, over the action label; external_ref equals the PR
-		func() Item {
-			it := shut(base(P+".2.4", Need, P+".2", "Review PR #9"), "merged as abc123", Done, "")
-			it.Need = &NeedInfo{Kind: Review, Delivered: 1, RaisedBy: &RaisedBy{Session: "s-3"},
-				Review: &ReviewInfo{PR: "https://github.com/o/r/pull/9", Sprints: []string{P + ".2", P + ".1"},
-					Designs: []string{"pm-go"}, Focus: "the parser", Merged: "abc123", MergeReported: "abc123"}}
-			return it
-		}(),
-		// label no-decision wins over Responded…
-		func() Item {
-			it := shut(base(P+".2.5", Need, P+".2", "Which?"), "Responded: neither", NoDecision, "")
-			it.Need = &NeedInfo{Kind: Decision}
-			return it
-		}(),
-		// Dismissed…: dismissed; other labels kept
-		func() Item {
-			it := shut(base(P+".2.6", Need, P+".2", "[TEST] probe"), "Dismissed: [TEST]", Dismissed, "")
-			it.Labels, it.Need = []string{"[TEST]"}, &NeedInfo{Kind: Decision}
-			return it
-		}(),
-		// a bug: a task labelled bug; under a project is allowed
-		func() Item {
-			it := base(P+".3", Task, P, "A bug under the project")
-			it.Labels, it.BlockedBy = []string{"bug"}, []string{P + ".2.1"}
-			return it
-		}(),
-		// closed with no parent: allowed
-		func() Item {
-			it := shut(base("demo-zzz", Task, "", "A closed bug with no parent"), "fixed", Done, "s-2")
-			it.Labels = []string{"bug"}
-			return it
-		}(),
-	}
-	if len(got) != len(want) {
-		t.Fatalf("%d items, want %d", len(got), len(want))
-	}
-	for _, w := range want {
-		g, ok := got[w.ID]
-		if !ok {
-			t.Errorf("%s not imported", w.ID)
-			continue
-		}
-		gj, wj := string(must(json.Marshal(g))), string(must(json.Marshal(w)))
-		if gj != wj {
-			t.Errorf("%s:\n got %s\nwant %s", w.ID, gj, wj)
-		}
-	}
-}
-
 func TestImportFailsHardOnWhatItCannotMap(t *testing.T) {
 	raw := string(must(os.ReadFile("testdata/bd-export.jsonl")))
 	recs := must(ReadBDRecords("testdata/records"))
@@ -221,4 +114,111 @@ func TestImportFailsHardOnWhatItCannotMap(t *testing.T) {
 	if _, err := FromBD(strings.NewReader(raw), recs); err != nil {
 		t.Fatalf("the fixture itself: %v", err)
 	}
+
+	t.Run("ImportMapsEachRowOfTheTable", func(t *testing.T) {
+		got := fixtureItems(t)
+		t1 := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+		t2 := time.Date(2026, 10, 2, 9, 30, 0, 0, time.UTC)
+		const P = "demo-p1x"
+		base := func(id string, typ Type, parent, title string) Item {
+			return Item{ID: id, Type: typ, Parent: parent, Title: title, Status: Open, CreatedAt: t1, UpdatedAt: t2}
+		}
+		shut := func(it Item, reason string, r Resolution, by string) Item {
+			it.Status, it.CloseReason, it.Resolution, it.ClosedAt, it.ClosedBy = Closed, reason, r, t2, by
+			return it
+		}
+		want := []Item{
+			func() Item { it := base(P, Project, "", "Demo project"); it.Description = "The goal."; return it }(),
+			// a sprint: number from its title, confirmed by its record demo-1
+			func() Item {
+				it := shut(base(P+".1", Sprint, P, "Sprint 1: First"), "done", Done, "")
+				it.Number = 1
+				return it
+			}(),
+			// closed: claimed_by becomes closed_by; comment authors kept; metadata probe dropped
+			func() Item {
+				it := shut(base(P+".1.1", Task, P+".1", "Closed task"), "shipped", Done, "s-old")
+				it.Comments = []Comment{{ID: "c-0001", Kind: Note, Author: "Yeeef", Text: "a note", CreatedAt: t2}}
+				return it
+			}(),
+			func() Item {
+				it := base(P+".2", Sprint, P, "Sprint 2: Second")
+				it.Number, it.BlockedBy = 2, []string{P + ".1"}
+				return it
+			}(),
+			// in_progress: open with a holder of unknown host; notes under a Notes heading; the site's reply author
+			func() Item {
+				it := base(P+".2.1", Task, P+".2", "Held task")
+				it.Description, it.Labels, it.StartedAt = "Do it.\n\n## Notes\n\nMind X.", []string{"x"}, t1
+				it.Holder = &Holder{Session: "s-1", ClaimedAt: t1}
+				it.Comments = []Comment{{ID: "c-0002", Kind: Reply, Author: "owner", Text: "go ahead", CreatedAt: t2},
+					{ID: "c-0003", Kind: Note, Author: "yeeef", Text: "on it", CreatedAt: t2}}
+				return it
+			}(),
+			func() Item {
+				it := base(P+".2.1.1", Task, P+".2.1", "Sub-task")
+				it.Description = "## Notes\n\nOnly notes."
+				return it
+			}(),
+			// label human: a need; decision without action or review; raised_by and delivered from the metadata
+			func() Item {
+				it := base(P+".2.2", Need, P+".2", "Decision?")
+				it.Need = &NeedInfo{Kind: Decision, Delivered: 2,
+					RaisedBy: &RaisedBy{Session: "s-1", Inbox: "/tmp/s-1.sock", Host: "mac"}}
+				return it
+			}(),
+			// label action: an action need; Responded…: answered
+			func() Item {
+				it := shut(base(P+".2.3", Need, P+".2", "Run this"), "Responded: done it", Answered, "")
+				it.Need = &NeedInfo{Kind: Action, RaisedBy: &RaisedBy{Session: "s-2"}}
+				return it
+			}(),
+			// metadata.review: a review need, over the action label; external_ref equals the PR
+			func() Item {
+				it := shut(base(P+".2.4", Need, P+".2", "Review PR #9"), "merged as abc123", Done, "")
+				it.Need = &NeedInfo{Kind: Review, Delivered: 1, RaisedBy: &RaisedBy{Session: "s-3"},
+					Review: &ReviewInfo{PR: "https://github.com/o/r/pull/9", Sprints: []string{P + ".2", P + ".1"},
+						Designs: []string{"pm-go"}, Focus: "the parser", Merged: "abc123", MergeReported: "abc123"}}
+				return it
+			}(),
+			// label no-decision wins over Responded…
+			func() Item {
+				it := shut(base(P+".2.5", Need, P+".2", "Which?"), "Responded: neither", NoDecision, "")
+				it.Need = &NeedInfo{Kind: Decision}
+				return it
+			}(),
+			// Dismissed…: dismissed; other labels kept
+			func() Item {
+				it := shut(base(P+".2.6", Need, P+".2", "[TEST] probe"), "Dismissed: [TEST]", Dismissed, "")
+				it.Labels, it.Need = []string{"[TEST]"}, &NeedInfo{Kind: Decision}
+				return it
+			}(),
+			// a bug: a task labelled bug; under a project is allowed
+			func() Item {
+				it := base(P+".3", Task, P, "A bug under the project")
+				it.Labels, it.BlockedBy = []string{"bug"}, []string{P + ".2.1"}
+				return it
+			}(),
+			// closed with no parent: allowed
+			func() Item {
+				it := shut(base("demo-zzz", Task, "", "A closed bug with no parent"), "fixed", Done, "s-2")
+				it.Labels = []string{"bug"}
+				return it
+			}(),
+		}
+		if len(got) != len(want) {
+			t.Fatalf("%d items, want %d", len(got), len(want))
+		}
+		for _, w := range want {
+			g, ok := got[w.ID]
+			if !ok {
+				t.Errorf("%s not imported", w.ID)
+				continue
+			}
+			gj, wj := string(must(json.Marshal(g))), string(must(json.Marshal(w)))
+			if gj != wj {
+				t.Errorf("%s:\n got %s\nwant %s", w.ID, gj, wj)
+			}
+		}
+	})
 }

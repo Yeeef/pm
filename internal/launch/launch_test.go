@@ -179,102 +179,110 @@ func list(t *testing.T, dir string) []string {
 	return names
 }
 
-func TestDownloadKeepsTheCheckedBinaryAndItsSha(t *testing.T) {
-	pins := dataDir(t)
-	tgz := tarball(t, "pm", fakePM, tar.TypeReg)
-	serve(t, "0.2.0", tgz, "")
-	if err := Download("0.2.0"); err != nil {
-		t.Fatal(err)
-	}
-	dir := filepath.Join(pins, "0.2.0")
-	b, _ := os.ReadFile(filepath.Join(dir, "pm"))
-	st, _ := os.Stat(filepath.Join(dir, "pm"))
-	kept, _ := os.ReadFile(filepath.Join(dir, "sha256"))
-	if string(b) != fakePM || st.Mode().Perm() != 0o755 || string(kept) != sum(tgz)+"\n" {
-		t.Fatalf("pm %q mode %v sha256 %q", b, st.Mode(), kept)
-	}
-	if got := list(t, dir); strings.Join(got, ",") != "pm,sha256" {
-		t.Fatalf("temp files left: %v", got)
-	}
-}
-
-func TestDownloadFailsHardAndInstallsNothing(t *testing.T) {
-	good := tarball(t, "pm", fakePM, tar.TypeReg)
-	asset := assetOf(t, "0.2.0")
-	cases := []struct {
-		name, sums, keptSum, want string
-		tgz                       []byte
-		missing                   bool
-	}{
-		{name: "checksum mismatch", tgz: good, sums: strings.Repeat("a", 64) + "  " + asset + "\n",
-			want: "could not be checked: " + "URL/" + asset + " has sha256 " + sum(good) + ", but SHA256SUMS says " +
-				strings.Repeat("a", 64) + fix},
-		{name: "no line for the asset", tgz: good, sums: sum(good) + "  pm-0.2.0-plan9-amd64.tar.gz\n",
-			want: "could not be checked: URL/SHA256SUMS has no line for " + asset + fix},
-		{name: "kept sha256 differs", tgz: good, keptSum: strings.Repeat("b", 64) + "\n",
-			want: "changed since this machine first downloaded it: URL/" + asset + " has sha256 " + sum(good) + ", but "},
-		{name: "no pm in the tarball", tgz: tarball(t, "bin/pm", fakePM, tar.TypeReg),
-			want: "could not be unpacked: URL/" + asset + " is not a gzip tar holding one file pm" + fix},
-		{name: "pm is not a regular file", tgz: tarball(t, "pm", "", tar.TypeSymlink),
-			want: "could not be unpacked: URL/" + asset + " is not a gzip tar holding one file pm" + fix},
-		{name: "not a gzip tar", tgz: []byte("pm"), want: "could not be unpacked: URL/"},
-		{name: "missing release", tgz: good, missing: true, want: "could not be downloaded: URL/SHA256SUMS: HTTP 404" + fix},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			pins := dataDir(t)
-			r := serve(t, "0.2.0", c.tgz, c.sums)
-			if c.missing {
-				r.files = map[string][]byte{}
-			}
-			dir := filepath.Join(pins, "0.2.0")
-			if c.keptSum != "" {
-				os.MkdirAll(dir, 0o755)
-				os.WriteFile(filepath.Join(dir, "sha256"), []byte(c.keptSum), 0o644)
-			}
-			err := Download("0.2.0")
-			want := "this repo pins pm 0.2.0, but release pm-v0.2.0 " +
-				strings.ReplaceAll(c.want, "URL/", r.srv.URL+"/pm-v0.2.0/")
-			if err == nil || !strings.HasPrefix(err.Error(), want) {
-				t.Fatalf("err = %v, want %q", err, want)
-			}
-			if got := list(t, dir); c.keptSum == "" && got != nil || c.keptSum != "" && len(got) != 1 {
-				t.Fatalf("left %v", got)
-			} else if _, err := os.Stat(dir); c.keptSum == "" && err == nil {
-				t.Fatal("the pin dir was made")
-			}
-		})
-	}
-}
-
-func TestDownloadGivesUpAtItsDeadline(t *testing.T) {
-	dataDir(t)
-	block := make(chan struct{})
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-block }))
-	defer srv.Close()
-	defer close(block)
-	t.Setenv("PM_RELEASE_URL", srv.URL)
-	defer func(d time.Duration) { downloadTimeout = d }(downloadTimeout)
-	downloadTimeout = 100 * time.Millisecond
-	assetOf(t, "0.2.0")
-	err := Download("0.2.0")
-	if err == nil || !strings.Contains(err.Error(), "not downloaded within 0.1 s") {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestReleaseURL(t *testing.T) {
-	t.Setenv("PM_RELEASE_URL", "")
-	if releaseURL() != "https://github.com/Yeeef/pm/releases/download" {
-		t.Fatal(releaseURL())
-	}
-	t.Setenv("PM_RELEASE_URL", "http://mirror/x///")
-	if releaseURL() != "http://mirror/x" {
-		t.Fatal(releaseURL())
-	}
-}
-
 func TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne(t *testing.T) {
+	t.Run("DownloadKeepsTheCheckedBinaryAndItsSha", func(t *testing.T) {
+		pins := dataDir(t)
+		tgz := tarball(t, "pm", fakePM, tar.TypeReg)
+		serve(t, "0.2.0", tgz, "")
+		if err := Download("0.2.0"); err != nil {
+			t.Fatal(err)
+		}
+		dir := filepath.Join(pins, "0.2.0")
+		b, _ := os.ReadFile(filepath.Join(dir, "pm"))
+		st, _ := os.Stat(filepath.Join(dir, "pm"))
+		kept, _ := os.ReadFile(filepath.Join(dir, "sha256"))
+		if string(b) != fakePM || st.Mode().Perm() != 0o755 || string(kept) != sum(tgz)+"\n" {
+			t.Fatalf("pm %q mode %v sha256 %q", b, st.Mode(), kept)
+		}
+		if got := list(t, dir); strings.Join(got, ",") != "pm,sha256" {
+			t.Fatalf("temp files left: %v", got)
+		}
+	})
+	t.Run("DownloadFailsHardAndInstallsNothing", func(t *testing.T) {
+		good := tarball(t, "pm", fakePM, tar.TypeReg)
+		asset := assetOf(t, "0.2.0")
+		cases := []struct {
+			name, sums, keptSum, want string
+			tgz                       []byte
+			missing                   bool
+		}{
+			{name: "checksum mismatch", tgz: good, sums: strings.Repeat("a", 64) + "  " + asset + "\n",
+				want: "could not be checked: " + "URL/" + asset + " has sha256 " + sum(good) + ", but SHA256SUMS says " +
+					strings.Repeat("a", 64) + fix},
+			{name: "no line for the asset", tgz: good, sums: sum(good) + "  pm-0.2.0-plan9-amd64.tar.gz\n",
+				want: "could not be checked: URL/SHA256SUMS has no line for " + asset + fix},
+			{name: "kept sha256 differs", tgz: good, keptSum: strings.Repeat("b", 64) + "\n",
+				want: "changed since this machine first downloaded it: URL/" + asset + " has sha256 " + sum(good) + ", but "},
+			{name: "no pm in the tarball", tgz: tarball(t, "bin/pm", fakePM, tar.TypeReg),
+				want: "could not be unpacked: URL/" + asset + " is not a gzip tar holding one file pm" + fix},
+			{name: "pm is not a regular file", tgz: tarball(t, "pm", "", tar.TypeSymlink),
+				want: "could not be unpacked: URL/" + asset + " is not a gzip tar holding one file pm" + fix},
+			{name: "not a gzip tar", tgz: []byte("pm"), want: "could not be unpacked: URL/"},
+			{name: "missing release", tgz: good, missing: true, want: "could not be downloaded: URL/SHA256SUMS: HTTP 404" + fix},
+		}
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				pins := dataDir(t)
+				r := serve(t, "0.2.0", c.tgz, c.sums)
+				if c.missing {
+					r.files = map[string][]byte{}
+				}
+				dir := filepath.Join(pins, "0.2.0")
+				if c.keptSum != "" {
+					os.MkdirAll(dir, 0o755)
+					os.WriteFile(filepath.Join(dir, "sha256"), []byte(c.keptSum), 0o644)
+				}
+				err := Download("0.2.0")
+				want := "this repo pins pm 0.2.0, but release pm-v0.2.0 " +
+					strings.ReplaceAll(c.want, "URL/", r.srv.URL+"/pm-v0.2.0/")
+				if err == nil || !strings.HasPrefix(err.Error(), want) {
+					t.Fatalf("err = %v, want %q", err, want)
+				}
+				if got := list(t, dir); c.keptSum == "" && got != nil || c.keptSum != "" && len(got) != 1 {
+					t.Fatalf("left %v", got)
+				} else if _, err := os.Stat(dir); c.keptSum == "" && err == nil {
+					t.Fatal("the pin dir was made")
+				}
+			})
+		}
+	})
+	t.Run("DownloadGivesUpAtItsDeadline", func(t *testing.T) {
+		dataDir(t)
+		block := make(chan struct{})
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-block }))
+		defer srv.Close()
+		defer close(block)
+		t.Setenv("PM_RELEASE_URL", srv.URL)
+		defer func(d time.Duration) { downloadTimeout = d }(downloadTimeout)
+		downloadTimeout = 100 * time.Millisecond
+		assetOf(t, "0.2.0")
+		err := Download("0.2.0")
+		if err == nil || !strings.Contains(err.Error(), "not downloaded within 0.1 s") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("AFailedCheckIsNotTriedThroughTheAPI", func(t *testing.T) {
+		dataDir(t)
+		tgz := tarball(t, "pm", fakePM, tar.TypeReg)
+		r := serve(t, "0.2.0", tgz, strings.Repeat("a", 64)+"  "+assetOf(t, "0.2.0")+"\n")
+		t.Setenv("GH_TOKEN", "tok")
+		t.Setenv("PM_RELEASE_API", "http://127.0.0.1:1/api") // never asked
+		if err := Download("0.2.0"); err == nil || !strings.Contains(err.Error(), "could not be checked: "+r.srv.URL) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("ADownloadThatFailsBothWaysReportsTheAPIsFailure", func(t *testing.T) {
+		dataDir(t)
+		r := serve(t, "0.2.0", tarball(t, "pm", fakePM, tar.TypeReg), "")
+		api(t, r, "tok")
+		t.Setenv("GH_TOKEN", "wrong")
+		err := Download("0.2.0")
+		want := "this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: " +
+			os.Getenv("PM_RELEASE_API") + "/releases/tags/pm-v0.2.0: HTTP 401" + fix
+		if err == nil || err.Error() != want {
+			t.Fatalf("err = %v, want %q", err, want)
+		}
+	})
 	pins := dataDir(t)
 	tgz := tarball(t, "pm", fakePM, tar.TypeReg)
 	r := serve(t, "0.2.0", tgz, "")
@@ -294,92 +302,39 @@ func TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne(t *testing.T) 
 		!strings.Contains(got, "/files/pm-v0.2.0/"+asset+" false") || strings.Count(got, " true") != 3 {
 		t.Fatalf("requests:\n%s", got)
 	}
-}
 
-func TestADownloadThatFailsBothWaysReportsTheAPIsFailure(t *testing.T) {
-	dataDir(t)
-	r := serve(t, "0.2.0", tarball(t, "pm", fakePM, tar.TypeReg), "")
-	api(t, r, "tok")
-	t.Setenv("GH_TOKEN", "wrong")
-	err := Download("0.2.0")
-	want := "this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: " +
-		os.Getenv("PM_RELEASE_API") + "/releases/tags/pm-v0.2.0: HTTP 401" + fix
-	if err == nil || err.Error() != want {
-		t.Fatalf("err = %v, want %q", err, want)
-	}
-}
-
-func TestAFailedCheckIsNotTriedThroughTheAPI(t *testing.T) {
-	dataDir(t)
-	tgz := tarball(t, "pm", fakePM, tar.TypeReg)
-	r := serve(t, "0.2.0", tgz, strings.Repeat("a", 64)+"  "+assetOf(t, "0.2.0")+"\n")
-	t.Setenv("GH_TOKEN", "tok")
-	t.Setenv("PM_RELEASE_API", "http://127.0.0.1:1/api") // never asked
-	if err := Download("0.2.0"); err == nil || !strings.Contains(err.Error(), "could not be checked: "+r.srv.URL) {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestIsGo(t *testing.T) {
-	for v, want := range map[string]bool{"0.2.0": true, "0.2.0-rc.1": true, "0.10.3": true, "1.0": true,
-		"0.1.4": false, "0.1.9-rc.1": false, "0.2": false, "dev": false, "": false, "0.x.0": false} {
-		if IsGo(v) != want {
-			t.Errorf("IsGo(%q) = %v", v, !want)
+	t.Run("ReleaseURL", func(t *testing.T) {
+		t.Setenv("PM_RELEASE_URL", "")
+		if releaseURL() != "https://github.com/Yeeef/pm/releases/download" {
+			t.Fatal(releaseURL())
 		}
-	}
-}
-
-func TestTargetRunsInProcessForItsOwnPinTheLaunchedPinAndUpgrade(t *testing.T) {
-	defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
-	buildinfo.Version = "0.2.0"
-	repo := t.TempDir()
-	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
-		t.Fatal(string(out))
-	}
-	os.MkdirAll(filepath.Join(repo, ".pm"), 0o755)
-	os.WriteFile(filepath.Join(repo, ".pm/config.toml"), []byte("version = \"9.9.9\"\n"), 0o644)
-	for _, c := range []struct {
-		argv          []string
-		cwd, launched string
-		want          string
-	}{
-		{[]string{"show"}, repo, "", "9.9.9"},
-		{[]string{"show"}, repo, "9.9.9", ""},
-		{[]string{"show"}, repo, "8.8.8", "9.9.9"},
-		{[]string{"upgrade"}, repo, "", ""},
-		{[]string{"upgrade", "--to", "8.8.8"}, repo, "", "8.8.8"},
-		{[]string{"upgrade", "--to=8.8.8"}, repo, "", "8.8.8"},
-		{[]string{"upgrade", "--to", "0.2.0"}, repo, "", ""},
-		{[]string{"upgrade", "--to"}, repo, "", ""},
-		{[]string{"show"}, filepath.Join(repo, "nowhere"), "", ""},
-	} {
-		if got := Target(c.argv, c.cwd, c.launched); got != c.want {
-			t.Errorf("Target(%v, launched %q) = %q, want %q", c.argv, c.launched, got, c.want)
+		t.Setenv("PM_RELEASE_URL", "http://mirror/x///")
+		if releaseURL() != "http://mirror/x" {
+			t.Fatal(releaseURL())
 		}
-	}
-}
-
-func TestScrubTakesTheMarks(t *testing.T) {
-	pins := dataDir(t)
-	t.Setenv(Launched, "0.2.0")
-	t.Setenv(Launcher, "0.1.5")
-	defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
-	buildinfo.Version = "0.2.0"
-	Scrub()
-	_, l1 := os.LookupEnv(Launched)
-	_, l2 := os.LookupEnv(Launcher)
-	if l1 || l2 {
-		t.Fatal("the markers are still in the environment")
-	}
-	if !IsLaunched() || !strings.HasPrefix(How(), "this repo's pin, "+filepath.Join(pins, "0.2.0/pm")+
-		" from release pm-v0.2.0, launched by pm 0.1.5; delete ") {
-		t.Fatal(How())
-	}
+	})
 }
 
 // Markers hands the launcher's markers to a child that is this same pm (the session-start pm init), and only when
 // this pm was launched: such a child runs as the pin itself, and without them would take the bin dir from the launcher.
 func TestMarkersAreThoseScrubTookAndNoneUnlaunched(t *testing.T) {
+	t.Run("ScrubTakesTheMarks", func(t *testing.T) {
+		pins := dataDir(t)
+		t.Setenv(Launched, "0.2.0")
+		t.Setenv(Launcher, "0.1.5")
+		defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
+		buildinfo.Version = "0.2.0"
+		Scrub()
+		_, l1 := os.LookupEnv(Launched)
+		_, l2 := os.LookupEnv(Launcher)
+		if l1 || l2 {
+			t.Fatal("the markers are still in the environment")
+		}
+		if !IsLaunched() || !strings.HasPrefix(How(), "this repo's pin, "+filepath.Join(pins, "0.2.0/pm")+
+			" from release pm-v0.2.0, launched by pm 0.1.5; delete ") {
+			t.Fatal(How())
+		}
+	})
 	dataDir(t)
 	defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
 	buildinfo.Version = "0.3.0"
@@ -419,6 +374,77 @@ func pinnedRepo(t *testing.T, version string) string {
 }
 
 func TestAGoPinIsDownloadedOnceThenExecdWithTheMarks(t *testing.T) {
+	t.Run("TargetRunsInProcessForItsOwnPinTheLaunchedPinAndUpgrade", func(t *testing.T) {
+		defer func(v string) { buildinfo.Version = v }(buildinfo.Version)
+		buildinfo.Version = "0.2.0"
+		repo := t.TempDir()
+		if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+			t.Fatal(string(out))
+		}
+		os.MkdirAll(filepath.Join(repo, ".pm"), 0o755)
+		os.WriteFile(filepath.Join(repo, ".pm/config.toml"), []byte("version = \"9.9.9\"\n"), 0o644)
+		for _, c := range []struct {
+			argv          []string
+			cwd, launched string
+			want          string
+		}{
+			{[]string{"show"}, repo, "", "9.9.9"},
+			{[]string{"show"}, repo, "9.9.9", ""},
+			{[]string{"show"}, repo, "8.8.8", "9.9.9"},
+			{[]string{"upgrade"}, repo, "", ""},
+			{[]string{"upgrade", "--to", "8.8.8"}, repo, "", "8.8.8"},
+			{[]string{"upgrade", "--to=8.8.8"}, repo, "", "8.8.8"},
+			{[]string{"upgrade", "--to", "0.2.0"}, repo, "", ""},
+			{[]string{"upgrade", "--to"}, repo, "", ""},
+			{[]string{"show"}, filepath.Join(repo, "nowhere"), "", ""},
+		} {
+			if got := Target(c.argv, c.cwd, c.launched); got != c.want {
+				t.Errorf("Target(%v, launched %q) = %q, want %q", c.argv, c.launched, got, c.want)
+			}
+		}
+	})
+	t.Run("AGoPinThatCannotBeDownloadedFailsHard", func(t *testing.T) {
+		dataDir(t)
+		r := serve(t, "0.3.0", nil, "")
+		r.files = map[string][]byte{}
+		out, err := helper(t, "0.2.0", pinnedRepo(t, "0.3.0"))
+		want := "error: this repo pins pm 0.3.0, but release pm-v0.3.0 could not be downloaded: " + r.srv.URL +
+			"/pm-v0.3.0/SHA256SUMS: HTTP 404" + fix + "\n"
+		if err == nil || out != want {
+			t.Fatalf("%v %q", err, out)
+		}
+	})
+	t.Run("AKeptBinaryThatCannotRunFailsHard", func(t *testing.T) {
+		pins := dataDir(t)
+		bin := filepath.Join(pins, "0.3.0/pm")
+		os.MkdirAll(filepath.Dir(bin), 0o755)
+		os.WriteFile(bin, []byte{0, 1, 2, 3}, 0o755)
+		out, err := helper(t, "0.2.0", pinnedRepo(t, "0.3.0"))
+		want := "error: this repo pins pm 0.3.0, but " + bin + " could not run: Exec format error; delete it to " +
+			"download it again\n"
+		if err == nil || out != want {
+			t.Fatalf("%v %q", err, out)
+		}
+	})
+	// A pin below 0.2.0 names a retired Python release (or a pin names no release at all): it fails hard, naming the fix,
+	// and nothing is downloaded or run.
+	t.Run("APythonPinFailsHardNamingTheFix", func(t *testing.T) {
+		pins := dataDir(t)
+		for _, c := range []struct{ pin, what string }{
+			{"0.1.5", "a Python pm release, retired: pm runs only releases from 0.2.0 on"},
+			{"dev", "which names no release"},
+		} {
+			out, err := helper(t, "0.3.0", pinnedRepo(t, c.pin))
+			want := "error: this repo pins pm " + c.pin + ", " + c.what + "; move the pin to a release from 0.2.0 on with " +
+				"pm upgrade --to <X> (releases: https://github.com/Yeeef/pm/releases), and commit .pm/config.toml\n"
+			if err == nil || out != want {
+				t.Fatalf("%s: %v %q", c.pin, err, out)
+			}
+		}
+		if got := list(t, pins); len(got) != 0 {
+			t.Fatalf("kept %v", got)
+		}
+	})
 	dataDir(t)
 	r := serve(t, "0.3.0-rc.1", tarball(t, "pm", fakePM, tar.TypeReg), "")
 	repo := pinnedRepo(t, "0.3.0-rc.1")
@@ -435,49 +461,13 @@ func TestAGoPinIsDownloadedOnceThenExecdWithTheMarks(t *testing.T) {
 	if err != nil || out != "in process\n" {
 		t.Fatalf("launched for its pin: %v %q", err, out)
 	}
-}
 
-func TestAGoPinThatCannotBeDownloadedFailsHard(t *testing.T) {
-	dataDir(t)
-	r := serve(t, "0.3.0", nil, "")
-	r.files = map[string][]byte{}
-	out, err := helper(t, "0.2.0", pinnedRepo(t, "0.3.0"))
-	want := "error: this repo pins pm 0.3.0, but release pm-v0.3.0 could not be downloaded: " + r.srv.URL +
-		"/pm-v0.3.0/SHA256SUMS: HTTP 404" + fix + "\n"
-	if err == nil || out != want {
-		t.Fatalf("%v %q", err, out)
-	}
-}
-
-func TestAKeptBinaryThatCannotRunFailsHard(t *testing.T) {
-	pins := dataDir(t)
-	bin := filepath.Join(pins, "0.3.0/pm")
-	os.MkdirAll(filepath.Dir(bin), 0o755)
-	os.WriteFile(bin, []byte{0, 1, 2, 3}, 0o755)
-	out, err := helper(t, "0.2.0", pinnedRepo(t, "0.3.0"))
-	want := "error: this repo pins pm 0.3.0, but " + bin + " could not run: Exec format error; delete it to " +
-		"download it again\n"
-	if err == nil || out != want {
-		t.Fatalf("%v %q", err, out)
-	}
-}
-
-// A pin below 0.2.0 names a retired Python release (or a pin names no release at all): it fails hard, naming the fix,
-// and nothing is downloaded or run.
-func TestAPythonPinFailsHardNamingTheFix(t *testing.T) {
-	pins := dataDir(t)
-	for _, c := range []struct{ pin, what string }{
-		{"0.1.5", "a Python pm release, retired: pm runs only releases from 0.2.0 on"},
-		{"dev", "which names no release"},
-	} {
-		out, err := helper(t, "0.3.0", pinnedRepo(t, c.pin))
-		want := "error: this repo pins pm " + c.pin + ", " + c.what + "; move the pin to a release from 0.2.0 on with " +
-			"pm upgrade --to <X> (releases: https://github.com/Yeeef/pm/releases), and commit .pm/config.toml\n"
-		if err == nil || out != want {
-			t.Fatalf("%s: %v %q", c.pin, err, out)
+	t.Run("IsGo", func(t *testing.T) {
+		for v, want := range map[string]bool{"0.2.0": true, "0.2.0-rc.1": true, "0.10.3": true, "1.0": true,
+			"0.1.4": false, "0.1.9-rc.1": false, "0.2": false, "dev": false, "": false, "0.x.0": false} {
+			if IsGo(v) != want {
+				t.Errorf("IsGo(%q) = %v", v, !want)
+			}
 		}
-	}
-	if got := list(t, pins); len(got) != 0 {
-		t.Fatalf("kept %v", got)
-	}
+	})
 }
