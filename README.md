@@ -4,14 +4,14 @@
 
 Website: **[yeeef.github.io/pm](https://yeeef.github.io/pm/)**
 
-pm is project management for you and your coding agents. Run ten agents on one repo: each picks up a task, keeps
+pm is project management harness for you and your coding agents. Run tens of agents on one repo: each picks up a task, keeps
 what it learns next to that task, and brings you only what needs your call. You steer all of them from one page.
 
 ![The pm site: the decisions and actions your agents need from you](website/img/overview.png)
 
 - **Any task, any agent, any time.** A fresh agent picks up where the last one stopped.
 - **A home for every plan.** Plans, decisions and findings live as checked records tied to the work, not as
-  `PLANNING.md` files scattered through your repo.
+  free-formed `XXXYYYZZZ.md` files scattered through your repo.
 - **One view of everything.** Every project, every sprint's goal, and every question waiting on you.
 - **Enforced, not asked.** pm is not a pack of prompt files. Agents work through pm's command line and hooks, which
   refuse a move that breaks the rules and say what to do instead.
