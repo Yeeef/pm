@@ -65,6 +65,13 @@ None yet.
   width; fixed with min-width: 0). Copy buttons put the install command and pm
   init on the clipboard.
 
+- Claims checked against the code: pm init adds no line to AGENTS.md or
+  CLAUDE.md (pieces.go; it only removes a Beads block); refusals quoted
+  verbatim from internal/cli writes.go and needs.go and
+  prompts/owner_request_reason.txt; sync under refs/pm/work. Dropped: a claim
+  that pm task claim refuses a blocked task. It does not: work.Claim checks
+  status and live holder only, and 123.1 was claimed while blocked by 122.2.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
