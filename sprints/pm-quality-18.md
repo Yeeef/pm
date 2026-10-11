@@ -58,7 +58,15 @@ Sharding already brings a PR to ~2 min; darwin-only failures stay caught before 
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- TestCreateRefusesWithTheRemoteUnreachable's 9.6 s was Dolt's git-remote
+  write retry (32 attempts, 5 ms doubling to a 320 ms cap) on the push's own
+  failing fetch, reached only because the test created within Dolt's 1 s read
+  dedup of its last remote read, so the pull read nothing. A service's write
+  past that window refuses at the pull in about 5 ms ('a child id is minted
+  only against the remote'; measured with the window waited out). So a real pm
+  write against an unreachable remote does not wait 9 s, except one made
+  within 1 s of the store's last remote read with the remote lost in between.
+  The test now restarts A's service first: 9.6 s to 1.1-1.5 s.
 
 ## Delivery report
 
