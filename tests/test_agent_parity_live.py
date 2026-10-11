@@ -301,12 +301,12 @@ Then reply with one line: the id of the task you closed."""
                 before = clone.items()[other]
                 res = as_session(clone, rt, s, "task", "claim", other, cwd=probe)
                 claims[rt] = (res, other, held[other], before, clone.items()[other])
-        time.sleep(2)
+        time.sleep(2)  # noqa: TID251 — the watch loop's poll interval over two live agent sessions, under its deadline
     runs = {rt: a.finish(TIMEOUT) for rt, a in running.items()}
     items = clone.items()
     check = Checks(clone, *runs.values())
     print("\nmixed: " + ", ".join(f"{rt} {r.seconds:.1f}s" for rt, r in runs.items()))
-    for rt, r in runs.items():
+    for r in runs.values():
         check(r.returncode == 0, f"{r.name}: the session exited {r.returncode}")
         context_reached(check, r, sprint)
     sessions = {rt: r.session for rt, r in runs.items()}

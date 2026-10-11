@@ -30,8 +30,8 @@ func HookInbox(here string, pending Pending, stdin io.Reader, stdout, stderr io.
 		fmt.Fprintln(stderr, "pm hook inbox: the hook input is not a JSON object; no reply handed over")
 		return nil
 	}
-	session, _ := event.Get("session_id").(string)
-	if event.Get("hook_event_name") != "UserPromptSubmit" || session == "" {
+	session, ok := event.Get("session_id").(string)
+	if event.Get("hook_event_name") != "UserPromptSubmit" || !ok || session == "" {
 		return nil // no prompt to add to, or no session with requests of its own
 	}
 	dir := here

@@ -54,7 +54,13 @@ func codexHooksList(codex, dir string, timeout time.Duration) ([]codexListedHook
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	defer func() { stdin.Close(); cancel(); _ = cmd.Wait() }()
+	// teardown once the answer is read: closing stdin ends the app-server, whose exit status (an EOF exit, or the
+	// timeout's kill) says nothing pm reads
+	defer func() {
+		stdin.Close() //nolint:errcheck // the pipe to a process that is ending; nothing is written after
+		cancel()
+		cmd.Wait() //nolint:errcheck // an EOF exit or the timeout's kill: the answer was read, or the error said why not
+	}()
 	lines := bufio.NewScanner(stdout)
 	lines.Buffer(make([]byte, 0, 1<<16), 16<<20)
 	send := func(v any) error {
@@ -128,7 +134,7 @@ func codexHooksList(codex, dir string, timeout time.Duration) ([]codexListedHook
 func CodexTrust(main string, timeout time.Duration) (skips []string, note string, err error) {
 	codex, err := exec.LookPath("codex")
 	if err != nil {
-		return nil, "codex: codex is not on PATH, so whether Codex runs pm's hooks was not checked", nil
+		return nil, "codex: codex is not on PATH, so whether Codex runs pm's hooks was not checked", nil //nolint:nilerr // no codex is a note, not a failure
 	}
 	if home := CodexHome(); !isDir(home) { // Codex never ran here, and app-server would make its state there
 		return nil, fmt.Sprintf("codex: %s does not exist, so Codex never ran here and whether it runs pm's hooks "+
@@ -141,11 +147,15 @@ func CodexTrust(main string, timeout time.Duration) (skips []string, note string
 	}
 	f, err := loadHooks(hooksPath, text, false)
 	if err != nil || f.events == nil {
-		return nil, "", nil // pm doctor names an unreadable file itself
+		return nil, "", nil //nolint:nilerr // pm doctor names an unreadable file itself, as its drift
 	}
 	mine := 0
 	for _, e := range f.events.Keys {
-		for _, g := range f.events.Get(e).([]any) {
+		gs, ok := f.events.Get(e).([]any) // loadHooks checked it is a list
+		if !ok {
+			continue
+		}
+		for _, g := range gs {
 			for _, h := range groupHooks(g) {
 				if isPMHook(h) {
 					mine++

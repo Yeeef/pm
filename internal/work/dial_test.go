@@ -19,7 +19,11 @@ func TestDialNamesASocketTheSystemRefuses(t *testing.T) {
 	if err := os.Mkdir(dir, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	t.Cleanup(func() {
+		if err := os.Chmod(dir, 0o755); err != nil { // so the test's temp dir can go
+			t.Error(err)
+		}
+	})
 	sock := filepath.Join(dir, "work.sock")
 	for env, want := range map[string]string{
 		"CODEX_SESSION_ID": "Codex's sandbox blocks it, and runs pm outside the sandbox only when the whole command is " +

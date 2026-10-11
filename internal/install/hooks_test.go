@@ -28,7 +28,8 @@ var runtimeDifferences = map[runtimeDifference]string{
 }
 
 // commandsAndMatcher is the commands of event's group, in order, and its matcher (nil when it has none).
-func commandsAndMatcher(e entries, event string) ([]string, any) {
+func commandsAndMatcher(t *testing.T, e entries, event string) ([]string, any) {
+	t.Helper()
 	group, ok := e.groups[event]
 	if !ok {
 		return nil, nil
@@ -36,7 +37,15 @@ func commandsAndMatcher(e entries, event string) ([]string, any) {
 	g := group()
 	var cmds []string
 	for _, h := range groupHooks(g) {
-		cmds = append(cmds, h.(*pyjson.Object).Get("command").(string))
+		o, ok := h.(*pyjson.Object)
+		if !ok {
+			t.Fatalf("%s: a hook that is no object: %v", event, h)
+		}
+		c, ok := o.Get("command").(string)
+		if !ok {
+			t.Fatalf("%s: a hook with no command: %v", event, o)
+		}
+		cmds = append(cmds, c)
 	}
 	return cmds, g.Get("matcher")
 }
@@ -51,8 +60,8 @@ func TestClaudeAndCodexRunTheSameHooks(t *testing.T) {
 	}
 	seen := map[runtimeDifference]bool{}
 	for _, e := range events {
-		cc, cm := commandsAndMatcher(claude, e)
-		xc, xm := commandsAndMatcher(codex, e)
+		cc, cm := commandsAndMatcher(t, claude, e)
+		xc, xm := commandsAndMatcher(t, codex, e)
 		for what, same := range map[string]bool{"commands": reflect.DeepEqual(cc, xc), "matcher": cm == xm} {
 			d := runtimeDifference{e, what}
 			if same {
@@ -74,6 +83,7 @@ func TestClaudeAndCodexRunTheSameHooks(t *testing.T) {
 
 // codexPiece is the .codex/hooks.json piece.
 func codexPiece(t *testing.T) Piece {
+	t.Helper()
 	for _, p := range Pieces(goldenSettings[0]) {
 		if p.Rel == ".codex/hooks.json" {
 			return p

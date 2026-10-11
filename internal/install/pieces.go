@@ -388,9 +388,13 @@ func hooksPart(rel string) func(*string) (string, bool, error) {
 			for _, e := range f.events.Keys {
 				var hs []any
 				for _, g := range f.events.Get(e).([]any) {
+					var matcher any
+					if o, ok := g.(*pyjson.Object); ok { // loadHooks checked it is
+						matcher = o.Get("matcher")
+					}
 					for _, h := range groupHooks(g) {
 						if isPMHook(h) {
-							hs = append(hs, []any{g.(*pyjson.Object).Get("matcher"), h})
+							hs = append(hs, []any{matcher, h})
 						}
 					}
 				}

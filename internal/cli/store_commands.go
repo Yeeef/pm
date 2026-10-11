@@ -554,7 +554,10 @@ func currentSession() string {
 
 // claudePID is $CLAUDE_PID, Claude Code's own pid, which it exports to its commands; 0 when unset.
 func claudePID() int {
-	pid, _ := strconv.Atoi(strings.TrimSpace(os.Getenv("CLAUDE_PID")))
+	pid, err := strconv.Atoi(strings.TrimSpace(os.Getenv("CLAUDE_PID")))
+	if err != nil {
+		return 0
+	}
 	return pid
 }
 
@@ -574,8 +577,7 @@ func live(session string) bool {
 	if !sessionID.MatchString(session) {
 		return false
 	}
-	paths, _ := filepath.Glob(filepath.Join(claudeConfigDir(), "projects", "*", session+".jsonl"))
-	paths = append(paths, codexRollouts(session)...)
+	paths := append(glob(filepath.Join(claudeConfigDir(), "projects", "*", session+".jsonl")), codexRollouts(session)...)
 	for _, p := range paths {
 		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < LiveWindow {
 			return true

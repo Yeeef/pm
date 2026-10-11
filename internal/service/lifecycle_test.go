@@ -109,18 +109,24 @@ func TestPmInitKeepsTheUnitsPATH(t *testing.T) {
 		m := newMachine(t, kind)
 		m.install()
 		unit := UnitFile(m.main, kind)
-		before, _ := os.ReadFile(unit)
+		before, err := os.ReadFile(unit)
+		if err != nil {
+			t.Fatal(err)
+		}
 		was := os.Getenv("PATH")
 		calls := len(m.calls())
 		t.Setenv("PATH", "/opt/codex/vendor/x86_64-unknown-linux-musl/codex-path"+string(os.PathListSeparator)+was)
-		exe, _ := Exe()
+		exe, err := Exe()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if said, err := Install(m.main, 8123, exe, true); said != "" || err != nil {
 			t.Fatalf("%s: a PATH-only difference: %q %v", kind, said, err)
 		}
 		restarted := slices.ContainsFunc(m.calls()[calls:], func(c string) bool {
 			return regexp.MustCompile(`restart|daemon-reload|enable --now|bootstrap|bootout`).MatchString(c)
 		})
-		if after, _ := os.ReadFile(unit); string(after) != string(before) || restarted {
+		if after, err := os.ReadFile(unit); err != nil || string(after) != string(before) || restarted {
 			t.Fatalf("%s: the unit was rewritten or the service restarted: %v", kind, m.calls()[calls:])
 		}
 		if said, err := Install(m.main, 9000, exe, true); err != nil || !strings.HasPrefix(said, "updated the pm service") {

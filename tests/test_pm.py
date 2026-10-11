@@ -1417,9 +1417,9 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
                     "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": "sess-1"},
                     "closed_at": "2026-10-02T12:00:00Z", **stamps})
     repo.mark()
-    res = refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "1s",
-                  match=r"no reply to repo-demo.1.3 within 1s; it is still open: wait again with pm reply wait "
-                        r"repo-demo.1.3, or the reply reaches this session at its next prompt")
+    refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "1s",
+            match=r"no reply to repo-demo.1.3 within 1s; it is still open: wait again with pm reply wait "
+                  r"repo-demo.1.3, or the reply reaches this session at its next prompt")
     refused(repo, "reply", "wait", "repo-demo.1.1", match=r"repo-demo.1.1 is not a request to the owner")
     refused(repo, "reply", "wait", "repo-demo.1.4", match=r"repo-demo.1.4 is closed")
     refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "soon", match=r"--timeout soon is not a duration")
@@ -1427,7 +1427,7 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
                                env=repo.env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                text=True)
     try:
-        time.sleep(1)
+        time.sleep(1)  # noqa: TID251 — the wait must have begun, which nothing outside its process shows
         assert waiting.poll() is None, waiting.communicate()
         assert repo.pm("reply", "add", "repo-demo.1.3", text="Small, until tables.").returncode == 0
         out, err = waiting.communicate(timeout=30)
@@ -1445,7 +1445,7 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
                                env=repo.env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                text=True)
     try:
-        time.sleep(1)
+        time.sleep(1)  # noqa: TID251 — the wait must have begun, which nothing outside its process shows
         assert repo.pm("reply", "add", "repo-demo.1.3", text="Now: go ahead.").returncode == 0
         repo.pm("reply", "read", "repo-demo.1.3")
         out, err = waiting.communicate(timeout=30)

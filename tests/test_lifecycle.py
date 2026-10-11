@@ -64,7 +64,7 @@ def loaded(tmp: Path) -> list[str]:
 
 def notes(lines: list[str]) -> list[str]:
     """lines without the note that Codex's trust was not checked: CODEX_HOME (tmp/codex) is absent in these tests."""
-    return [l for l in lines if not (l.startswith("codex: ") and l.endswith("was not checked"))]
+    return [line for line in lines if not (line.startswith("codex: ") and line.endswith("was not checked"))]
 
 
 def doctor(repo: Path) -> tuple[int, list[str]]:
@@ -565,7 +565,7 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
 
     def run(*args, **extra):
         return subprocess.run([*PM, *args], cwd=new_repo, env=dict(env(tmp_path), **extra), capture_output=True,
-                              text=True)
+                              text=True, check=False)
 
     trust.write_text(json.dumps({"stop:0:1": "untrusted", "user_prompt_submit:0:0": "modified"}))
     res = run("doctor", FAKE_CODEX_TRUST=str(trust))
@@ -615,12 +615,13 @@ def test_init_with_a_path_of_its_own_leaves_the_running_service_alone(new_repo: 
     codex.mkdir()
     base = env(tmp_path)
     res = subprocess.run([*PM, "init"], cwd=new_repo, env=dict(base, PATH=f"{codex}{os.pathsep}{base['PATH']}"),
-                         capture_output=True, text=True)
+                         capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
-    new = [json.loads(l) for l in log.read_text().splitlines()[calls:]]
+    new = [json.loads(line) for line in log.read_text().splitlines()[calls:]]
     assert not [c for c in new if set(c) & {"restart", "daemon-reload", "bootstrap", "bootout", "kickstart"}], new
     assert {u: u.read_bytes() for u in units} == before
     res = subprocess.run([*PM, "service", "install"], cwd=new_repo,
-                         env=dict(base, PATH=f"{codex}{os.pathsep}{base['PATH']}"), capture_output=True, text=True)
+                         env=dict(base, PATH=f"{codex}{os.pathsep}{base['PATH']}"), capture_output=True, text=True,
+                         check=False)
     assert res.returncode == 0 and res.stdout.startswith("updated the pm service"), res.stdout + res.stderr
     assert str(codex).encode() in b"".join(u.read_bytes() for u in units)

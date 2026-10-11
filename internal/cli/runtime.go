@@ -68,7 +68,10 @@ func readProc(pid int) (int, string, bool) {
 		if err != nil {
 			return 0, "", false
 		}
-		cmdline, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+		cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+		if err != nil {
+			return 0, "", false
+		}
 		argv0, _, _ := bytes.Cut(cmdline, []byte{0})
 		return ppid, string(argv0), true
 	} else if _, err := os.Stat("/proc/self/stat"); err == nil {

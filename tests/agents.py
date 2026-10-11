@@ -14,6 +14,7 @@ HOME, the pm bin dir and the supervisor's units are the scratch ones in either r
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -46,7 +47,7 @@ def free_port() -> int:
 
 
 def git(cwd: Path, *args: str, env: dict | None = None) -> str:
-    res = subprocess.run(["git", *args], cwd=cwd, env=env, capture_output=True, text=True)
+    res = subprocess.run(["git", *args], cwd=cwd, env=env, capture_output=True, text=True, check=False)
     if res.returncode:
         raise AssertionError(f"git {' '.join(args)} exited {res.returncode} in {cwd}:\n{res.stderr}")
     return res.stdout
@@ -164,9 +165,9 @@ class Run:
         for e in self.entries:
             if self.runtime == "claude":
                 content = (e.get("message") or {}).get("content")
-                for c in content if isinstance(content, list) else []:
-                    if isinstance(c, dict) and c.get("type") == "tool_use" and c.get("name") == "Bash":
-                        out.append((c.get("input") or {}).get("command", ""))
+                out.extend((c.get("input") or {}).get("command", "") for c in
+                           (content if isinstance(content, list) else [])
+                           if isinstance(c, dict) and c.get("type") == "tool_use" and c.get("name") == "Bash")
             else:
                 p = e.get("payload") or {}
                 if e.get("type") == "response_item" and p.get("type") in ("function_call", "custom_tool_call",
@@ -237,10 +238,8 @@ def _load(path: Path) -> list[dict]:
     out = []
     if path.exists():
         for line in path.read_text().splitlines():
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 out.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
     return out
 
 
@@ -293,7 +292,7 @@ class Clone:
            env: dict | None = None) -> subprocess.CompletedProcess:
         argv = [*PM, *args, *([f"--text={text}"] if text is not None else [])]
         return subprocess.run(argv, cwd=cwd or self.root, env=env or self.env, capture_output=True, text=True,
-                              stdin=subprocess.DEVNULL, timeout=120)
+                              stdin=subprocess.DEVNULL, timeout=120, check=False)
 
     def must(self, *args: str, text: str | None = None, text_file: str | None = None) -> str:
         if text_file is not None:
@@ -317,7 +316,7 @@ class Clone:
 
     def items(self) -> dict[str, dict]:
         res = subprocess.run([*PM, "export", "--store", str(self.root / ".pm/store/work")], cwd=self.tmp,
-                             env=self.env, capture_output=True, text=True, timeout=120)
+                             env=self.env, capture_output=True, text=True, timeout=120, check=False)
         assert res.returncode == 0, res.stderr
         return {i["id"]: i for i in map(json.loads, res.stdout.splitlines())}
 
@@ -375,7 +374,7 @@ class Clone:
         env = {k: v for k, v in self.env.items() if not INHERITED.match(k)}
         return dict(env, CODEX_HOME=str(self.codex_home), CLAUDE_CONFIG_DIR=str(CLAUDE_DIR))
 
-    def start(self, runtime: str, name: str, prompt: str, resume: str = "") -> "Agent":
+    def start(self, runtime: str, name: str, prompt: str, resume: str = "") -> Agent:
         """Start a headless session of `runtime` in the main checkout on `prompt`, or resume the session `resume`
         with it as its next prompt; its output streams to the test's tmp dir."""
         trust = f'projects."{self.root}".trust_level="trusted"'

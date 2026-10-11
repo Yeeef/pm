@@ -28,8 +28,7 @@ func codexRollouts(thread string) []string {
 	name := "rollout-*-" + thread + ".jsonl"
 	start, ok := uuid7Start(thread)
 	if !ok {
-		paths, _ := filepath.Glob(filepath.Join(sessions, "*", "*", "*", name))
-		return paths
+		return glob(filepath.Join(sessions, "*", "*", "*", name))
 	}
 	var paths []string
 	seen := map[string]bool{}
@@ -37,8 +36,7 @@ func codexRollouts(thread string) []string {
 		day := start.Add(zone).UTC().Format("2006/01/02")
 		if !seen[day] {
 			seen[day] = true
-			found, _ := filepath.Glob(filepath.Join(sessions, filepath.FromSlash(day), name))
-			paths = append(paths, found...)
+			paths = append(paths, glob(filepath.Join(sessions, filepath.FromSlash(day), name))...)
 		}
 	}
 	return paths
@@ -78,15 +76,24 @@ func (m codexMeta) root() string {
 	return m.ID
 }
 
+// glob is the paths matching pattern. Its only error is a malformed pattern, which only a directory name holding glob
+// syntax ($CODEX_HOME, Claude Code's config dir) makes: no transcript is found there, as none can be matched.
+func glob(pattern string) []string {
+	paths, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil
+	}
+	return paths
+}
+
 // readCodexMeta is the session_meta on the rollout's first line, and whether that line is one.
 func readCodexMeta(path string) (codexMeta, bool) {
 	f, err := os.Open(path)
 	if err != nil {
 		return codexMeta{}, false
 	}
-	defer f.Close()
 	line, err := bufio.NewReader(f).ReadBytes('\n')
-	if len(line) == 0 && err != nil {
+	if cerr := f.Close(); cerr != nil || len(line) == 0 && err != nil {
 		return codexMeta{}, false
 	}
 	return parseCodexMeta(line)

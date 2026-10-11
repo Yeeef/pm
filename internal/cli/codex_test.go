@@ -14,9 +14,9 @@ const (
 	childThread = "01a12beb-1c93-7450-8bb3-46ac7a13452f"
 )
 
-// rollout writes a Codex rollout of thread under $CODEX_HOME/sessions/<day>/ whose first line is its session_meta
-// (meta, with the thread's id) and the rest lines; day "" is the thread's start date in local time, as Codex names it.
-func rollout(t *testing.T, thread, day string, meta map[string]any, lines ...map[string]any) string {
+// rollout writes a Codex rollout of thread under $CODEX_HOME/sessions/<day>/ whose line is its session_meta (meta,
+// with the thread's id); day "" is the thread's start date in local time, as Codex names it.
+func rollout(t *testing.T, thread, day string, meta map[string]any) string {
 	t.Helper()
 	if day == "" {
 		start, ok := uuid7Start(thread)
@@ -33,15 +33,12 @@ func rollout(t *testing.T, thread, day string, meta map[string]any, lines ...map
 	for k, v := range meta {
 		payload[k] = v
 	}
-	var text []byte
-	for _, l := range append([]map[string]any{{"timestamp": "2026-10-11T17:03:11.001Z", "type": "session_meta",
-		"payload": payload}}, lines...) {
-		b, err := json.Marshal(l)
-		if err != nil {
-			t.Fatal(err)
-		}
-		text = append(append(text, b...), '\n')
+	text, err := json.Marshal(map[string]any{"timestamp": "2026-10-11T17:03:11.001Z", "type": "session_meta",
+		"payload": payload})
+	if err != nil {
+		t.Fatal(err)
 	}
+	text = append(text, '\n')
 	p := filepath.Join(dir, "rollout-2026-10-11T19-03-05-"+thread+".jsonl")
 	if err := os.WriteFile(p, text, 0o644); err != nil {
 		t.Fatal(err)

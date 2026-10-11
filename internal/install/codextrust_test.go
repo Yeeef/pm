@@ -2,9 +2,11 @@ package install
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -58,13 +60,20 @@ func listAnswer(t *testing.T, main string, status map[string]string, enabled map
 	if err != nil {
 		t.Fatal(err)
 	}
-	var msg map[string]any
+	var msg struct {
+		ID     int `json:"id"`
+		Result struct {
+			Data []struct {
+				Cwd   string           `json:"cwd"`
+				Hooks []map[string]any `json:"hooks"`
+			} `json:"data"`
+		} `json:"result"`
+	}
 	if err := json.Unmarshal([]byte(strings.ReplaceAll(string(raw), "@MAIN@", main)), &msg); err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range msg["result"].(map[string]any)["data"].([]any)[0].(map[string]any)["hooks"].([]any) {
-		h := h.(map[string]any)
-		suffix := strings.TrimPrefix(h["key"].(string), filepath.Join(main, ".codex", "hooks.json")+":")
+	for _, h := range msg.Result.Data[0].Hooks {
+		suffix := strings.TrimPrefix(fmt.Sprint(h["key"]), filepath.Join(main, ".codex", "hooks.json")+":")
 		if s, ok := status[suffix]; ok {
 			h["trustStatus"] = s
 		}
@@ -72,7 +81,10 @@ func listAnswer(t *testing.T, main string, status map[string]string, enabled map
 			h["enabled"] = e
 		}
 	}
-	b, _ := json.Marshal(msg)
+	b, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return string(b) + "\n"
 }
 
@@ -180,9 +192,10 @@ func TestCodexTrustAgainstRealCodex(t *testing.T) {
 	if err != nil || len(got) != 1 || !strings.HasPrefix(got[0], "codex: Codex skips all of pm's 10 hooks in ") {
 		t.Fatalf("a trusted project, pm's hooks not: %q %v", got, err)
 	}
-	if b, _ := os.ReadFile(filepath.Join(home, "config.toml")); string(b) != config {
-		t.Errorf("codex app-server changed config.toml: %q", b)
+	if b, err := os.ReadFile(filepath.Join(home, "config.toml")); err != nil || string(b) != config {
+		t.Errorf("codex app-server changed config.toml: %q %v", b, err)
 	}
 }
 
-func quote(s string) string { b, _ := json.Marshal(s); return string(b) }
+// quote is s as a TOML basic string, as Go quotes it (enough for the paths a test writes).
+func quote(s string) string { return strconv.Quote(s) }
