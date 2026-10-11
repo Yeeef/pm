@@ -53,6 +53,11 @@ Keep the darwin Go jobs on every PR
 Sharding already brings a PR to ~2 min; darwin-only failures stay caught before merge
 :::
 
+::: decision {source=agent date=2026-10-11}
+No production change for the unreachable-remote fast-fail: only the test changes, to hold the refusal a write past the read dedup gets.
+A real write already refuses in ~5 ms; the 9 s path needs the remote lost within 1 s of the last read, and bounding Dolt push retries would reclassify slow legitimate pushes (PushTimeout 60 s) without changing the unknown-outcome semantics.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
