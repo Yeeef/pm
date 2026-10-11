@@ -427,16 +427,15 @@ def need_with_reply(repo, nid: str, session: str) -> None:
                     "labels": ["human"], "metadata": {"session": session}, "comments": [reply], **at})
 
 
-@pytest.mark.parametrize("event", ["UserPromptSubmit", "Stop"])
-def test_inbox_hands_a_reply_over_alike_in_claude_code_and_codex(repo, tmp_path, event):
-    """A reply to a need of this session that no push delivered (Codex has none): at the next prompt it goes in as
-    context, at a stop as a block, the same from either runtime's input; it is marked delivered, so it goes in once."""
+def test_inbox_hands_a_reply_over_alike_in_claude_code_and_codex(repo, tmp_path):
+    """A reply to a need of this session that no push delivered (Codex has none) goes in as context beside the next
+    prompt, the same from either runtime's input, and is marked delivered, so it goes in once."""
     need_with_reply(repo, "repo-demo.1.3", "sess-claude")
     need_with_reply(repo, "repo-demo.1.4", "sess-codex")
     got = {}
     for runtime, session, nid in (("claude", "sess-claude", "repo-demo.1.3"), ("codex", "sess-codex", "repo-demo.1.4")):
-        payload = hook_payload(runtime, event, session=session, cwd=str(repo.root), transcript=str(tmp_path / "t"),
-                               prompt="go on", reply="Done.")
+        payload = hook_payload(runtime, "UserPromptSubmit", session=session, cwd=str(repo.root),
+                               transcript=str(tmp_path / "t"), prompt="go on")
         res = run(INBOX, payload, repo.env, repo.root)
         assert res.returncode == 0 and res.stderr == "", res.stderr
         got[runtime] = res.stdout.replace(nid, "<id>")
@@ -444,19 +443,19 @@ def test_inbox_hands_a_reply_over_alike_in_claude_code_and_codex(repo, tmp_path,
         again = run(INBOX, payload, repo.env, repo.root)
         assert again.returncode == 0 and again.stdout == "", again.stdout
     assert got["claude"] == got["codex"]
-    out = json.loads(got["codex"])
-    text = out["hookSpecificOutput"]["additionalContext"] if event == "UserPromptSubmit" else out["reason"]
-    if event == "Stop":
-        assert out["decision"] == "block"
-    assert text.startswith("The owner replied to requests this session raised; pm marked the replies delivered:\n\n"
+    text = json.loads(got["codex"])["hookSpecificOutput"]["additionalContext"]
+    assert text.startswith("The owner replied to requests this session raised:\n\n"
                            "pm: owner reply to decision <id> (Parser?), relayed from the site:")
     assert "Small, until tables." in text
 
 
-def test_inbox_lets_a_stop_through_after_a_block(repo, tmp_path):
+def test_inbox_hands_nothing_over_at_a_stop(repo, tmp_path):
+    """A block at a stop would end the turn that acts on the reply with stop_hook_active, which lets the stop checks
+    through; at a stop the hook does nothing, and the reply stays undelivered."""
     need_with_reply(repo, "repo-demo.1.3", ME)
-    payload = dict(hook_payload("codex", "Stop", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"),
-                                reply="Done."), stop_hook_active=True)
-    res = run(INBOX, payload, repo.env, repo.root)
-    assert res.returncode == 0 and res.stdout == "", res.stderr
+    for runtime in ("claude", "codex"):
+        payload = hook_payload(runtime, "Stop", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"),
+                               reply="Done.")
+        res = run(INBOX, payload, repo.env, repo.root)
+        assert res.returncode == 0 and res.stdout == "", res.stderr
     assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 0

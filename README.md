@@ -155,8 +155,8 @@ command reaches the pm service through a socket that a network-off sandbox block
 2. In Codex, run `/hooks` and trust pm's hooks. pm never writes that trust; `pm doctor` names each of pm's hooks Codex
    would skip, and the project when Codex runs none of them.
 
-A Codex session gets no push of the owner's replies: it waits with `pm reply wait <id>`, or the reply reaches it at
-its next prompt or stop. Codex runs a command it cannot split into plain commands, such as one fed a heredoc, inside
+A Codex session gets no push of the owner's replies: it waits within its turn with `pm reply wait <id>`, or the reply
+reaches it at its next prompt. Codex runs a command it cannot split into plain commands, such as one fed a heredoc, inside
 its sandbox, where pm may not reach its service: give such a body with `--text-file PATH` or `--text="…"`.
 
 ## Docs

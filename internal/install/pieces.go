@@ -182,8 +182,7 @@ func claudeHooks() entries {
 				return obj("hooks", []any{h("pm hook inbox || exit 1", 10)})
 			},
 			"Stop": func() *pyjson.Object {
-				return obj("hooks", []any{h("pm hook inbox || exit 1", 10), h("pm hook owner-request || exit 1", 30),
-					h("pm hook stop || exit 1", 10)})
+				return obj("hooks", []any{h("pm hook owner-request || exit 1", 30), h("pm hook stop || exit 1", 10)})
 			},
 		},
 	}
@@ -197,7 +196,6 @@ func codexHooks() entries {
 	h := func(command, status string, timeout int) any {
 		return obj("command", command, "statusMessage", status, "type", "command", "timeout", timeout)
 	}
-	inbox := func() any { return h("pm hook inbox || exit 1", "Checking for the owner's replies", 10) }
 	rules := func(timeout int) []any {
 		n := rulesCount()
 		var out []any
@@ -217,10 +215,10 @@ func codexHooks() entries {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Loading pm's git rule for agents", 15)))
 			},
 			"UserPromptSubmit": func() *pyjson.Object {
-				return obj("hooks", []any{inbox()})
+				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10)})
 			},
 			"Stop": func() *pyjson.Object {
-				return obj("hooks", []any{inbox(), h("pm hook owner-request || exit 1", "Checking for owner requests asked only in chat", 30),
+				return obj("hooks", []any{h("pm hook owner-request || exit 1", "Checking for owner requests asked only in chat", 30),
 					h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
 			},
 			"SubagentStop": func() *pyjson.Object {

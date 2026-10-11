@@ -7,47 +7,62 @@ import (
 	"testing"
 )
 
-func TestInboxHandsOverTheSessionsUndeliveredReplies(t *testing.T) {
+// fakePending answers texts, and records whether deliver ran and what it saw printed by then.
+type fakePending struct {
+	texts     []string
+	readErr   error
+	markErr   error
+	delivered bool
+	printed   string
+	out       *bytes.Buffer
+}
+
+func (f *fakePending) read(dir, session string) ([]string, func() error, error) {
+	if f.readErr != nil {
+		return nil, nil, f.readErr
+	}
+	return f.texts, func() error { f.delivered, f.printed = true, f.out.String(); return f.markErr }, nil
+}
+
+func TestInboxHandsOverTheSessionsUndeliveredRepliesBeforeItMarksThem(t *testing.T) {
 	reply := "pm: owner reply to decision x.1 (Rename X?), relayed from the site:\n  [2026-10-03T12:00:00Z] Yes."
-	lead := "The owner replied to requests this session raised; pm marked the replies delivered:\\n\\n"
-	quoted := strings.ReplaceAll(reply, "\n", `\n`)
-	for in, want := range map[string]string{
-		`{"hook_event_name": "UserPromptSubmit", "session_id": "s", "prompt": "go on"}`: `{"hookSpecificOutput": ` +
-			`{"hookEventName": "UserPromptSubmit", "additionalContext": "` + lead + quoted + `"}}` + "\n",
-		`{"hook_event_name": "Stop", "session_id": "s", "stop_hook_active": false}`: `{"decision": "block", ` +
-			`"reason": "` + lead + quoted + `"}` + "\n",
-		`{"hook_event_name": "Stop", "session_id": "s", "stop_hook_active": true}`: "", // never loops
-		`{"hook_event_name": "Stop"}`: "", // no session
-	} {
-		read := func(dir, session string) ([]string, error) {
-			if session != "s" || dir != "/here" {
-				t.Errorf("read %s %s", dir, session)
-			}
-			return []string{reply}, nil
-		}
-		var out, errb bytes.Buffer
-		if err := HookInbox("/here", read, strings.NewReader(in), &out, &errb); err != nil || errb.Len() != 0 {
-			t.Fatalf("%s: %v %q", in, err, errb.String())
-		}
-		if out.String() != want {
-			t.Errorf("%s:\ngot  %s\nwant %s", in, out.String(), want)
-		}
+	want := `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "The owner replied to ` +
+		`requests this session raised:\n\n` + strings.ReplaceAll(reply, "\n", `\n`) + `"}}` + "\n"
+	var out, errb bytes.Buffer
+	f := &fakePending{texts: []string{reply}, out: &out}
+	in := `{"hook_event_name": "UserPromptSubmit", "session_id": "s", "cwd": "/here", "prompt": "go on"}`
+	if err := HookInbox("/x", f.read, strings.NewReader(in), &out, &errb); err != nil || errb.Len() != 0 {
+		t.Fatalf("%v %q", err, errb.String())
+	}
+	if out.String() != want || !f.delivered || f.printed != want {
+		t.Errorf("got %s, delivered %v after printing %q", out.String(), f.delivered, f.printed)
 	}
 }
 
-func TestInboxIsSilentWithNothingPendingAndFailsOpen(t *testing.T) {
-	for name, read := range map[string]Pending{
-		"nothing": func(string, string) ([]string, error) { return nil, nil },
-		"error":   func(string, string) ([]string, error) { return nil, errors.New("work store:\n down") },
+func TestInboxIsNotOnStopAndFailsOpen(t *testing.T) {
+	for name, c := range map[string]struct {
+		in              string
+		f               *fakePending
+		stderr          string
+		wantOut, marked bool
+	}{
+		"a stop":     {`{"hook_event_name": "Stop", "session_id": "s"}`, &fakePending{texts: []string{"r"}}, "", false, false},
+		"no session": {`{"hook_event_name": "UserPromptSubmit"}`, &fakePending{texts: []string{"r"}}, "", false, false},
+		"nothing":    {`{"hook_event_name": "UserPromptSubmit", "session_id": "s"}`, &fakePending{}, "", false, true},
+		"read fails": {`{"hook_event_name": "UserPromptSubmit", "session_id": "s"}`,
+			&fakePending{readErr: errors.New("work store:\n down")},
+			"pm hook inbox: reading this session's replies failed (work store: down); no reply handed over\n", false, false},
+		"mark fails": {`{"hook_event_name": "UserPromptSubmit", "session_id": "s"}`,
+			&fakePending{texts: []string{"r"}, markErr: errors.New("write lock held")},
+			"pm hook inbox: marking the replies delivered failed (write lock held); they may be handed over again\n", true, true},
 	} {
 		var out, errb bytes.Buffer
-		err := HookInbox("/here", read, strings.NewReader(`{"hook_event_name": "Stop", "session_id": "s"}`), &out, &errb)
-		wantErr := ""
-		if name == "error" {
-			wantErr = "pm hook inbox: reading this session's replies failed (work store: down); no reply handed over\n"
+		c.f.out = &out
+		if err := HookInbox("/here", c.f.read, strings.NewReader(c.in), &out, &errb); err != nil {
+			t.Fatalf("%s: %v", name, err)
 		}
-		if err != nil || out.Len() != 0 || errb.String() != wantErr {
-			t.Errorf("%s: %v %q %q", name, err, out.String(), errb.String())
+		if (out.Len() > 0) != c.wantOut || errb.String() != c.stderr || c.f.delivered != c.marked {
+			t.Errorf("%s: out %q, stderr %q, marked %v", name, out.String(), errb.String(), c.f.delivered)
 		}
 	}
 }

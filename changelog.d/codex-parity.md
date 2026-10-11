@@ -1,7 +1,7 @@
 ### Upgrade guide
 
 1. `pm upgrade --to X` also rewrites `.claude/settings.json` and `.codex/hooks.json` (a new `pm hook inbox` on
-   UserPromptSubmit and Stop; in Codex, SessionStart on `compact` too and a SubagentStop hook) and writes
+   UserPromptSubmit; in Codex, SessionStart on `compact` too and a SubagentStop hook) and writes
    `.codex/rules/pm.rules`. Commit them with the pin move.
 2. Where Codex works in the repo: open Codex in the main checkout, trust the project if it is not, run `/hooks` and
    trust pm's hooks, new and changed ones included. `pm doctor` names any of pm's hooks Codex would skip.
@@ -11,8 +11,8 @@
 - `pm reply wait <id> [--timeout DURATION]`: wait for the owner's reply to a need, then print it and mark it
   delivered as `pm reply read` does; for a session the pm service cannot push into, such as a Codex session. A need
   raised without an inbox says so.
-- `pm hook inbox`, on UserPromptSubmit and Stop in Claude Code and Codex: hands a session the owner's replies that
-  did not reach it, as context beside its next prompt or as a block at its stop, and marks them delivered.
+- `pm hook inbox`, on UserPromptSubmit in Claude Code and Codex: hands a session the owner's replies that did not
+  reach it as context beside its next prompt, and marks them delivered once printed.
 - `pm init` writes `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox: a pm command reaches the pm
   service through a socket that a network-off sandbox blocks. A command Codex cannot split into plain commands, such
   as one fed a heredoc, still runs inside it.

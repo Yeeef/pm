@@ -670,7 +670,7 @@ var tree = &command{
 				},
 				{
 					name: "inbox",
-					help: "UserPromptSubmit and Stop: hand this session the owner's replies that did not reach it (Codex has no push), marked delivered; as context beside the prompt, or as a block at a stop",
+					help: "UserPromptSubmit: hand this session the owner's replies that did not reach it (Codex has no push) as context beside the prompt, then mark them delivered",
 				},
 				{
 					name: "git-post-checkout",

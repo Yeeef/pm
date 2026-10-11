@@ -232,9 +232,9 @@ through `codex app-server` as the TUI's review trusts them. `PM_PARITY_CODEX_SAN
 - `pm init` writes the hook entries (`claudeHooks` and `codexHooks` in `internal/install/pieces.go`) into
   `.claude/settings.json` (SessionStart: `pm prime --rules N --hook-json` for each chunk, then `--state
   --hook-json`; SubagentStart: the same chunks, then `--subagent --hook-json`; UserPromptSubmit: `pm hook inbox`;
-  Stop: `pm hook inbox`, `pm hook owner-request`, then `pm hook stop`, each `|| exit 1`) and `.codex/hooks.json`
-  (the same, with the SessionStart matcher
-  `startup|resume|clear|compact`, plus SubagentStop: `pm hook stop` on the subagent's own rollout, since Codex
+  Stop: `pm hook owner-request` then `pm hook stop`, each `|| exit 1`; no inbox at Stop, whose block would end the
+  continuation with `stop_hook_active` and so let the stop checks through) and `.codex/hooks.json` (the same, with
+  the SessionStart matcher `startup|resume|clear|compact`, plus SubagentStop: `pm hook stop` on the subagent's own rollout, since Codex
   encrypts a subagent's prompt in its parent's); Codex runs hooks by default, so pm writes no `.codex/config.toml`
   setting for them, and `.codex/rules/pm.rules`, which runs pm outside Codex's sandbox. A hook change edits both
   functions; `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for.

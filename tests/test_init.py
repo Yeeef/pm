@@ -35,7 +35,7 @@ RULES = [f"pm prime --rules {n} --hook-json" for n in range(1, len(RULE_STARTS) 
 CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
              "SubagentStart": [*RULES, "pm prime --subagent --hook-json"],
              "UserPromptSubmit": ["pm hook inbox || exit 1"],
-             "Stop": ["pm hook inbox || exit 1", "pm hook owner-request || exit 1", "pm hook stop || exit 1"]}
+             "Stop": ["pm hook owner-request || exit 1", "pm hook stop || exit 1"]}
 
 
 def section(name: str) -> str:
