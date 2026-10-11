@@ -89,7 +89,7 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: pm has a one-page marketing website in `website/` and a workflow that deploys it to GitHub Pages (PR #42, stacked on #41); the merge waits on the owner's review, and the public URL on Pages being enabled.
+done: pm has a one-page marketing website in `website/` and a workflow that deploys it to GitHub Pages (PR #42, stacked on #41); merged as e122a0c; the public URL waits on GitHub Pages being enabled.
 
 - `website/index.html`, `website/style.css`: hero with install, the three parts, "structural, not prompts" with pm's refusals quoted verbatim, five outcomes, the site gallery, an inline SVG diagram of how pm works, get started. Dark first, light by system setting; no build step, no framework.
 - `.github/workflows/website.yml`: deploys `website/` to GitHub Pages on a push to main that changes it, or by hand.
@@ -100,4 +100,4 @@ done: pm has a one-page marketing website in `website/` and a workflow that depl
 > Each item, met or not, with its evidence (a page, a command, a number).
 
 - Private preview shared with the owner, rendering at phone and desktop widths with no horizontal scroll: met. Preview: https://claude.ai/artifact/XDBSuhWDzBNAxQU9e5oydG (version 2, at deb2b26). Headless Chromium: scrollWidth 390/390 at 390 px and 1440/1440 at 1440 px, light and dark. The fresh-context review's overclaims on the page (outcome 02 implied a stray PLANNING.md is blocked; "the only way in" held only for the work store; "tens of agents" beyond the evidence; the `claude` CLI caveat; the 30-minute idle rule is per machine) are fixed in deb2b26. CI on deb2b26: 9 of 9 checks passed.
-- The PR is merged and the Pages deploy serves the page at its public URL: not yet. The merge waits on the owner's review; the deploy needs GitHub Pages enabled with source GitHub Actions, an open action on this sprint, and #41 merged first (then #42 rebased onto main for `make merge-ready`).
+- The PR is merged and the Pages deploy serves the page at its public URL: half met. Merged as e122a0c. The first deploy (run 38165264739) failed at `actions/configure-pages`: Pages is not enabled on the repo (API 404); it waits on the open action to enable it, then a re-run with `gh workflow run website.yml`.
