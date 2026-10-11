@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T19:53:19+00:00",
- "digest": "097b8ebb4d239767",
+ "generated_at": "2026-10-11T20:03:57+00:00",
+ "digest": "bdd9ed96e1d8543d",
  "model": "claude-haiku-5-5",
- "text": "- **Public website:** The README now describes pm as a human-agent project management suite. The marketing site is live on GitHub Pages.\n- **Site access:** The public site now checks Cloudflare Access tokens in Go. It refuses the public token from the login redirect.\n- **Quality checks:** Lint checks now stop sloppy code patterns in CI. CI now runs the Go tests in shards, and the test suites keep only tests with unique value.\n- **Review pull requests:** Review the open pull requests for Codex, the site flag, and CI checks. Trust pm's Codex hooks once in each repo where you use Codex."
+ "text": "- **Public site access:** The site's Access check now accepts only app-type tokens, so it refuses login redirect tokens. The Go port also adds a doctor line and limits key refetches to once a minute.\n- **Codex integration:** pm now takes the Codex session id first for owner requests. Each gap between Codex and Claude Code is closed on a branch or left by a project decision.\n- **Website, docs and checks:** The pm website is live on GitHub Pages, and the README now calls pm a human-agent project management suite. CI now runs lint gates, and tests without unique value were removed.\n- **For you:** Review the open pull requests. Trust pm's Codex hooks once in each repo that uses Codex."
 }
