@@ -91,6 +91,12 @@ None yet.
   (the lambda is used up in the same iteration); it is now functools.partial.
   Flag-parse test: 57 flags checked, 0 mismatches; a bogus flag makes it fail.
 
+- Local timing on 32 cores, warm caches: make lint takes 15.7 s wall
+  (golangci-lint about 3 s for both passes, deadcode about 12 s, ruff under 1
+  s). make test-go takes 2m47s and passes. make test: 146 passed. Package
+  sizes: internal/cli has 8915 non-test lines (ratchet allowlist); the next
+  largest, internal/work, has 4724.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
