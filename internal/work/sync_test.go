@@ -791,19 +791,29 @@ func TestCreatePushTimeout(t *testing.T) {
 	})
 }
 
+// With the remote unreachable, a child create refuses at its pull, in milliseconds, and creates nothing. A's service
+// starts anew first, as one does after its last read of the remote is past Dolt's read dedup (fresh): within it the
+// pull's fetch reads nothing, and the push's own fetch, which Dolt's git remote retries 32 times over about 9 s, fails
+// with an outcome unknown, the case TestCreatePushTimeout and its neighbours hold.
 func TestCreateRefusesWithTheRemoteUnreachable(t *testing.T) {
 	x := newPair(t)
 	if err := os.Rename(x.bare, x.bare+".gone"); err != nil {
 		t.Fatal(err)
 	}
+	if err := x.a.s.h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	x.a.s = host(t, x.a.s.main, x.a.o, Ops{})
 	x.a.do(func(d *Dolt) {
 		head := must(d.head())
+		start := time.Now()
 		_, err := d.Create(New{Type: Task, Parent: x.s.ID, Title: "offline"})
-		// The pull's fetch fails, or, within Dolt's 1 s read dedup of the service's last fetch, reads nothing and
-		// the push fails with an outcome the failing fetch cannot check: either way nothing is created.
-		if err == nil || !strings.Contains(err.Error(), "minted only against the remote") &&
-			!strings.Contains(err.Error(), "the outcome is unknown") || must(d.head()) != head {
+		if err == nil || !strings.Contains(err.Error(), "a child id is minted only against the remote") ||
+			must(d.head()) != head {
 			t.Fatal(err)
+		}
+		if took := time.Since(start); took > time.Second {
+			t.Fatalf("the refusal took %s, not milliseconds", took)
 		}
 		if _, err := d.Create(New{Type: Project, Title: "a root id needs no remote"}); err != nil {
 			t.Fatal(err)
