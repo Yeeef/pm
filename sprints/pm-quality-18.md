@@ -48,7 +48,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-11}
+Keep the darwin Go jobs on every PR
+Sharding already brings a PR to ~2 min; darwin-only failures stay caught before merge
+:::
 
 ## Findings
 
