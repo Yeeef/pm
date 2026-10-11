@@ -25,6 +25,30 @@ only.
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.7.1] - 2026-10-11
+
+The Cloudflare Access check accepts only an application token; fixes found by the new lint gates.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.7.1/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.7.1`, then commit what it changes and merge it, as an ordinary PR.
+
+### Fixed
+
+- A pm service that finds the work store held by another process names Dolt's own error as the cause, which it
+  used to drop.
+- `pm uninstall` fails on a service unit it cannot read, instead of reporting no service installed.
+- A reply spool line that is JSON but not a spool entry is refused with its line number, instead of read as empty.
+- `pm push` reports git's counts as unreadable when they are not numbers, instead of reading them as 0.
+
+### Security
+
+- The Cloudflare Access check accepts only an application token (`type` `app`). The login redirect hands anyone a
+  `meta` token signed by the team's key for the site's `aud`, which 0.7.0 refused only because it carries no `iss`;
+  it is now refused by rule, as is the team's global session token (`org`).
+
 ## [0.7.0] - 2026-10-11
 
 The pm site's public host requires a valid Cloudflare Access token; a pin move names the worktrees it strands; a
@@ -465,6 +489,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.7.1]: https://github.com/Yeeef/pm/compare/pm-v0.7.0...pm-v0.7.1
 [0.7.0]: https://github.com/Yeeef/pm/compare/pm-v0.6.0...pm-v0.7.0
 [0.6.0]: https://github.com/Yeeef/pm/compare/pm-v0.5.0...pm-v0.6.0
 [0.5.0]: https://github.com/Yeeef/pm/compare/pm-v0.4.0...pm-v0.5.0
