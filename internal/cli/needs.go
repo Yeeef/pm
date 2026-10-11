@@ -1010,9 +1010,11 @@ func cmdReplyRead(e *env, p *Parsed) (string, error) {
 // replyPoll is how often pm reply wait reads the need.
 var replyPoll = 2 * time.Second
 
-// cmdReplyWait is pm reply wait: block until the need has a reply, then print it: what has not reached a session
-// (a reply, or its review's merge) marked delivered, as pm reply read does, else its latest reply, which reached the
-// session already (pm hook inbox or a push). It refuses at the timeout, and for a need closed with no reply.
+// cmdReplyWait is pm reply wait: block until the need has a new reply, then print it: what has not reached a session
+// (a reply, or its review's merge) marked delivered, as pm reply read does, else the replies stamped since the wait
+// began, which a push or pm hook inbox delivered meanwhile. A reply delivered before the wait is no new reply: an
+// agent that asks again after "not yet" waits for the next one. It refuses at the timeout, and for a need closed with
+// no new reply.
 func cmdReplyWait(e *env, p *Parsed) (string, error) {
 	id, given := p.Get("id"), p.Get("timeout")
 	if given == "" {
@@ -1034,11 +1036,17 @@ func cmdReplyWait(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	texts := service.Texts{Main: store.MainOf(e.records), Remote: cfg.Remote, MainBranch: cfg.MainBranch}
-	deadline := time.Now().Add(timeout)
+	start := time.Now()
+	deadline := start.Add(timeout)
+	if all, err := ws.Items(); err != nil { // once: an unknown id is a refusal, not a store error
+		return "", err
+	} else if !slices.ContainsFunc(all, func(it work.Item) bool { return it.ID == id && it.Type == work.Need }) {
+		return "", refuse("%s is not a request to the owner (a need in the work store)", id)
+	}
 	for {
 		got, err := ws.Get(id)
-		if err != nil || got[0].Type != work.Need {
-			return "", refuse("%s is not a request to the owner (a need in the work store)", id)
+		if err != nil {
+			return "", err
 		}
 		need := &got[0]
 		if text, mark := texts.Undelivered(need); text != "" {
@@ -1047,7 +1055,7 @@ func cmdReplyWait(e *env, p *Parsed) (string, error) {
 			}
 			return text, nil
 		}
-		if text := texts.Latest(need); text != "" { // delivered already: by pm hook inbox, a push, or before the wait
+		if text := texts.Since(need, start); text != "" { // delivered while it waited: a push, or pm hook inbox
 			return text, nil
 		}
 		if need.Status == work.Closed {

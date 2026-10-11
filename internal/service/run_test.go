@@ -806,3 +806,24 @@ func TestSweepsCoalesceAndNeverTakeAReplysPlace(t *testing.T) {
 		t.Fatal("a reply's job waited behind sweeps")
 	}
 }
+
+// TestSinceIsTheRepliesFromTheWaitsSecond: pm reply wait's new replies are those stamped in or after the second the
+// wait began (the store stamps to the second), delivered or not; an earlier one ("not yet") is none.
+func TestSinceIsTheRepliesFromTheWaitsSecond(t *testing.T) {
+	n := need("p-1.2.1", work.Decision, "")
+	n.Comments = []work.Comment{
+		{ID: "c1", Kind: work.Reply, Author: ReplyAuthor, Text: "not yet", CreatedAt: at},
+		{ID: "c2", Kind: work.Reply, Author: ReplyAuthor, Text: "go ahead", CreatedAt: at.Add(time.Minute)}}
+	n.Need.Delivered = 2
+	var texts Texts
+	for since, want := range map[time.Time]string{
+		at.Add(time.Hour):                          "",
+		at.Add(30 * time.Second):                   "go ahead",
+		at.Add(time.Minute + 400*time.Millisecond): "go ahead", // stamped in the wait's second
+	} {
+		got := texts.Since(&n, since)
+		if (want == "") != (got == "") || !strings.Contains(got, want) || strings.Contains(got, "not yet") {
+			t.Errorf("since %s: %q", since.Format(time.RFC3339Nano), got)
+		}
+	}
+}

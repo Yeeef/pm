@@ -1437,10 +1437,22 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
     assert out.startswith("pm: owner reply to decision repo-demo.1.3 (Parser?)") and "Small, until tables." in out
     assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 1
     assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
-    # a reply that reached the session already (pm hook inbox, a push, an earlier wait) ends a wait at once
+    # asked again after that reply (say it was "not yet"), the session waits for the next one, not that one
     again = repo.pm("reply", "wait", "repo-demo.1.3", "--timeout", "1s")
-    assert again.returncode == 0 and "Small, until tables." in again.stdout, again.stderr
-    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 1
+    assert again.returncode == 1 and "no reply to repo-demo.1.3 within 1s" in again.stderr, again.stdout
+    # a reply that reaches the session another way while it waits (a push, pm hook inbox; here pm reply read) ends it
+    waiting = subprocess.Popen([*PM, "reply", "wait", "repo-demo.1.3", "--timeout", "60s"], cwd=repo.root,
+                               env=repo.env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               text=True)
+    try:
+        time.sleep(1)
+        assert repo.pm("reply", "add", "repo-demo.1.3", text="Now: go ahead.").returncode == 0
+        repo.pm("reply", "read", "repo-demo.1.3")
+        out, err = waiting.communicate(timeout=30)
+    finally:
+        waiting.kill()
+    assert waiting.returncode == 0 and "Now: go ahead." in out and "Small, until tables." not in out, (out, err)
+    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 2
 
 
 def test_a_need_closed_by_its_decision_or_its_no_decision_close_records_the_session(repo):

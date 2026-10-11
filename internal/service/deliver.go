@@ -165,13 +165,19 @@ func (t Texts) Undelivered(n *work.Item) (string, *work.NeedUpdate) {
 	return strings.Join(parts, "\n"), &u
 }
 
-// Latest is a need's latest site reply, as Undelivered words a reply, delivered or not; "" when it has none.
-func (t Texts) Latest(n *work.Item) string {
-	replies := siteReplies(n)
+// Since is a need's site replies stamped at or after since, as Undelivered words them, delivered or not; "" when it
+// has none. The store stamps to the second, so since counts from its second.
+func (t Texts) Since(n *work.Item, since time.Time) string {
+	var replies []work.Comment
+	for _, c := range siteReplies(n) {
+		if !c.CreatedAt.Before(since.Truncate(time.Second)) {
+			replies = append(replies, c)
+		}
+	}
 	if len(replies) == 0 {
 		return ""
 	}
-	return t.replyText(n, replies[len(replies)-1:])
+	return t.replyText(n, replies)
 }
 
 // Hostname is this machine's name, as a need stores its inbox's host; a variable so tests can move a need elsewhere.
