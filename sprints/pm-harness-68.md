@@ -67,6 +67,11 @@ The Access check also requires type "app"; release it as 0.7.1, then move the pi
 The meta token anyone can fetch from the login redirect is signed by the team key with the right aud and was refused only for lacking iss; the keys are public identifiers, so they go in the tracked config
 :::
 
+::: decision {source=owner date=2026-10-11}
+Deliver sprint 68 end to end in this session: merge PR #49, the 0.7.1 release notes PR and the pin move to 0.7.1 with the Access keys, tag pm-v0.7.1, restart the service and run the live check
+Owner said "deliver it end to end" in chat on 2026-10-11 after reviewing the plan
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
