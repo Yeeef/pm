@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T16:57:16+00:00",
- "digest": "c10d7375302514bb",
+ "generated_at": "2026-10-11T17:07:33+00:00",
+ "digest": "47df26fe7d4ca488",
  "model": "claude-haiku-5-5",
- "text": "- **Site status warnings:** Work started to flag a main checkout behind its remote on the site and in pm service status.\n- **Codex integration:** Work started on a gap list between Codex and Claude Code. Work also started to confirm the owner-request hook's session value.\n- **Public host access:** Work started to port the Cloudflare Access token check to Go."
+ "text": "- **Main checkout status:** The site now flags a main checkout that is behind, diverged, or off main. Pm service status and pm show also report it.\n- **Cloudflare Access check:** Work started to port the public host's token check to Go. A design note now records the Go service's Access check.\n- **Codex integration:** Work started on the Codex integration for pm. A gap list against Claude Code is in progress.\n- **For you:** Review the pull request for the main checkout flag. Its CI checks already pass."
 }
