@@ -322,6 +322,12 @@ def test_a_codex_session_never_takes_the_claude_code_inbox_it_inherits(repo):
     assert "this session gets no push of the owner's reply" in res.stdout, res.stdout
     raised = repo.items()["repo-demo.1.3"]["need"]["raised_by"]
     assert raised["session"] == "cx-root" and not raised.get("inbox"), raised
+    # the Claude Code session itself stores its inbox, and is told how to wait within its turn too
+    repo.env = dict(repo.env, CODEX_SESSION_ID="", CLAUDE_CODE_SESSION_ID="cl-1")
+    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    assert ("the pm service pushes the owner's reply into this session; to wait for it within this turn, run pm reply "
+            "wait repo-demo.1.4;") in res.stdout, res.stdout + res.stderr
+    assert repo.items()["repo-demo.1.4"]["need"]["raised_by"]["inbox"] == "/run/claude-parent.sock"
 
 
 def without(flags: tuple, *drop: tuple[str, str]) -> tuple:
@@ -560,9 +566,9 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
     assert res.returncode == 0, res.stderr
     # a session with no inbox (Codex) gets no push: it is told how to wait for the reply
-    assert ("this session gets no push of the owner's reply (no inbox, as in Codex): wait for it with pm reply wait "
-            "repo-demo.1.4 (in the background where the runtime allows), else it reaches the session at its next "
-            "prompt or stop, and pm reply read repo-demo.1.4 prints it") in res.stdout
+    assert ("this session gets no push of the owner's reply (no inbox, as in Codex): wait for it within this turn "
+            "with pm reply wait repo-demo.1.4 (in the background where the runtime allows), else it reaches the "
+            "session at its next prompt, and pm reply read repo-demo.1.4 prints it") in res.stdout
     assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.2", "--focus", "F").returncode == 0
     action, decision, review = "repo-demo.1.3", "repo-demo.1.4", "repo-demo.2.1"
     assert {repo.items()[i]["need"]["kind"] for i in (action, decision, review)} == {"action", "decision", "review"}
@@ -1413,7 +1419,7 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
     repo.mark()
     res = refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "1s",
                   match=r"no reply to repo-demo.1.3 within 1s; it is still open: wait again with pm reply wait "
-                        r"repo-demo.1.3")
+                        r"repo-demo.1.3, or the reply reaches this session at its next prompt")
     refused(repo, "reply", "wait", "repo-demo.1.1", match=r"repo-demo.1.1 is not a request to the owner")
     refused(repo, "reply", "wait", "repo-demo.1.4", match=r"repo-demo.1.4 is closed")
     refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "soon", match=r"--timeout soon is not a duration")
@@ -1431,6 +1437,10 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
     assert out.startswith("pm: owner reply to decision repo-demo.1.3 (Parser?)") and "Small, until tables." in out
     assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 1
     assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
+    # a reply that reached the session already (pm hook inbox, a push, an earlier wait) ends a wait at once
+    again = repo.pm("reply", "wait", "repo-demo.1.3", "--timeout", "1s")
+    assert again.returncode == 0 and "Small, until tables." in again.stdout, again.stderr
+    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 1
 
 
 def review_with_origin(repo) -> str:

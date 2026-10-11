@@ -165,6 +165,15 @@ func (t Texts) Undelivered(n *work.Item) (string, *work.NeedUpdate) {
 	return strings.Join(parts, "\n"), &u
 }
 
+// Latest is a need's latest site reply, as Undelivered words a reply, delivered or not; "" when it has none.
+func (t Texts) Latest(n *work.Item) string {
+	replies := siteReplies(n)
+	if len(replies) == 0 {
+		return ""
+	}
+	return t.replyText(n, replies[len(replies)-1:])
+}
+
 // Hostname is this machine's name, as a need stores its inbox's host; a variable so tests can move a need elsewhere.
 var Hostname = os.Hostname
 

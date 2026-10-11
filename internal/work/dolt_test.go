@@ -83,6 +83,21 @@ func get(t *testing.T, d *Dolt, id string) Item {
 	return must(d.Get(id))[0]
 }
 
+// TestDeliveredIsNeverLowered: two deliverers (the service's push, pm reply wait, pm hook inbox) that read different
+// reply counts mark in either order; the count keeps the higher.
+func TestDeliveredIsNeverLowered(t *testing.T) {
+	d, _ := newStore(t)
+	_, _, _, need := seed(t, d)
+	for _, n := range []int{2, 1} {
+		if err := d.UpdateNeed(need.ID, NeedUpdate{Delivered: ptr(n)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := get(t, d, need.ID).Need.Delivered; got != 2 {
+		t.Errorf("delivered %d after marking 2 then 1", got)
+	}
+}
+
 func TestClaimIsACompareAndSet(t *testing.T) {
 	d, o := newStore(t)
 	t.Run("ImportGoesIntoAnEmptyStoreOnly", func(t *testing.T) {

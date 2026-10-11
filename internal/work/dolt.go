@@ -1227,8 +1227,8 @@ func (d *Dolt) UpdateNeed(id string, u NeedUpdate) error {
 				it.Need.RaisedBy.Host = *u.RaisedHost
 			}
 		}
-		if u.Delivered != nil {
-			it.Need.Delivered = *u.Delivered
+		if u.Delivered != nil { // never lowered: a deliverer that read fewer replies than another must not undo it
+			it.Need.Delivered = max(it.Need.Delivered, *u.Delivered)
 		}
 		if u.ReviewMerged != nil || u.ReviewMergeReported != nil {
 			if it.Need.Review == nil {
