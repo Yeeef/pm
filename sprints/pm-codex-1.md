@@ -53,6 +53,11 @@ pm init writes a project Codex rule .codex/rules/pm.rules allowing the pm prefix
 codex-rs 0.154 source: a network-off Linux sandbox denies connect() by seccomp, so no pm command reaches work.sock; an execpolicy allow rule runs the command unsandboxed (exec_policy.rs:440, orchestrator.rs:269), project rules load once the project is trusted, and it opens nothing beyond pm itself.
 :::
 
+::: decision {source=agent date=2026-10-11}
+A Codex session waits for an owner reply with a runtime-neutral pm reply wait <need>, and undelivered replies reach a Codex session at its next prompt (UserPromptSubmit) or stop (Stop block); pm does not run codex exec resume or an app-server for delivery.
+Codex has no messaging socket; a live TUI runs an embedded app-server nobody outside can reach, and exec resume fails while the thread has a writer; a blocking command works in every runtime, and Codex polls background commands up to 300 s per poll.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
