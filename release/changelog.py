@@ -353,7 +353,7 @@ def main(argv: list[str]) -> int:
     w = sub.add_parser("release", help="write release X's section from the entry files and delete them")
     w.add_argument("version")
     w.add_argument("--summary", required=True, help="the section's summary paragraph")
-    w.add_argument("--date", default=datetime.datetime.now(datetime.UTC).date().isoformat(),
+    w.add_argument("--date", default=datetime.datetime.now(datetime.timezone.utc).date().isoformat(),
                    help="the release's date, YYYY-MM-DD (default: today, UTC)")
     a = p.parse_args(argv)
     try:
