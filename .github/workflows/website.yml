@@ -1,0 +1,37 @@
+# pm's website (website/, a static page with no build step) deployed to GitHub Pages on a push to main that changes it,
+# or by hand. Pages must be set to deploy from GitHub Actions (Settings, Pages, Source: GitHub Actions); it serves the
+# page at https://yeeef.github.io/pm/.
+name: website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - website/**
+      - .github/workflows/website.yml
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false  # a deploy that started finishes; the next one queues behind it
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: website
+      - id: deployment
+        uses: actions/deploy-pages@v5
