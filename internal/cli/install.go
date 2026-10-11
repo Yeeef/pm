@@ -50,7 +50,8 @@ func codeTop(here, records, what string) (string, error) {
 }
 
 func settingsOf(c config.Config) install.Settings {
-	return install.Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL}
+	return install.Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL, AccessTeam: c.AccessTeam,
+		AccessAud: c.AccessAud}
 }
 
 // checkSiteURL refuses a --site-url that is not an http(s) base URL.
@@ -478,6 +479,10 @@ func cmdDoctor(here string, stdout io.Writer) error {
 	var diffs []string
 	for _, d := range repo {
 		diffs = append(diffs, fmt.Sprintf("repo: %s; run %s to rewrite it", d, fix))
+	}
+	if missing := c.AccessMissing(); len(missing) > 0 {
+		diffs = append(diffs, fmt.Sprintf("config: site_url is set, but %s lacks %s, so the site refuses every request "+
+			"to its host; set what is missing there (pm init --help)", config.Rel, strings.Join(missing, ", ")))
 	}
 	port, err := service.PortFor(main, int(c.Port))
 	if err != nil {

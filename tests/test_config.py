@@ -15,7 +15,7 @@ from conftest import PM, PM_BEFORE, VERSION, VERSION_BEFORE, write_config
 # prime's parts share one config check; --subagent is the one that starts no pm setup (a light test may not)
 COMMANDS = [("show",), ("where",), ("prime", "--subagent"), ("hook", "stop")]
 CONFIG = ".pm/config.toml"
-KEYS = ("version", "remote", "main_branch", "port", "site_url")  # what the config accepts
+KEYS = ("version", "remote", "main_branch", "port", "site_url", "access_team", "access_aud")  # what the config accepts
 
 
 @pytest.mark.parametrize("args", COMMANDS)

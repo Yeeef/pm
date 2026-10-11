@@ -51,6 +51,8 @@ type Settings struct {
 	MainBranch string
 	Port       int
 	SiteURL    string
+	AccessTeam string // the Cloudflare Access keys, set by hand: carried so a config holding them is pm's own
+	AccessAud  string
 }
 
 // Piece is one managed piece. A text is nil when the file is absent.
@@ -71,8 +73,10 @@ func ptr(s string) *string { return &s }
 // ConfigText is .pm/config.toml as pm init writes it.
 func ConfigText(s Settings) string {
 	site := ""
-	if s.SiteURL != "" {
-		site = "site_url = " + pyjson.String(s.SiteURL, true) + "\n"
+	for _, kv := range [][2]string{{"site_url", s.SiteURL}, {"access_team", s.AccessTeam}, {"access_aud", s.AccessAud}} {
+		if kv[1] != "" {
+			site += kv[0] + " = " + pyjson.String(kv[1], true) + "\n"
+		}
 	}
 	return "version = " + pyjson.String(buildinfo.Version, true) + "   # the pm version every session must run\n" +
 		"remote = " + pyjson.String(s.Remote, true) + "\n" +

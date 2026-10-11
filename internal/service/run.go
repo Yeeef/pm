@@ -88,10 +88,13 @@ type Deps struct {
 	Main, Records      string // the main checkout, and the records store (named in StoreHeader)
 	Remote, MainBranch string // the config's
 	SiteURL            string // the config's site_url, "" when unset
-	Port               int    // 0: a free one
-	Pin                string // the config file, read again at every look: a pin moved off Version() stops the service
-	Spool              string // the reply spool, in the clone's git dir
-	WorkDir            string // the work store's directory, whose size the gc log line gives
+	// AccessTeam and AccessAud are the config's Cloudflare Access keys, "" when unset (then every request through the
+	// tunnel is refused): see refusal.
+	AccessTeam, AccessAud string
+	Port                  int    // 0: a free one
+	Pin                   string // the config file, read again at every look: a pin moved off Version() stops the service
+	Spool                 string // the reply spool, in the clone's git dir
+	WorkDir               string // the work store's directory, whose size the gc log line gives
 	// Open connects to the work store the service holds, through its own socket, for one poll or write.
 	Open func() (work.Store, error)
 	// Mark is the work store's change mark, main's HEAD commit (HASHOF('main')): it moves on every write; "" when
@@ -160,6 +163,7 @@ type server struct {
 	serveCheck, mergePoll time.Duration    // ServeCheck and MergePoll as Run started
 	logMu                 gosync.Mutex
 	gh                    bool
+	access                accessKeys // the Access team's signing keys, fetched on first use
 }
 
 func (s *server) logf(format string, a ...any) {
@@ -514,14 +518,23 @@ func (l *logged) WriteHeader(code int) {
 }
 
 // ServeHTTP answers GET and HEAD for the pages, /style.css, /version and the image files in the records store, and
-// POST for /reply; it logs one line each.
+// POST for /reply, each only once refusal passes it; it logs one line each.
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	lw := &logged{ResponseWriter: w}
-	switch r.Method {
-	case http.MethodGet, http.MethodHead:
+	switch said := s.refusal(r); {
+	case said != "":
+		// no StoreHeader or VersionHeader: a caller refused learns neither the store's path nor the build
+		body := []byte(said + "\n")
+		h := lw.Header()
+		h.Set("Content-Type", "text/plain; charset=utf-8")
+		h.Set("Content-Length", fmt.Sprint(len(body)))
+		h.Set("Cache-Control", "no-store")
+		lw.WriteHeader(http.StatusForbidden)
+		_, _ = lw.Write(body)
+	case r.Method == http.MethodGet || r.Method == http.MethodHead:
 		s.get(lw, r)
-	case http.MethodPost:
+	case r.Method == http.MethodPost:
 		s.post(lw, r)
 	default:
 		s.reply(lw, http.StatusNotImplemented, "text/plain; charset=utf-8", []byte("unsupported method\n"))
@@ -645,7 +658,7 @@ func (s *server) post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	form, _ := url.ParseQuery(strings.ToValidUTF8(string(raw), "�"))
-	code, said := s.take(form, r.Host)
+	code, said := s.take(form)
 	if code != 303 {
 		s.reply(w, code, "text/plain; charset=utf-8", []byte(said+"\n"))
 		return
@@ -662,16 +675,6 @@ func (s *server) post(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(303)
 }
 
-// replyHosts are the Host names a reply may come to: the service binds 127.0.0.1, so any other is a rebinding
-// domain, except the configured public URL's host.
-func (s *server) replyHosts() []string {
-	hosts := []string{"127.0.0.1", "localhost"}
-	if u, err := url.Parse(s.d.SiteURL); err == nil && u.Hostname() != "" {
-		hosts = append(hosts, strings.ToLower(u.Hostname()))
-	}
-	return hosts
-}
-
 func (s *server) siteURL() string {
 	if s.d.SiteURL != "" {
 		return s.d.SiteURL
@@ -681,23 +684,7 @@ func (s *server) siteURL() string {
 
 // check checks the owner's reply against the snapshot's items, so the check reads nothing: the status, then on
 // success (303) the need's id and the reply's text, else why it was refused and "".
-func (s *server) check(form url.Values, host string, items map[string]*work.Item) (int, string, string) {
-	name := host
-	if i := strings.LastIndex(name, ":"); i >= 0 {
-		name = name[:i]
-	}
-	allowed := false
-	for _, h := range s.replyHosts() {
-		allowed = allowed || name == h
-	}
-	if !allowed {
-		shown := "None"
-		if host != "" {
-			shown = proc.Repr(host)
-		}
-		return 403, fmt.Sprintf("refused: Host %s is neither this machine nor the configured site_url; open the site "+
-			"at %s", shown, s.siteURL()), ""
-	}
+func (s *server) check(form url.Values, items map[string]*work.Item) (int, string, string) {
 	if subtle.ConstantTimeCompare([]byte(form.Get("token")), []byte(s.token)) != 1 {
 		return 403, "refused: the reply carries no valid token; reload the page (the server may have restarted) and " +
 			"send it again", ""
@@ -721,12 +708,12 @@ func (s *server) check(form url.Values, host string, items map[string]*work.Item
 	return 303, id, text
 }
 
-func (s *server) take(form url.Values, host string) (int, string) {
+func (s *server) take(form url.Values) (int, string) {
 	snap := s.snap.Load()
 	if snap.err != "" {
 		return 500, "error: the reply was not taken, since the site does not render: " + snap.err
 	}
-	code, id, text := s.check(form, host, snap.items)
+	code, id, text := s.check(form, snap.items)
 	if code != 303 {
 		return code, id
 	}

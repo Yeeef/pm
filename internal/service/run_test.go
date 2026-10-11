@@ -61,7 +61,8 @@ func quick(t *testing.T) {
 	t.Cleanup(func() { ServeCheck, MergePoll = saved[0], saved[1] })
 }
 
-func serve(t *testing.T, w *fakeWork, main string) *served {
+// serve starts Run; opts change its Deps first.
+func serve(t *testing.T, w *fakeWork, main string, opts ...func(*Deps)) *served {
 	t.Helper()
 	quick(t)
 	if main == "" {
@@ -77,10 +78,14 @@ func serve(t *testing.T, w *fakeWork, main string) *served {
 		spool: filepath.Join(main, ".git", SpoolName), out: &syncBuffer{}, log: &syncBuffer{}, done: make(chan error, 1)}
 	s.setPin(Version())
 	go func() {
-		err := Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Port: 0, Pin: s.pin,
+		d := Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Port: 0, Pin: s.pin,
 			Spool: s.spool, WorkDir: main, Open: w.Open, Mark: w.Mark, Sync: w.Sync, GC: w.GC, Site: s.site,
 			Summarize: func() (bool, string) { return true, "summarized" }, Style: []byte("body{}"), Out: s.out,
-			Log: s.log})
+			Log: s.log}
+		for _, o := range opts {
+			o(&d)
+		}
+		err := Run(d)
 		w.mu.Lock()
 		w.ran = true
 		w.mu.Unlock()

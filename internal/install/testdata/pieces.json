@@ -469,7 +469,7 @@
    "rel": ".pm/config.toml",
    "text": null,
    "present": "false",
-   "apply": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n",
+   "apply": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n",
    "remove": null,
    "drift": [
     ".pm/config.toml: pm's part is missing"
@@ -480,7 +480,7 @@
    "rel": ".pm/config.toml",
    "text": "",
    "present": "true",
-   "apply": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n",
+   "apply": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n",
    "remove": null,
    "drift": [
     ".pm/config.toml: pm's part is missing"
@@ -491,7 +491,7 @@
    "rel": ".pm/config.toml",
    "text": "old\n",
    "present": "true",
-   "apply": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n",
+   "apply": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n",
    "remove": null,
    "drift": [
     ".pm/config.toml: pm's part differs from what pm 0.9.9 writes"
@@ -1355,7 +1355,7 @@
     ],
     [
      ".pm/config.toml",
-     "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n"
+     "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n"
     ],
     [
      ".pm/hooks/post-checkout",
@@ -1394,7 +1394,7 @@
     ],
     [
      ".pm/config.toml",
-     "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n"
+     "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n"
     ],
     [
      ".pm/hooks/post-checkout",
@@ -1430,7 +1430,7 @@
     ],
     [
      ".pm/config.toml",
-     "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n"
+     "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n"
     ],
     [
      ".pm/hooks/post-checkout",
@@ -1470,7 +1470,7 @@
     ],
     [
      ".pm/config.toml",
-     "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n"
+     "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n"
     ],
     [
      ".pm/hooks/post-checkout",
@@ -1496,7 +1496,7 @@
     ".gitignore": "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n",
     ".pm/.gitignore": "store/\nrun/\n",
     ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
-    ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n",
+    ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n",
     ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
     ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
    },
@@ -1544,7 +1544,7 @@
     ".gitignore": "*.log\nbuild/\n# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n# per-machine Claude Code settings: pm adds the store's absolute path to them\n/.claude/settings.local.json\n# --- END PM ---\n",
     ".pm/.gitignore": "store/\nrun/\n",
     ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
-    ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\n",
+    ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\n",
     ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
     ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
    },

@@ -1302,6 +1302,45 @@ def test_reply_is_refused_without_the_token_or_from_another_host(repo, served, t
     assert repo.unchanged()
 
 
+@pytest.mark.integration
+def test_service_refuses_the_public_host_without_access_and_serves_localhost(repo):
+    """Every path and method on site_url's host, and any request Cloudflare's edge forwarded, is checked; localhost is
+    not. Without the Access keys every public request is refused, naming them; with them, one without a token is (no
+    token, so no network). A refusal names neither the store nor the build. internal/service holds the token checks."""
+    import urllib.error
+
+    def get(url: str, path: str, host: str | None = None, headers: dict | None = None) -> tuple[int, str]:
+        req = urllib.request.Request(f"{url}/{path}", headers=({"Host": host} if host else {}) | (headers or {}))
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, r.read().decode()
+        except urllib.error.HTTPError as e:
+            assert "X-PM-Store" not in e.headers and "X-PM-Version" not in e.headers, e.headers
+            return e.code, e.read().decode()
+
+    write_config(repo.root, site_url="https://pm.example.com", access_aud="aud-tag")
+    with serving(repo) as (url, _):
+        assert get(url, "")[0] == 200
+        for path in ("", "style.css", "version"):
+            code, said = get(url, path, "pm.example.com")
+            assert code == 403 and "lacks access_team (the Cloudflare Access team domain" in said, said
+        code, said = get(url, "", "localhost", {"Cf-Connecting-IP": "203.0.113.9"})  # the tunnel rewrote Host
+        assert code == 403 and "lacks access_team" in said, said
+        code, _, said = post_reply(url, {"token": "t", "id": "repo-demo.1.2", "text": "Small."}, {"Host": "pm.example.com"})
+        assert code == 403 and "lacks access_team" in said
+        code, said = get(url, "", "evil.example")  # a rebinding domain reads no page
+        assert code == 403 and "is neither this machine" in said
+    write_config(repo.root, site_url="https://pm.example.com", access_team="team.cloudflareaccess.com",
+                 access_aud="aud-tag")
+    with serving(repo) as (url, _):
+        token = page_token(url)
+        code, _, said = post_reply(url, {"token": token, "id": "repo-demo.1.2", "text": "Small."},
+                                   {"Host": "pm.example.com"})
+        assert code == 403 and "carries no Cloudflare Access token" in said
+        assert get(url, "", "pm.example.com:443")[0] == 403
+    assert repo.unchanged()
+
+
 @contextlib.contextmanager
 def session_inbox(path: str | None = None):
     """A stand-in for a Claude Code session's inbox: a Unix socket that collects each JSON line written to it. Its
