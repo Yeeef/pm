@@ -184,7 +184,9 @@ neither the store-path nor the build header.
   that verifies: RS256 signature against the team's keys at
   `https://<access_team>/cdn-cgi/access/certs` (fetched by the service and
   cached; an unknown `kid` refetches them at most once a minute), `aud`
-  holding `access_aud`, `iss` equal to `https://<access_team>`, `exp`
+  holding `access_aud`, `type` equal to `app` (the login redirect hands anyone
+  a `meta` token signed by the same key for the same `aud`; `org` is the
+  team's global session token), `iss` equal to `https://<access_team>`, `exp`
   present and not past, `nbf` and `iat` not in the future. A request is
   public when its `Host` is `site_url`'s host or it carries
   `Cf-Connecting-IP` (a tunnel may rewrite `Host` to localhost); any other
