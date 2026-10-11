@@ -4,10 +4,11 @@ pm is a project management suite for a human working with many coding agents. Ag
 through the `pm` command line, keep their context in typed records tied to that work, and raise what only the human
 can decide or do as needs. The human reads every project and answers every need on one site, served from the repo.
 pm is not a pack of prompt files that asks an agent to follow a process. Its rules reach each session through
-hooks, and the `pm` cli, the work store and the Stop hooks enforce them: a move that breaks a rule is refused, with
-the reason.
+hooks, and the `pm` cli, the work store and the Stop hooks enforce the rules a tool can check: a move that breaks
+one is refused, with the reason.
 
-Claude Code and Codex are supported: `pm init` installs the hooks for both.
+Claude Code and Codex are supported: `pm init` installs the hooks for both. The owner-request check and
+`pm day summarize` call the `claude` CLI, so it must be installed and logged in, Codex setups included.
 
 ## What pm does
 
@@ -16,7 +17,7 @@ Claude Code and Codex are supported: `pm init` installs the hooks for both.
   This is what lets many agents work at once without stepping on each other.
 - **Context management, tied to the work.** The why lives in Markdown records on the repo's `records` branch: a
   project's goal and decisions, a sprint's frame, findings and delivery report, design pages, docs and postmortems.
-  Each record points at work-store ids, and each record type has fixed sections.
+  Each record points at work-store ids, and every record type but docs has fixed sections.
 - **The human's interface.** A pm service per clone serves both layers as a site: every open project and sprint,
   and every decision, action and PR review waiting on the human, with a reply form that sends the answer back to the
   agent session that asked.
@@ -28,7 +29,7 @@ A prompt file asks an agent to behave and has no way to check it did. pm checks:
 | Mechanism | What it does |
 |---|---|
 | `pm` cli | The only write path to the work store, and the write path for records (a hand edit to a record is committed with `pm commit`). Each command checks before it writes and refuses with the reason. |
-| Session hooks | At session and subagent start, `pm prime` injects pm's rules and the project's live state. At stop, `pm hook owner-request` and `pm hook stop` check the agent's last turn. |
+| Session hooks | At session start, `pm prime` injects pm's rules and the project's live state; at subagent start, the rules. At stop, `pm hook owner-request` and `pm hook stop` check the agent's last turn. |
 | Work store | A Dolt database per clone, served by the pm service, synced through the git remote. Holds status, holders and dependencies; records never copy a status. |
 | Records store | The `records` branch, checked out once per clone; each worktree's `records/` links to it, so every branch and worktree sees one copy. |
 
@@ -63,7 +64,8 @@ git remote and carries the owner's replies back to the session that asked.
 
 - **Any task can be picked up by a fresh agent.** Each session starts with the rules and `pm show`, the state of
   every project; `pm show <id>` gives a task's holder, blockers and needs, and the sprint record gives the frame and
-  findings. A task whose holder session has been idle for 30 minutes can be claimed by another.
+  findings. pm reads a session's liveness from its transcript on the same machine: a task whose holder's transcript
+  has been idle for 30 minutes can be claimed by another.
 - **Context has a home.** A plan is a sprint frame, a ruling is a `::: decision` block with its source, date and
   reason, a result is a finding, a reference is a design page. All live on the `records` branch in a checked format,
   not as `PLANNING.md` or `TASK_67.md` files in the code tree. pm does not block a stray file there; it gives the
@@ -129,9 +131,10 @@ the clone (the records store, the work store, the pm service). It changes only w
 what differs and `pm upgrade` rewrites it. One `pm` on PATH serves every repo: in a repo that pins another version,
 it downloads that release once and runs it.
 
-Needs: `git`; `gh` for pull-request features; `claude` for the owner-request hook's judge; `uv` only for the
-one-time move of a clone off the pre-package harness, which `pm init` names. A repo pinned below 0.2.0 (a retired
-release) must move its pin with `pm upgrade --to <X>` first.
+Needs: `git`; `gh` for pull-request features; `claude`, installed and logged in, for the owner-request hook's judge
+and `pm day summarize`, Codex setups included; `uv` only for the one-time move of a clone off the pre-package
+harness, which `pm init` names. A repo pinned below 0.2.0 (a retired release) must move its pin with
+`pm upgrade --to <X>` first.
 
 ## Docs
 
