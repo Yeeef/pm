@@ -54,7 +54,14 @@ Carried from pm-harness sprint 92 (2026-10-10): pm-harness moved to Yeeef/pm and
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- The flag counts both directions (git rev-list --left-right --count
+  HEAD...<remote>/<main>) against the existing remote-tracking ref, with no
+  extra fetch. Review found two edge cases that are now fixed and unit-tested:
+  a diverged main (pull --ff-only would fail, so the flag names inspect then
+  rebase) and a tag named main (symbolic-ref --short printed heads/main, a
+  false off-main flag). Each home or project page request now runs 3 short
+  read-only git processes. Local runs: make test 145 passed; make test-go ok.
+  PR 39 CI: all 9 checks passed.
 
 ## Delivery report
 
