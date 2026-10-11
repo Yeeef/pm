@@ -96,6 +96,8 @@ The owner asked for a marketing website mid-sprint; it shares the positioning an
 
 done: the README presents pm as a human-agent project management suite, with each claim checked against the code and the site shown in four screenshots; merged to main as e122a0c through PR #42, which was stacked on PR #41 and carried its commits (#41 closed as superseded).
 
+Merged as e122a0c (PR #41).
+
 - `README.md`: the pitch, the three parts (agent project and task management, context as records tied to tasks, the site), what pm enforces structurally (cli refusals, the work store, session hooks) and what it leaves to its rules, the outcomes with their mechanisms, a Mermaid diagram, install and docs.
 - `website/img/overview.png`, `project.png`, `sprint.png`, `need.png`: the site's overview, a project, a sprint and a decision need with its reply form, shared with sprint 113's website.
 
