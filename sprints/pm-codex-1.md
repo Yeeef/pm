@@ -101,6 +101,12 @@ Review: an inbox block at Stop makes the continuation end with stop_hook_active,
   pm commands failed with does-not-answer meanwhile (one solo-codex run lost
   its owner reply and timed out at 600 s).
 
+- Final live parity eval at the PR head e8e95ff
+  (PM_PARITY_CODEX_SANDBOX=danger-full-access make test-live-parity): 7 passed
+  in 92.07 s. Claude / Codex: Stop hook 23.0 s / 25.4 s; next prompt 7.7+6.6 s
+  / 14.2+12.2 s; solo 54.5 s / 76.4 s; mixed 78.9 s / 87.6 s. No agent typed
+  pm init, and no scenario restarted the service.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
