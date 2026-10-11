@@ -97,7 +97,7 @@ None yet.
   sizes: internal/cli has 8915 non-test lines (ratchet allowlist); the next
   largest, internal/work, has 4724.
 
-- Lint CI time on PR 43 (ubuntu-latest, 4 cores): the lint job took 3m39s
+- Lint CI time on PR 43 (4-core runners), single job vs. parallel jobs. Before: one job, 3m39s cold and 3m14s warm. golangci-lint's first pass took 2m07s, nearly all of it compiling the Dolt tree for type-checking; setup-go's cache holds -trimpath builds, which `go list -export` cannot reuse. deadcode ran after it, about 34 s. After: three parallel jobs. The Go jobs run on ubuntu-22.04 and restore pm-go.yml's linux build cache from main, restore only. Measured over three runs: lint-go 45–57 s (the first golangci pass 10 s, the ratchet pass 2 s, the rest setup and the ~20 s cache restore); lint-deadcode 55–73 s (deadcode builds whole-program SSA from source, about 30 s); lint-py 7–9 s. Lint's wall time is now 55–73 s, at most 1m10s, against the ≤100 s target and below sprint 18's ~120 s target.
   cold, then 3m14s with setup-go's and golangci-lint's caches restored. Of
   that, golangci-lint's first pass takes about 2m07s, mostly typechecking the
   Dolt dependency tree; deadcode about 34 s, ruff under 1 s. It runs as its
@@ -116,9 +116,9 @@ None yet.
 
 Done: CI now runs `make lint`, which gates golangci-lint, deadcode and ruff, and ratchets errcheck (blank checks), complexity, length and reassign on new code; the PR waits for review.
 
-- `.golangci.yml`, `make lint` (`lint-go`, `lint-deadcode`, `lint-py`) and `.github/workflows/pm-lint.yml` (its own job; golangci-lint v2.14.0 installed by golangci-lint-action v9.3.0, pinned by SHA).
+- `.golangci.yml`, `make lint` (`lint-go`, `lint-deadcode`, `lint-py`) and `.github/workflows/pm-lint.yml` (three parallel jobs on pm-go.yml's Go cache; golangci-lint v2.14.0 installed by golangci-lint-action v9.3.0, pinned by SHA).
 - Every gating finding fixed or kept with `//nolint:<linter> // <why>`. Bugs fixed on the way: a dropped Dolt cause in the host, plus `pm uninstall`, the reply spool and `pm push` reading an error as nothing.
-- `size_test.go`: a package cap of 5000 non-test lines, with `internal/cli` (8915) on a ratchet allowlist. In the harness, a test that every flag prime.md and `--help` name parses (57 flags checked), and `time.sleep` banned in favour of `wait_for`.
+- `size_test.go`: a package cap of 5000 non-test lines, with `internal/cli` (8920) on a ratchet allowlist. In the harness, a test that every flag prime.md and `--help` name parses (57 flags checked), and `time.sleep` banned in favour of `wait_for`.
 
 ### Against "Done when"
 
@@ -126,5 +126,5 @@ Done: CI now runs `make lint`, which gates golangci-lint, deadcode and ruff, and
 
 - `make lint` passes on the PR, and CI runs it: **met.** Locally: golangci-lint 0 issues in both passes, deadcode no output, ruff "All checks passed!". PR 43's `lint` check passed (3m14s).
 - Re-adding an ignored error or a test `time.Sleep` fails lint: **met.** On scratch commit b208d24 (not pushed), `make lint-go` exits 1. forbidigo flags `scratch_test.go:9 time.Sleep`, and the ratchet pass flags `scratch.go:6 Error return value of strconv.Atoi is not checked (errcheck)`.
-- Lint adds under 90 s to CI's critical path: **met, with little headroom.** The lint job (3m14s warm) runs in parallel and is shorter than the release build (3m31s), so it adds 0 s. Headroom is about 17 s if the sharding sprint shortens the other jobs.
+- Lint adds under 90 s to CI's critical path: **met.** Lint now runs as three parallel jobs on pm-go.yml's Go cache and takes at most 1m10s wall on the PR's CI, down from 3m14s. That is below sprint 18's ~120 s, so it adds 0 s.
 - Also: `make test-go` passes (2m47s local), `make test` gives 146 passed, and every PR 43 check is green. A fresh-context review found no correctness findings.
