@@ -138,6 +138,8 @@ This sprint closes with the test trim (PR #48), as its sprint decision records.
 
 Done: the suite keeps the tests with unique value, 432 non-live tests down to 164 (−62%), with 98.5% of the covered statements and all 75 bug guards kept; the internal/cli split moved to pm-d2k5.21 by this sprint's decision.
 
+Merged as d98406d (PR #48).
+
 - PR #48 (test files only): Go top-level tests 228 → 83, non-live pytest items 204 → 81; folds as `t.Run` rows and `# folded:` blocks; the internal/work sync and merge tests on one shared two-clone pair per kept test.
 - Local wall time: `make test` 9.2 → 6.6 s, `make test-go` 152 → 138 s, `go test ./internal/work` 119 → about 90 s.
 - The audit is kept as the doc record `test-value-audit`.
