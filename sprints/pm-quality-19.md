@@ -127,6 +127,8 @@ None yet.
 
 Done: CI now runs `make lint`, which gates golangci-lint, deadcode and ruff, and ratchets errcheck (blank checks), complexity, length and reassign on new code; the PR waits for review.
 
+Merged as 09f62a7 (PR #43).
+
 - `.golangci.yml`, `make lint` (`lint-go`, `lint-deadcode`, `lint-py`) and `.github/workflows/pm-lint.yml` (three parallel jobs on pm-go.yml's Go cache; golangci-lint v2.14.0 installed by golangci-lint-action v9.3.0, pinned by SHA).
 - Every gating finding fixed or kept with `//nolint:<linter> // <why>`. Bugs fixed on the way: a dropped Dolt cause in the host, plus `pm uninstall`, the reply spool and `pm push` reading an error as nothing.
 - `size_test.go`: a package cap of 5000 non-test lines, with `internal/cli` (8920) on a ratchet allowlist. In the harness, a test that every flag prime.md and `--help` name parses (57 flags checked), and `time.sleep` banned in favour of `wait_for`.
