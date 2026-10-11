@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T19:11:33+00:00",
- "digest": "de2d6f1305fa577c",
+ "generated_at": "2026-10-11T19:22:02+00:00",
+ "digest": "c60e019dcc8222a2",
  "model": "claude-haiku-5-5",
- "text": "- **Public website:** The pm marketing site is live on GitHub Pages. The README now describes pm as a human-agent project management suite.\n- **Site access and status:** The Go service now checks Cloudflare Access tokens. The site flags a main checkout that is behind its remote.\n- **Code quality checks:** New lint checks cover the Go code and the harness. They await review.\n- **For you:** Review the open pull requests on the site, harness and code quality."
+ "text": "- **Public website:** The pm website is live on GitHub Pages. The README now describes pm as a human-agent project management suite.\n- **Cloudflare Access checks:** The Go service now checks Cloudflare Access tokens. The release to the live site has started.\n- **Codex support:** Owner requests now use the root Codex session id. The change awaits review.\n- **For you:** Review open pull requests. Several changes wait for your review."
 }
