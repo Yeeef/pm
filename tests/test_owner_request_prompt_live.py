@@ -61,7 +61,7 @@ def run_case(case: dict, root: Path) -> tuple[str, float]:
              "last_assistant_message": case["reply"]}
     start = time.monotonic()
     res = subprocess.run(HOOK, input=json.dumps(event), cwd=root, env=CLAUDE_ENV, capture_output=True, text=True,
-                         timeout=60)
+                         timeout=60, check=False)
     took = time.monotonic() - start
     assert res.returncode == 0, res.stderr
     if not res.stdout.strip():
@@ -75,7 +75,7 @@ def run_case(case: dict, root: Path) -> tuple[str, float]:
 def verdicts(tmp_path_factory):
     tmp = tmp_path_factory.mktemp("live")
     with ThreadPoolExecutor(WORKERS) as pool:
-        clones = dict(zip(CASES, pool.map(lambda nc: clone(nc[0], CASES[nc[1]], tmp), enumerate(CASES))))
+        clones = dict(zip(CASES, pool.map(lambda nc: clone(nc[0], CASES[nc[1]], tmp), enumerate(CASES)), strict=True))
     try:
         jobs = [name for name in CASES for _ in range(RUNS)]
         start = time.monotonic()
@@ -85,7 +85,7 @@ def verdicts(tmp_path_factory):
         for r in clones.values():
             r.stop_service()
     times = [t for _, t in results]
-    out = {name: [v for n, (v, _) in zip(jobs, results) if n == name] for name in CASES}
+    out = {name: [v for n, (v, _) in zip(jobs, results, strict=True) if n == name] for name in CASES}
     print(f"\n{len(jobs)} hook runs in {time.monotonic() - start:.1f}s, {WORKERS} at a time; per run median "
           f"{statistics.median(times):.2f}s, max {max(times):.2f}s")
     for name, got in out.items():

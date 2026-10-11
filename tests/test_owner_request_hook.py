@@ -52,7 +52,7 @@ def run(repo, reply="Should we rename X?", judged=None, fail=None, **event):
 
 def claude_calls(repo):
     log = Path(repo.env["FAKE_CLAUDE_LOG"])
-    return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
+    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
 
 def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):

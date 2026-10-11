@@ -81,6 +81,7 @@ func benchRun(what string) {
 
 // benchStore serves a copy of $PM_BENCH_STORE, skipping without it.
 func benchStore(t *testing.T) *served {
+	t.Helper()
 	src := os.Getenv("PM_BENCH_STORE")
 	if src == "" {
 		t.Skip("PM_BENCH_STORE names no copy of a store")
@@ -98,6 +99,7 @@ func benchStore(t *testing.T) *served {
 
 // child runs a child process; a failure is the test's error, and an empty result.
 func child(t *testing.T, main, what string) map[string]float64 {
+	t.Helper()
 	c := exec.Command(os.Args[0], "-test.run", "^$")
 	c.Env = append(os.Environ(), benchChild+"="+what, "PM_BENCH_MAIN="+main)
 	var stderr strings.Builder

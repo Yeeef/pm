@@ -171,6 +171,7 @@ func result(s string, err error) string {
 var tempConfig = regexp.MustCompile(`/\S*/config\.toml`)
 
 func pairs(t *testing.T, how func(string, Settings) ([]Planned, error), top string, s Settings) [][2]string {
+	t.Helper()
 	planned, err := how(top, s)
 	if err != nil {
 		t.Fatal(err)
@@ -188,6 +189,7 @@ func pairs(t *testing.T, how func(string, Settings) ([]Planned, error), top stri
 }
 
 func results(t *testing.T) golden {
+	t.Helper()
 	var g golden
 	for n, s := range goldenSettings {
 		for _, p := range Pieces(s) {

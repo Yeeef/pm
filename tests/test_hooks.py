@@ -11,8 +11,8 @@ import subprocess
 
 import pytest
 
-from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, nouns, rules, stop_services, \
-    write_config
+from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, nouns, rules, \
+    stop_services, write_config
 
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
@@ -24,7 +24,8 @@ def rules_cmd(n):
 
 
 def run(cmd, event, env, cwd):
-    return subprocess.run(cmd, input=json.dumps(event), env=env, cwd=cwd, capture_output=True, text=True, timeout=60)
+    return subprocess.run(cmd, input=json.dumps(event), env=env, cwd=cwd, capture_output=True, text=True, timeout=60,
+                          check=False)
 
 
 def init_ready(repo):
@@ -67,7 +68,9 @@ def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     header, _, body = rest.partition("\n\n")
     assert re.fullmatch(r"Project state from `pm show` at session start, \d{4}-\d\d-\d\d \d\d:\d\d UTC: .*"
                         r"run `pm show` again before stating project state to the owner\.", header)
-    minute = lambda s: re.sub(r"\d\d:\d\d UTC", "hh:mm UTC", s)  # a stamp may cross a minute between two calls
+
+    def minute(s: str) -> str:  # a stamp may cross a minute between two calls
+        return re.sub(r"\d\d:\d\d UTC", "hh:mm UTC", s)
     assert minute(body) == minute(shown) and "decision .1.2  Ask the owner  (sprint 1)" in body
     plain = repo.pm("prime")  # by hand: the rules whole and in order, then the state, no envelope
     assert plain.returncode == 0 and minute(plain.stdout.strip()) == minute(head() + "\n\n" + text)
@@ -168,10 +171,62 @@ def test_prime_lists_every_agent_command_pm_help_lists(repo, tmp_path):
     assert got == chunks() and all(len(c) <= CAP for c in got)
 
 
+def options_of(help_text: str) -> set[str]:
+    """The long flags a --help's options section lists: what the command's parser defines (help.go and pflag
+    generate that section from it), never its usage line or prose, which a hand may write."""
+    _, _, options = help_text.partition("\noptions:\n")
+    return {m.group(1) for m in re.finditer(r"^ {2,6}(?:-\w, )?(--[a-z][a-z-]*)", options, re.M)}
+
+
+def flags_named(text: str):
+    """Each `pm <words> --flag` the text names, as (the words, the flags), the mention running to the end of its
+    code span, clause or row (a line and the lines indented under it, as a help text wraps one); a usage line names the
+    command it is the help of, so it is skipped."""
+    for row in re.split(r"\n(?! {7})", text):
+        for m in re.finditer(r"(?<![\w/.$:-])pm ", row):
+            if row[:m.start()].endswith("usage: "):
+                continue
+            words = []
+            for tok in row[m.end():].split():
+                end = "`" in tok or tok.startswith("(") or tok == "pm" or tok[-1] in ".,;:)"
+                tok = tok.split("`")[0].rstrip(".,;:)") if not tok.startswith("(") and tok != "pm" else ""
+                words += [w for w in re.split(r"\\?\|", tok) if w]
+                if end:
+                    break
+            flags = [f.group(1) for w in words if (f := re.match(r"\[?(--[a-z][a-z-]*)", w))]
+            yield words, [f for f in flags if f != "--help"]
+
+
+def test_every_flag_prime_md_and_the_help_texts_name_parses():
+    """A flag named after `pm <command>` in prime.md or any --help is one that command parses: its own --help lists
+    it. The two forms `Execute` routes before the tree (`pm show ID`, `pm task add --parent`) have their own help."""
+    tree = help_tree()
+    forms = {("show", "ID"): ("show", "ID"), ("task", "add", "--parent"): ("task", "add", "--parent", "TASK")}
+    helps = tree | {form: subprocess.run([*PM, *argv, "--help"], cwd="/", check=True, capture_output=True,
+                                         text=True).stdout for form, argv in forms.items()}
+    docs = {"prime.md": rules()} | {" ".join(("pm", *path, "--help")): text for path, text in helps.items()}
+    checked, wrong = 0, []
+    for source, text in docs.items():
+        for words, flags in flags_named(text):
+            path = ()
+            while len(path) < len(words) and (*path, words[len(path)]) in tree:
+                path = (*path, words[len(path)])
+            rest = words[len(path):]
+            if path == ("show",) and rest and not rest[0].startswith(("-", "[")):
+                path = ("show", "ID")
+            elif path == ("task", "add") and "--parent" in flags:
+                path = ("task", "add", "--parent")
+            for flag in flags:
+                checked += 1
+                if flag not in options_of(helps[path]):
+                    wrong.append(f"{source}: `pm {' '.join(words)}` names {flag}, which pm {' '.join(path)} does not parse")
+    assert checked > 50 and not wrong, "\n".join(wrong)
+
+
 def test_pm_init_is_the_one_install_command():
     """No `pm setup`: pm --help lists init only."""
     assert "setup" not in nouns() and "init" in nouns()
-    res = subprocess.run([*PM, "setup"], cwd="/", capture_output=True, text=True)
+    res = subprocess.run([*PM, "setup"], cwd="/", capture_output=True, text=True, check=False)
     assert res.returncode == 2 and "invalid choice: 'setup'" in res.stderr, res.stderr
 
 
@@ -182,7 +237,7 @@ def test_rules_chunks_fit_the_cap_and_add_up_to_the_rules():
     cs = chunks()
     assert len(cs) == len(RULE_STARTS) == 3
     assert all(len(c) <= CAP for c in cs), [len(c) for c in cs]
-    titles, bodies = zip(*(c.split("\n\n", 1) for c in cs))
+    titles, bodies = zip(*(c.split("\n\n", 1) for c in cs), strict=True)
     assert "\n\n".join(bodies) == head()
     assert [b.split("\n", 1)[0] for b in bodies] == list(RULE_STARTS)
     for n, t in enumerate(titles, 1):  # hooks arrive in any order, so each title names its place and its sections
@@ -198,7 +253,7 @@ def claude_transcript(path, *tool_inputs):
     lines = [{"type": "user", "message": {"role": "user", "content": "go"}}]
     lines += [{"type": "assistant", "message": {"role": "assistant", "content": [
         {"type": "tool_use", "id": f"t{n}", "name": "Edit", "input": i}]}} for n, i in enumerate(tool_inputs)]
-    path.write_text("\n".join(json.dumps(l) for l in lines) + "\n")
+    path.write_text("\n".join(json.dumps(line) for line in lines) + "\n")
     return str(path)
 
 
@@ -220,7 +275,7 @@ def subagent_lines(path, prompt, done):
         lines.append({"type": "user", "message": {"role": "user", "content": (
             "<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>toolu_a1</tool-use-id>\n"
             "<status>completed</status>\n</task-notification>")}})
-    return [json.dumps(l) for l in lines]
+    return [json.dumps(line) for line in lines]
 
 
 def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tmp_path):

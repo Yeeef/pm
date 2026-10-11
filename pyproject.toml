@@ -7,7 +7,26 @@ requires-python = ">=3.12"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-xdist>=3"]
+dev = ["pytest>=8", "pytest-xdist>=3", "ruff==0.17.0"]
 
 [tool.uv]
 package = false
+
+# `uv run ruff check tests release`: the harness's lint. No `ruff format`.
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# release/ runs on the release runners' system python3 (ubuntu-22.04: 3.10), not in the harness's environment
+per-file-target-version = { "release/*.py" = "py310" }
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B", "PLW1510", "TID251", "PT", "SIM", "PERF", "UP"]
+ignore = ["PT018", "PT011"]
+
+[tool.ruff.lint.per-file-ignores]
+# test_lifecycle shares test_init's fixtures (new_repo, existing) by importing them, so each test's parameter of that
+# name redefines the import, as pytest means it to
+"tests/test_lifecycle.py" = ["F811"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"time.sleep" = { msg = "wait on a condition with a deadline (a poll helper), never a fixed sleep; allowlist with # noqa: TID251 and a reason" }

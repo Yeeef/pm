@@ -55,7 +55,7 @@ func newFixture(t *testing.T) *fixture {
 			t.Fatal(err)
 		}
 	}
-	main, err := os.MkdirTemp("", "pm") // short: the socket must fit the kernel's limit
+	main, err := os.MkdirTemp("", "pm") //nolint:usetesting // short: the socket must fit the kernel's limit
 	if err != nil {
 		t.Fatal(err)
 	}

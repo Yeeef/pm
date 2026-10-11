@@ -1,33 +1,19 @@
-// Package worktest holds the work store's test doubles: Serve, a real store served by a host on a short temp clone
-// directory, for tests that need one; and Store, a read-only work.Store over a fixed list of items, for tests of the
-// code that reads items (the records, the site, pm check). The items come as pm export gives them.
+// Package worktest holds the work store's test doubles: ServeAt, a real store served by a host on a clone directory
+// the caller gives, for tests that need one; and Store, a read-only work.Store over a fixed list of items, for tests
+// of the code that reads items (the records, the site, pm check). The items come as pm export gives them.
 package worktest
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/work"
 )
 
-// Serve starts a host on a new clone directory under a short temp root (t.TempDir's paths can be too long for the
-// socket on macOS), makes an empty store there, and dials one client; the test's end stops both and removes the
-// directory. The clone directory is the host's main checkout: work.Sock(main) is its socket.
-func Serve(t testing.TB) (*work.Host, *work.Dolt) {
-	t.Helper()
-	main, err := os.MkdirTemp("", "pm")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(main) })
-	return ServeAt(t, main, work.Ops{})
-}
-
-// ServeAt is Serve on the clone directory main, with ops, which the caller removes.
+// ServeAt starts a host on the clone directory main, with ops, makes an empty store there and dials one client; the
+// test's end stops both. The caller removes main, which it keeps short: the host's socket must fit the kernel's limit.
 func ServeAt(t testing.TB, main string, ops work.Ops) (*work.Host, *work.Dolt) {
 	t.Helper()
 	h, err := work.NewHost(work.HostOptions{Main: main, Version: buildinfo.Version, Ops: ops})
@@ -53,19 +39,6 @@ var _ work.Store = (*Store)(nil)
 
 // New is a store holding items, in that order.
 func New(items []work.Item) *Store { return &Store{items} }
-
-// FromJSON is a store holding the items in a JSON array file.
-func FromJSON(path string) (*Store, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var items []work.Item
-	if err := json.Unmarshal(b, &items); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	return New(items), nil
-}
 
 var errReadOnly = errors.New("worktest.Store is read-only")
 

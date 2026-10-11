@@ -6,7 +6,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -45,7 +45,7 @@ def commit(repo, where: Path, name: str, msg: str = "") -> str:
 def clean(repo, *args: str, cwd: Path | None = None, **env: str) -> dict[str, tuple[str, str]]:
     """pm clean's verdicts by worktree directory name: (keep or remove, reason); the last line is its count."""
     res = subprocess.run([*PM, "clean", *args], cwd=cwd or repo.root, env=dict(repo.env, **env),
-                         capture_output=True, text=True)
+                         capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     *lines, last = res.stdout.splitlines()
     verdicts = {}
@@ -199,7 +199,7 @@ def transcript(repo, rel: str, *entries: dict) -> None:
 
 def entry(kind: str, cwd: Path, *, call: str | None = None, shown: str | None = None, age_s: float = 0) -> dict:
     """A transcript entry: an assistant's tool call (call), or a tool's output it was shown (shown)."""
-    at = (datetime.now(timezone.utc) - timedelta(seconds=age_s)).isoformat(timespec="milliseconds")
+    at = (datetime.now(UTC) - timedelta(seconds=age_s)).isoformat(timespec="milliseconds")
     e = {"type": kind, "timestamp": at.replace("+00:00", "Z"), "cwd": str(cwd), "sessionId": "sess-live"}
     if call is not None:
         e["message"] = {"role": "assistant", "content": [{"type": "tool_use", "name": "Bash",

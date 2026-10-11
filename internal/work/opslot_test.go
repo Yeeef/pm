@@ -146,9 +146,7 @@ func TestAnOperationOutlastingItsBoundFreesTheSlotAndAWaiterGivesUp(t *testing.T
 	synced := make(chan error, 1)
 	start := time.Now()
 	go func() { _, err := s.dial(t).CallSync(); synced <- err }()
-	for s.h.holding() != "sync" {
-		time.Sleep(time.Millisecond)
-	}
+	waitFor(t, "the sync holds the slot", func() bool { return s.h.holding() == "sync" })
 	d := s.dial(t)
 	before := must(d.Items())
 	_, err := d.Create(New{Type: Task, Parent: p.ID, Title: "behind the sync"})

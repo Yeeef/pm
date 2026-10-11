@@ -114,8 +114,9 @@ func value(n *yaml.Node) (Value, error) {
 		}
 		s := "{" + strings.Join(parts, ", ") + "}"
 		return Value{Kind: KindDict, Str: s, Truthy: len(parts) > 0}, nil
+	default: // a document node is never a header value
+		return Value{}, fmt.Errorf("unsupported YAML node in the header")
 	}
-	return Value{}, fmt.Errorf("unsupported YAML node in the header")
 }
 
 func str(s string) Value { return Value{Kind: KindStr, Str: s, Truthy: s != ""} }

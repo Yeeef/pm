@@ -124,13 +124,6 @@ func deep(it *work.Item) work.Item {
 	return out
 }
 
-func (w *fakeWork) set(it work.Item) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.items[it.ID] = &it
-	w.fp++
-}
-
 type fakeStore struct {
 	w      *fakeWork
 	closed bool

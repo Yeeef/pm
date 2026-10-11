@@ -24,19 +24,11 @@ func newLock(alive func(uint32) bool) *writeLock {
 // queued waits until n waiters are queued.
 func queued(t *testing.T, l *writeLock, n int) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
+	waitFor(t, fmt.Sprintf("%d waiters queued", n), func() bool {
 		l.mu.Lock()
-		got := len(l.queue)
-		l.mu.Unlock()
-		if got == n {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%d waiters queued, want %d", got, n)
-		}
-		time.Sleep(time.Millisecond)
-	}
+		defer l.mu.Unlock()
+		return len(l.queue) == n
+	})
 }
 
 func orderedAsc(s []uint32) bool {
@@ -174,7 +166,7 @@ func TestPmLockThroughTheHost(t *testing.T) {
 		for range 5 { // each holds the lock 50 ms, 10 or more times a short write's
 			start := time.Now()
 			must(0, d.update("slow edit", p.ID, func(it *Item, _ *Index) error {
-				time.Sleep(50 * time.Millisecond)
+				time.Sleep(50 * time.Millisecond) //nolint:forbidigo // the write holds the lock this long on purpose: no condition, the hold is the test
 				it.Title += "+"
 				return nil
 			}))

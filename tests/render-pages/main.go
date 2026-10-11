@@ -42,7 +42,7 @@ func run() error {
 		return err
 	}
 	items, err := ws.Items()
-	if err = errors.Join(err, ws.Shutdown()); err != nil {
+	if err := errors.Join(err, ws.Shutdown()); err != nil {
 		return err
 	}
 	recs, err := records.Read(dir, nil)

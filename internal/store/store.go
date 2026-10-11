@@ -177,7 +177,7 @@ func Committed(store string, changes map[string]*string) ([]*records.Record, err
 	tr := tar.NewReader(&o)
 	for {
 		h, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -472,7 +472,8 @@ func Apply(store string, writes []Write, message, undo, prefix string) error {
 		return &Refusal{what + "; " + undone + hint}
 	}
 	for i, w := range writes {
-		err, verb := error(nil), "writing"
+		var err error
+		verb := "writing"
 		if w.Remove {
 			err, verb = os.Remove(w.Path), "removing"
 		} else {

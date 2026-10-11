@@ -63,7 +63,9 @@ func spoolRead(spool string) ([]Entry, map[string]bool, error) {
 			return nil, nil, refuse("%s:%d is not a JSON line: %q; fix or remove that line", spool, n+1, l)
 		}
 		var e line
-		_ = json.Unmarshal([]byte(l), &e)
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			return nil, nil, refuse("%s:%d is not a spool entry: %v; fix or remove that line", spool, n+1, err)
+		}
 		if _, ok := raw["done"]; ok {
 			done[e.Done] = true
 			continue

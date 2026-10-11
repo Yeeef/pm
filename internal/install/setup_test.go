@@ -38,7 +38,7 @@ func cloneOf(t *testing.T, bare, name string) string {
 // the kernel's limit, which t.TempDir's paths can pass on macOS.
 func shortDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "pm")
+	dir, err := os.MkdirTemp("", "pm") //nolint:usetesting // short: the clone's service socket must fit the kernel's limit
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,8 +399,7 @@ func TestHooksPathMovesOffBeads(t *testing.T) {
 	if err := CheckHooksPath(main, main); err != nil {
 		t.Fatal(err)
 	}
-	drift, err := DoctorSetup(main, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000)
-	if err != nil {
+	if _, err := DoctorSetup(main, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000); err != nil {
 		t.Fatal(err)
 	}
 	// the main checkout has no .pm/hooks yet (the pin moved in another worktree): nothing moves, doctor says why
@@ -413,7 +412,10 @@ func TestHooksPathMovesOffBeads(t *testing.T) {
 	run(t, main, "git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x")
 	wt := filepath.Join(t.TempDir(), "wt") // a worktree where the pin moved: pm upgrade there writes no hooks in main
 	run(t, main, "git", "worktree", "add", "-q", wt)
-	drift, _ = DoctorSetup(wt, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000)
+	drift, err := DoctorSetup(wt, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := "hooks path: core.hooksPath is " + beads + " (Beads' hooks), not .pm/hooks; the main checkout " + main +
 		" has no pm hooks in .pm/hooks yet; once it pins Go pm (merge the pin, then pull main there), run pm init " +
 		"there to move it"; !contains(drift, want) {

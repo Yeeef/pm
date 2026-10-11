@@ -253,8 +253,8 @@ func resolvedPath(p string) string {
 
 // apply writes the records and commits exactly those files, the message prefix + message; it returns message. A
 // failed write or commit restores the files.
-func (r *repo) apply(writes []store.Write, message, undo, prefix string) (string, error) {
-	if err := store.Apply(r.records, writes, message, undo, prefix); err != nil {
+func (r *repo) apply(writes []store.Write, message, prefix string) (string, error) {
+	if err := store.Apply(r.records, writes, message, "", prefix); err != nil {
 		return "", err
 	}
 	return message, nil

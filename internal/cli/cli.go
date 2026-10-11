@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -105,22 +106,6 @@ func Nouns() []string {
 	for i, s := range tree.subs {
 		out[i] = s.name
 	}
-	return out
-}
-
-// Leaves is every command that runs, as "task add".
-func Leaves() []string {
-	var out []string
-	var walk func(c *command)
-	walk = func(c *command) {
-		if c.subs == nil {
-			out = append(out, c.path())
-		}
-		for _, s := range c.subs {
-			walk(s)
-		}
-	}
-	walk(tree)
 	return out
 }
 
@@ -303,7 +288,7 @@ func (c *command) parse(args []string, fs *pflag.FlagSet) (*Parsed, bool, error)
 			return nil, false, &usageError{c, fmt.Sprintf("one of the arguments %s is required", strings.Join(names, " "))}
 		}
 	}
-	if extra := append(unknown, rest...); len(extra) > 0 {
+	if extra := slices.Concat(unknown, rest); len(extra) > 0 {
 		return nil, false, &usageError{tree, "unrecognized arguments: " + strings.Join(extra, " ")}
 	}
 	return p, false, nil

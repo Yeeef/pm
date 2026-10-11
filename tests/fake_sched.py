@@ -51,8 +51,13 @@ def job(name: str) -> tuple[list[str], str, dict, str]:
         return (plist["ProgramArguments"], plist["WorkingDirectory"], plist["EnvironmentVariables"],
                 plist["StandardOutPath"])
     text = systemd_file(name).read_text()
-    field = lambda key: re.search(rf"^{key}=(.*)$", text, re.M).group(1)
-    words = lambda line: [json.loads(w).replace("%%", "%") for w in re.findall(r'"(?:[^"\\]|\\.)*"', line)]
+
+    def field(key: str) -> str:
+        return re.search(rf"^{key}=(.*)$", text, re.M).group(1)
+
+    def words(line: str) -> list[str]:
+        return [json.loads(w).replace("%%", "%") for w in re.findall(r'"(?:[^"\\]|\\.)*"', line)]
+
     env = dict(w.split("=", 1) for w in words(field("Environment")))
     return (words(field("ExecStart")), field("WorkingDirectory").replace("%%", "%"), env,
             field("StandardOutput").removeprefix("append:").replace("%%", "%"))
@@ -69,7 +74,7 @@ def start(name: str) -> None:
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
                 os.kill(fixture, 0)
-                time.sleep(0.02)
+                time.sleep(0.02)  # noqa: TID251 — the deadline loop's poll interval; a fake runs outside conftest
         except ProcessLookupError:
             pass
     Path(out).parent.mkdir(parents=True, exist_ok=True)
@@ -89,7 +94,7 @@ def stop(name: str) -> None:
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:  # the process is not this one's child once a call returns
                 os.kill(pid, 0)
-                time.sleep(0.05)
+                time.sleep(0.05)  # noqa: TID251 — the deadline loop's poll interval; a fake runs outside conftest
         except ProcessLookupError:
             pass
     if name in state["loaded"]:
@@ -122,9 +127,7 @@ elif tool == "launchctl" and args[:2] == ["kickstart", "-k"]:
     stop(name)
     start(name)
     save()
-elif tool == "systemctl" and args[1:2] == ["show-environment"]:
-    pass
-elif tool == "systemctl" and args[1:2] == ["daemon-reload"]:
+elif tool == "systemctl" and args[1:2] in (["show-environment"], ["daemon-reload"]):
     pass
 elif tool == "systemctl" and args[1:3] == ["enable", "--now"]:
     mark("enabled", unit(args[3]), True)

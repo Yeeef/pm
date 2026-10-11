@@ -188,7 +188,12 @@ func (h *Host) load() error {
 	}
 	var readOnly error
 	mrEnv.Iter(func(name string, d *env.DoltEnv) (bool, error) {
-		if ro, err := d.IsAccessModeReadOnly(ctx); err != nil || ro {
+		ro, err := d.IsAccessModeReadOnly(ctx)
+		if err != nil { // Dolt fails it on a lock another process holds: the cause is kept
+			readOnly = fmt.Errorf("database %s: reading its access mode: %w", name, err)
+			return true, nil
+		}
+		if ro {
 			readOnly = fmt.Errorf("database %s opened read-only: its lock is taken", name)
 			return true, nil
 		}
@@ -342,16 +347,6 @@ func (h *Host) op(c context.Context, name string, timeout time.Duration, withDB 
 	return errors.Join(err, d.Shutdown())
 }
 
-// holding is the operation in the slot, "" when none is.
-func (h *Host) holding() string {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if len(h.slot) == 0 {
-		return ""
-	}
-	return h.holder
-}
-
 // Sync is the sync the service's loop runs every pmsync.Interval and pm_sync() runs on a command's call, within
 // SyncTimeout.
 func (h *Host) Sync(c context.Context) ([]string, error) {
@@ -414,7 +409,7 @@ func (h *Host) alive(session uint32) bool {
 // procLock is CALL pm_lock(ms, pid, what): the store's write lock for the calling connection, whose client is
 // process pid making the write what, waiting at most ms milliseconds.
 func (h *Host) procLock(c *gmssql.Context, ms, pid int64, what string) (gmssql.RowIter, error) {
-	if err := h.writes.lock(c.Session.ID(), pid, what, time.Duration(ms)*time.Millisecond, c.Done()); err != nil {
+	if err := h.writes.lock(c.ID(), pid, what, time.Duration(ms)*time.Millisecond, c.Done()); err != nil {
 		return nil, fmt.Errorf("pm_lock: %w", err)
 	}
 	return nil, nil
@@ -422,7 +417,7 @@ func (h *Host) procLock(c *gmssql.Context, ms, pid int64, what string) (gmssql.R
 
 // procUnlock is CALL pm_unlock(): the calling connection releases the store's write lock.
 func (h *Host) procUnlock(c *gmssql.Context) (gmssql.RowIter, error) {
-	if err := h.writes.unlock(c.Session.ID()); err != nil {
+	if err := h.writes.unlock(c.ID()); err != nil {
 		return nil, fmt.Errorf("pm_unlock: %w", err)
 	}
 	return nil, nil

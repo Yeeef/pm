@@ -33,6 +33,7 @@ const constructs = "testdata/constructs"
 var zone = time.FixedZone("UTC+13", 13*3600)
 
 func inZone(t *testing.T) {
+	t.Helper()
 	saved := time.Local
 	time.Local = zone
 	t.Cleanup(func() { time.Local = saved })
@@ -41,6 +42,7 @@ func inZone(t *testing.T) {
 // constructsStore is a records store holding the constructs' records, as edited: a path to new text, or to "" to
 // remove the file; committed on branch records on 2026-10-05.
 func constructsStore(t *testing.T, edits map[string]string) string {
+	t.Helper()
 	dir := filepath.Join(t.TempDir(), "records")
 	src := filepath.Join(constructs, "records")
 	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
@@ -90,6 +92,7 @@ func writeFile(path, text string) error {
 
 // constructsItems is the constructs' items, plus extra ones as JSON.
 func constructsItems(t *testing.T, extra ...string) *records.Items {
+	t.Helper()
 	b, err := os.ReadFile(filepath.Join(constructs, "items.json"))
 	if err != nil {
 		t.Fatal(err)

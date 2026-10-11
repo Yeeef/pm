@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -55,6 +56,7 @@ type machine struct {
 // newMachine is a main checkout, HOME in a temp dir, the supervisor's tools replaced by recorders on a PATH that
 // holds a '%', and a site that comes up at once for this store (the end-to-end test runs both for real).
 func newMachine(t *testing.T, kind string) *machine {
+	t.Helper()
 	tmp := t.TempDir()
 	m := &machine{t: t, main: filepath.Join(tmp, "main"), log: filepath.Join(tmp, "calls"), build: Version()}
 	os.MkdirAll(m.main, 0o755)
@@ -86,10 +88,11 @@ func (m *machine) calls() []string {
 	return strings.Split(strings.TrimSpace(string(data)), "\n")
 }
 
-func (m *machine) install(port int) string {
+// install installs the unit for the site port 8123.
+func (m *machine) install() string {
 	m.t.Helper()
 	exe, _ := Exe()
-	said, err := Install(m.main, port, exe)
+	said, err := Install(m.main, 8123, exe)
 	if err != nil {
 		m.t.Fatal(err)
 	}
@@ -101,7 +104,7 @@ func TestUninstallStopsAndRemovesTheUnit(t *testing.T) {
 	if said, err := Uninstall(m.main); said != "" || err != nil {
 		t.Fatal(said, err)
 	}
-	m.install(8123)
+	m.install()
 	said, err := Uninstall(m.main)
 	if err != nil || said != "removed the pm service: systemd "+Label(m.main)+" ("+UnitFile(m.main, Systemd)+")" {
 		t.Fatal(said, err)
@@ -122,7 +125,7 @@ func TestUninstallStopsAndRemovesTheUnit(t *testing.T) {
 			held = append(held, syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB) != nil)
 			return "", nil
 		}
-		m.install(8123)
+		m.install()
 		if len(held) != 1 || !held[0] {
 			t.Fatalf("the lock was not held while install waited: %v", held)
 		}
@@ -139,7 +142,7 @@ func TestUninstallStopsAndRemovesTheUnit(t *testing.T) {
 // names this checkout's pin and its fix, and pm doctor's work store line does (work.CheckVersion).
 func TestAServiceOnMainsPinIsNotStaleFromACheckoutOffIt(t *testing.T) {
 	m := newMachine(t, Systemd)
-	m.install(8123)
+	m.install()
 	if out, err := exec.Command("git", "init", "-q", m.main).CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v %s", err, out)
 	}
@@ -227,6 +230,7 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 
 // stopServices stops every process the fake supervisor started.
 func stopServices(t *testing.T, state string) {
+	t.Helper()
 	data, err := os.ReadFile(state)
 	if err != nil {
 		return
@@ -234,9 +238,7 @@ func stopServices(t *testing.T, state string) {
 	for _, m := range regexp.MustCompile(`"[^"]+": (\d+)`).FindAllStringSubmatch(string(data), -1) {
 		pid, _ := strconv.Atoi(m[1])
 		if syscall.Kill(pid, syscall.SIGTERM) == nil {
-			for i := 0; i < 100 && syscall.Kill(pid, 0) == nil; i++ {
-				time.Sleep(20 * time.Millisecond)
-			}
+			eventually(t, fmt.Sprintf("process %d exits", pid), func() bool { return syscall.Kill(pid, 0) != nil })
 		}
 	}
 }
@@ -250,7 +252,7 @@ func TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall(t *testing.T) {
 			if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "is not installed") {
 				t.Fatal("stop of no unit:", err)
 			}
-			m.install(8123)
+			m.install()
 			up := true // the stand-in site answers while the supervisor holds the unit
 			probe = func(int) *Served {
 				if up && Loaded(m.main, kind) {
@@ -315,7 +317,7 @@ func TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall(t *testing.T) {
 	// A stop that leaves something answering on the socket fails, naming it.
 	t.Run("StopFailsWhileTheSocketStillAnswers", func(t *testing.T) {
 		m := newMachine(t, Systemd)
-		m.install(8123)
+		m.install()
 		probe = func(int) *Served { return nil }
 		saved := RestartWait
 		RestartWait = 300 * time.Millisecond
@@ -337,7 +339,7 @@ func TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall(t *testing.T) {
 // start still starts the service and health says down, not stopped.
 func TestASupervisorThatDoesNotAnswerIsNoStop(t *testing.T) {
 	m := newMachine(t, Systemd)
-	m.install(8123)
+	m.install()
 	fakeBin(t, map[string]string{"systemctl": `[ "$2" = is-enabled ] && { echo "Failed to connect to bus" >&2; exit 1; }; exit 0`})
 	if Disabled(m.main, Systemd) {
 		t.Fatal("a failed is-enabled reads as a stop")

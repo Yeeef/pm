@@ -205,6 +205,7 @@ func (x *Index) checkTree(it *Item) error {
 			return itemError(id, "is a task under %s %s; a task sits under a sprint, a task or a project",
 				parent.Type, parent.ID)
 		}
+	case Need: // a need may sit under any item; an open one with none is refused below
 	}
 	if parent == nil && (it.Type == Task || it.Type == Need) && it.Status == Open {
 		return itemError(id, "is an open %s with no parent", it.Type)

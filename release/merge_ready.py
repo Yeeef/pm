@@ -22,7 +22,7 @@ PASSED = {"SUCCESS", "SKIPPED", "NEUTRAL"}
 
 
 def run(*args: str) -> str:
-    r = subprocess.run(args, capture_output=True, text=True)
+    r = subprocess.run(args, capture_output=True, text=True, check=False)
     if r.returncode:
         raise SystemExit(f"merge-ready: {' '.join(args)} failed: {r.stderr.strip()}")
     return r.stdout
@@ -90,7 +90,7 @@ def main(argv: list[str]) -> int:
     why = []
     if fetched(f"refs/pull/{n}/head") != head:
         why.append("its head moved on the remote while this ran; run it again")
-    elif subprocess.run(["git", "merge-base", "--is-ancestor", base_sha, head]).returncode:
+    elif subprocess.run(["git", "merge-base", "--is-ancestor", base_sha, head], check=False).returncode:
         why.append(f"its head {head[:7]} does not contain origin/{base} {base_sha[:7]}, so its CI did not test what "
                    f"the merge lands: rebase it onto origin/{base} (or merge origin/{base} into it), push, and wait "
                    "for its CI")

@@ -6,6 +6,7 @@ that shape the call to $FAKE_CLAUDE_LOG as one JSON line, then answers $FAKE_CLA
 import json
 import os
 import sys
+from pathlib import Path
 
 log = os.environ["FAKE_CLAUDE_LOG"]
 env = {k: os.environ.get(k) for k in ("MAX_THINKING_TOKENS", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC")}
@@ -14,4 +15,4 @@ with open(log, "a") as f:
 if os.environ.get("FAKE_CLAUDE_FAIL"):
     print(os.environ["FAKE_CLAUDE_FAIL"], file=sys.stderr)
     sys.exit(1)
-print(os.environ.get("FAKE_CLAUDE_OUTPUT") or f"Summary {len(open(log).read().splitlines())}.")
+print(os.environ.get("FAKE_CLAUDE_OUTPUT") or f"Summary {len(Path(log).read_text().splitlines())}.")

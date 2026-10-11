@@ -100,7 +100,8 @@ REPO_CHANGES = {
 
 def reported(lines: list[str], wants: list[str]) -> bool:
     """Doctor gave one line per change: each line starts with exactly one change's expected start, in any order."""
-    return sorted(w for l in lines for w in wants if l.startswith(w)) == sorted(wants) and len(lines) == len(wants)
+    return (sorted(w for line in lines for w in wants if line.startswith(w)) == sorted(wants)
+            and len(lines) == len(wants))
 
 
 def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo: Path, tmp_path: Path):
@@ -112,7 +113,7 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
         change(new_repo)
     code, lines = doctor(new_repo)
     assert code == 1 and reported(lines, [f"repo: {want}" for _, want in REPO_CHANGES.values()]), lines
-    assert all(l.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for l in lines), lines
+    assert all(line.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for line in lines), lines
     res = pm(new_repo, "upgrade")
     assert res.returncode == 0 and "pin stays" in res.stdout, res.stderr
     assert not (new_repo / ".github/workflows/pm-records-copy.yml").exists()
@@ -183,7 +184,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     def launched(pin: str, *args: str) -> subprocess.CompletedProcess:  # as the installed pm launches `pin`, whose
         # release here builds this pm: test_launch.py has the launch itself, which would reach GitHub
         return subprocess.run([*PM, *args], cwd=existing, env=dict(env(existing.parent), PM_LAUNCHED=pin),
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, check=False)
     assert launched("0.2.0", "show").returncode == 1, "every other command refuses the old pin"
     res = launched("9.9.9", "upgrade", "--to", "9.9.9")
     latest = "curl -fsSL https://github.com/Yeeef/pm/releases/latest/download/install.sh | sh"
@@ -222,7 +223,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     code, lines = doctor(existing)
     assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
                                           f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
-    assert all(l.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for l in lines), lines
+    assert all(line.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for line in lines), lines
     # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
     res = pm(existing, "init", "--site-url", "pm.example.com")
     assert res.returncode == 1 and "is not an http(s) base URL" in res.stderr and git(existing, "status", "--porcelain") == ""
@@ -261,7 +262,7 @@ def test_upgrade_retires_the_main_branchs_records_copy(new_repo: Path, tmp_path:
     git(new_repo, "add", "-f", "records")
     # the old section's pm hook git-pre-commit is retired: it lets this commit, which stages records/, through
     res = subprocess.run(["git", "commit", "-qm", "pm with main's records/ copy"], cwd=new_repo, env=env(tmp_path),
-                         capture_output=True, text=True)
+                         capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     git(new_repo, "sparse-checkout", "set", "--no-cone", "/*", "!/records/")
     git(new_repo, "config", "--worktree", "sparse.expectFilesOutsideOfPatterns", "true")
@@ -291,7 +292,8 @@ def test_upgrade_retires_the_main_branchs_records_copy(new_repo: Path, tmp_path:
         f"pm commits nothing on main; commit pm's files there: {commit}"], res.stdout
     assert not any((new_repo / rel).exists() for rel in [*RETIRED_WORKFLOWS, f"{HOOKS}/pre-commit"])
     git(new_repo, "rm", "-r", "-q", "--cached", "--sparse", "records")  # an interrupted first try: the commit still runs
-    res = subprocess.run(["sh", "-c", commit], cwd=new_repo, env=env(tmp_path), capture_output=True, text=True)
+    res = subprocess.run(["sh", "-c", commit], cwd=new_repo, env=env(tmp_path), capture_output=True, text=True,
+                         check=False)
     assert res.returncode == 0, res.stderr
     assert git(new_repo, "ls-tree", "HEAD", "records") == ""
     assert (new_repo / "records").is_symlink(), "untracking the copy leaves the link"
@@ -322,7 +324,7 @@ def install_everywhere(repo: Path, tmp: Path) -> Path:
     git(repo, "commit", "-qm", "Install pm")
     wt = tmp / "wt"
     res = subprocess.run(["git", "worktree", "add", "-q", "-b", "feature", str(wt)], cwd=repo, env=env(tmp),
-                         capture_output=True, text=True)
+                         capture_output=True, text=True, check=False)
     assert res.returncode == 0 and (wt / "records").is_symlink(), res.stderr
     assert doctor(repo)[0] == 0 and doctor(wt)[0] == 0
     return wt
@@ -393,7 +395,7 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
             s.bind(("127.0.0.1", 0))
             port = s.getsockname()[1]
         res = subprocess.run([*PM, "init"], cwd=other, env=dict(env(tmp), PORT=str(port)), capture_output=True,
-                             text=True)
+                             text=True, check=False)
         assert res.returncode == 0, res.stderr
         roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
         mine = [r for r in roots if r.startswith(str(repo.resolve()))]
@@ -453,9 +455,9 @@ def test_doctor_names_a_settings_file_it_cannot_read_as_a_repo_finding(new_repo:
     assert pm(new_repo, "init").returncode == 0
     (new_repo / ".claude/settings.json").write_text("{not json")
     code, lines = doctor(new_repo)
-    assert code == 1 and any(l.startswith("repo: cannot look for the pre-package harness's pieces: .claude/settings.json "
-                                          "is not valid JSON") for l in lines), lines
-    assert not any(l.startswith("legacy: ") for l in lines), lines
+    assert code == 1 and any(line.startswith("repo: cannot look for the pre-package harness's pieces: "
+                                             ".claude/settings.json is not valid JSON") for line in lines), lines
+    assert not any(line.startswith("legacy: ") for line in lines), lines
 
 
 
@@ -472,7 +474,7 @@ def answers(sock: Path) -> bool:
 
 def supervisor_calls(tmp: Path) -> list[list[str]]:
     path = tmp / "sched.log"
-    return [json.loads(l) for l in path.read_text().splitlines()] if path.exists() else []
+    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
 
 def test_stop_keeps_the_service_stopped_at_session_start_until_restart(new_repo: Path, tmp_path: Path):

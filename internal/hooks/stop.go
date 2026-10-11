@@ -9,6 +9,7 @@ package hooks
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,7 +33,7 @@ const stopReason = "These records in the store (%[1]s) have uncommitted changes,
 func git(cwd *string, args ...string) (string, *proc.Error) {
 	argv := append([]string{"git"}, args...)
 	res, err := proc.Run(argv, proc.Options{Cwd: cwd, Timeout: 5 * time.Second, TimeoutText: "5"})
-	if e, ok := err.(*proc.Error); ok {
+	if e := (*proc.Error)(nil); errors.As(err, &e) {
 		return "", e
 	}
 	if res.Code != 0 {
@@ -293,7 +294,7 @@ func StopReason(event *pyjson.Object, stderr io.Writer) (string, error) {
 			return "", nil, err
 		}
 		if st, err := os.Stat(store); err != nil || !st.IsDir() {
-			return "", nil, nil // a clone without a store has no records to commit
+			return "", nil, nil //nolint:nilerr // a clone without a store has no records to commit
 		}
 		top, err := git(&store, "rev-parse", "--show-toplevel")
 		if err != nil {
@@ -308,7 +309,7 @@ func StopReason(event *pyjson.Object, stderr io.Writer) (string, error) {
 	}()
 	if perr != nil {
 		fmt.Fprintf(stderr, "pm hook stop: git is unavailable (%s); letting the stop through\n", perr.Type)
-		return "", nil
+		return "", nil //nolint:nilerr // the hook fails open on its own errors, named on stderr
 	}
 	if len(paths) == 0 {
 		return "", nil
@@ -322,7 +323,7 @@ func StopReason(event *pyjson.Object, stderr io.Writer) (string, error) {
 		}
 		if mine, err = Touched(*transcript, paths); err == nil {
 			readable = true
-		} else if _, isRead := err.(*os.PathError); !isRead {
+		} else if pe := (*os.PathError)(nil); !errors.As(err, &pe) {
 			return "", err
 		}
 	}

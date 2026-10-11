@@ -33,7 +33,7 @@ func wrapFill(text string, width int, first, rest string) string {
 	for l, r := 0, len(chunks)-1; l < r; l, r = l+1, r-1 {
 		chunks[l], chunks[r] = chunks[r], chunks[l]
 	}
-	n := func(s string) int { return utf8.RuneCountInString(s) }
+	n := utf8.RuneCountInString
 	blank := func(s string) bool { return strings.TrimSpace(s) == "" }
 	var lines []string
 	for len(chunks) > 0 {

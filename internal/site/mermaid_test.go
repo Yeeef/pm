@@ -15,7 +15,7 @@ func TestMermaidLoadsOneExactVersionAtNaturalWidth(t *testing.T) {
 	}
 	exact := regexp.MustCompile(`/mermaid@(\d+\.\d+\.\d+)/dist/mermaid\.esm\.min\.mjs$`)
 	for _, u := range urls {
-		if m := exact.FindStringSubmatch(u); m == nil || m[1] != MermaidVersion {
+		if m := exact.FindStringSubmatch(u); len(m) < 2 || m[1] != MermaidVersion {
 			t.Errorf("%s does not name mermaid@%s exactly", u, MermaidVersion)
 		}
 	}

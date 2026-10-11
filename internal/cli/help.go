@@ -89,15 +89,15 @@ func (c *command) usageParts() (parts []string, nOpt int) {
 			members = append(members, usagePart(c.args[i]))
 		}
 		i--
-		open, close := "[", "]"
+		opening, closing := "[", "]"
 		if c.groups[a.group-1] {
-			open, close = "(", ")"
+			opening, closing = "(", ")"
 			if len(members) == 1 {
-				open, close = "", ""
+				opening, closing = "", ""
 			}
 		}
-		members[0] = open + members[0]
-		members[len(members)-1] += close
+		members[0] = opening + members[0]
+		members[len(members)-1] += closing
 		for j := range members[:len(members)-1] {
 			members[j] += " |"
 		}

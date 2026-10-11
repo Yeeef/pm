@@ -611,13 +611,13 @@ func readInStore(store, rel string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	real, err := filepath.EvalSymlinks(filepath.Join(top, filepath.FromSlash(rel)))
+	target, err := filepath.EvalSymlinks(filepath.Join(top, filepath.FromSlash(rel)))
 	if err != nil {
 		return nil, err
 	}
-	resolved, err := filepath.Rel(top, real)
+	resolved, err := filepath.Rel(top, target)
 	if err != nil || !storePath(filepath.ToSlash(resolved)) {
-		return nil, fmt.Errorf("%q resolves to %s, not a path in the records store", rel, real)
+		return nil, fmt.Errorf("%q resolves to %s, not a path in the records store", rel, target)
 	}
 	root, err := os.OpenRoot(top)
 	if err != nil {
@@ -836,7 +836,7 @@ func (s *server) sweep() {
 		}
 		var ino uint64
 		if sys, ok := st.Sys().(*syscall.Stat_t); ok {
-			ino = uint64(sys.Ino)
+			ino = sys.Ino
 		}
 		key := fmt.Sprintf("%s\x00%d\x00%d", path, ino, st.ModTime().UnixNano())
 		s.mu.Lock()
