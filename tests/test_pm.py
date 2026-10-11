@@ -1431,8 +1431,8 @@ def test_task_claim_refuses_in_the_main_checkout_and_says_how_to_make_a_worktree
         main = repo.root.resolve()
         assert f"not claiming repo-demo.1.2 here: {main} is the main checkout; agents change code only in a worktree of " \
                f"their own" in res.stderr
-        assert f"git -C {main} fetch origin main && git -C {main} worktree add -b <branch> .claude/worktrees/<name> " \
-               f"origin/main" in res.stderr
+        assert f"Make one with git, in any runtime, and work there: `git -C {main} fetch origin main && git -C {main} " \
+               f"worktree add -b <branch> .claude/worktrees/<name> origin/main`" in res.stderr
     assert repo.unchanged()
     wt = repo.worktree("feature")
     assert claim(repo, "repo-demo.1.2", "sess-a", cwd=wt).returncode == 0

@@ -1077,9 +1077,10 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 			return "", err
 		}
 		return "", refuse("not claiming %s here: %s is the main checkout; agents change code only in a worktree of their "+
-			"own. Make one and work there: `git -C %s fetch %s %s && git -C %s worktree add -b <branch> %s/<name> %s/%s`, "+
-			"then `cd %s/%s/<name>` (in Claude Code, the EnterWorktree tool does the same); pm's post-checkout hook and "+
-			"session start link its records/ (else run `pm init` there). A subagent works in its parent's worktree.",
+			"own. Make one with git, in any runtime, and work there: `git -C %s fetch %s %s && git -C %s worktree add -b "+
+			"<branch> %s/<name> %s/%s`, then `cd %s/%s/<name>` (in Claude Code, the EnterWorktree tool does the same); "+
+			"pm's post-checkout hook and session start link its records/ (else run `pm init` there). A subagent works "+
+			"in its parent's worktree.",
 			id, root, root, cfg.Remote, cfg.MainBranch, root, worktreesDir, cfg.Remote, cfg.MainBranch, root, worktreesDir)
 	}
 	r, err := e.load(false)
