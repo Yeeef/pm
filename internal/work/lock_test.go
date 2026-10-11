@@ -3,6 +3,7 @@ package work
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -35,39 +36,6 @@ func queued(t *testing.T, l *writeLock, n int) {
 			t.Fatalf("%d waiters queued, want %d", got, n)
 		}
 		time.Sleep(time.Millisecond)
-	}
-}
-
-// Waiters get the lock in the order they asked, each holding it in turn: an unfair lock (one that hands it to any
-// waiter, or to a fresh asker, as go-mysql-server's GET_LOCK does) fails this.
-func TestTheWriteLockIsFIFO(t *testing.T) {
-	l := newLock(nil)
-	never := make(chan struct{})
-	must(0, l.lock(1, 1, "first", time.Minute, never))
-	var mu sync.Mutex
-	var order []uint32
-	var wg sync.WaitGroup
-	for s := uint32(2); s <= 7; s++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			must(0, l.lock(s, int64(s), "w", time.Minute, never))
-			mu.Lock()
-			order = append(order, s)
-			mu.Unlock()
-			must(0, l.unlock(s))
-		}()
-		queued(t, l, int(s-1)) // s asks only once s-1 is queued
-	}
-	// a fresh asker after them is queued behind them, not served first
-	late := make(chan uint32, 1)
-	go func() { must(0, l.lock(9, 9, "late", time.Minute, never)); late <- 9; must(0, l.unlock(9)) }()
-	queued(t, l, 7)
-	must(0, l.unlock(1))
-	wg.Wait()
-	<-late
-	if got := order; len(got) != 6 || got[0] != 2 || got[5] != 7 || !orderedAsc(got) {
-		t.Fatalf("waiters got the lock in the order %v", got)
 	}
 }
 
@@ -105,28 +73,28 @@ func TestAWriteLockWaitEndsAtItsBoundOrItsStatement(t *testing.T) {
 	if l.owner != 0 {
 		t.Fatalf("the lock passed to %d, a waiter that went", l.owner)
 	}
-}
 
-// A holder whose session is gone (its connection dropped) is taken over by the first waiter within lockCheck.
-func TestAWriteLockHolderWhoseConnectionIsGoneIsTakenOver(t *testing.T) {
-	var mu sync.Mutex
-	gone := map[uint32]bool{}
-	l := newLock(func(s uint32) bool { mu.Lock(); defer mu.Unlock(); return !gone[s] })
-	never := make(chan struct{})
-	must(0, l.lock(1, 1, "w", time.Minute, never))
-	got := make(chan error, 1)
-	go func() { got <- l.lock(2, 2, "w", time.Minute, never) }()
-	queued(t, l, 1)
-	mu.Lock()
-	gone[1] = true
-	mu.Unlock()
-	start := time.Now()
-	if err := <-got; err != nil || l.owner != 2 {
-		t.Fatalf("no takeover: %v, owner %d", err, l.owner)
-	}
-	if took := time.Since(start); took > time.Second {
-		t.Fatalf("the takeover took %s", took)
-	}
+	// A holder whose session is gone (its connection dropped) is taken over by the first waiter within lockCheck.
+	t.Run("AWriteLockHolderWhoseConnectionIsGoneIsTakenOver", func(t *testing.T) {
+		var mu sync.Mutex
+		gone := map[uint32]bool{}
+		l := newLock(func(s uint32) bool { mu.Lock(); defer mu.Unlock(); return !gone[s] })
+		never := make(chan struct{})
+		must(0, l.lock(1, 1, "w", time.Minute, never))
+		got := make(chan error, 1)
+		go func() { got <- l.lock(2, 2, "w", time.Minute, never) }()
+		queued(t, l, 1)
+		mu.Lock()
+		gone[1] = true
+		mu.Unlock()
+		start := time.Now()
+		if err := <-got; err != nil || l.owner != 2 {
+			t.Fatalf("no takeover: %v, owner %d", err, l.owner)
+		}
+		if took := time.Since(start); took > time.Second {
+			t.Fatalf("the takeover took %s", took)
+		}
+	})
 }
 
 func TestASecondLockOnAConnectionAndAnUnlockWithoutItAreRefused(t *testing.T) {
@@ -141,12 +109,83 @@ func TestASecondLockOnAConnectionAndAnUnlockWithoutItAreRefused(t *testing.T) {
 		t.Fatalf("an unlock without the lock: %v", err)
 	}
 	must(0, l.unlock(1))
+
+	// Waiters get the lock in the order they asked, each holding it in turn: an unfair lock (one that hands it to any
+	// waiter, or to a fresh asker, as go-mysql-server's GET_LOCK does) fails this.
+	t.Run("TheWriteLockIsFIFO", func(t *testing.T) {
+		l := newLock(nil)
+		never := make(chan struct{})
+		must(0, l.lock(1, 1, "first", time.Minute, never))
+		var mu sync.Mutex
+		var order []uint32
+		var wg sync.WaitGroup
+		for s := uint32(2); s <= 7; s++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				must(0, l.lock(s, int64(s), "w", time.Minute, never))
+				mu.Lock()
+				order = append(order, s)
+				mu.Unlock()
+				must(0, l.unlock(s))
+			}()
+			queued(t, l, int(s-1)) // s asks only once s-1 is queued
+		}
+		// a fresh asker after them is queued behind them, not served first
+		late := make(chan uint32, 1)
+		go func() { must(0, l.lock(9, 9, "late", time.Minute, never)); late <- 9; must(0, l.unlock(9)) }()
+		queued(t, l, 7)
+		must(0, l.unlock(1))
+		wg.Wait()
+		<-late
+		if got := order; len(got) != 6 || got[0] != 2 || got[5] != 7 || !orderedAsc(got) {
+			t.Fatalf("waiters got the lock in the order %v", got)
+		}
+	})
 }
 
 // Through the host: a write takes over from a holder whose connection dropped, without pm_unlock; a write behind a
 // live holder fails at its bound, a sub-second one included, naming the holder's connection, pid and write.
 func TestPmLockThroughTheHost(t *testing.T) {
 	d, o := serve(t, Options{Prefix: "demo"})
+	// The write lock is fair: a long write waiting behind a stream of short ones gets it in its turn.
+	t.Run("ALongWriteIsNotStarvedByShortOnes", func(t *testing.T) {
+		p := must(d.Create(New{Type: Project, Title: "P"}))
+		stop := make(chan struct{})
+		var wg sync.WaitGroup
+		for w := range 3 {
+			c := o.dial(t)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for i := 0; ; i++ {
+					select {
+					case <-stop:
+						return
+					default:
+					}
+					if _, err := c.Comment(p.ID, Note, "s", fmt.Sprintf("w%d-%d", w, i)); err != nil {
+						t.Error(err)
+						return
+					}
+				}
+			}()
+		}
+		for range 5 { // each holds the lock 50 ms, 10 or more times a short write's
+			start := time.Now()
+			must(0, d.update("slow edit", p.ID, func(it *Item, _ *Index) error {
+				time.Sleep(50 * time.Millisecond)
+				it.Title += "+"
+				return nil
+			}))
+			if took := time.Since(start); took > 2*time.Second {
+				t.Errorf("a long write behind 3 tight-loop writers took %s", took)
+			}
+		}
+		close(stop)
+		wg.Wait()
+	})
+
 	p := must(d.Create(New{Type: Project, Title: "P"}))
 	dead := o.dial(t)
 	if _, err := dead.conn.ExecContext(ctx, "CALL pm_lock(60000, 7, 'crashed')"); err != nil {

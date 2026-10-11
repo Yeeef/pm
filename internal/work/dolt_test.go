@@ -1,8 +1,10 @@
 package work
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -63,111 +65,29 @@ func get(t *testing.T, d *Dolt, id string) Item {
 	return must(d.Get(id))[0]
 }
 
-func TestCreateWritesThroughToALaterOpen(t *testing.T) {
-	d, o := newStore(t)
-	p := must(d.Create(New{Type: Project, Title: "P"}))
-	s := must(d.Create(New{Type: Sprint, Parent: p.ID, Title: "Sprint 1: S"}))
-	task := must(d.Create(New{Type: Task, Parent: s.ID, Title: "T", Description: "d", Labels: []string{"b", "a", "b"}}))
-	if task.ID != s.ID+".1" || s.ID != p.ID+".1" || s.Number != 1 {
-		t.Fatalf("ids %s %s %s number %d", p.ID, s.ID, task.ID, s.Number)
-	}
-	if err := d.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
-	d2 := o.dial(t)
-	if items := must(d2.Items()); len(items) != 3 {
-		t.Fatalf("%d items", len(items))
-	}
-	got := get(t, d2, task.ID)
-	if strings.Join(got.Labels, ",") != "a,b" || got.Description != "d" || !got.CreatedAt.Equal(task.CreatedAt) ||
-		got.CreatedAt.Location() != time.UTC {
-		t.Fatalf("%+v", got)
-	}
-	if n := commits(t, d2); n != 7 { // Dolt's init commit, the schema at version 1, its migrations to 2 and 3, one per create
-		t.Fatalf("%d commits", n)
-	}
-	var dirty int
-	if err := d2.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_status").Scan(&dirty); err != nil || dirty != 0 {
-		t.Fatalf("%d uncommitted tables (%v)", dirty, err)
-	}
-}
-
-func TestAWriteThatBreaksAnInvariantLandsNothing(t *testing.T) {
-	d, _ := newStore(t)
-	_, _, task, _ := seed(t, d)
-	before, n := must(d.Items()), commits(t, d)
-	for i, err := range []error{
-		d.Edit(task.ID, ptr(""), nil),                          // no title
-		d.Move(task.ID, "demo-none"),                           // no such parent
-		d.SetResolution(task.ID, Done),                         // open
-		d.DepAdd(task.ID, "demo-none"),                         // no such blocker
-		d.DepAdd(task.ID, task.ID),                             // itself
-		d.DepRemove(task.ID, "demo-none"),                      // no such link
-		d.Close(task.ID, "r", "finished", "s1"),                // no such resolution
-		d.UpdateNeed(task.ID, NeedUpdate{Delivered: new(int)}), // a task
-		d.Answer(task.ID, "yes"),                               // a task
-		func() error { _, err := d.Create(New{Type: Task, Title: "orphan"}); return err }(),
-		func() error { _, err := d.Create(New{Type: Sprint, Parent: task.ID, Title: "S"}); return err }(),
-		func() error { _, err := d.Create(New{Type: Need, Parent: task.ID, Title: "N"}); return err }(),
-		func() error { _, err := d.Comment(task.ID, "answer", "s1", "x"); return err }(),
-	} {
-		if err == nil {
-			t.Errorf("write %d breaks an invariant and passed", i)
-		}
-	}
-	after := must(d.Items())
-	if commits(t, d) != n || len(after) != len(before) {
-		t.Fatalf("a failed write landed: %d commits, was %d", commits(t, d), n)
-	}
-	for i := range before {
-		if string(must(json.Marshal(before[i]))) != string(must(json.Marshal(after[i]))) {
-			t.Errorf("%s changed", before[i].ID)
-		}
-	}
-}
-
-func TestEachWriteIsOneDoltCommit(t *testing.T) {
-	d, _ := newStore(t)
-	_, s, task, need := seed(t, d)
-	n := commits(t, d)
-	steps := []func() error{
-		func() error { return d.Edit(task.ID, ptr("T2"), ptr("body")) },
-		func() error { _, err := d.Comment(task.ID, Note, "s1", "a note"); return err },
-		func() error { return d.DepAdd(task.ID, s.ID) },
-		func() error { return d.DepRemove(task.ID, s.ID) },
-		func() error { return d.UpdateNeed(need.ID, NeedUpdate{Delivered: ptr(2), ReviewMerged: ptr("abc")}) },
-		func() error { return d.Answer(need.ID, "yes") },
-	}
-	for i, f := range steps {
-		if err := f(); err != nil {
-			t.Fatalf("step %d: %v", i, err)
-		}
-	}
-	if got := commits(t, d); got != n+len(steps) {
-		t.Fatalf("%d commits after %d writes from %d", got, len(steps), n)
-	}
-	got := get(t, d, task.ID)
-	if got.Title != "T2" || got.Description != "body" || len(got.Comments) != 1 || got.Comments[0].Kind != Note ||
-		got.Comments[0].Author != "s1" || len(got.BlockedBy) != 0 {
-		t.Errorf("%+v", got)
-	}
-	a := get(t, d, need.ID)
-	if a.Status != Closed || a.Resolution != Answered || a.CloseReason != "Responded" || len(a.Comments) != 1 ||
-		a.Comments[0].Kind != Reply || a.Comments[0].Author != "owner" || a.Comments[0].Text != "yes" ||
-		a.Need.Delivered != 2 || a.Need.Review.Merged != "abc" || a.Need.Review.Sprints[0] != s.ID ||
-		a.Need.RaisedBy.Inbox != "/tmp/s1.sock" {
-		t.Errorf("%+v %+v", a, a.Need)
-	}
-	if needs := must(d.Needs("s1")); len(needs) != 1 || needs[0].ID != need.ID || len(must(d.Needs("s2"))) != 0 {
-		t.Error("Needs")
-	}
-	if _, err := d.Get(task.ID, "demo-none"); err == nil {
-		t.Error("Get of a missing id passed")
-	}
-}
-
 func TestClaimIsACompareAndSet(t *testing.T) {
-	d, _ := newStore(t)
+	d, o := newStore(t)
+	t.Run("ImportGoesIntoAnEmptyStoreOnly", func(t *testing.T) {
+		items := tree()
+		n := commits(t, d)
+		if err := d.Import(items, "import"); err != nil {
+			t.Fatal(err)
+		}
+		if commits(t, d) != n+1 || len(must(d.Items())) != len(items) {
+			t.Fatal("the import is not one commit of every item")
+		}
+		if err := d.Import([]Item{item("d-new", Project, "")}, "again"); err == nil ||
+			!strings.Contains(err.Error(), "empty store only") {
+			t.Fatalf("imported into a store with items: %v", err)
+		}
+		d2, _ := newStore(t)
+		bad := tree()
+		bad[1].Parent = "d-none"
+		if err := d2.Import(bad, "import"); err == nil || len(must(d2.Items())) != 0 {
+			t.Fatal("an import that fails Check landed")
+		}
+	})
+
 	_, _, task, _ := seed(t, d)
 	alive := map[string]bool{"s1": true, "s2": true}
 	live := func(s string) bool { return alive[s] }
@@ -217,148 +137,154 @@ func TestClaimIsACompareAndSet(t *testing.T) {
 	if err := d.SetResolution(task.ID, NoDecision); err != nil || get(t, d, task.ID).Resolution != NoDecision {
 		t.Fatal(err)
 	}
-}
 
-// A need's description is what the owner answers: Edit refuses it, in the write's transaction, once the need holds a
-// reply or is closed; its title, and a task's description, stay editable.
-func TestEditKeepsAnAnsweredNeedsDescription(t *testing.T) {
-	d, _ := newStore(t)
-	_, _, task, need := seed(t, d)
-	desc, title := "new body", "N, renamed?"
-	if err := d.Edit(need.ID, nil, &desc); err != nil || get(t, d, need.ID).Description != desc {
-		t.Fatalf("an open need without a reply: %v", err)
-	}
-	must(d.Comment(need.ID, Reply, "owner", "yes"))
-	other := "another body"
-	if err := d.Edit(need.ID, nil, &other); err == nil || !strings.Contains(err.Error(), "holds a reply") {
-		t.Fatalf("a need with a reply took a new description: %v", err)
-	}
-	if err := d.Edit(need.ID, &title, nil); err != nil || get(t, d, need.ID).Title != title {
-		t.Fatalf("the title: %v", err)
-	}
-	closed := must(d.Create(New{Type: Need, Parent: task.ID, Title: "M?", Need: &NeedInfo{Kind: Action}}))
-	if err := d.Close(closed.ID, "moot", Dismissed, "s1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := d.Edit(closed.ID, nil, &other); err == nil || get(t, d, closed.ID).Description != "" {
-		t.Fatalf("a closed need took a new description: %v", err)
-	}
-	if err := d.Edit(task.ID, nil, &other); err != nil {
-		t.Fatalf("a task's description: %v", err)
-	}
-}
+	t.Run("MoveSprintRefuses", func(t *testing.T) {
+		p, s, task, _ := seed(t, d)
+		q := must(d.Create(New{Type: Project, Title: "Q"}))
+		closedP := must(d.Create(New{Type: Project, Title: "C"}))
+		must(0, d.Close(closedP.ID, "done", Done, ""))
+		done := must(d.Create(New{Type: Sprint, Parent: p.ID, Title: "Sprint 2: done"}))
+		must(0, d.Close(done.ID, "done", Done, ""))
+		before := commits(t, d)
+		for _, c := range []struct{ id, to, reason, want string }{
+			{task.ID, q.ID, "r\nr", "only a sprint moves"},
+			{s.ID, task.ID, "r\nr", "a sprint moves to a project"},
+			{s.ID, "demo-none", "r\nr", "no item demo-none"},
+			{s.ID, closedP.ID, "r\nr", "a sprint moves to an open project"},
+			{done.ID, q.ID, "r\nr", "only an open sprint moves"},
+			{s.ID, q.ID, " ", "a move needs a reason"},
+		} {
+			if _, err := d.MoveSprint(c.id, c.to, c.reason); err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("%s to %s: %v, want %q", c.id, c.to, err, c.want)
+			}
+		}
+		if commits(t, d) != before {
+			t.Error("a refused move wrote")
+		}
+	})
 
-func TestCreateMintsIdsAndSprintNumbers(t *testing.T) {
-	d, _ := newStore(t)
-	p, s1, task, _ := seed(t, d)
-	if !strings.HasPrefix(p.ID, "demo-") || len(p.ID) != len("demo-")+4 || CheckID(p.ID) != nil {
-		t.Errorf("root id %s", p.ID)
-	}
-	s2 := must(d.Create(New{Type: Sprint, Parent: p.ID, Title: "Sprint 2: S"}))
-	other := must(d.Create(New{Type: Task, Parent: s1.ID, Title: "U"}))
-	if s2.ID != p.ID+".2" || s2.Number != 2 || other.ID != s1.ID+".2" {
-		t.Errorf("%s %d %s", s2.ID, s2.Number, other.ID)
-	}
-	// A moved task keeps its id, and its number is not minted again under its old parent.
-	if err := d.Move(other.ID, s2.ID); err != nil {
-		t.Fatal(err)
-	}
-	if got := get(t, d, other.ID); got.Parent != s2.ID || got.ID != s1.ID+".2" {
-		t.Errorf("%+v", got)
-	}
-	if next := must(d.Create(New{Type: Task, Parent: s1.ID, Title: "V"})); next.ID != s1.ID+".3" {
-		t.Errorf("next child %s", next.ID)
-	}
-	if next := must(d.Create(New{Type: Task, Parent: s2.ID, Title: "W"})); next.ID != s2.ID+".1" {
-		t.Errorf("first child of s2 %s", next.ID)
-	}
-	if err := d.Move(s2.ID, task.ID); err == nil {
-		t.Error("a sprint moved")
-	}
-	// A second project's sprints number from 1.
-	q := must(d.Create(New{Type: Project, Title: "Q"}))
-	if s := must(d.Create(New{Type: Sprint, Parent: q.ID, Title: "Sprint 1: Q"})); s.Number != 1 {
-		t.Errorf("number %d", s.Number)
-	}
-}
+	t.Run("ASecondHostOnAStoreFailsHard", func(t *testing.T) {
+		_, err := NewHost(HostOptions{Main: o.main, Version: "x"})
+		if err == nil || !strings.Contains(err.Error(), "another process holds it (a second pm service?)") {
+			t.Fatalf("a second host: %v", err)
+		}
+	})
 
-func TestTheHostRefusesANewerSchemaAndAClientAMissingStore(t *testing.T) {
-	d, o := newStore(t)
-	if _, err := d.conn.ExecContext(ctx, "UPDATE schema_version SET version = ?", SchemaVersion+1); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := d.conn.ExecContext(ctx, "CALL DOLT_COMMIT('-Am', 'a newer pm')"); err != nil {
-		t.Fatal(err)
-	}
-	if err := d.CreateStore(); err == nil || !strings.Contains(err.Error(), "exists") {
-		t.Fatalf("created a store over one: %v", err)
-	}
-	d.Shutdown()
-	if err := o.h.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := NewHost(HostOptions{Main: o.main, Version: "x"}); err == nil ||
-		!strings.Contains(err.Error(), "run pm upgrade") {
-		t.Fatalf("a newer schema served: %v", err)
-	}
-	none := host(t, shortMain(t), Options{}, Ops{})
-	if _, err := dial(none.h.sock, dialConfig{withDB: true}); err == nil ||
-		err.Error() != "this clone has no work store yet: run pm init" {
-		t.Fatalf("no store: %v", err)
-	}
-}
+	t.Run("TheHostRefusesANewerSchemaAndAClientAMissingStore", func(t *testing.T) {
+		d, o := newStore(t)
+		if _, err := d.conn.ExecContext(ctx, "UPDATE schema_version SET version = ?", SchemaVersion+1); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.conn.ExecContext(ctx, "CALL DOLT_COMMIT('-Am', 'a newer pm')"); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.CreateStore(); err == nil || !strings.Contains(err.Error(), "exists") {
+			t.Fatalf("created a store over one: %v", err)
+		}
+		d.Shutdown()
+		if err := o.h.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewHost(HostOptions{Main: o.main, Version: "x"}); err == nil ||
+			!strings.Contains(err.Error(), "run pm upgrade") {
+			t.Fatalf("a newer schema served: %v", err)
+		}
+		none := host(t, shortMain(t), Options{}, Ops{})
+		if _, err := dial(none.h.sock, dialConfig{withDB: true}); err == nil ||
+			err.Error() != "this clone has no work store yet: run pm init" {
+			t.Fatalf("no store: %v", err)
+		}
+	})
 
-func TestReadsFailHardOnARowNoWriteMakes(t *testing.T) {
-	d, _ := newStore(t)
-	_, _, task, _ := seed(t, d)
-	if err := d.Claim(task.ID, Holder{Session: "s1"}, func(string) bool { return false }); err != nil {
-		t.Fatal(err)
-	}
-	// A closed item with a holder, written past pm (a hand edit, a merge).
-	if _, err := d.conn.ExecContext(ctx, "UPDATE items SET status = 'closed', resolution = 'done', "+
-		"closed_at = '2026-10-08 12:00:00' WHERE id = ?", task.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := d.Items(); err == nil || !strings.Contains(err.Error(), task.ID+" is closed but held by s1") {
-		t.Fatalf("read: %v", err)
-	}
-	if err := d.Edit(task.ID, ptr("x"), nil); err == nil {
-		t.Fatal("wrote over a store that fails its invariants")
-	}
-	// The schema refuses what is no enum value.
-	if _, err := d.conn.ExecContext(ctx, "UPDATE items SET status = 'blocked' WHERE id = ?", task.ID); err == nil {
-		t.Fatal("the schema took status blocked")
-	}
-}
+	t.Run("EachWriteIsOneDoltCommit", func(t *testing.T) {
+		d, _ := newStore(t)
+		_, s, task, need := seed(t, d)
+		n := commits(t, d)
+		steps := []func() error{
+			func() error { return d.Edit(task.ID, ptr("T2"), ptr("body")) },
+			func() error { _, err := d.Comment(task.ID, Note, "s1", "a note"); return err },
+			func() error { return d.DepAdd(task.ID, s.ID) },
+			func() error { return d.DepRemove(task.ID, s.ID) },
+			func() error { return d.UpdateNeed(need.ID, NeedUpdate{Delivered: ptr(2), ReviewMerged: ptr("abc")}) },
+			func() error { return d.Answer(need.ID, "yes") },
+		}
+		for i, f := range steps {
+			if err := f(); err != nil {
+				t.Fatalf("step %d: %v", i, err)
+			}
+		}
+		if got := commits(t, d); got != n+len(steps) {
+			t.Fatalf("%d commits after %d writes from %d", got, len(steps), n)
+		}
+		got := get(t, d, task.ID)
+		if got.Title != "T2" || got.Description != "body" || len(got.Comments) != 1 || got.Comments[0].Kind != Note ||
+			got.Comments[0].Author != "s1" || len(got.BlockedBy) != 0 {
+			t.Errorf("%+v", got)
+		}
+		a := get(t, d, need.ID)
+		if a.Status != Closed || a.Resolution != Answered || a.CloseReason != "Responded" || len(a.Comments) != 1 ||
+			a.Comments[0].Kind != Reply || a.Comments[0].Author != "owner" || a.Comments[0].Text != "yes" ||
+			a.Need.Delivered != 2 || a.Need.Review.Merged != "abc" || a.Need.Review.Sprints[0] != s.ID ||
+			a.Need.RaisedBy.Inbox != "/tmp/s1.sock" {
+			t.Errorf("%+v %+v", a, a.Need)
+		}
+		if needs := must(d.Needs("s1")); len(needs) != 1 || needs[0].ID != need.ID || len(must(d.Needs("s2"))) != 0 {
+			t.Error("Needs")
+		}
+		if _, err := d.Get(task.ID, "demo-none"); err == nil {
+			t.Error("Get of a missing id passed")
+		}
+	})
 
-func TestImportGoesIntoAnEmptyStoreOnly(t *testing.T) {
-	d, _ := newStore(t)
-	items := tree()
-	n := commits(t, d)
-	if err := d.Import(items, "import"); err != nil {
-		t.Fatal(err)
-	}
-	if commits(t, d) != n+1 || len(must(d.Items())) != len(items) {
-		t.Fatal("the import is not one commit of every item")
-	}
-	if err := d.Import([]Item{item("d-new", Project, "")}, "again"); err == nil ||
-		!strings.Contains(err.Error(), "empty store only") {
-		t.Fatalf("imported into a store with items: %v", err)
-	}
-	d2, _ := newStore(t)
-	bad := tree()
-	bad[1].Parent = "d-none"
-	if err := d2.Import(bad, "import"); err == nil || len(must(d2.Items())) != 0 {
-		t.Fatal("an import that fails Check landed")
-	}
-}
+	// A need's description is what the owner answers: Edit refuses it, in the write's transaction, once the need holds a
+	// reply or is closed; its title, and a task's description, stay editable.
+	t.Run("EditKeepsAnAnsweredNeedsDescription", func(t *testing.T) {
+		_, _, task, need := seed(t, d)
+		desc, title := "new body", "N, renamed?"
+		if err := d.Edit(need.ID, nil, &desc); err != nil || get(t, d, need.ID).Description != desc {
+			t.Fatalf("an open need without a reply: %v", err)
+		}
+		must(d.Comment(need.ID, Reply, "owner", "yes"))
+		other := "another body"
+		if err := d.Edit(need.ID, nil, &other); err == nil || !strings.Contains(err.Error(), "holds a reply") {
+			t.Fatalf("a need with a reply took a new description: %v", err)
+		}
+		if err := d.Edit(need.ID, &title, nil); err != nil || get(t, d, need.ID).Title != title {
+			t.Fatalf("the title: %v", err)
+		}
+		closed := must(d.Create(New{Type: Need, Parent: task.ID, Title: "M?", Need: &NeedInfo{Kind: Action}}))
+		if err := d.Close(closed.ID, "moot", Dismissed, "s1"); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Edit(closed.ID, nil, &other); err == nil || get(t, d, closed.ID).Description != "" {
+			t.Fatalf("a closed need took a new description: %v", err)
+		}
+		if err := d.Edit(task.ID, nil, &other); err != nil {
+			t.Fatalf("a task's description: %v", err)
+		}
+	})
 
-func TestASecondHostOnAStoreFailsHard(t *testing.T) {
-	_, o := newStore(t)
-	_, err := NewHost(HostOptions{Main: o.main, Version: "x"})
-	if err == nil || !strings.Contains(err.Error(), "another process holds it (a second pm service?)") {
-		t.Fatalf("a second host: %v", err)
-	}
+	t.Run("ReadsFailHardOnARowNoWriteMakes", func(t *testing.T) {
+		_, _, task, _ := seed(t, d)
+		if err := d.Claim(task.ID, Holder{Session: "s1"}, func(string) bool { return false }); err != nil {
+			t.Fatal(err)
+		}
+		// A closed item with a holder, written past pm (a hand edit, a merge).
+		if _, err := d.conn.ExecContext(ctx, "UPDATE items SET status = 'closed', resolution = 'done', "+
+			"closed_at = '2026-10-08 12:00:00' WHERE id = ?", task.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.Items(); err == nil || !strings.Contains(err.Error(), task.ID+" is closed but held by s1") {
+			t.Fatalf("read: %v", err)
+		}
+		if err := d.Edit(task.ID, ptr("x"), nil); err == nil {
+			t.Fatal("wrote over a store that fails its invariants")
+		}
+		// The schema refuses what is no enum value.
+		if _, err := d.conn.ExecContext(ctx, "UPDATE items SET status = 'blocked' WHERE id = ?", task.ID); err == nil {
+			t.Fatal("the schema took status blocked")
+		}
+	})
 }
 
 func TestCommentsKeepTheirOrderWithinASecond(t *testing.T) {
@@ -386,4 +312,130 @@ func TestCommentsKeepTheirOrderWithinASecond(t *testing.T) {
 	if err := d.Import(nil, "nothing"); err == nil {
 		t.Fatal("imported no items")
 	}
+
+	t.Run("CreateWritesThroughToALaterOpen", func(t *testing.T) {
+		d, o := newStore(t)
+		p := must(d.Create(New{Type: Project, Title: "P"}))
+		s := must(d.Create(New{Type: Sprint, Parent: p.ID, Title: "Sprint 1: S"}))
+		task := must(d.Create(New{Type: Task, Parent: s.ID, Title: "T", Description: "d", Labels: []string{"b", "a", "b"}}))
+		if task.ID != s.ID+".1" || s.ID != p.ID+".1" || s.Number != 1 {
+			t.Fatalf("ids %s %s %s number %d", p.ID, s.ID, task.ID, s.Number)
+		}
+		if err := d.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		d2 := o.dial(t)
+		if items := must(d2.Items()); len(items) != 3 {
+			t.Fatalf("%d items", len(items))
+		}
+		got := get(t, d2, task.ID)
+		if strings.Join(got.Labels, ",") != "a,b" || got.Description != "d" || !got.CreatedAt.Equal(task.CreatedAt) ||
+			got.CreatedAt.Location() != time.UTC {
+			t.Fatalf("%+v", got)
+		}
+		if n := commits(t, d2); n != 7 { // Dolt's init commit, the schema at version 1, its migrations to 2 and 3, one per create
+			t.Fatalf("%d commits", n)
+		}
+		var dirty int
+		if err := d2.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM dolt_status").Scan(&dirty); err != nil || dirty != 0 {
+			t.Fatalf("%d uncommitted tables (%v)", dirty, err)
+		}
+	})
+
+	t.Run("AWriteThatBreaksAnInvariantLandsNothing", func(t *testing.T) {
+		_, _, task, _ := seed(t, d)
+		before, n := must(d.Items()), commits(t, d)
+		for i, err := range []error{
+			d.Edit(task.ID, ptr(""), nil),                          // no title
+			d.Move(task.ID, "demo-none"),                           // no such parent
+			d.SetResolution(task.ID, Done),                         // open
+			d.DepAdd(task.ID, "demo-none"),                         // no such blocker
+			d.DepAdd(task.ID, task.ID),                             // itself
+			d.DepRemove(task.ID, "demo-none"),                      // no such link
+			d.Close(task.ID, "r", "finished", "s1"),                // no such resolution
+			d.UpdateNeed(task.ID, NeedUpdate{Delivered: new(int)}), // a task
+			d.Answer(task.ID, "yes"),                               // a task
+			func() error { _, err := d.Create(New{Type: Task, Title: "orphan"}); return err }(),
+			func() error { _, err := d.Create(New{Type: Sprint, Parent: task.ID, Title: "S"}); return err }(),
+			func() error { _, err := d.Create(New{Type: Need, Parent: task.ID, Title: "N"}); return err }(),
+			func() error { _, err := d.Comment(task.ID, "answer", "s1", "x"); return err }(),
+		} {
+			if err == nil {
+				t.Errorf("write %d breaks an invariant and passed", i)
+			}
+		}
+		after := must(d.Items())
+		if commits(t, d) != n || len(after) != len(before) {
+			t.Fatalf("a failed write landed: %d commits, was %d", commits(t, d), n)
+		}
+		for i := range before {
+			if string(must(json.Marshal(before[i]))) != string(must(json.Marshal(after[i]))) {
+				t.Errorf("%s changed", before[i].ID)
+			}
+		}
+	})
+
+	t.Run("CreateMintsIdsAndSprintNumbers", func(t *testing.T) {
+		p, s1, task, _ := seed(t, d)
+		if !strings.HasPrefix(p.ID, "demo-") || len(p.ID) != len("demo-")+4 || CheckID(p.ID) != nil {
+			t.Errorf("root id %s", p.ID)
+		}
+		s2 := must(d.Create(New{Type: Sprint, Parent: p.ID, Title: "Sprint 2: S"}))
+		other := must(d.Create(New{Type: Task, Parent: s1.ID, Title: "U"}))
+		if s2.ID != p.ID+".2" || s2.Number != 2 || other.ID != s1.ID+".2" {
+			t.Errorf("%s %d %s", s2.ID, s2.Number, other.ID)
+		}
+		// A moved task keeps its id, and its number is not minted again under its old parent.
+		if err := d.Move(other.ID, s2.ID); err != nil {
+			t.Fatal(err)
+		}
+		if got := get(t, d, other.ID); got.Parent != s2.ID || got.ID != s1.ID+".2" {
+			t.Errorf("%+v", got)
+		}
+		if next := must(d.Create(New{Type: Task, Parent: s1.ID, Title: "V"})); next.ID != s1.ID+".3" {
+			t.Errorf("next child %s", next.ID)
+		}
+		if next := must(d.Create(New{Type: Task, Parent: s2.ID, Title: "W"})); next.ID != s2.ID+".1" {
+			t.Errorf("first child of s2 %s", next.ID)
+		}
+		if err := d.Move(s2.ID, task.ID); err == nil {
+			t.Error("a sprint moved")
+		}
+		// A second project's sprints number from 1.
+		q := must(d.Create(New{Type: Project, Title: "Q"}))
+		if s := must(d.Create(New{Type: Sprint, Parent: q.ID, Title: "Sprint 1: Q"})); s.Number != 1 {
+			t.Errorf("number %d", s.Number)
+		}
+	})
+
+	// The pm service bounds its sync: a sync whose context is done stops, pushes nothing and leaves
+	// the store's items as they were; the next sync with time left pushes what it did not. (A context done before Dolt
+	// first reached the remote would kill the git init of its remote cache, which no later sync repairs: the service
+	// checks its context before it starts a sync.)
+	t.Run("SyncContextStopsOnceItsContextIsDone", func(t *testing.T) {
+		seed(t, d)
+		bare := bareRemote(t)
+		if err := d.AddRemote(bare); err != nil {
+			t.Fatal(err)
+		}
+		must(d.SyncContext(context.Background()))
+		pushed := gitRun(t, bare, "rev-parse", RemoteRef)
+		must(d.Create(New{Type: Project, Title: "Later"}))
+		before := must(d.Items())
+		c, cancel := context.WithCancel(context.Background())
+		cancel()
+		// Dolt kills the git it runs under the query's context
+		if _, err := d.SyncContext(c); err == nil || !strings.Contains(err.Error(), "context canceled") {
+			t.Fatalf("a sync under a done context: %v", err)
+		}
+		if now := gitRun(t, bare, "rev-parse", RemoteRef); now != pushed {
+			t.Fatalf("pushed under a done context: %s, was %s", now, pushed)
+		}
+		if after := must(d.Items()); !reflect.DeepEqual(after, before) {
+			t.Fatal("the items moved")
+		}
+		if r := must(d.SyncContext(context.Background())); r.Pushed != 1 {
+			t.Fatalf("the next sync did not push the later commit: %+v", r)
+		}
+	})
 }

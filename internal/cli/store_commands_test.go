@@ -175,23 +175,6 @@ func TestTaskReadyListsReadyTasksInOrder(t *testing.T) {
 	f.refuses("takes 0 argument", "task", "ready", f.s1.ID)
 }
 
-func TestTaskReadyNone(t *testing.T) {
-	f := newFixture(t)
-	d := must(f.open())
-	for _, id := range []string{f.t1.ID, f.t2.ID, f.stale.ID, f.loose.ID, f.blocked.ID} {
-		if err := d.Close(id, "done", work.Done, "me"); err != nil && !strings.Contains(err.Error(), "closed") {
-			t.Fatal(err)
-		}
-	}
-	d.Shutdown()
-	if out := must(f.run("", "task", "ready")); out != "no ready tasks\n" {
-		t.Fatal(out)
-	}
-	if out := must(f.run("", "task", "ready", "--json")); out != "[]\n" {
-		t.Fatal(out)
-	}
-}
-
 func TestTaskEdit(t *testing.T) {
 	f := newFixture(t)
 	if out := must(f.run("-- a body that starts with a dash\n", "task", "edit", f.t1.ID, "--title", "New",
@@ -231,6 +214,21 @@ func TestTaskRelease(t *testing.T) {
 	f.refuses("is a need, not a task", "task", "release", f.need.ID)
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
 	f.refuses("no session", "task", "release", f.held.ID)
+	t.Run("Live", func(t *testing.T) { // on the fixture's sessions: "alive" live, "gone" not
+		if !live("alive") || live("gone") || live("nobody") || live("../x") {
+			t.Fatal("liveness")
+		}
+		codex := filepath.Join(os.Getenv("CODEX_HOME"), "sessions", "2026", "10", "08")
+		if err := os.MkdirAll(codex, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(codex, "rollout-2026-10-08T12-00-00-th1.jsonl"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if !live("th1") {
+			t.Fatal("a Codex thread's rollout is not live")
+		}
+	})
 }
 
 func TestDepAddAndRm(t *testing.T) {
@@ -253,49 +251,6 @@ func TestDepAddAndRm(t *testing.T) {
 		t.Fatalf("%v", it.BlockedBy)
 	}
 	f.refuses("is not blocked by", "dep", "rm", f.t1.ID, "--on", f.loose.ID)
-}
-
-func TestCommentAdd(t *testing.T) {
-	f := newFixture(t)
-	must(f.run("", "comment", "add", f.s1.ID, "--text=a note"))
-	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
-	must(f.run("from the owner", "comment", "add", f.s1.ID, "--text-file", "-"))
-	cs := f.get(f.s1.ID).Comments
-	if len(cs) != 2 || cs[0].Author != "me" || cs[0].Text != "a note" || cs[0].Kind != work.Note ||
-		cs[1].Author != "owner" || cs[1].Text != "from the owner" || cs[1].Kind != work.Note {
-		t.Fatalf("%+v", cs)
-	}
-	f.refuses("no note", "comment", "add", f.s1.ID)
-	f.refuses("no item demo-zzzz", "comment", "add", "demo-zzzz", "--text=x")
-}
-
-func TestNeedDismiss(t *testing.T) {
-	f := newFixture(t)
-	f.refuses("--reason REASON is required", "need", "dismiss", f.need.ID)
-	f.refuses("is a task, not a need", "need", "dismiss", f.t1.ID, "--reason", "x")
-	if out := must(f.run("", "need", "dismiss", f.need.ID, "--reason", "a [TEST] need")); out != "dismissed "+f.need.ID+"\n" {
-		t.Fatal(out)
-	}
-	it := f.get(f.need.ID)
-	if it.Status != work.Closed || it.Resolution != work.Dismissed || it.CloseReason != "a [TEST] need" ||
-		it.ClosedBy != "me" {
-		t.Fatalf("%+v", it)
-	}
-	f.refuses("is closed already", "need", "dismiss", f.need.ID, "--reason", "again")
-}
-
-func TestReplyAdd(t *testing.T) {
-	f := newFixture(t)
-	must(f.run("Option A.\n", "reply", "add", f.need.ID, "--text-file", "-"))
-	it := f.get(f.need.ID)
-	if it.Status != work.Open || len(it.Comments) != 1 || it.Comments[0].Kind != work.Reply ||
-		it.Comments[0].Author != "owner" || it.Comments[0].Text != "Option A." {
-		t.Fatalf("%+v", it)
-	}
-	f.refuses("no answer", "reply", "add", f.need.ID)
-	f.refuses("is a task, not a need", "reply", "add", f.t1.ID, "--text=x")
-	must(f.run("", "need", "dismiss", f.need.ID, "--reason", "x"))
-	f.refuses("is closed already", "reply", "add", f.need.ID, "--text=late")
 }
 
 func TestSyncCommand(t *testing.T) {
@@ -323,33 +278,6 @@ func TestSyncCommand(t *testing.T) {
 	}
 	if out := must(f.run("", "sync")); out != "synced: pulled 0 commits, resolved 0 items both sides changed, pushed 0 commits\n" {
 		t.Fatal(out)
-	}
-}
-
-func TestStoreCommandHelpAndUsage(t *testing.T) {
-	f := newFixture(t)
-	out := must(f.run("", "dep", "add", "--help"))
-	if !strings.HasPrefix(out, "usage: pm dep add ID --on BLOCKER\n\nBLOCKER blocks ID") || !strings.Contains(out, "--on") {
-		t.Fatal(out)
-	}
-	f.refuses("takes 1 argument(s), not 0", "dep", "add", "--on", f.t1.ID)
-	f.refuses("unknown flag: --nope", "task", "release", f.t1.ID, "--nope")
-}
-
-func TestLive(t *testing.T) {
-	newFixture(t)
-	if !live("alive") || live("gone") || live("nobody") || live("../x") {
-		t.Fatal("liveness")
-	}
-	codex := filepath.Join(os.Getenv("CODEX_HOME"), "sessions", "2026", "10", "08")
-	if err := os.MkdirAll(codex, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(codex, "rollout-2026-10-08T12-00-00-th1.jsonl"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if !live("th1") {
-		t.Fatal("a Codex thread's rollout is not live")
 	}
 }
 

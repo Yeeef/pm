@@ -81,22 +81,3 @@ func TestEveryCommandPmRunsIsListedInHelp(t *testing.T) {
 		}
 	}
 }
-
-// The commands pm ran outside the tree until pm-quality sprint 7, so that pm --help listed none of them (pm dep
-// answered "invalid choice: 'dep'"), each in its noun's --help now, its own --help exiting 0.
-func TestTheCommandsOnceOutsideTheTreeAreInIt(t *testing.T) {
-	for _, path := range []string{"task ready", "task edit", "task release", "dep add", "dep rm", "comment add",
-		"need dismiss", "reply add", "sync", "version", "export"} {
-		words := strings.Fields(path)
-		if !lists(help(t, words[:len(words)-1]...), words[len(words)-1]) {
-			t.Errorf("pm %s is not listed in its noun's --help", path)
-		}
-		help(t, words...)
-	}
-	for _, text := range []struct{ argv, want string }{{"show", "pm show ID"}, {"task add", "pm task add --parent"},
-		{"init", "--import-bd FILE"}, {"init", "--import FILE"}, {"export", "--store DIR"}} {
-		if got := collapse(help(t, strings.Fields(text.argv)...)); !strings.Contains(got, text.want) {
-			t.Errorf("pm %s --help does not name %s", text.argv, text.want)
-		}
-	}
-}

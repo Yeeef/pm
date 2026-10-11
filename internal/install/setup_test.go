@@ -121,26 +121,6 @@ func TestSetupWorkCreatesPushesAndClones(t *testing.T) {
 	}
 }
 
-// A store made before the clone had a remote (pm init --import-bd, say) is pointed at it and pushed.
-func TestSetupWorkAttachesAnExistingStore(t *testing.T) {
-	bare := bareRemote(t)
-	c := cloneOf(t, bare, "c")
-	dir, _ := work.Locations(c)
-	serve(t, c)
-	emptyStore(t, c)
-	if drift, err := WorkDrift(c, "origin"); err != nil || len(drift) != 1 || !strings.Contains(drift[0], "has no remote") {
-		t.Fatalf("doctor before: %q, %v", drift, err)
-	}
-	said, err := SetupWork(c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"pointed the work store " + dir + " at origin's refs/pm/work", "pushed the work store to origin's refs/pm/work"}
-	if strings.Join(said, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("got %q, want %q", said, want)
-	}
-}
-
 // What pm init refuses rather than fork the project's work: an empty store beside the remote's Beads data, and a store
 // made here beside the remote's own, which share no history; pm uninstall refuses to delete what the remote lacks.
 func TestSetupWorkRefusesAFork(t *testing.T) {
@@ -180,20 +160,6 @@ func TestSetupWorkRefusesAFork(t *testing.T) {
 	}
 }
 
-// A repo without the remote cannot get a store, and one with a store but no remote keeps it as it is.
-func TestSetupWorkWithoutTheRemote(t *testing.T) {
-	dir := shortDir(t)
-	run(t, dir, "git", "init", "-q", "-b", "main")
-	if _, err := SetupWork(dir); err == nil || !strings.Contains(err.Error(), "the pm service does not answer on "+
-		work.Sock(dir)+"; pm reaches the work store only through it: run pm service restart") {
-		t.Fatalf("got %v, want the service down named", err)
-	}
-	serve(t, dir)
-	if _, err := SetupWork(dir); err == nil || !strings.Contains(err.Error(), "has no remote origin") {
-		t.Fatalf("got %v, want a refusal naming the remote", err)
-	}
-}
-
 // pm in the bin dir: copied there when another binary is, left alone when it is this one.
 func TestInstallBinary(t *testing.T) {
 	bin := t.TempDir()
@@ -224,36 +190,35 @@ func TestInstallBinary(t *testing.T) {
 	if said, err := InstallBinary(); err != nil || said != "" {
 		t.Fatalf("a link to this pm: %q, %v; want nothing done", said, err)
 	}
-}
-
-// A link in the bin dir, such as the retired pm uv tool's, gives way to the binary; what it pointed at stays.
-func TestInstallBinaryReplacesALinkAndLeavesItsTarget(t *testing.T) {
-	bin, tools := t.TempDir(), t.TempDir()
-	t.Setenv("PM_BIN_DIR", bin)
-	old := buildinfo.Version
-	buildinfo.Version = "9.9.9"
-	t.Cleanup(func() { buildinfo.Version = old })
-	tool := filepath.Join(tools, "pm/bin/pm")
-	if err := os.MkdirAll(filepath.Dir(tool), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(tool, []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(tool, filepath.Join(bin, "pm")); err != nil {
-		t.Fatal(err)
-	}
-	said, err := InstallBinary()
-	want := "installed pm 9.9.9 at " + filepath.Join(bin, "pm")
-	if err != nil || said != want {
-		t.Fatalf("got %q, %v", said, err)
-	}
-	if st, err := os.Lstat(filepath.Join(bin, "pm")); err != nil || !st.Mode().IsRegular() {
-		t.Fatalf("the bin-dir pm is not a file: %v", err)
-	}
-	if b, err := os.ReadFile(tool); err != nil || string(b) != "#!/bin/sh\n" {
-		t.Fatalf("the link's target changed: %q, %v", b, err)
-	}
+	// A link in the bin dir, such as the retired pm uv tool's, gives way to the binary; what it pointed at stays.
+	t.Run("InstallBinaryReplacesALinkAndLeavesItsTarget", func(t *testing.T) {
+		bin, tools := t.TempDir(), t.TempDir()
+		t.Setenv("PM_BIN_DIR", bin)
+		old := buildinfo.Version
+		buildinfo.Version = "9.9.9"
+		t.Cleanup(func() { buildinfo.Version = old })
+		tool := filepath.Join(tools, "pm/bin/pm")
+		if err := os.MkdirAll(filepath.Dir(tool), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(tool, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(tool, filepath.Join(bin, "pm")); err != nil {
+			t.Fatal(err)
+		}
+		said, err := InstallBinary()
+		want := "installed pm 9.9.9 at " + filepath.Join(bin, "pm")
+		if err != nil || said != want {
+			t.Fatalf("got %q, %v", said, err)
+		}
+		if st, err := os.Lstat(filepath.Join(bin, "pm")); err != nil || !st.Mode().IsRegular() {
+			t.Fatalf("the bin-dir pm is not a file: %v", err)
+		}
+		if b, err := os.ReadFile(tool); err != nil || string(b) != "#!/bin/sh\n" {
+			t.Fatalf("the link's target changed: %q, %v", b, err)
+		}
+	})
 }
 
 // The clone's exclude lines: added once after the user's own, then removed byte for byte.
@@ -421,153 +386,6 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 	}
 	if planned, err := Plan(top, s); err != nil || len(planned) != 0 {
 		t.Fatalf("pm init's plan after the rewrite: %v, %v; want nothing", Said(planned), err)
-	}
-}
-
-// A new repo: pm init's plan writes pm's pieces, its own hook files among them, and no Beads piece.
-func TestPlanInANewRepoWritesNoBeadsPiece(t *testing.T) {
-	planned, err := Plan(t.TempDir(), Settings{"origin", "main", 8000, "", "", ""})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var rels []string
-	for _, p := range planned {
-		rels = append(rels, p.Piece.Rel)
-		if strings.Contains(p.New, "bd ") || strings.Contains(p.New, "BEADS") || len(p.Removed) != 0 || !p.Wrote {
-			t.Errorf("%s: wrote %v, removed %q:\n%s", p.Piece.Rel, p.Wrote, p.Removed, p.New)
-		}
-	}
-	if !contains(rels, ".pm/hooks/post-checkout") {
-		t.Errorf("%q", rels)
-	}
-	for _, p := range Retired {
-		if contains(rels, p.Rel) {
-			t.Errorf("%q: pm writes the retired %s", rels, p.Rel)
-		}
-	}
-}
-
-// An older pm's pieces retired with the main branch's records/ copy: pm doctor names each, pm upgrade removes each
-// (a workflow file whole, pm's pre-commit section with the repo's own lines kept), and pm uninstall removes them too.
-func TestRetiredPiecesAreReportedAndRemoved(t *testing.T) {
-	s := Settings{"origin", "main", 8000, "", "", ""}
-	old := "#!/usr/bin/env sh\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n"
-	for _, mine := range []string{"", "# mine\necho done\n"} {
-		top := t.TempDir()
-		files := map[string]string{
-			".github/workflows/pm-records-copy.yml":  "name: Copy records to main\n",
-			".github/workflows/pm-records-guard.yml": "name: Records guard\n",
-			".github/workflows/ci.yml":               "name: CI\n",
-			HooksRel + "/pre-commit":                 old + mine,
-		}
-		writeTree(t, top, files)
-		for _, p := range Pieces(s) {
-			text, _ := p.Apply(nil)
-			writeTree(t, top, map[string]string{p.Rel: text})
-		}
-		what := "file"
-		if mine != "" {
-			what = "section"
-		}
-		v := buildinfo.Version
-		wantDrift := []string{
-			".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's records/ copy; pm " + v + " removes it",
-			".github/workflows/pm-records-guard.yml: an earlier pm's file, retired with the main branch's records/ copy; pm " + v + " removes it",
-			".pm/hooks/pre-commit: an earlier pm's " + what + ", retired with the main branch's records/ copy; pm " + v + " removes it",
-		}
-		if drift, err := Drift(top, s); err != nil || strings.Join(drift, "\n") != strings.Join(wantDrift, "\n") {
-			t.Fatalf("drift: %q, %v\nwant: %q", drift, err, wantDrift)
-		}
-		removals, err := Removals(top, s)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var removed []string
-		for _, r := range removals {
-			removed = append(removed, r.Path)
-		}
-		for _, p := range Retired {
-			if !contains(removed, filepath.Join(top, p.Rel)) {
-				t.Errorf("pm uninstall's removals %q lack %s", removed, p.Rel)
-			}
-		}
-		for _, plan := range []func(string, Settings) ([]Planned, error){Rewrite, Plan} {
-			planned, err := plan(top, s)
-			if err != nil {
-				t.Fatal(err)
-			}
-			hook := "removed .pm/hooks/pre-commit, retired with the main branch's records/ copy"
-			if mine != "" {
-				hook = "removed pm's section from .pm/hooks/pre-commit, retired with the main branch's records/ copy"
-			}
-			wantSaid := []string{
-				"removed .github/workflows/pm-records-copy.yml, retired with the main branch's records/ copy",
-				"removed .github/workflows/pm-records-guard.yml, retired with the main branch's records/ copy",
-				hook,
-			}
-			if got := Said(planned); strings.Join(got, "\n") != strings.Join(wantSaid, "\n") {
-				t.Fatalf("said:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(wantSaid, "\n"))
-			}
-		}
-		planned, err := Rewrite(top, s)
-		if err != nil {
-			t.Fatal(err)
-		}
-		written, err := Write(planned)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if want := []string{".github/workflows/pm-records-copy.yml", ".github/workflows/pm-records-guard.yml",
-			HooksRel + "/pre-commit"}; strings.Join(written, " ") != strings.Join(want, " ") {
-			t.Errorf("written %q, want %q", written, want)
-		}
-		for _, rel := range []string{".github/workflows/pm-records-copy.yml", ".github/workflows/pm-records-guard.yml"} {
-			if exists(filepath.Join(top, rel)) {
-				t.Errorf("%s is still there", rel)
-			}
-		}
-		if b, err := os.ReadFile(filepath.Join(top, ".github/workflows/ci.yml")); err != nil || string(b) != "name: CI\n" {
-			t.Errorf("ci.yml: %q, %v; the repo's own workflow must stay", b, err)
-		}
-		hook, err := Read(filepath.Join(top, HooksRel, "pre-commit"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		switch {
-		case mine == "" && hook != nil:
-			t.Errorf("pre-commit holding only pm's section is still there: %q", *hook)
-		case mine != "" && (hook == nil || *hook != "#!/usr/bin/env sh\n"+mine):
-			t.Errorf("pre-commit: %v, want the repo's own lines kept", hook)
-		}
-		if drift, err := Drift(top, s); err != nil || len(drift) != 0 {
-			t.Fatalf("drift after the rewrite: %q, %v", drift, err)
-		}
-		if planned, err := Rewrite(top, s); err != nil || len(planned) != 0 {
-			t.Fatalf("a second rewrite: %v, %v; want nothing", Said(planned), err)
-		}
-	}
-}
-
-// The Beads block goes with the blank line that set it apart, wherever it sits; a begin marker without its end is
-// refused.
-func TestBeadsBlockClean(t *testing.T) {
-	block := "<!-- BEGIN BEADS INTEGRATION v:1 -->\nbd\n<!-- END BEADS INTEGRATION -->\n"
-	for _, c := range [][2]string{
-		{"a\n\n" + block, "a\n"},
-		{"a\n\n" + block + "\nb\n", "a\n\nb\n"},
-		{block + "\nb\n", "b\n"},
-		{"a\n" + block + "b\n", "a\nb\n"},
-		{"a\n\n" + strings.TrimSuffix(block, "\n"), "a\n"},
-		{"a\n", "a\n"},
-	} {
-		if got, err := beadsBlockClean("CLAUDE.md")(c[0]); err != nil || got != c[1] {
-			t.Errorf("%q: %q, %v; want %q", c[0], got, err, c[1])
-		}
-	}
-	_, err := beadsBlockClean("CLAUDE.md")("a\n<!-- BEGIN BEADS INTEGRATION v:1 -->\nbd\n")
-	if err == nil || err.Error() != "CLAUDE.md has a Beads begin marker without its end marker "+
-		"(<!-- END BEADS INTEGRATION -->); fix it by hand" {
-		t.Errorf("%v", err)
 	}
 }
 

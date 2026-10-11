@@ -74,25 +74,25 @@ func TestAServiceOnAnotherVersionIsRefused(t *testing.T) {
 		"reaches the work store only through it: run pm service restart" {
 		t.Fatalf("no service: %v", err)
 	}
-}
 
-// The socket: mode 0600, under the main checkout's .pm/run; a path past the kernel's limit fails the start.
-func TestTheSocketIsPrivateAndItsPathBounded(t *testing.T) {
-	_, o := newStore(t)
-	st, err := os.Stat(o.h.Sock())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if st.Mode()&os.ModeSocket == 0 || st.Mode().Perm() != 0o600 || o.h.Sock() != filepath.Join(o.main, ".pm/run/work.sock") {
-		t.Fatalf("%s: %v", o.h.Sock(), st.Mode())
-	}
-	long := filepath.Join(shortMain(t), "a-directory-name-that-makes-the-socket-path-too-long-for-the-kernel-to-bind-"+
-		"it-on-macos-or-linux")
-	if _, err := NewHost(HostOptions{Main: long, Version: "x"}); err == nil ||
-		err.Error() != "the pm service's socket "+Sock(long)+" is "+itoa(len(Sock(long)))+" bytes, over this "+
-			"system's limit of 103; move the clone to a shorter path" {
-		t.Fatalf("a long path: %v", err)
-	}
+	// The socket: mode 0600, under the main checkout's .pm/run; a path past the kernel's limit fails the start.
+	t.Run("TheSocketIsPrivateAndItsPathBounded", func(t *testing.T) {
+		_, o := newStore(t)
+		st, err := os.Stat(o.h.Sock())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Mode()&os.ModeSocket == 0 || st.Mode().Perm() != 0o600 || o.h.Sock() != filepath.Join(o.main, ".pm/run/work.sock") {
+			t.Fatalf("%s: %v", o.h.Sock(), st.Mode())
+		}
+		long := filepath.Join(shortMain(t), "a-directory-name-that-makes-the-socket-path-too-long-for-the-kernel-to-bind-"+
+			"it-on-macos-or-linux")
+		if _, err := NewHost(HostOptions{Main: long, Version: "x"}); err == nil ||
+			err.Error() != "the pm service's socket "+Sock(long)+" is "+itoa(len(Sock(long)))+" bytes, over this "+
+				"system's limit of 103; move the clone to a shorter path" {
+			t.Fatalf("a long path: %v", err)
+		}
+	})
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
