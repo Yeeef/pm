@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T18:40:27+00:00",
- "digest": "271be7f310c64359",
+ "generated_at": "2026-10-11T18:50:52+00:00",
+ "digest": "f5f69ab42c8842d0",
  "model": "claude-haiku-5-5",
- "text": "- **Public pages:** pm now has a README that describes it as a human-agent project management suite. Each claim was checked against the code. A new single-page marketing site has a workflow that deploys it to GitHub Pages.\n- **Public site access:** The pm site's Go service now checks Cloudflare Access tokens. Key refetches are limited to once a minute. The change still needs a release before it reaches the live site.\n- **Site status flag:** The site, pm service status and pm show now flag a main checkout that is behind its remote.\n- **Review and enable Pages:** Review the open pull requests. Then set GitHub Pages to deploy from GitHub Actions."
+ "text": "- **Public website and README:** pm has a live marketing website on GitHub Pages. The README now describes pm as a human-agent project management suite.\n- **Site access and status:** The Cloudflare Access token check was ported to Go and merged. A flag for a main checkout behind its remote is ready for review.\n- **Codex integration:** The owner answered whether pm init should mark its Codex hooks as trusted.\n- **For you:** Review the pull request that adds the main checkout flag. Its continuous integration checks pass."
 }
