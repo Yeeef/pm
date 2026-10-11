@@ -5,21 +5,19 @@ upgrade moves the pin and rewrites pm's parts only, uninstall removes pm's parts
 from __future__ import annotations
 
 import fcntl
-import http.server
 import json
 import os
 import signal
 import socket
 import subprocess
-import threading
 import tomllib
 from pathlib import Path
 
 import pytest
 
-from conftest import PM, VERSION
+from conftest import PM, VERSION, stop_services
 from test_init import (BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, HOOKS, PM_FILES, USER_CODEX,  # noqa: F401
-                       USER_SETTINGS, commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
+                       USER_SETTINGS, brand_new_repo, commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
 
 pytestmark = pytest.mark.integration  # each test runs pm init in a fresh repo with a remote and starts its service
 
@@ -105,9 +103,11 @@ def reported(lines: list[str], wants: list[str]) -> bool:
     return sorted(w for l in lines for w in wants if l.startswith(w)) == sorted(wants) and len(lines) == len(wants)
 
 
-def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo: Path):
+def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo: Path, tmp_path: Path):
     """Every change at once, so one init serves them all (each init costs seconds); each still gets its own line."""
+    (tmp_path / "codex").mkdir()  # Codex in use, for the clone setup's codex roots below
     assert pm(new_repo, "init").returncode == 0
+    assert doctor(new_repo)[0] == 0
     for change, _ in REPO_CHANGES.values():
         change(new_repo)
     code, lines = doctor(new_repo)
@@ -118,11 +118,9 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
     assert not (new_repo / ".github/workflows/pm-records-copy.yml").exists()
     assert doctor(new_repo)[0] == 0
 
-
-def test_a_beads_file_is_no_beads_for_doctor_and_upgrade(new_repo: Path):
-    """A repo that retired Beads by replacing .beads/ with a file (which blocks every bd command) holds no Beads
-    pieces, as a repo without .beads/: pm doctor is clean and pm upgrade --to the pin finds every piece current."""
-    assert pm(new_repo, "init").returncode == 0
+    # folded: test_a_beads_file_is_no_beads_for_doctor_and_upgrade
+    # a repo that retired Beads by replacing .beads/ with a file (which blocks every bd command) holds no Beads
+    # pieces, as a repo without .beads/: pm doctor is clean and pm upgrade --to the pin finds every piece current
     (new_repo / ".beads").write_text("Beads is retired here.\n")
     git(new_repo, "add", "-A")
     git(new_repo, "commit", "-qm", "Retire Beads")
@@ -132,43 +130,12 @@ def test_a_beads_file_is_no_beads_for_doctor_and_upgrade(new_repo: Path):
     assert res.returncode == 0, res.stderr
     assert res.stdout == f"pm {VERSION}: every managed piece is current; nothing to commit\n", res.stdout
 
-
-def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new_repo: Path):
-    """Once .pm/config.toml exists, pm init (session start runs it) does only the clone's half: a branch that changed
-    pm's hook entries keeps its change, and pm doctor names pm upgrade --to the pin as the fix."""
-    assert pm(new_repo, "init").returncode == 0
-    git(new_repo, "add", "-A")
-    git(new_repo, "commit", "-qm", "Install pm")
-    git(new_repo, "checkout", "-q", "-b", "changed")
-    settings = new_repo / ".claude/settings.json"
-    edit(settings, '"pm hook stop || exit 1"', '"pm hook stop"')
-    (new_repo / f"{HOOKS}/post-checkout").unlink()
-    git(new_repo, "commit", "-qam", "change pm's pieces")
-    changed = settings.read_bytes()
-    res = pm(new_repo, "init")
-    assert res.returncode == 0, res.stderr
-    assert settings.read_bytes() == changed and not (new_repo / f"{HOOKS}/post-checkout").exists()
-    assert git(new_repo, "status", "--porcelain") == "" and "git add" not in res.stdout, res.stdout
+    # folded: test_doctor_reports_each_changed_clone_setup
+    # every change at once, so one init serves them all; each still gets its own line
+    for change, _ in SETUP_CHANGES.values():
+        change(new_repo, tmp_path)
     code, lines = doctor(new_repo)
-    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
-                                          f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
-    assert all(l.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for l in lines), lines
-    # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
-    res = pm(new_repo, "init", "--site-url", "pm.example.com")
-    assert res.returncode == 1 and "is not an http(s) base URL" in res.stderr and git(new_repo, "status", "--porcelain") == ""
-    res = pm(new_repo, "init", "--site-url", "https://pm.example.com/")
-    assert res.returncode == 0 and "git add -- .pm/config.toml && " in res.stdout, res.stdout
-    assert tomllib.loads((new_repo / ".pm/config.toml").read_text())["site_url"] == "https://pm.example.com"
-    assert settings.read_bytes() == changed
-    # a site_url needs the Access keys: doctor names the missing ones, and the config holding them is pm's own
-    code, lines = doctor(new_repo)
-    assert code == 1 and "config: site_url is set, but .pm/config.toml lacks access_team, access_aud, so the site " \
-                         "refuses every request to its host; set what is missing there (pm init --help)" in lines, lines
-    with (new_repo / ".pm/config.toml").open("a") as f:
-        f.write('access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
-    code, lines = doctor(new_repo)
-    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
-                                          f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
+    assert code == 1 and reported(lines, [want for _, want in SETUP_CHANGES.values()]), lines
 
 
 SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of the line doctor reports for it
@@ -181,17 +148,6 @@ SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of
     "codex roots": (lambda r, tmp: (tmp / "codex/config.toml").write_text(CODEX_USER), "codex: "),
     "git exclude": (lambda r, tmp: edit(r / ".git/info/exclude", "/.pm/run/\n", ""), "git exclude: "),
 }
-
-
-def test_doctor_reports_each_changed_clone_setup(new_repo: Path, tmp_path: Path):
-    """Every change at once, so one init serves them all; each still gets its own line."""
-    (tmp_path / "codex").mkdir()
-    assert pm(new_repo, "init").returncode == 0
-    assert doctor(new_repo)[0] == 0
-    for change, _ in SETUP_CHANGES.values():
-        change(new_repo, tmp_path)
-    code, lines = doctor(new_repo)
-    assert code == 1 and reported(lines, [want for _, want in SETUP_CHANGES.values()]), lines
 
 
 def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
@@ -247,6 +203,42 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     assert all(after[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
     again = pm(existing, "upgrade")
     assert again.returncode == 0 and "nothing to commit" in again.stdout and snapshot(existing) == after
+
+    # folded: test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade
+    # once .pm/config.toml exists, pm init (session start runs it) does only the clone's half: a branch that changed
+    # pm's hook entries keeps its change, and pm doctor names pm upgrade --to the pin as the fix
+    git(existing, "add", "-A")
+    git(existing, "commit", "-qm", "Install pm")
+    git(existing, "checkout", "-q", "-b", "changed")
+    settings = existing / ".claude/settings.json"
+    edit(settings, '"pm hook stop || exit 1"', '"pm hook stop"')
+    (existing / f"{HOOKS}/post-checkout").unlink()
+    git(existing, "commit", "-qam", "change pm's pieces")
+    changed = settings.read_bytes()
+    res = pm(existing, "init")
+    assert res.returncode == 0, res.stderr
+    assert settings.read_bytes() == changed and not (existing / f"{HOOKS}/post-checkout").exists()
+    assert git(existing, "status", "--porcelain") == "" and "git add" not in res.stdout, res.stdout
+    code, lines = doctor(existing)
+    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
+                                          f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
+    assert all(l.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for l in lines), lines
+    # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
+    res = pm(existing, "init", "--site-url", "pm.example.com")
+    assert res.returncode == 1 and "is not an http(s) base URL" in res.stderr and git(existing, "status", "--porcelain") == ""
+    res = pm(existing, "init", "--site-url", "https://pm.example.com/")
+    assert res.returncode == 0 and "git add -- .pm/config.toml && " in res.stdout, res.stdout
+    assert tomllib.loads((existing / ".pm/config.toml").read_text())["site_url"] == "https://pm.example.com"
+    assert settings.read_bytes() == changed
+    # a site_url needs the Access keys: doctor names the missing ones, and the config holding them is pm's own
+    code, lines = doctor(existing)
+    assert code == 1 and "config: site_url is set, but .pm/config.toml lacks access_team, access_aud, so the site " \
+                         "refuses every request to its host; set what is missing there (pm init --help)" in lines, lines
+    with (existing / ".pm/config.toml").open("a") as f:
+        f.write('access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
+    code, lines = doctor(existing)
+    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
+                                          f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
 
 
 OLD_PRE_COMMIT = '#!/usr/bin/env sh\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit "$@" || exit $?\n# --- END PM ---\n'
@@ -353,8 +345,20 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     assert res.returncode == 1 and "uncommitted records" in res.stderr and store.is_dir() and sched_units(tmp_path)
     git(store, "checkout", "--", "sprints/a-1.md")
 
+    # folded: test_uninstall_disables_an_enabled_unit_that_is_not_running
+    # a unit the supervisor still starts at login but that is not running now (it crashed) is disabled by pm uninstall
+    # with the rest, so no wants link outlives its unit file
+    state_path = tmp_path / "sched.json"
+    state = json.loads(state_path.read_text())
+    [name] = state["loaded"]
+    assert name in state["enabled"]
+    os.kill(state["pids"].pop(name), signal.SIGKILL)  # the service crashes: inactive, still enabled
+    state["loaded"].remove(name)
+    state_path.write_text(json.dumps(state))
     res = pm(existing, "uninstall")
     assert res.returncode == 0, res.stderr
+    assert "removed the pm service" in res.stdout, res.stdout
+    assert json.loads(state_path.read_text())["enabled"] == [] and sched_units(tmp_path) == []
     assert "git add -A -- " in res.stdout and 'git commit -m "Uninstall pm"' in res.stdout
     # the clone's and machine's setup is gone; the records branch and Beads stay
     assert not store.exists() and git(existing, "rev-parse", "records") == records_head
@@ -380,50 +384,55 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     assert after == before
     assert pm(existing, "uninstall").returncode != 0, "with .pm/ gone, pm refuses to run here"
 
-
-def test_uninstall_keeps_other_clones_roots(new_repo: Path, tmp_path: Path):
-    """Two clones set up on one machine: uninstalling one removes only its own roots (CLONE_ROOTS); the other clone's
-    roots stay, and every other byte of config.toml with them. Roots it cannot take out
-    without breaking the TOML are refused before anything changes."""
-    (tmp_path / "codex").mkdir()
-    config = tmp_path / "codex/config.toml"
-    config.write_text(CODEX_USER)
-    assert pm(new_repo, "init").returncode == 0
-    git(new_repo, "add", "-A")
-    git(new_repo, "commit", "-qm", "Install pm")
-    git(new_repo, "push", "-q", "origin", "main")
-    other = tmp_path / "other"
-    git(tmp_path, "clone", "-q", str(tmp_path / "remote.git"), str(other))
-    with socket.socket() as s:  # a second clone on this machine gets its own site port
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    res = subprocess.run([*PM, "init"], cwd=other, env=dict(env(tmp_path), PORT=str(port)), capture_output=True,
-                         text=True)
-    assert res.returncode == 0, res.stderr
-    roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
-    mine = [r for r in roots if r.startswith(str(new_repo.resolve()))]
-    theirs = [r for r in roots if r.startswith(str(other.resolve()))]
-    assert len(mine) == len(theirs) == CLONE_ROOTS and len(roots) == 2 * CLONE_ROOTS, roots
-    # writable_roots spread over lines, one root a line: taking a root out leaves its comma, which is not TOML;
-    # uninstall names the file and says to remove the roots by hand, before it changes anything
-    flat = config.read_text()
-    spread = "writable_roots = [\n" + "".join(f"  {json.dumps(r)},\n" for r in roots) + "]\n"
-    config.write_text(CODEX_USER.replace("[sandbox_workspace_write]\n", f"[sandbox_workspace_write]\n{spread}"))
-    codex, before, units = config.read_text(), snapshot(new_repo), sched_units(tmp_path)
-    res = pm(new_repo, "uninstall")
-    assert res.returncode == 1, res
-    assert f"editing {config} would leave it invalid TOML (" in res.stderr, res.stderr
-    assert "remove these from its writable_roots by hand: " in res.stderr and json.dumps(mine[0]) in res.stderr
-    assert config.read_text() == codex and snapshot(new_repo) == before and sched_units(tmp_path) == units != []
-    assert (new_repo / ".pm/store/records").is_dir() and (new_repo / "records").is_symlink()
-    config.write_text(flat)
-    res = pm(new_repo, "uninstall")
-    assert res.returncode == 0, res.stderr
-    assert f"removed this clone's writable_roots from {config}" in res.stdout, res.stdout
-    kept = [r for r in roots if r not in mine]
-    assert config.read_text() == CODEX_USER.replace(
-        "[sandbox_workspace_write]\n",
-        f"[sandbox_workspace_write]\nwritable_roots = [{', '.join(json.dumps(r) for r in kept)}]\n")
+    # folded: test_uninstall_keeps_other_clones_roots
+    # two clones set up on one machine of their own: uninstalling one removes only its own roots (CLONE_ROOTS); the
+    # other clone's roots stay, and every other byte of config.toml with them. Roots it cannot take out without
+    # breaking the TOML are refused before anything changes
+    tmp = tmp_path / "two"
+    tmp.mkdir()
+    repo = brand_new_repo(tmp)
+    try:
+        (tmp / "codex").mkdir()
+        config = tmp / "codex/config.toml"
+        config.write_text(CODEX_USER)
+        assert pm(repo, "init").returncode == 0
+        git(repo, "add", "-A")
+        git(repo, "commit", "-qm", "Install pm")
+        git(repo, "push", "-q", "origin", "main")
+        other = tmp / "other"
+        git(tmp, "clone", "-q", str(tmp / "remote.git"), str(other))
+        with socket.socket() as s:  # a second clone on this machine gets its own site port
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        res = subprocess.run([*PM, "init"], cwd=other, env=dict(env(tmp), PORT=str(port)), capture_output=True,
+                             text=True)
+        assert res.returncode == 0, res.stderr
+        roots = tomllib.loads(config.read_text())["sandbox_workspace_write"]["writable_roots"]
+        mine = [r for r in roots if r.startswith(str(repo.resolve()))]
+        theirs = [r for r in roots if r.startswith(str(other.resolve()))]
+        assert len(mine) == len(theirs) == CLONE_ROOTS and len(roots) == 2 * CLONE_ROOTS, roots
+        # writable_roots spread over lines, one root a line: taking a root out leaves its comma, which is not TOML;
+        # uninstall names the file and says to remove the roots by hand, before it changes anything
+        flat = config.read_text()
+        spread = "writable_roots = [\n" + "".join(f"  {json.dumps(r)},\n" for r in roots) + "]\n"
+        config.write_text(CODEX_USER.replace("[sandbox_workspace_write]\n", f"[sandbox_workspace_write]\n{spread}"))
+        codex, before, units = config.read_text(), snapshot(repo), sched_units(tmp)
+        res = pm(repo, "uninstall")
+        assert res.returncode == 1, res
+        assert f"editing {config} would leave it invalid TOML (" in res.stderr, res.stderr
+        assert "remove these from its writable_roots by hand: " in res.stderr and json.dumps(mine[0]) in res.stderr
+        assert config.read_text() == codex and snapshot(repo) == before and sched_units(tmp) == units != []
+        assert (repo / ".pm/store/records").is_dir() and (repo / "records").is_symlink()
+        config.write_text(flat)
+        res = pm(repo, "uninstall")
+        assert res.returncode == 0, res.stderr
+        assert f"removed this clone's writable_roots from {config}" in res.stdout, res.stdout
+        kept = [r for r in roots if r not in mine]
+        assert config.read_text() == CODEX_USER.replace(
+            "[sandbox_workspace_write]\n",
+            f"[sandbox_workspace_write]\nwritable_roots = [{', '.join(json.dumps(r) for r in kept)}]\n")
+    finally:
+        stop_services(tmp)
 
 
 def test_doctor_names_a_settings_file_it_cannot_read_as_a_repo_finding(new_repo: Path):
@@ -437,86 +446,8 @@ def test_doctor_names_a_settings_file_it_cannot_read_as_a_repo_finding(new_repo:
     assert not any(l.startswith("legacy: ") for l in lines), lines
 
 
-BEADS_BLOCK = ("<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:1105d646 -->\n## Beads Issue Tracker\n\n"
-               "Run `bd prime`.\n<!-- END BEADS INTEGRATION -->\n")
 
 
-def as_python_left_it(repo: Path) -> None:
-    """Turn a repo Go pm set up into one as Python pm 0.1.x with Beads leaves it, committed: bd's hook entries first in
-    both hook files (Codex's also in an event pm has none in), the Beads block in CLAUDE.md, pm's sections in Beads'
-    hook files and core.hooksPath on them, and no .pm/hooks."""
-    for rel, event, cmds in ((".claude/settings.json", "SessionStart", ["bd prime --hook-json"]),
-                             (".codex/hooks.json", "SessionStart", ["bd codex-hook SessionStart"])):
-        data = json.loads((repo / rel).read_text())
-        data["hooks"][event].insert(0, {"hooks": [{"command": c, "type": "command"} for c in cmds], "matcher": ""})
-        if rel == ".codex/hooks.json":
-            data["hooks"] = {"PostCompact": [{"hooks": [{"command": "bd codex-hook PostCompact", "type": "command"}]}],
-                             **data["hooks"]}
-        (repo / rel).write_text(json.dumps(data, indent=2) + "\n")
-    (repo / "CLAUDE.md").write_text("# Repo\n\nNotes.\n\n" + BEADS_BLOCK)
-    for name in ("post-checkout", "pre-commit"):
-        (repo / f".beads/hooks/{name}").write_text(BEADS_HOOK + section(name) + MINE)
-    git(repo, "rm", "-rq", ".pm/hooks")
-    git(repo, "config", "core.hooksPath", str(repo / ".beads/hooks"))
-    git(repo, "add", "-A")
-    git(repo, "commit", "--no-verify", "-qm", "as Python pm 0.1.x left it")
-
-
-def test_upgrade_takes_out_what_python_pm_left_of_beads(existing: Path):
-    """The cut-over (the work-store page, Cut-over): a repo as Python pm 0.1.x left it. pm doctor names each Beads
-    piece, pm upgrade removes them and points core.hooksPath at pm's own hook files, keeping .beads/ and everything
-    else, after which pm doctor is clean, a second upgrade changes nothing, and the upgrade commits through pm's
-    hooks."""
-    assert pm(existing, "init").returncode == 0
-    git(existing, "add", "-A")
-    git(existing, "commit", "-qm", "Install pm")
-    as_python_left_it(existing)
-    beads = {k: v for k, v in snapshot(existing).items() if k.startswith(".beads/")}
-
-    code, lines = doctor(existing)
-    v = VERSION
-    assert code == 1 and reported(lines, [
-        "repo: .claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm " + v + " removes",
-        "repo: .codex/hooks.json: holds Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart), "
-        "which pm " + v + " removes",
-        "repo: .pm/hooks/post-checkout: pm's part is missing",
-        "repo: CLAUDE.md: holds the Beads block (<!-- BEGIN BEADS INTEGRATION … -->), which pm " + v + " removes",
-        f"hooks path: core.hooksPath is {existing / '.beads/hooks'} (Beads' hooks), not .pm/hooks; run pm upgrade "
-        f"--to {v} to move it"]), lines
-
-    res = pm(existing, "upgrade")
-    assert res.returncode == 0, res.stderr
-    assert res.stdout.splitlines() == [
-        f"pin stays {v}",
-        "removed Beads' hook entries (bd prime --hook-json) from .claude/settings.json",
-        "removed Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart) from .codex/hooks.json",
-        "wrote .pm/hooks/post-checkout",
-        "removed the Beads block (<!-- BEGIN BEADS INTEGRATION … -->) from CLAUDE.md",
-        f"moved the git hooks off Beads' {existing / '.beads/hooks'}: core.hooksPath={existing / '.pm/hooks'}",
-        f"pm commits nothing on {git(existing, 'rev-parse', '--abbrev-ref', 'HEAD').strip()}; commit pm's files there: "
-        "git add -- .claude/settings.json .codex/hooks.json "
-        f".pm/hooks/post-checkout CLAUDE.md && git commit -m \"Upgrade pm to {v}\""], res.stdout
-    for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
-        text = (existing / rel).read_text()
-        data = json.loads(text)
-        assert pm_free(data) == without_bd(user) and text == json.dumps(data, indent=2) + "\n", rel
-        assert all(commands(data, e) == c for e, c in CLAUDE_PM.items()), rel
-    assert (existing / "CLAUDE.md").read_text() == "# Repo\n\nNotes.\n"
-    assert (existing / ".pm/hooks/post-checkout").read_text() == hook_file("post-checkout")
-    assert not (existing / ".pm/hooks/pre-commit").exists()
-    assert {k: v for k, v in snapshot(existing).items() if k.startswith(".beads/")} == beads, ".beads/ stays"
-    assert git(existing, "config", "core.hooksPath").strip() == str(existing / ".pm/hooks")
-    assert doctor(existing)[0] == 0, doctor(existing)[1]
-    after = snapshot(existing)
-    again = pm(existing, "upgrade")
-    assert again.returncode == 0 and again.stdout == f"pm {v}: every managed piece is current; nothing to commit\n", \
-        again.stdout
-    assert snapshot(existing) == after and git(existing, "config", "core.hooksPath").strip() == str(existing / ".pm/hooks")
-
-    git(existing, "add", "-A")  # the committed upgrade, through pm's hooks in .pm/hooks
-    res = subprocess.run(["git", "commit", "-qm", "Upgrade pm"], cwd=existing, env=env(existing.parent),
-                         capture_output=True, text=True)
-    assert res.returncode == 0, res.stderr
 def answers(sock: Path) -> bool:
     """Whether a process accepts connections on the work store's socket."""
     with socket.socket(socket.AF_UNIX) as s:
@@ -580,70 +511,6 @@ def test_uninstall_with_the_service_stopped_checks_for_unsynced_work(new_repo: P
     assert res.returncode == 0, res.stderr
     assert "removed the pm service" in res.stdout, res.stdout
     assert not (new_repo / ".pm").exists() and sched_units(tmp_path) == [] and not answers(sock)
-
-
-def release_api(tmp: Path, tag: str) -> tuple[http.server.ThreadingHTTPServer, str]:
-    """A stand-in for GitHub's API that names `tag` as pm's latest release."""
-    class Handler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            body = json.dumps({"tag_name": tag, "html_url": f"https://example.test/releases/tag/{tag}"}).encode()
-            ok = self.path == "/repo/releases/latest"
-            self.send_response(200 if ok else 404)
-            self.end_headers()
-            self.wfile.write(body if ok else b"{}")
-
-        def log_message(self, *args):
-            pass
-
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server, f"http://127.0.0.1:{server.server_port}/repo/"
-
-
-def test_doctor_names_a_release_newer_than_the_pin(new_repo: Path, tmp_path: Path):
-    """pm doctor reads the latest release: it names one newer than the pin with its notes and the move, says nothing
-    of the pin itself, and says so when the list cannot be read; the line leaves the exit code alone."""
-    assert pm(new_repo, "init").returncode == 0
-    git(new_repo, "add", "-A")
-    git(new_repo, "commit", "-qm", "Install pm")
-    for tag, want in (("pm-v99.0.0", "release: pm 99.0.0 is out, newer than this repo's pin " + VERSION +
-                       "; what changed: https://example.test/releases/tag/pm-v99.0.0. To move: install it "
-                       "(curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v99.0.0/install.sh | sh), then "
-                       "pm upgrade --to 99.0.0 in a PR"),
-                      (f"pm-v{VERSION}", None)):
-        server, api = release_api(tmp_path, tag)
-        try:
-            res = subprocess.run([*PM, "doctor"], cwd=new_repo, env=dict(env(tmp_path), PM_RELEASE_API=api),
-                                 capture_output=True, text=True)
-        finally:
-            server.shutdown()
-            server.server_close()
-        lines = res.stdout.splitlines()
-        assert res.returncode == 0 and lines[0].startswith(f"pm {VERSION} ("), res
-        assert lines[1:] == ([want] if want else []), res.stdout
-    res = pm(new_repo, "doctor")  # conftest's NO_RELEASE_API: nothing answers
-    assert res.returncode == 0 and res.stdout.splitlines()[-1].startswith(
-        f"release: cannot read pm's latest release, so whether one is newer than the pin {VERSION} is not known: "
-        "GET http://127.0.0.1:9/no-release-api/releases/latest: "), res.stdout
-
-
-def test_uninstall_disables_an_enabled_unit_that_is_not_running(new_repo: Path, tmp_path: Path):
-    """A unit the supervisor still starts at login but that is not running now (it crashed) is disabled by pm uninstall
-    with the rest, so no wants link outlives its unit file."""
-    assert pm(new_repo, "init").returncode == 0
-    git(new_repo, "add", "-A")
-    git(new_repo, "commit", "-qm", "Install pm")
-    state_path = tmp_path / "sched.json"
-    state = json.loads(state_path.read_text())
-    [name] = state["loaded"]
-    assert name in state["enabled"]
-    os.kill(state["pids"].pop(name), signal.SIGKILL)  # the service crashes: inactive, still enabled
-    state["loaded"].remove(name)
-    state_path.write_text(json.dumps(state))
-    res = pm(new_repo, "uninstall")
-    assert res.returncode == 0, res.stderr
-    assert "removed the pm service" in res.stdout, res.stdout
-    assert json.loads(state_path.read_text())["enabled"] == [] and sched_units(tmp_path) == []
 
 
 def test_uninstall_waits_for_a_session_start_that_holds_the_install_lock(new_repo: Path, tmp_path: Path):

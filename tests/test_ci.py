@@ -55,16 +55,19 @@ esac
     return {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
 
 
-def test_go_test_but_work_tests_every_package_but_the_work_store(tmp_path):
-    res = subprocess.run(["make", "-s", "go-test-but-work"], cwd=PM_DIR, env=fake_go(tmp_path, False),
-                         capture_output=True, text=True)
-    assert res.returncode == 0, res.stderr
-    assert (tmp_path / "test.log").read_text() == "test -tags gms_pure_go m/a m/b\n"
-
-
 def test_go_test_but_work_fails_when_go_list_fails_and_tests_nothing(tmp_path):
-    res = subprocess.run(["make", "-s", "go-test-but-work"], cwd=PM_DIR, env=fake_go(tmp_path, True),
+    broken = tmp_path / "broken"
+    broken.mkdir()
+    res = subprocess.run(["make", "-s", "go-test-but-work"], cwd=PM_DIR, env=fake_go(broken, True),
                          capture_output=True, text=True)
     assert res.returncode != 0
     assert "go: broken" in res.stderr
-    assert not (tmp_path / "test.log").exists()
+    assert not (broken / "test.log").exists()
+
+    # folded: test_go_test_but_work_tests_every_package_but_the_work_store
+    ok = tmp_path / "ok"
+    ok.mkdir()
+    res = subprocess.run(["make", "-s", "go-test-but-work"], cwd=PM_DIR, env=fake_go(ok, False),
+                         capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert (ok / "test.log").read_text() == "test -tags gms_pure_go m/a m/b\n"

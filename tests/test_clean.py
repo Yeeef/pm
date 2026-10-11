@@ -112,10 +112,14 @@ def test_clean_keeps_dirty_unpushed_and_not_agent_worktrees_and_apply_removes_me
     assert branches(repo) == ["dirty", "main", "outside", "plain", "pushed", "records", "unpushed"]  # merged ones deleted
     assert (repo.store / ".git").exists() and repo.git("status", "--porcelain", cwd=repo.store) == ""
 
+    def reset():  # each folded case starts from the main checkout and the records store alone
+        for line in repo.git("worktree", "list", "--porcelain").splitlines():
+            if line.startswith("worktree ") and Path(line[9:]).name not in ("repo", "records"):
+                repo.git("worktree", "remove", "--force", "--force", line[9:])
 
-def test_clean_keeps_a_branch_not_on_main_when_gh_cannot_check_a_squash_merge(clone):
-    repo = clone
-    tip = commit(repo, agent_tree(repo, "squashed"), "c.txt")
+    # folded: test_clean_keeps_a_branch_not_on_main_when_gh_cannot_check_a_squash_merge
+    reset()
+    tip = commit(repo, agent_tree(repo, "squashed"), "e.txt")  # main holds c.txt now
     Path(repo.env["FAKE_GH_STATE"]).write_text(json.dumps({"u": {"number": 7, "state": "MERGED",
                                                                   "headRefName": "squashed", "baseRefName": "main",
                                                                  "headRefOid": tip}}))
@@ -126,21 +130,8 @@ def test_clean_keeps_a_branch_not_on_main_when_gh_cannot_check_a_squash_merge(cl
                              "squash merge: ")
     assert clean(repo)["squashed"][0] == "remove"  # gh answering: the squash merge counts
 
-
-def proc_start(pid: int) -> str:
-    """/proc/<pid>/stat's start time, as Claude Code writes it in a worktree lock."""
-    stat = Path(f"/proc/{pid}/stat").read_text()
-    return stat[stat.rindex(")") + 1:].split()[19]
-
-
-def dead_pid() -> int:
-    p = subprocess.Popen(["true"])
-    p.wait()
-    return p.pid
-
-
-def test_clean_keeps_a_worktree_a_live_process_locks_and_removes_one_whose_lock_is_stale(clone):
-    repo = clone
+    # folded: test_clean_keeps_a_worktree_a_live_process_locks_and_removes_one_whose_lock_is_stale
+    reset()
     me = os.getpid()
     start = f" start {proc_start(me)}" if sys.platform == "linux" else ""
     locks = {"live": f"claude agent live (pid {me}{start})",
@@ -163,6 +154,39 @@ def test_clean_keeps_a_worktree_a_live_process_locks_and_removes_one_whose_lock_
     clean(repo, "--apply")
     assert worktrees(repo) == ["foreign", "live", "records", "repo"]
 
+    # folded: test_clean_keeps_a_worktree_a_live_session_used_and_the_worktree_it_runs_in
+    reset()
+    trees = {n: agent_tree(repo, n) for n in ("bypath", "byrel", "bycwd", "shown", "old", "by", "caller")}
+    # a subagent runs in its parent's directory, the main checkout, and reaches its worktree by path
+    transcript(repo, "-repo/sess-live/subagents/agent-a.jsonl",
+               entry("assistant", repo.root, call=f"cd {trees['bypath']} && make test"),
+               entry("assistant", repo.root, call="git -C .claude/worktrees/byrel status"),
+               entry("user", trees["bycwd"] / "internal"),
+               entry("user", repo.root, shown=f"{trees['shown']} {trees['old']}"),
+               entry("assistant", repo.root, call=f"ls {trees['old']}", age_s=3600))
+
+    v = clean(repo, "--apply", cwd=trees["caller"])
+    assert v["caller"] == ("keep", "the worktree pm clean runs in")
+    for n in ("bypath", "byrel", "bycwd"):
+        word, reason = v[n]
+        assert word == "keep" and re.fullmatch(r"live session sess-live used it \d+m ago", reason), (n, v[n])
+    for n in ("shown", "old", "by"):  # named only in output, too long ago, or only as the start of a longer name
+        assert v[n][0] == "remove", (n, v[n])
+    assert worktrees(repo) == ["bycwd", "bypath", "byrel", "caller", "records", "repo"]
+
+
+
+def proc_start(pid: int) -> str:
+    """/proc/<pid>/stat's start time, as Claude Code writes it in a worktree lock."""
+    stat = Path(f"/proc/{pid}/stat").read_text()
+    return stat[stat.rindex(")") + 1:].split()[19]
+
+
+def dead_pid() -> int:
+    p = subprocess.Popen(["true"])
+    p.wait()
+    return p.pid
+
 
 def transcript(repo, rel: str, *entries: dict) -> None:
     """A Claude Code transcript under the test's config dir, written now."""
@@ -183,27 +207,6 @@ def entry(kind: str, cwd: Path, *, call: str | None = None, shown: str | None = 
     if shown is not None:
         e["message"] = {"role": "user", "content": [{"type": "tool_result", "content": shown}]}
     return e
-
-
-def test_clean_keeps_a_worktree_a_live_session_used_and_the_worktree_it_runs_in(clone):
-    repo = clone
-    trees = {n: agent_tree(repo, n) for n in ("bypath", "byrel", "bycwd", "shown", "old", "by", "caller")}
-    # a subagent runs in its parent's directory, the main checkout, and reaches its worktree by path
-    transcript(repo, "-repo/sess-live/subagents/agent-a.jsonl",
-               entry("assistant", repo.root, call=f"cd {trees['bypath']} && make test"),
-               entry("assistant", repo.root, call="git -C .claude/worktrees/byrel status"),
-               entry("user", trees["bycwd"] / "internal"),
-               entry("user", repo.root, shown=f"{trees['shown']} {trees['old']}"),
-               entry("assistant", repo.root, call=f"ls {trees['old']}", age_s=3600))
-
-    v = clean(repo, "--apply", cwd=trees["caller"])
-    assert v["caller"] == ("keep", "the worktree pm clean runs in")
-    for n in ("bypath", "byrel", "bycwd"):
-        word, reason = v[n]
-        assert word == "keep" and re.fullmatch(r"live session sess-live used it \d+m ago", reason), (n, v[n])
-    for n in ("shown", "old", "by"):  # named only in output, too long ago, or only as the start of a longer name
-        assert v[n][0] == "remove", (n, v[n])
-    assert worktrees(repo) == ["bycwd", "bypath", "byrel", "caller", "records", "repo"]
 
 
 def test_clean_keeps_what_a_removal_would_delete_with_it(clone):

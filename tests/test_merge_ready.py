@@ -70,16 +70,6 @@ def clone(tmp_path) -> Clone:
     return Clone(tmp_path)
 
 
-def test_a_pr_whose_head_contains_main_and_whose_checks_passed_is_ready(clone):
-    clone.git("checkout", "-q", "-b", "fix")
-    sha = clone.commit("fix")
-    clone.open_pr(7, "fix")
-    r = clone.ready(7)
-    assert r.returncode == 0, r.stderr
-    assert "contains origin/main" in r.stdout and "every check on it passed" in r.stdout
-    assert f"gh pr merge 7 --squash --match-head-commit {sha}" in r.stdout
-
-
 def test_a_pr_cut_before_main_moved_is_refused_until_it_is_rebased(clone):
     clone.git("checkout", "-q", "-b", "fix")
     clone.commit("fix")
@@ -95,9 +85,36 @@ def test_a_pr_cut_before_main_moved_is_refused_until_it_is_rebased(clone):
     assert clone.ready(7).returncode == 0
 
 
-def test_a_pr_whose_checks_did_not_all_pass_is_refused_naming_each(clone):
+def test_a_check_that_ran_twice_on_the_head_is_judged_by_its_latest_run(clone):
+    def run(conclusion: str, started: str, status: str = "COMPLETED") -> dict:
+        return {"__typename": "CheckRun", "workflowName": "pm changelog", "name": "changelog", "status": status,
+                "conclusion": conclusion, "startedAt": f"2026-10-10T15:{started}Z",
+                "completedAt": f"2026-10-10T15:{started}Z" if status == "COMPLETED" else "0001-01-01T00:00:00Z"}
+
     clone.git("checkout", "-q", "-b", "fix")
-    clone.commit("fix")
+    sha = clone.commit("fix")
+    others = [c for c in PASSED if c.get("workflowName") != "pm changelog"]
+    # a run cancelled by a later one (a label added), or a failure re-run: the later run decides
+    clone.open_pr(7, "fix", checks=others + [run("SUCCESS", "21:05"), run("CANCELLED", "20:55")])
+    assert clone.ready(7).returncode == 0
+    clone.open_pr(7, "fix", checks=others + [run("FAILURE", "20:55"), run("SUCCESS", "21:05")])
+    assert clone.ready(7).returncode == 0
+    clone.open_pr(7, "fix", checks=others + [run("SUCCESS", "20:55"), run("FAILURE", "21:05")])
+    r = clone.ready(7)
+    assert r.returncode == 1 and "check pm changelog / changelog concluded FAILURE" in r.stderr
+    # a re-run still going: pending, whatever the earlier run gave
+    clone.open_pr(7, "fix", checks=others + [run("SUCCESS", "20:55"), run("", "21:05", status="QUEUED")])
+    r = clone.ready(7)
+    assert r.returncode == 1 and "check pm changelog / changelog is QUEUED" in r.stderr
+
+    # folded: test_a_pr_whose_head_contains_main_and_whose_checks_passed_is_ready
+    clone.open_pr(7, "fix")
+    r = clone.ready(7)
+    assert r.returncode == 0, r.stderr
+    assert "contains origin/main" in r.stdout and "every check on it passed" in r.stdout
+    assert f"gh pr merge 7 --squash --match-head-commit {sha}" in r.stdout
+
+    # folded: test_a_pr_whose_checks_did_not_all_pass_is_refused_naming_each
     clone.open_pr(7, "fix", checks=PASSED + [
         {"__typename": "CheckRun", "workflowName": "pm go", "name": "vet", "status": "IN_PROGRESS", "conclusion": ""},
         {"__typename": "CheckRun", "workflowName": "pm tests", "name": "integration", "status": "COMPLETED",
@@ -115,42 +132,13 @@ def test_a_pr_whose_checks_did_not_all_pass_is_refused_naming_each(clone):
     for workflow in ("pm changelog", "pm go", "pm tests"):
         assert f"no check of workflow {workflow!r}, which runs on every PR, is on its head yet" in r.stderr
 
-
-def test_the_workflows_every_pr_runs_must_each_have_a_check_on_the_head(clone):
+    # folded: test_the_workflows_every_pr_runs_must_each_have_a_check_on_the_head
     assert merge_ready.pr_workflows(PM_DIR) == {"pm changelog", "pm go", "pm tests"}  # not pm release build: paths
-    clone.git("checkout", "-q", "-b", "fix")
-    clone.commit("fix")
     clone.open_pr(7, "fix", checks=[c for c in PASSED if c.get("workflowName") != "pm go"])
     r = clone.ready(7)
     assert r.returncode == 1 and "no check of workflow 'pm go'" in r.stderr
 
-
-def test_a_check_that_ran_twice_on_the_head_is_judged_by_its_latest_run(clone):
-    def run(conclusion: str, started: str, status: str = "COMPLETED") -> dict:
-        return {"__typename": "CheckRun", "workflowName": "pm changelog", "name": "changelog", "status": status,
-                "conclusion": conclusion, "startedAt": f"2026-10-10T15:{started}Z",
-                "completedAt": f"2026-10-10T15:{started}Z" if status == "COMPLETED" else "0001-01-01T00:00:00Z"}
-
-    clone.git("checkout", "-q", "-b", "fix")
-    clone.commit("fix")
-    others = [c for c in PASSED if c.get("workflowName") != "pm changelog"]
-    # a run cancelled by a later one (a label added), or a failure re-run: the later run decides
-    clone.open_pr(7, "fix", checks=others + [run("SUCCESS", "21:05"), run("CANCELLED", "20:55")])
-    assert clone.ready(7).returncode == 0
-    clone.open_pr(7, "fix", checks=others + [run("FAILURE", "20:55"), run("SUCCESS", "21:05")])
-    assert clone.ready(7).returncode == 0
-    clone.open_pr(7, "fix", checks=others + [run("SUCCESS", "20:55"), run("FAILURE", "21:05")])
-    r = clone.ready(7)
-    assert r.returncode == 1 and "check pm changelog / changelog concluded FAILURE" in r.stderr
-    # a re-run still going: pending, whatever the earlier run gave
-    clone.open_pr(7, "fix", checks=others + [run("SUCCESS", "20:55"), run("", "21:05", status="QUEUED")])
-    r = clone.ready(7)
-    assert r.returncode == 1 and "check pm changelog / changelog is QUEUED" in r.stderr
-
-
-def test_a_closed_pr_or_one_whose_head_moved_is_refused(clone):
-    clone.git("checkout", "-q", "-b", "fix")
-    clone.commit("fix")
+    # folded: test_a_closed_pr_or_one_whose_head_moved_is_refused
     clone.open_pr(7, "fix", state="MERGED")
     r = clone.ready(7)
     assert r.returncode == 1 and "it is MERGED" in r.stderr
