@@ -177,7 +177,10 @@ func claudeHooks() entries {
 	}
 }
 
-// codexHooks is pm's entries in .codex/hooks.json. Codex's SessionStart has no compact event.
+// codexHooks is pm's entries in .codex/hooks.json. Codex's SessionStart matcher is a pattern over its sources, which
+// name each one: startup, resume, clear and compact. Its SubagentStop runs pm hook stop on the subagent's own rollout:
+// Codex keeps a subagent's prompt from its parent's rollout (encrypted), so the parent's Stop cannot see what the
+// subagent was asked to write, as Claude Code's parent transcript shows it.
 func codexHooks() entries {
 	h := func(command, status string, timeout int) any {
 		return obj("command", command, "statusMessage", status, "type", "command", "timeout", timeout)
@@ -191,11 +194,11 @@ func codexHooks() entries {
 		return out
 	}
 	return entries{
-		events: []string{"SessionStart", "SubagentStart", "Stop"},
+		events: []string{"SessionStart", "SubagentStart", "Stop", "SubagentStop"},
 		groups: map[string]func() *pyjson.Object{
 			"SessionStart": func() *pyjson.Object {
 				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", "Loading pm init, pm where and pm show", 30)),
-					"matcher", "startup|resume|clear")
+					"matcher", "startup|resume|clear|compact")
 			},
 			"SubagentStart": func() *pyjson.Object {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Loading pm's git rule for agents", 15)))
@@ -203,6 +206,9 @@ func codexHooks() entries {
 			"Stop": func() *pyjson.Object {
 				return obj("hooks", []any{h("pm hook owner-request || exit 1", "Checking for owner requests asked only in chat", 30),
 					h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
+			},
+			"SubagentStop": func() *pyjson.Object {
+				return obj("hooks", []any{h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
 			},
 		},
 	}
@@ -352,8 +358,8 @@ func hooksApply(rel string, want entries) func(*string) (string, error) {
 	}
 }
 
-// hooksPart is pm's hooks by event, in order, each as written, with object keys sorted so that it compares as the
-// Python dicts do.
+// hooksPart is pm's hooks by event, in order, each as written and with the matcher of its group, with object keys
+// sorted so that it compares as the Python dicts do.
 func hooksPart(rel string) func(*string) (string, bool, error) {
 	return func(text *string) (string, bool, error) {
 		if text == nil {
@@ -370,7 +376,7 @@ func hooksPart(rel string) func(*string) (string, bool, error) {
 				for _, g := range f.events.Get(e).([]any) {
 					for _, h := range groupHooks(g) {
 						if isPMHook(h) {
-							hs = append(hs, h)
+							hs = append(hs, []any{g.(*pyjson.Object).Get("matcher"), h})
 						}
 					}
 				}
