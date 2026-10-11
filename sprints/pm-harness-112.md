@@ -62,7 +62,15 @@ The owner asked for a marketing website mid-sprint; it shares the positioning an
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Claims corrected while checking the README against the code: nothing blocks
+  a PLANNING.md in the code tree (README says pm gives context a checked home
+  and does not block a stray file); pm init/upgrade do edit CLAUDE.md and
+  AGENTS.md, only to remove a Beads block (leftoverRels in
+  internal/install/pieces.go); pm injects a rules text (prime.md) by hook, so
+  the README says rules arrive by hook and are enforced by refusals, not that
+  there is no prompt; pm task close names HEAD or warns, never refuses for a
+  missing commit, so it is not listed as a refusal; record hand edits go
+  through pm commit, so the cli is not the only record writer.
 
 ## Delivery report
 
