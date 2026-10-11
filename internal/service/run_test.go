@@ -67,6 +67,9 @@ func serve(t *testing.T, w *fakeWork, main string) *served {
 	if main == "" {
 		main = t.TempDir()
 		fakeBin(t, map[string]string{"gh": fakeGH})
+		if out, err := exec.Command("git", "init", "-q", "-b", "main", main).CombinedOutput(); err != nil {
+			t.Fatal(err, string(out)) // a main checkout on main with no remote-tracking ref: no main checkout flag
+		}
 	}
 	for _, d := range []string{".pm/store/records", ".git"} {
 		if err := os.MkdirAll(filepath.Join(main, d), 0o755); err != nil {
