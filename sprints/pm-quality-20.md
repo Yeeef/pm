@@ -89,6 +89,12 @@ A strict 10% keeps 86% of lines but loses 71 of 75 bug guards and most contracts
   cli/store_commands.go (12). All 75 bug guards are present, by name or as a
   row (scratchpad guards.py over the audit table).
 
+- Local wall time, the two trees timed back to back on 32 cores, -count=1:
+  make test 9.2 s before, 6.6 s after; make test-go 152 s before, 138 s after;
+  go test ./internal/work 119 s before, about 90 s after, since sharing the
+  two-clone pairs cut the sync groups 35 to 26 s and 31 to 23 s. internal/work
+  still dominates make test-go because its tests run serially.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
