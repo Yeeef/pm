@@ -178,6 +178,10 @@ func CodexTrust(main string, timeout time.Duration) (skips []string, note string
 			"until you trust the project; open Codex in %s, trust the project, then trust pm's hooks in /hooks",
 			hooksPath, main)}, "", nil
 	}
+	if len(skipped["untrusted"]) == seen { // a new clone's or a never trusted project's: one line, not one per hook
+		return []string{fmt.Sprintf("codex: Codex skips all of pm's %d hooks in %s, which you have not trusted; %s",
+			seen, hooksPath, fix)}, "", nil
+	}
 	for _, why := range []string{"untrusted", "modified", "disabled"} {
 		if hs := skipped[why]; hs != nil {
 			skips = append(skips, fmt.Sprintf("codex: Codex skips %d of pm's %d hooks in %s, %s: %s; %s", len(hs), seen,

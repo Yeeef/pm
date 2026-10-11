@@ -95,12 +95,8 @@ func TestCodexTrustNamesPmsHooksCodexSkips(t *testing.T) {
 		want   []string
 	}{
 		"all trusted": {listAnswer(t, main, trusted, nil), nil},
-		"as Codex answered": {listAnswer(t, main, nil, nil), []string{"codex: Codex skips 10 of pm's 10 hooks in " + hooks +
-			", which you have not trusted: sessionStart `pm prime --rules 1 --hook-json`, sessionStart `pm prime --rules 2 " +
-			"--hook-json`, sessionStart `pm prime --rules 3 --hook-json`, sessionStart `pm prime --state --hook-json`, " +
-			"subagentStart `pm prime --rules 1 --hook-json`, subagentStart `pm prime --rules 2 --hook-json`, subagentStart " +
-			"`pm prime --rules 3 --hook-json`, subagentStart `pm prime --subagent --hook-json`, stop `pm hook owner-request " +
-			"|| exit 1`, stop `pm hook stop || exit 1`" + fix}},
+		"as Codex answered": {listAnswer(t, main, nil, nil), []string{"codex: Codex skips all of pm's 10 hooks in " +
+			hooks + ", which you have not trusted" + fix}},
 		"mixed": {listAnswer(t, main, mixed, map[string]bool{"stop:0:0": false}), []string{
 			"codex: Codex skips 1 of pm's 10 hooks in " + hooks + ", which you have not trusted: sessionStart `pm prime --state --hook-json`" + fix,
 			"codex: Codex skips 1 of pm's 10 hooks in " + hooks + ", which changed since you trusted them: stop `pm hook stop || exit 1`" + fix,
@@ -168,7 +164,7 @@ func TestCodexTrustAgainstRealCodex(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _, err = CodexTrust(main, CodexTrustTimeout)
-	if err != nil || len(got) != 1 || !strings.HasPrefix(got[0], "codex: Codex skips 10 of pm's 10 hooks in ") {
+	if err != nil || len(got) != 1 || !strings.HasPrefix(got[0], "codex: Codex skips all of pm's 10 hooks in ") {
 		t.Fatalf("a trusted project, pm's hooks not: %q %v", got, err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(home, "config.toml")); string(b) != config {
