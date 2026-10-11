@@ -163,7 +163,7 @@ def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new
     # a site_url needs the Access keys: doctor names the missing ones, and the config holding them is pm's own
     code, lines = doctor(new_repo)
     assert code == 1 and "config: site_url is set, but .pm/config.toml lacks access_team, access_aud, so the site " \
-                         "refuses every request to its host; set them there (pm init --help)" in lines, lines
+                         "refuses every request to its host; set what is missing there (pm init --help)" in lines, lines
     with (new_repo / ".pm/config.toml").open("a") as f:
         f.write('access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
     code, lines = doctor(new_repo)

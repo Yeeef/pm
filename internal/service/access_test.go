@@ -217,7 +217,7 @@ func TestWithoutTheAccessKeysEveryPublicRequestIsRefusedNamingThem(t *testing.T)
 	newTeamKeys(t)
 	team1 := "access_team (the Cloudflare Access team domain, <team>.cloudflareaccess.com)"
 	aud1 := "access_aud (the Access application's AUD tag)"
-	tail := ", so no request through the tunnel is verified; set them there (pm init --help) and restart the pm service"
+	tail := ", so no request through the tunnel is verified; set what is missing there (pm init --help) and restart the pm service"
 	for _, c := range []struct {
 		site, team, aud string
 		r               *http.Request

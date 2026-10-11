@@ -234,7 +234,7 @@ func (s *server) refusal(r *http.Request) string {
 		if s.d.SiteURL != "" {
 			lead = "refused: site_url is set, but "
 		}
-		return fmt.Sprintf("%s%s lacks %s, so no request through the tunnel is verified; set them there (pm init "+
+		return fmt.Sprintf("%s%s lacks %s, so no request through the tunnel is verified; set what is missing there (pm init "+
 			"--help) and restart the pm service", lead, config.Rel, strings.Join(missing, " and "))
 	}
 	token := r.Header.Get(AccessHeader)

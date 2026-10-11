@@ -482,7 +482,7 @@ func cmdDoctor(here string, stdout io.Writer) error {
 	}
 	if missing := c.AccessMissing(); len(missing) > 0 {
 		diffs = append(diffs, fmt.Sprintf("config: site_url is set, but %s lacks %s, so the site refuses every request "+
-			"to its host; set them there (pm init --help)", config.Rel, strings.Join(missing, ", ")))
+			"to its host; set what is missing there (pm init --help)", config.Rel, strings.Join(missing, ", ")))
 	}
 	port, err := service.PortFor(main, int(c.Port))
 	if err != nil {
