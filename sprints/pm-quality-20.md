@@ -117,6 +117,17 @@ This sprint closes with the test trim (PR #48), as its sprint decision records.
   remote panics ('closed spoolingTableReaderAt'), 3 of 3 runs, so the sync
   tests order around it.
 
+- Possible upstream Dolt bug (not filed): with two hosts open in one test
+  process, closing one host while the other still syncs with a remote panics
+  inside Dolt with 'attempt to reference a closed spoolingTableReaderAt'. It
+  happened 3 of 3 times during the trim. Repro on PR #48's branch: in
+  internal/work/sync_test.go TestCreatePushTimeout, move the subtest
+  SyncWithoutARemoteFails (it builds and closes its own store with newStore)
+  after the pair starts, then run CGO_ENABLED=1 go test -tags gms_pure_go
+  -count=1 -run '^TestCreatePushTimeout$' ./internal/work. As committed, that
+  subtest runs before the pair starts, and a comment above the test records
+  why.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
