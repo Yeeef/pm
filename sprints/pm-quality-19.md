@@ -57,7 +57,15 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- golangci-lint v2.14.0 on eedbafd: 118 findings across the gating linters
+  (uniq-by-line off). On this branch the gating pass and the ratchet pass both
+  give 0 issues. Of the 118: about 85 fixed in code; 27 kept with //nolint and
+  a reason (8 nilerr fail-open returns, 6 usetesting short socket dirs, 4
+  forbidigo sleeps where there is no condition to wait on: a timed hold,
+  writer pacing, Dolt's wall-clock read dedup; 2 ST1005 Python messages, 1
+  weakCond); 2 nilerr sites fixed (clone.Sparse, service.Uninstall); 7
+  sprintfQuotedString and 5 QF1001 by config, with the reason in
+  .golangci.yml.
 
 ## Delivery report
 
