@@ -6,7 +6,9 @@ transcript (Claude Code's session JSONL, Codex's rollout).
 - solo, per runtime, identical assertions: session-start context; claim, finding, a decision need answered by the
   owner (this test, through `pm reply add`) while the session waits; the decision citing it; a doc; the task closed.
 - stop, per runtime: a record edited by hand and left uncommitted; the Stop hook blocks, and the store ends committed.
-- mixed: a Claude session and a Codex session in parallel on one sprint's two ready tasks.
+- mixed: a Claude session and a Codex session in parallel on one sprint's two ready tasks; while both holds are live,
+  the test claims each session's task as the other session, from a worktree of its own, and pm must refuse, naming
+  the holder, and change nothing; and each session's pm show must name the other's hold.
 
 Skipped unless PM_LIVE_TESTS=1 with `claude` and `codex` on PATH, both logged in; run with `make test-live-parity`.
 PM_PARITY_CODEX_SANDBOX sets Codex's sandbox (default workspace-write; danger-full-access where bubblewrap cannot
@@ -27,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from agents import Clone, Run
+from agents import Clone, Run, git
 from conftest import chunks
 
 pytestmark = [
@@ -195,12 +197,12 @@ def test_stop_hook_blocks_uncommitted_records(clone, runtime):
     check.done()
 
 
-def show_as(clone: Clone, runtime: str, session: str) -> str:
-    """pm show as the session `session` of `runtime` runs it."""
+def as_session(clone: Clone, runtime: str, session: str, *args: str, cwd: Path | None = None):
+    """pm `args` as the session `session` of `runtime` runs it: the agents' environment with that runtime's session
+    variables, and no other runtime's."""
     marker = {"CLAUDE_CODE_SESSION_ID": session} if runtime == "claude" else {"CODEX_SESSION_ID": session,
                                                                               "CODEX_THREAD_ID": session}
-    res = clone.pm("show", env=dict(clone.agent_env(), **marker))
-    return res.stdout + res.stderr
+    return clone.pm(*args, cwd=cwd, env=dict(clone.agent_env(), **marker))
 
 
 def test_claude_and_codex_work_one_sprint_together(clone):
@@ -218,8 +220,11 @@ your claim because another live session holds that task, claim the other ready t
 5. Commit a file {runtime}-{nonce}.txt in your worktree, then close your task on that commit.
 Then reply with one line: the id of the task you closed."""
 
+    # a worktree of the test's own, from which it claims a task as each session: pm refuses a claim in the main checkout
+    probe = clone.tmp / "probe-wt"
+    git(clone.root, "worktree", "add", "-q", "-b", "probe", str(probe), env=clone.env)
     running = {rt: clone.start(rt, f"mixed-{rt}", prompt(rt)) for rt in RUNTIMES}
-    views, holders = {}, {}
+    views, claims, holders = {}, {}, {}
     deadline = time.monotonic() + TIMEOUT
     while time.monotonic() < deadline and any(a.proc.poll() is None for a in running.values()):
         items = clone.items()
@@ -228,8 +233,15 @@ Then reply with one line: the id of the task you closed."""
             holders.setdefault(t, set()).add(s)
         sessions = {rt: a.session() for rt, a in running.items()}
         if not views and len(set(held.values())) == 2 and set(held.values()) == set(sessions.values()):
-            views = {rt: (show_as(clone, rt, s), next(t for t, h in held.items() if h != s))
-                     for rt, s in sessions.items()}
+            for rt, s in sessions.items():
+                other = next(t for t, h in held.items() if h != s)
+                shown = as_session(clone, rt, s, "show")
+                views[rt] = (shown.stdout + shown.stderr, other)
+                # while the other session's hold is live, this session's claim of its task is refused and changes
+                # nothing
+                before = clone.items()[other]
+                res = as_session(clone, rt, s, "task", "claim", other, cwd=probe)
+                claims[rt] = (res, other, held[other], before, clone.items()[other])
         time.sleep(2)
     runs = {rt: a.finish(TIMEOUT) for rt, a in running.items()}
     items = clone.items()
@@ -255,6 +267,12 @@ Then reply with one line: the id of the task you closed."""
     check(clone.uncommitted_records() == "", f"uncommitted records: {clone.uncommitted_records()}")
     # while both held a task, each session's pm show named the other's
     check(views, "the two sessions never held their tasks at once, so no session's view of the other was checked")
+    check(claims, "the two sessions never held their tasks at once, so no cross claim was tried")
+    for rt, (res, other, holder, before, after) in claims.items():
+        check(res.returncode != 0 and f"{other} is held by live session {holder}" in res.stdout + res.stderr,
+              f"{rt}'s claim of {other}, held by {holder}, was not refused naming the holder: exit {res.returncode}\n"
+              f"{res.stdout}{res.stderr}")
+        check(after == before, f"{rt}'s refused claim of {other} changed it:\n{before}\n{after}")
     for rt, (shown, other) in views.items():
         warned = shown.split("warning: other live sessions hold these tasks", 1)
         check(len(warned) == 2 and re.search(rf"^  {re.escape(other)}  ", warned[1], re.M),

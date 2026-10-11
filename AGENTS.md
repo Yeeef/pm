@@ -46,6 +46,7 @@ the new state, and the trail of findings stays in the sprint record.
 | `make test-full ARGS="-k serve"` | The harness tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
 | `uv run pytest -q -n auto tests/test_hooks.py` | One file, or `-k name` for one test, after `make go-build` |
 | `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH, logged in |
+| `make test-live-parity` | The parity live eval: `PM_LIVE_TESTS=1`, `-k agent_parity_live`, its 5 scenarios at once (95 s to 5 min); needs `claude` and `codex` on PATH, both logged in (The parity live eval) |
 | `make test-go` | `gofmt -l` on the module's Go files (`make go-fmt`: it names each file gofmt would change and fails), `go vet` and `go test` with `-trimpath -tags gms_pure_go` (Dolt needs the tag; `-trimpath` shares go-build's compiles), then `internal/service` and the work store's concurrency tests (`RACE_TESTS`) again under `-race`: its parts `go-build`, `go-fmt`, `go-vet`, `go-test-but-work`, `go-test-work` and `go-test-race` (`make -j2` runs its two halves at once); `go-test` runs `GO_PKGS` alone (`make go-test GO_PKGS=./internal/service`). `go-test-work` runs `internal/work`'s tests in `WORK_SHARDS` (8) processes at once through `.github/scripts/go_shards.py`, balanced by `.github/scripts/work-test-seconds.txt`, which must name every test and no other: a new or renamed test fails it until `make go-test-work UPDATE=1` measures and rewrites the file; the race tests shard the same way. `.github/workflows/pm-go.yml` runs the parts as parallel jobs on macOS and Linux (build, gofmt, vet and every package's tests but `internal/work`'s; `internal/work`'s; the race tests), with `-count=1` and the Go caches the last push to main saved, each trimmed to what its run used (`.github/scripts/go_cache_trim.py`). The bd import's round trip runs on `internal/work/testdata`; `PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=$(pm where records)` runs it on a real export |
 | `make lint` | The linters, each pinned in the Makefile, as `.github/workflows/pm-lint.yml` runs them, in three parallel jobs (`lint-go`, `lint-deadcode`, `lint-py`) that restore `pm-go.yml`'s Go cache: `golangci-lint` (`.golangci.yml`, `GOLANGCI_LINT_VERSION`, on PATH) twice, its gating linters on every line, then its ratcheted ones (`RATCHET`: errcheck with blank checks, gocyclo, gocognit, funlen, the file-length cap, reassign) on the lines changed since the merge base with `origin/main`; `deadcode` from pm's binaries and from the tests; `ruff check` on `tests/` and `release/` (`pyproject.toml`). Its parts: `lint-go`, `lint-deadcode`, `lint-py`. A finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python); a test waits on a condition with a deadline, never a fixed sleep. `size_test.go` caps a package's non-test Go lines at 5000, with `internal/cli` on a ratchet allowlist (`oversized`) |
 
@@ -188,6 +189,23 @@ It runs the hook with the user's `HOME` and Claude config (`REAL` in `conftest.p
 The rule is one rule in three texts: the request rule in `prime.md`, the judge prompt and the block reasons
 (`owner_request_reason.txt`, `owner_request_needless.txt`). A rule change edits all of them in one commit and adds a
 labelled case for each case it moves.
+
+## The parity live eval
+
+`make test-live-parity` (`tests/test_agent_parity_live.py`, helpers in `tests/agents.py`) checks that a real Claude
+Code session (`claude -p`, Haiku) and a real Codex session (`codex exec`) get the same pm guarantees, in scratch clones
+that `pm init` set up, asserting from the work store, the records store and each runtime's transcript, never the
+agent's prose. Solo, per runtime with the same assertions: the session-start context; claim, finding, a decision need
+the owner (the test, `pm reply add`) answers 30 s later, the decision citing it, a committed doc, the task closed by
+the session. Stop, per runtime: a hand edit left uncommitted, which the Stop hook blocks. Mixed: a Claude and a Codex
+session on one sprint's two tasks at once, each `pm show` naming the other's hold, and each one's claim of the
+other's task, run by the test as that session, refused naming the holder. The 5 scenarios run at once, 95 s to 5 min
+in all (the solo Claude run is the long one when it polls for the reply instead of waiting); `-rA` prints each
+run's latency and its transcript paths. Claude runs with the user's Claude config, its
+user settings left out; Codex with a temp `CODEX_HOME` holding a copy of the user's `auth.json`, pm's hooks trusted
+through `codex app-server` as the TUI's review trusts them. `PM_PARITY_CODEX_SANDBOX` sets Codex's sandbox (default
+`workspace-write`); a host where bubblewrap cannot start (`bwrap: loopback: Failed RTM_NEWADDR`) needs
+`danger-full-access`.
 
 ## Changing prime.md and the hooks
 
