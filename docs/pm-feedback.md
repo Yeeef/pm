@@ -187,3 +187,9 @@ pm finding add --text="…" is accepted and stores the literal '--text=' prefix 
 About project `pm-quality`.
 
 internal/cli/cli.go on main is not gofmt-clean (found by pm-quality sprint 16 on 2026-10-10), and no CI step runs gofmt or go vet's formatting check, so unformatted Go reaches main. What would help: a gofmt -l check in pm-go.yml's build-vet-test job that fails on any listed file.
+
+### 2026-10-11 17:37 UTC, session `135293bf-ffa4-50e0-ab36-e4a0dd2c23f8`
+
+About project `pm-harness`.
+
+pm task close without --reason closed a task as done (default reason Done) when I ran it only to read its refusal, and there is no pm task reopen to undo it; a reopen, or requiring --reason, would have helped. Also pm task claim accepted a task still blocked by an open dependency (123.1 on 122.2); if that is intended, its --help could say so.
