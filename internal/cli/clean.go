@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/install"
 	"github.com/Yeeef/pm/internal/proc"
 )
 
@@ -308,10 +309,11 @@ type liveUse struct {
 }
 
 // liveUses finds, for each worktree under .claude/worktrees/, the latest live session that used it: an entry of a
-// Claude Code transcript written within LiveWindow (pm's notion of a live session) whose cwd is in the worktree, or
-// whose tool call names its path (a subagent runs in its parent's directory and reaches its worktree by path). The
-// path's form relative to the main checkout counts when the entry's cwd is in the main checkout. The output of a
-// tool call does not count, so listing worktrees, or pm clean's own output, uses none of them.
+// Claude Code transcript or a Codex rollout written within LiveWindow (pm's notion of a live session) whose cwd is in
+// the worktree, or whose tool call names its path (a subagent runs in its parent's directory and reaches its worktree
+// by path). The path's form relative to the main checkout counts when the entry's cwd is in the main checkout. The
+// output of a tool call does not count, so listing worktrees, or pm clean's own output, uses none of them. A Codex
+// rollout's cwd is its session_meta's and then each turn_context's, and its session the root thread's (codexMeta).
 func liveUses(trees []worktree, main string) (map[string]liveUse, error) {
 	type token struct{ path, abs, rel string }
 	var tokens []token
@@ -325,15 +327,107 @@ func liveUses(trees []worktree, main string) (map[string]liveUse, error) {
 		return uses, nil
 	}
 	now := time.Now()
-	projects := filepath.Join(claudeConfigDir(), "projects")
-	err := filepath.WalkDir(projects, func(p string, e os.DirEntry, err error) error {
+	// note is one entry: its session, its cwd, its time and its tool calls' inputs, what the session did, never what
+	// it was shown
+	note := func(session, cwd, stamp string, calls []byte) {
+		at, err := time.Parse(time.RFC3339Nano, stamp)
+		if err != nil || now.Sub(at) >= LiveWindow {
+			return
+		}
+		inMain := cwd == main || strings.HasPrefix(cwd, main+"/")
+		for _, t := range tokens {
+			used := cwd == t.abs || strings.HasPrefix(cwd, t.abs+"/") || namesPath(calls, t.abs) ||
+				(inMain && namesPath(calls, t.rel))
+			if used && at.After(uses[t.path].at) {
+				uses[t.path] = liveUse{session, at}
+			}
+		}
+	}
+	err := recentLines(filepath.Join(claudeConfigDir(), "projects"), now, func(name string) bool {
+		return strings.HasSuffix(name, ".jsonl")
+	}, func(first bool, line []byte) {
+		var entry struct {
+			Type      string `json:"type"`
+			Timestamp string `json:"timestamp"`
+			Cwd       string `json:"cwd"`
+			SessionID string `json:"sessionId"`
+			Message   struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(line, &entry) != nil {
+			return // not an entry: Claude Code writes one JSON object per line
+		}
+		var calls []byte
+		if entry.Type == "assistant" {
+			var content []struct {
+				Type  string          `json:"type"`
+				Input json.RawMessage `json:"input"`
+			}
+			if json.Unmarshal(entry.Message.Content, &content) == nil {
+				for _, c := range content {
+					if c.Type == "tool_use" {
+						calls = append(append(calls, c.Input...), '\n')
+					}
+				}
+			}
+		}
+		note(entry.SessionID, entry.Cwd, entry.Timestamp, calls)
+	})
+	if err != nil {
+		return uses, err
+	}
+	var session, cwd string // the rollout's root thread, and its latest cwd
+	err = recentLines(filepath.Join(install.CodexHome(), "sessions"), now, func(name string) bool {
+		return strings.HasPrefix(name, "rollout-") && strings.HasSuffix(name, ".jsonl")
+	}, func(first bool, line []byte) {
+		if first {
+			session, cwd = "", ""
+			if meta, ok := parseCodexMeta(line); ok {
+				session = meta.root()
+			}
+		}
+		var entry struct {
+			Type      string `json:"type"`
+			Timestamp string `json:"timestamp"`
+			Payload   struct {
+				Type      string          `json:"type"`
+				Cwd       string          `json:"cwd"`
+				Arguments json.RawMessage `json:"arguments"`
+				Input     json.RawMessage `json:"input"`
+				Action    json.RawMessage `json:"action"`
+			} `json:"payload"`
+		}
+		if session == "" || json.Unmarshal(line, &entry) != nil {
+			return // a rollout opens with its session_meta, and Codex writes one JSON object per line
+		}
+		var calls []byte
+		switch entry.Type + "/" + entry.Payload.Type {
+		case "session_meta/", "turn_context/":
+			cwd = entry.Payload.Cwd
+		case "response_item/function_call":
+			calls = jsonText(entry.Payload.Arguments)
+		case "response_item/custom_tool_call":
+			calls = jsonText(entry.Payload.Input)
+		case "response_item/local_shell_call":
+			calls = entry.Payload.Action
+		}
+		note(session, cwd, entry.Timestamp, calls)
+	})
+	return uses, err
+}
+
+// recentLines calls line with each line of each file under dir that name picks and that changed within LiveWindow,
+// first for a file's first line. A dir that does not exist holds no file.
+func recentLines(dir string, now time.Time, name func(string) bool, line func(first bool, b []byte)) error {
+	return filepath.WalkDir(dir, func(p string, e os.DirEntry, err error) error {
 		if err != nil {
-			if p == projects && errors.Is(err, fs.ErrNotExist) {
+			if p == dir && errors.Is(err, fs.ErrNotExist) {
 				return filepath.SkipAll // no transcripts at all
 			}
 			return err
 		}
-		if e.IsDir() || !strings.HasSuffix(p, ".jsonl") {
+		if e.IsDir() || !name(e.Name()) {
 			return nil
 		}
 		st, err := e.Info()
@@ -354,52 +448,23 @@ func liveUses(trees []worktree, main string) (map[string]liveUse, error) {
 		defer f.Close()
 		sc := bufio.NewScanner(f)
 		sc.Buffer(make([]byte, 0, 1<<20), 64<<20)
-		for sc.Scan() {
-			var entry struct {
-				Type      string `json:"type"`
-				Timestamp string `json:"timestamp"`
-				Cwd       string `json:"cwd"`
-				SessionID string `json:"sessionId"`
-				Message   struct {
-					Content json.RawMessage `json:"content"`
-				} `json:"message"`
-			}
-			if json.Unmarshal(sc.Bytes(), &entry) != nil {
-				continue // not an entry: Claude Code writes one JSON object per line
-			}
-			at, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
-			if err != nil || now.Sub(at) >= LiveWindow {
-				continue
-			}
-			var calls []byte // the tool calls' inputs: what the session did, never what it was shown
-			if entry.Type == "assistant" {
-				var content []struct {
-					Type  string          `json:"type"`
-					Input json.RawMessage `json:"input"`
-				}
-				if json.Unmarshal(entry.Message.Content, &content) == nil {
-					for _, c := range content {
-						if c.Type == "tool_use" {
-							calls = append(append(calls, c.Input...), '\n')
-						}
-					}
-				}
-			}
-			inMain := entry.Cwd == main || strings.HasPrefix(entry.Cwd, main+"/")
-			for _, t := range tokens {
-				used := entry.Cwd == t.abs || strings.HasPrefix(entry.Cwd, t.abs+"/") || namesPath(calls, t.abs) ||
-					(inMain && namesPath(calls, t.rel))
-				if used && at.After(uses[t.path].at) {
-					uses[t.path] = liveUse{entry.SessionID, at}
-				}
-			}
+		for first := true; sc.Scan(); first = false {
+			line(first, sc.Bytes())
 		}
 		if err := sc.Err(); err != nil {
 			return fmt.Errorf("reading %s: %w", p, err)
 		}
 		return nil
 	})
-	return uses, err
+}
+
+// jsonText is a JSON string's text, or any other JSON value as it is.
+func jsonText(raw json.RawMessage) []byte {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return []byte(s)
+	}
+	return raw
 }
 
 // namesPath is whether text names path itself or a path under it: an occurrence not followed by a name character, so

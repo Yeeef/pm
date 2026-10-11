@@ -174,6 +174,28 @@ def test_clean_keeps_dirty_unpushed_and_not_agent_worktrees_and_apply_removes_me
         assert v[n][0] == "remove", (n, v[n])
     assert worktrees(repo) == ["bycwd", "bypath", "byrel", "caller", "records", "repo"]
 
+    # a live Codex session, as a Claude Code transcript: a rollout's cwd (its session_meta's, then each
+    # turn_context's) in the worktree, or a tool call naming its path; a subagent's use is its root thread's
+    reset()
+    trees = {n: agent_tree(repo, n) for n in ("cxmeta", "cxturn", "cxcall", "cxrel", "cxshown", "cxold", "cxcaller")}
+    rollout(repo, ROOT_THREAD, ROOT_THREAD, trees["cxmeta"])
+    rollout(repo, CHILD_THREAD, ROOT_THREAD, repo.root,
+            ("turn_context", {"turn_id": "t1", "cwd": str(trees["cxturn"])}),
+            ("turn_context", {"turn_id": "t2", "cwd": str(repo.root)}),
+            exec_call("make test", trees["cxcall"]),
+            ("response_item", {"type": "function_call", "name": "exec_command", "call_id": "c2",
+                               "arguments": json.dumps({"cmd": "git -C .claude/worktrees/cxrel status"})}),
+            ("response_item", {"type": "custom_tool_call_output", "call_id": "c2", "output": str(trees["cxshown"])}))
+    rollout(repo, "01a12bf0-0000-7000-8000-000000000000", "01a12bf0-0000-7000-8000-000000000000", repo.root,
+            exec_call(f"ls {trees['cxold']}", repo.root), age_s=3600)
+    v = clean(repo, "--apply", cwd=trees["cxcaller"])
+    for n in ("cxmeta", "cxturn", "cxcall", "cxrel"):
+        word, reason = v[n]
+        assert word == "keep" and re.fullmatch(rf"live session {ROOT_THREAD} used it \d+m ago", reason), (n, v[n])
+    for n in ("cxshown", "cxold"):  # named only in a tool's output, or too long ago
+        assert v[n][0] == "remove", (n, v[n])
+    assert worktrees(repo) == ["cxcall", "cxcaller", "cxmeta", "cxrel", "cxturn", "records", "repo"]
+
 
 
 def proc_start(pid: int) -> str:
@@ -207,6 +229,28 @@ def entry(kind: str, cwd: Path, *, call: str | None = None, shown: str | None = 
     if shown is not None:
         e["message"] = {"role": "user", "content": [{"type": "tool_result", "content": shown}]}
     return e
+
+
+ROOT_THREAD, CHILD_THREAD = "01a12bee-db2f-7050-ba39-116b615a19b8", "01a12bef-027d-7c33-8fb3-8fd52363eaf7"
+
+
+def rollout(repo, thread: str, root: str, cwd: Path, *entries: tuple[str, dict], age_s: float = 0) -> None:
+    """A Codex 0.154 rollout of `thread` (a subagent of `root` when they differ) under the test's CODEX_HOME, written
+    now: its session_meta in `cwd`, then entries, each a line's type and payload, written age_s seconds ago."""
+    at = (datetime.now(UTC) - timedelta(seconds=age_s)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    meta = {"id": thread, "session_id": root, "cwd": str(cwd), "originator": "codex_exec"}
+    p = Path(repo.env["CODEX_HOME"]) / "sessions/2026/10/11" / f"rollout-2026-10-11T19-07-16-{thread}.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    lines = [{"timestamp": at, "type": "session_meta", "payload": meta}]
+    lines += [{"timestamp": at, "type": t, "payload": payload} for t, payload in entries]
+    p.write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+
+def exec_call(command: str, workdir: Path) -> tuple[str, dict]:
+    """Codex's exec tool call, as Codex 0.154 writes it."""
+    return "response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "c1", "status": "completed",
+                             "input": f"text(await tools.exec_command({{cmd:{json.dumps(command)},"
+                                      f"workdir:{json.dumps(str(workdir))}}}));\n"}
 
 
 def test_clean_keeps_what_a_removal_would_delete_with_it(clone):
