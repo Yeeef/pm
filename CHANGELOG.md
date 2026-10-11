@@ -25,6 +25,62 @@ only.
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.7.0] - 2026-10-11
+
+The pm site's public host requires a valid Cloudflare Access token; a pin move names the worktrees it strands; a
+stopping service waits for its loops; the day summary tells only what happened.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.7.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.7.0`, then commit what it changes and merge it, as an ordinary PR.
+3. In a repo whose `.pm/config.toml` sets `site_url`, put the site behind a Cloudflare Access application and, in
+   step 2's PR, add `access_team = "<team>.cloudflareaccess.com"` (the Access team domain) and
+   `access_aud = "<AUD tag>"` (the application's AUD tag) to `.pm/config.toml` (0.6.0 refuses both keys, so they
+   cannot land before the pin moves); once it merges, run `pm service restart` in each clone. Until then the site
+   refuses every request through the tunnel; localhost is served as before. A repo without `site_url` needs no step.
+
+### Breaking changes
+
+- With `site_url` set, the pm service serves a request to its host, or any request Cloudflare's edge forwarded
+  (it carries `Cf-Connecting-IP`, so a tunnel that rewrites `Host` to localhost is no way around it), only when its
+  `Cf-Access-Jwt-Assertion` verifies: RS256 by a key from `https://<access_team>/cdn-cgi/access/certs`, `aud` holding
+  `access_aud`, `iss` `https://<access_team>`, unexpired. It fails closed: without either key, or when the team's keys
+  cannot be fetched, every such request gets a 403 saying why. The tunnel exposed the site, and a reply posted there
+  becomes an instruction in an agent session; before this, anyone who reached the tunnel could read every page and post
+  one (see step 3).
+
+### Added
+
+- `.pm/config.toml` takes `access_team` and `access_aud`, and `pm doctor` names the one a set `site_url` lacks.
+- `pm upgrade` lists the clone's other worktrees whose checked-out branch pins another pm than the one it moves to,
+  each with "merge or rebase it onto the pin move": once the main checkout pins the new version and the pm service
+  runs it, pm refuses every work-store command in them.
+
+### Changed
+
+- In a checkout whose pin is not the version the clone's pm service runs, the refusal (and `pm where`'s work line,
+  `pm doctor`'s work store line and `pm init`'s refusal) names which side of the pin move the branch is on and the fix:
+  a branch from before the move merges or rebases onto it (`git rebase <remote>/<main branch>`); the branch that moves
+  the pin waits for its merge. `pm where`'s service line says the service runs the main checkout's pin instead of
+  calling it stale and naming `pm service restart`, and `pm doctor` no longer reports such a service as stale.
+- The Today summary on a day page tells only what happened that day: it no longer ends with a "For you" bullet that
+  tells the owner what to do. The open requests stay in the page's "Actions await you" and "Decisions await you"
+  sections.
+
+### Fixed
+
+- A pm service that stops (its pin moved) waits for its own loops before it closes the work store: a reply or merge
+  being written, the sweep, the merge watch, a sync or a gc under way. It used to close the store while one of them
+  could still be writing to it.
+
+### Security
+
+- Every request now names this machine (127.0.0.1, localhost) or `site_url`'s host, or gets a 403: a page, and the
+  reply token on it, is no longer served to a rebinding domain; only a reply was checked before. A 403 carries neither
+  the store-path header nor the build header.
+
 ## [0.6.0] - 2026-10-10
 
 Every command pm runs is now listed in `pm --help` and in the noun list `pm prime` injects, the work-store commands
@@ -409,6 +465,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.7.0]: https://github.com/Yeeef/pm/compare/pm-v0.6.0...pm-v0.7.0
 [0.6.0]: https://github.com/Yeeef/pm/compare/pm-v0.5.0...pm-v0.6.0
 [0.5.0]: https://github.com/Yeeef/pm/compare/pm-v0.4.0...pm-v0.5.0
 [0.4.0]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...pm-v0.4.0
