@@ -73,6 +73,12 @@ None yet.
   --new-from-merge-base origin/main. Fixed now: the known blank errors in
   sync/push.go, cli/writes.go (x2) and service/spool.go.
 
+- work/host.go:193 did not lose the failure, but it dropped the cause:
+  IsAccessModeReadOnly fails on a lock that another dolt process holds, and
+  that was reported only as 'its lock is taken'. Changing it into a separate
+  error broke TestASecondHostOnAStoreFailsHard, so the fix keeps it as 'held'
+  and wraps Dolt's error with %w.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
