@@ -4,8 +4,8 @@ package hooks
 // for something only in chat. Every such request in the final reply must match an open need that
 // this session raised. It reads this session's open needs from the work store, then asks Claude Haiku through
 // `claude -p` to list the owner requests in the reply and the open need each one matches; a request that matches none,
-// or a needless ask for leave to take an authorized step, blocks the stop once. On stop_hook_active, or a blank reply,
-// it lets the stop through without reading anything. It fails hard, never silently: when the input is unusable, or the
+// or a needless ask for leave to take an authorized step, blocks the stop once. On stop_hook_active, or a blank, null
+// or missing reply, it lets the stop through without reading anything. It fails hard, never silently: when the input is unusable, or the
 // work store or claude fails, it exits 1 with the cause on stderr.
 
 import (
@@ -90,9 +90,13 @@ func decide(event *pyjson.Object, here string, requests Requests) (string, error
 	if !ok || session == "" {
 		return "", hookErrorf("the hook input has no session_id")
 	}
-	reply, ok := event.Get("last_assistant_message").(string)
-	if !ok {
-		return "", hookErrorf("the hook input has no last_assistant_message")
+	var reply string // Codex sends null for a turn that ended without a message, as missing is: nothing was asked
+	switch m := event.Get("last_assistant_message").(type) {
+	case nil:
+	case string:
+		reply = m
+	default:
+		return "", hookErrorf("the hook input's last_assistant_message is a %s, not a string", pyjson.TypeName(m))
 	}
 	if config.PyStrip(reply) == "" {
 		return "", nil

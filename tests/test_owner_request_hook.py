@@ -103,10 +103,13 @@ def failed(res, said):
 
 def test_fails_when_claude_fails(needs):
     # folded: test_passes_without_reading_anything
-    # After one block (stop_hook_active) it never loops, and an empty reply asks nothing.
-    for event in ({"stop_hook_active": True}, {"last_assistant_message": "  \n"}):
+    # After one block (stop_hook_active) it never loops, and an empty reply asks nothing: blank, null (Codex's turn
+    # that ended without a message) or missing.
+    for event in ({"stop_hook_active": True}, {"last_assistant_message": "  \n"}, {"last_assistant_message": None}):
         res = run(needs, **event)
         assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
         assert claude_calls(needs) == []
+    res = needs.pm("hook", "owner-request", stdin=json.dumps({"session_id": ME, "hook_event_name": "Stop"}))
+    assert res.returncode == 0 and res.stdout == "" and res.stderr == "" and claude_calls(needs) == []
 
     failed(run(needs, fail="Not logged in"), "claude -p failed (exit 1): Not logged in")

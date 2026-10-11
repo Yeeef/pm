@@ -91,9 +91,10 @@ func TestFailuresNameOneLine(t *testing.T) {
 	t.Run("AFailedCheckExitsOneWithItsCause", func(t *testing.T) {
 		read := func(dir, session string) ([]Request, error) { return nil, errors.New("work store: none at /x") }
 		for in, want := range map[string]string{
-			`[1]`:                 "the hook input is not a JSON object",
-			`{}`:                  "the hook input has no session_id",
-			`{"session_id": "s"}`: "the hook input has no last_assistant_message",
+			`[1]`: "the hook input is not a JSON object",
+			`{}`:  "the hook input has no session_id",
+			`{"session_id": "s", "last_assistant_message": 7}`: "the hook input's last_assistant_message is a int, " +
+				"not a string", // null or missing is no reply, which asks nothing
 			`{"session_id": "s", "last_assistant_message": "Ask?"}`: "reading this session's open needs failed: " +
 				"work store: none at /x",
 		} {
