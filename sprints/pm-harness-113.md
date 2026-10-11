@@ -77,6 +77,10 @@ None yet.
   refusals; a comment on it records that and later the commit (5c9b2df) that
   holds the work.
 
+- Private preview of the page published to the owner as a claude.ai artifact
+  (https://claude.ai/artifact/XDBSuhWDzBNAxQU9e5oydG) from website/ at
+  c946172, with style.css and the four screenshots.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
