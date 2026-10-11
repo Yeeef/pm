@@ -2,8 +2,8 @@ UV ?= uv
 # The harness (tests/, pytest) runs in the environment uv keeps at .venv, from pyproject.toml's dev group.
 PYRUN := $(UV) run --quiet
 
-.PHONY: test test-full test-live test-go go-build go-fmt go-vet go-test go-test-but-work go-test-race merge-ready \
-  lint lint-go lint-deadcode lint-py
+.PHONY: test test-full test-live test-go go-build go-fmt go-vet go-test go-test-but-work go-test-work go-test-race \
+	go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
 ARGS ?=
@@ -76,8 +76,8 @@ go-build:
 RACE_TESTS := Racing|Migrating|Eight|Opposite|OutsideTheLock|NotStarved|Outlasting|HungFetch|WriteLock|PmLock|ASecondLock
 # Build, then the gofmt check, go vet and the Go tests (with the same tag: the embedded Dolt needs it), then the pm
 # service and the work store's concurrency tests (RACE_TESTS) again under -race. pm-go.yml runs the parts as parallel
-# jobs: go-build, go-fmt, go-vet and go-test-but-work, go-test on internal/work (GO_PKGS), and go-test-race.
-test-go: go-build go-fmt go-vet go-test go-test-race
+# jobs: go-build, go-fmt, go-vet and go-test-but-work; go-test-work; go-test-race.
+test-go: go-build go-fmt go-vet go-test-but-work go-test-work go-test-race
 
 # Fail when gofmt would change a Go file of the module, naming each one. The files are those of go list's packages,
 # every build tag's and the tests' included, so the module's own: no testdata, vendor or other worktree under .claude/
@@ -92,16 +92,35 @@ go-fmt:
 	    printf '%s\n' "$$files" | sed 's|^$(CURDIR)/||'; \
 	    echo 'make go-fmt: gofmt would change the files above; run gofmt -w on them' >&2; exit 1; fi
 
-# GO_PKGS narrows go-test: make go-test GO_PKGS=./internal/work.
+# The flags of go vet and go test but the race tests: the tag the embedded Dolt needs, and -trimpath, as go-build and
+# the release build compile, so all of them share one compile of each package in the Go cache (without it vet and test
+# compile every package a second time, doubling the cache CI saves and restores).
+GO_TEST_FLAGS = -trimpath -tags gms_pure_go
+# GO_PKGS narrows go-test: make go-test GO_PKGS=./internal/service.
 GO_PKGS ?= ./...
 go-vet:
-	CGO_ENABLED=1 go vet -tags gms_pure_go ./...
+	CGO_ENABLED=1 go vet $(GO_TEST_FLAGS) ./...
 go-test:
-	CGO_ENABLED=1 go test -tags gms_pure_go $(GO_PKGS)
-# go-test on every package but internal/work, which pm-go.yml tests in a job of its own. The package list is taken
-# before the test runs, so a go list that fails fails the target instead of testing nothing.
+	CGO_ENABLED=1 go test $(GO_TEST_FLAGS) $(GO_PKGS)
+# go-test on every package but internal/work, which go-test-work runs. The package list is taken before the test runs,
+# so a go list that fails fails the target instead of testing nothing.
 go-test-but-work:
 	pkgs=$$(go list -tags gms_pure_go ./...) && \
-	  CGO_ENABLED=1 go test -tags gms_pure_go $$(printf '%s\n' $$pkgs | grep -v '/internal/work$$')
-go-test-race:
-	CGO_ENABLED=1 go test -race -tags gms_pure_go ./internal/service && CGO_ENABLED=1 go test -race -tags gms_pure_go -run '$(RACE_TESTS)' ./internal/work
+	  CGO_ENABLED=1 go test $(GO_TEST_FLAGS) $$(printf '%s\n' $$pkgs | grep -v '/internal/work$$')
+
+# internal/work's tests, the longest package's (about 100 s in one process, mostly waiting on git and Dolt), in
+# WORK_SHARDS processes at once, balanced by the seconds each test took (WORK_SECONDS, which must name every test:
+# UPDATE=1 measures and rewrites it). .github/scripts/go_shards.py fails unless every test ran and passed.
+WORK_SHARDS ?= 8
+WORK_SECONDS := .github/scripts/work-test-seconds.txt
+go-test-work:
+	CGO_ENABLED=1 go test -c $(GO_TEST_FLAGS) -o .go/work.test ./internal/work
+	python3 .github/scripts/go_shards.py --shards $(WORK_SHARDS) $(if $(UPDATE),--update) .go/work.test internal/work $(WORK_SECONDS)
+# The pm service's tests and RACE_TESTS under -race, the latter sharded as go-test-work's; make -j2 runs both at once.
+# No -trimpath: a race build shares no compile with go-build's, and the race cache pm-go.yml saves has none.
+go-test-race: go-test-race-service go-test-race-work
+go-test-race-service:
+	CGO_ENABLED=1 go test -race -tags gms_pure_go ./internal/service
+go-test-race-work:
+	CGO_ENABLED=1 go test -c -race -tags gms_pure_go -o .go/work-race.test ./internal/work
+	python3 .github/scripts/go_shards.py --shards $(WORK_SHARDS) --run '$(RACE_TESTS)' .go/work-race.test internal/work $(WORK_SECONDS)

@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from conftest import REAL
 from test_launch import PLATFORM, TOKEN, GitHub, tarball
 
 PM_DIR = Path(__file__).resolve().parents[1]
@@ -153,9 +154,16 @@ def test_the_release_build_takes_its_version_from_the_tag_alone(tmp_path):
     build = [str(clone / "release/build.sh"), str(tmp_path / "out")]
     goos, goarch = (subprocess.run(["go", "env", v], cwd=PM_DIR, capture_output=True, text=True, check=True)
                     .stdout.strip() for v in ("GOOS", "GOARCH"))
+    # the build compiles with the user's Go caches, which conftest's temp HOME hides (the build cache pm-go.yml saves,
+    # on CI), so it compiles warm, as make go-build does, rather than every package from cold
+    real = {k: v for k, v in {**os.environ, "HOME": REAL["HOME"], "XDG_CONFIG_HOME": REAL["XDG_CONFIG_HOME"]}.items()
+            if v}
+    caches = subprocess.run(["go", "env", "GOCACHE", "GOMODCACHE"], env=real, capture_output=True, text=True,
+                            check=True).stdout.split()
+    env = {**os.environ, "GOCACHE": caches[0], "GOMODCACHE": caches[1]}
 
     subprocess.run(["git", "-C", str(clone), "tag", "pm-v0.2.0-rc.42"], check=True)
-    res = subprocess.run(build, capture_output=True, text=True, check=False)
+    res = subprocess.run(build, capture_output=True, text=True, env=env, check=False)
     assert res.returncode == 0, res.stderr
     tar = tmp_path / f"out/pm-0.2.0-rc.42-{goos}-{goarch}.tar.gz"
     assert res.stdout == f"{tar}\n"
@@ -163,7 +171,7 @@ def test_the_release_build_takes_its_version_from_the_tag_alone(tmp_path):
     assert version_of(tar, tmp_path / "tagged") == "0.2.0-rc.42\n"
 
     subprocess.run(["git", "-C", str(clone), "tag", "-d", "pm-v0.2.0-rc.42"], check=True, capture_output=True)
-    res = subprocess.run(build, capture_output=True, text=True, check=False)
+    res = subprocess.run(build, capture_output=True, text=True, env=env, check=False)
     assert res.returncode == 0, res.stderr
     (tmp_path / "untagged").mkdir()
     assert version_of(tmp_path / f"out/pm-dev-{goos}-{goarch}.tar.gz", tmp_path / "untagged") == "dev\n"

@@ -252,6 +252,7 @@ func TestSyncTwoClonesConcurrentEditsMergePerTheTable(t *testing.T) {
 		must(d.Comment(x.t1.ID, Note, "sa", "from A"))
 		must(0, d.DepAdd(x.t2.ID, x.t1.ID))
 	})
+	x.a.synced = time.Now()                // the create read the remote: A's next fetch waits out the read dedup
 	x.b.clock = x.b.clock.Add(time.Minute) // B's writes are later
 	x.b.do(func(d *Dolt) {
 		cb = must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "child from B"}))
@@ -262,6 +263,7 @@ func TestSyncTwoClonesConcurrentEditsMergePerTheTable(t *testing.T) {
 		must(0, d.UpdateNeed(x.need.ID, NeedUpdate{Delivered: ptr(2)}))
 		must(0, d.Close(x.need.ID, "answered", Answered, "sb"))
 	})
+	x.b.synced = time.Now() // the create read the remote: B's next fetch waits out the read dedup
 	if ca.ID == cb.ID {
 		t.Fatalf("both clones minted %s", ca.ID)
 	}
@@ -704,6 +706,7 @@ func TestCreatePushTimeout(t *testing.T) {
 		t.Setenv("GIT_TRACE2_EVENT", trace)
 		x := x.reseed(t) // A pushes, B pulls (a fetch into B's cache repo)
 		x.b.do(func(d *Dolt) { must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T3"})) })
+		x.b.synced = time.Now() // the create read the remote: the next case's reseed fetch into B waits out the read dedup
 		b, err := os.ReadFile(trace)
 		if err != nil {
 			t.Fatal(err)
@@ -791,19 +794,29 @@ func TestCreatePushTimeout(t *testing.T) {
 	})
 }
 
+// With the remote unreachable, a child create refuses at its pull, in milliseconds, and creates nothing. A's service
+// starts anew first, as one does after its last read of the remote is past Dolt's read dedup (fresh): within it the
+// pull's fetch reads nothing, and the push's own fetch, which Dolt's git remote retries 32 times over about 9 s, fails
+// with an outcome unknown, the case TestCreatePushTimeout and its neighbours hold.
 func TestCreateRefusesWithTheRemoteUnreachable(t *testing.T) {
 	x := newPair(t)
 	if err := os.Rename(x.bare, x.bare+".gone"); err != nil {
 		t.Fatal(err)
 	}
+	if err := x.a.s.h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	x.a.s = host(t, x.a.s.main, x.a.o, Ops{})
 	x.a.do(func(d *Dolt) {
 		head := must(d.head())
+		start := time.Now()
 		_, err := d.Create(New{Type: Task, Parent: x.s.ID, Title: "offline"})
-		// The pull's fetch fails, or, within Dolt's 1 s read dedup of the service's last fetch, reads nothing and
-		// the push fails with an outcome the failing fetch cannot check: either way nothing is created.
-		if err == nil || !strings.Contains(err.Error(), "minted only against the remote") &&
-			!strings.Contains(err.Error(), "the outcome is unknown") || must(d.head()) != head {
+		if err == nil || !strings.Contains(err.Error(), "a child id is minted only against the remote") ||
+			must(d.head()) != head {
 			t.Fatal(err)
+		}
+		if took := time.Since(start); took > 3*time.Second { // milliseconds; Dolt's push retries take about 9 s
+			t.Fatalf("the refusal took %s", took)
 		}
 		if _, err := d.Create(New{Type: Project, Title: "a root id needs no remote"}); err != nil {
 			t.Fatal(err)
