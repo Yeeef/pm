@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T17:28:19+00:00",
- "digest": "02dfa82bef8c4583",
+ "generated_at": "2026-10-11T17:38:41+00:00",
+ "digest": "79809c315206b937",
  "model": "claude-haiku-5-5",
- "text": "- **Public site access check:** The Go service now checks Cloudflare Access tokens. Key refetches are limited to once a minute.\n- **Main checkout warning:** The site and pm service status now flag a checkout that is behind, diverged, or off main.\n- **Website and README:** Each push to main now deploys website/ to GitHub Pages. Screenshots of the overview, project, and sprint pages now exist for the README.\n- **For you:** Review the open pull requests and enable GitHub Pages for the repository."
+ "text": "- **Public host access:** The Go service now checks the Cloudflare Access token on the public host. Signing key refetches are limited to once a minute.\n- **Stale checkout warning:** The site, pm service status, and pm show now flag a main checkout. The flag appears when main is behind, diverged, or off main.\n- **Public docs and website:** The README now presents pm as a human-agent project management suite. Each claim in it was checked against the code. A one-page marketing site is built in the website folder and deploys to GitHub Pages on push to main.\n- **For you:** Review two pull requests, enable GitHub Pages with GitHub Actions as the source, and decide whether pm init marks the Codex hooks it writes as trusted."
 }
