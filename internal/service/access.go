@@ -126,11 +126,16 @@ func (a *accessKeys) verify(token, team, aud string, now time.Time) error {
 	}
 	var claims struct {
 		Aud           json.RawMessage
-		Iss           *string
+		Iss, Type     *string
 		Exp, Nbf, Iat *json.Number
 	}
 	if err := decodePart(parts[1], &claims); err != nil {
 		return fmt.Errorf("its claims %w", err)
+	}
+	// Only an application token: the login redirect hands anyone a "meta" token signed by the same key for this aud,
+	// and "org" is the team's global session token, never meant for an application.
+	if claims.Type == nil || *claims.Type != "app" {
+		return errors.New("it is not an Access application token (type app)")
 	}
 	var auds []string
 	if json.Unmarshal(claims.Aud, &auds) != nil {

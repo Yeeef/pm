@@ -88,7 +88,7 @@ func (k *teamKeys) count() int {
 func (k *teamKeys) sign(key *rsa.PrivateKey, head, claims map[string]any) string {
 	h := map[string]any{"alg": "RS256", "typ": "JWT", "kid": "k1"}
 	c := map[string]any{"aud": []string{aud}, "iss": "https://" + team, "exp": time.Now().Unix() + 60,
-		"iat": time.Now().Unix() - 5, "sub": "owner"}
+		"iat": time.Now().Unix() - 5, "sub": "owner", "type": "app"}
 	for dst, src := range map[*map[string]any]map[string]any{&h: head, &c: claims} {
 		for name, v := range src {
 			if v == nil {
@@ -153,6 +153,9 @@ func TestThePublicHostNeedsACloudflareAccessTokenThatVerifies(t *testing.T) {
 		{"no exp", k.sign(nil, nil, map[string]any{"exp": nil}), refused + "it has no numeric exp claim"},
 		{"nbf ahead", k.sign(nil, nil, map[string]any{"nbf": now + 600}), refused + "the token is not yet valid (nbf)"},
 		{"iat ahead", k.sign(nil, nil, map[string]any{"iat": now + 600}), refused + "the token is not yet valid (iat)"},
+		{"meta token", k.sign(nil, nil, map[string]any{"type": "meta", "iss": nil}), refused + "it is not an Access application token (type app)"},
+		{"org token", k.sign(nil, nil, map[string]any{"type": "org"}), refused + "it is not an Access application token (type app)"},
+		{"no type", k.sign(nil, nil, map[string]any{"type": nil}), refused + "it is not an Access application token (type app)"},
 		{"unknown kid", k.sign(nil, map[string]any{"kid": "k9"}, nil), refused + "the team's keys hold no key with kid 'k9'"},
 	}
 	for _, c := range cases {
