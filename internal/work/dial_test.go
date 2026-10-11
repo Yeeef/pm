@@ -15,7 +15,7 @@ func TestDialNamesASocketTheSystemRefuses(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root searches any directory")
 	}
-	dir := filepath.Join(t.TempDir(), "run")
+	dir := filepath.Join(shortMain(t), "run") // t.TempDir is too long for a socket path on macOS
 	if err := os.Mkdir(dir, 0o000); err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestDialNamesASocketTheSystemRefuses(t *testing.T) {
 		}
 	}
 	// a socket nothing listens on is still the service down
-	if _, err := DialSock(filepath.Join(t.TempDir(), "work.sock"), t.TempDir(), Options{}); !errors.Is(err, ErrNoService) {
+	if _, err := DialSock(filepath.Join(shortMain(t), "work.sock"), t.TempDir(), Options{}); !errors.Is(err, ErrNoService) {
 		t.Errorf("no listener: %v", err)
 	}
 }
