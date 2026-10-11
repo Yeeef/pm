@@ -80,6 +80,18 @@ PR #72 changes the Python pm in yeeef-agents, which Go pm replaced; pm-harness m
   refetched the certs on every request under the cache lock) is fixed with a
   once-a-minute refetch limit.
 
+- Live check of PR #40's build (0.9.0-dev at 4551ad4, scratch repo, pm service
+  run on :18765) with the real access_team yeeef.cloudflareaccess.com and
+  access_aud 7bf3…fb13: localhost 200; Host pm.yeeefs.com without a token 403;
+  Cf-Connecting-IP with Host localhost 403; the real Cloudflare-signed meta
+  token from the login redirect (right aud, valid signature by the team's
+  keys, no iss) 403 on the issuer, so the real certs are fetched and parsed;
+  made-up kid 403; flipped signature 403; Host evil.example 403; access_aud
+  removed: 403 naming it, and pm doctor names it. No 403 carries X-PM-Store or
+  X-PM-Version. A valid login token through the tunnel is not yet checked:
+  0.6.0 refuses the two keys, so they go in with the pin move to the release
+  that carries PR #40.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
