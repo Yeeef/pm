@@ -809,7 +809,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := ws.Answer(needID, body); err != nil {
+	if err := ws.Answer(needID, body, currentSession()); err != nil {
 		return "", err
 	}
 	out, err := r.apply(w, fmt.Sprintf("closed need %s and %s", needID, done), "pm: ")
@@ -879,7 +879,7 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 		done = fmt.Sprintf("marked need %s, already answered, as setting no rule: %s", id, why)
 		failed = fmt.Sprintf("the reason is on %s as a comment; %s (it does not add the note twice)", id, retry)
 	} else {
-		if err := ws.Answer(id, answer+"\n\n"+note); err != nil {
+		if err := ws.Answer(id, answer+"\n\n"+note, currentSession()); err != nil {
 			return "", err
 		}
 		done = fmt.Sprintf("closed need %s with the owner's answer and no decision record: %s", id, why)

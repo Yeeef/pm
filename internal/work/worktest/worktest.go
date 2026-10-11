@@ -83,7 +83,7 @@ func (s *Store) Claim(string, work.Holder, func(string) bool) error { return err
 func (s *Store) Release(string, string) error                       { return errReadOnly }
 func (s *Store) DepAdd(string, string) error                        { return errReadOnly }
 func (s *Store) DepRemove(string, string) error                     { return errReadOnly }
-func (s *Store) Answer(string, string) error                        { return errReadOnly }
+func (s *Store) Answer(string, string, string) error                { return errReadOnly }
 func (s *Store) UpdateNeed(string, work.NeedUpdate) error           { return errReadOnly }
 func (s *Store) Shutdown() error                                    { return nil }
 func (s *Store) Comment(string, work.CommentKind, string, string) (work.Comment, error) {

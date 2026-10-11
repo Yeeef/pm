@@ -217,7 +217,7 @@ func (s *fakeStore) Claim(string, work.Holder, func(string) bool) error { return
 func (s *fakeStore) Release(string, string) error                       { return errUnused }
 func (s *fakeStore) DepAdd(string, string) error                        { return errUnused }
 func (s *fakeStore) DepRemove(string, string) error                     { return errUnused }
-func (s *fakeStore) Answer(string, string) error                        { return errUnused }
+func (s *fakeStore) Answer(string, string, string) error                { return errUnused }
 
 // fakeSite renders one page per item (items/<id>.html) and an index with a nav, a reply slot per open need and the
 // status slot; FillReplies and FillStatus write what they were given, so a test reads it back.

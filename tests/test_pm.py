@@ -1443,6 +1443,21 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
     assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 1
 
 
+def test_a_need_closed_by_its_decision_or_its_no_decision_close_records_the_session(repo):
+    """pm decision add --need and pm decision close close the need as task close does: closed_by is the session."""
+    stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    for nid in ("repo-demo.1.3", "repo-demo.1.4"):
+        repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task",
+                        "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": "sess-1"}, **stamps})
+    repo.env = dict(repo.env, CODEX_SESSION_ID="sess-cx")
+    res = repo.pm(*ADD, "--need", "repo-demo.1.3", "--decision", DECISION, "--reason", REASON)
+    assert res.returncode == 0, res.stderr
+    res = repo.pm("decision", "close", "repo-demo.1.4", "--reason", "It sets no rule.", text="Small, until tables.")
+    assert res.returncode == 0, res.stderr
+    items = repo.items()
+    assert items["repo-demo.1.3"]["closed_by"] == items["repo-demo.1.4"]["closed_by"] == "sess-cx"
+
+
 def review_with_origin(repo) -> str:
     """An open review of REVIEWED_PR under repo-demo.1, and an origin remote whose main is one commit ahead:
     the sha returned."""

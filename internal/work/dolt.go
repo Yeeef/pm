@@ -1191,7 +1191,7 @@ func (d *Dolt) Comment(id string, kind CommentKind, author, text string) (Commen
 
 // Answer records the owner's answer to a need: a reply comment, then the close with resolution answered and the
 // reason "Responded", as bd human respond closed it.
-func (d *Dolt) Answer(id, text string) error {
+func (d *Dolt) Answer(id, text, session string) error {
 	return d.update("answer", id, func(it *Item, _ *Index) error {
 		if it.Type != Need {
 			return itemError(id, "is a %s; only a need is answered", it.Type)
@@ -1206,6 +1206,7 @@ func (d *Dolt) Answer(id, text string) error {
 		now := d.now()
 		it.Comments = append(it.Comments, Comment{ID: cid, Kind: Reply, Author: "owner", Text: text, CreatedAt: now})
 		it.Status, it.Resolution, it.CloseReason, it.ClosedAt, it.Holder = Closed, Answered, "Responded", now, nil
+		it.ClosedBy = session
 		return nil
 	})
 }
