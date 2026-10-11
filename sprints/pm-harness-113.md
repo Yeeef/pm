@@ -72,6 +72,11 @@ None yet.
   that pm task claim refuses a blocked task. It does not: work.Claim checks
   status and live holder only, and 123.1 was claimed while blocked by 122.2.
 
+- pm task close with no --reason closes the task as done with reason Done, and
+  pm has no reopen: 123.2 was closed by mistake at 17:18 UTC while reading
+  refusals; a comment on it records that and later the commit (5c9b2df) that
+  holds the work.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
