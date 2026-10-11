@@ -1,0 +1,72 @@
+---
+type: sprint
+title: The day summary tells what happened, with no to-do for the owner
+bead: pm-bfli.3
+---
+
+## Goal
+
+> What should be true when this sprint ends, and why now?
+
+The Today summary on a day page tells only what happened that day. It no longer ends with a "For you" bullet that
+tells the owner what to do: the owner asked for this on 2026-10-11, and the open needs already show in the
+"Actions await you" and "Decisions await you" sections.
+
+## Scope
+
+> What's in, and what's explicitly out? Keep this high level; implementation
+> details go in a design page.
+
+**In:**
+- `prompts/day_summary.txt`: drop the "For you" theme; a request raised or answered that day stays an event of the day.
+- A changelog entry.
+
+**Out:**
+- The activity the summary reads, its digest and the day page.
+
+## Done when
+
+> What evidence will show the goal is met?
+
+`pm day summarize --dry-run` with the new prompt, on today's activity, prints bullets with no "For you" theme and no
+instruction to the owner.
+
+## Design pages
+
+> Where is the detail?
+
+None yet.
+
+## Progress
+
+> Where is the sprint now? Generated from the work store when the page is rendered.
+> Do not write here.
+
+## Decisions
+
+> What did we choose inside this sprint, and why?
+
+None yet.
+
+## Findings
+
+> What did we learn that changes the design, the plan, or how we work? Add
+> results with their numbers.
+
+None yet.
+
+## Delivery report
+
+> Written at close. Each part holds "Not closed yet." until then.
+
+### Outcome
+
+> Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
+
+Not closed yet.
+
+### Against "Done when"
+
+> Each item, met or not, with its evidence (a page, a command, a number).
+
+Not closed yet.
