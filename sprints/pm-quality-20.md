@@ -1,6 +1,6 @@
 ---
 type: sprint
-title: Trim the tests to what has unique value, then split internal/cli
+title: Trim the tests to what has unique value
 bead: pm-d2k5.20
 ---
 
@@ -69,6 +69,11 @@ A strict 10% keeps 86% of lines but loses 71 of 75 bug guards and most contracts
 ::: decision {source=agent date=2026-10-11}
 The internal/cli split and Python-port cleanup move to their own sprint; this sprint closes with the test trim
 The trim is done and green as its own PR (#48); the split waits on the lint PR and is a separate change with its own review
+:::
+
+::: decision {source=agent date=2026-10-11}
+Renamed the sprint from "Trim the tests to what has unique value, then split internal/cli" to "Trim the tests to what has unique value": The internal/cli split, the long functions, the argparse emulation and pyjson moved to sprint pm-d2k5.21.
+This sprint closes with the test trim (PR #48), as its sprint decision records.
 :::
 
 ## Findings
