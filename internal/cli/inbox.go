@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
@@ -10,15 +11,14 @@ import (
 	"github.com/Yeeef/pm/internal/work"
 )
 
-// inboxLockWait bounds pm hook inbox's wait for the store's write lock, well under the hook's 10 s timeout: a hook
-// that waits longer fails open, and the replies wait for the next prompt.
-const inboxLockWait = 3 * time.Second
+// inboxMarkBudget bounds all of pm hook inbox's marking, after it printed, well under the hook's 10 s timeout: what
+// it has not marked by then stays undelivered and comes again at the next prompt (twice is acceptable, lost is not).
+var inboxMarkBudget = 5 * time.Second
 
 // pendingReplies is pm hook inbox's read: the replies (and reviews' merges) to the session's open needs that have not
 // reached it, each as the pm service pushes it, from the work store of the clone containing dir; deliver marks them
 // delivered, as the push does once its write went through, and lets go of the store.
 func pendingReplies(dir, session string) ([]string, func() error, error) {
-	work.WriteLockWait = inboxLockWait // this process runs the hook alone
 	cfg, err := config.Load(dir)
 	if err != nil {
 		return nil, nil, err
@@ -52,9 +52,17 @@ func pendingReplies(dir, session string) ([]string, func() error, error) {
 			marks = append(marks, mark{needs[i].ID, *u})
 		}
 	}
-	deliver := func() error {
+	deliver := func() error { // one write per need (the store has no batch write), all within one budget
+		deadline := time.Now().Add(inboxMarkBudget)
 		var errs []error
-		for _, m := range marks {
+		for i, m := range marks {
+			left := time.Until(deadline)
+			if left <= 0 {
+				errs = append(errs, fmt.Errorf("%d of %d left undelivered past %s", len(marks)-i, len(marks),
+					inboxMarkBudget))
+				break
+			}
+			work.WriteLockWait = left // this process runs the hook alone
 			errs = append(errs, ws.UpdateNeed(m.id, m.u))
 		}
 		return errors.Join(append(errs, ws.Shutdown())...)
