@@ -80,6 +80,12 @@ The owner asked for a marketing website mid-sprint; it shares the positioning an
   fixture, PORT=18766) with a decision need raised by pm decision need.
   Screenshots: 1440 px, scale 2, 128-colour quantized, 54-259 KB each.
 
+- Owner review of the README (reply on the PR #42 review, 2026-10-11 18:35
+  UTC): the first section did not catch the eye and confused with
+  implementation details (work store, hooks, Stop hooks). Rewritten in c6f2151
+  to lead with the tagline 'Manage outcomes, not agents', a two-line pitch,
+  the overview screenshot and five outcomes; mechanisms moved below.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
