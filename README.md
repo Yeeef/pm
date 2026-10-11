@@ -1,14 +1,22 @@
 # pm
 
-pm is a project management suite for a human working with many coding agents. Agents plan and track their work
-through the `pm` command line, keep their context in typed records tied to that work, and raise what only the human
-can decide or do as needs. The human reads every project and answers every need on one site, served from the repo.
-pm is not a pack of prompt files that asks an agent to follow a process. Its rules reach each session through
-hooks, and the `pm` cli, the work store and the Stop hooks enforce the rules a tool can check: a move that breaks
-one is refused, with the reason.
+**Manage outcomes, not agents.**
 
-Claude Code and Codex are supported: `pm init` installs the hooks for both. The owner-request check and
-`pm day summarize` call the `claude` CLI, so it must be installed and logged in, Codex setups included.
+pm is project management for you and your coding agents. Run ten agents on one repo: each picks up a task, keeps
+what it learns next to that task, and brings you only what needs your call. You steer all of them from one page.
+
+![The pm site: the decisions and actions your agents need from you](website/img/overview.png)
+
+- **Any task, any agent, any time.** A fresh agent picks up where the last one stopped.
+- **A home for every plan.** Plans, decisions and findings live as checked records tied to the work, not as
+  `PLANNING.md` files scattered through your repo.
+- **One view of everything.** Every project, every sprint's goal, and every question waiting on you.
+- **Enforced, not asked.** pm is not a pack of prompt files. Agents work through pm's command line and hooks, which
+  refuse a move that breaks the rules and say what to do instead.
+- **Yours, in your repo.** No account, no hosted service: clone the repo on any machine, run `pm init`, and your
+  agents carry on.
+
+Works with Claude Code and Codex.
 
 ## What pm does
 
@@ -87,10 +95,8 @@ git remote and carries the owner's replies back to the session that asked.
 
 ## The site
 
-The overview opens with what waits on you: here, no decision and the first two open actions, each with its
-reply form. Below them it lists the recent days and every open project with its sprints.
-
-![The overview page, with the actions that wait on the owner](website/img/overview.png)
+The overview, at the top of this page, opens with what waits on you: the decisions and actions your agents raised,
+each with its reply form. Below them it lists the recent days and every open project with its sprints.
 
 A project: its goal, and progress generated from the work store, a diagram of its sprints and tasks and a table of
 each sprint's goal and outcome.
