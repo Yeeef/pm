@@ -72,6 +72,14 @@ The owner asked for a marketing website mid-sprint; it shares the positioning an
   missing commit, so it is not listed as a refusal; record hand edits go
   through pm commit, so the cli is not the only record writer.
 
+- The live pm-harness project page's progress diagram renders as Mermaid's
+  'Maximum text size in diagram exceeded' box (project with 100+ sprints), so
+  project.png shows pm-site instead. The live site had no open decision need;
+  the golden pages' need cards are edge-case fixtures (raw script text, broken
+  tables), so need.png comes from a scratch clone's pm service (harness repo
+  fixture, PORT=18766) with a decision need raised by pm decision need.
+  Screenshots: 1440 px, scale 2, 128-colour quantized, 54-259 KB each.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
