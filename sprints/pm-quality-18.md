@@ -81,6 +81,12 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
   cache (mtime now-2h) and deleting what the run left untouched rebuilt cmd/pm
   afterwards with 0 compiles (12408 files, 7878 removed).
 
+- internal/work sharded by measured seconds (LPT) in 8 processes: 12.5-12.6 s
+  locally (3 runs, 87 tests, all pass) against about 100 s in one process;
+  RACE_TESTS in 8 shards 11.2 s against 35 s. On CI's first run (macos-14, 3
+  cores): 49.7 s for the work tests and 26.6 s for race, CPU-bound. The
+  release build test with the real Go caches: 61 s to 25 s locally.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
