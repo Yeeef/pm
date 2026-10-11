@@ -787,3 +787,22 @@ func TestGCRunsWhenDueAndRecordsTheSizes(t *testing.T) {
 		t.Fatal("not due GCInterval after the last collection")
 	}
 }
+
+// TestSweepsCoalesceAndNeverTakeAReplysPlace: however many ask for a sweep (each store change does), one is due, and
+// a reply's job still finds its place in the queue at once.
+func TestSweepsCoalesceAndNeverTakeAReplysPlace(t *testing.T) {
+	s := &server{queue: make(chan job, 2), sweepDue: make(chan struct{}, 1), done: make(chan struct{})}
+	for range 100 {
+		s.put(job{sweep: true})
+	}
+	if len(s.sweepDue) != 1 || len(s.queue) != 0 {
+		t.Fatalf("%d sweeps due, %d jobs queued", len(s.sweepDue), len(s.queue))
+	}
+	put := make(chan struct{})
+	go func() { s.put(job{id: "p-1.2.1"}); close(put) }()
+	select {
+	case <-put:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a reply's job waited behind sweeps")
+	}
+}

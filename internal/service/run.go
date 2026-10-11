@@ -155,6 +155,7 @@ type server struct {
 	merges                map[string]bool
 	swept                 map[string]sweepState
 	queue                 chan job
+	sweepDue              chan struct{} // 1-buffered: a sweep is due; however many ask, the writer sweeps once
 	wake                  chan struct{}
 	stopped               chan string
 	stop                  context.CancelFunc // Run stopping: done closes and every loop ends
@@ -239,7 +240,7 @@ func Run(d Deps) error {
 	}
 	s := &server{d: d, texts: Texts{d.Main, d.Remote, d.MainBranch}, token: base64.RawURLEncoding.EncodeToString(tok),
 		replies: map[string]Reply{}, merges: map[string]bool{}, swept: map[string]sweepState{},
-		queue: make(chan job, 1024), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
+		queue: make(chan job, 1024), sweepDue: make(chan struct{}, 1), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
 		serveCheck: ServeCheck, mergePoll: MergePoll}
 	ctx, stop := context.WithCancel(context.Background())
 	s.stop, s.done = stop, ctx.Done()
@@ -290,13 +291,14 @@ func Run(d Deps) error {
 	}
 }
 
-// put queues a job for the writer; it never blocks a request (the queue holds 1,024, and a full one drops a sweep),
-// nor outlasts Run (a job put once Run stopped is dropped; a reply stays in the spool for the next start).
+// put queues a job for the writer; it never blocks a request (the queue holds 1,024), nor outlasts Run (a job put
+// once Run stopped is dropped; a reply stays in the spool for the next start). A sweep takes no queue place: it marks
+// one due, and asks made while one is due add nothing.
 func (s *server) put(j job) {
 	if j.sweep {
 		select {
-		case s.queue <- j:
-		default:
+		case s.sweepDue <- struct{}{}:
+		default: // one is due already
 		}
 		return
 	}
@@ -769,6 +771,8 @@ func (s *server) writer() {
 		}
 		select {
 		case j = <-s.queue:
+		case <-s.sweepDue:
+			j = job{sweep: true}
 		case <-s.done:
 			return
 		}
