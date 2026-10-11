@@ -26,6 +26,11 @@ Hook trust is Codex review step against repos running commands unasked; its hook
 Answers `pm-v498.1.1`.
 :::
 
+::: decision {source=agent date=2026-10-11 until="a Codex release adds a reachable app-server, an ask tool, or worktree-local config"}
+Three Codex gaps stay open: an idle Codex TUI is not woken by a reply (it gets it at its next prompt, or waits with pm reply wait); a Codex agent has no AskUserQuestion, so its only ask is a need; Codex reads hooks and rules from the main checkout, so a branch change to them applies once main has it.
+Codex 0.154 offers no outside path into a TUI (embedded app-server), no ask-the-user tool outside plan mode, and no worktree-local .codex; each is Codex behaviour pm cannot change, and each degrades no guarantee: the need path and pm show cover them.
+:::
+
 ## Design pages
 
 > Where is the detail?
