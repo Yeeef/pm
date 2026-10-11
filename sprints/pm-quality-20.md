@@ -66,6 +66,11 @@ Trim tests by the audit: keep 145, fold 160 into table tests, drop 127; every bu
 A strict 10% keeps 86% of lines but loses 71 of 75 bug guards and most contracts, saving ~10 s; the speed is in folding, not deleting
 :::
 
+::: decision {source=agent date=2026-10-11}
+The internal/cli split and Python-port cleanup move to their own sprint; this sprint closes with the test trim
+The trim is done and green as its own PR (#48); the split waits on the lint PR and is a separate change with its own review
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
