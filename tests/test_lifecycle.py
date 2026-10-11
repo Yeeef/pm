@@ -62,13 +62,19 @@ def loaded(tmp: Path) -> list[str]:
     return json.loads(path.read_text())["loaded"] if path.exists() else []
 
 
+def notes(lines: list[str]) -> list[str]:
+    """lines without the note that Codex's trust was not checked: CODEX_HOME (tmp/codex) is absent in these tests."""
+    return [l for l in lines if not (l.startswith("codex: ") and l.endswith("was not checked"))]
+
+
 def doctor(repo: Path) -> tuple[int, list[str]]:
-    """pm doctor's exit code and its lines on the clone, without its line on the latest release, which no test here
-    can read (conftest's NO_RELEASE_API)."""
+    """pm doctor's exit code and its lines on the clone, without its notes, which leave the exit code alone: its line
+    on the latest release, which no test here can read (conftest's NO_RELEASE_API), and that Codex's trust was not
+    checked."""
     res = pm(repo, "doctor")
     lines = res.stdout.splitlines()
     assert lines[-1].startswith("release: cannot read pm's latest release"), res.stdout
-    return res.returncode, lines[:-1]
+    return res.returncode, notes(lines[:-1])
 
 
 def write(path: Path, text: str) -> None:
