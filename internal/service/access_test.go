@@ -273,7 +273,7 @@ func TestTheServiceChecksAccessOnEveryRequestAndARefusalNamesNoStore(t *testing.
 	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
 	s := serve(t, w, "", func(d *Deps) { d.SiteURL, d.AccessTeam, d.AccessAud = site, team, aud })
 	tok := s.token() // from localhost, served as before
-	do := func(method, path, host string, body url.Values, headers ...string) (*http.Response, string) {
+	do := func(method, path, host string, body url.Values, headers ...string) (response, string) {
 		t.Helper()
 		var rd io.Reader
 		if body != nil {
@@ -294,7 +294,7 @@ func TestTheServiceChecksAccessOnEveryRequestAndARefusalNamesNoStore(t *testing.
 		}
 		defer resp.Body.Close()
 		b, _ := io.ReadAll(resp.Body)
-		return resp, string(b)
+		return response{StatusCode: resp.StatusCode, Header: resp.Header}, string(b)
 	}
 	form := url.Values{"token": {tok}, "id": {"p-1.2.1"}, "text": {"yes"}}
 	for _, c := range []struct {

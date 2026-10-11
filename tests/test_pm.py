@@ -1192,8 +1192,9 @@ def test_service_refuses_the_public_host_without_access_and_serves_localhost(rep
             with urllib.request.urlopen(req) as r:
                 return r.status, r.read().decode()
         except urllib.error.HTTPError as e:
-            assert "X-PM-Store" not in e.headers and "X-PM-Version" not in e.headers, e.headers
-            return e.code, e.read().decode()
+            code, refused, body = e.code, e.headers, e.read().decode()
+        assert "X-PM-Store" not in refused and "X-PM-Version" not in refused, refused
+        return code, body
 
     write_config(repo.root, site_url="https://pm.example.com", access_aud="aud-tag")
     with serving(repo) as (url, _):
