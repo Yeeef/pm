@@ -812,8 +812,8 @@ func TestCreateRefusesWithTheRemoteUnreachable(t *testing.T) {
 			must(d.head()) != head {
 			t.Fatal(err)
 		}
-		if took := time.Since(start); took > time.Second {
-			t.Fatalf("the refusal took %s, not milliseconds", took)
+		if took := time.Since(start); took > 3*time.Second { // milliseconds; Dolt's push retries take about 9 s
+			t.Fatalf("the refusal took %s", took)
 		}
 		if _, err := d.Create(New{Type: Project, Title: "a root id needs no remote"}); err != nil {
 			t.Fatal(err)

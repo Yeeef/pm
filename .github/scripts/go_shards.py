@@ -23,7 +23,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-RESULT = re.compile(r"^--- (PASS|FAIL|SKIP): (\S+) \(([\d.]+)s\)$", re.M)
+# A top-level test's result line; a test's own output left unterminated can precede it on its line, and subtests'
+# (TestA/sub) are indented and named with a slash.
+RESULT = re.compile(r"--- (PASS|FAIL|SKIP): ([^\s/]+) \(([\d.]+)s\)$", re.M)
 
 
 def listed(binary: Path, cwd: Path, pattern: str) -> list[str]:

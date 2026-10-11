@@ -78,7 +78,8 @@ SHARDS = PM_DIR / ".github/scripts/go_shards.py"
 
 def fake_test_binary(tmp_path: Path, tests: list[str], skip: str = "", fail: str = "") -> Path:
     """A `go test -c` binary's stand-in: -test.list prints the tests its pattern matches; -test.run runs the ones its
-    `^(a|b)$` names, logging each, and reports PASS for each but `skip` (no report) and `fail` (FAIL, exit 1)."""
+    `^(a|b)$` names, logging each, and reports PASS for each but `skip` (no report) and `fail` (FAIL, exit 1), after
+    output of its own left unterminated, and a subtest's PASS."""
     binary = tmp_path / "pkg.test"
     binary.write_text(f"""#!/bin/sh
 case "$1" in
@@ -88,7 +89,8 @@ case "$1" in
      for t in $(printf '%s' "$re" | sed 's/^^(//; s/)[$]$//' | tr '|' ' '); do
        echo "$t" >> {tmp_path}/ran.log
        if [ "$t" = "{fail}" ]; then echo "--- FAIL: $t (0.10s)"; rc=1
-       elif [ "$t" != "{skip}" ]; then echo "--- PASS: $t (0.10s)"; fi
+       elif [ "$t" != "{skip}" ]; then printf 'progress, unterminated'; echo "--- PASS: $t (0.10s)"
+         echo "    --- PASS: $t/sub (0.00s)"; fi
      done
      exit $rc ;;
 esac
