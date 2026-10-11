@@ -549,6 +549,7 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
     """pm doctor asks Codex (here the fake codex app-server) which of pm's hooks it would skip, and names each with
     the fix, failing; pm init (not at session start) names them too. Without codex on PATH, doctor says the trust was
     not checked and does not fail on it; without claude, it fails naming the owner-request judge."""
+    (tmp_path / "codex").mkdir()  # Codex ran on this machine: its home exists, so doctor asks it
     assert pm(new_repo, "init").returncode == 0
     git(new_repo, "add", "-A")
     git(new_repo, "commit", "-qm", "Install pm")

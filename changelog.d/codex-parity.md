@@ -8,9 +8,9 @@
 
 ### Added
 
-- `pm reply wait <id> [--timeout DURATION]`: wait for the owner's reply to a need, then print it and mark it
-  delivered as `pm reply read` does; for a session the pm service cannot push into, such as a Codex session. A need
-  raised without an inbox says so.
+- `pm reply wait <id> [--timeout DURATION]`: wait within the turn for the owner's reply to a need, then print it (and
+  mark it delivered, as `pm reply read` does), or its latest reply when one reached the session already. The output
+  of a raised need names it.
 - `pm hook inbox`, on UserPromptSubmit in Claude Code and Codex: hands a session the owner's replies that did not
   reach it as context beside its next prompt, and marks them delivered once printed.
 - `pm init` writes `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox: a pm command reaches the pm
@@ -18,7 +18,8 @@
   as one fed a heredoc, still runs inside it.
 - `pm doctor` asks Codex (`codex app-server`) which of pm's hooks it would skip, untrusted, changed since trusted or
   disabled, or whether it runs none of the project's, and names them with the fix; a typed `pm init` names them too.
-  pm never writes Codex's trust. Without `codex` on PATH it says the trust was not checked.
+  pm never writes Codex's trust. Without `codex` on PATH, or without `$CODEX_HOME` (Codex never ran on the machine,
+  and the call would make its state), it says the trust was not checked.
 - `pm doctor` fails when `claude` is not on PATH: the owner-request hook's judge needs it, in Codex too.
 
 ### Changed

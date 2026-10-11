@@ -77,6 +77,7 @@ func listAnswer(t *testing.T, main string, status map[string]string, enabled map
 }
 
 func TestCodexTrustNamesPmsHooksCodexSkips(t *testing.T) {
+	t.Setenv("CODEX_HOME", t.TempDir())
 	main := trustRepo(t)
 	hooks := filepath.Join(main, ".codex", "hooks.json")
 	fix := "; open Codex in " + main + " and trust pm's hooks in /hooks"
@@ -117,6 +118,7 @@ func TestCodexTrustNamesPmsHooksCodexSkips(t *testing.T) {
 }
 
 func TestCodexTrustSaysWhyItWasNotCheckedAndIsBounded(t *testing.T) {
+	t.Setenv("CODEX_HOME", t.TempDir())
 	main := trustRepo(t)
 	fakeCodex(t, `{"id":1,"error":{"code":-32600,"message":"no such method"}}`+"\n")
 	if got, note, err := CodexTrust(main, 5*time.Second); err != nil || got != nil || note != "codex: cannot ask "+
@@ -131,6 +133,17 @@ func TestCodexTrustSaysWhyItWasNotCheckedAndIsBounded(t *testing.T) {
 	}
 	if took := time.Since(start); took > 5*time.Second {
 		t.Errorf("took %s", took)
+	}
+	// no $CODEX_HOME: Codex never ran here, and the call is not made, so it creates no Codex state
+	home := filepath.Join(t.TempDir(), "codex")
+	t.Setenv("CODEX_HOME", home)
+	fakeCodex(t, "")
+	if got, note, err := CodexTrust(main, time.Second); got != nil || err != nil || note != "codex: "+home+
+		" does not exist, so Codex never ran here and whether it runs pm's hooks was not checked" {
+		t.Errorf("without CODEX_HOME: %q %q %v", got, note, err)
+	}
+	if _, err := os.Stat(home); err == nil {
+		t.Error("CODEX_HOME was made")
 	}
 	t.Setenv("PATH", t.TempDir())
 	if got, note, err := CodexTrust(main, time.Second); got != nil || err != nil ||

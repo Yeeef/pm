@@ -123,11 +123,16 @@ func codexHooksList(codex, dir string, timeout time.Duration) ([]codexListedHook
 // CodexTrust is what pm doctor and pm init say of Codex's trust in pm's hooks of the main checkout. skips names the
 // project when Codex lists none of its hooks (it disables a project's hooks until the project is trusted), else each
 // of pm's hooks Codex would skip: untrusted, modified since trusted, or disabled; each with the fix. note says why the
-// trust was not checked: codex is not on PATH, or the call failed.
+// trust was not checked: codex is not on PATH, $CODEX_HOME does not exist (the call would create Codex's state
+// there), or the call failed.
 func CodexTrust(main string, timeout time.Duration) (skips []string, note string, err error) {
 	codex, err := exec.LookPath("codex")
 	if err != nil {
 		return nil, "codex: codex is not on PATH, so whether Codex runs pm's hooks was not checked", nil
+	}
+	if home := CodexHome(); !isDir(home) { // Codex never ran here, and app-server would make its state there
+		return nil, fmt.Sprintf("codex: %s does not exist, so Codex never ran here and whether it runs pm's hooks "+
+			"was not checked", home), nil
 	}
 	hooksPath := filepath.Join(main, ".codex", "hooks.json")
 	text, err := Read(hooksPath)

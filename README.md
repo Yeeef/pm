@@ -148,12 +148,13 @@ harness, which `pm init` names. A repo pinned below 0.2.0 (a retired release) mu
 
 `pm init` sets a repo up for Claude Code and Codex alike: it also writes `.codex/hooks.json`, pm's hooks for Codex,
 and `.codex/rules/pm.rules`, a Codex rule that runs `pm` (and nothing else) outside Codex's sandbox, since a pm
-command reaches the pm service through a socket that a network-off sandbox blocks. Then, once per repo and machine:
+command reaches the pm service through a socket that a network-off sandbox blocks. The rule allows every pm
+subcommand, so each runs outside the sandbox without asking for approval. Then, once per repo and machine:
 
 1. Open Codex in the repo's main checkout and trust the project. Codex reads `.codex/` from the main checkout, also
    for a session in a worktree, and runs none of a project's hooks or rules until the project is trusted.
-2. In Codex, run `/hooks` and trust pm's hooks. pm never writes that trust; `pm doctor` names each of pm's hooks Codex
-   would skip, and the project when Codex runs none of them.
+2. In Codex, run `/hooks` and trust pm's hooks. pm never writes that trust; `pm doctor` asks Codex (where
+   `$CODEX_HOME` exists) and names each of pm's hooks Codex would skip, and the project when Codex runs none of them.
 
 A Codex session gets no push of the owner's replies: it waits within its turn with `pm reply wait <id>`, or the reply
 reaches it at its next prompt. Codex runs a command it cannot split into plain commands, such as one fed a heredoc, inside
