@@ -11,6 +11,8 @@ TestCommentsKeepTheirOrderWithinASecond 1.28
 TestCreatePushTimeout 9.49
 TestCreateRacingALocalWriter 4.13
 TestCreateRefusesWithTheRemoteUnreachable 1.51
+TestDeliveredIsNeverLowered 0.37
+TestDialNamesASocketTheSystemRefuses 0.00
 TestDoltHoldsTheJournalPruneFix 0.37
 TestFromExportRefusesALineThatIsNotAnItem 0.63
 TestImportFailsHardOnWhatItCannotMap 0.01
