@@ -108,10 +108,20 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: the Go jobs' own work is cut (internal/work's tests 100 s to 12.5 s locally, 37-65 s on macos-14; a cold Go cache halved), but the PR's measured wall time to its last check was not yet about 120 s: macOS runner queueing and main's not yet trimpath-warm cache dominated its runs.
+
+- `make go-test-work` and `make -j2 go-test-race`: internal/work's tests in 8 processes balanced by measured seconds (`.github/scripts/go_shards.py`), failing unless every test ran and passed and the seconds file names every test.
+- `go vet` and `go test` share go-build's compiles (`-trimpath`): cold GOCACHE 2455 to 1269 MB.
+- A run that saves the Go cache trims it to what it used (`.github/scripts/go_cache_trim.py`).
+- The release build test compiles with the real Go caches: 61 to 25 s locally.
+- `TestCreateRefusesWithTheRemoteUnreachable` 9.6 to 1.1-1.5 s; no production change (sprint decision).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| Median wall to the last check on 3 PRs at most about 120 s | not met yet | PR 44's 4 samples: 309, 497, 373, 260 s (median 341 s); longest job run 216, 152, 196, 173 s; macOS queue up to 93, 377, 248, 124 s. Needs PRs after the merge, whose restore holds the trimmed, trimpath cache |
+| `go test ./internal/work` at 8 shards under 25 s, all passing | met | `make go-test-work`: 87 tests in 8 shards 12.5, 12.5, 12.6 s locally |
+| `TestCreateRefusesWithTheRemoteUnreachable` under 2 s | met | 1.15 s in `go test -run`, 1.5 s with -v (3 runs) |
