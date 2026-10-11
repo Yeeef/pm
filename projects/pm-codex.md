@@ -20,7 +20,11 @@ An agent running in Codex works with pm with the same guarantees as one in Claud
 > What constrains every future sprint? Sprint-only choices live in the sprint
 > record.
 
-None yet.
+::: decision {source=owner date=2026-10-11}
+pm never writes Codex hook trust; pm doctor and pm init name pm hooks that Codex has not trusted or that changed since, taking the trust state from Codex itself (app-server hooks/list) where it can, and tell the user to trust them once in the Codex TUI (/hooks).
+Hook trust is Codex review step against repos running commands unasked; its hooks.state hash is internal and undocumented, so writing it would be a hack that bypasses the review.
+Answers `pm-v498.1.1`.
+:::
 
 ## Design pages
 
