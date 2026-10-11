@@ -89,22 +89,41 @@ def cites(record: str, need: str) -> bool:
                for body in re.findall(r"^::: decision \{source=owner[^}]*\}\n(.*?)^:::$", record, re.S | re.M))
 
 
-def owner_answers(clone: Clone, task: str, seen: dict, stop: threading.Event) -> None:
+def inbox_by_runtime(check: Checks, run: Run, need: dict, when: str) -> None:
+    """The need's stored inbox, by runtime. This is the one assertion that differs by runtime, by design: a Claude
+    Code session's need carries the session's own messaging socket, which the pm service pushes the reply into (Claude
+    Code names it <XDG_RUNTIME_DIR>/cc-socks/<its pid>.sock, and a resumed session binds a new one, which session start
+    refreshes); a Codex session has no socket, so its need carries none (pm reply wait and the UserPromptSubmit hook
+    reach it). It guards pm's hook-side runtime detection: a hook whose CLAUDE_CODE_SESSION_ID differs from the
+    payload's session_id is Codex's, and must not store the Claude Code socket it inherited."""
+    inbox = ((need.get("need") or {}).get("raised_by") or {}).get("inbox")
+    if run.runtime == "claude":
+        check(inbox and inbox.endswith(f"/cc-socks/{run.pid}.sock"),
+              f"{run.name}: {when}, the need's inbox is {inbox!r}, not this session's socket .../cc-socks/{run.pid}.sock")
+    else:
+        check(not inbox, f"{run.name}: {when}, a Codex session's need carries an inbox: {inbox!r}")
+
+
+def owner_answers(clone: Clone, task: str, seen: dict, stop: threading.Event, agent) -> None:
     """The owner: once a decision need under `task` is open, note the task's holder and the need, and answer it
-    OWNER_DELAY seconds later."""
-    while not stop.is_set():
-        items = clone.items()
-        need = next((i for i in items.values() if i["parent"] == task and i["type"] == "need"
-                     and i["status"] == "open"), None)
-        if need:
-            seen.update(need=need["id"], holder=(items[task]["holder"] or {}).get("session"),
-                        asked=time.monotonic())
-            if stop.wait(OWNER_DELAY):
+    OWNER_DELAY seconds later. An error of the owner's ends the session at once and is the test's failure."""
+    try:
+        while not stop.is_set():
+            items = clone.items()
+            need = next((i for i in items.values() if i["parent"] == task and i["type"] == "need"
+                         and i["status"] == "open"), None)
+            if need:
+                seen.update(need=need["id"], holder=(items[task]["holder"] or {}).get("session"),
+                            asked=time.monotonic(), raised=need)
+                if stop.wait(OWNER_DELAY):
+                    return
+                res = clone.pm("reply", "add", need["id"], text=OWNER_ANSWER)
+                seen["reply"] = (res.returncode, res.stdout + res.stderr)
                 return
-            res = clone.pm("reply", "add", need["id"], text=OWNER_ANSWER)
-            seen["reply"] = (res.returncode, res.stdout + res.stderr)
-            return
-        stop.wait(2)
+            stop.wait(2)
+    except Exception as e:  # whatever stopped the owner fails the test, with the session stopped
+        seen["error"] = f"{type(e).__name__}: {e}"
+        agent.proc.kill()
 
 
 @pytest.mark.parametrize("runtime", RUNTIMES)
@@ -125,8 +144,8 @@ uncommitted.
 8. Commit a file parity-{nonce}.txt in your worktree, then close task {task} on that commit.
 Then reply with one line: done."""
     seen, stop = {}, threading.Event()
-    owner = threading.Thread(target=owner_answers, args=(clone, task, seen, stop), daemon=True)
     agent = clone.start(runtime, f"solo-{runtime}", prompt)
+    owner = threading.Thread(target=owner_answers, args=(clone, task, seen, stop, agent), daemon=True)
     owner.start()
     run = agent.finish(TIMEOUT)
     stop.set()
@@ -135,6 +154,7 @@ Then reply with one line: done."""
     check = Checks(run)
     print(f"\nsolo {runtime}: {run.seconds:.1f}s; owner asked at "
           f"{seen['asked'] - agent.started:.1f}s, answered {OWNER_DELAY}s later" if "asked" in seen else f"\nsolo {runtime}: {run.seconds:.1f}s; no ask")
+    check(not seen.get("error"), f"the owner (this test) failed, so the session was stopped: {seen.get('error')}")
     check(run.returncode == 0, f"{run.name}: the session exited {run.returncode}")
     check(run.session, f"{run.name}: no session id in the runtime's output")
 
@@ -145,6 +165,8 @@ Then reply with one line: done."""
     check(need, f"{run.name}: the session raised no decision need under {task}")
     raised = ((need.get("need") or {}).get("raised_by") or {}).get("session")
     check(raised == run.session, f"{run.name}: the need was raised by {raised}, not the session")
+    inbox_by_runtime(check, run, seen.get("raised", {}), "as raised")
+    inbox_by_runtime(check, run, need, "at the end")
     check(seen.get("reply", (0,))[0] == 0, f"{run.name}: the owner's reply failed: {seen.get('reply')}")
     check(need.get("closed_by") == run.session,
           f"{run.name}: the need was closed by {need.get('closed_by')}, not the session")
@@ -214,10 +236,12 @@ raising it, with one line: asked.""", TIMEOUT)
     check(run.session == asked.session, f"the resumed session is {run.session}, not {asked.session}")
     raised = ((need.get("need") or {}).get("raised_by") or {}).get("session")
     check(raised == asked.session, f"{asked.name}: the need was raised by {raised}, not the session")
+    inbox_by_runtime(check, asked, need, "as raised")
     check(replied is not None and replied.returncode == 0, f"the owner's reply failed: {replied}")
     check(any(OWNER_ANSWER in c for c in run.prompt_contexts()),
           f"{run.name}: no UserPromptSubmit hook context carried the reply: {run.prompt_contexts()}")
     need = items.get(need.get("id", ""), {})
+    inbox_by_runtime(check, run, need, "after the resumed session's start refreshed it")
     check((need.get("need") or {}).get("delivered", 0) >= 1, f"{run.name}: the reply was not delivered: {need.get('need')}")
     check((need.get("status"), need.get("resolution"), need.get("closed_by")) == ("closed", "answered", run.session),
           f"{run.name}: the need is {need.get('status')}/{need.get('resolution')} closed by {need.get('closed_by')}")

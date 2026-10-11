@@ -121,6 +121,7 @@ class Run:
     returncode: int
     stdout: Path
     entries: list[dict] = field(default_factory=list)
+    pid: int = 0  # the runtime's process: Claude Code names its messaging socket after it
 
     def text(self) -> str:
         return self.transcript.read_text() if self.transcript.exists() else ""
@@ -238,7 +239,16 @@ class Clone:
         self.origin = tmp / "origin.git"
         self.port = free_port()
         base = {k: v for k, v in os.environ.items() if not INHERITED.match(k)}
-        self.env = dict(fake_env(tmp, base), PORT=str(self.port))
+        env = fake_env(tmp, base)
+        # the fakes' supervisor and gh, never their claude or codex: the owner, pm init and the agents all run with
+        # this PATH, so the service unit pm init writes is the one an agent's own pm init finds current, and no
+        # agent's pm init restarts the service under the others
+        bindir = tmp / "agent-bin"
+        bindir.mkdir()
+        for tool in ("gh", "launchctl", "systemctl", "crontab"):
+            (bindir / tool).symlink_to(tmp / "bin" / tool)
+        path = [p for p in env["PATH"].split(os.pathsep) if p != str(tmp / "bin")]
+        self.env = dict(env, PORT=str(self.port), PATH=os.pathsep.join([str(bindir), *path]))
         self.home = Path(self.env["HOME"])
         self.codex_home = Path(self.env["CODEX_HOME"])
         self.out = tmp / "runs"
@@ -331,19 +341,11 @@ class Clone:
         assert all(listed[c] == "trusted" for c in wrote), f"pm's hooks are not all trusted in Codex: {listed}"
 
     def agent_env(self) -> dict[str, str]:
-        """What either runtime runs with: the fakes' supervisor and gh, the pm under test on PATH, the scratch HOME
-        and CODEX_HOME, and the user's Claude config dir, where Claude Code's login and the judge's are, and where pm
-        finds a live Claude session's transcript."""
-        bindir = self.tmp / "agent-bin"
-        if not bindir.exists():
-            bindir.mkdir()
-            for tool in ("gh", "launchctl", "systemctl", "crontab"):
-                (bindir / tool).symlink_to(self.tmp / "bin" / tool)
+        """What either runtime runs with: the clone's environment (the fakes' supervisor and gh, the pm under test on
+        PATH, the scratch HOME and CODEX_HOME), and the user's Claude config dir, where Claude Code's login and the
+        judge's are, and where pm finds a live Claude session's transcript."""
         env = {k: v for k, v in self.env.items() if not INHERITED.match(k)}
-        path = os.pathsep.join(p for p in self.env["PATH"].split(os.pathsep) if p != str(self.tmp / "bin"))
-        return dict(env, PATH=f"{bindir}{os.pathsep}{path}", CODEX_HOME=str(self.codex_home),
-                    CLAUDE_CONFIG_DIR=str(CLAUDE_DIR), FAKE_SCHED_LOG=self.env["FAKE_SCHED_LOG"],
-                    FAKE_SCHED_STATE=self.env["FAKE_SCHED_STATE"], FAKE_GH_STATE=self.env["FAKE_GH_STATE"])
+        return dict(env, CODEX_HOME=str(self.codex_home), CLAUDE_CONFIG_DIR=str(CLAUDE_DIR))
 
     def start(self, runtime: str, name: str, prompt: str, resume: str = "") -> "Agent":
         """Start a headless session of `runtime` in the main checkout on `prompt`, or resume the session `resume`
@@ -425,7 +427,7 @@ class Agent:
             meta = next((e["payload"] for e in entries if e.get("type") == "session_meta"
                          and e["payload"].get("id") == session), {})
             session = meta.get("session_id") or session
-        return Run(self.runtime, self.name, session, transcript, took, rc, self.out, entries)
+        return Run(self.runtime, self.name, session, transcript, took, rc, self.out, entries, self.proc.pid)
 
 
 # The user's PATH, where the real claude and codex are: the tests' own PATH puts the fakes first.
