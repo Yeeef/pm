@@ -963,10 +963,10 @@ func cmdReplyRead(e *env, p *Parsed) (string, error) {
 			needs = append(needs, it)
 		}
 	} else {
-		sid := strip(os.Getenv(sessionEnv))
+		sid := currentSession()
 		if sid == "" {
-			return "", refuse("name the requests to read: pm reply read <id>…; without %s pm cannot tell which "+
-				"requests this session raised", sessionEnv)
+			return "", refuse("name the requests to read: pm reply read <id>…; without %s or %s pm cannot tell "+
+				"which requests this session raised", sessionEnv, codexSessionEnv)
 		}
 		mine, err := ws.Needs(sid)
 		if err != nil {

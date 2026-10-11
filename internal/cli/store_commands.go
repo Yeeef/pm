@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -541,14 +542,17 @@ const LiveWindow = 30 * time.Minute
 
 var sessionID = regexp.MustCompile(`^[\w-]+$`)
 
-// currentSession is this command's agent session: Claude Code's session id, else Codex's thread id, else "".
+// currentSession is this command's agent session (sessionOf): Claude Code's session id or Codex's root thread id, or
+// "".
 func currentSession() string {
-	for _, name := range []string{"CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID"} {
-		if s := strings.TrimSpace(os.Getenv(name)); s != "" {
-			return s
-		}
-	}
-	return ""
+	return sessionOf(strings.TrimSpace(os.Getenv(sessionEnv)), strings.TrimSpace(os.Getenv(codexSessionEnv)),
+		func() string { return innermostRuntime(os.Getppid(), readProc, claudePID()) }, codexRoot)
+}
+
+// claudePID is $CLAUDE_PID, Claude Code's own pid, which it exports to its commands; 0 when unset.
+func claudePID() int {
+	pid, _ := strconv.Atoi(strings.TrimSpace(os.Getenv("CLAUDE_PID")))
+	return pid
 }
 
 // claudeConfigDir is Claude Code's config dir, which holds its transcripts under projects/.
@@ -561,26 +565,14 @@ func claudeConfigDir() string {
 }
 
 // live is whether one of the session's transcripts changed within LiveWindow: Claude Code's
-// <config>/projects/<project dir>/<id>.jsonl (any project dir, since each worktree has its own), or Codex's
-// $CODEX_HOME/sessions/<date>/rollout-<time>-<id>.jsonl.
+// <config>/projects/<project dir>/<id>.jsonl (any project dir, since each worktree has its own), or Codex's rollout of
+// the thread (codexRollouts).
 func live(session string) bool {
 	if !sessionID.MatchString(session) {
 		return false
 	}
-	home, _ := os.UserHomeDir()
-	claude := claudeConfigDir()
-	codex := os.Getenv("CODEX_HOME")
-	if codex == "" {
-		codex = filepath.Join(home, ".codex")
-	}
-	paths, _ := filepath.Glob(filepath.Join(claude, "projects", "*", session+".jsonl"))
-	_ = filepath.WalkDir(filepath.Join(codex, "sessions"), func(p string, e os.DirEntry, err error) error {
-		if err == nil && !e.IsDir() && strings.HasPrefix(e.Name(), "rollout-") &&
-			strings.HasSuffix(e.Name(), "-"+session+".jsonl") {
-			paths = append(paths, p)
-		}
-		return nil
-	})
+	paths, _ := filepath.Glob(filepath.Join(claudeConfigDir(), "projects", "*", session+".jsonl"))
+	paths = append(paths, codexRollouts(session)...)
 	for _, p := range paths {
 		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < LiveWindow {
 			return true

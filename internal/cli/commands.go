@@ -217,7 +217,7 @@ var tree = &command{
 				{
 					name:        "read",
 					help:        "print the owner's replies and reviews' merges that did not reach your session",
-					description: "Print the requests' site replies not yet delivered and their reviews' PR merges not yet reported, with what to do next, and mark them delivered; it does not wait. The pm service pushes each reply and merge into the inbox of the session that raised the request when it can; what it could not deliver (the session had ended, or has no inbox) waits here and is flagged by pm show. Without ids, this session's open requests ($CLAUDE_CODE_SESSION_ID); with ids, those, closed ones too.",
+					description: "Print the requests' site replies not yet delivered and their reviews' PR merges not yet reported, with what to do next, and mark them delivered; it does not wait. The pm service pushes each reply and merge into the inbox of the session that raised the request when it can; what it could not deliver (the session had ended, or has no inbox) waits here and is flagged by pm show. Without ids, this session's open requests ($CLAUDE_CODE_SESSION_ID, or $CODEX_THREAD_ID's root thread); with ids, those, closed ones too.",
 					args: []arg{
 						{dest: "ids", metavar: []string{"ID"}, nargs: "*", kind: value, help: "a decision need, action or review (default: this session's)"},
 					},
@@ -401,7 +401,7 @@ var tree = &command{
 				{
 					name:        "claim",
 					help:        "claim a task for this agent session",
-					description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one.",
+					description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or $CODEX_THREAD_ID; with both set, that of the nearest Claude Code or Codex process pm runs under; a Codex subagent's thread counts as its root thread) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one.",
 					args: []arg{
 						{dest: "task_id", required: true, kind: value, help: "the task's id"},
 						{flags: []string{"--session"}, dest: "session", metavar: []string{"ID"}, kind: value, help: "the session to record; default: this session's id from the environment"},
@@ -451,7 +451,7 @@ var tree = &command{
 					help: "clear the holder of a task this session holds",
 					store: &storeCommand{
 						usage: "task release ID",
-						about: "Clear the holder of a task this session ($CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) holds.",
+						about: "Clear the holder of a task this session ($CLAUDE_CODE_SESSION_ID or $CODEX_THREAD_ID, as pm task claim takes it) holds.",
 						args:  1,
 						run:   taskRelease,
 					},
