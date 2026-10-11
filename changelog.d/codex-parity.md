@@ -30,10 +30,17 @@
   what its session holds and raised.
 - With both Claude Code's and Codex's session set (Codex started from a Claude Code session inherits
   `$CLAUDE_CODE_SESSION_ID`), the session is that of the nearest Claude Code or Codex process pm runs under; it was
-  always Claude Code's.
+  always Claude Code's. With neither among pm's ancestors, pm refuses, naming both ids and which to unset.
 - `pm task claim`'s refusal in the main checkout says its git commands make a worktree in any runtime.
 
 ### Fixed
+
+- A Codex run started from a Claude Code session no longer stores that session's inbox
+  (`$CLAUDE_CODE_MESSAGING_SOCKET`, which Codex inherits) on its needs, so its replies are no longer pushed into the
+  Claude Code session.
+- The pm service pushes a reply `pm reply add` stored as soon as the work store moves; it waited up to a minute for
+  its next sweep.
+- A need closed by `pm decision add --need` or `pm decision close` records the closing session, as other closes do.
 
 - A compacted Codex session gets pm's rules and state again: Codex's SessionStart hooks ran on startup, resume and
   clear only.
