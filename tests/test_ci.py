@@ -59,7 +59,7 @@ def test_go_test_but_work_fails_when_go_list_fails_and_tests_nothing(tmp_path):
     broken = tmp_path / "broken"
     broken.mkdir()
     res = subprocess.run(["make", "-s", "go-test-but-work"], cwd=PM_DIR, env=fake_go(broken, True),
-                         capture_output=True, text=True)
+                         capture_output=True, text=True, check=False)
     assert res.returncode != 0
     assert "go: broken" in res.stderr
     assert not (broken / "test.log").exists()
@@ -68,6 +68,6 @@ def test_go_test_but_work_fails_when_go_list_fails_and_tests_nothing(tmp_path):
     ok = tmp_path / "ok"
     ok.mkdir()
     res = subprocess.run(["make", "-s", "go-test-but-work"], cwd=PM_DIR, env=fake_go(ok, False),
-                         capture_output=True, text=True)
+                         capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     assert (ok / "test.log").read_text() == "test -tags gms_pure_go m/a m/b\n"

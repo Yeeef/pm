@@ -145,7 +145,7 @@ def test_two_branches_that_each_add_an_entry_merge_without_conflict_and_both_rea
            "GIT_COMMITTER_EMAIL": "t@t"}
 
     def run(*args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, text=True)
+        return subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
 
     def git(*args: str):
         r = run("git", *args)

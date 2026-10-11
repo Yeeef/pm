@@ -3,6 +3,7 @@ served by a per-test pm service; the pm under test is the Go binary `make go-bui
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -57,6 +58,16 @@ def nouns() -> list[str]:
     return re.search(r"\{([a-z,-]+)\}", usage).group(1).split(",")
 
 
+def help_tree(*cmd: str) -> dict[tuple[str, ...], str]:
+    """pm <cmd> --help and that of every command under it, by command path (() for pm --help)."""
+    text = subprocess.run([*PM, *cmd, "--help"], cwd="/", check=True, capture_output=True, text=True).stdout
+    subs = re.search(r"\{([a-z,-]+)\} \.\.\.", text.split("\n\n", 1)[0])  # the usage's commands, not a choice
+    tree = {cmd: text}
+    for sub in subs.group(1).split(",") if subs else []:
+        tree |= help_tree(*cmd, sub)
+    return tree
+
+
 def commands() -> str:
     return "# Commands\n\n`pm` nouns: " + ", ".join(f"`{n}`" for n in nouns() if n not in MACHINERY) + "."
 
@@ -76,7 +87,7 @@ def chunks() -> list[str]:
     lines = head().split("\n")
     at = [lines.index(s) for s in RULE_STARTS]
     assert at[0] == 0 and at == sorted(at), f"the chunk headings {RULE_STARTS} are not in order at the top of prime.md"
-    bodies = ["\n".join(lines[a:b]).strip() for a, b in zip(at, at[1:] + [len(lines)])]
+    bodies = ["\n".join(lines[a:b]).strip() for a, b in zip(at, [*at[1:], len(lines)], strict=True)]
     out, part = [], ""
     for i, body in enumerate(bodies, 1):
         groups = [] if body.startswith("# ") else [[part, []]]  # a chunk that starts inside a part names it
@@ -197,6 +208,16 @@ ISSUES = [
 ]
 
 
+def wait_for(cond, what: str, timeout: float = 30, interval: float = 0.05):
+    """Call cond() until it returns a truthy value, and return that value; fail naming `what` once `timeout` s have
+    passed. The harness's one poll loop: a test waits on a condition with a deadline, never on a fixed sleep."""
+    deadline = time.monotonic() + timeout
+    while not (got := cond()):
+        assert time.monotonic() < deadline, f"not within {timeout}s: {what}"
+        time.sleep(interval)  # noqa: TID251 — the poll interval of the harness's one poll loop
+    return got
+
+
 def stop_services(tmp: Path) -> None:
     """Stop every process the fake supervisor started under `tmp`, and mark them stopped: pm reaches the work store
     only through the clone's service, so from here Repo.items reads it through a service started anew."""
@@ -205,10 +226,8 @@ def stop_services(tmp: Path) -> None:
     if not path.exists():
         return
     for pid in json.loads(path.read_text()).get("pids", {}).values():
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
 
 
 # What only an `integration` test may start: `make test` runs the rest while agents work, CI runs both sets.
@@ -343,10 +362,11 @@ class Repo:
         hook input JSON."""
         feed = {"stdin": subprocess.DEVNULL} if stdin is None else {"input": stdin}
         argv = [*args, *([f"--text={text}"] if text else [])]
-        return subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True, **feed)
+        return subprocess.run([*PM, *argv], cwd=cwd or self.root, env=self.env, capture_output=True, text=True,
+                              check=False, **feed)
 
     def git(self, *args: str, cwd: Path | None = None) -> str:
-        res = subprocess.run(["git", *args], cwd=cwd or self.root, capture_output=True, text=True)
+        res = subprocess.run(["git", *args], cwd=cwd or self.root, capture_output=True, text=True, check=False)
         if res.returncode:  # git's stderr says why; CalledProcessError's message alone would not show it
             raise AssertionError(f"git {' '.join(args)} exited {res.returncode} in {cwd or self.root}:\n{res.stderr}")
         return res.stdout
@@ -366,7 +386,8 @@ class Repo:
 
     def pages(self, cwd: Path | None = None) -> dict[str, str]:
         """Every page of the site by path, as the pm service renders it from the records and the work store now."""
-        res = subprocess.run([str(RENDER_PAGES)], cwd=cwd or self.root, env=self.env, capture_output=True, text=True)
+        res = subprocess.run([str(RENDER_PAGES)], cwd=cwd or self.root, env=self.env, capture_output=True, text=True,
+                             check=False)
         assert res.returncode == 0, res.stderr
         return json.loads(res.stdout)
 
@@ -413,12 +434,13 @@ class Repo:
         state = json.loads(self.sched.read_text()) if self.sched.exists() else {"loaded": []}
         state.setdefault("pids", {})["fixture"] = self.service.pid
         self.sched.write_text(json.dumps(state))
-        deadline = time.monotonic() + 30
-        while not sock.exists():
-            if self.service.poll() is not None or time.monotonic() > deadline:
-                raise AssertionError("the per-test pm service did not start:\n" +
+
+        def started() -> bool:
+            if self.service.poll() is not None:
+                raise AssertionError("the per-test pm service exited:\n" +
                                      (self.tmp / "fixture-service.log").read_text())
-            time.sleep(0.01)
+            return sock.exists()
+        wait_for(started, "the per-test pm service to make its socket", interval=0.01)
 
     def stop_service(self) -> None:
         """Stop the per-test pm service, before a test starts its own `pm service run` for the clone."""
@@ -439,7 +461,7 @@ class Repo:
             shutil.rmtree(self.root / ".pm/store/work")
         self.start_service()
         res = subprocess.run([*PM, "init", "--import-bd", str(export)], cwd=self.root, env=self.env,
-                             capture_output=True, text=True)
+                             capture_output=True, text=True, check=False)
         assert res.returncode == 0, f"the seeds do not import into the work store: {res.stderr}"
         self.imported = self.items()
 

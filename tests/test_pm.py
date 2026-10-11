@@ -4,6 +4,7 @@ needs and replies, tasks, the shared records store, the pm service and its push.
 from __future__ import annotations
 
 import contextlib
+import functools
 import json
 import os
 import re
@@ -18,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, VERSION, fake_env, project, sprint, write_config
+from conftest import PM, VERSION, fake_env, project, sprint, wait_for, write_config
 
 
 def reply_body(text: str) -> str:
@@ -36,7 +37,10 @@ def committed(repo, messages):
 
 def refused(repo, *args, text="", match):
     """Run a command that must refuse: non-zero exit, the message, no file and no work-store change."""
-    heads = lambda: [repo.git("rev-parse", "HEAD", cwd=d) for d in (repo.root, repo.store)]
+
+    def heads() -> list[str]:
+        return [repo.git("rev-parse", "HEAD", cwd=d) for d in (repo.root, repo.store)]
+
     before, head = repo.snapshot(), heads()
     res = repo.pm(*args, text=text)
     assert res.returncode != 0, res.stdout
@@ -549,7 +553,7 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
     repo.mark()
     res = subprocess.run([*PM, "need", "edit", action, "--text-file", "-"], cwd=repo.root, env=repo.env,
                          input="Restart the site on port 8768.\nThe proxy moved to `8768`.\n", capture_output=True,
-                         text=True)
+                         text=True, check=False)
     assert res.returncode == 0 and res.stdout == f"edited the body of action {action}\n", res.stderr
     assert repo.changes() == {action: {"description": "Restart the site on port 8768.\nThe proxy moved to `8768`."}}
     repo.mark()
@@ -675,7 +679,7 @@ def init_in(cwd, *args):
             s.bind(("127.0.0.1", 0))
             port.write_text(str(s.getsockname()[1]))
     env = dict(env, PORT=port.read_text())
-    return subprocess.run([*PM, "init", *args], cwd=cwd, env=env, capture_output=True, text=True)
+    return subprocess.run([*PM, "init", *args], cwd=cwd, env=env, capture_output=True, text=True, check=False)
 
 
 def schedule_line(clone: Path, home: Path, state: str) -> str:
@@ -688,7 +692,7 @@ def schedule_line(clone: Path, home: Path, state: str) -> str:
 
 def sched_calls(tmp_path) -> list[list[str]]:
     log = tmp_path / "sched.log"
-    return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
+    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
 
 def service_line(clone: Path, home: Path, state: str) -> str:
@@ -732,7 +736,8 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
     assert git_in(clone, "status", "--porcelain") == ""
     config = (clone / ".git/config").read_text()
     where = subprocess.run([*PM, "where"], cwd=clone,
-                           env=fake_env(tmp_path, GIT_ENV), capture_output=True, text=True).stdout.splitlines()
+                           env=fake_env(tmp_path, GIT_ENV), capture_output=True, text=True,
+                           check=True).stdout.splitlines()
     assert where[0].startswith(f"pm        {VERSION}  ")
     assert where[1] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
     assert where[2] == f"checkout  {clone}  branch main, records link set up"
@@ -761,7 +766,10 @@ def test_write_on_one_branch_is_visible_on_another_without_merge(repo):
                         "issue_type": "epic", "parent": "repo-demo", "created_at": "2026-10-01T12:00:00Z",
                         "updated_at": "2026-10-01T12:00:00Z"})
     titles = ("Number 9", "Number 39", "Number 100")
-    in_order = lambda text: -1 < text.index(titles[0]) < text.index(titles[1]) < text.index(titles[2])
+
+    def in_order(text: str) -> bool:
+        return -1 < text.index(titles[0]) < text.index(titles[1]) < text.index(titles[2])
+
     pages = repo.pages()
     assert in_order(pages["index.html"])
     project = pages["projects/demo.html"]
@@ -798,10 +806,10 @@ def test_write_on_one_branch_is_visible_on_another_without_merge(repo):
         assert repo.items()["repo-demo.1.3"]["status"] == "open", "the agent closes the review, not the pm service"
         with serving(repo) as (url, _):  # a restart: the merge is stored, so it is neither looked up nor pushed again
             until_shown(lambda: load(f"{url}/"), lambda p: "Review PR #7" in p, None)
-            deadline = time.time() + 2
+            deadline = time.time() + 2  # nothing more arrives: an absence holds for a window, not until a condition
             while time.time() < deadline:
                 assert len(lines) == 1
-                time.sleep(0.1)
+                time.sleep(0.1)  # noqa: TID251 — the poll interval of the window the absence must hold for
     assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
 
 
@@ -855,7 +863,7 @@ OPEN_STDIN_TOGETHER = [text_command(n, t) for n, t in [
     ("feedback add", True), ("project open", True), ("sprint open", True), ("task add", False), ("task add", True)]]
 
 
-@pytest.mark.parametrize("args, text, with_text", OPEN_STDIN_ALONE,
+@pytest.mark.parametrize(("args", "text", "with_text"), OPEN_STDIN_ALONE,
                          ids=[f"{' '.join(a[:2])}-{'text' if w else 'no-text'}" for a, _, w in OPEN_STDIN_ALONE])
 def test_no_command_waits_on_an_open_stdin(repo, tmp_path, args, text, with_text):
     """Sprint 60: in Claude Code the shell's stdin is a socket that never closes, so a pm that read stdin hung
@@ -1002,14 +1010,14 @@ def until_shown(get, shown, written: float | None) -> str:
     """Load get() until shown(page), which must happen within SERVE_BEHIND s of `written`, the epoch time a change
     was done; a page that does not show it yet must state data from before the change. None for a change the server
     makes in the background, whose time the test does not know: then only the bound from now applies."""
-    deadline = (written or time.time()) + SERVE_BEHIND
-    while True:
+    def page_if_shown() -> str | None:
         page = get()
         if shown(page):
             return page
         assert written is None or asof(page) < written, "the page states data as of after a change it does not show"
-        assert time.time() < deadline, "the change did not show within the stated bound"
-        time.sleep(0.05)
+        return None
+    return wait_for(page_if_shown, "the change to show within the stated bound",
+                    timeout=(written or time.time()) + SERVE_BEHIND - time.time())
 
 
 def load(url: str) -> str:
@@ -1124,9 +1132,7 @@ def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
         code, where, _ = post_reply(served, {"token": token, "id": issue_id, "text": text},
                                     {"Referer": f"{served}/days/2026-10-01.html"})
         assert (code, where) == (303, f"/days/2026-10-01.html#need-{issue_id}")
-    deadline = time.monotonic() + 10  # the comments are written in the background
-    while len(repo.changes()) < 2 and time.monotonic() < deadline:
-        time.sleep(0.05)
+    wait_for(lambda: len(repo.changes()) >= 2, "the comments, written in the background", timeout=10)
     items = repo.items()
     for issue_id, text in (("repo-demo.1.2", "-Pick small.\nBecause tables can wait."), ("repo-demo.1.3", "Merged as abc123.")):
         assert [(c["kind"], c["author"], reply_body(c["text"])) for c in items[issue_id]["comments"]] == [
@@ -1162,7 +1168,7 @@ def serving(repo, **env):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("token, form, headers, code, said", [
+@pytest.mark.parametrize(("token", "form", "headers", "code", "said"), [
     ("forged", {"id": "repo-demo.1.2", "text": "Small."}, {}, 403, "no valid token"),
     ("page", {"id": "repo-demo.1.2", "text": "Small."}, {"Host": "evil.example:80"}, 403, "is neither this machine"),
 ])
@@ -1231,7 +1237,7 @@ def session_inbox(path: str | None = None):
             except OSError:
                 return
             with conn:
-                data = b"".join(iter(lambda: conn.recv(65536), b""))
+                data = b"".join(iter(functools.partial(conn.recv, 65536), b""))
             lines.extend(json.loads(line) for line in data.decode().splitlines())
     threading.Thread(target=accept, daemon=True).start()
     try:
@@ -1246,14 +1252,6 @@ def session_inbox(path: str | None = None):
 def inbox_dir() -> str:
     import tempfile
     return tempfile.mkdtemp(prefix="pm-inbox-")
-
-
-def wait_for(cond, what: str, timeout: float = 30):
-    deadline = time.time() + timeout
-    while not (got := cond()):
-        assert time.time() < deadline, f"not within {timeout}s: {what}"
-        time.sleep(0.05)
-    return got
 
 
 def inbox_text(line: dict) -> str:
@@ -1271,7 +1269,8 @@ def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
         raise_ = shlex.join([*PM, "decision", "need", *NEED, "--parent", "repo-demo.1"])
         script = (f"{raise_} --title A >/dev/null && {raise_} --title B >/dev/null && "
                   f"{raise_} --title C | grep -o 'raised decision need [^ ;]*'")
-        res = subprocess.run(["bash", "-c", script], cwd=repo.root, env=env, capture_output=True, text=True)
+        res = subprocess.run(["bash", "-c", script], cwd=repo.root, env=env, capture_output=True, text=True,
+                             check=False)
         assert (res.returncode, res.stdout) == (0, "raised decision need repo-demo.1.5\n"), res.stderr
         until_shown(lambda: load(f"{served}/"), lambda p: 'value="repo-demo.1.5"' in p, time.time())
         token = page_token(served)
@@ -1414,7 +1413,7 @@ def transcript(repo, sid: str, age_s: float, where: str = "-repo") -> None:
 def claim(repo, task: str, sid: str | None, *extra: str, cwd: Path | None = None):
     env = dict(repo.env, **({"CLAUDE_CODE_SESSION_ID": sid} if sid else {}))
     return subprocess.run([*PM, "task", "claim", task, *extra], cwd=cwd or repo.root, env=env,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, check=False)
 
 
 def test_task_claim_refuses_in_the_main_checkout_and_says_how_to_make_a_worktree(repo):
@@ -1448,7 +1447,7 @@ def test_task_claim_refuses_in_the_main_checkout_and_says_how_to_make_a_worktree
 
     # folded: test_task_claim_records_the_session_given_with_session_even_with_one_in_the_environment
     # (sess-a lets go of repo-demo.1.2 first, so it is free as the original test's seed left it)
-    res = subprocess.run([*PM, "task", "release", "repo-demo.1.2"], cwd=wt, capture_output=True, text=True,
+    res = subprocess.run([*PM, "task", "release", "repo-demo.1.2"], cwd=wt, capture_output=True, text=True, check=False,
                          env=dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-a"))
     assert res.returncode == 0, res.stderr
     res = claim(repo, "repo-demo.1.2", "sess-env", "--session", "sess-flag", cwd=wt)
@@ -1570,7 +1569,7 @@ def test_every_store_command_fails_hard_with_the_service_stopped(repo):
     before = repo.snapshot()
     for argv in STORE_COMMANDS:
         res = subprocess.run([*PM, *argv], cwd=wt if argv[:2] == ["task", "claim"] else repo.root, env=env,
-                             capture_output=True, text=True, stdin=subprocess.DEVNULL)
+                             capture_output=True, text=True, stdin=subprocess.DEVNULL, check=False)
         assert (res.returncode, res.stdout, res.stderr) == (1, "", want), argv
     assert repo.snapshot() == before, "a command wrote with the service stopped"
     repo.start_service()

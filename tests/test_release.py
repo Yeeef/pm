@@ -58,7 +58,7 @@ def served(tmp_path):
 def test_install_sh_installs_the_checked_binary_into_the_bin_dir(served):
     """With no token; a token at hand is not used when the download with none works."""
     env = dict(served.env, GH_TOKEN=TOKEN, PM_RELEASE_API="http://127.0.0.1:1/api")  # never asked
-    res = subprocess.run(["sh", str(served.script)], env=env, capture_output=True, text=True)
+    res = subprocess.run(["sh", str(served.script)], env=env, capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     pm = served.bin / "pm"
     assert pm.read_bytes() == FAKE and pm.stat().st_mode & 0o777 == 0o755
@@ -67,7 +67,7 @@ def test_install_sh_installs_the_checked_binary_into_the_bin_dir(served):
         f"installed pm 0.2.0 at {pm} (from {served.url}/{served.tar.name}, sha256 {served.sha})",
         f"{served.bin} is not on PATH: add it, e.g. export PATH=\"{served.bin}:$PATH\" in your shell's profile",
         "next, set up each clone that uses pm: run pm init in it"]
-    assert subprocess.run([str(pm)], capture_output=True, text=True).stdout == "the installed pm\n"
+    assert subprocess.run([str(pm)], capture_output=True, text=True, check=True).stdout == "the installed pm\n"
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ def api(served, tmp_path):
 @pytest.mark.parametrize("source", ["GH_TOKEN", "gh auth token"])
 def test_install_sh_downloads_through_the_github_api_with_a_token_sent_to_the_api_alone(served, api, source):
     env = dict(api.env, **({"GH_TOKEN": TOKEN} if source == "GH_TOKEN" else {"FAKE_GH_TOKEN": TOKEN}))
-    res = subprocess.run(["sh", str(served.script)], env=env, capture_output=True, text=True)
+    res = subprocess.run(["sh", str(served.script)], env=env, capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     assert (served.bin / "pm").read_bytes() == FAKE
     tar_url = f"{api.gh.api}/releases/assets/{api.gh.assets.index(('pm-v0.2.0', served.tar.name))}"
@@ -98,7 +98,7 @@ def test_install_sh_refuses_a_checksum_mismatch_and_installs_nothing(served, api
     sums.write_text(f"{'1' * 64}  {served.tar.name}\n")
     served.bin.mkdir()
     (served.bin / "pm").write_bytes(b"the pm before\n")
-    res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True)
+    res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True, check=False)
     assert (res.returncode, res.stdout) == (1, "")
     assert res.stderr == (f"install.sh: error: {served.url}/{served.tar.name} has sha256 {served.sha}, but SHA256SUMS "
                           f"says {'1' * 64}; nothing was installed\n")
@@ -106,7 +106,7 @@ def test_install_sh_refuses_a_checksum_mismatch_and_installs_nothing(served, api
 
     # folded: test_install_sh_that_fails_with_no_token_and_has_none_fails_hard_naming_that_download
     shutil.rmtree(served.bin)
-    res = subprocess.run(["sh", str(served.script)], env=api.env, capture_output=True, text=True)
+    res = subprocess.run(["sh", str(served.script)], env=api.env, capture_output=True, text=True, check=False)
     assert (res.returncode, res.stdout) == (1, "")
     said = f"install.sh: error: could not download {api.gh.download}/pm-v0.2.0/SHA256SUMS: curl: (22) "
     assert res.stderr.startswith(said) and "404" in res.stderr and res.stderr.count("\n") == 1, res.stderr  # curl's words vary
@@ -114,14 +114,15 @@ def test_install_sh_refuses_a_checksum_mismatch_and_installs_nothing(served, api
 
     # folded: test_install_sh_refuses_a_release_without_this_platforms_asset
     served.tar.unlink()
-    res = subprocess.run(["sh", str(served.script)], env=dict(api.env, GH_TOKEN=TOKEN), capture_output=True, text=True)
+    res = subprocess.run(["sh", str(served.script)], env=dict(api.env, GH_TOKEN=TOKEN), capture_output=True, text=True,
+                         check=False)
     assert res.returncode == 1
     assert res.stderr == (f"install.sh: error: {api.gh.api}/releases/tags/pm-v0.2.0 has no asset {served.tar.name}\n")
     assert not served.bin.exists()
 
     # folded: test_install_sh_refuses_a_release_with_no_line_for_this_platform
     served.tar.with_name("SHA256SUMS").write_text(f"{served.sha}  pm-0.2.0-plan9-amd64.tar.gz\n")
-    res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True)
+    res = subprocess.run(["sh", str(served.script)], env=served.env, capture_output=True, text=True, check=False)
     assert res.returncode == 1
     assert res.stderr == f"install.sh: error: {served.url}/SHA256SUMS has no line for {served.tar.name}\n"
     assert not served.bin.exists()
@@ -132,7 +133,7 @@ def version_of(tar: Path, tmp: Path) -> str:
     with tarfile.open(tar) as tf:
         assert [(m.name, m.isreg(), m.mode) for m in tf.getmembers()] == [("pm", True, 0o755)]
         tf.extractall(tmp, filter="tar")
-    res = subprocess.run([str(tmp / "pm"), "version"], cwd=tmp, capture_output=True, text=True)
+    res = subprocess.run([str(tmp / "pm"), "version"], cwd=tmp, capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     return res.stdout
 
@@ -154,7 +155,7 @@ def test_the_release_build_takes_its_version_from_the_tag_alone(tmp_path):
                     .stdout.strip() for v in ("GOOS", "GOARCH"))
 
     subprocess.run(["git", "-C", str(clone), "tag", "pm-v0.2.0-rc.42"], check=True)
-    res = subprocess.run(build, capture_output=True, text=True)
+    res = subprocess.run(build, capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     tar = tmp_path / f"out/pm-0.2.0-rc.42-{goos}-{goarch}.tar.gz"
     assert res.stdout == f"{tar}\n"
@@ -162,7 +163,7 @@ def test_the_release_build_takes_its_version_from_the_tag_alone(tmp_path):
     assert version_of(tar, tmp_path / "tagged") == "0.2.0-rc.42\n"
 
     subprocess.run(["git", "-C", str(clone), "tag", "-d", "pm-v0.2.0-rc.42"], check=True, capture_output=True)
-    res = subprocess.run(build, capture_output=True, text=True)
+    res = subprocess.run(build, capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     (tmp_path / "untagged").mkdir()
     assert version_of(tmp_path / f"out/pm-dev-{goos}-{goarch}.tar.gz", tmp_path / "untagged") == "dev\n"

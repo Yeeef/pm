@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import itertools
 import re
 import subprocess
 import sys
@@ -200,7 +201,7 @@ def check_section(section: Section):
 
 
 def check_order(sections: list[Section]):
-    for newer, older in zip(sections, sections[1:]):
+    for newer, older in itertools.pairwise(sections):
         if older.key >= newer.key:
             fail(older.line, f"releases go newest first: {older.name} comes after {newer.name}")
         if older.date > newer.date:
@@ -209,7 +210,7 @@ def check_order(sections: list[Section]):
 
 def check_links(sections: list[Section], links: dict[str, tuple[int, str]]):
     want = {newer.name: f"{REPO}/compare/pm-v{older.name}...pm-v{newer.name}"
-            for newer, older in zip(sections, sections[1:])}
+            for newer, older in itertools.pairwise(sections)}
     for section in sections:
         if section.name not in links:
             fail(section.line, f"[{section.name}] has no link reference; add [{section.name}]: "
@@ -352,7 +353,7 @@ def main(argv: list[str]) -> int:
     w = sub.add_parser("release", help="write release X's section from the entry files and delete them")
     w.add_argument("version")
     w.add_argument("--summary", required=True, help="the section's summary paragraph")
-    w.add_argument("--date", default=datetime.datetime.now(datetime.timezone.utc).date().isoformat(),
+    w.add_argument("--date", default=datetime.datetime.now(datetime.UTC).date().isoformat(),
                    help="the release's date, YYYY-MM-DD (default: today, UTC)")
     a = p.parse_args(argv)
     try:

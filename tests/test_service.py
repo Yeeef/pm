@@ -77,7 +77,7 @@ def test_install_fails_when_the_service_does_not_come_up(repo):
     port = other.server_address[1]
     try:
         res = subprocess.run([*PM, "service", "install"], cwd=repo.root, env=dict(repo.env, PORT=str(port)),
-                             capture_output=True, text=True)
+                             capture_output=True, text=True, check=False)
     finally:
         other.shutdown()
     assert res.returncode == 1, res

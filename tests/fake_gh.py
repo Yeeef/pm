@@ -8,9 +8,10 @@ $FAKE_GH_TOKEN, and without it fails as gh does when not logged in."""
 import json
 import os
 import sys
+from pathlib import Path
 
 args = sys.argv[1:]
-prs = json.load(open(os.environ["FAKE_GH_STATE"]))
+prs = json.loads(Path(os.environ["FAKE_GH_STATE"]).read_text())
 if args == ["auth", "token"]:  # $FAKE_GH_TOKEN, or not logged in
     if not os.environ.get("FAKE_GH_TOKEN"):
         print("no oauth token found for github.com", file=sys.stderr)

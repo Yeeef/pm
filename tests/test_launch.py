@@ -67,7 +67,7 @@ def fakes(repo, tmp_path):
 
 def calls(repo) -> list[dict]:
     path = Path(repo.env["FAKE_UV_LOG"])
-    return [json.loads(l) for l in path.read_text().splitlines()] if path.exists() else []
+    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
 
 @pytest.mark.integration  # pm upgrade is integration_only's, though this one reaches no remote

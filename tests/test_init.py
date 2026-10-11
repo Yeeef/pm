@@ -61,7 +61,7 @@ def site_port(tmp: Path) -> int:
 
 
 def pm(cwd: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([*PM, *args], cwd=cwd, env=env(cwd.parent), capture_output=True, text=True)
+    return subprocess.run([*PM, *args], cwd=cwd, env=env(cwd.parent), capture_output=True, text=True, check=False)
 
 
 def snapshot(root: Path) -> dict[str, bytes]:
@@ -136,13 +136,14 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert status == [f"Loading pm rules ({n} of {len(RULES)})" for n in range(1, len(RULES) + 1)]
     assert (new_repo / ".gitignore").read_text() == GITIGNORE_BLOCK
     status = git(new_repo, "status", "--porcelain", "--untracked-files=all").split("\n")
-    untracked = sorted(l[3:] for l in status if l.startswith("?? ") and not l[3:].startswith(".beads/embedded"))
+    untracked = sorted(line[3:] for line in status
+                       if line.startswith("?? ") and not line[3:].startswith(".beads/embedded"))
     assert untracked == sorted(PM_FILES)
     # the commit to make names every file the run changed
     assert f"git add -- {' '.join(PM_FILES)} && " in res.stdout, res.stdout
     assert f'git commit -m "Install pm {VERSION}"' in res.stdout
     # the pm service, under the fake supervisor in tmp/home: pm init installs it
-    sched = [json.loads(l) for l in (tmp_path / "sched.log").read_text().splitlines()]
+    sched = [json.loads(line) for line in (tmp_path / "sched.log").read_text().splitlines()]
     assert [c for c in sched if c[1:2] == ["bootstrap"] or c[2:3] == ["enable"]], sched
     assert "installed the pm service: " in res.stdout
 
@@ -162,7 +163,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     git(new_repo, "commit", "-qm", "Install pm")
     wt = tmp_path / "wt"
     res = subprocess.run(["git", "worktree", "add", "-q", "-b", "feature", str(wt)], cwd=new_repo, env=env(tmp_path),
-                         capture_output=True, text=True)
+                         capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     assert (wt / "records").is_symlink() and (wt / "records").resolve() == store.resolve(), res.stderr
     for tree in (new_repo, wt):
@@ -170,7 +171,8 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     (wt / "code.txt").write_text("code\n")
     git(wt, "add", "-A")
     assert git(wt, "diff", "--cached", "--name-only").split() == ["code.txt"]
-    res = subprocess.run(["git", "commit", "-qm", "code"], cwd=wt, env=env(tmp_path), capture_output=True, text=True)
+    res = subprocess.run(["git", "commit", "-qm", "code"], cwd=wt, env=env(tmp_path), capture_output=True, text=True,
+                         check=False)
     assert res.returncode == 0, res.stderr
 
 
@@ -233,7 +235,7 @@ def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, t
         port = held.getsockname()[1]
         before = snapshot(new_repo)
         res = subprocess.run([*PM, "init"], cwd=new_repo, env=dict(env(tmp_path), PORT=str(port)),
-                             capture_output=True, text=True)
+                             capture_output=True, text=True, check=False)
         assert res.returncode == 1, res.stdout
         said = re.search(rf"the site port :{port} is held by a process that does not answer HTTP, so the pm service "
                          r"could not serve there; pm init wrote nothing\. Run PORT=(\d+) pm init \(a free port\)",
@@ -245,7 +247,7 @@ def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, t
         free = int(said.group(1))
         assert free >= 8000 and free != port
         no_port = {k: v for k, v in env(tmp_path).items() if k != "PORT"}
-        res = subprocess.run([*PM, "init"], cwd=new_repo, env=no_port, capture_output=True, text=True)
+        res = subprocess.run([*PM, "init"], cwd=new_repo, env=no_port, capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     assert tomllib.loads((new_repo / ".pm/config.toml").read_text())["port"] == free
     assert f"serving http://localhost:{free} " in res.stdout, res.stdout

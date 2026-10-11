@@ -62,7 +62,7 @@ class Clone:
 
     def ready(self, n: int) -> subprocess.CompletedProcess:
         return subprocess.run([sys.executable, str(SCRIPT), str(n)], cwd=self.dir, env=self.env, capture_output=True,
-                              text=True)
+                              text=True, check=False)
 
 
 @pytest.fixture

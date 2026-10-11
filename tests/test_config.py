@@ -10,24 +10,17 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, PM_BEFORE, VERSION, VERSION_BEFORE, write_config
+from conftest import PM_BEFORE, VERSION, VERSION_BEFORE, help_tree, write_config
 
 COMMANDS = [("show",), ("where",), ("prime", "--subagent"), ("hook", "stop")]
 CONFIG = ".pm/config.toml"
 KEYS = ("version", "remote", "main_branch", "port", "site_url", "access_team", "access_aud")  # what the config accepts
 
 
-def help_texts(*cmd: str) -> list[str]:
-    """pm <cmd> --help and that of every command under it."""
-    text = subprocess.run([*PM, *cmd, "--help"], cwd="/", check=True, capture_output=True, text=True).stdout
-    subs = re.search(r"\{([a-z,-]+)\} \.\.\.", text.split("\n\n", 1)[0])  # the usage's commands, not a choice
-    return [text, *(t for sub in (subs.group(1).split(",") if subs else []) for t in help_texts(*cmd, sub))]
-
-
 def test_every_config_key_is_named_in_some_commands_help(repo):
     """pm explains its own config: each key the config accepts is named, as a word, in the --help of some command
     that also names .pm/config.toml, so nobody reads pm's source to learn what a key does or which command sets it."""
-    texts = [t for t in help_texts() if CONFIG in t]
+    texts = [t for t in help_tree().values() if CONFIG in t]
     missing = [k for k in KEYS if not any(re.search(rf"(?<![\w-]){k}(?![\w-])", t) for t in texts)]
     assert texts and not missing, f"{CONFIG} keys no --help names: {', '.join(missing)}"
 
@@ -71,7 +64,7 @@ def test_a_pin_move_names_the_worktrees_it_strands(repo):
     def stranded(out: str) -> tuple[str, dict[Path, str]]:
         """The head line of pm upgrade's list of stranded worktrees, and its entries by path."""
         lines = out.splitlines()
-        at = next(i for i, l in enumerate(lines) if "pm refuses every work-store command in these worktrees" in l)
+        at = next(i for i, line in enumerate(lines) if "pm refuses every work-store command in these worktrees" in line)
         entries = {}
         for line in lines[at + 1:]:
             path, rest = line.strip().split("  ", 1)
@@ -109,7 +102,7 @@ def test_a_pin_move_names_the_worktrees_it_strands(repo):
     def before(*args: str) -> subprocess.CompletedProcess:
         """pm in the stale worktree, as its launcher runs it there: the pm its branch pins."""
         return subprocess.run([*PM_BEFORE, *args], cwd=trees["stale"], env=repo.env, capture_output=True, text=True,
-                              stdin=subprocess.DEVNULL)
+                              stdin=subprocess.DEVNULL, check=False)
 
     mismatch = (f"this checkout pins pm {VERSION_BEFORE}, but the clone's pm service runs pm {VERSION}, which "
                 f"{repo.root.resolve() / '.pm/config.toml'} pins: this branch is from before main moved the pin to pm "
@@ -117,12 +110,12 @@ def test_a_pin_move_names_the_worktrees_it_strands(repo):
                 "here")
     res = before("where")
     assert res.returncode == 0, res.stderr
-    work = next(l for l in res.stdout.splitlines() if l.startswith("work "))
+    work = next(line for line in res.stdout.splitlines() if line.startswith("work "))
     assert work.endswith("  " + mismatch), work
     res = before("doctor")
     assert res.returncode == 1 and "work store: " + mismatch in res.stdout.splitlines(), res.stdout
     res = before("show")
     assert res.returncode == 1 and res.stderr == f"error: {mismatch}\n", res.stderr
     res = repo.pm("where", cwd=trees["fresh"])
-    work = next(l for l in res.stdout.splitlines() if l.startswith("work "))
+    work = next(line for line in res.stdout.splitlines() if line.startswith("work "))
     assert "pins pm" not in work and repo.pm("show", cwd=trees["fresh"]).returncode == 0, work
