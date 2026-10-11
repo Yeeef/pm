@@ -86,6 +86,14 @@ Review: an inbox block at Stop makes the continuation end with stop_hook_active,
   Unverified: unix socket and records commits under the Codex sandbox (bwrap
   fails on this host: RTM_NEWADDR).
 
+- Live parity eval (make test-live-parity, real claude -p and codex exec in a
+  scratch clone, Codex with danger-full-access since bwrap cannot start on
+  this host): 5 of 5 passed in 94 s, 224 s and 316 s over three runs; Stop
+  hook blocked once per runtime; cross-runtime claims refused both ways naming
+  the holder. Under claude -p no service push reached the session, so it
+  polled pm reply read itself (solo Claude 57 s to 314 s); Codex used pm reply
+  wait (66 s to 75 s).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
