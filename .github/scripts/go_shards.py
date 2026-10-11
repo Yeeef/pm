@@ -102,7 +102,9 @@ def main() -> int:
         reported = sorted(name for verdict, name, _ in results if verdict in ("PASS", "SKIP"))
         ok = p.returncode == 0 and reported == sorted(shard)
         print(f"shard {i + 1}/{len(shards)}: {len(shard)} tests, predicted {sum(seconds[t] for t in shard):.1f}s, "
-              f"done at {done:.1f}s, {'ok' if ok else 'FAILED'}")
+              f"done at {done:.1f}s, {'ok' if ok else 'FAILED'}; longest: "
+              + ", ".join(f"{t} {measured[t]:.1f}s" for t in sorted(shard, key=lambda t: -measured.get(t, 0))[:3]
+                          if t in measured))
         if not ok:
             failed = True
             sys.stdout.write(out)
