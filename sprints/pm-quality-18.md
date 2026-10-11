@@ -87,6 +87,19 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
   cores): 49.7 s for the work tests and 26.6 s for race, CPU-bound. The
   release build test with the real Go caches: 61 s to 25 s locally.
 
+- PR 44's CI, 4 samples (wall from the first job created to the last done /
+  longest job run time / longest macOS queue): 309/216/93 s, 497/152/377 s,
+  373/196/248 s, 260/173/124 s; median wall 341 s against 191-290 s before.
+  The jobs themselves got shorter (darwin work job 217-251 s before, 107-196 s
+  now; its tests 50/37/65/45 s in 8 shards on 3 cores, against 155-192 s), but
+  macOS runners queued up to 377 s behind other sessions' PRs running at the
+  same time, and this PR restores main's cache, whose vet and test compiles
+  lack -trimpath, so its build-vet-test and work jobs compile those cold
+  (work's go test -c 48 s) until a push to main saves the trimmed cache. Under
+  contention the two racing tests dominate a shard:
+  TestCreateRacingALocalWriter 32.6 s and TestPullRacingLocalWriters 30.0 s on
+  macos-14, against 4.4 and 9.7 s locally.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
