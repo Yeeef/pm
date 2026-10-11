@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T20:25:14+00:00",
- "digest": "168f9aec462cfc08",
+ "generated_at": "2026-10-11T20:42:50+00:00",
+ "digest": "b13121e853c7372e",
  "model": "claude-haiku-5-5",
- "text": "- **Codex support:** The Codex gap list is written, and each gap is closed on a branch or kept by a project decision. pm now takes the root Codex session id first.\n- **Test and CI quality:** The test suite now keeps only tests with unique value, and all bug guards remain. CI now runs a lint gate that stops weak code patterns in new code.\n- **Public site and website:** A Go port of the Cloudflare Access check is merged, and it accepts only app-type tokens. A one-page pm website is now live on GitHub Pages.\n- **Review pending pull requests:** Check the open pull requests on pm. Then trust pm's Codex hooks once in each repo you use Codex in."
+ "text": "- **Site access control:** The pm service now checks Cloudflare Access tokens. It refuses requests that lack a valid token. The check accepts only app-type tokens, so a public login token is refused. The site also flags a main checkout that is behind its remote.\n- **Public website and README:** A marketing website for pm is live on GitHub Pages. The README now presents pm as a human-agent project management suite. Each claim in it was checked against the code. Today summaries now tell only what happened, with no to-do for the owner.\n- **Test and CI speed:** CI now shards Go tests by measured durations and trims the caches it saves. CI now blocks code that fails golangci-lint, deadcode or ruff. The test suite now keeps only tests with unique value. More than half of the non-live tests were removed, and all bug guards were kept.\n- **Codex integration:** The owner-request hook now reads the root session id, not the subagent thread id. A gap list compares pm with Claude Code. Each gap in the list is closed on a branch or kept by a project decision. The owner answered whether pm init should mark its Codex hooks as trusted."
 }
