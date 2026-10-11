@@ -61,7 +61,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-11}
+Trim tests by the audit: keep 145, fold 160 into table tests, drop 127; every bug guard stays
+A strict 10% keeps 86% of lines but loses 71 of 75 bug guards and most contracts, saving ~10 s; the speed is in folding, not deleting
+:::
 
 ## Findings
 
