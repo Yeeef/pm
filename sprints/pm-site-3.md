@@ -53,7 +53,10 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- pm day summarize --dry-run with the new prompt on 2026-10-11's activity, 3
+  runs: 0 of 3 gave a For you bullet or an instruction to the owner; the
+  stored summary from the old prompt ended with For you: Review the pull
+  request that adds the main checkout flag.
 
 ## Delivery report
 
