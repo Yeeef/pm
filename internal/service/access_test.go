@@ -165,15 +165,24 @@ func TestThePublicHostNeedsACloudflareAccessTokenThatVerifies(t *testing.T) {
 			t.Errorf("a valid token on %s: %q", host, got)
 		}
 	}
-	// the keys are fetched once and kept; only a kid they lack fetches them again (each time it is asked for)
+	// the keys are fetched once and kept; a kid they lack fetches them again, at most once per refetchEvery
 	before := k.count()
 	s.refusal(request("pm.example.com", AccessHeader, k.sign(nil, nil, nil)))
 	if got := k.count(); got != before {
 		t.Errorf("a known kid fetched the keys again: %d fetches, then %d", before, got)
 	}
-	s.refusal(request("pm.example.com", AccessHeader, k.sign(nil, map[string]any{"kid": "k2"}, nil)))
-	if got := k.count(); got != before+1 {
-		t.Errorf("an unknown kid did not fetch the keys again: %d fetches, then %d", before, got)
+	unknown := k.sign(nil, map[string]any{"kid": "k2"}, nil)
+	at := s.access.fetched
+	for _, c := range []struct {
+		after time.Duration
+		want  int
+	}{{refetchEvery - time.Second, before}, {refetchEvery, before + 1}, {refetchEvery + time.Second, before + 1}} {
+		if err := s.access.verify(unknown, team, aud, at.Add(c.after)); err == nil || !strings.Contains(err.Error(), "no key with kid 'k2'") {
+			t.Errorf("an unknown kid %s after the fetch: %v", c.after, err)
+		}
+		if got := k.count(); got != c.want {
+			t.Errorf("an unknown kid %s after the last fetch: %d fetches, want %d", c.after, got, c.want)
+		}
 	}
 }
 

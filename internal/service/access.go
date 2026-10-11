@@ -31,24 +31,32 @@ var CertsURL = func(team string) string { return "https://" + team + "/cdn-cgi/a
 // certsClient fetches the team's keys; a certs URL that does not answer refuses the request, never hangs it.
 var certsClient = &http.Client{Timeout: 10 * time.Second}
 
+// refetchEvery is how often a token naming a kid the keys lack may fetch them again: a rotation shows within it, and a
+// stream of made-up kids costs one fetch per interval, not one per request.
+const refetchEvery = time.Minute
+
 // accessKeys is the team's signing keys by kid, fetched on first use and again when a token names a kid they lack (the
-// team rotated its keys). A fetch replaces them whole, so a key the team dropped goes too.
+// team rotated its keys), at most once per refetchEvery. A fetch replaces them whole, so a key the team dropped goes too.
 type accessKeys struct {
-	mu   gosync.Mutex
-	keys map[string]*rsa.PublicKey
+	mu      gosync.Mutex
+	keys    map[string]*rsa.PublicKey
+	fetched time.Time // when the keys were last fetched
 }
 
-func (a *accessKeys) key(team, kid string) (*rsa.PublicKey, error) {
+func (a *accessKeys) key(team, kid string, now time.Time) (*rsa.PublicKey, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if k := a.keys[kid]; k != nil {
 		return k, nil
 	}
+	if a.keys != nil && now.Sub(a.fetched) < refetchEvery {
+		return nil, fmt.Errorf("the team's keys hold no key with kid %s", proc.Repr(kid))
+	}
 	keys, err := fetchKeys(CertsURL(team))
 	if err != nil {
 		return nil, err
 	}
-	a.keys = keys
+	a.keys, a.fetched = keys, now
 	if k := keys[kid]; k != nil {
 		return k, nil
 	}
@@ -108,7 +116,7 @@ func (a *accessKeys) verify(token, team, aud string, now time.Time) error {
 	if err != nil {
 		return errors.New("its signature is not base64url")
 	}
-	key, err := a.key(team, head.Kid)
+	key, err := a.key(team, head.Kid, now)
 	if err != nil {
 		return err
 	}
