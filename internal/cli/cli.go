@@ -512,6 +512,11 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 			return err
 		}
 	}
+	if name != "version" && name != "prime" && !strings.HasPrefix(name, "hook ") { // a hook reads its session from
+		if _, _, err := agentSession(); err != nil { // its input, and fails open
+			return err
+		}
+	}
 	switch name {
 	case "prime":
 		part := hooks.Part{}

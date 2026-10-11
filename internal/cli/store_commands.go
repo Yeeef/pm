@@ -542,12 +542,11 @@ const LiveWindow = 30 * time.Minute
 
 var sessionID = regexp.MustCompile(`^[\w-]+$`)
 
-// currentSession is this command's agent session (sessionOf): Claude Code's session id or Codex's root session id, or
-// "".
+// currentSession is this command's agent session (agentSession): Claude Code's session id or Codex's root session id,
+// or "". dispatch refuses a command whose session is ambiguous before it runs, so the error is not seen here.
 func currentSession() string {
-	env := func(name string) string { return strings.TrimSpace(os.Getenv(name)) }
-	return sessionOf(env(sessionEnv), env(codexRootEnv), env(codexSessionEnv),
-		func() string { return innermostRuntime(os.Getppid(), readProc, claudePID()) }, codexRoot)
+	s, _, _ := agentSession()
+	return s
 }
 
 // claudePID is $CLAUDE_PID, Claude Code's own pid, which it exports to its commands; 0 when unset.

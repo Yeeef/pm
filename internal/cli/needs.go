@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"sort"
@@ -322,7 +321,7 @@ func needMarkdown(p *Parsed) (string, error) {
 // is one (Claude Code's); else the session waits with pm reply wait, or pm hook inbox hands it over at its next prompt
 // or stop.
 func deliveryHint(id string) string {
-	if strip(os.Getenv(inboxEnv)) != "" {
+	if sessionInbox() != "" {
 		return fmt.Sprintf("the pm service pushes the owner's reply into this session; if the session has ended by then, "+
 			"pm show flags it for the next one, which reads it with pm reply read %s", id)
 	}
@@ -339,7 +338,7 @@ func raisedBy() (*work.RaisedBy, error) {
 		return nil, nil
 	}
 	rb := &work.RaisedBy{Session: sid}
-	if inbox := strip(os.Getenv(inboxEnv)); inbox != "" {
+	if inbox := sessionInbox(); inbox != "" {
 		host, err := service.Hostname()
 		if err != nil {
 			return nil, err

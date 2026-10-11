@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Which agent runtime runs this pm, when the environment names a session of both: Codex inherits the environment of
@@ -73,37 +74,72 @@ func readProc(pid int) (int, string, bool) {
 	} else if _, err := os.Stat("/proc/self/stat"); err == nil {
 		return 0, "", false // a /proc without this pid: it is gone
 	}
-	out, err := exec.Command("ps", "-o", "ppid=,command=", "-p", strconv.Itoa(pid)).Output()
+	// comm is the executable's full path on macOS, spaces and all, where command's first word would cut it
+	out, err := exec.Command("ps", "-o", "ppid=,comm=", "-p", strconv.Itoa(pid)).Output()
 	if err != nil {
 		return 0, "", false
 	}
-	f := strings.Fields(string(out))
-	if len(f) < 2 {
+	ppidText, path, ok := strings.Cut(strings.TrimSpace(string(out)), " ")
+	if !ok {
 		return 0, "", false
 	}
-	ppid, err := strconv.Atoi(f[0])
+	ppid, err := strconv.Atoi(ppidText)
 	if err != nil {
 		return 0, "", false
 	}
-	return ppid, f[1], true
+	return ppid, strings.TrimSpace(path), true
 }
 
-// sessionOf is the session that runs this command, from the environment's Claude Code session id (claude) and Codex's
-// root session id (codexSession) and thread id (codexThread): the runtime's that is set, or, when both runtimes' are,
-// the innermost runtime's (Claude Code's when no ancestor is either). Codex 0.154 sets CODEX_SESSION_ID, its root
-// session's id in a subagent too; an earlier Codex sets only the thread's, which root maps to its root thread, so a
-// subagent shares its session's id.
-func sessionOf(claude, codexSession, codexThread string, innermost func() string, root func(string) string) string {
-	if claude != "" && (codexSession != "" || codexThread != "") && innermost() == "codex" {
-		claude = ""
+// sessionOf is the session that runs this command and its runtime ("claude" or "codex"), from the environment's
+// Claude Code session id (claude) and Codex's root session id (codexSession) and thread id (codexThread): the
+// runtime's that is set, or, when both runtimes' are, the innermost runtime's. With both set and neither runtime
+// among the ancestors it refuses: either could be this command's, and taking one would hold or answer for the other.
+// Codex 0.154 sets CODEX_SESSION_ID, its root session's id in a subagent too; an earlier Codex sets only the thread's,
+// which root maps to its root thread, so a subagent shares its session's id.
+func sessionOf(claude, codexSession, codexThread string, innermost func() string,
+	root func(string) string) (session, runtime string, err error) {
+	if claude != "" && (codexSession != "" || codexThread != "") {
+		switch innermost() {
+		case "codex":
+			claude = ""
+		case "claude":
+		default:
+			codex := codexSession
+			if codex == "" {
+				codex = codexThread
+			}
+			return "", "", refuse("both a Claude Code session ($%s %s) and a Codex session (%s) are set, and no "+
+				"Claude Code or Codex process runs this pm, so pm cannot tell which session this is: unset the one "+
+				"that is not this session's ($%s, or $%s and $%s)", sessionEnv, claude, codex, sessionEnv,
+				codexRootEnv, codexSessionEnv)
+		}
 	}
 	switch {
 	case claude != "":
-		return claude
+		return claude, "claude", nil
 	case codexSession != "":
-		return codexSession
+		return codexSession, "codex", nil
 	case codexThread != "":
-		return root(codexThread)
+		return root(codexThread), "codex", nil
 	}
-	return ""
+	return "", "", nil
+}
+
+// innermost is the runtime of the nearest Claude Code or Codex ancestor of this process, read once.
+var innermost = sync.OnceValue(func() string { return innermostRuntime(os.Getppid(), readProc, claudePID()) })
+
+// agentSession is this command's agent session and its runtime (sessionOf), from the environment.
+func agentSession() (session, runtime string, err error) {
+	env := func(name string) string { return strings.TrimSpace(os.Getenv(name)) }
+	return sessionOf(env(sessionEnv), env(codexRootEnv), env(codexSessionEnv), innermost, codexRoot)
+}
+
+// sessionInbox is the inbox the pm service pushes this session's replies into: Claude Code's messaging socket, and
+// only when the session is Claude Code's. A Codex run started from a Claude Code session inherits that session's
+// socket; a push there would land in the Claude Code session.
+func sessionInbox() string {
+	if _, runtime, err := agentSession(); err != nil || runtime != "claude" {
+		return ""
+	}
+	return strings.TrimSpace(os.Getenv(inboxEnv))
 }

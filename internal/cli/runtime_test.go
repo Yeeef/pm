@@ -12,16 +12,15 @@ func TestSessionOfIsTheSetOneOrTheInnermostRuntimesWhenBothAre(t *testing.T) {
 		}
 		return thread
 	}
-	for _, c := range []struct{ claude, session, thread, innermost, want string }{
-		{"", "", "", "", ""},
-		{"cl", "", "", "unasked", "cl"},
-		{"", "root", "child", "unasked", "root"}, // Codex 0.154 names the root session itself
-		{"", "", "child", "unasked", "root"},     // an earlier Codex: a subagent's thread is its root's session
-		{"", "", "th", "unasked", "th"},
-		{"cl", "root", "child", "codex", "root"}, // Codex started from a Claude Code session: Codex runs pm
-		{"cl", "", "child", "codex", "root"},
-		{"cl", "root", "child", "claude", "cl"}, // Claude Code started from Codex
-		{"cl", "root", "", "", "cl"},            // no runtime among the ancestors: Claude Code's, as before
+	for _, c := range []struct{ claude, session, thread, innermost, want, runtime string }{
+		{"", "", "", "", "", ""},
+		{"cl", "", "", "unasked", "cl", "claude"},
+		{"", "root", "child", "unasked", "root", "codex"}, // Codex 0.154 names the root session itself
+		{"", "", "child", "unasked", "root", "codex"},     // an earlier Codex: a subagent's thread is its root's session
+		{"", "", "th", "unasked", "th", "codex"},
+		{"cl", "root", "child", "codex", "root", "codex"}, // Codex started from a Claude Code session: Codex runs pm
+		{"cl", "", "child", "codex", "root", "codex"},
+		{"cl", "root", "child", "claude", "cl", "claude"}, // Claude Code started from Codex
 	} {
 		innermost := func() string {
 			if c.innermost == "unasked" {
@@ -29,9 +28,34 @@ func TestSessionOfIsTheSetOneOrTheInnermostRuntimesWhenBothAre(t *testing.T) {
 			}
 			return c.innermost
 		}
-		if got := sessionOf(c.claude, c.session, c.thread, innermost, rootOf); got != c.want {
-			t.Errorf("%+v: got %q", c, got)
+		got, runtime, err := sessionOf(c.claude, c.session, c.thread, innermost, rootOf)
+		if got != c.want || runtime != c.runtime || err != nil {
+			t.Errorf("%+v: got %q %q %v", c, got, runtime, err)
 		}
+	}
+	// both set and neither runtime among the ancestors: either could be this command's session
+	_, _, err := sessionOf("cl", "root", "child", func() string { return "" }, rootOf)
+	want := "both a Claude Code session ($CLAUDE_CODE_SESSION_ID cl) and a Codex session (root) are set, and no " +
+		"Claude Code or Codex process runs this pm, so pm cannot tell which session this is: unset the one that is " +
+		"not this session's ($CLAUDE_CODE_SESSION_ID, or $CODEX_SESSION_ID and $CODEX_THREAD_ID)"
+	if err == nil || err.Error() != want {
+		t.Errorf("ambiguous: %v", err)
+	}
+}
+
+func TestSessionInboxIsClaudeCodesOnly(t *testing.T) {
+	t.Setenv("CLAUDE_CODE_MESSAGING_SOCKET", "/run/claude.sock")
+	t.Setenv("CODEX_THREAD_ID", "")
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "cl")
+	t.Setenv("CODEX_SESSION_ID", "")
+	if got := sessionInbox(); got != "/run/claude.sock" {
+		t.Errorf("a Claude Code session: %q", got)
+	}
+	// a Codex run started from a Claude Code session inherits its socket, not its session id
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
+	t.Setenv("CODEX_SESSION_ID", "cx")
+	if got := sessionInbox(); got != "" {
+		t.Errorf("a Codex session got Claude Code's inbox %q", got)
 	}
 }
 

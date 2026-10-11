@@ -313,6 +313,17 @@ SITE_URL = ("--question", "Where does pm keep the public site URL?",
             "--default", "a", "All clones then give the same link.")
 
 
+def test_a_codex_session_never_takes_the_claude_code_inbox_it_inherits(repo):
+    """A Codex run started from a Claude Code session inherits CLAUDE_CODE_MESSAGING_SOCKET: its need stores no
+    inbox (a push there would land in the Claude Code session), and it is told it gets no push."""
+    repo.env = dict(repo.env, CODEX_SESSION_ID="cx-root", CLAUDE_CODE_MESSAGING_SOCKET="/run/claude-parent.sock")
+    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    assert res.returncode == 0, res.stderr
+    assert "this session gets no push of the owner's reply" in res.stdout, res.stdout
+    raised = repo.items()["repo-demo.1.3"]["need"]["raised_by"]
+    assert raised["session"] == "cx-root" and not raised.get("inbox"), raised
+
+
 def without(flags: tuple, *drop: tuple[str, str]) -> tuple:
     """flags without each named (flag, first value), e.g. without(SITE_URL, ("--option", "b")) drops --option b."""
     out, i = [], 0

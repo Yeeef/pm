@@ -80,7 +80,7 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 // refreshInbox points this session's open needs at its inbox as of now: a resumed session keeps its id but binds a new
 // socket, so pushes to the stored one would fail for the rest of its life. Python source: refresh_inbox.
 func refreshInbox(e *env, r *repo) error {
-	sid, inbox := currentSession(), strip(os.Getenv(inboxEnv))
+	sid, inbox := currentSession(), sessionInbox()
 	if sid == "" || inbox == "" {
 		return nil
 	}
