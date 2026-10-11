@@ -543,9 +543,12 @@ const LiveWindow = 30 * time.Minute
 var sessionID = regexp.MustCompile(`^[\w-]+$`)
 
 // currentSession is this command's agent session (agentSession): Claude Code's session id or Codex's root session id,
-// or "". dispatch refuses a command whose session is ambiguous before it runs, so the error is not seen here.
+// or "". Execute refuses a command whose session is ambiguous before it runs; one that reaches here is a bug.
 func currentSession() string {
-	s, _, _ := agentSession()
+	s, _, err := agentSession()
+	if err != nil {
+		panic(fmt.Sprintf("a command ran with an ambiguous session, which Execute refuses: %v", err))
+	}
 	return s
 }
 

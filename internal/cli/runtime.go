@@ -125,7 +125,8 @@ func sessionOf(claude, codexSession, codexThread string, innermost func() string
 	return "", "", nil
 }
 
-// innermost is the runtime of the nearest Claude Code or Codex ancestor of this process, read once.
+// innermost is the runtime of the nearest Claude Code or Codex ancestor of this process, read once; a variable so a
+// test can set the ancestry.
 var innermost = sync.OnceValue(func() string { return innermostRuntime(os.Getppid(), readProc, claudePID()) })
 
 // agentSession is this command's agent session and its runtime (sessionOf), from the environment.

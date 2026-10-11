@@ -455,6 +455,15 @@ func (r *refusal) Error() string { return r.msg }
 
 // Execute runs pm with argv (without the program name) and returns the exit code.
 func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	// every command that may act as a session, the self-parsing ones included, refuses an ambiguous one first; a hook
+	// reads its session from its input (and fails open), and help and version act as none
+	if len(argv) > 0 && argv[0] != "hook" && argv[0] != "prime" && argv[0] != "version" &&
+		!slices.Contains(argv, "-h") && !slices.Contains(argv, "--help") {
+		if _, _, err := agentSession(); err != nil {
+			fmt.Fprintf(stderr, "error: %s\n", err)
+			return 1
+		}
+	}
 	if name, args, ok := storeFormOf(argv); ok {
 		if err := runStoreCommand(name, args, openStore, stdin, stdout); err != nil {
 			fmt.Fprintf(stderr, "error: %s\n", err)
@@ -509,11 +518,6 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 	if check {
 		if _, err := config.Load(here); err != nil {
-			return err
-		}
-	}
-	if name != "version" && name != "prime" && !strings.HasPrefix(name, "hook ") { // a hook reads its session from
-		if _, _, err := agentSession(); err != nil { // its input, and fails open
 			return err
 		}
 	}
