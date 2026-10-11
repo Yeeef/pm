@@ -114,10 +114,17 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+Done: CI now runs `make lint`, which gates golangci-lint, deadcode and ruff, and ratchets errcheck (blank checks), complexity, length and reassign on new code; the PR waits for review.
+
+- `.golangci.yml`, `make lint` (`lint-go`, `lint-deadcode`, `lint-py`) and `.github/workflows/pm-lint.yml` (its own job; golangci-lint v2.14.0 installed by golangci-lint-action v9.3.0, pinned by SHA).
+- Every gating finding fixed or kept with `//nolint:<linter> // <why>`. Bugs fixed on the way: a dropped Dolt cause in the host, plus `pm uninstall`, the reply spool and `pm push` reading an error as nothing.
+- `size_test.go`: a package cap of 5000 non-test lines, with `internal/cli` (8915) on a ratchet allowlist. In the harness, a test that every flag prime.md and `--help` name parses (57 flags checked), and `time.sleep` banned in favour of `wait_for`.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `make lint` passes on the PR, and CI runs it: **met.** Locally: golangci-lint 0 issues in both passes, deadcode no output, ruff "All checks passed!". PR 43's `lint` check passed (3m14s).
+- Re-adding an ignored error or a test `time.Sleep` fails lint: **met.** On scratch commit b208d24 (not pushed), `make lint-go` exits 1. forbidigo flags `scratch_test.go:9 time.Sleep`, and the ratchet pass flags `scratch.go:6 Error return value of strconv.Atoi is not checked (errcheck)`.
+- Lint adds under 90 s to CI's critical path: **met, with little headroom.** The lint job (3m14s warm) runs in parallel and is shorter than the release build (3m31s), so it adds 0 s. Headroom is about 17 s if the sharding sprint shortens the other jobs.
+- Also: `make test-go` passes (2m47s local), `make test` gives 146 passed, and every PR 43 check is green. A fresh-context review found no correctness findings.
