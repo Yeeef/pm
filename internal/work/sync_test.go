@@ -188,12 +188,11 @@ func find(items []Item, id string) Item {
 
 // on makes the pair's clones fail on t, a subtest's, until that subtest ends: a clone made for the parent test would
 // otherwise fail the parent from inside the subtest.
-func (x *pair) on(t *testing.T) *pair {
+func (x *pair) on(t *testing.T) {
 	t.Helper()
 	ta, tb := x.a.t, x.b.t
 	x.a.t, x.b.t = t, t
 	t.Cleanup(func() { x.a.t, x.b.t = ta, tb })
-	return x
 }
 
 // reseed gives a case on a shared pair items of its own, its clones failing on the case's t (on): A makes a project, a
