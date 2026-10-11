@@ -80,6 +80,11 @@ The owner asked for a marketing website mid-sprint; it shares the positioning an
   fixture, PORT=18766) with a decision need raised by pm decision need.
   Screenshots: 1440 px, scale 2, 128-colour quantized, 54-259 KB each.
 
+- The pm-harness project page's Progress diagram renders as Mermaid's 'Maximum
+  text size in diagram exceeded' box (122 sprints), so the README's project
+  screenshot uses the pm-site project page instead; the overflow is a site bug
+  for a pm-site sprint, not fixed here.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
