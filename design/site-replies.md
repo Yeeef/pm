@@ -182,9 +182,13 @@ neither the store-path nor the build header.
   authentication: anyone with a shell on the machine can already run `bd`.
 - **Public host.** Each request must carry `Cf-Access-Jwt-Assertion`, a JWT
   that verifies: RS256 signature against the team's keys at
-  `https://<access_team>/cdn-cgi/access/certs` (fetched by PyJWT and cached),
-  `aud` holding `access_aud`, `iss` equal to `https://<access_team>`, not
-  expired. `access_team` (the team domain, `<team>.cloudflareaccess.com`) and
+  `https://<access_team>/cdn-cgi/access/certs` (fetched by the service and
+  cached; an unknown `kid` refetches them at most once a minute), `aud`
+  holding `access_aud`, `iss` equal to `https://<access_team>`, `exp`
+  present and not past, `nbf` and `iat` not in the future. A request is
+  public when its `Host` is `site_url`'s host or it carries
+  `Cf-Connecting-IP` (a tunnel may rewrite `Host` to localhost); any other
+  `Host` is refused. `access_team` (the team domain, `<team>.cloudflareaccess.com`) and
   `access_aud` (the Access application's AUD tag) are set by hand in
   `.pm/config.toml`; `pm doctor` names a missing one.
 - **Fails closed.** With `site_url` set and either key missing, every
