@@ -71,10 +71,15 @@ Carried from pm-harness sprint 92 (2026-10-10): pm-harness moved to Yeeef/pm and
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the site, `pm service status` and `pm show` flag a main checkout that is behind its remote, diverged from it, or off the main branch, and name the command that fixes it.
+
+- A banner on the site's home and project pages; `pm service status` exits non-zero while the flag is up; `pm show` prints a warning line and the JSON key `main_checkout`.
+- PR: https://github.com/Yeeef/pm/pull/39
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- One commit behind shows the flag on the site and in `pm service status`, with the count and the command: met. The harness test `test_site_status_and_show_flag_a_main_checkout_behind_its_remote_or_off_main` passes locally and in CI.
+- An up-to-date checkout shows no flag: met. The same test, after a pull, plus the Go unit test `TestTheMainCheckoutIsFlaggedOffMainOrBehindItsRemote`.
+- `make test` and the PR's CI pass: met. `make test` gave 145 passed and 63 skipped; on PR 39 all 9 checks passed (light, integration, changelog, build-vet-test, work and race on linux-amd64 and darwin-arm64).
