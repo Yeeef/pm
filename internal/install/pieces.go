@@ -105,6 +105,14 @@ const README = "# pm\n" +
 // PMGitignore is .pm/.gitignore.
 const PMGitignore = "store/\nrun/\n"
 
+// CodexRules is .codex/rules/pm.rules, a Codex project rule that runs pm outside Codex's sandbox: a pm command
+// reaches the pm service's socket, which a network-off sandbox blocks (on Linux, seccomp denies connect()), and Codex
+// runs a command whose every part a rule allows unsandboxed (codex-rs 0.154 core/src/exec_policy.rs, the
+// bypass_sandbox of an allowed command). It allows pm alone. A shell script Codex cannot split into plain commands,
+// a heredoc's among them, matches no rule and stays in the sandbox.
+const CodexRules = "# pm reaches the pm service's socket, which Codex's sandbox blocks: run pm outside it (pm init writes this)\n" +
+	"prefix_rule(pattern=[\"pm\"], decision=\"allow\")\n"
+
 func whole(rel, content string) Piece {
 	return Piece{
 		Rel:     rel,
@@ -715,6 +723,7 @@ func Pieces(s Settings) []Piece {
 		whole(".pm/.gitignore", PMGitignore),
 		hooksPiece(".claude/settings.json", claudeHooks()),
 		hooksPiece(".codex/hooks.json", codexHooks()),
+		whole(".codex/rules/pm.rules", CodexRules),
 	}
 	for _, name := range GitHooks {
 		out = append(out, gitHookPiece(name))

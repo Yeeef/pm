@@ -26,6 +26,7 @@ BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# be
               "# --- END BEADS INTEGRATION v1.3.1 ---\n")
 HOOKS = ".pm/hooks"  # pm's own git hook files, which core.hooksPath names
 PM_FILES = [".pm/config.toml", ".pm/README.md", ".pm/.gitignore", ".claude/settings.json", ".codex/hooks.json",
+            ".codex/rules/pm.rules",
             f"{HOOKS}/post-checkout", ".gitignore"]
 GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n"
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
