@@ -84,6 +84,13 @@ None yet.
   tests, so they moved to internal/work/inspect_test.go. clone.item was
   removed.
 
+- ruff 0.17.0: 109 findings. 92 fixed, 15 F811 covered by a per-file ignore
+  (test_lifecycle imports test_init's fixtures on purpose), and 3 time.sleep
+  kept with noqa (2 in the standalone fake_sched program, 1 hold that checks
+  nothing more arrives). The B023 in test_pm session_inbox was not a live bug
+  (the lambda is used up in the same iteration); it is now functools.partial.
+  Flag-parse test: 57 flags checked, 0 mismatches; a bogus flag makes it fail.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
