@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -143,10 +144,10 @@ func failure(res proc.Result) []string {
 
 func exitText(code int) string { return fmt.Sprintf("exit %d", code) }
 
-func envWithout(key string) []string {
+func envWithout(keys ...string) []string {
 	var env []string
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, key+"=") {
+		if !slices.ContainsFunc(keys, func(key string) bool { return strings.HasPrefix(kv, key+"=") }) {
 			env = append(env, kv)
 		}
 	}
@@ -214,15 +215,23 @@ func Where(cwd *string) (string, error) {
 }
 
 // Context is pm show under a header, cut at a line to capacity characters, or one line when it fails. It runs as the
-// starting session, with --refresh-inbox.
+// starting session, with --refresh-inbox. A Claude Code hook's environment is its session's ($CLAUDE_CODE_SESSION_ID
+// is the input's session_id), messaging socket included. Any other is Codex's, whose hooks get no CODEX_* variables
+// and may inherit a Claude Code session's (Codex started from one): it runs as $CODEX_SESSION_ID, without the Claude
+// Code session's variables, so its needs never point at that session's inbox.
 func Context(cwd *string, session string, capacity int, wait time.Duration, waitText string, now func() time.Time) (string, error) {
 	argv, err := self("show", "--refresh-inbox")
 	if err != nil {
 		return "", err
 	}
 	var env []string
-	if session != "" {
-		env = append(envWithout("CLAUDE_CODE_SESSION_ID"), "CLAUDE_CODE_SESSION_ID="+session)
+	switch {
+	case session == "":
+	case os.Getenv("CLAUDE_CODE_SESSION_ID") == session:
+		env = os.Environ()
+	default:
+		env = append(envWithout("CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
+			"CODEX_SESSION_ID", "CODEX_THREAD_ID"), "CODEX_SESSION_ID="+session)
 	}
 	res, err := proc.Run(argv, proc.Options{Cwd: cwd, Env: env, Timeout: wait, TimeoutText: waitText})
 	if e := (*proc.Error)(nil); errors.As(err, &e) {

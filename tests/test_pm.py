@@ -1455,6 +1455,24 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
     assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 2
 
 
+def test_show_refresh_inbox_points_a_sessions_needs_at_its_inbox_or_at_none(repo):
+    """A Claude Code session's open needs follow its socket; a Codex session's lose the Claude Code socket an earlier
+    pm stored on them (inherited from the Claude Code session that started Codex), so no reply is pushed there."""
+    stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    for nid, session in (("repo-demo.1.3", "sess-cl"), ("repo-demo.1.4", "sess-cx")):
+        repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task", "parent": "repo-demo.1",
+                        "labels": ["human"], "metadata": {"session": session, "inbox": "/run/old.sock",
+                                                          "inbox_host": socket.gethostname()}, **stamps})
+    base = repo.env
+    repo.env = dict(base, CLAUDE_CODE_SESSION_ID="sess-cl", CLAUDE_CODE_MESSAGING_SOCKET="/run/new.sock")
+    assert repo.pm("show", "--refresh-inbox").returncode == 0
+    repo.env = dict(base, CODEX_SESSION_ID="sess-cx", CLAUDE_CODE_MESSAGING_SOCKET="/run/new.sock")
+    assert repo.pm("show", "--refresh-inbox").returncode == 0
+    items = repo.items()
+    assert items["repo-demo.1.3"]["need"]["raised_by"]["inbox"] == "/run/new.sock"
+    assert not items["repo-demo.1.4"]["need"]["raised_by"].get("inbox"), items["repo-demo.1.4"]["need"]
+
+
 def test_a_need_closed_by_its_decision_or_its_no_decision_close_records_the_session(repo):
     """pm decision add --need and pm decision close close the need as task close does: closed_by is the session."""
     stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}

@@ -78,15 +78,21 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 }
 
 // refreshInbox points this session's open needs at its inbox as of now: a resumed session keeps its id but binds a new
-// socket, so pushes to the stored one would fail for the rest of its life. Python source: refresh_inbox.
+// socket, so pushes to the stored one would fail for the rest of its life. A session with no inbox now (Codex's)
+// clears the one its needs carry: an earlier pm stored a Claude Code session's socket on a Codex session's needs,
+// and the service would push their replies into that Claude Code session. Python source: refresh_inbox.
 func refreshInbox(e *env, r *repo) error {
 	sid, inbox := currentSession(), sessionInbox()
-	if sid == "" || inbox == "" {
+	if sid == "" {
 		return nil
 	}
-	host, err := os.Hostname()
-	if err != nil {
-		return err
+	host := ""
+	if inbox != "" {
+		h, err := os.Hostname()
+		if err != nil {
+			return err
+		}
+		host = h
 	}
 	ws, err := e.work()
 	if err != nil {
