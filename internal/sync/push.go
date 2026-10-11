@@ -191,8 +191,11 @@ func PushRecords(store, remote string) (bool, string) {
 	if len(f) != 2 {
 		return false, "git rev-list printed " + counts
 	}
-	ahead, _ := strconv.Atoi(f[0])
-	behind, _ := strconv.Atoi(f[1])
+	ahead, aerr := strconv.Atoi(f[0])
+	behind, berr := strconv.Atoi(f[1])
+	if aerr != nil || berr != nil {
+		return false, "git rev-list printed " + counts
+	}
 	if ahead == 0 {
 		said := "up to date with " + remote + "/" + Branch
 		if behind > 0 {

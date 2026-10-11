@@ -108,7 +108,7 @@ func gcDue(main string, now time.Time) (bool, error) {
 	}
 	at, err := time.Parse(time.RFC3339, s.At)
 	if err != nil {
-		return true, nil
+		return true, nil //nolint:nilerr // an unreadable stamp counts as no collection recorded: one is due
 	}
 	return now.Sub(at) >= GCInterval, nil
 }

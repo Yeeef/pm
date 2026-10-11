@@ -26,6 +26,7 @@ type reference struct {
 }
 
 func loadReference(t *testing.T) reference {
+	t.Helper()
 	var ref reference
 	b, err := os.ReadFile(filepath.Join("testdata", "expected.json"))
 	if err == nil {

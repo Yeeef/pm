@@ -783,7 +783,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 		if err := ws.SetResolution(needID, work.Answered); err != nil {
 			return "", err
 		}
-		out, err := r.apply(w, fmt.Sprintf("marked need %s answered and %s", needID, done), "", "pm: ")
+		out, err := r.apply(w, fmt.Sprintf("marked need %s answered and %s", needID, done), "pm: ")
 		if err != nil {
 			return "", fmt.Errorf("%w; the work-store step stands: %s is marked answered; record the decision again "+
 				"with pm decision add --need %s and the same flags", err, needID, needID)
@@ -794,7 +794,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 		if err := r.checkPlanned(w, nil); err != nil {
 			return "", err
 		}
-		return r.apply(w, done, "", "pm: ")
+		return r.apply(w, done, "pm: ")
 	}
 	if err := refuseUnread(need); err != nil {
 		return "", err
@@ -809,7 +809,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 	if err := ws.Answer(needID, body); err != nil {
 		return "", err
 	}
-	out, err := r.apply(w, fmt.Sprintf("closed need %s and %s", needID, done), "", "pm: ")
+	out, err := r.apply(w, fmt.Sprintf("closed need %s and %s", needID, done), "pm: ")
 	if err != nil { // the work store has no reopen: say what stands and how to finish
 		return "", fmt.Errorf("%w; the work-store step stands: %s is closed as answered with this decision; record the "+
 			"decision again with pm decision add --need %s and the same flags", err, needID, needID)

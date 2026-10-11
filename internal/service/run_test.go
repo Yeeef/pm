@@ -92,21 +92,19 @@ func serve(t *testing.T, w *fakeWork, main string, opts ...func(*Deps)) *served 
 		s.done <- err
 	}()
 	re := regexp.MustCompile(`Serving http://localhost:(\d+);`)
-	deadline := time.Now().Add(5 * time.Second)
-	for {
+	if !within5s(func() bool {
 		if m := re.FindStringSubmatch(s.out.String()); m != nil {
 			s.base = "http://127.0.0.1:" + m[1]
-			break
+			return true
 		}
 		select {
 		case err := <-s.done:
 			t.Fatalf("Run returned before serving: %v; log:\n%s", err, s.log.String())
 		default:
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("not serving after 5 s; log:\n%s", s.log.String())
-		}
-		time.Sleep(10 * time.Millisecond)
+		return false
+	}) {
+		t.Fatalf("not serving after 5 s; log:\n%s", s.log.String())
 	}
 	t.Cleanup(func() {
 		if !s.stopped {
@@ -147,7 +145,13 @@ func (s *served) stop() error {
 	return nil
 }
 
-func (s *served) get(path string) (*http.Response, string) {
+// response is what a test reads of a GET's response once get has read and closed its body.
+type response struct {
+	StatusCode int
+	Header     http.Header
+}
+
+func (s *served) get(path string) (response, string) {
 	s.t.Helper()
 	resp, err := http.Get(s.base + path)
 	if err != nil {
@@ -155,7 +159,7 @@ func (s *served) get(path string) (*http.Response, string) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	return resp, string(body)
+	return response{resp.StatusCode, resp.Header}, string(body)
 }
 
 var tokenRe = regexp.MustCompile(`token=(\S+) `)
@@ -190,22 +194,33 @@ func (s *served) post(form url.Values, host string) (int, string, string) {
 	return resp.StatusCode, resp.Header.Get("Location"), string(body)
 }
 
+// within5s checks cond every 10 ms until it holds, for up to 5 s; whether it held.
+func within5s(cond func() bool) bool {
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	deadline := time.After(5 * time.Second)
+	for !cond() {
+		select {
+		case <-tick.C:
+		case <-deadline:
+			return cond()
+		}
+	}
+	return true
+}
+
 // eventually waits up to 5 s for cond.
 func eventually(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatalf("not within 5 s: %s", what)
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !within5s(cond) {
+		t.Fatalf("not within 5 s: %s", what)
 	}
 }
 
 // inbox is a session's inbox socket: the lines written to it, one per connection.
 func inbox(t *testing.T) (string, chan string) {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "pm-inbox") // a socket path must be short
+	dir, err := os.MkdirTemp("/tmp", "pm-inbox") //nolint:usetesting // a socket path must be short
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +314,13 @@ func TestServesPagesStyleAndVersionWithTheStoreAndVersionHeaders(t *testing.T) {
 	if err := json.Unmarshal([]byte(version), &v); err != nil || v.AsOf == 0 || "[status "+v.Page+"]" != regexp.MustCompile(`\[status \w+\]`).FindString(index) {
 		t.Fatalf("version %s against index %s (%v)", version, index, err)
 	}
-	head, _ := http.Head(s.base + "/")
+	head, err := http.Head(s.base + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := head.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if head.StatusCode != 200 || head.Header.Get(StoreHeader) == "" {
 		t.Fatalf("HEAD: %d", head.StatusCode)
 	}
@@ -429,7 +450,8 @@ func TestAReplyIsSpooledStoredOnceAndPushedIntoTheSessionsInbox(t *testing.T) {
 	if code, _, _ := s.post(form, ""); code != 303 { // a resubmit of the same reply id
 		t.Fatalf("resubmit: %d", code)
 	}
-	time.Sleep(100 * time.Millisecond)
+	// the spool was empty, so the resubmit is spooled again and the writer takes it: once it logs it sent, it is done
+	eventually(t, "the writer took the resubmit", func() bool { return strings.Count(s.log.String(), "reply p-1.2.1 sent ") == 2 })
 	if n := w.item("p-1.2.1"); len(n.Comments) != 1 {
 		t.Fatalf("a resubmit stored the reply twice: %+v", n.Comments)
 	}

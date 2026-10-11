@@ -26,6 +26,7 @@ type fakeWork struct {
 	open    int // connections not yet shut down
 	opens   int
 	reads   int // Items calls
+	marks   int // Mark calls: one per look
 	syncs   int
 	gcs     int
 	fp      int // the change mark: moves on every write
@@ -85,6 +86,7 @@ func (w *fakeWork) Mark() (string, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.touch()
+	w.marks++
 	return fmt.Sprint(w.fp), nil
 }
 

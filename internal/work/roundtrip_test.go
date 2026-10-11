@@ -111,6 +111,7 @@ func expectFromBD(t *testing.T, raw []byte) map[string]bdExpect {
 }
 
 func roundTrip(t *testing.T, exportPath, records string) {
+	t.Helper()
 	raw, err := os.ReadFile(exportPath)
 	if err != nil {
 		t.Fatal(err)

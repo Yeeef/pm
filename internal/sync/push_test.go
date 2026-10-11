@@ -99,14 +99,13 @@ func TestANeverSuccessfulPushIsOverdueFromTheInstall(t *testing.T) {
 	}
 }
 
-func git(t *testing.T, dir string, args ...string) string {
+func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %v: %v %s", args, err, out)
 	}
-	return strings.TrimSpace(string(out))
 }
 
 func TestPushRecordsPushesRebasesAndReports(t *testing.T) {

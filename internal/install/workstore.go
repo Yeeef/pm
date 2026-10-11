@@ -158,7 +158,7 @@ func WorkDrift(main, remote string) ([]string, error) {
 	dir, _ := work.Locations(main)
 	d, err := work.Dial(main)
 	if err != nil {
-		return []string{err.Error()}, nil
+		return []string{err.Error()}, nil //nolint:nilerr // a service that does not answer is a drift line, not a failure
 	}
 	if RemoteURL(main, remote) == "" {
 		return nil, d.Shutdown()
@@ -168,7 +168,7 @@ func WorkDrift(main, remote string) ([]string, error) {
 	if err == nil && ok {
 		_, _, tracked, err = d.Tracking()
 	}
-	if err = errors.Join(err, d.Shutdown()); err != nil {
+	if err := errors.Join(err, d.Shutdown()); err != nil {
 		return nil, err
 	}
 	if !ok {
@@ -211,7 +211,7 @@ func WorkUnsynced(main, remote string) (string, error) {
 	if err == nil && ok {
 		ahead, _, tracked, err = d.Tracking()
 	}
-	if err = errors.Join(err, d.Shutdown()); err != nil {
+	if err := errors.Join(err, d.Shutdown()); err != nil {
 		return "", err
 	}
 	switch {
@@ -230,7 +230,7 @@ func WorkUnsynced(main, remote string) (string, error) {
 func WorkState(main, remote string) (string, error) {
 	d, err := work.Dial(main)
 	if err != nil {
-		return err.Error(), nil
+		return err.Error(), nil //nolint:nilerr // a service that does not answer is the state pm where shows
 	}
 	var state string
 	err = func() error {
@@ -254,7 +254,7 @@ func WorkState(main, remote string) (string, error) {
 		}
 		return nil
 	}()
-	if err = errors.Join(err, d.Shutdown()); err != nil {
+	if err := errors.Join(err, d.Shutdown()); err != nil {
 		return "", err
 	}
 	return state, nil

@@ -6,6 +6,7 @@
 package hooks
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -45,7 +46,7 @@ var Starts = []string{"# pm rules", "## 3. Records", "# How"}
 
 // Self is the pm that pm prime --state runs for init, where and show: this binary, as Python runs its own
 // interpreter. A test may point it at another program.
-var Self = func() (string, error) { return os.Executable() }
+var Self = os.Executable
 
 // Rules is prime.md, as Python reads it: text-mode newlines, stripped.
 func Rules() string {
@@ -172,7 +173,7 @@ func Init(cwd *string) (string, error) {
 	env := append(envWithout("PORT"), launch.Markers()...)
 	res, err := proc.Run(argv, proc.Options{Cwd: cwd, Env: env, Timeout: initTimeout * time.Second,
 		TimeoutText: fmt.Sprint(initTimeout)})
-	if e, ok := err.(*proc.Error); ok {
+	if e := (*proc.Error)(nil); errors.As(err, &e) {
 		return fmt.Sprintf("pm init did not run at session start (%s: %s); run `pm init` by hand.\n\n", e.Type, e.Msg), nil
 	}
 	if res.Code != 0 {
@@ -199,7 +200,7 @@ func Where(cwd *string) (string, error) {
 	}
 	res, err := proc.Run(argv, proc.Options{Cwd: cwd, Timeout: whereTimeout * time.Second,
 		TimeoutText: fmt.Sprint(whereTimeout)})
-	if e, ok := err.(*proc.Error); ok {
+	if e := (*proc.Error)(nil); errors.As(err, &e) {
 		return fmt.Sprintf("pm where did not run at session start (%s: %s); run `pm where` by hand.\n\n", e.Type, e.Msg), nil
 	}
 	if res.Code != 0 {
@@ -224,7 +225,7 @@ func Context(cwd *string, session string, capacity int, wait time.Duration, wait
 		env = append(envWithout("CLAUDE_CODE_SESSION_ID"), "CLAUDE_CODE_SESSION_ID="+session)
 	}
 	res, err := proc.Run(argv, proc.Options{Cwd: cwd, Env: env, Timeout: wait, TimeoutText: waitText})
-	if e, ok := err.(*proc.Error); ok {
+	if e := (*proc.Error)(nil); errors.As(err, &e) {
 		return fmt.Sprintf("pm show did not run at session start (%s: %s); run `pm show` by hand.", e.Type, e.Msg), nil
 	}
 	if res.Code != 0 {
@@ -309,7 +310,7 @@ func ReadEvent(stdin io.Reader) (*pyjson.Object, error) {
 	}
 	v, err := pyjson.Loads(text)
 	if err != nil {
-		return nil, nil
+		return nil, nil //nolint:nilerr // input that is not JSON reads as no event: a hook fails open
 	}
 	obj, _ := v.(*pyjson.Object)
 	return obj, nil
@@ -380,7 +381,7 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 		}
 	}
 	if hookJSON {
-		var name any = event.Get("hook_event_name")
+		name := event.Get("hook_event_name")
 		if !pyjson.Truthy(name) {
 			name = "SessionStart"
 			if part.Subagent {

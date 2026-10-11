@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -55,6 +56,7 @@ type machine struct {
 // newMachine is a main checkout, HOME in a temp dir, the supervisor's tools replaced by recorders on a PATH that
 // holds a '%', and a site that comes up at once for this store (the end-to-end test runs both for real).
 func newMachine(t *testing.T, kind string) *machine {
+	t.Helper()
 	tmp := t.TempDir()
 	m := &machine{t: t, main: filepath.Join(tmp, "main"), log: filepath.Join(tmp, "calls"), build: Version()}
 	os.MkdirAll(m.main, 0o755)
@@ -227,6 +229,7 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 
 // stopServices stops every process the fake supervisor started.
 func stopServices(t *testing.T, state string) {
+	t.Helper()
 	data, err := os.ReadFile(state)
 	if err != nil {
 		return
@@ -234,9 +237,7 @@ func stopServices(t *testing.T, state string) {
 	for _, m := range regexp.MustCompile(`"[^"]+": (\d+)`).FindAllStringSubmatch(string(data), -1) {
 		pid, _ := strconv.Atoi(m[1])
 		if syscall.Kill(pid, syscall.SIGTERM) == nil {
-			for i := 0; i < 100 && syscall.Kill(pid, 0) == nil; i++ {
-				time.Sleep(20 * time.Millisecond)
-			}
+			eventually(t, fmt.Sprintf("process %d exits", pid), func() bool { return syscall.Kill(pid, 0) != nil })
 		}
 	}
 }

@@ -132,7 +132,7 @@ func cmdFindingAdd(e *env, p *Parsed) (string, error) {
 	if err := r.checkPlanned(w, nil); err != nil {
 		return "", err
 	}
-	return r.apply(w, "added a finding to "+r.rel(rec.Path), "", "pm: ")
+	return r.apply(w, "added a finding to "+r.rel(rec.Path), "pm: ")
 }
 
 // feedbackDoc is the repo's pm feedback doc, or nil before its first entry.
@@ -206,7 +206,7 @@ func cmdFeedbackAdd(e *env, p *Parsed) (string, error) {
 	if err := r.checkPlanned(w, nil); err != nil {
 		return "", err
 	}
-	return r.apply(w, "added feedback to "+r.rel(path), "", "pm: ")
+	return r.apply(w, "added feedback to "+r.rel(path), "pm: ")
 }
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
@@ -276,7 +276,7 @@ func cmdDocNew(e *env, p *Parsed) (string, error) {
 	if err := r.checkPlanned(w, nil); err != nil {
 		return "", err
 	}
-	return r.apply(w, "created "+r.rel(path), "", "pm: ")
+	return r.apply(w, "created "+r.rel(path), "pm: ")
 }
 
 func cmdDesignNew(e *env, p *Parsed) (string, error) {
@@ -301,7 +301,7 @@ func cmdDesignNew(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	return r.apply(w, fmt.Sprintf("created %s; fill in its sections by hand in the store, then pm commit -m \"…\" %s",
-		r.rel(path), r.rel(path)), "", "pm: ")
+		r.rel(path), r.rel(path)), "pm: ")
 }
 
 func cmdPostmortemNew(e *env, p *Parsed) (string, error) {
@@ -337,7 +337,7 @@ func cmdPostmortemNew(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	return r.apply(w, fmt.Sprintf("created %s; fill in its sections by hand in the store, then pm commit -m \"…\" %s",
-		r.rel(path), r.rel(path)), "", "pm: ")
+		r.rel(path), r.rel(path)), "pm: ")
 }
 
 // ---------------------------------------------------------------- projects and sprints
@@ -385,7 +385,7 @@ func cmdProjectOpen(e *env, p *Parsed) (string, error) {
 	if err := r.checkPlanned(w, r.with(made)); err != nil {
 		return "", undoCreate(ws, made.ID, err)
 	}
-	out, err := r.apply(w, fmt.Sprintf("opened project %s: epic %s, record %s", name, made.ID, r.rel(path)), "", "pm: ")
+	out, err := r.apply(w, fmt.Sprintf("opened project %s: epic %s, record %s", name, made.ID, r.rel(path)), "pm: ")
 	if err != nil {
 		return "", undoCreate(ws, made.ID, err)
 	}
@@ -434,6 +434,7 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 			return "", refuse("'## %s' is missing or empty in --text; %s", name, frameShape)
 		}
 	}
+	//nolint:gocritic // weakCond: FindStringSubmatch gives nil or a slice holding every group
 	if m := scopeRE.FindStringSubmatch(fr["Scope"]); m == nil || strip(m[1]) == "" || strip(m[2]) == "" {
 		return "", refuse("Scope needs a non-empty **In:** list followed by a non-empty **Out:** list; %s", frameShape)
 	}
@@ -469,7 +470,10 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 			kids++
 		}
 		if last := k.ID[strings.LastIndex(k.ID, ".")+1:]; strings.Contains(k.ID, ".") && trailingNumber.MatchString(last) {
-			n, _ := strconv.Atoi(last)
+			n, err := strconv.Atoi(last)
+			if err != nil {
+				return "", fmt.Errorf("item %s: %w", k.ID, err)
+			}
 			suffix = max(suffix, n)
 		}
 	}
@@ -477,7 +481,10 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 	name := regexp.MustCompile(`^` + regexp.QuoteMeta(project) + `-([0-9]+)$`)
 	for _, rec := range r.recs {
 		if m := name.FindStringSubmatch(rec.Name()); rec.Type() == "sprint" && m != nil {
-			v, _ := strconv.Atoi(m[1])
+			v, err := strconv.Atoi(m[1])
+			if err != nil {
+				return "", fmt.Errorf("record %s: %w", rec.Name(), err)
+			}
 			n = max(n, v)
 		}
 	}
@@ -511,7 +518,7 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 		return "", undoCreate(ws, made.ID, err)
 	}
 	out, err := r.apply(w, fmt.Sprintf("opened sprint %d of %s: epic %s, record %s", n, project, made.ID, r.rel(path)),
-		"", "pm: ")
+		"pm: ")
 	if err != nil {
 		return "", undoCreate(ws, made.ID, err)
 	}
@@ -712,7 +719,7 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	if w != nil {
-		if _, err := r.apply(w, message, "", ""); err != nil {
+		if _, err := r.apply(w, message, ""); err != nil {
 			return "", err
 		}
 		if head, err = store.Git(r.records, "rev-parse", "--short", "HEAD"); err != nil {
@@ -1216,7 +1223,7 @@ func cmdTaskMove(e *env, p *Parsed) (string, error) {
 		from = "project " + source
 	}
 	out, err := r.apply(w, fmt.Sprintf("moved %s from %s to %s and added a sprint decision to %s", id, from, to,
-		r.rel(rec.Path)), "", "pm: ")
+		r.rel(rec.Path)), "pm: ")
 	if err != nil {
 		if uerr := ws.Move(id, source); uerr != nil {
 			return "", fmt.Errorf("%w; moving %s back to %s failed too: %v", err, id, source, uerr)
@@ -1276,7 +1283,7 @@ func cmdSprintMove(e *env, p *Parsed) (string, error) {
 		if err := r.checkPlanned(w, nil); err != nil {
 			return "", err
 		}
-		return r.apply(w, "finished moving "+moveText(r, id, mv)+" (the work store held it already)", "", "pm: ")
+		return r.apply(w, "finished moving "+moveText(r, id, mv)+" (the work store held it already)", "pm: ")
 	}
 	if sp.Status == work.Closed {
 		return "", refuse("sprint %s is closed; only an open sprint moves", id)
@@ -1322,7 +1329,7 @@ func cmdSprintMove(e *env, p *Parsed) (string, error) {
 			return "", fmt.Errorf("%w; %s", err, held)
 		}
 	}
-	out, err := r.apply(w, "moved "+moveText(r, id, mv), "", "pm: ")
+	out, err := r.apply(w, "moved "+moveText(r, id, mv), "pm: ")
 	if err != nil {
 		return "", fmt.Errorf("%w; %s", err, held)
 	}
@@ -1470,7 +1477,7 @@ func cmdSprintEdit(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	out, err := r.apply(w, fmt.Sprintf("renamed sprint %s to %s and added a sprint decision to %s", id, pyRepr(full),
-		r.rel(rec.Path)), "", "pm: ")
+		r.rel(rec.Path)), "pm: ")
 	if err != nil {
 		if uerr := ws.Edit(id, &sp.Title, nil); uerr != nil {
 			return "", fmt.Errorf("%w; putting back the title %s failed too: %v", err, pyRepr(sp.Title), uerr)

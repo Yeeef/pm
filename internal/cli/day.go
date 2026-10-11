@@ -106,7 +106,7 @@ func (e *env) summarizeOne(r *repo, day, activity string, dryRun bool) (string, 
 	if len(dirty) > 0 {
 		return "", refuse("%s has uncommitted changes; revert them and run this again", r.rel(path))
 	}
-	return r.apply([]store.Write{{Path: path, Text: body}}, "summarized "+day+" in "+r.rel(path), "", "pm: ")
+	return r.apply([]store.Write{{Path: path, Text: body}}, "summarized "+day+" in "+r.rel(path), "pm: ")
 }
 
 // askModel is the model's answer to prompt from the claude CLI, non-interactive, without tools, hooks or a saved

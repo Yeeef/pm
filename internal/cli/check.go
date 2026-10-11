@@ -32,7 +32,7 @@ func cmdCheck(here string, stdout io.Writer) error {
 		return err
 	}
 	all, err := ws.Items()
-	if err = errors.Join(err, ws.Shutdown()); err != nil { // disconnect before the render, which needs no item more
+	if err := errors.Join(err, ws.Shutdown()); err != nil { // disconnect before the render, which needs no item more
 		return err
 	}
 	recs, err := records.Read(recordsDir, nil)

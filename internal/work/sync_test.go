@@ -65,11 +65,12 @@ const dedup = 1100 * time.Millisecond
 // fresh waits until the clone's next fetch reads the remote.
 func (c *clone) fresh() {
 	if wait := dedup - time.Since(c.synced); wait > 0 {
-		time.Sleep(wait)
+		time.Sleep(wait) //nolint:forbidigo // Dolt's read dedup of a git remote is a wall-clock window; no state shows it passed
 	}
 }
 
 func newClone(t *testing.T, clock time.Time) *clone {
+	t.Helper()
 	c := &clone{t: t, clock: clock}
 	c.o = Options{Prefix: "demo", Now: func() time.Time { // the clone's sessions read it at once
 		c.mu.Lock()
@@ -120,17 +121,6 @@ func (c *clone) items() []Item {
 	var items []Item
 	c.do(func(d *Dolt) { items = must(d.Items()) })
 	return items
-}
-
-func (c *clone) item(id string) Item {
-	c.t.Helper()
-	for _, it := range c.items() {
-		if it.ID == id {
-			return it
-		}
-	}
-	c.t.Fatalf("no item %s", id)
-	return Item{}
 }
 
 // pair is two clones of a store on a bare remote, seeded by A with a project, a sprint, two tasks and a decision need,

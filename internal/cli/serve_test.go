@@ -232,7 +232,7 @@ func TestLoadNeverPassesARecordSetMissingAFileGitRewrote(t *testing.T) {
 		_, d := worktest.ServeAt(t, root, work.Ops{})
 		err := d.Import([]work.Item{{ID: "demo-a1b", Type: work.Project, Title: "Demo", Status: work.Open, CreatedAt: at,
 			UpdatedAt: at}}, "seed")
-		if err = errors.Join(err, d.Shutdown()); err != nil {
+		if err := errors.Join(err, d.Shutdown()); err != nil {
 			t.Fatal(err)
 		}
 		project := filepath.Join(root, ".pm/store/records/projects/demo.md") // the store needs <prefix>-<root> ids
@@ -274,7 +274,7 @@ func TestLoadNeverPassesARecordSetMissingAFileGitRewrote(t *testing.T) {
 // project and one sprint record.
 func clone(t *testing.T) string {
 	t.Helper()
-	tmp, err := os.MkdirTemp("", "pm") // short: the clone's service socket must fit the kernel's limit
+	tmp, err := os.MkdirTemp("", "pm") //nolint:usetesting // short: the clone's service socket must fit the kernel's limit
 	if err != nil {
 		t.Fatal(err)
 	}

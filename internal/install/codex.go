@@ -1,6 +1,7 @@
 package install
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -119,7 +120,7 @@ func CodexConfig(path string) (string, map[string]any, []string, error) {
 }
 
 func tomlError(err error) string {
-	if pe, ok := err.(toml.ParseError); ok {
+	if pe := (toml.ParseError{}); errors.As(err, &pe) {
 		return pe.Message
 	}
 	return err.Error()
@@ -286,7 +287,7 @@ func contains(list []string, s string) bool {
 func SetupCodex(main string) (string, error) {
 	h := CodexHome()
 	if st, err := os.Stat(h); err != nil || !st.IsDir() {
-		return "Codex: no " + h + ", so Codex is not used here; left its sandbox config alone", nil
+		return "Codex: no " + h + ", so Codex is not used here; left its sandbox config alone", nil //nolint:nilerr // no error: Codex is not used here
 	}
 	path := filepath.Join(h, "config.toml")
 	text, _, have, err := CodexConfig(path)

@@ -832,7 +832,8 @@ func plan(top string, s Settings, all bool) ([]Planned, error) {
 			}
 			apply = !ok
 		}
-		n, wrote := "", false
+		var n string
+		wrote := false
 		switch {
 		case apply:
 			if n, err = p.Apply(text); err != nil {

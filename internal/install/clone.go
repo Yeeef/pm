@@ -309,7 +309,10 @@ func Sparse(top string) ([]string, error) {
 		return nil, err
 	}
 	res, err := proc.Run([]string{"git", "sparse-checkout", "list"}, proc.Options{Cwd: &top})
-	if err != nil || res.Code != 0 {
+	if err != nil {
+		return nil, err
+	}
+	if res.Code != 0 { // sparse checkout on with no sparse-checkout file: no patterns
 		return nil, nil
 	}
 	return strings.Fields(res.Stdout), nil

@@ -18,7 +18,7 @@ type served struct {
 // too long for the socket on macOS.
 func shortMain(t testing.TB) string {
 	t.Helper()
-	main, err := os.MkdirTemp("", "pm")
+	main, err := os.MkdirTemp("", "pm") //nolint:usetesting // short: the host's socket must fit the kernel's limit
 	if err != nil {
 		t.Fatal(err)
 	}

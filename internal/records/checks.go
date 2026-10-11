@@ -284,7 +284,7 @@ var isoRE = regexp.MustCompile(`^(\d{4})-?(\d{2})-?(\d{2})(?:[T ](\d{2})(?::?(\d
 func ParseISO(s string) (time.Time, error) {
 	m := isoRE.FindStringSubmatch(s)
 	if m == nil {
-		return time.Time{}, fmt.Errorf("Invalid isoformat string: %s", pyjson.StrRepr(s))
+		return time.Time{}, fmt.Errorf("Invalid isoformat string: %s", pyjson.StrRepr(s)) //nolint:staticcheck // ST1005: Python's datetime error, word for word
 	}
 	layout, value := "2006-01-02", m[1]+"-"+m[2]+"-"+m[3]
 	if m[4] != "" {
@@ -317,7 +317,7 @@ func ParseISO(s string) (time.Time, error) {
 	}
 	t, err := time.ParseInLocation(layout, value, loc)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("Invalid isoformat string: %s", pyjson.StrRepr(s))
+		return time.Time{}, fmt.Errorf("Invalid isoformat string: %s", pyjson.StrRepr(s)) //nolint:staticcheck // ST1005: Python's datetime error, word for word
 	}
 	return t, nil
 }

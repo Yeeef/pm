@@ -28,7 +28,7 @@ func cmdPush(cfg config.Config, here string, stdout io.Writer) error {
 				return false, err.Error()
 			}
 			lines, err := d.CallSync()
-			if err = errors.Join(err, d.Shutdown()); err != nil {
+			if err := errors.Join(err, d.Shutdown()); err != nil {
 				return false, err.Error()
 			}
 			warnings = lines[1:]

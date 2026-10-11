@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -660,8 +661,10 @@ func Logs(main string, n int) (string, error) {
 func Uninstall(main string) (string, error) {
 	kind := PlatformKind()
 	unit, name := UnitFile(main, kind), Label(main)
-	if _, err := os.Stat(unit); err != nil {
+	if _, err := os.Stat(unit); errors.Is(err, fs.ErrNotExist) {
 		return "", nil
+	} else if err != nil {
+		return "", err
 	}
 	if kind == Launchd && Loaded(main, kind) {
 		if err := bootout(main); err != nil {

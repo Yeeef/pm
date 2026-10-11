@@ -348,7 +348,7 @@ func Texts(root string) (texts map[string]string, gone []string, err error) {
 // LinkToNothing is the error for a path under root that is a link to nothing, which no read opens; nil for any other.
 func LinkToNothing(root, p string) error {
 	if fi, err := os.Lstat(p); err != nil || fi.Mode()&fs.ModeSymlink == 0 {
-		return nil
+		return nil //nolint:nilerr // a path that is no link, or none at all, is not a link to nothing
 	}
 	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
 		return nil

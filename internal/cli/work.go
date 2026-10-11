@@ -132,7 +132,7 @@ func importItems(main string, items []work.Item, kind, path string, stdout io.Wr
 	if err == nil {
 		err = d.Import(items, fmt.Sprintf("pm: import %d items from %s %s", len(items), kind, filepath.Base(path)))
 	}
-	if err = errors.Join(err, d.Shutdown()); err != nil {
+	if err := errors.Join(err, d.Shutdown()); err != nil {
 		return err
 	}
 	comments := 0

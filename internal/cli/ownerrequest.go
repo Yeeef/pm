@@ -21,7 +21,7 @@ func openRequests(dir, session string) ([]hooks.Request, error) {
 		return nil, err
 	}
 	needs, err := ws.Needs(session)
-	if err = errors.Join(err, ws.Shutdown()); err != nil {
+	if err := errors.Join(err, ws.Shutdown()); err != nil {
 		return nil, err
 	}
 	var out []hooks.Request

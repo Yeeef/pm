@@ -243,15 +243,6 @@ func (d *Dolt) ahead() (int, error) {
 	return d.count(d.conn, remoteHead+".."+branch)
 }
 
-// head is the store's HEAD commit.
-func (d *Dolt) head() (string, error) {
-	var h string
-	if err := d.conn.QueryRowContext(ctx, "SELECT HASHOF('HEAD')").Scan(&h); err != nil {
-		return "", fmt.Errorf("work store: %w", err)
-	}
-	return h, nil
-}
-
 // hashOf is the commit a ref names.
 func (d *Dolt) hashOf(ref string) (string, error) {
 	var h string

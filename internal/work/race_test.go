@@ -22,7 +22,7 @@ func TestPullRacingLocalWriters(t *testing.T) {
 	var writeErrs []string
 	var seq atomic.Int64
 	landed := map[string]bool{}
-	const rounds = 3 // one of each: no wait, 5 ms and 10 ms before the pull
+	const rounds = 3 // one of each: the pull at once, or once 2 or 4 of B's writes this round ended
 	for round := range rounds {
 		x.a.do(func(d *Dolt) { // A writes and pushes, so B is behind
 			for i := range 3 {
@@ -30,6 +30,9 @@ func TestPullRacingLocalWriters(t *testing.T) {
 			}
 		})
 		x.a.sync()
+		mu.Lock()
+		before := len(landed) + len(writeErrs)
+		mu.Unlock()
 		stop := make(chan struct{})
 		var wg sync.WaitGroup
 		for range 3 {
@@ -55,7 +58,11 @@ func TestPullRacingLocalWriters(t *testing.T) {
 				}
 			}()
 		}
-		time.Sleep(time.Duration(round%3) * 5 * time.Millisecond) // a fast-forward, or a merge with B's writes
+		waitFor(t, "B's writes before the pull", func() bool { // a fast-forward, or a merge with B's writes
+			mu.Lock()
+			defer mu.Unlock()
+			return len(landed)+len(writeErrs)-before >= round*2
+		})
 		x.b.fresh()
 		x.b.do(func(d *Dolt) {
 			if _, err := d.Sync(); err != nil {
@@ -115,7 +122,7 @@ func TestCreateRacingALocalWriter(t *testing.T) {
 				writeErrs = append(writeErrs, err.Error())
 				mu.Unlock()
 			}
-			time.Sleep(time.Duration(i%7) * time.Millisecond)
+			time.Sleep(time.Duration(i%7) * time.Millisecond) //nolint:forbidigo // paces the writer unevenly against the creates; it waits on no condition
 		}
 	}()
 	d := x.b.s.dial(t)
@@ -174,7 +181,7 @@ func TestTwoClonesMigratingOnTheirOwnMerge(t *testing.T) {
 	pa := must(da.Create(New{Type: Project, Title: "PA"}))
 	pb := must(db.Create(New{Type: Project, Title: "PB"}))
 	for _, d := range []*Dolt{da, db, da} {
-		time.Sleep(dedup)
+		time.Sleep(dedup) //nolint:forbidigo // Dolt's read dedup of a git remote is a wall-clock window; no state shows it passed
 		if _, err := d.Sync(); err != nil {
 			t.Fatal(err)
 		}

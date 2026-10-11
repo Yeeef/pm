@@ -38,6 +38,24 @@ func must[T any](v T, err error) T {
 
 func ptr[T any](v T) *T { return &v }
 
+// waitFor checks cond every millisecond until it holds, failing the test with what after 5 s.
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	deadline := time.After(5 * time.Second)
+	for !cond() {
+		select {
+		case <-tick.C:
+		case <-deadline:
+			if !cond() {
+				t.Fatalf("not within 5 s: %s", what)
+			}
+			return
+		}
+	}
+}
+
 // commits is the number of Dolt commits in the store.
 func commits(t *testing.T, d *Dolt) int {
 	t.Helper()
