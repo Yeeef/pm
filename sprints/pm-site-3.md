@@ -66,10 +66,17 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the Today summary tells only what happened that day, with no "For you" bullet that tells the owner what to do.
+
+- `prompts/day_summary.txt`: the "For you" theme is gone; a request raised or answered that day stays an event of the day.
+- A changelog entry.
+- A stored summary is rewritten with the new prompt once that day's activity next changes: its digest hashes the
+  activity only.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Met: `pm day summarize --dry-run`, pm built from the PR, on 2026-10-11's activity: 3 of 3 runs give no "For you"
+  theme and no instruction to the owner. The stored summary from the old prompt ends with "For you: Review the pull
+  request that adds the main checkout flag."
