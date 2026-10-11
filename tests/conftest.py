@@ -342,7 +342,7 @@ def fake_env(tmp: Path, base) -> dict[str, str]:
         (tmp / "issues.json").write_text(json.dumps(ISSUES))
     # a test names its session itself, and its transcripts live under tmp/claude, not the user's
     base = {k: v for k, v in base.items() if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID",
-                                                         "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
+                                                         "CODEX_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
                                                          "GH_TOKEN")}
     return dict(base, PATH=f"{bindir}{os.pathsep}{tmp / 'home/.local/bin'}{os.pathsep}{base['PATH']}",
                 FAKE_GH_STATE=str(tmp / "gh.json"), CODEX_HOME=str(tmp / "codex"),

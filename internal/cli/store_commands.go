@@ -542,10 +542,11 @@ const LiveWindow = 30 * time.Minute
 
 var sessionID = regexp.MustCompile(`^[\w-]+$`)
 
-// currentSession is this command's agent session (sessionOf): Claude Code's session id or Codex's root thread id, or
+// currentSession is this command's agent session (sessionOf): Claude Code's session id or Codex's root session id, or
 // "".
 func currentSession() string {
-	return sessionOf(strings.TrimSpace(os.Getenv(sessionEnv)), strings.TrimSpace(os.Getenv(codexSessionEnv)),
+	env := func(name string) string { return strings.TrimSpace(os.Getenv(name)) }
+	return sessionOf(env(sessionEnv), env(codexRootEnv), env(codexSessionEnv),
 		func() string { return innermostRuntime(os.Getppid(), readProc, claudePID()) }, codexRoot)
 }
 

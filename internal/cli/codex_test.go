@@ -83,11 +83,17 @@ func TestCodexRootMapsASubagentThreadToItsRootThread(t *testing.T) {
 func TestCurrentSessionOfACodexSubagentIsItsRootThread(t *testing.T) {
 	t.Setenv("CODEX_HOME", t.TempDir())
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
+	t.Setenv("CODEX_SESSION_ID", "") // an earlier Codex sets only the thread's id
 	t.Setenv("CODEX_THREAD_ID", childThread)
 	rollout(t, rootThread, "", map[string]any{"session_id": rootThread})
 	rollout(t, childThread, "", map[string]any{"session_id": rootThread, "parent_thread_id": rootThread})
 	if got := currentSession(); got != rootThread {
 		t.Fatalf("got %s, want the root thread %s", got, rootThread)
+	}
+	t.Setenv("CODEX_SESSION_ID", rootThread) // Codex 0.154 names it, with no rollout read
+	t.Setenv("CODEX_HOME", t.TempDir())
+	if got := currentSession(); got != rootThread {
+		t.Fatalf("with CODEX_SESSION_ID: got %s, want %s", got, rootThread)
 	}
 }
 

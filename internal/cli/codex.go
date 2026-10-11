@@ -14,7 +14,8 @@ import (
 // Codex keeps each thread's transcript, its rollout, at $CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<thread>.jsonl,
 // in the directory of the thread's start date in local time. The rollout's first line is the thread's session_meta:
 // its id, and for a subagent's thread, its root thread's id as session_id and its parent's as parent_thread_id. A
-// subagent is a thread of its own, with its own CODEX_THREAD_ID.
+// subagent is a thread of its own, with its own CODEX_THREAD_ID; Codex 0.154 also sets CODEX_SESSION_ID, the root
+// thread's id, which pm prefers.
 
 // codexRollouts is the paths of thread's rollouts. A Codex thread id is a UUIDv7, whose first 48 bits are its start in
 // Unix milliseconds, so only the date directories that start can be in, in any time zone, are read; for another id,

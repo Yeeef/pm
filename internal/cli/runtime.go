@@ -12,7 +12,7 @@ import (
 
 // Which agent runtime runs this pm, when the environment names a session of both: Codex inherits the environment of
 // whatever started it, so a Codex run from a Claude Code session sees that session's CLAUDE_CODE_SESSION_ID beside its
-// own CODEX_THREAD_ID, and a Claude Code run from Codex the other way round. The innermost runtime is the one running
+// own CODEX_SESSION_ID and CODEX_THREAD_ID, and a Claude Code run from Codex the other way round. The innermost runtime is the one running
 // pm: the nearest ancestor process that is Claude Code or Codex.
 
 // procInfo is a process's parent pid and argv[0], and whether the process could be read.
@@ -88,18 +88,22 @@ func readProc(pid int) (int, string, bool) {
 	return ppid, f[1], true
 }
 
-// sessionOf is the session that runs this command, from the environment's Claude Code session id and Codex thread id:
-// the one that is set, or, when both are, the innermost runtime's (Claude Code's when no ancestor is either). A Codex
-// thread maps to its root thread (root), so a subagent shares its session's id.
-func sessionOf(claude, codex string, innermost func() string, root func(string) string) string {
-	if claude != "" && codex != "" && innermost() == "codex" {
+// sessionOf is the session that runs this command, from the environment's Claude Code session id (claude) and Codex's
+// root session id (codexSession) and thread id (codexThread): the runtime's that is set, or, when both runtimes' are,
+// the innermost runtime's (Claude Code's when no ancestor is either). Codex 0.154 sets CODEX_SESSION_ID, its root
+// session's id in a subagent too; an earlier Codex sets only the thread's, which root maps to its root thread, so a
+// subagent shares its session's id.
+func sessionOf(claude, codexSession, codexThread string, innermost func() string, root func(string) string) string {
+	if claude != "" && (codexSession != "" || codexThread != "") && innermost() == "codex" {
 		claude = ""
 	}
 	switch {
 	case claude != "":
 		return claude
-	case codex != "":
-		return root(codex)
+	case codexSession != "":
+		return codexSession
+	case codexThread != "":
+		return root(codexThread)
 	}
 	return ""
 }

@@ -265,6 +265,7 @@ func (r *repo) apply(writes []store.Write, message, prefix string) (string, erro
 const (
 	sessionEnv      = "CLAUDE_CODE_SESSION_ID" // Claude Code exports it to every command a session runs
 	codexSessionEnv = "CODEX_THREAD_ID"        // Codex exports it to every command a thread runs
+	codexRootEnv    = "CODEX_SESSION_ID"       // Codex 0.154 exports its root session's id, a subagent's too
 	inboxEnv        = "CLAUDE_CODE_MESSAGING_SOCKET"
 	liveWindow      = int(LiveWindow / time.Second) // seconds, as refusals name it
 )

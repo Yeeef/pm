@@ -12,22 +12,24 @@ func TestSessionOfIsTheSetOneOrTheInnermostRuntimesWhenBothAre(t *testing.T) {
 		}
 		return thread
 	}
-	for _, c := range []struct{ claude, codex, innermost, want string }{
-		{"", "", "", ""},
-		{"cl", "", "unasked", "cl"},
-		{"", "child", "unasked", "root"}, // a Codex subagent's thread is its root's session
-		{"", "th", "unasked", "th"},
-		{"cl", "child", "codex", "root"}, // Codex started from a Claude Code session: Codex runs pm
-		{"cl", "child", "claude", "cl"},  // Claude Code started from Codex
-		{"cl", "child", "", "cl"},        // no runtime among the ancestors: Claude Code's, as before
+	for _, c := range []struct{ claude, session, thread, innermost, want string }{
+		{"", "", "", "", ""},
+		{"cl", "", "", "unasked", "cl"},
+		{"", "root", "child", "unasked", "root"}, // Codex 0.154 names the root session itself
+		{"", "", "child", "unasked", "root"},     // an earlier Codex: a subagent's thread is its root's session
+		{"", "", "th", "unasked", "th"},
+		{"cl", "root", "child", "codex", "root"}, // Codex started from a Claude Code session: Codex runs pm
+		{"cl", "", "child", "codex", "root"},
+		{"cl", "root", "child", "claude", "cl"}, // Claude Code started from Codex
+		{"cl", "root", "", "", "cl"},            // no runtime among the ancestors: Claude Code's, as before
 	} {
 		innermost := func() string {
 			if c.innermost == "unasked" {
-				t.Errorf("%+v: the ancestry was read with one session set", c)
+				t.Errorf("%+v: the ancestry was read with one runtime's session set", c)
 			}
 			return c.innermost
 		}
-		if got := sessionOf(c.claude, c.codex, innermost, rootOf); got != c.want {
+		if got := sessionOf(c.claude, c.session, c.thread, innermost, rootOf); got != c.want {
 			t.Errorf("%+v: got %q", c, got)
 		}
 	}

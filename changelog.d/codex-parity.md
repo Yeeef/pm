@@ -5,12 +5,13 @@
 
 ### Changed
 
-- A Codex subagent now shares its root thread's session, as a Claude Code subagent shares its session's: pm maps
-  `$CODEX_HOME`'s rollout of the subagent's thread to its root thread, so the subagent may claim, release and answer
+- A Codex subagent now shares its root thread's session, as a Claude Code subagent shares its session's: pm takes
+  Codex's `$CODEX_SESSION_ID`, the root session's id, and with an earlier Codex that sets only `$CODEX_THREAD_ID`,
+  maps the thread to its root through its rollout under `$CODEX_HOME`. So a subagent may claim, release and answer
   what its session holds and raised.
-- With both `$CLAUDE_CODE_SESSION_ID` and `$CODEX_THREAD_ID` set (Codex started from a Claude Code session inherits
-  the first), the session is that of the nearest Claude Code or Codex process pm runs under; it was always Claude
-  Code's.
+- With both Claude Code's and Codex's session set (Codex started from a Claude Code session inherits
+  `$CLAUDE_CODE_SESSION_ID`), the session is that of the nearest Claude Code or Codex process pm runs under; it was
+  always Claude Code's.
 - `pm task claim`'s refusal in the main checkout says its git commands make a worktree in any runtime.
 
 ### Fixed

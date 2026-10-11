@@ -42,6 +42,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
 	t.Setenv("CODEX_HOME", filepath.Join(dir, "codex"))
 	t.Setenv("CODEX_THREAD_ID", "")
+	t.Setenv("CODEX_SESSION_ID", "")
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "me")
 	if err := os.MkdirAll(filepath.Join(cfg, "projects", "x"), 0o755); err != nil {
 		t.Fatal(err)

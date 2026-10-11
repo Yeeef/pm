@@ -1368,11 +1368,14 @@ def test_reply_read_prints_each_undelivered_reply_and_merge_once(repo):
     repo.mark()
     refused(repo, "reply", "read", "repo-demo.1.1", match=r"repo-demo.1.1 is not a request to the owner")
     repo.env.pop("CLAUDE_CODE_SESSION_ID")
-    # a Codex thread finds its session's requests as a Claude Code session does
-    repo.env["CODEX_THREAD_ID"] = "sess-1"
-    res = repo.pm("reply", "read")
-    assert res.stdout == "nothing undelivered on repo-demo.1.3, repo-demo.1.4\n", res.stderr
-    repo.env.pop("CODEX_THREAD_ID")
+    # a Codex thread finds its session's requests as a Claude Code session does: a subagent's thread by its root
+    # session's id (Codex 0.154), a thread without it by its own (an earlier Codex, with no rollout to map it by)
+    for env in ({"CODEX_SESSION_ID": "sess-1", "CODEX_THREAD_ID": "sess-sub"}, {"CODEX_THREAD_ID": "sess-1"}):
+        repo.env.update(env)
+        res = repo.pm("reply", "read")
+        assert res.stdout == "nothing undelivered on repo-demo.1.3, repo-demo.1.4\n", (env, res.stderr)
+        for k in env:
+            repo.env.pop(k)
     refused(repo, "reply", "read", match=r"name the requests to read")
     res = repo.pm(*ADD, "--need", "repo-demo.1.3", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
