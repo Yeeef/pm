@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T18:30:04+00:00",
- "digest": "0180c7398fbfd94f",
+ "generated_at": "2026-10-11T18:40:27+00:00",
+ "digest": "271be7f310c64359",
  "model": "claude-haiku-5-5",
- "text": "- **Site access check:** The Go service now checks Cloudflare Access tokens. It refetches signing keys at most once a minute. The change is not live until the pull request is released.\n- **Public site and README:** The README now presents pm as a human-agent project management suite, with each claim checked against the code. A one-page website with real screenshots deploys to GitHub Pages on each push to main.\n- **Main checkout status:** The pm site and pm service status now flag a main checkout that is behind its remote, diverged, or off main.\n- **For you:** Enable GitHub Pages for the repository, with GitHub Actions as the source. Review the open pull requests for the site access check, the README, the website and the status flag."
+ "text": "- **Public pages:** pm now has a README that describes it as a human-agent project management suite. Each claim was checked against the code. A new single-page marketing site has a workflow that deploys it to GitHub Pages.\n- **Public site access:** The pm site's Go service now checks Cloudflare Access tokens. Key refetches are limited to once a minute. The change still needs a release before it reaches the live site.\n- **Site status flag:** The site, pm service status and pm show now flag a main checkout that is behind its remote.\n- **Review and enable Pages:** Review the open pull requests. Then set GitHub Pages to deploy from GitHub Actions."
 }
