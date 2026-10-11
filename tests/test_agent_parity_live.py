@@ -55,19 +55,23 @@ def clone(tmp_path: Path):
 
 
 class Checks:
-    """Every assertion of one scenario, collected, so one costly run reports all that failed, with its evidence."""
+    """Every assertion of one scenario, collected, so one costly run reports all that failed, with its evidence. Its
+    end checks what every scenario must hold: the clone's service was never restarted while the sessions worked."""
 
-    def __init__(self, *runs: Run):
-        self.runs, self.failed = list(runs), []
+    def __init__(self, clone: Clone, *runs: Run):
+        self.clone, self.runs, self.failed = clone, list(runs), []
 
     def __call__(self, ok, what: str) -> None:
         if not ok:
             self.failed.append(what)
 
     def done(self) -> None:
+        self(not self.clone.service_restarts(),
+             f"the clone's pm service was reloaded or restarted after setup: {self.clone.service_restarts()}")
         for r in self.runs:
-            print(f"\n{r.name}: {r.runtime} session {r.session or '?'}, exit {r.returncode}, {r.seconds:.1f}s\n"
-                  f"  output {r.stdout}\n  transcript {r.transcript}")
+            typed = [c for c in r.commands() if re.search(r"\bpm init\b", c)]
+            print(f"\n{r.name}: {r.runtime} session {r.session or '?'}, exit {r.returncode}, {r.seconds:.1f}s, "
+                  f"typed pm init: {'yes' if typed else 'no'}\n  output {r.stdout}\n  transcript {r.transcript}")
         runtime = [f"{r.name}: {r.runtime} failed on its own: {r.failure()}" for r in self.runs if r.failure()]
         assert not self.failed, "\n".join(runtime + self.failed)
 
@@ -151,7 +155,7 @@ Then reply with one line: done."""
     stop.set()
     owner.join(30)
     items = clone.items()
-    check = Checks(run)
+    check = Checks(clone, run)
     print(f"\nsolo {runtime}: {run.seconds:.1f}s; owner asked at "
           f"{seen['asked'] - agent.started:.1f}s, answered {OWNER_DELAY}s later" if "asked" in seen else f"\nsolo {runtime}: {run.seconds:.1f}s; no ask")
     check(not seen.get("error"), f"the owner (this test) failed, so the session was stopped: {seen.get('error')}")
@@ -202,7 +206,7 @@ def test_stop_hook_blocks_uncommitted_records(clone, runtime):
               f"Do not commit the edit and run no command after it: end your turn right after it, with one line: "
               f"edited. The Stop hook must find the edit uncommitted; when it then tells you what is left to do, do it.")
     run = clone.run(runtime, f"stop-{runtime}", prompt, TIMEOUT)
-    check = Checks(run)
+    check = Checks(clone, run)
     print(f"\nstop {runtime}: {run.seconds:.1f}s, {len(run.stop_blocks())} stop blocks")
     check(run.returncode == 0, f"{run.name}: the session exited {run.returncode}")
     check(any("records/sprints/demo-1.md" in r for r in run.stop_blocks()),
@@ -228,7 +232,7 @@ raising it, with one line: asked.""", TIMEOUT)
     run = clone.run(runtime, f"next-prompt-2-{runtime}", "Go on with your work in this repo: do whatever pm says is "
                     "left for you, then reply with one line: done.", TIMEOUT, resume=asked.session)
     items = clone.items()
-    check = Checks(asked, run)
+    check = Checks(clone, asked, run)
     print(f"\nnext prompt {runtime}: turn 1 {asked.seconds:.1f}s, turn 2 {run.seconds:.1f}s; the answer reached it by "
           f"{run.reached_by(OWNER_ANSWER) or 'nothing'}")
     check(asked.returncode == 0 and run.returncode == 0, f"exits {asked.returncode}, {run.returncode}")
@@ -300,7 +304,7 @@ Then reply with one line: the id of the task you closed."""
         time.sleep(2)
     runs = {rt: a.finish(TIMEOUT) for rt, a in running.items()}
     items = clone.items()
-    check = Checks(*runs.values())
+    check = Checks(clone, *runs.values())
     print("\nmixed: " + ", ".join(f"{rt} {r.seconds:.1f}s" for rt, r in runs.items()))
     for rt, r in runs.items():
         check(r.returncode == 0, f"{r.name}: the session exited {r.returncode}")

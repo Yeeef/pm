@@ -199,7 +199,9 @@ agent's prose. Solo, per runtime with the same assertions: the session-start con
 the owner (the test, `pm reply add`) answers 30 s later, a decision citing it (sprint or project level), a committed doc, the task closed by
 the session, with how the reply reached it printed. The one assertion that differs by runtime, by design: a
 Claude session's need stores its own messaging socket as the inbox the service pushes into, a Codex session's none,
-as raised and after a resumed session's start refreshes it. Next prompt, per runtime: a session raises a need and ends its
+as raised and after a resumed session's start refreshes it. Every scenario also fails when the fake supervisor's log shows the clone's
+service reloaded or restarted after setup (an agent's own `pm init` must not restart it under the others), and prints
+whether each session typed `pm init`. Next prompt, per runtime: a session raises a need and ends its
 turn, the owner answers, and the session resumed on a prompt that does not name the need gets the reply from the
 UserPromptSubmit hook and records the decision. Stop, per runtime: a hand edit left uncommitted, which the Stop hook
 blocks. Mixed: a Claude and a Codex session on one sprint's two tasks at once, each `pm show` naming the other's

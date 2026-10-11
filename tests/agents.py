@@ -158,6 +158,22 @@ class Run:
         return out
 
 
+    def commands(self) -> list[str]:
+        """The shell commands the session ran, as its transcript holds them."""
+        out = []
+        for e in self.entries:
+            if self.runtime == "claude":
+                content = (e.get("message") or {}).get("content")
+                for c in content if isinstance(content, list) else []:
+                    if isinstance(c, dict) and c.get("type") == "tool_use" and c.get("name") == "Bash":
+                        out.append((c.get("input") or {}).get("command", ""))
+            else:
+                p = e.get("payload") or {}
+                if e.get("type") == "response_item" and p.get("type") in ("function_call", "custom_tool_call",
+                                                                            "local_shell_call"):
+                    out.append(json.dumps(p.get("arguments") or p.get("input") or p.get("action")))
+        return out
+
     def failure(self) -> str:
         """The runtime's own error for the run, from its output, else "": Codex's turn.failed (a usage limit, say),
         Claude Code's result with is_error. A run that failed here says nothing about pm."""
@@ -269,6 +285,7 @@ class Clone:
         git(self.root, "commit", "-qm", "Install pm", env=self.env)
         git(self.root, "push", "-q", "origin", "main", env=self.env)
         self.write_codex_config()
+        self.sched_mark = len(self.supervisor_calls())
 
     # -- pm as the owner and the test run it: no session
 
@@ -286,6 +303,17 @@ class Clone:
         res = self.pm(*args, text=text)
         assert res.returncode == 0, f"pm {' '.join(args)}: {res.stdout}\n{res.stderr}"
         return res.stdout
+
+    def supervisor_calls(self) -> list[list[str]]:
+        """Every call of the fake supervisor (systemctl, launchctl, crontab) in this clone, in order."""
+        log = Path(self.env["FAKE_SCHED_LOG"])
+        return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+
+    def service_restarts(self) -> list[list[str]]:
+        """The supervisor calls since setup that reload, restart, load or unload the clone's service: none may
+        happen while sessions work, since every pm command fails while the service restarts."""
+        verbs = {"restart", "daemon-reload", "bootstrap", "bootout", "kickstart"}
+        return [c for c in self.supervisor_calls()[self.sched_mark:] if verbs & set(c[1:])]
 
     def items(self) -> dict[str, dict]:
         res = subprocess.run([*PM, "export", "--store", str(self.root / ".pm/store/work")], cwd=self.tmp,
