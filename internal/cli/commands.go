@@ -223,6 +223,15 @@ var tree = &command{
 					},
 				},
 				{
+					name:        "wait",
+					help:        "wait for the owner's reply to a need, then print it as pm reply read does",
+					description: "Block until the open need has a site reply (or its review a merged PR) that has not reached a session, then print it with what to do next and mark it delivered, as pm reply read does. For a session the pm service cannot push replies into (Codex, or no inbox): run it after raising the need, in the background where the runtime allows. Refuses an id that is not a need, a need that closes without a reply, and, at --timeout, says the need is still open.",
+					args: []arg{
+						{dest: "id", required: true, kind: value, help: "a decision need, action or review"},
+						{flags: []string{"--timeout"}, dest: "timeout", metavar: []string{"DURATION"}, kind: value, def: "30m", help: "how long to wait, as 30m, 90s or 2h (default 30m)"},
+					},
+				},
+				{
 					name: "add",
 					help: "the owner's answer to an open need, at a shell, as a reply on the site writes; the answer with --text",
 					store: &storeCommand{

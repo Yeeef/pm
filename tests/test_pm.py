@@ -546,7 +546,12 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
         assert repo.unchanged() and "repo-demo.1.3" not in repo.items()
 
     assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
-    assert repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL).returncode == 0
+    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    assert res.returncode == 0, res.stderr
+    # a session with no inbox (Codex) gets no push: it is told how to wait for the reply
+    assert ("this session gets no push of the owner's reply (no inbox, as in Codex): wait for it with pm reply wait "
+            "repo-demo.1.4 (in the background where the runtime allows), else it reaches the session at its next "
+            "prompt or stop, and pm reply read repo-demo.1.4 prints it") in res.stdout
     assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.2", "--focus", "F").returncode == 0
     action, decision, review = "repo-demo.1.3", "repo-demo.1.4", "repo-demo.2.1"
     assert {repo.items()[i]["need"]["kind"] for i in (action, decision, review)} == {"action", "decision", "review"}
@@ -1381,6 +1386,39 @@ def test_reply_read_prints_each_undelivered_reply_and_merge_once(repo):
     assert res.returncode == 0, res.stderr
     assert repo.items()["repo-demo.1.3"]["status"] == "closed"
     # the answer the close recorded is no reply of the owner's to deliver
+    assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
+
+
+def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
+    """A session the service cannot push into (Codex) waits on its need: pm reply wait returns once the owner's reply
+    exists, printing it as pm reply read does and marking it delivered; it refuses at its timeout, on an id that is no
+    need and on a closed need."""
+    stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    repo.add_issue({"id": "repo-demo.1.3", "title": "Parser?", "status": "open", "issue_type": "task",
+                    "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": "sess-1"}, **stamps})
+    repo.add_issue({"id": "repo-demo.1.4", "title": "Old?", "status": "closed", "issue_type": "task",
+                    "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": "sess-1"},
+                    "closed_at": "2026-10-02T12:00:00Z", **stamps})
+    repo.mark()
+    res = refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "1s",
+                  match=r"no reply to repo-demo.1.3 within 1s; it is still open: wait again with pm reply wait "
+                        r"repo-demo.1.3")
+    refused(repo, "reply", "wait", "repo-demo.1.1", match=r"repo-demo.1.1 is not a request to the owner")
+    refused(repo, "reply", "wait", "repo-demo.1.4", match=r"repo-demo.1.4 is closed")
+    refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "soon", match=r"--timeout soon is not a duration")
+    waiting = subprocess.Popen([*PM, "reply", "wait", "repo-demo.1.3", "--timeout", "60s"], cwd=repo.root,
+                               env=repo.env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               text=True)
+    try:
+        time.sleep(1)
+        assert waiting.poll() is None, waiting.communicate()
+        assert repo.pm("reply", "add", "repo-demo.1.3", text="Small, until tables.").returncode == 0
+        out, err = waiting.communicate(timeout=30)
+    finally:
+        waiting.kill()
+    assert waiting.returncode == 0, err
+    assert out.startswith("pm: owner reply to decision repo-demo.1.3 (Parser?)") and "Small, until tables." in out
+    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 1
     assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
 
 

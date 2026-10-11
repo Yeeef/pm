@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/Yeeef/pm/internal/config"
@@ -318,14 +319,16 @@ func needMarkdown(p *Parsed) (string, error) {
 }
 
 // deliveryHint is how the raising agent hears the answer: the pm service pushes it into the session's inbox when there
-// is one.
+// is one (Claude Code's); else the session waits with pm reply wait, or pm hook inbox hands it over at its next prompt
+// or stop.
 func deliveryHint(id string) string {
 	if strip(os.Getenv(inboxEnv)) != "" {
 		return fmt.Sprintf("the pm service pushes the owner's reply into this session; if the session has ended by then, "+
 			"pm show flags it for the next one, which reads it with pm reply read %s", id)
 	}
-	return fmt.Sprintf("this session has no inbox ($%s unset), so no reply is pushed to it; pm show flags a reply, "+
-		"and pm reply read %s prints it", inboxEnv, id)
+	return fmt.Sprintf("this session gets no push of the owner's reply (no inbox, as in Codex): wait for it with "+
+		"pm reply wait %s (in the background where the runtime allows), else it reaches the session at its next "+
+		"prompt or stop, and pm reply read %s prints it", id, id)
 }
 
 // raisedBy is the session that raises a need and its inbox, or nil outside a known session. Never the inbox's token:
@@ -1000,4 +1003,65 @@ func cmdReplyRead(e *env, p *Parsed) (string, error) {
 		return "nothing undelivered on " + what, nil
 	}
 	return strings.Join(out, "\n"), nil
+}
+
+// ---------------------------------------------------------------- pm reply wait
+
+// replyPoll is how often pm reply wait reads the need.
+var replyPoll = 2 * time.Second
+
+// cmdReplyWait is pm reply wait: block until the open need has a reply (or its review a merge) that has not reached a
+// session, then print it and mark it delivered, as pm reply read does; refuse at the timeout.
+func cmdReplyWait(e *env, p *Parsed) (string, error) {
+	id, given := p.Get("id"), p.Get("timeout")
+	if given == "" {
+		given = "30m"
+	}
+	timeout, err := time.ParseDuration(given)
+	if err != nil || timeout <= 0 {
+		return "", refuse("--timeout %s is not a duration such as 30m or 90s", given)
+	}
+	if _, err := store.CodeRoot(e.here, e.records); err != nil {
+		return "", err
+	}
+	cfg, err := config.Load(e.here)
+	if err != nil {
+		return "", err
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	texts := service.Texts{Main: store.MainOf(e.records), Remote: cfg.Remote, MainBranch: cfg.MainBranch}
+	deadline := time.Now().Add(timeout)
+	for {
+		all, err := ws.Items()
+		if err != nil {
+			return "", err
+		}
+		var need *work.Item
+		for i := range all {
+			if all[i].ID == id && all[i].Type == work.Need {
+				need = &all[i]
+			}
+		}
+		if need == nil {
+			return "", refuse("%s is not a request to the owner (a need in the work store)", id)
+		}
+		if text, mark := texts.Undelivered(need); text != "" {
+			if err := ws.UpdateNeed(id, *mark); err != nil {
+				return "", err
+			}
+			return text, nil
+		}
+		if need.Status == work.Closed {
+			return "", refuse("%s is closed (%s), so no reply will come", id, need.Resolution)
+		}
+		left := time.Until(deadline)
+		if left <= 0 {
+			return "", refuse("no reply to %s within %s; it is still open: wait again with pm reply wait %s, or "+
+				"the reply reaches this session at its next prompt or stop", id, timeout, id)
+		}
+		time.Sleep(min(replyPoll, left))
+	}
 }
