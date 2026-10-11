@@ -100,6 +100,13 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
   TestCreateRacingALocalWriter 32.6 s and TestPullRacingLocalWriters 30.0 s on
   macos-14, against 4.4 and 9.7 s locally.
 
+- After #48's trim, rebasing #44 remeasured internal/work's test seconds: 24
+  tests, 8 shards, 27.2 s locally, bounded by one test
+  (TestSyncTwoClonesConcurrentEditsMergePerTheTable, 26.8 s locally, 39.1 s on
+  darwin-arm64 CI) that sharding cannot split. The folded shared-pair cases
+  also exposed a read-dedup race (a create's remote read not recorded), fixed
+  in #44 before merge.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
