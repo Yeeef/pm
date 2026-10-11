@@ -97,6 +97,15 @@ None yet.
   sizes: internal/cli has 8915 non-test lines (ratchet allowlist); the next
   largest, internal/work, has 4724.
 
+- Lint CI time on PR 43 (ubuntu-latest, 4 cores): the lint job took 3m39s
+  cold, then 3m14s with setup-go's and golangci-lint's caches restored. Of
+  that, golangci-lint's first pass takes about 2m07s, mostly typechecking the
+  Dolt dependency tree; deadcode about 34 s, ruff under 1 s. It runs as its
+  own job (pm-lint.yml), so it adds 0 s to the critical path: the longest jobs
+  on the same run were release build linux 3m31s and darwin 3m20s. Headroom is
+  only about 17 s, so if the test-sharding sprint makes those jobs shorter,
+  lint becomes the critical path.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
