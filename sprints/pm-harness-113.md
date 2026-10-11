@@ -59,7 +59,11 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- The page renders with no horizontal scroll in headless Chromium at 390 and
+  1440 px, light and dark: scrollWidth 390/390 and 1440/1440 in all four runs
+  (first run at 390 overflowed to 500 px from the outcome grid's min-content
+  width; fixed with min-width: 0). Copy buttons put the install command and pm
+  init on the clipboard.
 
 ## Delivery report
 
