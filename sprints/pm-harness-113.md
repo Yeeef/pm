@@ -91,6 +91,8 @@ None yet.
 
 done: pm has a one-page marketing website in `website/` and a workflow that deploys it to GitHub Pages (PR #42, stacked on #41); merged as e122a0c and live at https://yeeef.github.io/pm/.
 
+Merged as e122a0c (PR #42).
+
 - `website/index.html`, `website/style.css`: hero with install, the three parts, "structural, not prompts" with pm's refusals quoted verbatim, five outcomes, the site gallery, an inline SVG diagram of how pm works, get started. Dark first, light by system setting; no build step, no framework.
 - `.github/workflows/website.yml`: deploys `website/` to GitHub Pages on a push to main that changes it, or by hand.
 - README links the website; AGENTS.md's layout names `website/` and the workflow.
