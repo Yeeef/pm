@@ -1,5 +1,7 @@
-version = "0.6.0"   # the pm version every session must run
+version = "0.7.1"   # the pm version every session must run
 remote = "origin"
 main_branch = "main"
 port = 8001         # the site port; the PORT environment variable overrides it for one run
 site_url = "https://pm.yeeefs.com"
+access_team = "yeeef.cloudflareaccess.com"
+access_aud = "7bf3ae563699d033ec28902949a969c7218c3bde4c4af05ba541d0118421fb13"
