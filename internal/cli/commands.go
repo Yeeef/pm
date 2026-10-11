@@ -669,6 +669,10 @@ var tree = &command{
 					help: "Stop: block once while the reply asks the owner for something no open need or action of this session covers",
 				},
 				{
+					name: "inbox",
+					help: "UserPromptSubmit and Stop: hand this session the owner's replies that did not reach it (Codex has no push), marked delivered; as context beside the prompt, or as a block at a stop",
+				},
+				{
 					name: "git-post-checkout",
 					help: "git post-checkout (.pm/hooks/post-checkout): in a new worktree, run pm init's clone and worktree half, all but the pm service",
 					args: []arg{

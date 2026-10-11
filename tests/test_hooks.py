@@ -412,3 +412,51 @@ def test_a_subagents_uncommitted_record_blocks_alike_in_claude_code_and_codex(re
     parent_stop = run(STOP, hook_payload("codex", "Stop", session=ROOT, cwd=str(repo.root), transcript=parent,
                                          reply="Done."), repo.env, repo.root)
     assert parent_stop.returncode == 0 and parent_stop.stdout == "", parent_stop.stderr
+
+
+INBOX = [*PM, "hook", "inbox"]
+
+
+def need_with_reply(repo, nid: str, session: str) -> None:
+    """An open decision need `session` raised, holding a site reply not delivered yet."""
+    at = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    reply = {"id": f"6f1c0e2a-1b2c-4d3e-8f40-5a6b7c8d9e0{nid[-1]}", "issue_id": nid, "author": "owner (site reply)",
+             "text": f"Small, until tables.\n\n<!-- pm-reply 0b6c7c1e-2d3f-4a5b-9c6d-7e8f9a0b1c2{nid[-1]} -->",
+             "created_at": "2026-10-03T12:00:00Z"}
+    repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task", "parent": "repo-demo.1",
+                    "labels": ["human"], "metadata": {"session": session}, "comments": [reply], **at})
+
+
+@pytest.mark.parametrize("event", ["UserPromptSubmit", "Stop"])
+def test_inbox_hands_a_reply_over_alike_in_claude_code_and_codex(repo, tmp_path, event):
+    """A reply to a need of this session that no push delivered (Codex has none): at the next prompt it goes in as
+    context, at a stop as a block, the same from either runtime's input; it is marked delivered, so it goes in once."""
+    need_with_reply(repo, "repo-demo.1.3", "sess-claude")
+    need_with_reply(repo, "repo-demo.1.4", "sess-codex")
+    got = {}
+    for runtime, session, nid in (("claude", "sess-claude", "repo-demo.1.3"), ("codex", "sess-codex", "repo-demo.1.4")):
+        payload = hook_payload(runtime, event, session=session, cwd=str(repo.root), transcript=str(tmp_path / "t"),
+                               prompt="go on", reply="Done.")
+        res = run(INBOX, payload, repo.env, repo.root)
+        assert res.returncode == 0 and res.stderr == "", res.stderr
+        got[runtime] = res.stdout.replace(nid, "<id>")
+        assert repo.items()[nid]["need"]["delivered"] == 1
+        again = run(INBOX, payload, repo.env, repo.root)
+        assert again.returncode == 0 and again.stdout == "", again.stdout
+    assert got["claude"] == got["codex"]
+    out = json.loads(got["codex"])
+    text = out["hookSpecificOutput"]["additionalContext"] if event == "UserPromptSubmit" else out["reason"]
+    if event == "Stop":
+        assert out["decision"] == "block"
+    assert text.startswith("The owner replied to requests this session raised; pm marked the replies delivered:\n\n"
+                           "pm: owner reply to decision <id> (Parser?), relayed from the site:")
+    assert "Small, until tables." in text
+
+
+def test_inbox_lets_a_stop_through_after_a_block(repo, tmp_path):
+    need_with_reply(repo, "repo-demo.1.3", ME)
+    payload = dict(hook_payload("codex", "Stop", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"),
+                                reply="Done."), stop_hook_active=True)
+    res = run(INBOX, payload, repo.env, repo.root)
+    assert res.returncode == 0 and res.stdout == "", res.stderr
+    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 0

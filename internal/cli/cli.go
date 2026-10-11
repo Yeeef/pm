@@ -527,6 +527,8 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return hooks.CmdPrime(part, p.Get("hook_json") == "true", Nouns(), stdin, stdout)
 	case "hook stop":
 		return hooks.HookStop(stdin, stdout, stderr)
+	case "hook inbox":
+		return hooks.HookInbox(here, pendingReplies, stdin, stdout, stderr)
 	case "hook owner-request":
 		if code, err := hooks.HookOwnerRequest(here, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
 			return err

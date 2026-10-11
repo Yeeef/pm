@@ -109,13 +109,13 @@ func TestAnEarlierPmsCodexHooksAreRewritten(t *testing.T) {
 		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		drift, err := Drift(top, goldenSettings[0])
+		lines, err := Drift(top, goldenSettings[0])
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := ".codex/hooks.json: pm's part differs from what pm " + buildinfo.Version + " writes"
-		if !strings.Contains("\n"+strings.Join(drift, "\n")+"\n", "\n"+want+"\n") {
-			t.Errorf("%s: pm doctor does not report it: %q", name, drift)
+		if !strings.Contains("\n"+strings.Join(lines, "\n")+"\n", "\n"+want+"\n") {
+			t.Errorf("%s: pm doctor does not report it: %q", name, lines)
 		}
 		planned, err := Rewrite(top, goldenSettings[0])
 		if err != nil {
@@ -124,7 +124,8 @@ func TestAnEarlierPmsCodexHooksAreRewritten(t *testing.T) {
 		rewritten := false
 		for _, pl := range planned {
 			if pl.Piece.Rel == ".codex/hooks.json" {
-				rewritten = pl.New == now && pl.Wrote
+				line, err := drift(p, &pl.New) // an event pm adds goes after the file's own: compare pm's part
+				rewritten = err == nil && line == "" && pl.Wrote
 			}
 		}
 		if !rewritten {

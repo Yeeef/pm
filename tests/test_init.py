@@ -34,7 +34,8 @@ GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to 
 RULES = [f"pm prime --rules {n} --hook-json" for n in range(1, len(RULE_STARTS) + 1)]  # one hook per rules chunk
 CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
              "SubagentStart": [*RULES, "pm prime --subagent --hook-json"],
-             "Stop": ["pm hook owner-request || exit 1", "pm hook stop || exit 1"]}
+             "UserPromptSubmit": ["pm hook inbox || exit 1"],
+             "Stop": ["pm hook inbox || exit 1", "pm hook owner-request || exit 1", "pm hook stop || exit 1"]}
 
 
 def section(name: str) -> str:

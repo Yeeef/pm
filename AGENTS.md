@@ -213,13 +213,15 @@ labelled case for each case it moves.
   with `--text-file - <<'EOF'`, or `--text="…"` for one plain line; never `--text "…"`.
 - `pm init` writes the hook entries (`claudeHooks` and `codexHooks` in `internal/install/pieces.go`) into
   `.claude/settings.json` (SessionStart: `pm prime --rules N --hook-json` for each chunk, then `--state
-  --hook-json`; SubagentStart: the same chunks, then `--subagent --hook-json`; Stop: `pm hook owner-request` then
-  `pm hook stop`, each `|| exit 1`) and `.codex/hooks.json` (the same, with the SessionStart matcher
+  --hook-json`; SubagentStart: the same chunks, then `--subagent --hook-json`; UserPromptSubmit: `pm hook inbox`;
+  Stop: `pm hook inbox`, `pm hook owner-request`, then `pm hook stop`, each `|| exit 1`) and `.codex/hooks.json`
+  (the same, with the SessionStart matcher
   `startup|resume|clear|compact`, plus SubagentStop: `pm hook stop` on the subagent's own rollout, since Codex
   encrypts a subagent's prompt in its parent's); Codex runs hooks by default, so pm writes no `.codex/config.toml`
-  setting for them. A hook change edits both functions; `TestClaudeAndCodexRunTheSameHooks` fails on a difference
-  `runtimeDifferences` gives no reason for. Hooks fail open on their own errors (one line on stderr); a `pm` missing from PATH fails
-  each hook with the shell's error.
+  setting for them, and `.codex/rules/pm.rules`, which runs pm outside Codex's sandbox. A hook change edits both
+  functions; `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for.
+  Hooks fail open on their own errors (one line on stderr); a `pm` missing from PATH fails each hook with the shell's
+  error.
 - `pm init` is the one install command. Its repo half (pm's pieces, the records branch) runs only when the worktree has
   no `.pm/config.toml`; after that `pm doctor` reports and `pm upgrade` rewrites a piece. Its clone half (the work
   store, the records store, the `records/` link, excludes, Codex and Claude Code dirs, pm in the bin dir, the service)
