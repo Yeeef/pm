@@ -11,8 +11,8 @@ import subprocess
 
 import pytest
 
-from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, nouns, rules, \
-    stop_services, write_config
+from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, hook_payload, nouns, \
+    rules, stop_services, write_config
 
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
@@ -319,3 +319,96 @@ def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tm
     t.write_text(t.read_text() + (tmp_path / "other.jsonl").read_text())
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(t)}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == ""
+
+# ---------------------------------------------------------------- Claude Code and Codex alike
+
+ME = "sess-me"
+ROOT, CHILD = "01a12bee-db2f-7050-ba39-116b615a19b8", "01a12bef-027d-7c33-8fb3-8fd52363eaf7"  # a Codex thread and its subagent
+
+
+def codex_rollout(path, thread, root, *commands, cwd):
+    """A Codex 0.154 rollout of `thread`, a subagent of `root` when they differ: its session_meta, then a turn that runs
+    each of `commands` through the exec tool in `cwd`, as Codex writes them."""
+    meta = {"id": thread, "session_id": root, "cwd": str(cwd), "originator": "codex_exec", "cli_version": "0.154.0"}
+    if thread != root:
+        meta.update(parent_thread_id=root, forked_from_id=root, thread_source="subagent")
+    at = "2026-10-11T17:07:23.155Z"
+    lines = [{"timestamp": at, "type": "session_meta", "payload": meta},
+             {"timestamp": at, "type": "turn_context", "payload": {"turn_id": "t1", "cwd": str(cwd)}}]
+    lines += [{"timestamp": at, "type": "response_item", "payload": {
+        "type": "custom_tool_call", "status": "completed", "call_id": f"call_{n}", "name": "exec",
+        "input": f"text(await tools.exec_command({{cmd:{json.dumps(c)},workdir:{json.dumps(str(cwd))}}}));\n"}}
+        for n, c in enumerate(commands)]
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    return str(path)
+
+
+def test_prime_answers_claude_codes_and_codexs_input_alike(repo, tmp_path):
+    """Each rules chunk and the subagent line, from Claude Code's and Codex's real SessionStart and SubagentStart
+    input: the same envelope."""
+    for event, cmds in (("SessionStart", [rules_cmd(n) for n in range(1, len(RULE_STARTS) + 1)]),
+                        ("SubagentStart", [rules_cmd(n) for n in range(1, len(RULE_STARTS) + 1)] + [SUBAGENT])):
+        got = {}
+        for runtime in ("claude", "codex"):
+            payload = hook_payload(runtime, event, session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t.jsonl"))
+            got[runtime] = [context_of(run(cmd, payload, repo.env, repo.root), event) for cmd in cmds]
+        assert got["claude"] == got["codex"], event
+        assert got["codex"][:len(RULE_STARTS)] == chunks()
+
+
+@pytest.mark.integration
+def test_session_start_state_answers_claude_codes_and_codexs_input_alike(repo, tmp_path):
+    init_ready(repo)
+    got = {}
+    for runtime in ("claude", "codex"):
+        payload = hook_payload(runtime, "SessionStart", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"))
+        text = context_of(run(STATE, payload, repo.env, repo.root))
+        got[runtime] = re.sub(r"at session start, [^:]*:\d\d(:\d\d)? UTC", "at session start, <time> UTC", text)
+    assert got["claude"] == got["codex"]
+    assert "Locations from `pm where` at session start" in got["codex"]
+
+
+@pytest.mark.parametrize("dirty", [True, False], ids=["uncommitted", "committed"])
+def test_stop_decides_alike_on_claude_codes_and_codexs_input(repo, tmp_path, dirty):
+    """A record this session edited, left uncommitted or not, in each runtime's Stop input and transcript: the same
+    verdict."""
+    if dirty:
+        edit_sprint(repo)
+    path = str(repo.records / "sprints/demo-1.md")
+    transcripts = {"claude": claude_transcript(tmp_path / "claude.jsonl", {"file_path": path}),
+                   "codex": codex_rollout(tmp_path / "codex.jsonl", ROOT, ROOT, f"sed -i s/it./it_soon./ {path}",
+                                          cwd=repo.root)}
+    got = {}
+    for runtime, t in transcripts.items():
+        res = run(STOP, hook_payload(runtime, "Stop", session=ME, cwd=str(repo.root), transcript=t, reply="Done."),
+                  repo.env, repo.root)
+        assert res.returncode == 0, res.stderr
+        got[runtime] = res.stdout
+    assert got["claude"] == got["codex"]
+    if dirty:
+        assert json.loads(got["codex"])["decision"] == "block" and "- records/sprints/demo-1.md" in got["codex"]
+    else:
+        assert got["codex"] == ""
+
+
+def test_a_subagents_uncommitted_record_blocks_alike_in_claude_code_and_codex(repo, tmp_path):
+    """A subagent edited a record and left it uncommitted. Claude Code's parent transcript holds the subagent's prompt,
+    which names the record, so the parent's Stop blocks once the subagent returned. Codex encrypts the prompt in the
+    parent's rollout, so the subagent's own SubagentStop blocks, on its rollout (agent_transcript_path), with the same
+    reason."""
+    edit_sprint(repo)
+    path = str(repo.records / "sprints/demo-1.md")
+    claude_t = tmp_path / "claude.jsonl"
+    claude_t.write_text("\n".join(subagent_lines(tmp_path, f"Write the frame in {path}.", True)) + "\n")
+    parent = codex_rollout(tmp_path / "parent.jsonl", ROOT, ROOT, "git status", cwd=repo.root)
+    child = codex_rollout(tmp_path / "child.jsonl", CHILD, ROOT, f"sed -i s/it./it_soon./ {path}", cwd=repo.root)
+    claude = run(STOP, hook_payload("claude", "Stop", session=ME, cwd=str(repo.root), transcript=str(claude_t),
+                                    reply="Done."), repo.env, repo.root)
+    codex = run(STOP, hook_payload("codex", "SubagentStop", session=ROOT, cwd=str(repo.root), transcript=parent,
+                                   agent_transcript=child, reply="Done."), repo.env, repo.root)
+    assert claude.returncode == codex.returncode == 0, (claude.stderr, codex.stderr)
+    assert json.loads(codex.stdout)["decision"] == "block" and codex.stdout == claude.stdout
+    # the parent's own Stop sees no call that names the record
+    parent_stop = run(STOP, hook_payload("codex", "Stop", session=ROOT, cwd=str(repo.root), transcript=parent,
+                                         reply="Done."), repo.env, repo.root)
+    assert parent_stop.returncode == 0 and parent_stop.stdout == "", parent_stop.stderr

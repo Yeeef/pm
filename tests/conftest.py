@@ -113,6 +113,16 @@ def write_config(root: Path, **settings) -> Path:
     return path
 
 
+HOOK_PAYLOADS = json.loads((Path(__file__).parent / "hook_payloads.json").read_text())
+
+
+def hook_payload(runtime: str, event: str, **values) -> dict:
+    """The hook input `runtime` (claude or codex) sends for `event`, from hook_payloads.json, with each placeholder
+    value "{name}" replaced by values[name] (None sends null); a placeholder without a value fails."""
+    return {k: values[v[1:-1]] if isinstance(v, str) and re.fullmatch(r"\{\w+\}", v) else v
+            for k, v in HOOK_PAYLOADS[runtime][event].items()}
+
+
 def uv_dir(*args: str) -> str:
     return subprocess.run(["uv", "--color", "never", *args], check=True, capture_output=True, text=True).stdout.strip()
 

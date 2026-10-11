@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import hook_payload
+
 ME, OTHER = "sess-me", "sess-other"
 AT = "2026-10-01T12:00:00Z"
 
@@ -113,3 +115,28 @@ def test_fails_when_claude_fails(needs):
     assert res.returncode == 0 and res.stdout == "" and res.stderr == "" and claude_calls(needs) == []
 
     failed(run(needs, fail="Not logged in"), "claude -p failed (exit 1): Not logged in")
+
+
+@pytest.mark.parametrize("asked", [True, False], ids=["asked-only-in-chat", "asked-as-a-need"])
+def test_claude_codes_and_codexs_stop_input_get_the_same_verdict(needs, asked):
+    """The same reply, asking what an open need of this session holds or what none does, in Claude Code's and Codex's
+    real Stop input: the same verdict."""
+    reply = "Should we rename X?"
+    judged = answer((reply, "decision", None if asked else MINE["id"]))
+    got = {}
+    for runtime in ("claude", "codex"):
+        event = hook_payload(runtime, "Stop", session=ME, cwd=str(needs.root), transcript=str(needs.root / "t.jsonl"),
+                             reply=reply)
+        res = run(needs, judged=judged, **event)
+        got[runtime] = (res.returncode, res.stdout)
+    assert got["claude"] == got["codex"]
+    assert got["codex"][0] == 0
+    assert json.loads(got["codex"][1])["decision"] == "block" if asked else got["codex"][1] == ""
+
+
+def test_passes_codexs_stop_without_a_message(needs):
+    """Codex sends last_assistant_message null for a turn that ended without one: nothing was asked."""
+    res = run(needs, **hook_payload("codex", "Stop", session=ME, cwd=str(needs.root),
+                                    transcript=str(needs.root / "t.jsonl"), reply=None))
+    assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
+    assert claude_calls(needs) == []
