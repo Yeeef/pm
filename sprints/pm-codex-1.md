@@ -58,6 +58,11 @@ A Codex session waits for an owner reply with a runtime-neutral pm reply wait <n
 Codex has no messaging socket; a live TUI runs an embedded app-server nobody outside can reach, and exec resume fails while the thread has a writer; a blocking command works in every runtime, and Codex polls background commands up to 300 s per poll.
 :::
 
+::: decision {source=agent date=2026-10-11}
+pm hook inbox runs at UserPromptSubmit only, not at Stop; mid-turn replies reach a Claude session by push and a Codex session through pm reply wait or its next prompt.
+Review: an inbox block at Stop makes the continuation end with stop_hook_active, so pm hook stop and the owner-request check let exactly the turn that acts on the reply through unchecked. Supersedes the Stop half of the delivery decision.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
