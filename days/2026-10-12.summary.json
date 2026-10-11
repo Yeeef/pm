@@ -1,0 +1,7 @@
+{
+ "date": "2026-10-12",
+ "generated_at": "2026-10-11T23:43:14+00:00",
+ "digest": "71ea482ac5274793",
+ "model": "claude-haiku-5-5",
+ "text": "- **pm-codex parity testing:** A final live parity run finished at the pull request head. Its results are now written in the sprint report."
+}
