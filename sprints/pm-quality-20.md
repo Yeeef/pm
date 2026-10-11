@@ -95,6 +95,18 @@ A strict 10% keeps 86% of lines but loses 71 of 75 bug guards and most contracts
   two-clone pairs cut the sync groups 35 to 26 s and 31 to 23 s. internal/work
   still dominates make test-go because its tests run serially.
 
+- A fresh review of the first fold pass found 4 folds that had lost cases or
+  become vacuous: 3 parametrized launch folds kept one case each; the config
+  folds ran only 'show'; a crashed-unit uninstall emptied state by hand; one
+  owner-request case was gone. It also found 8 DROP rows that held a contract
+  no other test checks: gc keeps every item, a move-worded session note is
+  ignored, stop fails while the socket answers, a render error takes no reply,
+  --session wins over the environment, the clarification ask, and two Stop
+  hook own-edit rules. All were restored before the PR. Possible upstream Dolt
+  bug: closing one host while another in the same process still syncs with a
+  remote panics ('closed spoolingTableReaderAt'), 3 of 3 runs, so the sync
+  tests order around it.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
