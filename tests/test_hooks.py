@@ -247,3 +247,20 @@ def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tm
     t = claude_transcript(tmp_path / "t.jsonl", {"command": "sed -i '' s/a/b/ records/sprints/demo-1.md"})
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": True}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == ""
+
+    # folded: test_stop_blocks_on_a_record_this_session_edited
+    t = claude_transcript(tmp_path / "t.jsonl", {"file_path": str(repo.records / "sprints/demo-1.md")})
+    res = run(STOP, {"cwd": str(repo.root), "transcript_path": t, "stop_hook_active": False}, repo.env, repo.root)
+    out = json.loads(res.stdout)
+    assert out["decision"] == "block"
+    assert "- records/sprints/demo-1.md" in out["reason"] and "pm commit -m" in out["reason"]
+
+    # folded: test_stop_passes_another_sessions_edit
+    # A dirty record no tool call of this session names is another session's; a path only in a tool result (here
+    # the user's text) does not count either.
+    t = tmp_path / "t.jsonl"
+    t.write_text(json.dumps({"type": "user", "message": {"content": "git status: sprints/demo-1.md"}}) + "\n")
+    claude_transcript(tmp_path / "other.jsonl", {"file_path": str(repo.records / "sprints/demo-2.md")})
+    t.write_text(t.read_text() + (tmp_path / "other.jsonl").read_text())
+    res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(t)}, repo.env, repo.root)
+    assert res.returncode == 0 and res.stdout == ""

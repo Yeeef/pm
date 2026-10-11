@@ -345,20 +345,8 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     assert res.returncode == 1 and "uncommitted records" in res.stderr and store.is_dir() and sched_units(tmp_path)
     git(store, "checkout", "--", "sprints/a-1.md")
 
-    # folded: test_uninstall_disables_an_enabled_unit_that_is_not_running
-    # a unit the supervisor still starts at login but that is not running now (it crashed) is disabled by pm uninstall
-    # with the rest, so no wants link outlives its unit file
-    state_path = tmp_path / "sched.json"
-    state = json.loads(state_path.read_text())
-    [name] = state["loaded"]
-    assert name in state["enabled"]
-    os.kill(state["pids"].pop(name), signal.SIGKILL)  # the service crashes: inactive, still enabled
-    state["loaded"].remove(name)
-    state_path.write_text(json.dumps(state))
     res = pm(existing, "uninstall")
     assert res.returncode == 0, res.stderr
-    assert "removed the pm service" in res.stdout, res.stdout
-    assert json.loads(state_path.read_text())["enabled"] == [] and sched_units(tmp_path) == []
     assert "git add -A -- " in res.stdout and 'git commit -m "Uninstall pm"' in res.stdout
     # the clone's and machine's setup is gone; the records branch and Beads stay
     assert not store.exists() and git(existing, "rev-parse", "records") == records_head
@@ -431,6 +419,30 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
         assert config.read_text() == CODEX_USER.replace(
             "[sandbox_workspace_write]\n",
             f"[sandbox_workspace_write]\nwritable_roots = [{', '.join(json.dumps(r) for r in kept)}]\n")
+    finally:
+        stop_services(tmp)
+
+    # folded: test_uninstall_disables_an_enabled_unit_that_is_not_running
+    # a unit the supervisor still starts at login but that is not running now (it crashed) is disabled by pm uninstall
+    # with the rest, so no wants link outlives its unit file; on a clone and machine of its own
+    tmp = tmp_path / "crash"
+    tmp.mkdir()
+    repo = brand_new_repo(tmp)
+    try:
+        assert pm(repo, "init").returncode == 0
+        git(repo, "add", "-A")
+        git(repo, "commit", "-qm", "Install pm")
+        state_path = tmp / "sched.json"
+        state = json.loads(state_path.read_text())
+        [name] = state["loaded"]
+        assert name in state["enabled"]
+        os.kill(state["pids"].pop(name), signal.SIGKILL)  # the service crashes: inactive, still enabled
+        state["loaded"].remove(name)
+        state_path.write_text(json.dumps(state))
+        res = pm(repo, "uninstall")
+        assert res.returncode == 0, res.stderr
+        assert "removed the pm service" in res.stdout, res.stdout
+        assert json.loads(state_path.read_text())["enabled"] == [] and sched_units(tmp) == []
     finally:
         stop_services(tmp)
 

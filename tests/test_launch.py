@@ -276,44 +276,68 @@ def test_a_go_pin_that_fails_with_no_token_and_has_none_fails_hard_naming_that_d
 
     # folded: test_a_go_pin_downloads_through_the_github_api_with_a_token_sent_to_the_api_alone
     # when the download with no token fails, the release's assets are found and fetched through the API with the
-    # token from $GH_TOKEN; the storage host each asset redirects to gets no token
-    tar, sha = afresh()
-    github.requests.clear()
-    fakes.env.update({"GH_TOKEN": TOKEN})
-    res = fakes.pm("show")
-    assert res.returncode == 0, res.stderr
-    assert res.stdout.startswith(f"argv0={go_pin(fakes, '0.2.0') / 'pm'}\narg=show\n")
-    assert github.requests == [("/download/pm-v0.2.0/SHA256SUMS", False), ("/api/releases/tags/pm-v0.2.0", True),
-                               ("/api/releases/assets/0", True), ("/files/pm-v0.2.0/SHA256SUMS", False),
-                               ("/api/releases/assets/1", True), (f"/files/pm-v0.2.0/{tar.name}", False)]
-    assert (go_pin(fakes, "0.2.0") / "sha256").read_text() == sha + "\n" and calls(fakes) == []
+    # token, from $GH_TOKEN or else from gh auth token; the storage host each asset redirects to gets no token
+    for source in ["GH_TOKEN", "gh auth token"]:
+        tar, sha = afresh()
+        github.requests.clear()
+        github.assets.clear()  # the asset ids a fresh stand-in gives
+        fakes.env = {k: v for k, v in fakes.env.items() if k not in ("GH_TOKEN", "FAKE_GH_TOKEN")}
+        fakes.env.update({"GH_TOKEN": TOKEN} if source == "GH_TOKEN" else {"FAKE_GH_TOKEN": TOKEN})
+        res = fakes.pm("show")
+        assert res.returncode == 0, (source, res.stderr)
+        assert res.stdout.startswith(f"argv0={go_pin(fakes, '0.2.0') / 'pm'}\narg=show\n")
+        assert github.requests == [("/download/pm-v0.2.0/SHA256SUMS", False), ("/api/releases/tags/pm-v0.2.0", True),
+                                   ("/api/releases/assets/0", True), ("/files/pm-v0.2.0/SHA256SUMS", False),
+                                   ("/api/releases/assets/1", True), (f"/files/pm-v0.2.0/{tar.name}", False)]
+        assert (go_pin(fakes, "0.2.0") / "sha256").read_text() == sha + "\n" and calls(fakes) == []
+    fakes.env = {k: v for k, v in fakes.env.items() if k != "FAKE_GH_TOKEN"}
 
     # folded: test_a_go_release_the_api_cannot_give_fails_hard_and_keeps_nothing
-    # with the token, the API has no such release
-    afresh()
-    url = f"{github.api}/releases/tags/pm-v0.2.0"
-    head = f"error: this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: {url}"
-    shutil.rmtree(github.root / "pm-v0.2.0")
-    want = f"{head}: HTTP 404{FIX}\n"
-    res = fakes.pm("show")
-    assert (res.returncode, res.stdout, res.stderr) == (1, "", want)
-    assert not go_pin(fakes, "0.2.0").exists() and calls(fakes) == []
+    for broken in ["no-release", "no-asset", "bad-token"]:
+        tar, _ = afresh()
+        fakes.env["GH_TOKEN"] = "wrong" if broken == "bad-token" else TOKEN
+        url = f"{github.api}/releases/tags/pm-v0.2.0"
+        head = f"error: this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: {url}"
+        if broken == "no-release":
+            shutil.rmtree(github.root / "pm-v0.2.0")
+            want = f"{head}: HTTP 404{FIX}\n"
+        elif broken == "no-asset":
+            tar.unlink()
+            want = f"{head} has no asset {tar.name}{FIX}\n"
+        else:
+            want = f"{head}: HTTP 401{FIX}\n"
+        res = fakes.pm("show")
+        assert (res.returncode, res.stdout, res.stderr) == (1, "", want), broken
+        assert not go_pin(fakes, "0.2.0").exists() and calls(fakes) == []
 
     # the cases below download from `release` with no token, as the `release` fixture alone sets them up
     fakes.env = {k: v for k, v in fakes.env.items() if k != "GH_TOKEN"}
     fakes.env.update(PM_RELEASE_URL=release.url + "/")
 
     # folded: test_a_go_release_that_cannot_be_fetched_or_checked_fails_hard_and_keeps_nothing
-    # a SHA256SUMS with no line for this platform's tarball fails hard naming the release and the URL; nothing is kept
-    tar, sha = afresh()
-    sums = tar.with_name("SHA256SUMS")
-    base = f"{release.url}/pm-v0.2.0"
-    head = "error: this repo pins pm 0.2.0, but release pm-v0.2.0"
-    sums.write_text(f"{sha}  pm-0.2.0-plan9-amd64.tar.gz\n")
-    want = f"{head} could not be checked: {base}/SHA256SUMS has no line for {tar.name}{FIX}\n"
-    res = fakes.pm("show")
-    assert (res.returncode, res.stdout, res.stderr) == (1, "", want)
-    assert not go_pin(fakes, "0.2.0").exists() and calls(fakes) == []
+    # a tarball that does not match its SHA256SUMS line, a tarball the release lacks (404), a SHA256SUMS with no
+    # line for it, a tarball not holding just `pm`: each fails hard naming the release and the URL; nothing is kept
+    for broken in ["mismatch", "missing", "unlisted", "not-one-pm"]:
+        tar, sha = afresh()
+        sums = tar.with_name("SHA256SUMS")
+        base, url = f"{release.url}/pm-v0.2.0", f"{release.url}/pm-v0.2.0/{tar.name}"
+        head = "error: this repo pins pm 0.2.0, but release pm-v0.2.0"
+        if broken == "mismatch":
+            sums.write_text(f"{'1' * 64}  {tar.name}\n")
+            want = f"{head} could not be checked: {url} has sha256 {sha}, but SHA256SUMS says {'1' * 64}{FIX}\n"
+        elif broken == "missing":
+            tar.unlink()
+            want = f"{head} could not be downloaded: {url}: HTTP 404{FIX}\n"
+        elif broken == "unlisted":
+            sums.write_text(f"{sha}  pm-0.2.0-plan9-amd64.tar.gz\n")
+            want = f"{head} could not be checked: {base}/SHA256SUMS has no line for {tar.name}{FIX}\n"
+        else:
+            sha = tarball(tar, {"pm": b"#!/bin/sh\n", "extra": b""})
+            sums.write_text(f"{sha}  {tar.name}\n")
+            want = f"{head} could not be unpacked: {url} is not a gzip tar holding one file pm{FIX}\n"
+        res = fakes.pm("show")
+        assert (res.returncode, res.stdout, res.stderr) == (1, "", want), broken
+        assert not go_pin(fakes, "0.2.0").exists() and calls(fakes) == []
 
     # folded: test_a_go_release_that_differs_from_the_kept_sha256_fails_hard
     # the binary is gone but its sha256 is kept: a release is never rebuilt, so a download that differs fails

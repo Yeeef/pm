@@ -12,6 +12,7 @@ import pytest
 
 from conftest import PM, PM_BEFORE, VERSION, VERSION_BEFORE, write_config
 
+COMMANDS = [("show",), ("where",), ("prime", "--subagent"), ("hook", "stop")]
 CONFIG = ".pm/config.toml"
 KEYS = ("version", "remote", "main_branch", "port", "site_url", "access_team", "access_aud")  # what the config accepts
 
@@ -32,21 +33,23 @@ def test_every_config_key_is_named_in_some_commands_help(repo):
 
     # folded: test_every_command_fails_without_a_config
     (repo.root / ".pm/config.toml").unlink()
-    res = repo.pm("show", stdin=json.dumps({"cwd": str(repo.root)}))
-    assert res.returncode == 1 and res.stdout == ""
-    assert res.stderr == (f"error: this repo has no .pm/config.toml (looked for {repo.root.resolve()}/.pm/config.toml); "
-                          "create it with pm init\n")
+    for args in COMMANDS:
+        res = repo.pm(*args, stdin=json.dumps({"cwd": str(repo.root)}))
+        assert res.returncode == 1 and res.stdout == "", args
+        assert res.stderr == (f"error: this repo has no .pm/config.toml (looked for "
+                              f"{repo.root.resolve()}/.pm/config.toml); create it with pm init\n"), args
 
     # folded: test_every_command_fails_on_another_pinned_version
     # once launched for the pin (test_launch.py has the launch), a pm on another version fails hard
     path = write_config(repo.root, version="9.9.9")
     repo.env = dict(repo.env, PM_LAUNCHED="9.9.9")
-    res = repo.pm("show", stdin=json.dumps({"cwd": str(repo.root)}))
-    assert res.returncode == 1 and res.stdout == ""
-    assert res.stderr == (
-        f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {VERSION} is running, launched for that "
-        f"pin: release tag pm-v9.9.9 at https://github.com/Yeeef/pm builds pm {VERSION}; fix the tag, "
-        f"or move the pin to {VERSION} with pm upgrade --to {VERSION}\n")
+    for args in COMMANDS:
+        res = repo.pm(*args, stdin=json.dumps({"cwd": str(repo.root)}))
+        assert res.returncode == 1 and res.stdout == "", args
+        assert res.stderr == (
+            f"error: this repo pins pm 9.9.9 in {path.resolve()}, but pm {VERSION} is running, launched for that "
+            f"pin: release tag pm-v9.9.9 at https://github.com/Yeeef/pm builds pm {VERSION}; fix the tag, "
+            f"or move the pin to {VERSION} with pm upgrade --to {VERSION}\n"), args
 
 
 @pytest.mark.integration  # pm upgrade and pm doctor

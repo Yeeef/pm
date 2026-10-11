@@ -196,10 +196,22 @@ func find(items []Item, id string) Item {
 	return Item{}
 }
 
-// reseed gives a case on a shared pair items of its own: A makes a project, a sprint, two tasks and a decision need as
-// newPair does and pushes them, B pulls them, and B's clock starts where A's stopped, as after newPair.
+// on makes the pair's clones fail on t, a subtest's, until that subtest ends: a clone made for the parent test would
+// otherwise fail the parent from inside the subtest.
+func (x *pair) on(t *testing.T) *pair {
+	t.Helper()
+	ta, tb := x.a.t, x.b.t
+	x.a.t, x.b.t = t, t
+	t.Cleanup(func() { x.a.t, x.b.t = ta, tb })
+	return x
+}
+
+// reseed gives a case on a shared pair items of its own, its clones failing on the case's t (on): A makes a project, a
+// sprint, two tasks and a decision need as newPair does and pushes them, B pulls them, and B's clock starts where A's
+// stopped, as after newPair.
 func (x *pair) reseed(t *testing.T) *pair {
 	t.Helper()
+	x.on(t)
 	y := &pair{a: x.a, b: x.b, bare: x.bare}
 	x.a.do(func(d *Dolt) {
 		y.p = must(d.createLocal(New{Type: Project, Title: "P"}))
@@ -547,6 +559,7 @@ func TestCreatePushTimeout(t *testing.T) {
 	x := newPair(t)
 
 	t.Run("SyncPushesUnderPmsOwnRefOnly", func(t *testing.T) {
+		x.on(t)
 		refs := gitRun(t, x.bare, "for-each-ref", "--format=%(refname)")
 		if !strings.Contains(refs, RemoteRef+"\n") || strings.Contains(refs, "refs/dolt/data") ||
 			strings.Contains(refs, "__dolt_remote_info__") {
@@ -562,6 +575,7 @@ func TestCreatePushTimeout(t *testing.T) {
 	// B runs the compare-and-swap in process (createShared, what its service runs for pm_create), so the test can hold
 	// its push; A's creates go through A's service (CALL pm_create).
 	t.Run("CreateConcurrentChildMintsGetDistinctIDs", func(t *testing.T) {
+		x.on(t)
 		var ia, ib, sa, sb Item
 		da := x.openA(t)
 		race := func(mintA func()) func(push func() error) error {

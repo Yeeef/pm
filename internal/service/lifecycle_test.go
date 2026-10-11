@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -310,6 +311,26 @@ func TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall(t *testing.T) {
 			}
 		})
 	}
+
+	// A stop that leaves something answering on the socket fails, naming it.
+	t.Run("StopFailsWhileTheSocketStillAnswers", func(t *testing.T) {
+		m := newMachine(t, Systemd)
+		m.install(8123)
+		probe = func(int) *Served { return nil }
+		saved := RestartWait
+		RestartWait = 300 * time.Millisecond
+		defer func() { RestartWait = saved }()
+		sock := filepath.Join(m.main, ".pm/run/work.sock")
+		os.MkdirAll(filepath.Dir(sock), 0o755)
+		ln, err := net.Listen("unix", sock)
+		if err != nil {
+			t.Skip("socket path too long here:", err)
+		}
+		defer ln.Close()
+		if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "the work store's socket "+sock+" still answer") {
+			t.Fatal(err)
+		}
+	})
 }
 
 // A systemctl that cannot reach the user instance exits non-zero for is-enabled too: that is no stop, so session

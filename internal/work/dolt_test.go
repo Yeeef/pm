@@ -138,6 +138,20 @@ func TestClaimIsACompareAndSet(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// A move note is read only from pm's own comments: a session's note in the same words is no move.
+	t.Run("SprintMovesReadsOnlyPmsNotes", func(t *testing.T) {
+		text := "pm sprint move: from demo-a sprint 3 to demo-b sprint 1\nwhy"
+		it := Item{Type: Sprint, Comments: []Comment{
+			{Kind: Note, Author: "session-1", Text: text},
+			{Kind: Reply, Author: MoveAuthor, Text: text},
+			{Kind: Note, Author: MoveAuthor, Text: "pm sprint move: elsewhere"},
+			{Kind: Note, Author: MoveAuthor, Text: text, CreatedAt: time.Now()},
+		}}
+		if got := SprintMoves(&it); len(got) != 1 || got[0] != (SprintMove{"demo-a", 3, "demo-b", 1, "why"}) {
+			t.Fatalf("%+v", got)
+		}
+	})
+
 	t.Run("MoveSprintRefuses", func(t *testing.T) {
 		p, s, task, _ := seed(t, d)
 		q := must(d.Create(New{Type: Project, Title: "Q"}))

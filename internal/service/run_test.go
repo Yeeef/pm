@@ -500,6 +500,30 @@ func TestAPartialReadIsRepeatedUnderTheLockAndServedThere(t *testing.T) {
 	if loads < 2 {
 		t.Fatalf("a partial read is not repeated under the lock: %d loads", loads)
 	}
+
+	t.Run("ARenderErrorIsServedAsTheErrorAndTakesNoReply", func(t *testing.T) {
+		w := newFakeWork(need("p-1.2.1", work.Decision, ""))
+		s := serve(t, w, "")
+		tok := s.token()
+		s.site.mu.Lock()
+		s.site.loadErr, s.site.stamp = errors.New("sprints/x.md: no Goal"), 1
+		s.site.mu.Unlock()
+		eventually(t, "the error served", func() bool {
+			resp, body := s.get("/")
+			return resp.StatusCode == 500 && strings.Contains(body, "The site did not render") &&
+				strings.Contains(body, "error: sprints/x.md: no Goal")
+		})
+		code, _, body := s.post(url.Values{"token": {tok}, "id": {"p-1.2.1"}, "text": {"yes"}}, "")
+		if code != 500 || body != "error: the reply was not taken, since the site does not render: error: sprints/x.md: no Goal\n" {
+			t.Fatalf("POST: %d %q", code, body)
+		}
+		s.site.mu.Lock()
+		loads := s.site.loads
+		s.site.mu.Unlock()
+		if loads < 3 { // the first good load, then a failed read and its repeat under the records lock
+			t.Fatalf("a failed read is not repeated under the lock: %d loads", loads)
+		}
+	})
 }
 
 func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *testing.T) {

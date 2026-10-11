@@ -1446,6 +1446,17 @@ def test_task_claim_refuses_in_the_main_checkout_and_says_how_to_make_a_worktree
     # the same session (a subagent shares it) may claim again
     assert claim(repo, "repo-demo.1.2", "sess-a", cwd=wt).returncode == 0
 
+    # folded: test_task_claim_records_the_session_given_with_session_even_with_one_in_the_environment
+    # (sess-a lets go of repo-demo.1.2 first, so it is free as the original test's seed left it)
+    res = subprocess.run([*PM, "task", "release", "repo-demo.1.2"], cwd=wt, capture_output=True, text=True,
+                         env=dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-a"))
+    assert res.returncode == 0, res.stderr
+    res = claim(repo, "repo-demo.1.2", "sess-env", "--session", "sess-flag", cwd=wt)
+    assert res.returncode == 0, res.stderr
+    assert repo.items()["repo-demo.1.2"]["holder"]["session"] == "sess-flag"
+    assert "--session ID  the session to record; default: this session's id from the environment" in \
+        repo.pm("task", "claim", "--help").stdout
+
 
 # ---------------------------------------------------------------- pm push: what the service runs
 

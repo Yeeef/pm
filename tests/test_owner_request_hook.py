@@ -76,14 +76,23 @@ def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):
     # folded: test_blocks_a_request_matching_no_open_need_of_this_session
     # A match the judge names counts only when it is one of this session's open needs, so another session's need
     # does not cover the request.
-    res = run(needs, reply="Should I merge the PR now or wait for review?",
-              judged=answer(("Should I merge the PR now or wait for review?", "decision", THEIRS["id"])))
+    for match in (None, THEIRS["id"]):
+        res = run(needs, reply="Should I merge the PR now or wait for review?",
+                  judged=answer(("Should I merge the PR now or wait for review?", "decision", match)))
+        out = json.loads(res.stdout)
+        assert res.returncode == 0 and out["decision"] == "block", match
+        assert '"Should I merge the PR now or wait for review?"' in out["reason"]
+        assert all(c in out["reason"] for c in ("pm decision need --title", "pm action need --title",
+                                                "pm action need --pr"))
+        assert "needs no id" in out["reason"] and "cite" not in out["reason"]
+
+    # folded: test_blocks_a_clarification_asked_only_in_chat
+    # A clarification is a request like a decision: asked in plain text, with no open need, it blocks.
+    q = "By 'the hook', do you mean the Stop hook or the SessionStart hook?"
+    res = run(needs, reply=q, judged=answer((q, "clarification", None)))
     out = json.loads(res.stdout)
     assert res.returncode == 0 and out["decision"] == "block"
-    assert '"Should I merge the PR now or wait for review?"' in out["reason"]
-    assert all(c in out["reason"] for c in ("pm decision need --title", "pm action need --title",
-                                            "pm action need --pr"))
-    assert "needs no id" in out["reason"] and "cite" not in out["reason"]
+    assert f'"{q}"' in out["reason"] and "AskUserQuestion" in out["reason"]
 
 
 def failed(res, said):

@@ -302,6 +302,17 @@ func TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne(t *testing.T) 
 		!strings.Contains(got, "/files/pm-v0.2.0/"+asset+" false") || strings.Count(got, " true") != 3 {
 		t.Fatalf("requests:\n%s", got)
 	}
+
+	t.Run("ReleaseURL", func(t *testing.T) {
+		t.Setenv("PM_RELEASE_URL", "")
+		if releaseURL() != "https://github.com/Yeeef/pm/releases/download" {
+			t.Fatal(releaseURL())
+		}
+		t.Setenv("PM_RELEASE_URL", "http://mirror/x///")
+		if releaseURL() != "http://mirror/x" {
+			t.Fatal(releaseURL())
+		}
+	})
 }
 
 // Markers hands the launcher's markers to a child that is this same pm (the session-start pm init), and only when
@@ -450,4 +461,13 @@ func TestAGoPinIsDownloadedOnceThenExecdWithTheMarks(t *testing.T) {
 	if err != nil || out != "in process\n" {
 		t.Fatalf("launched for its pin: %v %q", err, out)
 	}
+
+	t.Run("IsGo", func(t *testing.T) {
+		for v, want := range map[string]bool{"0.2.0": true, "0.2.0-rc.1": true, "0.10.3": true, "1.0": true,
+			"0.1.4": false, "0.1.9-rc.1": false, "0.2": false, "dev": false, "": false, "0.x.0": false} {
+			if IsGo(v) != want {
+				t.Errorf("IsGo(%q) = %v", v, !want)
+			}
+		}
+	})
 }

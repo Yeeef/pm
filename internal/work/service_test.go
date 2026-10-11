@@ -1,8 +1,10 @@
 package work
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -18,6 +20,19 @@ import (
 // during UpdateGCGen", pm CI run 38024394987). The race is inside Dolt, so pm cannot avoid it; the Dolt it links must
 // hold the fix. The test reads it from go.mod: a test binary's build info lists no dependencies.
 func TestDoltHoldsTheJournalPruneFix(t *testing.T) {
+	t.Run("GCKeepsEveryItem", func(t *testing.T) {
+		d, o := newStore(t)
+		seed(t, d)
+		before := must(d.Items())
+		if err := o.h.GC(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		r := o.dial(t)
+		if after := must(r.Items()); !reflect.DeepEqual(after, before) {
+			t.Fatalf("gc changed the items:\n%v\n%v", before, after)
+		}
+	})
+
 	const fixed = "2026-07-17T20:48:48Z" // b130ee82ebe9's commit time
 	data, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
 	if err != nil {
