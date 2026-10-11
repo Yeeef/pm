@@ -67,6 +67,12 @@ None yet.
   sprintfQuotedString and 5 QF1001 by config, with the reason in
   .golangci.yml.
 
+- Ratcheted backlog on eedbafd, left for later sprints: errcheck check-blank
+  404 (223 in tests), gocyclo>30 19, gocognit>40 21, funlen 26,
+  file-length>1000 3, reassign 19. New code is gated through
+  --new-from-merge-base origin/main. Fixed now: the known blank errors in
+  sync/push.go, cli/writes.go (x2) and service/spool.go.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
