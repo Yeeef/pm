@@ -1,0 +1,78 @@
+---
+type: sprint
+title: A marketing website for pm on GitHub Pages
+bead: yeeef-agents-9va.123
+---
+
+## Goal
+
+> What should be true when this sprint ends, and why now?
+
+pm has a public marketing website that sells it in one page to someone who runs coding agents: what pm is (a
+human-agent project management suite), why it beats a pack of prompt files (it structurally enforces the agents'
+decisions and actions through the `pm` cli and hooks), the outcomes, the site as the owner's view of a swarm of
+agents, and how to install it. Why now: pm has no public face; the repo's README is its only description.
+
+## Scope
+
+> What's in, and what's explicitly out? Keep this high level; implementation
+> details go in a design page.
+
+**In:**
+- A static, single-page site in `website/` (HTML and CSS, no build step), with the site screenshots from sprint 112 and
+  real commands.
+- A GitHub Actions workflow that deploys `website/` to GitHub Pages on a push to main that changes it.
+- The README links the website.
+- Each claim the page makes checked against the code, as in sprint 112.
+
+**Out:**
+- A custom domain, analytics, a docs site, a blog.
+- Changes to the pm site (the owner's interface) or the binary.
+
+## Done when
+
+> What evidence will show the goal is met?
+
+- A private preview of the page is shared with the owner, and it renders at phone and desktop widths with no
+  horizontal scroll (checked in a headless browser at 390 and 1440 pixels wide).
+- The PR is merged to main and the Pages deploy serves the page at its public URL.
+
+## Design pages
+
+> Where is the detail?
+
+None yet.
+
+## Progress
+
+> Where is the sprint now? Generated from the work store when the page is rendered.
+> Do not write here.
+
+## Decisions
+
+> What did we choose inside this sprint, and why?
+
+None yet.
+
+## Findings
+
+> What did we learn that changes the design, the plan, or how we work? Add
+> results with their numbers.
+
+None yet.
+
+## Delivery report
+
+> Written at close. Each part holds "Not closed yet." until then.
+
+### Outcome
+
+> Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
+
+Not closed yet.
+
+### Against "Done when"
+
+> Each item, met or not, with its evidence (a page, a command, a number).
+
+Not closed yet.
