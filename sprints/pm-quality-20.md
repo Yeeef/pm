@@ -136,10 +136,21 @@ This sprint closes with the test trim (PR #48), as its sprint decision records.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+Done: the suite keeps the tests with unique value, 432 non-live tests down to 164 (−62%), with 98.5% of the covered statements and all 75 bug guards kept; the internal/cli split moved to pm-d2k5.21 by this sprint's decision.
+
+- PR #48 (test files only): Go top-level tests 228 → 83, non-live pytest items 204 → 81; folds as `t.Run` rows and `# folded:` blocks; the internal/work sync and merge tests on one shared two-clone pair per kept test.
+- Local wall time: `make test` 9.2 → 6.6 s, `make test-go` 152 → 138 s, `go test ./internal/work` 119 → about 90 s.
+- The audit is kept as the doc record `test-value-audit`.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Done when | Result | Evidence |
+|---|---|---|
+| Test count falls by at least 25% | met | 432 → 164 non-live tests (−62%): `go test -list '^Test'` per package 228 → 83, `pytest --collect-only` 204 → 81 non-live items |
+| Combined coverage at least 97% of the statements covered before | met | 8,943 of the baseline's 9,076 covered statements are still covered (98.53%); re-measured with the audit's method (Go `-coverpkg` plus the light harness on `-cover` binaries) on eedbafd and on the branch; the audit itself counted 9,042 |
+| All 75 bug guards present, by name or as a row | met | 75 of 75: a check over the audit table finds each one as a `func` name, a `t.Run` row or a `# folded:` block |
+| CI is green | met | PR #48: all 11 checks pass; `make test` and `make test-go` pass locally |
+| No file in `internal/cli` over 800 lines | moved | to pm-d2k5.21, by this sprint's decision of 2026-10-11 |
+| No function with gocyclo over 30 | moved | to pm-d2k5.21, by this sprint's decision of 2026-10-11 |
