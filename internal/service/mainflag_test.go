@@ -53,6 +53,20 @@ func TestTheMainCheckoutIsFlaggedOffMainOrBehindItsRemote(t *testing.T) {
 	if got := flag(); got != "" || texts.mainBanner() != "" {
 		t.Fatalf("up to date: %q", got)
 	}
+	git(main, "tag", "main") // a tag named as the branch does not make main look like another branch
+	if got := flag(); got != "" {
+		t.Fatalf("on main with a tag main: %q", got)
+	}
+	git(other, "commit", "-q", "--allow-empty", "-m", "three")
+	git(other, "push", "-q", "origin", "main")
+	git(main, "commit", "-q", "--allow-empty", "-m", "local")
+	git(main, "fetch", "-q", "origin")
+	want = "main checkout " + main + " has diverged from origin/main (1 commit(s) behind, 1 ahead), so hooks and " +
+		"rules run old code; inspect its own commits (git -C " + main + " log origin/main..HEAD), then rebase or " +
+		"reset it onto origin/main"
+	if got := flag(); got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
 	git(main, "switch", "-q", "-c", "feature")
 	want = "main checkout " + main + " is on branch feature, not main, so hooks and rules read another tree; run " +
 		"git -C " + main + " switch main"

@@ -14,7 +14,7 @@ import (
 // on the main branch and current, or when no remote-tracking ref exists yet. The service never pulls it itself.
 func (t Texts) MainFlag() (string, error) {
 	quoted := shellQuote(t.Main)
-	out, err := exec.Command("git", "-C", t.Main, "symbolic-ref", "--quiet", "--short", "HEAD").Output()
+	out, err := exec.Command("git", "-C", t.Main, "symbolic-ref", "--quiet", "HEAD").Output()
 	var exit *exec.ExitError
 	switch {
 	case errors.As(err, &exit) && exit.ExitCode() == 1:
@@ -23,27 +23,39 @@ func (t Texts) MainFlag() (string, error) {
 	case err != nil:
 		return "", fmt.Errorf("main checkout %s: git symbolic-ref HEAD: %v", t.Main, err)
 	}
-	if on := strings.TrimSpace(string(out)); on != t.MainBranch {
+	// the full ref: --short prints heads/<main> when a tag of that name exists too
+	if on := strings.TrimSpace(string(out)); on != "refs/heads/"+t.MainBranch {
 		return fmt.Sprintf("main checkout %s is on branch %s, not %s, so hooks and rules read another tree; run "+
-			"git -C %s switch %s", t.Main, on, t.MainBranch, quoted, t.MainBranch), nil
+			"git -C %s switch %s", t.Main, strings.TrimPrefix(on, "refs/heads/"), t.MainBranch, quoted, t.MainBranch), nil
 	}
 	ref := "refs/remotes/" + t.Remote + "/" + t.MainBranch
 	if exec.Command("git", "-C", t.Main, "rev-parse", "--verify", "--quiet", ref).Run() != nil {
 		return "", nil // never fetched: nothing to count against
 	}
-	out, err = exec.Command("git", "-C", t.Main, "rev-list", "--count", "HEAD.."+ref).Output()
+	out, err = exec.Command("git", "-C", t.Main, "rev-list", "--left-right", "--count", "HEAD..."+ref).Output()
 	if err != nil {
-		return "", fmt.Errorf("main checkout %s: git rev-list --count HEAD..%s: %v", t.Main, ref, err)
+		return "", fmt.Errorf("main checkout %s: git rev-list --left-right --count HEAD...%s: %v", t.Main, ref, err)
 	}
-	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
-	if err != nil {
-		return "", fmt.Errorf("main checkout %s: git rev-list --count printed %q", t.Main, out)
+	counts := strings.Fields(string(out))
+	if len(counts) != 2 {
+		return "", fmt.Errorf("main checkout %s: git rev-list --left-right --count printed %q", t.Main, out)
 	}
-	if n == 0 {
+	ahead, err1 := strconv.Atoi(counts[0])
+	behind, err2 := strconv.Atoi(counts[1])
+	if err1 != nil || err2 != nil {
+		return "", fmt.Errorf("main checkout %s: git rev-list --left-right --count printed %q", t.Main, out)
+	}
+	switch {
+	case behind == 0:
 		return "", nil
+	case ahead > 0: // pull --ff-only would fail
+		return fmt.Sprintf("main checkout %s has diverged from %s/%s (%d commit(s) behind, %d ahead), so hooks and "+
+			"rules run old code; inspect its own commits (git -C %s log %s/%s..HEAD), then rebase or reset it onto "+
+			"%s/%s", t.Main, t.Remote, t.MainBranch, behind, ahead, quoted, t.Remote, t.MainBranch, t.Remote,
+			t.MainBranch), nil
 	}
 	return fmt.Sprintf("main checkout %s is %d commit(s) behind %s/%s, so hooks and rules run old code; run %s",
-		t.Main, n, t.Remote, t.MainBranch, t.pullMain()), nil
+		t.Main, behind, t.Remote, t.MainBranch, t.pullMain()), nil
 }
 
 // mainBanner is the site's warning for MainFlag, beside the push banner; empty when there is no flag.
