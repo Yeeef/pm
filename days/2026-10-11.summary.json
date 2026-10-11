@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T19:01:13+00:00",
- "digest": "57d8795ae6a85933",
+ "generated_at": "2026-10-11T19:11:33+00:00",
+ "digest": "de2d6f1305fa577c",
  "model": "claude-haiku-5-5",
- "text": "- **Public website and README:** pm now has a one-page website on GitHub Pages. The README describes pm as a human-agent project management suite, with real screenshots.\n- **Site access and status:** The Access token check now lives in the Go code. The site and `pm service status` flag a main checkout that is behind its remote.\n- **CI lint gates:** CI now runs lint checks for the Go code and the Python harness. The checks stop sloppy code patterns, and dead code was removed.\n- **For you:** Review the pull requests that wait for your approval."
+ "text": "- **Public website:** The pm marketing site is live on GitHub Pages. The README now describes pm as a human-agent project management suite.\n- **Site access and status:** The Go service now checks Cloudflare Access tokens. The site flags a main checkout that is behind its remote.\n- **Code quality checks:** New lint checks cover the Go code and the harness. They await review.\n- **For you:** Review the open pull requests on the site, harness and code quality."
 }
