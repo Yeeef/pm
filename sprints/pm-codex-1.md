@@ -48,6 +48,11 @@ Done when gains a parity check: one scenario run by a real Claude Code session a
 Owner asked in chat (2026-10-11) for a success criterion that a test checks: both runtimes work on par, and a user can have Codex and Claude working together on one project.
 :::
 
+::: decision {source=agent date=2026-10-11}
+pm init writes a project Codex rule .codex/rules/pm.rules allowing the pm prefix, so pm commands run outside the Codex sandbox, as pm hooks already do; pm sets no network_access and no unix-socket allowlist.
+codex-rs 0.154 source: a network-off Linux sandbox denies connect() by seccomp, so no pm command reaches work.sock; an execpolicy allow rule runs the command unsandboxed (exec_policy.rs:440, orchestrator.rs:269), project rules load once the project is trusted, and it opens nothing beyond pm itself.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
