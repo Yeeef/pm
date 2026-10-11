@@ -80,11 +80,6 @@ The owner asked for a marketing website mid-sprint; it shares the positioning an
   fixture, PORT=18766) with a decision need raised by pm decision need.
   Screenshots: 1440 px, scale 2, 128-colour quantized, 54-259 KB each.
 
-- The pm-harness project page's Progress diagram renders as Mermaid's 'Maximum
-  text size in diagram exceeded' box (122 sprints), so the README's project
-  screenshot uses the pm-site project page instead; the overflow is a site bug
-  for a pm-site sprint, not fixed here.
-
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
@@ -93,10 +88,14 @@ The owner asked for a marketing website mid-sprint; it shares the positioning an
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the README presents pm as a human-agent project management suite, with each claim checked against the code and the site shown in four screenshots (PR #41); the merge waits on the owner's review.
+
+- `README.md`: the pitch, the three parts (agent project and task management, context as records tied to tasks, the site), what pm enforces structurally (cli refusals, the work store, session hooks) and what it leaves to its rules, the outcomes with their mechanisms, a Mermaid diagram, install and docs.
+- `website/img/overview.png`, `project.png`, `sprint.png`, `need.png`: the site's overview, a project, a sprint and a decision need with its reply form, shared with sprint 113's website.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- The README renders on GitHub with its screenshots, and each outcome names its mechanism: met. PR #41's body lists every claim with its file or command; a fresh-context review checked them against the code and found five overclaims or misstatements (only what a tool checks is enforced; subagent start gets the rules, not the state; liveness is read from a local transcript; docs are free-form; the `claude` CLI is needed for the owner-request check and `pm day summarize`), fixed in fa45dba. The Mermaid diagram parses in Mermaid 11.17.2. CI on fa45dba: 9 of 9 checks passed.
+- The PR is merged to main: not yet; it waits on the owner's review, raised as a need on this sprint.
