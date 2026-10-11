@@ -79,6 +79,11 @@ None yet.
   error broke TestASecondHostOnAStoreFailsHard, so the fix keeps it as 'held'
   and wraps Dolt's error with %w.
 
+- deadcode: 6 findings, all resolved. cli.Leaves, worktest.Serve and
+  worktest.FromJSON were removed. Host.holding and Dolt.head were used only by
+  tests, so they moved to internal/work/inspect_test.go. clone.item was
+  removed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
