@@ -53,7 +53,23 @@ Owner asked in chat (2026-10-11) for a success criterion that a test checks: bot
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Gap list, Codex 0.154 vs Claude Code 2.1.296, from code and live runs
+  (payloads captured both sides). Works as-is: output envelopes, Stop payload
+  keys, SessionStart session_id, context chunks up to 9,926 chars injected
+  whole, a Stop block makes Codex continue. Breaks a guarantee: (1) Codex runs
+  no project hook until the user trusts it; codex exec skips untrusted hooks
+  silently, and 0 of the owner's 43 Codex sessions in yeeef-agents got pm
+  context; (2) a Codex subagent is its own thread, so its claims and needs
+  carry another id than its root; (3) a Codex run started from Claude inherits
+  CLAUDE_CODE_SESSION_ID, which pm reads first; (4) no reply push: Codex has
+  no messaging socket; (8) the judge needs claude, and a Stop exit 1 is a
+  silent fail-open in Codex; (10) pm clean does not see live Codex sessions.
+  Degraded: (5) Codex reads hooks from the main checkout, not the worktree;
+  (6) the SessionStart matcher lacks compact; (7) subagent tool inputs are
+  encrypted in the parent rollout, so the parent's stop hook misses a
+  subagent's records; (9) the AskUserQuestion rule has no Codex tool.
+  Unverified: unix socket and records commits under the Codex sandbox (bwrap
+  fails on this host: RTM_NEWADDR).
 
 ## Delivery report
 
