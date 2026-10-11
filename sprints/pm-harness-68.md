@@ -102,6 +102,15 @@ Owner said "deliver it end to end" in chat on 2026-10-11 after reviewing the pla
   0.6.0 refuses the two keys, so they go in with the pin move to the release
   that carries PR #40.
 
+- Live check on this clone after the pin move to 0.7.1 (PR #51, 8a188fd) and
+  pm service restart, service reporting X-PM-Version 0.7.1 on :8001: localhost
+  200; Host pm.yeeefs.com without a token 403; Cf-Connecting-IP with Host
+  localhost 403; the real Cloudflare-signed meta token from the login redirect
+  403 'it is not an Access application token (type app)'; Host evil.example
+  403; POST /reply on the public host without a token 403; no 403 carries
+  X-PM-Store or X-PM-Version. https://pm.yeeefs.com unauthenticated is 302 to
+  yeeef.cloudflareaccess.com's login.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
