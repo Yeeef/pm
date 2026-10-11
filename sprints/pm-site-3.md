@@ -68,6 +68,8 @@ None yet.
 
 done: the Today summary tells only what happened that day, with no "For you" bullet that tells the owner what to do.
 
+Merged as 9e9e40b (PR #46).
+
 - `prompts/day_summary.txt`: the "For you" theme is gone; a request raised or answered that day stays an event of the day.
 - A changelog entry.
 - A stored summary is rewritten with the new prompt once that day's activity next changes: its digest hashes the
