@@ -213,6 +213,31 @@ func UnitPort(main, kind string) (int, error) {
 	return strconv.Atoi(string(found[1]))
 }
 
+var (
+	plistPath = regexp.MustCompile(`(?s)<key>PATH</key>\s*<string>(.*?)</string>`)
+	unitPath  = regexp.MustCompile(`"PATH=((?:[^"\\]|\\.)*)"`)
+)
+
+// UnitPath is the PATH the installed unit runs with, as install wrote it; false when it names none.
+func UnitPath(main, kind string) (string, bool) {
+	data, err := os.ReadFile(UnitFile(main, kind))
+	if err != nil {
+		return "", false
+	}
+	if kind == Launchd {
+		found := plistPath.FindSubmatch(data)
+		if found == nil {
+			return "", false
+		}
+		return strings.NewReplacer("&lt;", "<", "&gt;", ">", "&amp;", "&").Replace(string(found[1])), true
+	}
+	found := unitPath.FindSubmatch(data)
+	if found == nil {
+		return "", false
+	}
+	return strings.ReplaceAll(unquoteC(string(found[1])), "%%", "%"), true
+}
+
 // UnitCommand is the command the installed unit runs, as install wrote it; nil when it names none.
 func UnitCommand(main, kind string) []string {
 	data, err := os.ReadFile(UnitFile(main, kind))

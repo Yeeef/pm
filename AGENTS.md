@@ -250,7 +250,9 @@ through `codex app-server` as the TUI's review trusts them. `PM_PARITY_CODEX_SAN
   runs every time: `pm prime --state` runs it (`pm init --session-start` without `$PORT`) at each session start,
   within its timeout; that run installs a missing service and starts an installed one that does not answer, once for
   parallel session starts, and leaves a running one, a stale one included, to a typed `pm init` or
-  `pm service restart`. In a linked worktree, a branch without `.pm/config.toml` is refused, and a main checkout on
+  `pm service restart`. A typed `pm init` keeps an installed unit's PATH (each agent runtime runs pm with a PATH of
+  its own, Codex's directory first, and taking it would restart the service under every session); `pm service
+  install` takes the PATH it runs with. In a linked worktree, a branch without `.pm/config.toml` is refused, and a main checkout on
   another pin gets the worktree's setup but no binary or service.
 - Agents change code only in a worktree of their own: `pm task claim` refuses in the main checkout (the worktree whose
   git dir is the common one) and prints how to make one under `.claude/worktrees/`.

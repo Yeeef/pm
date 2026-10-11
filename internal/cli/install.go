@@ -449,7 +449,7 @@ func initSteps(here, top, main string, s install.Settings, fresh, sessionStart b
 	if err != nil {
 		return "", err
 	}
-	said, err = service.Install(main, port, exe)
+	said, err = service.Install(main, port, exe, true) // a PATH of its own never restarts a running service
 	if err != nil {
 		return "", err
 	}

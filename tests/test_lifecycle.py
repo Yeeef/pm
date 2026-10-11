@@ -600,3 +600,27 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
         "stop, and Codex treats that failure as a silent pass; install Claude Code and log in"), res.stdout
     assert lines[1] == "codex: codex is not on PATH, so whether Codex runs pm's hooks was not checked", res.stdout
     assert len(lines) == 3 and lines[2].startswith("release: "), res.stdout
+
+
+def test_init_with_a_path_of_its_own_leaves_the_running_service_alone(new_repo: Path, tmp_path: Path):
+    """Codex runs every command with its own directory first on PATH: a typed pm init from there must not rewrite the
+    unit or restart the service under every live session. A real difference (the port) still restarts it, and
+    pm service install takes the PATH it runs with."""
+    assert pm(new_repo, "init").returncode == 0
+    units = sched_units(tmp_path)
+    before = {u: u.read_bytes() for u in units}
+    log = tmp_path / "sched.log"
+    calls = len(log.read_text().splitlines())
+    codex = tmp_path / "codex-path"
+    codex.mkdir()
+    base = env(tmp_path)
+    res = subprocess.run([*PM, "init"], cwd=new_repo, env=dict(base, PATH=f"{codex}{os.pathsep}{base['PATH']}"),
+                         capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    new = [json.loads(l) for l in log.read_text().splitlines()[calls:]]
+    assert not [c for c in new if set(c) & {"restart", "daemon-reload", "bootstrap", "bootout", "kickstart"}], new
+    assert {u: u.read_bytes() for u in units} == before
+    res = subprocess.run([*PM, "service", "install"], cwd=new_repo,
+                         env=dict(base, PATH=f"{codex}{os.pathsep}{base['PATH']}"), capture_output=True, text=True)
+    assert res.returncode == 0 and res.stdout.startswith("updated the pm service"), res.stdout + res.stderr
+    assert str(codex).encode() in b"".join(u.read_bytes() for u in units)
