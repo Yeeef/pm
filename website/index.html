@@ -90,7 +90,7 @@
     <div class="wrap">
       <span class="kicker">The suite</span>
       <h2>One suite for the work, its context, and you.</h2>
-      <p class="section-lede">pm keeps a project in two layers, a work store and Markdown records, and the <code>pm</code> cli is the only way in. A service per clone turns both into the site you read and answer.</p>
+      <p class="section-lede">pm keeps a project in two layers, a work store and Markdown records, and the <code>pm</code> cli is the only way into the work store. A service per clone turns both into the site you read and answer.</p>
 
       <div class="pillars">
         <article class="card">
@@ -142,7 +142,7 @@
           <ul class="enforce">
             <li><span class="n"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l6 6-6 6M12.5 18H20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><b>The cli checks every write</b><span>Claims, closes, sprint frames and requests to you are checked before anything is written. A refusal changes nothing.</span></div></li>
             <li><span class="n"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.75" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 6v12c0 1.5 3.1 2.75 7 2.75s7-1.25 7-2.75V6M5 12c0 1.5 3.1 2.75 7 2.75s7-1.25 7-2.75" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><div><b>The work store holds one truth</b><span>Holders, status and dependencies live in one Dolt database per clone, synced through your git remote. There is no status file to drift.</span></div></li>
-            <li><span class="n"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v6M12 9a4 4 0 1 0 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 13l2.5-2.5M16 13l-2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><b>Hooks guard each session's start and stop</b><span>Session start injects pm's rules and the project's state. At stop, a reply that asks you for something only in chat is blocked, with the command that raises it as a request on your site, and records edited but left uncommitted are caught.</span></div></li>
+            <li><span class="n"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v6M12 9a4 4 0 1 0 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 13l2.5-2.5M16 13l-2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><div><b>Hooks guard each session's start and stop</b><span>Session start injects pm's rules and the project's state. At stop, a reply that asks you for something only in chat is blocked, with the command that raises it as a request on your site, and records edited but left uncommitted are caught. The chat-ask check and day summaries call the <code>claude</code> CLI, so it must be installed and logged in, Codex setups included.</span></div></li>
           </ul>
         </div>
       </div>
@@ -173,22 +173,22 @@ Your reply asks the owner for something that no open request of this session cov
         <article class="outcome wide">
           <div class="num">01</div>
           <h3>Any task, any agent, any time.</h3>
-          <p>Every session starts with pm's rules and the project's state. The task, its sprint's frame and the decisions behind it are in the work store and the records, so a fresh agent picks up where the last one stopped. A task whose holder has been idle for 30 minutes can be claimed by the next agent.</p>
+          <p>Every session starts with pm's rules and the project's state. The task, its sprint's frame and the decisions behind it are in the work store and the records, so a fresh agent picks up where the last one stopped. A task whose holder has been idle for 30 minutes on the same machine can be claimed by the next agent.</p>
           <div class="mini"><div class="mono-box"><span class="k">pm show</span> <span class="d">         # state, injected at session start</span>
 <span class="k">pm task ready</span> <span class="d">   # what can start now</span>
 <span class="k">pm task claim</span> <span class="d">&lt;id&gt; # one holder per task</span></div></div>
         </article>
         <article class="outcome wide">
           <div class="num">02</div>
-          <h3>No more PLANNING.md sprawl.</h3>
-          <p>Plans, decisions and findings go to records on the <code>records</code> branch, never to your code branches. Your repo holds your code.</p>
+          <h3>A home for every plan.</h3>
+          <p>Plans, decisions and findings have a home: checked records on the <code>records</code> branch, apart from your code branches. pm's rules send context there, so your code tree stays code.</p>
           <div class="mini chips">
             <span class="chip strike">PLANNING.md</span><span class="chip strike">IMPLEMENTATION.md</span><span class="chip strike">TASK_67.md</span><span class="chip strike">NOTES-v2.md</span><span class="chip good">records branch</span>
           </div>
         </article>
         <article class="outcome">
           <div class="num">03</div>
-          <h3>Run tens of agents. Still manage them.</h3>
+          <h3>Run ten agents or more. Still manage them.</h3>
           <p>Agents raise the decisions and actions they need from you as requests, and each one lands in the same view. Every sprint has a goal, a scope and a done-when before any work runs: <code>pm sprint open</code> refuses a frame without them.</p>
         </article>
         <article class="outcome">
@@ -248,7 +248,7 @@ Your reply asks the owner for something that no open request of this session cov
     <div class="wrap">
       <span class="kicker">How it works</span>
       <h2>Agents work through pm. You read one site.</h2>
-      <p class="section-lede">Hooks give each session its context; the cli is the only way to change the work. pm writes two layers, and one service per clone renders them for you and carries your replies back.</p>
+      <p class="section-lede">Hooks give each session its context; the cli is the only way to change the work store. pm writes two layers, and one service per clone renders them for you and carries your replies back.</p>
 
       <div class="diagram">
         <svg class="wide" viewBox="0 0 1120 470" role="img" aria-labelledby="dg-title dg-desc">
@@ -394,7 +394,7 @@ Your reply asks the owner for something that no open request of this session cov
 
       <div class="legend">
         <div><b>Session hooks</b>At start, pm's rules and the project's state. At stop, a check for asks left in chat and for uncommitted records.</div>
-        <div><b>pm cli</b>The one way to change the work: every write is checked first, and a refusal names the way forward.</div>
+        <div><b>pm cli</b>The one way to change the work store: every write is checked first, and a refusal names the way forward.</div>
         <div><b>Work store and records</b>A Dolt database per clone, synced under <code>refs/pm/work</code>, and Markdown on the <code>records</code> branch.</div>
         <div><b>pm service</b>One background process per clone. It holds the work store, serves the site, syncs, and delivers your replies.</div>
       </div>
