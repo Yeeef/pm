@@ -42,6 +42,7 @@ FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"
 FAKE_SCHED = Path(__file__).resolve().parent / "fake_sched.py"
 NO_RELEASE_API = "http://127.0.0.1:9/no-release-api"
 FAKE_CLAUDE = Path(__file__).resolve().parent / "fake_claude.py"
+FAKE_CODEX = Path(__file__).resolve().parent / "fake_codex.py"
 
 # What pm prime prints, written out from the design (the pm rules' hook chunks), not taken from pm's code: prime.md and
 # the noun list, cut at RULE_STARTS into chunks of at most CAP characters (Claude Code passes a hook's
@@ -324,7 +325,8 @@ def real_home_untouched():
 
 def fake_env(tmp: Path, base) -> dict[str, str]:
     """`base` with the fakes first on PATH: gh serving PRs from tmp/gh.json (none at first), claude logging to
-    tmp/claude.log, and launchctl, systemctl and crontab logging to tmp/sched.log, so no test installs a real service;
+    tmp/claude.log, codex answering whether it trusts pm's hooks (yes, unless $FAKE_CODEX_TRUST says otherwise), and
+    launchctl, systemctl and crontab logging to tmp/sched.log, so no test installs a real service;
     made on first use in `tmp`, so later calls keep their state and log. HOME is tmp/home, whose .local/bin/pm, second
     on PATH, links the pm under test, as install.sh and pm init put it. CODEX_HOME is tmp/codex, absent until a test
     makes it, so no test reads or edits the user's Codex config."""
@@ -332,8 +334,8 @@ def fake_env(tmp: Path, base) -> dict[str, str]:
     if not bindir.exists():
         bindir.mkdir()
         # each runs with this interpreter, whatever python3 the PATH a unit gets holds
-        for tool, script in (("gh", FAKE_GH), ("claude", FAKE_CLAUDE), ("launchctl", FAKE_SCHED),
-                             ("systemctl", FAKE_SCHED), ("crontab", FAKE_SCHED)):
+        for tool, script in (("gh", FAKE_GH), ("claude", FAKE_CLAUDE), ("codex", FAKE_CODEX),
+                             ("launchctl", FAKE_SCHED), ("systemctl", FAKE_SCHED), ("crontab", FAKE_SCHED)):
             (bindir / tool).write_text(f'#!/bin/sh\nFAKE_TOOL={tool} exec "{sys.executable}" "{script}" "$@"\n')
             (bindir / tool).chmod(0o755)
         (tmp / "home/.local/bin").mkdir(parents=True)

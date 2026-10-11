@@ -543,3 +543,53 @@ def test_uninstall_waits_for_a_session_start_that_holds_the_install_lock(new_rep
     out, err = proc.communicate(timeout=60)
     assert proc.returncode == 0, err
     assert "removed the pm service" in out and sched_units(tmp_path) == [] and not (new_repo / ".pm").exists()
+
+
+def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path: Path):
+    """pm doctor asks Codex (here the fake codex app-server) which of pm's hooks it would skip, and names each with
+    the fix, failing; pm init (not at session start) names them too. Without codex on PATH, doctor says the trust was
+    not checked and does not fail on it; without claude, it fails naming the owner-request judge."""
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    hooks = new_repo / ".codex/hooks.json"
+    fix = f"; open Codex in {new_repo} and trust pm's hooks in /hooks"
+    trust = tmp_path / "trust.json"
+
+    def run(*args, **extra):
+        return subprocess.run([*PM, *args], cwd=new_repo, env=dict(env(tmp_path), **extra), capture_output=True,
+                              text=True)
+
+    trust.write_text(json.dumps({"stop:0:2": "untrusted", "user_prompt_submit:0:0": "modified"}))
+    res = run("doctor", FAKE_CODEX_TRUST=str(trust))
+    assert res.returncode == 1, res.stdout + res.stderr
+    lines = res.stdout.splitlines()
+    assert lines[:2] == [
+        f"codex: Codex skips 1 of pm's 13 hooks in {hooks}, which you have not trusted: stop `pm hook stop || exit 1`"
+        + fix,
+        f"codex: Codex skips 1 of pm's 13 hooks in {hooks}, which changed since you trusted them: userPromptSubmit "
+        f"`pm hook inbox || exit 1`" + fix], res.stdout
+    assert lines[-1].startswith("release: cannot read pm's latest release"), res.stdout
+    res = run("init", FAKE_CODEX_TRUST=str(trust))
+    assert res.returncode == 0 and res.stdout.splitlines()[-2:] == lines[:2], res.stdout
+    trust.write_text(json.dumps({"project": "untrusted"}))
+    res = run("doctor", FAKE_CODEX_TRUST=str(trust))
+    assert res.returncode == 1 and res.stdout.splitlines()[0] == (
+        f"codex: Codex runs none of pm's hooks in {hooks}: it lists none of them, as it does until you trust the "
+        f"project; open Codex in {new_repo}, trust the project, then trust pm's hooks in /hooks"), res.stdout
+    assert run("doctor").returncode == 0  # the fake trusts every hook
+    # neither codex nor claude on PATH: the other fakes in a bin dir of their own, no dir that holds either
+    fakes = tmp_path / "fakes-but-agents"
+    fakes.mkdir()
+    for tool in (tmp_path / "bin").iterdir():
+        if tool.name not in ("codex", "claude"):
+            (fakes / tool.name).symlink_to(tool)
+    path = os.pathsep.join([str(fakes)] + [d for d in env(tmp_path)["PATH"].split(os.pathsep)
+                                           if not (Path(d) / "codex").exists() and not (Path(d) / "claude").exists()])
+    res = run("doctor", PATH=path)
+    lines = res.stdout.splitlines()
+    assert res.returncode == 1 and lines[0] == (
+        "claude: not on PATH; the owner-request Stop hook's judge runs claude -p, so without it the hook fails at every "
+        "stop, and Codex treats that failure as a silent pass; install Claude Code and log in"), res.stdout
+    assert lines[1] == "codex: codex is not on PATH, so whether Codex runs pm's hooks was not checked", res.stdout
+    assert len(lines) == 3 and lines[2].startswith("release: "), res.stdout

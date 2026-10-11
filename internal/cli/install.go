@@ -334,6 +334,13 @@ func cmdInit(p *Parsed, here string, stdout io.Writer) error {
 			lines = append(lines, l)
 		}
 	}
+	if !sessionStart { // session start runs no Codex: it would cost seconds at every start
+		skips, _, err := install.CodexTrust(main, install.CodexTrustTimeout)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, skips...)
+	}
 	_, err = fmt.Fprintln(stdout, strings.Join(lines, "\n"))
 	return err
 }
@@ -503,15 +510,27 @@ func cmdDoctor(here string, stdout io.Writer) error {
 	for _, d := range append(found, install.LegacyClone(main)...) {
 		diffs = append(diffs, "legacy: "+d+"; "+install.LegacyFix())
 	}
-	release := releaseLine(c.Version)
+	if _, err := exec.LookPath("claude"); err != nil {
+		diffs = append(diffs, "claude: not on PATH; the owner-request Stop hook's judge runs claude -p, so without it "+
+			"the hook fails at every stop, and Codex treats that failure as a silent pass; install Claude Code and log in")
+	}
+	skips, note, err := install.CodexTrust(main, install.CodexTrustTimeout)
+	if err != nil {
+		return err
+	}
+	diffs = append(diffs, skips...)
+	notes := releaseLine(c.Version) // lines that inform and leave the exit code alone
+	if note != "" {
+		notes = append([]string{note}, notes...)
+	}
 	if len(diffs) > 0 {
-		fmt.Fprintln(stdout, strings.Join(append(diffs, release...), "\n"))
+		fmt.Fprintln(stdout, strings.Join(append(diffs, notes...), "\n"))
 		return &exitCode{1}
 	}
 	_, err = fmt.Fprintf(stdout, "pm %s (%s): every managed piece and the clone's setup match what pm init makes\n",
 		buildinfo.Version, launch.How())
-	if err == nil && len(release) > 0 {
-		_, err = fmt.Fprintln(stdout, strings.Join(release, "\n"))
+	if err == nil && len(notes) > 0 {
+		_, err = fmt.Fprintln(stdout, strings.Join(notes, "\n"))
 	}
 	return err
 }
