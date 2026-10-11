@@ -2,6 +2,8 @@
 
 **Manage outcomes, not agents.**
 
+Website: **[yeeef.github.io/pm](https://yeeef.github.io/pm/)**
+
 pm is project management for you and your coding agents. Run ten agents on one repo: each picks up a task, keeps
 what it learns next to that task, and brings you only what needs your call. You steer all of them from one page.
 
