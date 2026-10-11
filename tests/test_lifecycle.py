@@ -160,6 +160,15 @@ def test_init_leaves_an_installed_repos_files_alone_and_doctor_names_upgrade(new
     assert res.returncode == 0 and "git add -- .pm/config.toml && " in res.stdout, res.stdout
     assert tomllib.loads((new_repo / ".pm/config.toml").read_text())["site_url"] == "https://pm.example.com"
     assert settings.read_bytes() == changed
+    # a site_url needs the Access keys: doctor names the missing ones, and the config holding them is pm's own
+    code, lines = doctor(new_repo)
+    assert code == 1 and "config: site_url is set, but .pm/config.toml lacks access_team, access_aud, so the site " \
+                         "refuses every request to its host; set them there (pm init --help)" in lines, lines
+    with (new_repo / ".pm/config.toml").open("a") as f:
+        f.write('access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
+    code, lines = doctor(new_repo)
+    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
+                                          f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
 
 
 SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of the line doctor reports for it

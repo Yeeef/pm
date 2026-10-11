@@ -25,7 +25,8 @@ const (
 )
 
 // keys are the config's keys and the Python type each must have, in KEYS order.
-var keys = map[string]string{"version": "str", "remote": "str", "main_branch": "str", "port": "int", "site_url": "str"}
+var keys = map[string]string{"version": "str", "remote": "str", "main_branch": "str", "port": "int", "site_url": "str",
+	"access_team": "str", "access_aud": "str"}
 var required = []string{"version", "remote", "main_branch", "port"}
 
 // Error is a config that is missing, malformed, or pins another pm version.
@@ -41,6 +42,20 @@ type Config struct {
 	MainBranch string
 	Port       int64
 	SiteURL    string // "" when unset: links use http://localhost:<port>
+	AccessTeam string // the Cloudflare Access team domain, <team>.cloudflareaccess.com; "" when unset
+	AccessAud  string // the Access application's AUD tag; "" when unset
+}
+
+// AccessMissing is the Cloudflare Access keys a set site_url needs and the config lacks: the site verifies Access on
+// every request to site_url's host, and refuses them all without these.
+func (c Config) AccessMissing() []string {
+	var missing []string
+	for _, k := range [][2]string{{"access_team", c.AccessTeam}, {"access_aud", c.AccessAud}} {
+		if c.SiteURL != "" && k[1] == "" {
+			missing = append(missing, k[0])
+		}
+	}
+	return missing
 }
 
 // Root is the checkout whose config applies: cwd's worktree, or the main checkout from inside the store (the records
@@ -154,9 +169,11 @@ func Read(cwd string) (Config, error) {
 		return Config{}, &Error{fmt.Sprintf("%s: %s", path, strings.Join(parts, "; "))}
 	}
 	site, _ := data["site_url"].(string)
+	team, _ := data["access_team"].(string)
+	aud, _ := data["access_aud"].(string)
 	return Config{Path: path, Version: data["version"].(string), Remote: data["remote"].(string),
 		MainBranch: data["main_branch"].(string), Port: data["port"].(int64),
-		SiteURL: strings.TrimRight(PyStrip(site), "/")}, nil
+		SiteURL: strings.TrimRight(PyStrip(site), "/"), AccessTeam: PyStrip(team), AccessAud: PyStrip(aud)}, nil
 }
 
 // pyType is the name of the Python type tomllib gives a TOML value, for the two types the config checks.
