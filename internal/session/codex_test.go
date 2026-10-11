@@ -1,4 +1,4 @@
-package cli
+package session
 
 import (
 	"encoding/json"
@@ -71,7 +71,7 @@ func TestCodexRootMapsASubagentThreadToItsRootThread(t *testing.T) {
 	rollout(t, grand, start.Add(14*time.Hour).UTC().Format("2006/01/02"), map[string]any{"parent_thread_id": childThread})
 	for thread, want := range map[string]string{rootThread: rootThread, childThread: rootThread, grand: rootThread,
 		"01a12bed-14dd-7020-97d5-c7a5f615de95": "01a12bed-14dd-7020-97d5-c7a5f615de95"} { // no rollout: its own root
-		if got := codexRoot(thread); got != want {
+		if got := CodexRoot(thread); got != want {
 			t.Errorf("%s: got %s, want %s", thread, got, want)
 		}
 	}
@@ -84,12 +84,12 @@ func TestCurrentSessionOfACodexSubagentIsItsRootThread(t *testing.T) {
 	t.Setenv("CODEX_THREAD_ID", childThread)
 	rollout(t, rootThread, "", map[string]any{"session_id": rootThread})
 	rollout(t, childThread, "", map[string]any{"session_id": rootThread, "parent_thread_id": rootThread})
-	if got := currentSession(); got != rootThread {
+	if got := current(t); got != rootThread {
 		t.Fatalf("got %s, want the root thread %s", got, rootThread)
 	}
 	t.Setenv("CODEX_SESSION_ID", rootThread) // Codex 0.154 names it, with no rollout read
 	t.Setenv("CODEX_HOME", t.TempDir())
-	if got := currentSession(); got != rootThread {
+	if got := current(t); got != rootThread {
 		t.Fatalf("with CODEX_SESSION_ID: got %s, want %s", got, rootThread)
 	}
 }
@@ -98,17 +98,27 @@ func TestCodexRolloutsReadsOnlyTheDatesAThreadCanHaveStarted(t *testing.T) {
 	t.Setenv("CODEX_HOME", t.TempDir())
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	p := rollout(t, rootThread, "", nil)
-	if !live(rootThread) {
+	if !Live(rootThread) {
 		t.Fatal("a Codex thread whose rollout was just written is not live")
 	}
-	if got := codexRollouts(rootThread); len(got) != 1 || got[0] != p {
+	if got := Rollouts(rootThread); len(got) != 1 || got[0] != p {
 		t.Fatalf("got %v", got)
 	}
 	if err := os.Remove(p); err != nil {
 		t.Fatal(err)
 	}
 	rollout(t, rootThread, "2026/10/20", nil) // a date the thread cannot have started on
-	if got := codexRollouts(rootThread); len(got) != 0 {
+	if got := Rollouts(rootThread); len(got) != 0 {
 		t.Fatalf("read a date directory the thread did not start on: %v", got)
 	}
+}
+
+// current is the session the environment names, with no runtime among the ancestors.
+func current(t *testing.T) string {
+	t.Helper()
+	id, _, err := Current(func() string { return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

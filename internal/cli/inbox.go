@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
@@ -32,51 +31,15 @@ func pendingReplies(dir, session string) ([]string, func() error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	needs, err := ws.Needs(session)
+	t := service.Texts{Main: main, Remote: cfg.Remote, MainBranch: cfg.MainBranch}
+	texts, marks, err := t.SessionUndelivered(ws, session)
 	if err != nil {
 		return nil, nil, errors.Join(err, ws.Shutdown())
 	}
-	t := service.Texts{Main: main, Remote: cfg.Remote, MainBranch: cfg.MainBranch}
-	var texts []string
-	var marks []needMark
-	for i := range needs {
-		if needs[i].Status == work.Closed {
-			continue
-		}
-		if text, u := t.Undelivered(&needs[i]); text != "" {
-			texts = append(texts, text)
-			marks = append(marks, needMark{needs[i].ID, *u})
-		}
-	}
 	deliver := func() error {
-		return errors.Join(markWithin(ws, marks, inboxMarkBudget, time.Now, func(left time.Duration) {
+		return errors.Join(service.MarkWithin(ws, marks, inboxMarkBudget, time.Now, func(left time.Duration) {
 			work.WriteLockWait = left //nolint:reassign // this process runs the one hook: its writes wait at most the budget left
 		}), ws.Shutdown())
 	}
 	return texts, deliver, nil
-}
-
-// needMark is the mark that delivers one need's replies.
-type needMark struct {
-	id string
-	u  work.NeedUpdate
-}
-
-// markWithin makes the marks, one write per need (the store has no batch write), all within budget: lockWait gets
-// what is left before each write, as the most it may wait for the write lock. What is not marked by the budget's end
-// stays undelivered, and the error says how many.
-func markWithin(ws work.Store, marks []needMark, budget time.Duration, now func() time.Time,
-	lockWait func(time.Duration)) error {
-	deadline := now().Add(budget)
-	var errs []error
-	for i, m := range marks {
-		left := deadline.Sub(now())
-		if left <= 0 {
-			return errors.Join(append(errs, fmt.Errorf("%d of %d left undelivered past %s", len(marks)-i, len(marks),
-				budget))...)
-		}
-		lockWait(left)
-		errs = append(errs, ws.UpdateNeed(m.id, m.u))
-	}
-	return errors.Join(errs...)
 }

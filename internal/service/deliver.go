@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -178,6 +179,91 @@ func (t Texts) Since(n *work.Item, since time.Time) string {
 		return ""
 	}
 	return t.replyText(n, replies)
+}
+
+// ReplyPoll is how often WaitReply reads the need.
+var ReplyPoll = 2 * time.Second
+
+// WaitReply is pm reply wait: block until need id has a new reply, from start for at most timeout, then hand it over:
+// what has not reached a session (a reply, or its review's merge), marked delivered, as pm reply read does, else the
+// replies stamped since the wait began, which a push or pm hook inbox delivered meanwhile. A reply delivered before
+// the wait is no new reply: an agent that asks again after "not yet" waits for the next one. It refuses an id that is
+// no need, at the timeout, and for a need closed with no new reply.
+func (t Texts) WaitReply(st work.Store, id string, timeout time.Duration, start time.Time) (string, error) {
+	if all, err := st.Items(); err != nil { // once: an unknown id is a refusal, not a store error
+		return "", err
+	} else if !slices.ContainsFunc(all, func(it work.Item) bool { return it.ID == id && it.Type == work.Need }) {
+		return "", fmt.Errorf("%s is not a request to the owner (a need in the work store)", id)
+	}
+	deadline := start.Add(timeout)
+	for {
+		got, err := st.Get(id)
+		if err != nil {
+			return "", err
+		}
+		need := &got[0]
+		if text, mark := t.Undelivered(need); text != "" {
+			return text, st.UpdateNeed(id, *mark)
+		}
+		if text := t.Since(need, start); text != "" { // delivered while it waited: a push, or pm hook inbox
+			return text, nil
+		}
+		if need.Status == work.Closed {
+			return "", fmt.Errorf("%s is closed (%s), so no reply will come", id, need.Resolution)
+		}
+		left := time.Until(deadline)
+		if left <= 0 {
+			return "", fmt.Errorf("no reply to %s within %s; it is still open: wait again with pm reply wait %s, or "+
+				"the reply reaches this session at its next prompt", id, timeout, id)
+		}
+		time.Sleep(min(ReplyPoll, left))
+	}
+}
+
+// Mark is the mark that delivers one need's replies.
+type Mark struct {
+	ID     string
+	Update work.NeedUpdate
+}
+
+// SessionUndelivered is what of the session's open needs has not reached it, each as the push writes it, and the
+// marks that deliver it: pm hook inbox's read.
+func (t Texts) SessionUndelivered(st work.Store, session string) ([]string, []Mark, error) {
+	needs, err := st.Needs(session)
+	if err != nil {
+		return nil, nil, err
+	}
+	var texts []string
+	var marks []Mark
+	for i := range needs {
+		if needs[i].Status == work.Closed {
+			continue
+		}
+		if text, u := t.Undelivered(&needs[i]); text != "" {
+			texts = append(texts, text)
+			marks = append(marks, Mark{needs[i].ID, *u})
+		}
+	}
+	return texts, marks, nil
+}
+
+// MarkWithin makes the marks, one write per need (the store has no batch write), all within budget: lockWait gets
+// what is left before each write, as the most it may wait for the write lock. What is not marked by the budget's end
+// stays undelivered, and the error says how many.
+func MarkWithin(st work.Store, marks []Mark, budget time.Duration, now func() time.Time,
+	lockWait func(time.Duration)) error {
+	deadline := now().Add(budget)
+	var errs []error
+	for i, m := range marks {
+		left := deadline.Sub(now())
+		if left <= 0 {
+			return errors.Join(append(errs, fmt.Errorf("%d of %d left undelivered past %s", len(marks)-i, len(marks),
+				budget))...)
+		}
+		lockWait(left)
+		errs = append(errs, st.UpdateNeed(m.ID, m.Update))
+	}
+	return errors.Join(errs...)
 }
 
 // Hostname is this machine's name, as a need stores its inbox's host; a variable so tests can move a need elsewhere.

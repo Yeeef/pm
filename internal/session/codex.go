@@ -1,4 +1,4 @@
-package cli
+package session
 
 import (
 	"bufio"
@@ -17,10 +17,10 @@ import (
 // subagent is a thread of its own, with its own CODEX_THREAD_ID; Codex 0.154 also sets CODEX_SESSION_ID, the root
 // thread's id, which pm prefers.
 
-// codexRollouts is the paths of thread's rollouts. A Codex thread id is a UUIDv7, whose first 48 bits are its start in
+// Rollouts is the paths of thread's rollouts. A Codex thread id is a UUIDv7, whose first 48 bits are its start in
 // Unix milliseconds, so only the date directories that start can be in, in any time zone, are read; for another id,
 // every date directory is.
-func codexRollouts(thread string) []string {
+func Rollouts(thread string) []string {
 	if !sessionID.MatchString(thread) {
 		return nil
 	}
@@ -58,16 +58,16 @@ func uuid7Start(id string) (time.Time, bool) {
 	return time.UnixMilli(ms), true
 }
 
-// codexMeta is a rollout's session_meta payload, as far as pm reads it.
-type codexMeta struct {
+// CodexMeta is a rollout's session_meta payload, as far as pm reads it.
+type CodexMeta struct {
 	ID             string `json:"id"`
 	SessionID      string `json:"session_id"`
 	ParentThreadID string `json:"parent_thread_id"`
 	Cwd            string `json:"cwd"`
 }
 
-// root is the thread's root thread: session_id, else the parent thread, else the thread itself.
-func (m codexMeta) root() string {
+// Root is the thread's root thread: session_id, else the parent thread, else the thread itself.
+func (m CodexMeta) Root() string {
 	for _, id := range []string{m.SessionID, m.ParentThreadID} {
 		if sessionID.MatchString(id) {
 			return id
@@ -87,36 +87,36 @@ func glob(pattern string) []string {
 }
 
 // readCodexMeta is the session_meta on the rollout's first line, and whether that line is one.
-func readCodexMeta(path string) (codexMeta, bool) {
+func readCodexMeta(path string) (CodexMeta, bool) {
 	f, err := os.Open(path)
 	if err != nil {
-		return codexMeta{}, false
+		return CodexMeta{}, false
 	}
 	line, err := bufio.NewReader(f).ReadBytes('\n')
 	if cerr := f.Close(); cerr != nil || len(line) == 0 && err != nil {
-		return codexMeta{}, false
+		return CodexMeta{}, false
 	}
-	return parseCodexMeta(line)
+	return ParseCodexMeta(line)
 }
 
-// parseCodexMeta is the session_meta a rollout line holds, and whether it holds one.
-func parseCodexMeta(line []byte) (codexMeta, bool) {
+// ParseCodexMeta is the session_meta a rollout line holds, and whether it holds one.
+func ParseCodexMeta(line []byte) (CodexMeta, bool) {
 	var entry struct {
 		Type    string    `json:"type"`
-		Payload codexMeta `json:"payload"`
+		Payload CodexMeta `json:"payload"`
 	}
 	if json.Unmarshal(line, &entry) != nil || entry.Type != "session_meta" || entry.Payload.ID == "" {
-		return codexMeta{}, false
+		return CodexMeta{}, false
 	}
 	return entry.Payload, true
 }
 
-// codexRoot is the root thread of a Codex thread, read from the session_meta of its rollout, the session_meta of its
+// CodexRoot is the root thread of a Codex thread, read from the session_meta of its rollout, the session_meta of its
 // parent's rollout, and so on: a subagent's thread maps to its root's, so it shares its root session's id, as a Claude
 // Code subagent shares its session's. A thread whose rollout pm cannot read is its own root.
-func codexRoot(thread string) string {
+func CodexRoot(thread string) string {
 	for range 8 { // a subagent's own subagents nest a few deep, never more
-		paths := codexRollouts(thread)
+		paths := Rollouts(thread)
 		if len(paths) == 0 {
 			return thread
 		}
@@ -124,7 +124,7 @@ func codexRoot(thread string) string {
 		if !ok || meta.ID != thread {
 			return thread
 		}
-		next := meta.root()
+		next := meta.Root()
 		if next == thread {
 			return thread
 		}

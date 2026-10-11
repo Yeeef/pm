@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 	"github.com/Yeeef/pm/internal/work/worktest"
 )
@@ -47,7 +48,7 @@ func newFixture(t *testing.T) *fixture {
 	if err := os.MkdirAll(filepath.Join(cfg, "projects", "x"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for sid, age := range map[string]time.Duration{"alive": time.Minute, "gone": 2 * LiveWindow} {
+	for sid, age := range map[string]time.Duration{"alive": time.Minute, "gone": 2 * session.LiveWindow} {
 		p := filepath.Join(cfg, "projects", "x", sid+".jsonl")
 		if err := os.WriteFile(p, nil, 0o644); err != nil {
 			t.Fatal(err)
@@ -200,7 +201,7 @@ func TestTaskEdit(t *testing.T) {
 func TestTaskRelease(t *testing.T) {
 	f := newFixture(t)
 	d := must(f.open())
-	if err := d.Claim(f.t1.ID, work.Holder{Session: "me"}, live); err != nil {
+	if err := d.Claim(f.t1.ID, work.Holder{Session: "me"}, session.Live); err != nil {
 		t.Fatal(err)
 	}
 	d.Shutdown()
@@ -216,7 +217,7 @@ func TestTaskRelease(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
 	f.refuses("no session", "task", "release", f.held.ID)
 	t.Run("Live", func(t *testing.T) { // on the fixture's sessions: "alive" live, "gone" not
-		if !live("alive") || live("gone") || live("nobody") || live("../x") {
+		if !session.Live("alive") || session.Live("gone") || session.Live("nobody") || session.Live("../x") {
 			t.Fatal("liveness")
 		}
 		codex := filepath.Join(os.Getenv("CODEX_HOME"), "sessions", "2026", "10", "08")
@@ -226,7 +227,7 @@ func TestTaskRelease(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(codex, "rollout-2026-10-08T12-00-00-th1.jsonl"), nil, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if !live("th1") {
+		if !session.Live("th1") {
 			t.Fatal("a Codex thread's rollout is not live")
 		}
 	})

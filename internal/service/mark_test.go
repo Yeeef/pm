@@ -1,4 +1,4 @@
-package cli
+package service
 
 import (
 	"strings"
@@ -29,12 +29,12 @@ func (s *slowMarks) UpdateNeed(id string, u work.NeedUpdate) error {
 func TestInboxMarksWithinOneBudget(t *testing.T) {
 	fake := &slowMarks{Store: worktest.New(nil), clock: time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
 		mark: 150 * time.Millisecond}
-	var marks []needMark
+	var marks []Mark
 	for _, id := range []string{"demo.1", "demo.2", "demo.3", "demo.4"} {
-		marks = append(marks, needMark{id, work.NeedUpdate{}})
+		marks = append(marks, Mark{id, work.NeedUpdate{}})
 	}
 	var waits []time.Duration
-	err := markWithin(fake, marks, 400*time.Millisecond, func() time.Time { return fake.clock },
+	err := MarkWithin(fake, marks, 400*time.Millisecond, func() time.Time { return fake.clock },
 		func(left time.Duration) { waits = append(waits, left) })
 	if strings.Join(fake.marked, " ") != "demo.1 demo.2 demo.3" || err == nil ||
 		err.Error() != "1 of 4 left undelivered past 400ms" {

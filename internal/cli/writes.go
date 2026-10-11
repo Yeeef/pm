@@ -17,6 +17,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -1100,7 +1101,7 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	// Python pm records no host; the host comes with liveness across hosts (work-store page, Open questions).
-	if err := ws.Claim(id, work.Holder{Session: sid}, live); err != nil {
+	if err := ws.Claim(id, work.Holder{Session: sid}, session.Live); err != nil {
 		return "", err
 	}
 	claimed, err := ws.Get(id) // the claim time the store stamped

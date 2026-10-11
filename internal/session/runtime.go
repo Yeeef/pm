@@ -1,4 +1,7 @@
-package cli
+// Package session is which agent session runs pm and which sessions are live: the session's id from the environment
+// (Claude Code's, or Codex's root thread's) and the runtime that runs pm, read from its ancestry; a session's
+// transcripts (Claude Code's under its config dir, Codex's rollouts under $CODEX_HOME) and what they say it did.
+package session
 
 import (
 	"bytes"
@@ -111,10 +114,10 @@ func sessionOf(claude, codexSession, codexThread string, innermost func() string
 			if codex == "" {
 				codex = codexThread
 			}
-			return "", "", refuse("both a Claude Code session ($%s %s) and a Codex session (%s) are set, and no "+
-				"Claude Code or Codex process runs this pm, so pm cannot tell which session this is: unset the one "+
-				"that is not this session's ($%s, or $%s and $%s)", sessionEnv, claude, codex, sessionEnv,
-				codexRootEnv, codexSessionEnv)
+			return "", "", fmt.Errorf("both a Claude Code session ($%s %s) and a Codex session (%s) are set, and "+
+				"no Claude Code or Codex process runs this pm, so pm cannot tell which session this is: unset the one "+
+				"that is not this session's ($%s, or $%s and $%s)", ClaudeEnv, claude, codex, ClaudeEnv,
+				CodexRootEnv, CodexThreadEnv)
 		}
 	}
 	switch {
@@ -128,22 +131,31 @@ func sessionOf(claude, codexSession, codexThread string, innermost func() string
 	return "", "", nil
 }
 
-// innermost is the runtime of the nearest Claude Code or Codex ancestor of this process, read once; a variable so a
-// test can set the ancestry.
-var innermost = sync.OnceValue(func() string { return innermostRuntime(os.Getppid(), readProc, claudePID()) })
+// The environment variables that name a session.
+const (
+	ClaudeEnv      = "CLAUDE_CODE_SESSION_ID" // Claude Code exports it to every command a session runs
+	CodexThreadEnv = "CODEX_THREAD_ID"        // Codex exports it to every command a thread runs
+	CodexRootEnv   = "CODEX_SESSION_ID"       // Codex 0.154 exports its root session's id, a subagent's too
+)
 
-// agentSession is this command's agent session and its runtime (sessionOf), from the environment.
-func agentSession() (session, runtime string, err error) {
+var innermostOnce = sync.OnceValue(func() string { return innermostRuntime(os.Getppid(), readProc, claudePID()) })
+
+// Innermost is the runtime of the nearest Claude Code or Codex ancestor of this process ("claude", "codex" or ""),
+// read once.
+func Innermost() string { return innermostOnce() }
+
+// Current is this command's agent session and its runtime (sessionOf), from the environment, with innermost as the
+// runtime the ancestry names.
+func Current(innermost func() string) (session, runtime string, err error) {
 	env := func(name string) string { return strings.TrimSpace(os.Getenv(name)) }
-	return sessionOf(env(sessionEnv), env(codexRootEnv), env(codexSessionEnv), innermost, codexRoot)
+	return sessionOf(env(ClaudeEnv), env(CodexRootEnv), env(CodexThreadEnv), innermost, CodexRoot)
 }
 
-// sessionInbox is the inbox the pm service pushes this session's replies into: Claude Code's messaging socket, and
-// only when the session is Claude Code's. A Codex run started from a Claude Code session inherits that session's
-// socket; a push there would land in the Claude Code session.
-func sessionInbox() string {
-	if _, runtime, err := agentSession(); err != nil || runtime != "claude" {
-		return ""
+// claudePID is $CLAUDE_PID, Claude Code's own pid, which it exports to its commands; 0 when unset.
+func claudePID() int {
+	pid, err := strconv.Atoi(strings.TrimSpace(os.Getenv("CLAUDE_PID")))
+	if err != nil {
+		return 0
 	}
-	return strings.TrimSpace(os.Getenv(inboxEnv))
+	return pid
 }
