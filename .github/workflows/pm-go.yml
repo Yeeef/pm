@@ -1,14 +1,16 @@
 # pm on every pull request: built on both release targets as the release builds it (cgo, native runners), the gofmt
 # check, go vet and the Go tests (make test-go), split into parallel jobs per target: the build, gofmt, vet and every
-# package's tests but internal/work's; internal/work's tests, the longest; the race tests. The step summary records the
-# binary's size per target. pm-release-build.yml runs the release build test, pm-tests.yml the harness suite.
+# package's tests but internal/work's; internal/work's tests, the longest, in processes at once (make go-test-work); the
+# race tests. The step summary records the binary's size per target. pm-release-build.yml runs the release build test,
+# pm-tests.yml the harness suite.
 #
 # The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
 # and go.sum, and a pull request restores main's latest, so a PR compiles only what it changed. A run that finds none
 # for its go.sum (a dependency change, a new Go version, an evicted cache) restores the latest of its kind and saves its
 # own, so the PR's next push is warm. A run whose tests fail saves too: what it compiled is as good as a passing run's,
-# and a failed push to main would otherwise leave every PR cold until the next green one. GOFLAGS=-count=1: the
-# restored cache never stands in for a test run.
+# and a failed push to main would otherwise leave every PR cold until the next green one. A run that saves trims the
+# restored build cache to what it used first (.github/scripts/go_cache_trim.py), so the cache, and each restore of it,
+# does not grow with every save. GOFLAGS=-count=1: the restored cache never stands in for a test run.
 name: pm go
 
 on:
@@ -43,11 +45,11 @@ jobs:
           - suite: work
             cache: build  # what it compiles is a subset of build-vet-test's, which saves it
             save: false
-            run: make go-test GO_PKGS=./internal/work
+            run: make go-test-work
           - suite: race
             cache: race
             save: true
-            run: make go-test-race
+            run: make -j2 go-test-race
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     env:
@@ -77,6 +79,12 @@ jobs:
           restore-keys: |
             ${{ steps.paths.outputs.kind }}${{ steps.paths.outputs.sum }}
             ${{ steps.paths.outputs.kind }}
+      - name: Age the restored Go build cache, so the save keeps only what this run uses
+        id: age
+        if: >-
+          matrix.save && steps.restore.outputs.cache-matched-key != '' && (github.ref == 'refs/heads/main' ||
+          !startsWith(steps.restore.outputs.cache-matched-key, format('{0}{1}', steps.paths.outputs.kind, steps.paths.outputs.sum)))
+        run: python3 .github/scripts/go_cache_trim.py age "${{ steps.paths.outputs.build }}"
       - name: ${{ matrix.suite }}
         id: suite
         run: ${{ matrix.run }}
@@ -86,6 +94,9 @@ jobs:
           go version -m .go/pm | grep -E 'CGO_ENABLED=1|GOOS|GOARCH'
           size=$(wc -c < .go/pm | tr -d ' ')
           echo "Go pm ${{ matrix.target }}: $size bytes, stripped (-s -w), cgo" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Trim the Go build cache to what this run used
+        if: "!cancelled() && steps.age.outcome == 'success' && steps.suite.outcome != 'skipped'"
+        run: python3 .github/scripts/go_cache_trim.py trim "${{ steps.paths.outputs.build }}"
       - name: Save the Go cache
         if: >-
           !cancelled() && steps.suite.outcome != 'skipped' && matrix.save && (github.ref == 'refs/heads/main' ||
