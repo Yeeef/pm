@@ -106,6 +106,17 @@ None yet.
   only about 17 s, so if the test-sharding sprint makes those jobs shorter,
   lint becomes the critical path.
 
+- Lint's cache reuse checked against PR 44 (go vet and go test move to
+  -trimpath). Local test, 32 cores: a fresh GOCACHE filled the ci-time way
+  (make go-build go-vet go-test-but-work), then golangci-lint loading without
+  -trimpath takes 22.3 s (5m20s CPU), i.e. cold, about 2 min on CI's 4 cores.
+  With GOFLAGS=-trimpath it takes 1.5 s on that cache and 1.0 s on one filled
+  the current main way, since go-build already compiles with -trimpath. make
+  lint-go now loads with -trimpath. The scratch commit is still caught:
+  forbidigo time.Sleep and errcheck Atoi, with the right paths. On PR 43's CI
+  the first golangci pass takes 13 s and lint-go 57 s, lint-deadcode 56 s and
+  lint-py 7 s, all green. PR 44 needs no change.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
