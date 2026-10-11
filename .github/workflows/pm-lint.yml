@@ -4,8 +4,9 @@
 # (make lint-py).
 #
 # The Go jobs restore, and never save, the Go caches pm-go.yml's linux-amd64 build job saves on main (same runner, Go
-# version and go.sum): golangci-lint type-checks from the compiled packages go vet and go test leave there, so a warm
-# job compiles only what the PR changed, and deadcode finds every module downloaded. golangci-lint-action keeps
+# version and go.sum): golangci-lint type-checks from the compiled packages make go-build, go vet and go test leave
+# there (it loads with -trimpath, as they compile; see lint-go in the Makefile), so a warm job compiles only what the
+# PR changed, and deadcode finds every module downloaded. golangci-lint-action keeps
 # golangci-lint's own analysis cache.
 name: pm lint
 

@@ -37,7 +37,9 @@ merge-ready:
 # The linters, each at one exact version; pm-lint.yml runs make lint on every PR and push to main. golangci-lint
 # (.golangci.yml) runs twice: its gating linters on every line, then the ratcheted ones (RATCHET), whose backlog is not
 # cleared yet, on the lines changed since the merge base with origin/main. deadcode fails on a function nothing reaches,
-# from pm's binaries or from the tests. ruff (pyproject.toml) checks the harness.
+# from pm's binaries or from the tests. ruff (pyproject.toml) checks the harness. golangci-lint loads with -trimpath, as
+# go-build (and pm-go.yml's go vet and go test) compile, so it reuses their compiled packages instead of building the
+# Dolt tree again.
 GOLANGCI_LINT_VERSION := 2.14.0
 DEADCODE := golang.org/x/tools/cmd/deadcode@v0.52.0
 RATCHET := errcheck,gocyclo,gocognit,funlen,revive,reassign
@@ -45,8 +47,9 @@ lint: lint-go lint-deadcode lint-py
 lint-go:
 	@v=$$(golangci-lint version --short 2>/dev/null); [ "$$v" = "$(GOLANGCI_LINT_VERSION)" ] || { \
 	  echo "make lint: needs golangci-lint $(GOLANGCI_LINT_VERSION) on PATH, found '$$v'; see https://golangci-lint.run/docs/welcome/install/" >&2; exit 2; }
-	@rc=0; set -x; CGO_ENABLED=1 golangci-lint run --disable $(RATCHET) ./... || rc=1; \
-	  CGO_ENABLED=1 golangci-lint run --enable-only $(RATCHET) --new-from-merge-base origin/main ./... || rc=1; exit $$rc
+	@rc=0; export CGO_ENABLED=1 GOFLAGS="$$GOFLAGS -trimpath"; set -x; \
+	  golangci-lint run --disable $(RATCHET) ./... || rc=1; \
+	  golangci-lint run --enable-only $(RATCHET) --new-from-merge-base origin/main ./... || rc=1; exit $$rc
 lint-deadcode:
 	@out=$$(go run $(DEADCODE) -tags gms_pure_go ./cmd/pm ./tests/render-pages && \
 	  go run $(DEADCODE) -tags gms_pure_go -test ./...) || exit 1; \
