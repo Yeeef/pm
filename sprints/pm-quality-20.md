@@ -82,6 +82,13 @@ A strict 10% keeps 86% of lines but loses 71 of 75 bug guards and most contracts
   TestChunksFitTheCapAndAddUpToTheHead, and 3 test_pm tests whose ids clash
   with every target's state.
 
+- Coverage after the trim, measured as in the audit (go test -coverpkg plus
+  the light harness on -cover binaries, union): of the 9,076 statements the
+  baseline (eedbafd) covered, 8,943 are still covered (98.53%, target 97%).
+  The largest losses are service/lifecycle.go (24), pyjson.go (16) and
+  cli/store_commands.go (12). All 75 bug guards are present, by name or as a
+  row (scratchpad guards.py over the audit table).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
