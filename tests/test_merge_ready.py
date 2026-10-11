@@ -28,6 +28,8 @@ PASSED = [{"__typename": "CheckRun", "workflowName": "pm tests", "name": "light"
            "conclusion": "SUCCESS"},
           {"__typename": "CheckRun", "workflowName": "pm changelog", "name": "changelog", "status": "COMPLETED",
            "conclusion": "SKIPPED"},
+          {"__typename": "CheckRun", "workflowName": "pm lint", "name": "lint", "status": "COMPLETED",
+           "conclusion": "SUCCESS"},
           {"__typename": "StatusContext", "context": "ci/other", "state": "SUCCESS"}]
 
 
@@ -129,11 +131,11 @@ def test_a_check_that_ran_twice_on_the_head_is_judged_by_its_latest_run(clone):
     clone.open_pr(7, "fix", checks=[])
     r = clone.ready(7)
     assert r.returncode == 1
-    for workflow in ("pm changelog", "pm go", "pm tests"):
+    for workflow in ("pm changelog", "pm go", "pm lint", "pm tests"):
         assert f"no check of workflow {workflow!r}, which runs on every PR, is on its head yet" in r.stderr
 
     # folded: test_the_workflows_every_pr_runs_must_each_have_a_check_on_the_head
-    assert merge_ready.pr_workflows(PM_DIR) == {"pm changelog", "pm go", "pm tests"}  # not pm release build: paths
+    assert merge_ready.pr_workflows(PM_DIR) == {"pm changelog", "pm go", "pm lint", "pm tests"}  # not pm release build: paths
     clone.open_pr(7, "fix", checks=[c for c in PASSED if c.get("workflowName") != "pm go"])
     r = clone.ready(7)
     assert r.returncode == 1 and "no check of workflow 'pm go'" in r.stderr

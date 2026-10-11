@@ -1,0 +1,89 @@
+# golangci-lint v2 config for pm. `make lint` runs it at the version the Makefile pins (GOLANGCI_LINT_VERSION), twice:
+# the gating linters on every line, then the ratcheted ones (RATCHET in the Makefile) on the lines a branch changes
+# since its merge base with origin/main (--new-from-merge-base), until their backlog is cleared.
+version: "2"
+
+run:
+  build-tags: [gms_pure_go] # the embedded Dolt needs it, as go build/vet/test do
+  tests: true
+
+linters:
+  default: none
+  enable:
+    # gate on every line
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - wastedassign
+    - unparam
+    - nilerr         # a deliberate fail-open return carries //nolint:nilerr // <why>
+    - errorlint
+    - exhaustive
+    - predeclared
+    - unconvert
+    - bodyclose
+    - thelper
+    - usetesting
+    - nolintlint     # every //nolint names its linter and gives a reason
+    - forbidigo      # time.Sleep in tests
+    - gocritic       # diagnostic checks
+    # ratchet: gate only on the lines a branch changes (RATCHET in the Makefile)
+    - errcheck       # with check-blank: `n, _ := strconv.Atoi(s)` is a finding
+    - gocyclo
+    - gocognit
+    - funlen
+    - revive         # file-length-limit
+    - reassign       # another package's var swapped as a test seam
+  settings:
+    errcheck:
+      check-blank: true
+      check-type-assertions: true
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*strings.Builder).WriteString
+        - (*strings.Builder).WriteByte
+        - (*strings.Builder).WriteRune
+        - (*bytes.Buffer).WriteString
+    gocyclo: {min-complexity: 30}
+    gocognit: {min-complexity: 40}
+    funlen: {lines: 100, statements: 60, ignore-comments: true}
+    reassign:
+      patterns: [".*"]
+    revive:
+      rules:
+        - name: file-length-limit
+          arguments: [{max: 1000, skipComments: true, skipBlankLines: true}]
+    staticcheck:
+      # golangci-lint's default set, less QF1001: `!(a && b)` often reads closer to the rule it states
+      checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF1001"]
+    exhaustive:
+      default-signifies-exhaustive: true
+    thelper:
+      tb: {name: false} # a testing.TB parameter may be named t
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    gocritic:
+      enabled-tags: [diagnostic]
+      # false positives here: relative joins in tests, ^ under (?m), a regexp-guarded strings.Contains;
+      # sprintfQuotedString: pm quotes texts as Python pm did, and %q escapes Go's way
+      disabled-checks: [filepathJoin, badRegexp, argOrder, sprintfQuotedString]
+    errorlint:
+      errorf: false # %v in Errorf is allowed (not exposing the cause); the comparison checks stay
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: '^time\.Sleep$'
+          msg: "a test waits on a condition with a deadline (the poll helper), never a fixed sleep"
+  exclusions:
+    rules:
+      - path-except: '_test\.go$' # the time.Sleep ban is for tests only
+        linters: [forbidigo]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: false

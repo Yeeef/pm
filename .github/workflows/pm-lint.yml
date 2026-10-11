@@ -1,0 +1,37 @@
+# pm: the linters (make lint) on every pull request and push to main, as a job of their own beside the tests: golangci-lint
+# (.golangci.yml; its ratcheted linters on the lines a PR changes since its merge base with origin/main, which needs the
+# full history), deadcode and ruff, each at the version the Makefile pins.
+name: pm lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: pm-lint-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: astral-sh/setup-uv@v6
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@d583c34f0599d37dbac4a198b9c83201be380893 # v9.3.0
+        with:
+          version: v2.14.0 # GOLANGCI_LINT_VERSION in the Makefile
+          install-only: true
+      - name: make lint
+        run: make lint

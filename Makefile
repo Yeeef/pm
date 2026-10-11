@@ -2,7 +2,8 @@ UV ?= uv
 # The harness (tests/, pytest) runs in the environment uv keeps at .venv, from pyproject.toml's dev group.
 PYRUN := $(UV) run --quiet
 
-.PHONY: test test-full test-live test-go go-build go-fmt go-vet go-test go-test-but-work go-test-race merge-ready
+.PHONY: test test-full test-live test-go go-build go-fmt go-vet go-test go-test-but-work go-test-race merge-ready \
+  lint lint-go lint-deadcode lint-py
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
 ARGS ?=
@@ -32,6 +33,26 @@ test-live: go-build
 merge-ready:
 	@test -n "$(PR)" || { echo 'make merge-ready: give the PR number, make merge-ready PR=<n>' >&2; exit 2; }
 	python3 release/merge_ready.py $(PR)
+
+# The linters, each at one exact version; pm-lint.yml runs make lint on every PR and push to main. golangci-lint
+# (.golangci.yml) runs twice: its gating linters on every line, then the ratcheted ones (RATCHET), whose backlog is not
+# cleared yet, on the lines changed since the merge base with origin/main. deadcode fails on a function nothing reaches,
+# from pm's binaries or from the tests. ruff (pyproject.toml) checks the harness.
+GOLANGCI_LINT_VERSION := 2.14.0
+DEADCODE := golang.org/x/tools/cmd/deadcode@v0.52.0
+RATCHET := errcheck,gocyclo,gocognit,funlen,revive,reassign
+lint: lint-go lint-deadcode lint-py
+lint-go:
+	@v=$$(golangci-lint version --short 2>/dev/null); [ "$$v" = "$(GOLANGCI_LINT_VERSION)" ] || { \
+	  echo "make lint: needs golangci-lint $(GOLANGCI_LINT_VERSION) on PATH, found '$$v'; see https://golangci-lint.run/docs/welcome/install/" >&2; exit 2; }
+	@rc=0; set -x; CGO_ENABLED=1 golangci-lint run --disable $(RATCHET) ./... || rc=1; \
+	  CGO_ENABLED=1 golangci-lint run --enable-only $(RATCHET) --new-from-merge-base origin/main ./... || rc=1; exit $$rc
+lint-deadcode:
+	@out=$$(go run $(DEADCODE) -tags gms_pure_go ./cmd/pm ./tests/render-pages && \
+	  go run $(DEADCODE) -tags gms_pure_go -test ./...) || exit 1; \
+	  if [ -n "$$out" ]; then printf '%s\n' "$$out"; echo 'make lint-deadcode: nothing reaches the functions above; remove them' >&2; exit 1; fi
+lint-py:
+	$(PYRUN) ruff check tests release
 
 # Build pm as the release builds it (cgo, -tags gms_pure_go, stripped) into .go/pm, and the harness's page renderer
 # (tests/render-pages) into .go/render-pages. A release takes its version from its tag (release/build.sh); this build
