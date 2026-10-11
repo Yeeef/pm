@@ -8,9 +8,9 @@
 
 ### Added
 
-- `pm reply wait <id> [--timeout DURATION]`: wait within the turn for the owner's reply to a need, then print it (and
-  mark it delivered, as `pm reply read` does), or its latest reply when one reached the session already. The output
-  of a raised need names it.
+- `pm reply wait <id> [--timeout DURATION]`: wait within the turn for a new reply from the owner to a need, then
+  print it (and mark it delivered, as `pm reply read` does); a reply delivered before the wait is no new one, so an
+  agent that asks again waits for the next. The output of a raised need names it.
 - `pm hook inbox`, on UserPromptSubmit in Claude Code and Codex: hands a session the owner's replies that did not
   reach it as context beside its next prompt, and marks them delivered once printed.
 - `pm init` writes `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox: a pm command reaches the pm
@@ -41,6 +41,7 @@
 - The pm service pushes a reply `pm reply add` stored as soon as the work store moves; it waited up to a minute for
   its next sweep.
 - A need closed by `pm decision add --need` or `pm decision close` records the closing session, as other closes do.
+- A Codex session's needs lose the Claude Code inbox an earlier pm stored on them, at its next session start.
 
 - A compacted Codex session gets pm's rules and state again: Codex's SessionStart hooks ran on startup, resume and
   clear only.
