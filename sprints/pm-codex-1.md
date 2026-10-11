@@ -94,6 +94,13 @@ Review: an inbox block at Stop makes the continuation end with stop_hook_active,
   polled pm reply read itself (solo Claude 57 s to 314 s); Codex used pm reply
   wait (66 s to 75 s).
 
+- The live eval caught a pm defect beyond Codex parity: a typed pm init
+  restarted the shared pm service whenever its PATH differed from the unit's,
+  and Codex prepends its own codex-path dir to every command's PATH; so a
+  Codex agent's pm init restarted the service under every live session, whose
+  pm commands failed with does-not-answer meanwhile (one solo-codex run lost
+  its owner reply and timed out at 600 s).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
