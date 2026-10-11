@@ -52,7 +52,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-11}
+The marketing website for pm is its own sprint (113), beside this one; this sprint stays the README and its screenshots.
+The owner asked for a marketing website mid-sprint; it shares the positioning and screenshots with the README but ships independently (a new site directory and a Pages deploy), so the two run in parallel and neither waits on the other.
+:::
 
 ## Findings
 
