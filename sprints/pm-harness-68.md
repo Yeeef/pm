@@ -74,6 +74,12 @@ PR #72 changes the Python pm in yeeef-agents, which Go pm replaced; pm-harness m
   no correctness issue; its two hardening points (a tunnel rewriting Host to
   localhost, store path in 403 headers) are fixed in db9a2ea.
 
+- Go port (PR #40): make test-go ok, make test 145 passed/63 skipped,
+  service+doctor integration 15 passed, CI green on all 9 checks; two fresh
+  reviews found no bypass, and their shared low finding (an unknown kid
+  refetched the certs on every request under the cache lock) is fixed with a
+  once-a-minute refetch limit.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
