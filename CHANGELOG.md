@@ -28,7 +28,7 @@ each release's section as its notes.
 ## [0.7.0] - 2026-10-11
 
 The pm site's public host requires a valid Cloudflare Access token; a pin move names the worktrees it strands; a
-stopping service waits for its loops.
+stopping service waits for its loops; the day summary tells only what happened.
 
 ### Upgrade guide
 
@@ -65,6 +65,9 @@ stopping service waits for its loops.
   a branch from before the move merges or rebases onto it (`git rebase <remote>/<main branch>`); the branch that moves
   the pin waits for its merge. `pm where`'s service line says the service runs the main checkout's pin instead of
   calling it stale and naming `pm service restart`, and `pm doctor` no longer reports such a service as stale.
+- The Today summary on a day page tells only what happened that day: it no longer ends with a "For you" bullet that
+  tells the owner what to do. The open requests stay in the page's "Actions await you" and "Decisions await you"
+  sections.
 
 ### Fixed
 
