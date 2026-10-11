@@ -64,7 +64,14 @@ func quick(t *testing.T) {
 // serve starts Run; opts change its Deps first.
 func serve(t *testing.T, w *fakeWork, main string, opts ...func(*Deps)) *served {
 	t.Helper()
+	return serveEvery(t, w, main, 100*time.Millisecond, opts...)
+}
+
+// serveEvery is serve with MergePoll, the time between the ticker's looks and sweeps, at mergePoll.
+func serveEvery(t *testing.T, w *fakeWork, main string, mergePoll time.Duration, opts ...func(*Deps)) *served {
+	t.Helper()
 	quick(t)
+	MergePoll = mergePoll
 	if main == "" {
 		main = t.TempDir()
 		fakeBin(t, map[string]string{"gh": fakeGH})
@@ -627,6 +634,22 @@ func TestTheSweepDeliversWhatAFailedPushLeftAndSkipsAGoneSession(t *testing.T) {
 	if w.item("p-1.2.2").Need.Delivered != 0 || strings.Contains(s.log.String(), "p-1.2.2") {
 		t.Fatalf("a need whose inbox is gone was pushed: %s", s.log.String())
 	}
+}
+
+// TestAReplyAnyCommandStoresIsPushedOnceTheStoreMoves: a reply pm reply add stores (not the site's form) is pushed
+// when the service sees the work store move, not at the next sweep a MergePoll later.
+func TestAReplyAnyCommandStoresIsPushedOnceTheStoreMoves(t *testing.T) {
+	path, lines := inbox(t)
+	w := newFakeWork(need("p-1.2.1", work.Decision, path))
+	s := serveEvery(t, w, "", time.Hour) // the start's sweep, then none for an hour
+	eventually(t, "the first snapshot", func() bool { return strings.Contains(s.log.String(), "refresh total=") })
+	n := w.item("p-1.2.1")
+	n.Comments = []work.Comment{{ID: "c1", Kind: work.Reply, Author: "owner", Text: "Yes.", CreatedAt: at}}
+	w.set(n)
+	if got := receive(t, lines); !strings.HasPrefix(got, "pm: owner reply to decision p-1.2.1 (Pick a port)") {
+		t.Fatalf("pushed %q", got)
+	}
+	eventually(t, "marked delivered", func() bool { return w.item("p-1.2.1").Need.Delivered == 1 })
 }
 
 func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {

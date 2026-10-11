@@ -339,7 +339,14 @@ func (s *server) refresher(srv *http.Server) {
 			_ = srv.Shutdown(context.Background())
 			return
 		}
-		s.snap.Store(s.refresh(s.snap.Load()))
+		old := s.snap.Load()
+		next := s.refresh(old)
+		s.snap.Store(next)
+		// a reply any command stored (pm reply add, not the site's form, which pushes its own) is pushed once the
+		// store moves, not at the ticker's next sweep a MergePoll later
+		if old != nil && !next.readFailed && next.fp != old.fp {
+			s.put(job{sweep: true})
+		}
 	}
 }
 

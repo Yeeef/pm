@@ -110,6 +110,14 @@ func (w *fakeWork) item(id string) work.Item {
 	return deep(w.items[id])
 }
 
+// set stores it as a write through the store would, moving the change mark.
+func (w *fakeWork) set(it work.Item) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.items[it.ID] = &it
+	w.fp++
+}
+
 // deep is a copy of it that shares nothing with it (its Need, Holder, Comments and the rest), read under the fake's
 // lock: a caller reads it after the lock is gone while the service's goroutines write the fake's own.
 func deep(it *work.Item) work.Item {
