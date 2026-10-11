@@ -5,6 +5,8 @@ transcript (Claude Code's session JSONL, Codex's rollout).
 
 - solo, per runtime, identical assertions: session-start context; claim, finding, a decision need answered by the
   owner (this test, through `pm reply add`) while the session waits; the decision citing it; a doc; the task closed.
+- next prompt, per runtime: a session raises a need and ends its turn; the owner answers; the session, resumed on a
+  prompt that does not name the need, gets the reply from the UserPromptSubmit hook and records the decision.
 - stop, per runtime: a record edited by hand and left uncommitted; the Stop hook blocks, and the store ends committed.
 - mixed: a Claude session and a Codex session in parallel on one sprint's two ready tasks; while both holds are live,
   the test claims each session's task as the other session, from a worktree of its own, and pm must refuse, naming
@@ -18,7 +20,6 @@ and transcript paths, kept under the test's tmp dir.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import secrets
@@ -67,24 +68,8 @@ class Checks:
         for r in self.runs:
             print(f"\n{r.name}: {r.runtime} session {r.session or '?'}, exit {r.returncode}, {r.seconds:.1f}s\n"
                   f"  output {r.stdout}\n  transcript {r.transcript}")
-        assert not self.failed, "\n".join(self.failed)
-
-
-def commands(run: Run) -> list[str]:
-    """The shell commands the session ran, from its transcript."""
-    out = []
-    for e in run.entries:
-        if run.runtime == "claude":
-            content = (e.get("message") or {}).get("content")
-            for c in content if isinstance(content, list) else []:
-                if isinstance(c, dict) and c.get("type") == "tool_use":
-                    out.append(json.dumps(c.get("input")))
-        else:
-            p = e.get("payload") or {}
-            if e.get("type") == "response_item" and p.get("type") in ("function_call", "custom_tool_call",
-                                                                        "local_shell_call"):
-                out.append(json.dumps(p.get("arguments") or p.get("input") or p.get("action")))
-    return out
+        runtime = [f"{r.name}: {r.runtime} failed on its own: {r.failure()}" for r in self.runs if r.failure()]
+        assert not self.failed, "\n".join(runtime + self.failed)
 
 
 def context_reached(check: Checks, run: Run, sprint: str) -> None:
@@ -95,6 +80,13 @@ def context_reached(check: Checks, run: Run, sprint: str) -> None:
         check(chunk.strip() in got, f"{run.name}: rules chunk {n} is not in the session's hook context")
     check(any("projects:" in c and re.search(r"^\s+demo\s", c, re.M) for c in got),
           f"{run.name}: the state (pm show at session start) is not in the session's hook context")
+
+
+def cites(record: str, need: str) -> bool:
+    """Whether an owner decision block in `record` cites `need`: pm adds "Answers `<need>`." unless the text already
+    names it. Its level, sprint or project, is the session's choice, so callers look in both records."""
+    return any(re.search(rf"(?<![\w.]){re.escape(need)}(?![\w.]|\.\d)", body)
+               for body in re.findall(r"^::: decision \{source=owner[^}]*\}\n(.*?)^:::$", record, re.S | re.M))
 
 
 def owner_answers(clone: Clone, task: str, seen: dict, stop: threading.Event) -> None:
@@ -127,7 +119,7 @@ every step:
 4. Ask the owner to decide, under task {task}: should the parity doc name the color red or blue? Red is the default, \
 as the simplest.
 5. Wait for the owner's answer; it arrives within a few minutes.
-6. Record the owner's answer as a sprint decision that cites the request.
+6. Record the owner's answer as a decision that cites the request.
 7. Create a doc record with slug parity-{nonce} for project demo, whose text names the chosen color; leave no record \
 uncommitted.
 8. Commit a file parity-{nonce}.txt in your worktree, then close task {task} on that commit.
@@ -154,16 +146,17 @@ Then reply with one line: done."""
     raised = ((need.get("need") or {}).get("raised_by") or {}).get("session")
     check(raised == run.session, f"{run.name}: the need was raised by {raised}, not the session")
     check(seen.get("reply", (0,))[0] == 0, f"{run.name}: the owner's reply failed: {seen.get('reply')}")
-    check(any("decision add" in c and seen.get("need", "?") in c for c in commands(run)),
-          f"{run.name}: the session ran no pm decision add citing {seen.get('need')}")
+    check(need.get("closed_by") == run.session,
+          f"{run.name}: the need was closed by {need.get('closed_by')}, not the session")
     # (c) the reply reached the session, and a decision that cites the need closed it
     check((need.get("need") or {}).get("delivered", 0) >= 1, f"{run.name}: the reply was not delivered: {need.get('need')}")
     check(OWNER_ANSWER in run.text(), f"{run.name}: the owner's answer never reached the session's transcript")
+    print(f"solo {runtime}: the owner's answer reached the session by {run.reached_by(OWNER_ANSWER) or 'nothing'}")
     check((need.get("status"), need.get("resolution")) == ("closed", "answered"),
           f"{run.name}: the need is {need.get('status')}/{need.get('resolution')}, not closed/answered")
-    sprint_record = (clone.store() / "sprints/demo-1.md").read_text()
-    check(re.search(r"::: decision \{source=owner[^}]*\}\n(?:.*\n)*?Answers `" + re.escape(seen.get("need", "?")) + "`",
-                    sprint_record), f"{run.name}: no owner decision in the sprint record cites the need")
+    decided = [(clone.store() / f).read_text() for f in ("sprints/demo-1.md", "projects/demo.md")]
+    check(any(cites(r, seen.get("need", "?")) for r in decided),
+          f"{run.name}: no owner decision in the sprint or project record cites the need")
     # (d) nothing left uncommitted; the finding and the doc are committed
     check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
     log = clone.records_log()
@@ -194,6 +187,44 @@ def test_stop_hook_blocks_uncommitted_records(clone, runtime):
           f"{run.name}: no Stop hook block naming the record in the transcript: {run.stop_blocks()}")
     check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
     check(f"stop nonce {nonce}" in clone.records_log(), f"{run.name}: the hand edit is not in a records commit")
+    check.done()
+
+
+@pytest.mark.parametrize("runtime", RUNTIMES)
+def test_reply_reaches_the_session_at_its_next_prompt(clone, runtime):
+    """A session that raised a need and ended its turn gets the owner's reply from the UserPromptSubmit hook when it is
+    resumed, and records it."""
+    ids = clone.seed(1)
+    sprint = ids["sprint"]
+    asked = clone.run(runtime, f"next-prompt-1-{runtime}", f"""You work in this git repo, whose project work pm \
+tracks; pm's rules are in your context. Use pm to ask the owner to decide, under sprint {sprint}: should the parity doc \
+name the color red or blue? Red is the default, as the simplest. Do not wait for the answer: end your turn right after \
+raising it, with one line: asked.""", TIMEOUT)
+    items = clone.items()
+    need = next((i for i in items.values() if i["parent"] == sprint and i["type"] == "need"), {})
+    replied = clone.pm("reply", "add", need["id"], text=OWNER_ANSWER) if need.get("status") == "open" else None
+    run = clone.run(runtime, f"next-prompt-2-{runtime}", "Go on with your work in this repo: do whatever pm says is "
+                    "left for you, then reply with one line: done.", TIMEOUT, resume=asked.session)
+    items = clone.items()
+    check = Checks(asked, run)
+    print(f"\nnext prompt {runtime}: turn 1 {asked.seconds:.1f}s, turn 2 {run.seconds:.1f}s; the answer reached it by "
+          f"{run.reached_by(OWNER_ANSWER) or 'nothing'}")
+    check(asked.returncode == 0 and run.returncode == 0, f"exits {asked.returncode}, {run.returncode}")
+    check(need, f"{asked.name}: the session raised no need under {sprint}")
+    check(run.session == asked.session, f"the resumed session is {run.session}, not {asked.session}")
+    raised = ((need.get("need") or {}).get("raised_by") or {}).get("session")
+    check(raised == asked.session, f"{asked.name}: the need was raised by {raised}, not the session")
+    check(replied is not None and replied.returncode == 0, f"the owner's reply failed: {replied}")
+    check(any(OWNER_ANSWER in c for c in run.prompt_contexts()),
+          f"{run.name}: no UserPromptSubmit hook context carried the reply: {run.prompt_contexts()}")
+    need = items.get(need.get("id", ""), {})
+    check((need.get("need") or {}).get("delivered", 0) >= 1, f"{run.name}: the reply was not delivered: {need.get('need')}")
+    check((need.get("status"), need.get("resolution"), need.get("closed_by")) == ("closed", "answered", run.session),
+          f"{run.name}: the need is {need.get('status')}/{need.get('resolution')} closed by {need.get('closed_by')}")
+    decided = [(clone.store() / f).read_text() for f in ("sprints/demo-1.md", "projects/demo.md")]
+    check(any(cites(r, need.get("id", "?")) for r in decided),
+          f"{run.name}: no owner decision in the sprint or project record cites the need")
+    check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
     check.done()
 
 

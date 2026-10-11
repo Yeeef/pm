@@ -30,10 +30,10 @@ test-live: go-build
 
 # Check that a real Claude Code session and a real Codex session get the same pm guarantees, and work one sprint
 # together, in scratch clones (tests/test_agent_parity_live.py); needs claude and codex on PATH, both logged in. Its
-# five scenarios run at once; -rA prints each one's latencies and transcript paths. PM_PARITY_CODEX_SANDBOX sets
+# seven scenarios run at once; -rA prints each one's latencies and transcript paths. PM_PARITY_CODEX_SANDBOX sets
 # Codex's sandbox (default workspace-write; danger-full-access where bubblewrap cannot start).
 test-live-parity: go-build
-	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 5 -rA -k agent_parity_live $(ARGS)
+	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 7 -rA -k agent_parity_live $(ARGS)
 
 # Check that PR N may be merged: its head contains origin's base branch and every check on that head passed, so its
 # CI tested what the merge lands (release/merge_ready.py). Run it right before merging: make merge-ready PR=N

@@ -157,6 +157,65 @@ class Run:
         return out
 
 
+    def failure(self) -> str:
+        """The runtime's own error for the run, from its output, else "": Codex's turn.failed (a usage limit, say),
+        Claude Code's result with is_error. A run that failed here says nothing about pm."""
+        for e in _load(self.stdout):
+            if self.runtime == "codex" and e.get("type") == "turn.failed":
+                return (e.get("error") or {}).get("message", "turn failed")
+            if self.runtime == "claude" and e.get("type") == "result" and e.get("is_error"):
+                return str(e.get("result") or e.get("subtype"))
+        return ""
+
+    def prompt_contexts(self) -> list[str]:
+        """What the UserPromptSubmit hooks added to the session's prompts, as the runtime recorded it: Claude Code's
+        hook_additional_context attachments of that event; Codex's developer messages that follow a prompt of the
+        user's (session-start context comes before the first one)."""
+        out, prompted = [], False
+        for e in self.entries:
+            if self.runtime == "claude":
+                a = e.get("attachment") or {}
+                if a.get("type") == "hook_additional_context" and a.get("hookEvent") == "UserPromptSubmit":
+                    out.extend(a.get("content") or [])
+            else:
+                p = e.get("payload") or {}
+                if e.get("type") != "response_item" or p.get("type") != "message":
+                    continue
+                texts = [c.get("text", "") for c in p.get("content", []) if isinstance(c, dict)]
+                if p.get("role") == "user" and any(t and not t.startswith("<") for t in texts):
+                    prompted = True
+                elif p.get("role") == "developer" and prompted:
+                    out.extend(texts)
+        return out
+
+    def reached_by(self, text: str) -> list[str]:
+        """How `text` reached the session: "pushed" for a message queued into it from outside; "hook" for a hook's
+        context; else each command whose output held it, or "background" for a background command's notice."""
+        out, calls = [], {}
+        for e in self.entries:
+            if self.runtime == "claude":
+                if (e.get("type"), e.get("operation")) == ("queue-operation", "enqueue") and text in str(e.get("content", "")):
+                    out.append("background" if "<task-notification>" in e["content"] else "pushed")
+                a = e.get("attachment") or {}
+                if a.get("type") == "hook_additional_context" and text in json.dumps(a):
+                    out.append(f"hook {a.get('hookEvent')}")
+                content = (e.get("message") or {}).get("content")
+                for c in content if isinstance(content, list) else []:
+                    if c.get("type") == "tool_use":
+                        calls[c["id"]] = (c.get("input") or {}).get("command", c.get("name"))
+                    elif c.get("type") == "tool_result" and text in json.dumps(c.get("content")):
+                        out.append(str(calls.get(c.get("tool_use_id"), "?")))
+            else:
+                p = e.get("payload") or {}
+                if p.get("type") in ("function_call", "custom_tool_call", "local_shell_call"):
+                    calls[p.get("call_id")] = json.dumps(p.get("arguments") or p.get("input") or p.get("action"))
+                elif p.get("type") in ("function_call_output", "custom_tool_call_output") and text in json.dumps(p):
+                    out.append(calls.get(p.get("call_id"), "?"))
+                elif p.get("type") == "message" and p.get("role") == "developer" and text in json.dumps(p):
+                    out.append("hook")
+        return out
+
+
 def _load(path: Path) -> list[dict]:
     out = []
     if path.exists():
@@ -286,17 +345,19 @@ class Clone:
                     CLAUDE_CONFIG_DIR=str(CLAUDE_DIR), FAKE_SCHED_LOG=self.env["FAKE_SCHED_LOG"],
                     FAKE_SCHED_STATE=self.env["FAKE_SCHED_STATE"], FAKE_GH_STATE=self.env["FAKE_GH_STATE"])
 
-    def start(self, runtime: str, name: str, prompt: str) -> "Agent":
-        """Start a headless session of `runtime` in the main checkout on `prompt`; its output streams to the test's
-        tmp dir."""
+    def start(self, runtime: str, name: str, prompt: str, resume: str = "") -> "Agent":
+        """Start a headless session of `runtime` in the main checkout on `prompt`, or resume the session `resume`
+        with it as its next prompt; its output streams to the test's tmp dir."""
+        trust = f'projects."{self.root}".trust_level="trusted"'
         if runtime == "claude":
             argv = [shutil.which("claude", path=REAL_PATH) or "claude", "-p", prompt, "--model", CLAUDE_MODEL,
+                    *(["--resume", resume] if resume else []),
                     "--setting-sources", "project,local", "--output-format", "stream-json", "--verbose",
                     "--allowedTools", "Bash", "Edit", "Write", "Read", "Glob", "Grep"]
-        else:
-            argv = [shutil.which("codex", path=REAL_PATH) or "codex", "exec", "--json", "-s", CODEX_SANDBOX,
-                    "-C", str(self.root), "-c", f'projects."{self.root}".trust_level="trusted"',
-                    *(["-m", CODEX_MODEL] if CODEX_MODEL else []), prompt]
+        else:  # codex exec resume takes no -s or -C: the sandbox goes in as config, and it runs in the checkout
+            argv = [shutil.which("codex", path=REAL_PATH) or "codex", "exec",
+                    *(["resume"] if resume else []), "--json", "-c", f'sandbox_mode="{CODEX_SANDBOX}"', "-c", trust,
+                    *(["-m", CODEX_MODEL] if CODEX_MODEL else []), *([resume] if resume else []), prompt]
         out = self.out / f"{name}.{runtime}.jsonl"
         with out.open("w") as f:
             proc = subprocess.Popen(argv, cwd=self.root, env=self.agent_env(), stdin=subprocess.DEVNULL, stdout=f,
@@ -305,8 +366,8 @@ class Clone:
         threading.Thread(target=agent.watch, daemon=True).start()
         return agent
 
-    def run(self, runtime: str, name: str, prompt: str, timeout: float) -> Run:
-        return self.start(runtime, name, prompt).finish(timeout)
+    def run(self, runtime: str, name: str, prompt: str, timeout: float, resume: str = "") -> Run:
+        return self.start(runtime, name, prompt, resume).finish(timeout)
 
     def close(self) -> None:
         """Stop the clone's pm service and whatever else the fake supervisor started, and drop the Claude Code
@@ -357,8 +418,8 @@ class Agent:
         else:
             found = list(self.clone.codex_home.glob(f"sessions/*/*/*/rollout-*-{session}.jsonl")) if session else []
         transcript = self.out.with_name(f"{self.name}.{self.runtime}-transcript.jsonl")
-        if found:
-            shutil.copyfile(found[0], transcript)
+        if found:  # the newest: a resumed session's
+            shutil.copyfile(max(found, key=lambda f: f.stat().st_mtime), transcript)
         entries = _load(transcript)
         if self.runtime == "codex":  # pm names a Codex session by its root's id, which session_meta holds
             meta = next((e["payload"] for e in entries if e.get("type") == "session_meta"
