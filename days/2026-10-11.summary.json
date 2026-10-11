@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T17:17:57+00:00",
- "digest": "b77f4036411bc211",
+ "generated_at": "2026-10-11T17:28:19+00:00",
+ "digest": "02dfa82bef8c4583",
  "model": "claude-haiku-5-5",
- "text": "- **Site access check:** pm now checks Cloudflare Access tokens in Go. The check has its own config, a doctor line, tests and a key refetch limit of once a minute.\n- **Main checkout status:** The site and pm service status now flag a main checkout that is behind, diverged or off main. pm show also shows the flag.\n- **Codex integration:** The Codex integration for pm has started. A gap list against Claude Code is in progress.\n- **For you:** Review two open pull requests. They cover the site access check and the main checkout flag."
+ "text": "- **Public site access check:** The Go service now checks Cloudflare Access tokens. Key refetches are limited to once a minute.\n- **Main checkout warning:** The site and pm service status now flag a checkout that is behind, diverged, or off main.\n- **Website and README:** Each push to main now deploys website/ to GitHub Pages. Screenshots of the overview, project, and sprint pages now exist for the README.\n- **For you:** Review the open pull requests and enable GitHub Pages for the repository."
 }
