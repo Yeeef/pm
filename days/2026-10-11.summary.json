@@ -1,7 +1,7 @@
 {
  "date": "2026-10-11",
- "generated_at": "2026-10-11T17:38:41+00:00",
- "digest": "79809c315206b937",
+ "generated_at": "2026-10-11T17:49:01+00:00",
+ "digest": "a360149af7b81b41",
  "model": "claude-haiku-5-5",
- "text": "- **Public host access:** The Go service now checks the Cloudflare Access token on the public host. Signing key refetches are limited to once a minute.\n- **Stale checkout warning:** The site, pm service status, and pm show now flag a main checkout. The flag appears when main is behind, diverged, or off main.\n- **Public docs and website:** The README now presents pm as a human-agent project management suite. Each claim in it was checked against the code. A one-page marketing site is built in the website folder and deploys to GitHub Pages on push to main.\n- **For you:** Review two pull requests, enable GitHub Pages with GitHub Actions as the source, and decide whether pm init marks the Codex hooks it writes as trusted."
+ "text": "- **Public website and README:** The project now has a one-page marketing website in the `website` folder. The README describes pm as a human-agent project management suite, with real screenshots. Once GitHub Pages is enabled, a workflow deploys the site on each push to main.\n- **Site access check in Go:** The Cloudflare Access token check now runs in the Go service. It has its own config and a line in the doctor command. Signing key refetches are limited to once a minute.\n- **Stale checkout warning:** The site, pm service status and pm show now flag a main checkout that is behind, diverged, or off main.\n- **For you:** Review the access check and checkout changes. Then enable GitHub Pages with GitHub Actions as the source."
 }
