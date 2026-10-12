@@ -64,6 +64,11 @@ pm hook inbox runs at UserPromptSubmit only, not at Stop; mid-turn replies reach
 Review: an inbox block at Stop makes the continuation end with stop_hook_active, so pm hook stop and the owner-request check let exactly the turn that acts on the reply through unchecked. Supersedes the Stop half of the delivery decision.
 :::
 
+::: decision {source=owner date=2026-10-12}
+Done when gains: every existing design page whose area the sprint changed is brought to the new state and listed in Design pages.
+Owner, in chat 2026-10-12; the sprint had changed reply delivery, session identity, the owner-request hook and setup without editing their pages.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
