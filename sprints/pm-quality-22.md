@@ -63,7 +63,13 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- The pm-codex sprint 1 design-page pass (12 pages updated) found text wrong
+  against the code that predates that sprint: pm-harness (writable roots pm
+  setup adds, .records), agent-lifecycle (Start, Claim, Work: the Beads and
+  Python era), pm-cli (the commands table, Agent identity), site-replies
+  (metadata.*, picked_up), agent-sync (the profile line,
+  session_context_hook.py), records-store (.beads and uv-cache roots). This is
+  the drift this sprint's staleness line is meant to surface.
 
 ## Delivery report
 
