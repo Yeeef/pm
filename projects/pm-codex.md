@@ -36,6 +36,11 @@ The owner-request judge runs on the session runtime: Haiku through claude -p for
 Owner, in chat 2026-10-12: a Codex user should not need claude installed; without it the judge fails and Codex treats the failure as a silent pass, so the owner-request check is lost.
 :::
 
+::: decision {source=owner date=2026-10-12}
+Every pm-codex sprint brings the existing design page of each area it changes to the new state (reply delivery, session claims, the owner-request hook, setup and the service), and lists those pages in its Design pages section; pm-in-codex stays the overview that links them.
+Owner, in chat 2026-10-12: sprint 1 left reply-delivery.md and the other area pages describing the old design, with Codex as a non-goal; the design lived only on the new pm-in-codex page.
+:::
+
 ## Design pages
 
 > Where is the detail?
