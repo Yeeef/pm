@@ -133,10 +133,21 @@ Codex loads that file with no flag to turn it off, and a temp home would need th
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the owner-request judge runs on the session's own runtime and the day summary on the repo's `summary_runtime`, so a machine with only Codex keeps every pm guarantee; delivered in [PR #56](https://github.com/Yeeef/pm/pull/56), stacked on PR #47.
+
+- `pm hook owner-request --runtime claude|codex`, named by each hook entry: Claude Haiku through `claude -p` (15 s in a 30 s entry), `gpt-5.6-luna` at medium effort through `codex exec` (40 s in a 45 s entry), run from an empty temp dir with Codex's hooks, rules and user config off and no saved session; the same exit-1 failure on both; a timeout or a stopped hook kills the judge's whole process group.
+- `summary_runtime` in `.pm/config.toml` (`claude` by default, or `codex`) for `pm day summarize`, with no fallback; `pm doctor` fails only when that runtime's CLI is missing.
+- A Codex session is told when Codex skips pm's hooks: a pm command warns once when none ran, and the session-start state names the hooks Codex skips when some did (as after a `pm upgrade` rewrote a trusted entry).
+- One judge prompt for both runtimes, with two wording fixes; the live eval and the parity eval cover both runtimes.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Done when | Met | Evidence |
+|---|---|---|
+| `make test-live` passes every labelled case on both backends, `PM_LIVE_RUNS` times each, latency per backend | met | 63 cases x 3 runs, 8 at a time: Claude 189/189, median 2.01 s, p90 3.59 s, max 11.64 s; Codex 189/189, median 5.48 s, p90 14.10 s, max 19.69 s (Findings) |
+| The parity eval gains a Codex-without-`claude` chat-ask scenario that the judge blocks | met | `make test-live-parity` (`danger-full-access`): 8 of 8 passed in 96.5 s, before the merge with PR #47's new scenarios; the new scenario 27.0 s, one Stop block quoting the ask, then a need raised |
+| `pm day summarize` on codex writes a summary in a scratch clone | met | Scratch clone, no `claude` on PATH: `days/2026-10-12.summary.json` written in 6.5 s, model `gpt-5.6-luna`, no rollout left in `CODEX_HOME` |
+| `pm doctor` names the configured runtime's missing binary | met | `test_doctor_and_init_name_the_pm_hooks_codex_skips`: with neither CLI, it fails naming `claude` (the default); with `summary_runtime = "codex"` it passes with only `codex`, and fails naming `codex` without it |
+| Every design page this sprint changes is brought to the new state and listed | met | Design pages above: Owner-request Stop hook, Views and the site, pm in Codex (gap 8 closed, gap 1 updated), pm as an installable product, pm CLI |
