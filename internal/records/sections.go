@@ -250,3 +250,26 @@ func splice(lines []string, from, to int, with []string) []string {
 	out = append(out, with...)
 	return append(out, lines[to:]...)
 }
+
+// MergeStamp is a sprint record's text with stamp as a paragraph after the Outcome's verdict paragraph.
+func MergeStamp(text, stamp string) string {
+	rng, _ := SectionRange(text, "Delivery report")
+	lines := strings.Split(text, "\n")
+	n := rng.Start
+	for n < rng.End && lines[n] != "### Outcome" {
+		n++
+	}
+	n++
+	for n < rng.End && (Strip(lines[n]) == "" || strings.HasPrefix(lines[n], ">")) {
+		n++
+	}
+	for n < rng.End && Strip(lines[n]) != "" && !strings.HasPrefix(lines[n], "#") {
+		n++
+	}
+	add := []string{"", stamp}
+	if n < rng.End && strings.HasPrefix(lines[n], "#") {
+		add = append(add, "")
+	}
+	out := append(append(append([]string{}, lines[:n]...), add...), lines[n:]...)
+	return strings.Join(out, "\n")
+}

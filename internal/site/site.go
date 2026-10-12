@@ -484,15 +484,11 @@ func PRLabel(url string) string {
 	return "PR"
 }
 
-var designLink = regexp.MustCompile(`\(\.\./design/([a-z0-9-]+)\.md[)#]`)
-
 func reviewDesigns(review *work.ReviewInfo, recs []*Record) []*Record {
 	slugs := append([]string{}, review.Designs...)
 	for _, r := range recs {
 		if b, ok := r.ID("bead"); ok && r.Type() == "sprint" && contains(review.Sprints, b) {
-			for _, m := range designLink.FindAllStringSubmatch(records.SectionText(r.Body, "Design pages"), -1) {
-				slugs = append(slugs, m[1])
-			}
+			slugs = append(slugs, records.DesignLinks(r)...)
 		}
 	}
 	bySlug := map[string]*Record{}

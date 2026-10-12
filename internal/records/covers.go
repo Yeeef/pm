@@ -2,6 +2,7 @@ package records
 
 import (
 	"path"
+	"regexp"
 	"strings"
 )
 
@@ -36,16 +37,16 @@ func checkCovers(meta Meta, rel string) error {
 		if p.Kind != KindStr {
 			return errorf("%s: covers pattern %s is not a string; quote it", rel, p.Repr())
 		}
-		if err := checkPattern(p.Str); err != nil {
+		if err := CheckPattern(p.Str); err != nil {
 			return errorf("%s: covers pattern %s %s", rel, p.Repr(), err.Error())
 		}
 	}
 	return nil
 }
 
-// checkPattern fails on a pattern Match cannot read: empty, absolute, with an empty, . or .. segment, a ** inside a
+// CheckPattern fails on a pattern Match cannot read: empty, absolute, with an empty, . or .. segment, a ** inside a
 // segment, or a segment path.Match refuses.
-func checkPattern(p string) error {
+func CheckPattern(p string) error {
 	if p == "" || strings.HasPrefix(p, "/") {
 		return errorf("is not relative to the repo root (no leading /)")
 	}
@@ -81,7 +82,7 @@ func matchParts(pat, parts []string) bool {
 		if len(parts) == 0 {
 			return false
 		}
-		if ok, _ := path.Match(pat[0], parts[0]); !ok {
+		if ok, err := path.Match(pat[0], parts[0]); err != nil || !ok { // CheckPattern refuses a bad pattern first
 			return false
 		}
 		pat, parts = pat[1:], parts[1:]
@@ -97,4 +98,15 @@ func MatchAny(patterns []string, file string) bool {
 		}
 	}
 	return false
+}
+
+var designLink = regexp.MustCompile(`\(\.\./design/([a-z0-9-]+)\.md[)#]`)
+
+// DesignLinks is the slug of each design page a sprint or project record links in its Design pages section, in order.
+func DesignLinks(rec *Record) []string {
+	var out []string
+	for _, m := range designLink.FindAllStringSubmatch(SectionText(rec.Body, "Design pages"), -1) {
+		out = append(out, m[1])
+	}
+	return out
 }

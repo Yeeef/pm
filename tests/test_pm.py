@@ -290,6 +290,121 @@ def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
     assert repo.pm("check").returncode == 0
 
 
+# ---------------------------------------------------------------- design pages: covers and the gate
+
+
+def design_page(covers: str) -> str:
+    """A design page whose header carries `covers`, every section with one line."""
+    sections = ("Problem", "Goals and non-goals", "Constraints and key facts", "Design", "Alternatives considered",
+                "Open questions")
+    return (f"---\ntype: design\ntitle: The parser\nproject: demo\ncovers: {covers}\n---\n\n"
+            + "".join(f"## {name}\n\nNone yet.\n\n" for name in sections))
+
+
+def commit_on(repo, day: str, msg: str) -> None:
+    """Commit every change in the records store, dated `day` (before or after the sprints opened)."""
+    env = dict(os.environ, GIT_AUTHOR_DATE=f"{day}T12:00:00Z", GIT_COMMITTER_DATE=f"{day}T12:00:00Z")
+    for args in (("add", "-A"), ("commit", "-qm", msg)):
+        subprocess.run(["git", *args], cwd=repo.store, env=env, check=True, capture_output=True)
+
+
+def set_pr_files(repo, url: str, files: list[str]) -> None:
+    """What the fake gh lists as the files a PR changes."""
+    path = Path(repo.env["FAKE_GH_STATE"])
+    prs = json.loads(path.read_text())
+    prs[url] = {"files": [{"path": f, "additions": 1, "deletions": 0} for f in files], "changedFiles": len(files)}
+    path.write_text(json.dumps(prs))
+
+
+PR2 = "https://github.com/o/r/pull/13"
+
+
+def test_a_pr_that_changes_covered_code_waits_until_its_design_page_is_updated_or_waived(repo):
+    """A design page covering a file the PR changes holds the PR's review and its sprint's close until the sprint
+    edits the page and lists it in its Design pages, or records with pm design unchanged why it stays as it is."""
+    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
+    (repo.records / "design").mkdir()
+    repo.write("design/parser.md", design_page("[src/parser/**]"))
+    commit_on(repo, "2026-09-30", "the parser page, before the sprints opened")
+    report(repo, "Done: shipped the thing.")
+    set_pr_files(repo, PR, ["src/parser/lex.go", "README.md"])
+    gate = (r"https://github.com/o/r/pull/12 changes code that design pages cover, and sprint repo-demo.1 neither "
+            r"updated nor waived them: design/parser.md \(covers src/parser/lex.go\)\. For each page, bring it to the "
+            r"new state, commit it with pm commit and link it in the sprint record's Design pages section, or record "
+            r"why it stays as it is: pm design unchanged <slug> --sprint repo-demo.1 --reason")
+    refused(repo, "action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F", match=gate)
+    page = repo.records / "design/parser.md"
+    page.write_text(page.read_text().replace("## Design\n\nNone yet.", "## Design\n\nThe lexer reads tokens."))
+    repo.commit("the parser page at the new state")
+    refused(repo, "action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F", match=gate)  # not listed
+    sprint1 = repo.records / "sprints/demo-1.md"
+    sprint1.write_text(sprint1.read_text().replace("## Design pages\n\n> Where is the detail?\n\nNone yet.",
+                                                   "## Design pages\n\n> Where is the detail?\n\n"
+                                                   "- [The parser](../design/parser.md)"))
+    repo.commit("the sprint lists the page")
+    res = repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F")
+    assert res.returncode == 0, res.stderr
+    review = repo.items()["repo-demo.1.3"]
+    assert review["description"].endswith("Design pages covering the changed code:\n- [The parser]"
+                                          "(http://localhost:8000/design/parser.html): updated in the sprint"), review
+    assert repo.pm("action", "done", "repo-demo.1.3", "--reason", f"merged as {SHA}").returncode == 0
+    res = repo.pm("sprint", "close", "repo-demo.1")
+    assert res.returncode == 0, res.stderr
+
+    # Sprint 2's PR touched no covered file when its review was raised, then changed the parser too: the close is
+    # refused until the waiver, which is a sprint decision.
+    set_pr_files(repo, PR2, ["README.md"])
+    res = repo.pm("action", "need", "--pr", PR2, "--sprint", "repo-demo.2", "--focus", "F")
+    assert res.returncode == 0, res.stderr
+    assert "Design pages covering" not in repo.items()["repo-demo.2.1"]["description"]
+    assert repo.pm("action", "done", "repo-demo.2.1", "--reason", f"merged as {SHA}").returncode == 0
+    set_pr_files(repo, PR2, ["README.md", "src/parser/lex.go"])
+    repo.mark()
+    refused(repo, "sprint", "close", "repo-demo.2",
+            match=r"https://github.com/o/r/pull/13 changes code that design pages cover, and sprint repo-demo.2 "
+                  r"neither updated nor waived them: design/parser.md \(covers src/parser/lex.go\)")
+    refused(repo, "design", "unchanged", "lexer", "--sprint", "repo-demo.2", "--reason", "R.",
+            match=r"no design page 'lexer'; known: parser")
+    refused(repo, "design", "unchanged", "parser", "--sprint", "repo-demo.1", "--reason", "R.",
+            match=r"sprint repo-demo.1 is closed or not in the work store")
+    res = repo.pm("design", "unchanged", "parser", "--sprint", "repo-demo.2", "--reason",
+                  "The PR renames a variable in the lexer; what the page says holds.")
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, ["pm: recorded in records/sprints/demo-2.md that design page parser stays as it is"])
+    assert (f"::: decision {{source=agent date={TODAY}}}\nThe design page parser stays as it is for this sprint's "
+            "code changes.\nThe PR renames a variable in the lexer; what the page says holds.\n:::"
+            in (repo.records / "sprints/demo-2.md").read_text())
+    refused(repo, "design", "unchanged", "parser", "--sprint", "repo-demo.2", "--reason", "Again.",
+            match=r"records/sprints/demo-2.md already records that design page parser stays as it is")
+    res = repo.pm("sprint", "close", "repo-demo.2")
+    assert res.returncode == 0, res.stderr
+
+
+def test_check_fails_on_a_covers_pattern_that_matches_nothing_and_lists_uncovered_sources(repo):
+    """pm check reads covers against the files git tracks: a pattern that matches none fails, naming page and pattern;
+    with design_sources set, it lists the tracked source files no page covers, and says when every one is covered."""
+    for rel in ("src/parser/lex.go", "src/cli.go", "README.md"):
+        (repo.root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo.root / rel).write_text("x\n")
+    (repo.records / "design").mkdir()
+    repo.write("design/parser.md", design_page("[src/parser/**, src/old/**]"))
+    repo.commit("code and a page")
+    res = repo.pm("check")
+    assert res.returncode == 1 and res.stderr == ('error: design/parser: covers pattern "src/old/**" matches no '
+                                                  "tracked file; fix or remove it (a directory's files are dir/**)\n")
+    repo.write("design/parser.md", design_page("[src/parser/**]"))
+    write_config(repo.root, design_sources=["src/**"])
+    repo.commit("a live pattern, and the sources")
+    res = repo.pm("check")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.endswith("pages render; 1 tracked source files (design_sources in .pm/config.toml) no design "
+                               "page covers; add each to the covers: of the page about its area:\n  src/cli.go\n")
+    repo.write("design/parser.md", design_page("[src/parser/**, src/cli.go]"))
+    repo.commit("every source covered")
+    res = repo.pm("check")
+    assert res.returncode == 0 and res.stdout.endswith("; a design page covers every tracked source file\n"), res
+
+
 # ---------------------------------------------------------------- needs: answer with a decision or close
 
 DECISION = "Use the small parser."
