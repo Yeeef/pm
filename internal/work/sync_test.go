@@ -721,7 +721,6 @@ func TestCreatePushTimeout(t *testing.T) {
 		t.Setenv("GIT_TRACE2_EVENT", trace)
 		x := x.reseed(t) // A pushes, B pulls (a fetch into B's cache repo)
 		x.b.do(func(d *Dolt) { must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T3"})) })
-		x.b.synced = time.Now() // the create read the remote: the next case's reseed fetch into B waits out the read dedup
 		b, err := os.ReadFile(trace)
 		if err != nil {
 			t.Fatal(err)
@@ -759,7 +758,6 @@ func TestCreatePushTimeout(t *testing.T) {
 			t.Fatalf("%d of %d auto maintenances the host's fetches started were detached", detached, started)
 		}
 		t.Logf("%d auto maintenances started by a fetch, none detached", started)
-		x.a.sync() // B's create pushed: A takes it, so the next case's reseed pushes from the remote's head
 	})
 }
 
