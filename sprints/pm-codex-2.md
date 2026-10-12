@@ -78,6 +78,11 @@ The Codex judge is gpt-5.6-luna at medium reasoning effort, 40 s timeout inside 
 At low effort the live eval missed 3 or 4 of 189 runs; at medium 189 of 189, median 5.5 s, p90 14 s; 8 concurrent calls pushed the tail past 25 s.
 :::
 
+::: decision {source=agent date=2026-10-12}
+The Codex judge keeps the user own CODEX_HOME AGENTS.md as context; pm does not make a temp CODEX_HOME for it.
+Codex loads that file with no flag to turn it off, and a temp home would need the user auth.json copied or linked, which a token refresh could break; the judge instructions replace Codex base prompt and the live eval ran with the file and passed.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
