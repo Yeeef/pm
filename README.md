@@ -150,3 +150,11 @@ harness, which `pm init` names. A repo pinned below 0.2.0 (a retired release) mu
 - [`prime.md`](prime.md): the rules `pm prime` gives each agent session.
 - [`AGENTS.md`](AGENTS.md): developing pm: layout, tests, releasing.
 - [`CHANGELOG.md`](CHANGELOG.md): each release's changes and upgrade guide.
+
+## Credits
+
+- [Beads](https://github.com/gastownhall/beads) inspired pm's work layer: issues with dependencies and ready work,
+  tracked for agents in the repo. pm tracked its own development in Beads before it had a work store, and
+  `pm init --import-bd` still imports a Beads export.
+- [Dolt](https://github.com/dolthub/dolt) is the work store: a SQL database with git-style versioning, embedded in
+  `pm` and synced through the repo's git remote.
