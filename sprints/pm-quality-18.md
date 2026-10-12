@@ -172,6 +172,6 @@ partial: the Go jobs' own work is cut (internal/work's tests 100 s to 12.5 s loc
 
 | Item | Met | Evidence |
 |---|---|---|
-| Median wall to the last check on 3 PRs at most about 120 s | not met | PR 53, the first after the merge, 3 samples (a run and two reruns): 173, 148, 168 s, median 168 s, against 341 s on PR 44 and 191-290 s before. Go cache hit by exact key and warm (go vet 0.6-1.1 s; go test -c 6-10 s linux, 25-39 s darwin, against 48 s cold); macOS queue 6-34 s. The floor is the darwin work job, 139-158 s: setup-go and cache restore about 50 s, go test -c 29-39 s, tests 47-49 s bounded by TestSyncTwoClonesConcurrentEditsMergePerTheTable alone. PR 44's 4 samples: 309, 497, 373, 260 s |
-| `go test ./internal/work` at 8 shards under 25 s, all passing | met | `make go-test-work`: 87 tests in 8 shards 12.5, 12.5, 12.6 s locally |
+| Median wall to the last check on 3 PRs at most about 120 s | met, on one PR's 3 samples | PR 55, 3 reruns of all 12 checks: 102, 115 and 177 s, median 115 s. The 177 s sample had a 72 s macOS queue. The macOS work and race jobs ran 96/91/105 s and 99/86/109 s (medians 96 and 99 s). Before, PR 53: median 168 s, with work at 139-158 s and race at 118-146 s. Three separate PRs are not measured yet. darwin build-vet-test (95-121 s) is now the longest job |
+| `go test ./internal/work` at 8 shards under 25 s, all passing | met | `make go-test-work`: 87 tests in 8 shards 12.5, 12.5, 12.6 s locally. After #48 folded the tests and PR 55 split them again: 29 tests in 13.6 s |
 | `TestCreateRefusesWithTheRemoteUnreachable` under 2 s | met | 1.15 s in `go test -run`, 1.5 s with -v (3 runs) |
