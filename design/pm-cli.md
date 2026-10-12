@@ -2,6 +2,17 @@
 type: design
 title: pm CLI
 project: pm-harness
+covers:
+  - "internal/cli/cli.go"
+  - "internal/cli/commands*.go"
+  - "internal/cli/help.go"
+  - "internal/cli/textwrap.go"
+  - "internal/cli/agent.go"
+  - "internal/cli/agentcmds.go"
+  - "internal/cli/writes*.go"
+  - "internal/cli/show*.go"
+  - "internal/cli/where.go"
+  - "internal/cli/check.go"
 ---
 
 ## Problem

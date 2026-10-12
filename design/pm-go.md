@@ -2,6 +2,24 @@
 type: design
 title: pm in Go
 project: pm-harness
+covers:
+  - "cmd/**"
+  - "internal/launch/**"
+  - "internal/buildinfo/**"
+  - "internal/config/**"
+  - "internal/proc/**"
+  - "internal/pyjson/**"
+  - "internal/cli/serve*.go"
+  - "internal/cli/service.go"
+  - "internal/service/run*.go"
+  - "internal/service/gc.go"
+  - "internal/service/fake_test.go"
+  - "internal/work/host*.go"
+  - "internal/work/dolt*.go"
+  - "internal/work/lock*.go"
+  - "internal/work/service*.go"
+  - "internal/work/access_test.go"
+  - "internal/work/worktest/**"
 ---
 
 ## Problem

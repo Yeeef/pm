@@ -2,6 +2,11 @@
 type: design
 title: "Reply delivery: getting an owner reply into the session that asked"
 project: pm-harness
+covers:
+  - "internal/service/deliver.go"
+  - "internal/service/run*.go"
+  - "internal/cli/needs.go"
+  - "internal/cli/show.go"
 ---
 
 ## Problem

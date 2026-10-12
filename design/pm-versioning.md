@@ -2,6 +2,10 @@
 type: design
 title: How a repo runs the right pm version
 project: pm-harness
+covers:
+  - "internal/launch/**"
+  - "internal/config/**"
+  - "internal/buildinfo/**"
 ---
 
 ## Problem

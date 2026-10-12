@@ -2,6 +2,9 @@
 type: design
 title: pm in Codex
 project: pm-codex
+covers:
+  - "internal/install/codex.go"
+  - "internal/install/pieces.go"
 ---
 
 ## Problem

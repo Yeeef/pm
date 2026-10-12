@@ -2,6 +2,13 @@
 type: design
 title: Views and the site
 project: pm-harness
+covers:
+  - "internal/site/**"
+  - "style.css"
+  - "internal/cli/day*.go"
+  - "prompts/day_summary.txt"
+  - "internal/cli/serve*.go"
+  - "internal/service/run*.go"
 ---
 
 ## Problem

@@ -2,6 +2,9 @@
 type: design
 title: Decision need layout
 project: pm-harness
+covers:
+  - "internal/cli/needs.go"
+  - "internal/records/text.go"
 ---
 
 ## Problem

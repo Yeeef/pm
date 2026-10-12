@@ -2,6 +2,7 @@
 type: design
 title: Project management harness
 project: pm-harness
+covers: []
 ---
 
 How projects keep a shared record that people read as a site and agents read as compact text. Beads tracks the work; a Markdown record layer holds the context; one CLI writes both; one renderer produces both views. The daily page is the first page built on it. Poker-ai is the reference user.

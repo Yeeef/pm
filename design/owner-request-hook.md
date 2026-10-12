@@ -2,6 +2,10 @@
 type: design
 title: Owner-request Stop hook
 project: pm-harness
+covers:
+  - "internal/hooks/ownerrequest.go"
+  - "internal/cli/ownerrequest.go"
+  - "prompts/owner_request_*.txt"
 ---
 
 ## Problem

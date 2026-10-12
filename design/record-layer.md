@@ -2,6 +2,8 @@
 type: design
 title: Record layer
 project: pm-harness
+covers:
+  - "internal/records/**"
 ---
 
 ## Problem

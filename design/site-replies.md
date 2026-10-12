@@ -2,6 +2,13 @@
 type: design
 title: Replies on the site
 project: pm-harness
+covers:
+  - "internal/site/serve*.go"
+  - "internal/service/run*.go"
+  - "internal/service/spool.go"
+  - "internal/service/access*.go"
+  - "internal/service/deliver.go"
+  - "internal/cli/serve*.go"
 ---
 
 ## Problem

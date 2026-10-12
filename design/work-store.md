@@ -2,6 +2,12 @@
 type: design
 title: "Work store: pm's own replacement for Beads"
 project: pm-harness
+covers:
+  - "internal/work/**"
+  - "internal/cli/store_commands*.go"
+  - "internal/cli/work.go"
+  - "internal/install/workstore.go"
+  - "internal/service/gc.go"
 ---
 
 ## Problem

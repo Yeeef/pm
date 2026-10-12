@@ -2,6 +2,12 @@
 type: design
 title: Shared records store
 project: pm-harness
+covers:
+  - "internal/store/**"
+  - "internal/install/clone.go"
+  - "internal/cli/where.go"
+  - "internal/cli/push.go"
+  - "internal/sync/**"
 ---
 
 ## Problem

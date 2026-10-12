@@ -2,6 +2,9 @@
 type: design
 title: Agent git authority and Beads sync
 project: pm-harness
+covers:
+  - "internal/sync/**"
+  - "internal/cli/push.go"
 ---
 
 ## Problem

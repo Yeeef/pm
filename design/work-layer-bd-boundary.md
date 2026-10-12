@@ -2,6 +2,7 @@
 type: design
 title: "Work layer: pm's boundary with Beads"
 project: pm-harness
+covers: []
 ---
 
 ## Problem

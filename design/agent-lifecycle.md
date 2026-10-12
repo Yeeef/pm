@@ -2,6 +2,10 @@
 type: design
 title: Agent lifecycle
 project: pm-harness
+covers:
+  - "prime.md"
+  - "internal/hooks/prime*.go"
+  - "internal/hooks/stop*.go"
 ---
 
 ## Problem

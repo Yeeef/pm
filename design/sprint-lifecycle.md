@@ -2,6 +2,11 @@
 type: design
 title: Sprint lifecycle
 project: pm-harness
+covers:
+  - "internal/cli/writes.go"
+  - "internal/cli/needs.go"
+  - "internal/cli/design.go"
+  - "internal/design/**"
 ---
 
 ## Problem

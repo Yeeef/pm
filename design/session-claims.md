@@ -2,6 +2,15 @@
 type: design
 title: Session claims
 project: pm-harness
+covers:
+  - "internal/cli/agent.go"
+  - "internal/cli/store_commands*.go"
+  - "internal/cli/writes.go"
+  - "internal/cli/clean.go"
+  - "internal/cli/show.go"
+  - "internal/work/dolt.go"
+  - "internal/work/ready*.go"
+  - "internal/hooks/prime.go"
 ---
 
 ## Problem
