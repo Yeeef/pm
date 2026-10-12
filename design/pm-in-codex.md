@@ -45,42 +45,27 @@ Codex 0.154 (codex-rs `rust-v0.154.0`) against Claude Code 2.1.296:
 > What is it, in its final state? Free `###` subsections. Decisions and plans
 > live in the project and sprint records.
 
-### Pieces pm init writes
+Each area's design lives on its own page; this page keeps a summary per area, the Codex-only parts (hook trust, the sandbox), the gaps and the checks.
 
-| Piece | Holds |
-|---|---|
-| `.claude/settings.json` | SessionStart and SubagentStart: the rules chunks and the state; UserPromptSubmit: `pm hook inbox`; Stop: `pm hook owner-request`, `pm hook stop` |
-| `.codex/hooks.json` | the same commands per event; SessionStart matcher `startup\|resume\|clear\|compact`; plus SubagentStop: `pm hook stop` |
-| `.codex/rules/pm.rules` | `prefix_rule(pattern=["pm"], decision="allow")`: every `pm` command runs outside Codex's sandbox without approval, as pm's hooks already do |
-| `~/.codex/config.toml` | `writable_roots` for the records store and the work store |
+### Areas
+
+| Area | Codex in short | Page |
+|---|---|---|
+| Setup | `pm init` writes `.codex/hooks.json` (the same commands per event as `.claude/settings.json`, SessionStart on `startup\|resume\|clear\|compact`, plus SubagentStop running `pm hook stop`) and `.codex/rules/pm.rules`; `pm doctor` reports Codex's trust in pm's hooks; a typed `pm init` keeps the service unit's PATH | [pm as an installable product](../design/pm-product.md) |
+| Session identity and claims | `CODEX_SESSION_ID`, else `CODEX_THREAD_ID` mapped to its root; the innermost runtime decides when both runtimes' ids are set, and an ambiguous session refuses; liveness and `pm clean` read Codex rollouts | [Session claims](../design/session-claims.md) |
+| Owner replies | No push: `pm reply wait` within a turn, `pm hook inbox` at the next prompt, `pm show` and `pm reply read`; a Codex session never stores an inbox | [Reply delivery](../design/reply-delivery.md) |
+| Owner-request check | The same Stop hook; a null final reply passes; a failing check is a silent pass in Codex; the judge still runs `claude -p` | [Owner-request Stop hook](../design/owner-request-hook.md) |
+| Uncommitted records | The same Stop hook; a subagent's SubagentStop reads its own rollout (`agent_transcript_path`), since its tool inputs are encrypted in the parent's | [Agent lifecycle](../design/agent-lifecycle.md) |
 
 `TestClaudeAndCodexRunTheSameHooks` holds the two hook files to the same commands per event, except the differences one allowlist names with a reason: the matchers' syntax and Codex's SubagentStop.
 
-### Session identity
-
-- A command's session is `CODEX_SESSION_ID`, else `CODEX_THREAD_ID` mapped to its root through the rollout's `session_meta`, else `CLAUDE_CODE_SESSION_ID`.
-- With a Claude Code id and a Codex id both set, the nearest Claude Code or Codex process among the command's ancestors decides. With neither found, every command but `version`, `prime` and `pm hook` refuses, naming both ids.
-- Only a Claude Code session stores `CLAUDE_CODE_MESSAGING_SOCKET` as its inbox; a Codex session never takes the one it inherits.
-- Live-session checks and `pm clean` read Codex rollouts as they read Claude Code transcripts.
-
-### Owner replies
-
-| Route | Claude Code | Codex |
-|---|---|---|
-| Push, as soon as the work store moves | yes | no |
-| `pm reply wait <id>`: blocks within the turn until a reply that is undelivered or stamped after the wait began | yes | yes |
-| `pm hook inbox` at UserPromptSubmit: the reply as context, marked delivered once printed | yes (finds nothing a push delivered) | yes |
-| `pm show` flags an undelivered reply; `pm reply read` | yes | yes |
-
-The inbox does not run at Stop: a block there makes the continuation end with `stop_hook_active`, which lets `pm hook stop` and the owner-request check pass the very turn that acts on the reply.
-
 ### Hook trust
 
-pm never writes Codex's trust. `pm doctor` and a typed `pm init` ask `codex app-server` (`hooks/list`) which of pm's hooks Codex skips, and name them with the fix: open Codex in the main checkout and trust pm's hooks in `/hooks`. With no Codex home, it says trust was not checked.
+pm never writes Codex's trust. `pm doctor` and a typed `pm init` ask `codex app-server` (`hooks/list`, 10 s) which of pm's hooks in the main checkout's `.codex/hooks.json` Codex would skip (untrusted, modified since trusted, or disabled; or the whole project, when Codex lists none of its hooks), and name each with the fix: open Codex in the main checkout and trust pm's hooks in `/hooks`. With no `codex` on PATH, or no `$CODEX_HOME` (the call would create Codex's state there), it says trust was not checked. Session start does not ask: it would cost seconds at every start.
 
 ### Sandbox
 
-`pm.rules` takes a `pm` command out of the sandbox. A command that is not plain `pm …` (a heredoc body, a `cd x &&` prefix) stays inside; on Linux its connect is refused, and pm says so and names `--text-file PATH` or `--text="…"`. The agent's own `git commit` in a sandboxed worktree asks for approval, as Codex does for any `.git` write.
+`.codex/rules/pm.rules` holds `prefix_rule(pattern=["pm"], decision="allow")`: a command whose every segment is a plain `pm …` runs outside the sandbox without approval, as pm's hooks already do. A command that is not (a heredoc body, a `cd x &&` prefix) stays inside; on Linux its connect to `work.sock` is refused, and pm says so and names `--text-file PATH` or `--text="…"`. The agent's own `git commit` in a sandboxed worktree asks for approval, as Codex does for any `.git` write; `writable_roots` lets a sandboxed session edit records ([Shared records store](../design/records-store.md)).
 
 ### Gaps against Claude Code
 
@@ -89,7 +74,7 @@ The 12 gaps the sprint 1 gap list found, each with where it stands.
 | # | Gap | Status | How |
 |---|---|---|---|
 | 1 | Codex runs no project hook until the user trusts it, and `codex exec` skips untrusted ones silently | reported; the owner trusts once | `pm doctor` and `pm init` name the pm hooks Codex skips (see Hook trust). pm never writes the trust (owner decision). |
-| 2 | A Codex subagent is its own thread, with its own id | closed | `CODEX_SESSION_ID`, the root session (see Session identity) |
+| 2 | A Codex subagent is its own thread, with its own id | closed | `CODEX_SESSION_ID`, the root session ([Session claims](../design/session-claims.md)) |
 | 3 | A Codex run started from Claude Code inherits `CLAUDE_CODE_SESSION_ID`, which pm read first | closed | the innermost runtime decides; an ambiguous session refuses |
 | 4 | No reply push into a Codex session | partly closed | `pm reply wait` and `pm hook inbox` at the next prompt. An idle TUI is not woken: left, see Open questions |
 | 5 | Codex reads `.codex/` from the main checkout, not the worktree | left | Codex behaviour. A branch's hook change applies once main has it. In the README. |
@@ -117,9 +102,8 @@ Gaps 5 and 9, and the idle TUI in gap 4, are left by a pm-codex project decision
 | pm writes `hooks.state` for its own hooks | the hash is Codex-internal and undocumented, and writing it bypasses Codex's review (owner decision) |
 | `[sandbox_workspace_write] network_access = true` | opens the whole network to every sandboxed command, to reach one socket |
 | A unix-socket allowlist for `work.sock` | macOS only; Linux's seccomp filter denies `connect()` regardless |
-| Deliver replies by `codex exec resume` from the service | fails while the thread has a writer, and would start agent runs nobody asked for |
-| Deliver replies through a shared Codex app-server (`turn/start`) | reaches only TUIs started after it on the default socket; pm would run Codex's server |
-| `pm hook inbox` at Stop as well | see Owner replies: it disables the stop checks for the turn that acts on the reply |
+
+The alternatives for delivering replies into a Codex session (`codex exec resume`, a shared app-server, the inbox at Stop) are on [Reply delivery](../design/reply-delivery.md).
 
 ## Prior art
 

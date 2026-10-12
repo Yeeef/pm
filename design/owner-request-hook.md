@@ -42,6 +42,8 @@ Non-goals:
 - The judge sees only the reply and this session's open needs (title and the first 400 characters of the description). It knows nothing of sprints or tasks, so a rule that depends on them cannot be enforced.
 - A need's `--parent` must be an open item inside a project with a record. A project itself is refused ("not inside a project with a record"), so every need sits under a sprint or a task.
 - Codex runs only command hooks, and trusts each hook per file path and hash: a new or changed hook entry runs only after the owner approves it in `/hooks`.
+- Codex's Stop payload differs from Claude Code's in one key the hook reads: `last_assistant_message` is nullable (null for a turn that ended without a message). `session_id` is the root session's in both runtimes.
+- A Stop hook that fails (exit 1) lets the stop through in both runtimes; Codex does so silently. A check that cannot run is therefore lost, not blocking: `pm doctor` names a missing `claude` for that reason.
 - Phrase patterns (sprint 13) missed requests worded differently and blocked a reply that cited every request because one line said "waiting on you".
 - Agents cite requests by the short id `pm show` prints (`9va.29.4`). An id written in a reply is not a match by itself: only an open need of this session matches.
 
@@ -54,7 +56,7 @@ Non-goals:
 
 ```mermaid
 flowchart TD
-  S[Stop: pm hook owner-request] --> A{stop_hook_active<br/>or blank reply?}
+  S[Stop: pm hook owner-request] --> A{stop_hook_active, or a blank,<br/>null or missing reply?}
   A -- yes --> P[pass]
   A -- no --> N[read this session's open needs]
   N --> J[Haiku labels each sentence<br/>and matches it to a need]
@@ -104,7 +106,18 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 
 ### Runtimes
 
-- Claude Code and Codex run the same command hook, `pm hook owner-request || exit 1`, written by `pm init` into `.claude/settings.json` and `.codex/hooks.json` (Stop, 30 s), before `pm hook stop`.
+| | Claude Code | Codex |
+|---|---|---|
+| Entry | `.claude/settings.json`, Stop | `.codex/hooks.json`, Stop (runs once the owner trusts pm's hooks) |
+| Command | `pm hook owner-request \|\| exit 1`, 30 s, before `pm hook stop` | the same |
+| Reply | `last_assistant_message`, a string | the same key, nullable: null passes |
+| Judge | `claude -p`, Haiku | the same `claude -p` call: Codex sessions need `claude` installed and logged in |
+| A check that cannot run | exit 1 with the cause on stderr; the stop goes through | exit 1; Codex passes the stop silently |
+| AskUserQuestion (rule item 3) | the tool | none: a Codex agent's only ask is a need |
+
+- `pm doctor` names a missing `claude`: without it the hook fails at every stop, and Codex passes each one silently.
+- A Codex subagent's SubagentStop runs only `pm hook stop`; the owner-request check never judges a subagent's report (Non-goals).
+- The Stop entry runs only the two checks. `pm hook inbox`, which hands over the owner's replies, runs at UserPromptSubmit, never at Stop: an inbox block at Stop forces a continuation that ends with `stop_hook_active`, so this hook would pass the very turn that acts on the reply ([Reply delivery](../design/reply-delivery.md)).
 
 ### How it is checked
 
@@ -136,5 +149,5 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 
 > What is still unresolved?
 
-1. **Codex:** Codex has no AskUserQuestion. Does it have a tool that asks the owner mid-turn, so item 3 of the rule has a Codex form, or does a Codex agent always raise a need?
+1. **The judge on Codex's own runtime:** a Codex session's judge still needs `claude`. pm-codex sprint 2 runs it on the session's runtime, `codex exec` with a small model for a Codex session, named by each runtime's hook entry ([The judge and the day summary run on Codex too](../sprints/pm-codex-2.md)).
 2. **Unattended AskUserQuestion:** the agent's judgement of a "clear reason" is the only guard against a question that waits forever in a session nobody watches. If agents misjudge it, the rule narrows item 3.

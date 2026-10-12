@@ -8,7 +8,7 @@ project: pm-harness
 
 > What are we solving, and why now?
 
-Part of the [Work layer: Beads](work-layer.md) design. Several agent sessions work one clone at once. `bd update --claim` records only an assignee name, which is the same for every session of one user, so two sessions could take the same task and neither `pm show` nor the owner could tell who holds what or whether that holder is still running.
+Part of the [Work layer: Beads](work-layer.md) design. Several agent sessions, in Claude Code and in Codex, work one clone at once. An assignee name is the same for every session of one user, so two sessions could take the same task and neither `pm show` nor the owner could tell who holds what or whether that holder is still running. Each command must also know which session runs it, though a Codex run can inherit a Claude Code session's environment and a Codex subagent is a thread of its own.
 
 ## Goals and non-goals
 
@@ -16,13 +16,15 @@ Part of the [Work layer: Beads](work-layer.md) design. Several agent sessions wo
 
 **Goals:**
 
+- Each command resolves the one session that runs it, in either runtime, or refuses.
+- A subagent acts as its session: in both runtimes it holds what its session holds.
 - Each claim names the session holding it and when it was taken.
-- A claim held by a live session cannot be taken by another session; a claim left by a finished session can.
-- `pm show --project` shows who holds each task and whether that session is live.
+- A claim held by a live session cannot be taken by another session, in either runtime; a claim left by a finished session can.
+- `pm show` shows who holds each task and whether that session is live.
 
 **Non-goals:**
 
-- Locking: Beads serialises its own writes.
+- Locking beyond the claim: the claim is a compare-and-set in one work-store write.
 - Coordinating sessions on different machines (see Open questions).
 
 ## Constraints and key facts
@@ -30,31 +32,61 @@ Part of the [Work layer: Beads](work-layer.md) design. Several agent sessions wo
 > Which facts, findings and constraints shaped the design? Only those that
 > still hold; sprint records keep the findings as they happened.
 
-- Claude Code exposes the session id as `CLAUDE_CODE_SESSION_ID`, Codex as `CODEX_THREAD_ID`; the SessionStart hook also passes `session_id`.
-- A session's transcript is rewritten while it runs: `~/.claude/projects/*/<id>.jsonl` for Claude Code, a rollout under `$CODEX_HOME/sessions` for Codex. Its modification time is the only local liveness signal.
-- Subagents share their parent's session id.
-- Transcripts are local files, so liveness can only be read on the machine that runs the session.
+| Fact | Claude Code | Codex (0.154) |
+|---|---|---|
+| Session id in commands | `CLAUDE_CODE_SESSION_ID`, shared with subagents | `CODEX_SESSION_ID`, the root session's, shared with subagents; `CODEX_THREAD_ID` is the running thread's (an earlier Codex sets only this) |
+| Session id in hooks | payload `session_id` | payload `session_id`, the root session's; no `CODEX_*` variables in the hook's environment |
+| Transcript | `<config dir>/projects/<project dir>/<id>.jsonl` (`$CLAUDE_CONFIG_DIR`, default `~/.claude`) | rollout `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<thread>.jsonl`, in the directory of the thread's start date in local time |
+| A subagent's link to its root | same id | the rollout's first line, `session_meta`: its `session_id` (the root) and `parent_thread_id` |
+| Process | `claude` (or `…/claude/versions/<v>`), its pid exported as `$CLAUDE_PID` | `codex`, or a `codex-*` helper |
+
+- Codex keeps its launcher's environment: a Codex run started from Claude Code sees `CLAUDE_CODE_SESSION_ID`, and a Claude Code run started from Codex sees Codex's ids.
+- A Codex thread id is a UUIDv7, whose first 48 bits are its start in Unix milliseconds.
+- A transcript is rewritten while its session runs; its modification time is the only local liveness signal. Transcripts are local files, so liveness can only be read on the machine that runs the session.
 
 ## Design
 
 > What is it, in its final state? Free `###` subsections. Decisions and plans
 > live in the project and sprint records.
 
+### Session resolution
+
+A command's session, from its environment:
+
+| Set | Session | Runtime |
+|---|---|---|
+| Only `CLAUDE_CODE_SESSION_ID` | it | Claude Code |
+| Only Codex's | `CODEX_SESSION_ID`; else `CODEX_THREAD_ID` mapped to its root | Codex |
+| Both runtimes' | the innermost runtime's: the nearest ancestor process that is Claude Code or Codex | that runtime |
+| Both, and neither runtime among the ancestors | none: the command refuses, naming both ids and which variables to unset | |
+| Neither | no session; a command that needs one (`pm task claim`) fails hard | |
+
+- **Root of a thread.** `CODEX_THREAD_ID` maps to its root through the `session_meta` of its rollout, then of its parent's, and so on, so a subagent shares its session's id, as in Claude Code.
+- **Ancestry.** Read once per command, from `/proc` on Linux and `ps` on macOS, at most 64 levels up.
+- **Ambiguous refuses everywhere.** Every command that may act as a session refuses an ambiguous one before it runs, the self-parsing store commands included; `version`, `prime`, `hook` and `--help` act as none. A hook reads its session from its input payload, never from the environment.
+- **Session-start context.** The SessionStart hook runs `pm show --refresh-inbox` as the starting session: in Claude Code with the hook's own environment; otherwise (Codex) with `CODEX_SESSION_ID` set to the payload's `session_id` and Claude Code's session variables removed.
+- **The inbox follows the runtime.** Only a Claude Code session stores a messaging socket on the needs it raises ([Reply delivery](../design/reply-delivery.md)).
+
 ### Claiming
 
-`pm task claim <id>` records `claimed_by` (the session id from `CLAUDE_CODE_SESSION_ID`, `CODEX_THREAD_ID` or `--session`) and `claimed_at` in the issue's metadata, alongside Beads' own claim. It fails hard when no session id is available. The same session, its subagents included, may re-claim. There is no `--force`.
+`pm task claim <id>` makes the session (`--session`, else the resolved one) the task's holder, with the time, in one compare-and-set write ([Work store](../design/work-store.md)). It fails hard when no session id is available, and refuses in the main checkout. The same session, its subagents included, may re-claim. There is no `--force`.
 
 ### Liveness
 
-A holder is live when its transcript was modified within `LIVE_WINDOW` (30 minutes). A claim held by a live other session is refused; one held by an idle session is taken over, and the output says so.
+A holder is live when one of its transcripts changed within `LiveWindow` (30 minutes): a Claude Code transcript named `<id>.jsonl` under any project dir (each worktree has its own), or a Codex rollout of the thread `<id>`. A rollout is looked up only in the date directories its UUIDv7 start can fall in across time zones (UTC-12 to UTC+14), not by walking every rollout; an id that is no UUIDv7 is looked up in every date directory.
+
+A claim held by a live other session is refused, naming the holder, its age and the live window; one held by an idle session is taken over, and the output says so. This holds across runtimes: a Codex session cannot take a live Claude Code session's task, and the other way round.
+
+### Live sessions in worktrees
+
+`pm clean` keeps an agent worktree that a live session used: the latest entry, written within `LiveWindow`, of a Claude Code transcript or a Codex rollout whose working directory is in the worktree or whose tool call names its path. A Codex rollout's working directory is its `session_meta`'s and then each `turn_context`'s, and its session the root thread's. A tool call's output does not count.
 
 ### Display
 
-A sprint's holder is derived from its in-progress tasks, not stored. `pm show --project` marks each held task `[held by <sid>, <age>, live|idle]`, and plain `pm show` warns about work other live sessions hold. Claims made before this existed show as "without a session".
+A sprint's holders are derived from its open tasks, not stored. `pm show <id>` shows a task's holder with its liveness, `pm show --project` lists each sprint's holders, and plain `pm show` warns about tasks other live sessions hold, marked `held by <sid>, <age>, live|idle`.
 
 ### Known limits
 
-- A raw `bd update --claim` bypasses the check.
 - A live session on another machine looks idle, so its claim can be taken over.
 
 ## Alternatives considered
@@ -63,9 +95,12 @@ A sprint's holder is derived from its in-progress tasks, not stored. `pm show --
 
 | Alternative | Why not |
 |---|---|
-| A lock file per task | Beads already serialises writes; a lock adds stale-lock recovery for nothing |
+| A lock file per task | The claim is already one compare-and-set write; a lock adds stale-lock recovery for nothing |
 | `--force` to take a live claim | Invites taking work from a running session; an idle claim is taken over anyway |
-| Wrapping or blocking raw `bd update --claim` (option E) | Not chosen; the harness tells agents to claim through `pm` |
+| `CODEX_THREAD_ID` as a Codex session's id | A subagent's thread has its own id, so it could not act on what its session holds |
+| `CLAUDE_CODE_SESSION_ID` first whenever set | A Codex run started from Claude Code would hold and answer for the Claude Code session |
+| Taking either id when both are set and no runtime is an ancestor | Either could be this command's; a wrong guess holds or answers for another session |
+| Walking every rollout for liveness | Cost grows with the user's whole Codex history |
 
 ## Prior art
 
@@ -77,4 +112,4 @@ None yet.
 
 > What is still unresolved?
 
-- Cross-machine liveness: two machines working at once would need a liveness signal stored in Beads (and an auto-pull at session start).
+- Cross-machine liveness: two machines working at once would need a liveness signal stored in the work store.
