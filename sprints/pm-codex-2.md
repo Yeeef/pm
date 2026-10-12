@@ -68,6 +68,11 @@ Both hook entries name their judge: pm hook owner-request --runtime claude in .c
 The owner decision says each runtime entry names it, never guessed; naming both keeps the entries symmetric, and pm upgrade rewrites both files anyway since the Codex entry changes.
 :::
 
+::: decision {source=agent date=2026-10-12}
+pm doctor fails on a missing CLI only for the runtime summary_runtime names, and never for a judge.
+The pm service runs the summary unattended every 10 minutes; each judge runs on the runtime of the session that stops, which runs only where that runtime is installed, so a Codex-only machine must not fail for lacking claude.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
