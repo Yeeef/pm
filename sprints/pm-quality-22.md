@@ -80,6 +80,12 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
   `internal/records`) moved out unchanged; `internal/cli` ends at 8910 and its
   cap entry drops to that.
 
+- The pinned pm 0.7.1 refuses unknown keys in `.pm/config.toml`, so
+  `design_sources` cannot go into this repo's config until the pin moves to a
+  release with this change; 0.7.1 reads a `covers:` header as an unknown field
+  and accepts it, so the pages carry covers already. Until then the gate holds
+  no PR here: 0.7.1 has no gate.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
