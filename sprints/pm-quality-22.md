@@ -63,6 +63,11 @@ Build the full mechanism: covers header, the gate at pm action need --pr and pm 
 Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; the design-page miss in pm-codex sprint 1 needs a structural fix, not a prose rule.
 :::
 
+::: decision {source=agent date=2026-10-12}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+prime.md gains one clause in the PR review step; the session-start and stop hooks the page describes are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
