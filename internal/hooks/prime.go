@@ -275,9 +275,15 @@ func rfindNewline(text []rune, end int) int {
 }
 
 // State is pm prime --state: what pm init did and pm where, then pm show, all within Cap, so pm show gets what the
-// init and where lines leave and loses its last part first.
-func State(cwd *string, session string) (string, error) {
+// init and where lines leave and loses its last part first. trust, when set, gives a line to open it with.
+func State(cwd *string, session string, trust func(cwd string) string) (string, error) {
 	start := time.Now()
+	said := make(chan string, 1) // trust's line, asked beside init and where, which take seconds of their own
+	if trust != nil && cwd != nil {
+		go func() { said <- trust(*cwd) }()
+	} else {
+		said <- ""
+	}
 	in, err := Init(cwd)
 	if err != nil {
 		return "", err
@@ -287,6 +293,9 @@ func State(cwd *string, session string) (string, error) {
 		return "", err
 	}
 	first := in + wh
+	if line := <-said; line != "" { // bounded by trust itself, well inside the budget
+		first = line + "\n\n" + first
+	}
 	// pm show gets what init and where left: min(TIMEOUT, max(1.0, BUDGET - elapsed)), an int when it is TIMEOUT
 	left, leftText := float64(timeout), fmt.Sprint(timeout)
 	if rest := budget - time.Since(start).Seconds(); rest < timeout {
@@ -343,6 +352,9 @@ type Part struct {
 	Chunk    int // 1.. for --rules N; 0 otherwise
 	State    bool
 	Subagent bool
+	// Trust is the line the state opens with when the runtime skips some of pm's hooks (a Codex session's check of
+	// Codex's trust); nil asks nothing.
+	Trust func(cwd string) string
 }
 
 // CmdPrime is pm prime: the rules, the commands and the state, or one part of them; with hookJSON it reads the hook
@@ -381,7 +393,7 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 				}
 				session = *s
 			}
-			if text, err = State(cwd, session); err != nil {
+			if text, err = State(cwd, session, part.Trust); err != nil {
 				return err
 			}
 			if !part.State {

@@ -27,6 +27,7 @@ import (
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/install"
 	"github.com/Yeeef/pm/internal/session"
 )
 
@@ -538,6 +539,9 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 			part.Subagent = true
 		default:
 			part.Chunk, _ = strconv.Atoi(v) // parse checked it is one of the chunk numbers
+		}
+		if session.Innermost() == "codex" { // the state hook of a Codex session: whether Codex skips any of pm's hooks
+			part.Trust = install.SessionTrust
 		}
 		return hooks.CmdPrime(part, p.Get("hook_json") == "true", Nouns(), stdin, stdout)
 	case "hook stop":

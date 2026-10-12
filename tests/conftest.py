@@ -352,7 +352,7 @@ def fake_env(tmp: Path, base) -> dict[str, str]:
                 CLAUDE_CONFIG_DIR=str(tmp / "claude"), HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "home/.config"),
                 XDG_DATA_HOME=str(tmp / "home/.local/share"),
                 FAKE_SCHED_LOG=str(tmp / "sched.log"), FAKE_SCHED_STATE=str(tmp / "sched.json"),
-                FAKE_CLAUDE_LOG=str(tmp / "claude.log"), FAKE_CODEX_LOG=str(tmp / "codex.log"),
+                FAKE_CLAUDE_LOG=str(tmp / "claude.log"), FAKE_CODEX_LOG=str(tmp / "codex.log"), FAKE_CODEX_APP_LOG=str(tmp / "codex-app.log"),
                 # pm doctor reads the latest release from GitHub's API: no test reaches it (port 9 refuses at once)
                 PM_RELEASE_API=NO_RELEASE_API, **UV_DIRS)
 

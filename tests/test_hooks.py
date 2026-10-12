@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, hook_payload, nouns, \
-    rules, stop_services, write_config
+    rules, stop_services, write_config, VERSION
 
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
@@ -521,3 +521,45 @@ def test_a_codex_session_whose_hooks_did_not_run_is_told_once(repo):
     for args in (("prime", "--subagent"), ("hook", "stop")):  # the hooks themselves never warn
         (repo.root / f".pm/run/codex-hooks/{skipped}").unlink(missing_ok=True)
         assert "warning" not in show(skipped, *args).stderr, args
+
+
+@pytest.mark.integration
+def test_a_codex_sessions_start_names_the_pm_hooks_codex_skips(repo, tmp_path):
+    """A pm upgrade that rewrites one Codex hook entry leaves Codex's trust in it stale: Codex skips that hook and runs
+    the unchanged ones. The state hook of a Codex session (pm runs under a codex process) asks Codex (here the fake
+    app-server) which of pm's hooks it skips and opens the state with one line naming them and the fix; it asks again
+    only when .codex/hooks.json or the Codex config changed. A Claude Code session asks nothing."""
+    init_ready(repo)
+    upgraded = repo.pm("upgrade", "--to", VERSION)  # pm's pieces as this pm writes them, .codex/hooks.json included
+    assert (repo.root / ".codex/hooks.json").exists(), upgraded.stdout + upgraded.stderr
+    codex_home = Path(repo.env["CODEX_HOME"])
+    codex_home.mkdir(exist_ok=True)
+    (codex_home / "config.toml").write_text("# trust as the user left it\n")
+    trust = tmp_path / "trust.json"
+    trust.write_text(json.dumps({"stop:0:0": "modified"}))  # the judge's entry changed since the user trusted it
+    env = dict(repo.env, FAKE_CODEX_TRUST=str(trust))
+    app_log = Path(repo.env["FAKE_CODEX_APP_LOG"])
+    payload = hook_payload("codex", "SessionStart", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"))
+
+    def start(under: str) -> str:
+        """The state hook, run as Codex runs it: under a process named `under`."""
+        res = subprocess.run([under, "-c", '"$0" "$@"; :', *STATE], executable="/bin/sh", input=json.dumps(payload),
+                             env=env, cwd=repo.root, capture_output=True, text=True, timeout=60, check=False)
+        return context_of(res)
+
+    def calls() -> int:
+        return len(app_log.read_text().splitlines()) if app_log.exists() else 0
+
+    before = calls()
+    first = start("codex")
+    line = first.split("\n\n", 1)[0]
+    assert line.startswith("warning: this Codex session runs only the pm hooks Codex trusts."), first[:400]
+    assert "which changed since you trusted them: stop `pm hook owner-request --runtime codex || exit 1`" in line
+    assert f"open Codex in {repo.root} and trust pm's hooks in /hooks" in line
+    assert calls() == before + 1
+    assert start("codex").split("\n\n", 1)[0] == line and calls() == before + 1, "unchanged files: no second ask"
+    # the user trusts it in /hooks, which writes Codex's config: asked again, and nothing to say
+    trust.write_text("{}")
+    (codex_home / "config.toml").write_text("# trust as the user left it\n[hooks.state]\n")
+    assert not start("codex").startswith("warning: this Codex session") and calls() == before + 2
+    assert not start("claude").startswith("warning: this Codex session") and calls() == before + 2

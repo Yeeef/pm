@@ -162,7 +162,8 @@ subcommand, so each runs outside the sandbox without asking for approval. Then, 
 
 Codex needs no `claude`: a Codex session's owner-request judge runs `codex exec` (a small model, from an empty temp
 directory, with hooks, rules and your `config.toml` off, saving no session). A pm command in a Codex session whose
-hooks did not run, because Codex skipped them, says so once, with the fix.
+hooks did not run, because Codex skipped them, says so once, with the fix; and a session whose start hooks ran while
+Codex skips others of pm's hooks (after a `pm upgrade` changed one you had trusted) is told which, at its start.
 
 The pm service delivers an owner's reply into a live Codex session with `codex queue` (codex 0.149.0 or later on the
 service's PATH: run `pm service install` from a shell where it is), and an idle session starts a turn on it, as a

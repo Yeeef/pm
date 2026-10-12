@@ -651,7 +651,7 @@ var tree = &command{
 			groups: []bool{false},
 			args: []arg{
 				{flags: []string{"--rules"}, dest: "part", metavar: []string{"N"}, choices: chunkNumbers(), kind: value, isInt: true, group: 1, help: "only chunk N of the rules and the command list, under a title naming its sections: one hook each on SessionStart and SubagentStart, since Claude Code passes a hook's text inline only up to 10,000 characters"},
-				{flags: []string{"--state"}, dest: "part", kind: flagConst, constant: "state", group: 1, help: "only pm init, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook"},
+				{flags: []string{"--state"}, dest: "part", kind: flagConst, constant: "state", group: 1, help: "only pm init, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook; in a Codex session it opens with a line naming the pm hooks Codex skips, untrusted or changed since trusted (codex app-server, asked again only when .codex/hooks.json or your Codex trust changed)"},
 				{flags: []string{"--subagent"}, dest: "part", kind: flagConst, constant: "subagent", group: 1, help: "only pm's git rule for agents, one line: the last SubagentStart hook, beside the rules chunks"},
 				{flags: []string{"--hook-json"}, dest: "hook_json", kind: flagTrue, help: "read the SessionStart or SubagentStart input on stdin and print the hook's JSON envelope, as Claude Code and Codex read it"},
 			},

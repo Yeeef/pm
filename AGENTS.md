@@ -265,6 +265,11 @@ RTM_NEWADDR`) needs `danger-full-access`.
   setting for them, and `.codex/rules/pm.rules`, which runs pm outside Codex's sandbox. A hook change edits both
   functions; `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for (it
   reads each entry's `--runtime` as its own, and `TestEachRuntimesJudgeRunsOnThatRuntime` holds what each names).
+  In a Codex session (the innermost runtime among pm's ancestors) the state hook also asks Codex which of pm's hooks it
+  skips (`install.SessionTrust`, beside init and where, bounded at 8 s) and opens the state with one line naming
+  them; it asks only when `.codex/hooks.json` or the `[hooks]` trust table of the user's Codex config changed since
+  the answer `.pm/run/codex-trust.json` keeps. A hook the runtime stops (SIGTERM, SIGINT, SIGHUP) kills its judge's
+  process group (`proc.KillGroups`).
   Hooks fail open on their own errors (one line on stderr); a `pm` missing from PATH fails each hook with the shell's
   error.
 - `pm init` is the one install command. Its repo half (pm's pieces, the records branch) runs only when the worktree has

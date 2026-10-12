@@ -13,9 +13,15 @@
 - `summary_runtime` in `.pm/config.toml`, `claude` (the default) or `codex`: the runtime `pm day summarize`, which the
   pm service runs every 10 minutes, asks. On `codex` it runs `codex exec` on `gpt-5.6-luna`. It never falls back to
   the other runtime; any other value fails the config check.
+- `pm doctor` fails when the CLI `summary_runtime` names is not on PATH, since the pm service summarizes with it. It
+  checks no judge's CLI: each judge runs only in its own runtime's sessions.
 - A pm command in a Codex session whose rollout holds no pm session-start context, because Codex skipped pm's hooks
   (an untrusted hook is skipped silently), prints one warning on stderr, once per session, naming the fix: trust
   pm's hooks in `/hooks` and start a new session.
+- A Codex session's start context opens with one line naming the pm hooks Codex skips (untrusted, changed since
+  trusted, or disabled) and the fix, as after a `pm upgrade` rewrote an entry the user had trusted. pm asks Codex
+  (`codex app-server`, `hooks/list`) only when `.codex/hooks.json` or the trust in the user's Codex config changed
+  since the last answer, which `.pm/run/codex-trust.json` keeps.
 
 ### Changed
 
@@ -25,7 +31,6 @@
   took the failure as a silent pass. The Codex judge runs from an empty temp dir with Codex's hooks, rules and your
   `config.toml` off and saves no session, so it cannot run the hook again. An entry without `--runtime` runs the
   Claude judge, as before.
-- `pm doctor` fails on a missing CLI only for the runtime `summary_runtime` names; it no longer fails when `claude` is
-  missing on a machine whose repo summarizes on Codex. Each judge runs only in its own runtime's sessions.
-- A timed-out judge or summary call now kills its whole process group, not only the `claude` or `codex` launcher.
+- A timed-out judge or summary call now kills its whole process group, not only the `claude` or `codex` launcher, and
+  a hook stopped by its runtime (SIGTERM, SIGINT or SIGHUP, as at the entry's timeout) kills its judge too.
 - The day summary's prompt asks for at least one bullet, so a quiet day gets one on either runtime.
