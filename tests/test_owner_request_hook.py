@@ -1,16 +1,18 @@
 """The Stop hook that blocks a turn ending with an owner request asked only in chat, run as the runtimes run it (JSON
-on stdin) in a temp repo whose seeds hold this session's needs and others, against a fake `claude` judge: how it turns
-the judge's answer into a verdict, and that it fails hard. The judge's own accuracy is the live eval's job
+on stdin) in a temp repo whose seeds hold this session's needs and others, against a fake `claude` judge and a fake
+`codex` one (--runtime codex): how it turns the judge's answer into a verdict, that it fails hard the same way on
+either runtime, and that the Codex judge cannot run the hook again. The judge's own accuracy is the live eval's job
 (test_owner_request_prompt_live.py)."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
 
-from conftest import hook_payload
+from conftest import CHECKOUT, hook_payload
 
 ME, OTHER = "sess-me", "sess-other"
 AT = "2026-10-01T12:00:00Z"
@@ -40,21 +42,28 @@ def answer(*items):
     return json.dumps({"items": [{"quote": q, "kind": k, "match": m} for q, k, m in items]})
 
 
-def run(repo, reply="Should we rename X?", judged=None, fail=None, **event):
-    env = repo.env
-    repo.env = dict(env, **({"FAKE_CLAUDE_OUTPUT": judged} if judged is not None else {}),
-                    **({"FAKE_CLAUDE_FAIL": fail} if fail else {}))
+def run(repo, reply="Should we rename X?", judged=None, fail=None, runtime=None, env=None, **event):
+    """The hook on `reply`, its judge on `runtime` (None: the flag left out), the fake judge answering `judged` or
+    failing with `fail`."""
+    fake = "CODEX" if runtime == "codex" else "CLAUDE"
+    saved = repo.env
+    repo.env = dict(env or saved, **({f"FAKE_{fake}_OUTPUT": judged} if judged is not None else {}),
+                    **({f"FAKE_{fake}_FAIL": fail} if fail else {}))
     event = {"session_id": ME, "hook_event_name": "Stop", "stop_hook_active": False,
              "last_assistant_message": reply, **event}
     try:
-        return repo.pm("hook", "owner-request", stdin=json.dumps(event))
+        return repo.pm("hook", "owner-request", *(["--runtime", runtime] if runtime else []), stdin=json.dumps(event))
     finally:
-        repo.env = env
+        repo.env = saved
+
+
+def calls(repo, runtime):
+    log = Path(repo.env[f"FAKE_{runtime.upper()}_LOG"])
+    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
 
 def claude_calls(repo):
-    log = Path(repo.env["FAKE_CLAUDE_LOG"])
-    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    return calls(repo, "claude")
 
 
 def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):
@@ -140,3 +149,61 @@ def test_passes_codexs_stop_without_a_message(needs):
                                     transcript=str(needs.root / "t.jsonl"), reply=None))
     assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
     assert claude_calls(needs) == []
+
+
+@pytest.mark.parametrize("runtime", ["claude", "codex"])
+def test_the_judge_runs_on_the_runtime_the_hook_names(needs, runtime):
+    """Each runtime's hook entry names its judge: the same reply, open needs and answer give the same verdict and the
+    same prompt on either runtime, and only that runtime's CLI runs."""
+    reply = "Should I merge the PR now or wait for review?"
+    res = run(needs, reply=reply, judged=answer((reply, "decision", None)), runtime=runtime)
+    assert res.returncode == 0 and json.loads(res.stdout)["decision"] == "block", res.stderr
+    other = "claude" if runtime == "codex" else "codex"
+    (call,) = calls(needs, runtime)
+    assert calls(needs, other) == []
+    assert call["stdin"] == ("OPEN REQUESTS:\n- repo-demo.1.4: Rename X?\n  Options: X, Y. Default: X.\n\n"
+                             f"REPLY:\n<<<\n{reply}\n>>>")
+    system = (CHECKOUT / "prompts/owner_request_system.txt").read_text().strip()  # as pm embeds it
+    assert (call["instructions"] if runtime == "codex" else call["args"][call["args"].index("--system-prompt") + 1]) \
+        == system
+
+
+def test_the_codex_judge_cannot_run_the_hook_again(needs):
+    """The judge runs inside Codex's Stop hook: a child Codex that ran hooks would run the judge again. It runs with
+    hooks, rules and the user's config off, no saved session, from an empty temp dir outside the repo, on the session's
+    own CODEX_HOME (its login)."""
+    res = run(needs, judged=answer(), runtime="codex")
+    assert res.returncode == 0 and res.stdout == "", res.stderr
+    (call,) = calls(needs, "codex")
+    args = call["args"]
+    for flag in ("--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check"):
+        assert flag in args, args
+    assert args[args.index("hooks") - 1:args.index("hooks") + 1] == ["--disable", "hooks"]
+    assert args[args.index("--sandbox") + 1] == "read-only" and args[-1] == "-"
+    assert call["files"] == ["instructions.md"], "the judge's dir holds only its instructions"
+    cwd = Path(call["cwd"])
+    assert not cwd.exists(), "the judge's temp dir outlives the call"
+    assert needs.root not in cwd.parents and Path(os.path.commonpath([cwd, needs.root])) != needs.root
+    assert call["codex_home"] == needs.env["CODEX_HOME"]
+
+
+@pytest.mark.parametrize("runtime", ["claude", "codex"])
+def test_a_judge_that_cannot_run_fails_the_same_on_either_runtime(needs, runtime, tmp_path):
+    """Exit 1, the cause on stderr, no verdict: Claude Code shows it, Codex lets the stop through, on either judge."""
+    command = "codex exec" if runtime == "codex" else "claude -p"
+    failed(run(needs, fail="Not logged in", runtime=runtime), f"{command} failed (exit 1): Not logged in")
+    # its CLI missing: a PATH with every other fake and none of the dirs that hold it
+    bare = tmp_path / "bin-without"
+    bare.mkdir()
+    for tool in (Path(needs.env["PATH"].split(os.pathsep)[0])).iterdir():
+        if tool.name != runtime:
+            (bare / tool.name).symlink_to(tool)
+    path = os.pathsep.join([str(bare), *(d for d in needs.env["PATH"].split(os.pathsep)[1:]
+                                         if not (Path(d) / runtime).exists())])
+    failed(run(needs, runtime=runtime, env=dict(needs.env, PATH=path)), f"{runtime} is not installed or not on PATH")
+
+
+def test_an_entry_without_runtime_runs_the_claude_judge(needs):
+    """An entry written before --runtime existed kept its meaning: the claude judge."""
+    run(needs, judged=answer())
+    assert len(claude_calls(needs)) == 1 and calls(needs, "codex") == []

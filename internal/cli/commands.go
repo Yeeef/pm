@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/hooks"
 )
 
@@ -47,8 +48,8 @@ var tree = &command{
 			subs: []*command{
 				{
 					name:        "summarize",
-					help:        "generate today's Today summary with claude -p; the pm service runs it",
-					description: "Summarize today's activity (what the day page shows, plus the records committed today) with claude -p --model claude-haiku-5-5 into records/days/<today>.summary.json, committed on the records branch; the day page shows it as Today, labelled with the time it was generated. Skips when nothing happened today or the activity's digest is unchanged since the last summary. Fails, writing nothing, when claude is missing or fails. The pm service runs it every 10 minutes.",
+					help:        "generate today's Today summary with claude -p or codex exec (summary_runtime); the pm service runs it",
+					description: "Summarize today's activity (what the day page shows, plus the records committed today) into records/days/<today>.summary.json, committed on the records branch; the day page shows it as Today, labelled with the time it was generated. It asks the runtime that summary_runtime in .pm/config.toml names: claude (the default) runs claude -p --model claude-haiku-5-5, codex runs codex exec --model gpt-5.6-luna; each runs from an empty temp directory with no hooks, no project instructions and no saved session, for at most 180s. Set summary_runtime = \"codex\" in a repo whose machines have Codex and not Claude Code. Skips when nothing happened today or the activity's digest is unchanged since the last summary. Fails, writing nothing, when the runtime's CLI is missing, fails or times out; it never falls back to the other runtime. The pm service runs it every 10 minutes.",
 					args: []arg{
 						{flags: []string{"--dry-run"}, dest: "dry_run", kind: flagTrue, help: "print the summary it would write; write nothing"},
 					},
@@ -587,7 +588,7 @@ var tree = &command{
 		},
 		{
 			name: "doctor",
-			help: "compare every managed piece with what this pm writes, and the clone and worktree with what pm init makes; report each difference, exit 1 on any (in a checkout whose pin is not the version the clone's pm service runs, the work store cannot be checked: its line names the mismatch and the fix); and name a pm release newer than the pin, with its notes (or say the release list cannot be read), which leaves the exit code alone",
+			help: "compare every managed piece with what this pm writes, and the clone and worktree with what pm init makes; report each difference, exit 1 on any (in a checkout whose pin is not the version the clone's pm service runs, the work store cannot be checked: its line names the mismatch and the fix); fail when the CLI that summary_runtime in .pm/config.toml names (claude or codex) is not on PATH, since the pm service summarizes with it, and never for the other runtime, whose sessions, and so whose owner-request judge, run only where it is installed; and name a pm release newer than the pin, with its notes (or say the release list cannot be read), which leaves the exit code alone",
 		},
 		{
 			name: "upgrade",
@@ -665,8 +666,12 @@ var tree = &command{
 					help: "Stop: block once while records this session's tool calls name are uncommitted in the store, leaving out a record that only a still-running subagent's prompt names",
 				},
 				{
-					name: "owner-request",
-					help: "Stop: block once while the reply asks the owner for something no open need or action of this session covers",
+					name:        "owner-request",
+					help:        "Stop: block once while the reply asks the owner for something no open need or action of this session covers",
+					description: "Stop: block once while the reply asks the owner for something no open need or action of this session covers. A small model on the session's own runtime judges the reply: Claude Haiku through claude -p for Claude Code, gpt-5.6-luna through codex exec for Codex, each run from an empty temp directory with no hooks, no project instructions and no saved session. Each runtime's hook entry names its runtime; pm never guesses it. When the check cannot run (the runtime's CLI is missing, fails or times out), it exits 1 with the cause on stderr: Claude Code shows it, Codex lets the stop through.",
+					args: []arg{
+						{flags: []string{"--runtime"}, dest: "runtime", choices: ask.Runtimes, kind: value, help: "the session's runtime, which the judge runs on; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json (default: claude, as an entry written before this flag)"},
+					},
 				},
 				{
 					name: "inbox",

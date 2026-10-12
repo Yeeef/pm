@@ -4,15 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/Yeeef/pm"
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/site"
@@ -21,17 +19,19 @@ import (
 )
 
 // pm day summarize: yesterday's and today's summary, each asked of the model when the day's activity changed since its
-// stored summary.
+// stored summary, on the runtime summary_runtime in .pm/config.toml names (claude when unset); never on the other.
 
-const (
-	summaryModel   = "claude-haiku-5-5"
-	summaryTimeout = 180 // seconds the model call may take
-)
+const summaryTimeout = 180 * time.Second // how long the model call may take
 
 // cmdDaySummarize is pm day summarize. It reads both days' activity in one read of the work store; the records lock is
 // taken only for each write, once the model answered, so a slow model blocks no other session.
 func cmdDaySummarize(e *env, p *Parsed) (string, error) {
 	dryRun := p.Get("dry_run") == "true"
+	cfg, err := config.Load(e.here)
+	if err != nil {
+		return "", err
+	}
+	runtime := ask.Runtime(cfg.Summary())
 	r, err := e.load(false)
 	if err != nil {
 		return "", err
@@ -44,11 +44,11 @@ func cmdDaySummarize(e *env, p *Parsed) (string, error) {
 			return "", err
 		}
 	}
-	first, err := e.summarizeOne(r, yesterday, activity[yesterday], dryRun)
+	first, err := e.summarizeOne(r, runtime, yesterday, activity[yesterday], dryRun)
 	if err != nil {
 		return "", err
 	}
-	second, err := e.summarizeOne(r, today, activity[today], dryRun)
+	second, err := e.summarizeOne(r, runtime, today, activity[today], dryRun)
 	if err != nil {
 		return "", err
 	}
@@ -59,9 +59,9 @@ func cmdDaySummarize(e *env, p *Parsed) (string, error) {
 }
 
 // summarizeOne is day's summary: skipped when nothing happened that day or when the activity is unchanged since the
-// stored summary (its digest); otherwise asked of the model and committed to days/<day>.summary.json on the records
+// stored summary (its digest); otherwise asked of the model on runtime and committed to days/<day>.summary.json on the records
 // branch (with dryRun, printed and not written).
-func (e *env) summarizeOne(r *repo, day, activity string, dryRun bool) (string, error) {
+func (e *env) summarizeOne(r *repo, runtime ask.Runtime, day, activity string, dryRun bool) (string, error) {
 	if activity == "" {
 		return "no activity on " + day + "; nothing to summarize", nil
 	}
@@ -77,14 +77,21 @@ func (e *env) summarizeOne(r *repo, day, activity string, dryRun bool) (string, 
 			return "activity unchanged since the summary of " + old.GeneratedAt + "; skipped", nil
 		}
 	}
-	text, err := askModel(strings.NewReplacer("{day}", day, "{activity}", activity).Replace(pm.DaySummary))
-	if err != nil {
+	text, err := ask.Ask(runtime, ask.Call{Prompt: strings.NewReplacer("{day}", day, "{activity}", activity).Replace(pm.DaySummary),
+		Timeout: summaryTimeout})
+	var ae *ask.Error
+	switch {
+	case errors.As(err, &ae) && ae.Missing:
+		return "", refuse("%s; pm day summarize asks %s, as summary_runtime in %s says", ae.Error(), runtime.Command(), config.Rel)
+	case errors.As(err, &ae):
+		return "", refuse("%s; no summary written", ae.Error())
+	case err != nil:
 		return "", err
 	}
 	generated := time.Now().UTC().Format("2006-01-02T15:04:05") + "+00:00"
 	body := "{\n" // json.dumps(data, indent=1, ensure_ascii=False)
 	for i, kv := range [][2]string{{"date", day}, {"generated_at", generated}, {"digest", digest},
-		{"model", summaryModel}, {"text", text}} {
+		{"model", runtime.Model()}, {"text", text}} {
 		if i > 0 {
 			body += ",\n"
 		}
@@ -107,41 +114,6 @@ func (e *env) summarizeOne(r *repo, day, activity string, dryRun bool) (string, 
 		return "", refuse("%s has uncommitted changes; revert them and run this again", r.rel(path))
 	}
 	return r.apply([]store.Write{{Path: path, Text: body}}, "summarized "+day+" in "+r.rel(path), "pm: ")
-}
-
-// askModel is the model's answer to prompt from the claude CLI, non-interactive, without tools, hooks or a saved
-// session. It fails hard when claude is missing, fails or answers nothing; there is no fallback text.
-func askModel(prompt string) (string, error) {
-	cwd, err := os.MkdirTemp("", "pm-summary-") // no project settings, hooks or CLAUDE.md apply
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(cwd)
-	res, err := proc.Run([]string{"claude", "-p", "--model", summaryModel, "--tools", "", "--setting-sources", "",
-		"--no-session-persistence"}, proc.Options{Cwd: &cwd, Stdin: prompt, Timeout: summaryTimeout * time.Second,
-		TimeoutText: fmt.Sprint(summaryTimeout)})
-	var pe *proc.Error
-	switch {
-	case errors.As(err, &pe) && pe.Type == "FileNotFoundError":
-		return "", refuse("claude is not installed or not on PATH; pm day summarize needs the claude CLI")
-	case errors.As(err, &pe) && pe.Type == "TimeoutExpired":
-		return "", refuse("claude -p timed out after %ds; no summary written", summaryTimeout)
-	case err != nil:
-		return "", err
-	}
-	text := config.PyStrip(res.Stdout)
-	if res.Code != 0 || text == "" {
-		said := res.Stderr
-		if said == "" {
-			said = res.Stdout
-		}
-		said = firstRunes(strings.Join(strings.FieldsFunc(said, config.IsPySpace), " "), 500)
-		if said == "" {
-			said = "no output"
-		}
-		return "", refuse("claude -p failed (exit %d): %s; no summary written", res.Code, said)
-	}
-	return text, nil
 }
 
 // dayActivity is plain text of what happened on the local day: per project, the sprints finished (with their

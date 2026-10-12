@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
@@ -539,7 +540,11 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 	case "hook inbox":
 		return hooks.HookInbox(here, pendingReplies, stdin, stdout, stderr)
 	case "hook owner-request":
-		if code, err := hooks.HookOwnerRequest(here, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
+		runtime := ask.Runtime(p.Get("runtime")) // parse checked it is one of ask.Runtimes
+		if runtime == "" {
+			runtime = ask.Claude // an entry written before --runtime existed ran the claude judge
+		}
+		if code, err := hooks.HookOwnerRequest(here, runtime, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
 			return err
 		} else {
 			return &exitCode{code}

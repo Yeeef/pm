@@ -325,7 +325,8 @@ def real_home_untouched():
 
 def fake_env(tmp: Path, base) -> dict[str, str]:
     """`base` with the fakes first on PATH: gh serving PRs from tmp/gh.json (none at first), claude logging to
-    tmp/claude.log, codex answering whether it trusts pm's hooks (yes, unless $FAKE_CODEX_TRUST says otherwise), and
+    tmp/claude.log, codex answering whether it trusts pm's hooks (yes, unless $FAKE_CODEX_TRUST says otherwise) and
+    logging each `codex exec` to tmp/codex.log, and
     launchctl, systemctl and crontab logging to tmp/sched.log, so no test installs a real service;
     made on first use in `tmp`, so later calls keep their state and log. HOME is tmp/home, whose .local/bin/pm, second
     on PATH, links the pm under test, as install.sh and pm init put it. CODEX_HOME is tmp/codex, absent until a test
@@ -351,7 +352,7 @@ def fake_env(tmp: Path, base) -> dict[str, str]:
                 CLAUDE_CONFIG_DIR=str(tmp / "claude"), HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "home/.config"),
                 XDG_DATA_HOME=str(tmp / "home/.local/share"),
                 FAKE_SCHED_LOG=str(tmp / "sched.log"), FAKE_SCHED_STATE=str(tmp / "sched.json"),
-                FAKE_CLAUDE_LOG=str(tmp / "claude.log"),
+                FAKE_CLAUDE_LOG=str(tmp / "claude.log"), FAKE_CODEX_LOG=str(tmp / "codex.log"),
                 # pm doctor reads the latest release from GitHub's API: no test reaches it (port 9 refuses at once)
                 PM_RELEASE_API=NO_RELEASE_API, **UV_DIRS)
 

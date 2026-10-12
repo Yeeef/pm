@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/install"
@@ -51,7 +52,7 @@ func codeTop(here, records, what string) (string, error) {
 
 func settingsOf(c config.Config) install.Settings {
 	return install.Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL, AccessTeam: c.AccessTeam,
-		AccessAud: c.AccessAud}
+		AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime}
 }
 
 // checkSiteURL refuses a --site-url that is not an http(s) base URL.
@@ -510,9 +511,13 @@ func cmdDoctor(here string, stdout io.Writer) error {
 	for _, d := range append(found, install.LegacyClone(main)...) {
 		diffs = append(diffs, "legacy: "+d+"; "+install.LegacyFix())
 	}
-	if _, err := exec.LookPath("claude"); err != nil {
-		diffs = append(diffs, "claude: not on PATH; the owner-request Stop hook's judge runs claude -p, so without it "+
-			"the hook fails at every stop, and Codex treats that failure as a silent pass; install Claude Code and log in")
+	// Only the summary's runtime must be here: the pm service asks it every 10 minutes. Each owner-request judge runs on
+	// the runtime of the session that stops, which runs only where that runtime is, so neither binary is missing for it.
+	rt := ask.Runtime(c.Summary())
+	if _, err := exec.LookPath(string(rt)); err != nil {
+		diffs = append(diffs, fmt.Sprintf("%s: not on PATH; summary_runtime in %s is %s, so pm day summarize, which "+
+			"the pm service runs every 10 minutes, fails; install %s and log in, or set summary_runtime to the runtime "+
+			"this machine has", rt, config.Rel, rt, map[ask.Runtime]string{ask.Claude: "Claude Code", ask.Codex: "Codex"}[rt]))
 	}
 	skips, note, err := install.CodexTrust(main, install.CodexTrustTimeout)
 	if err != nil {

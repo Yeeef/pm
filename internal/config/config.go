@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -26,7 +27,10 @@ const (
 
 // keys are the config's keys and the Python type each must have, in KEYS order.
 var keys = map[string]string{"version": "str", "remote": "str", "main_branch": "str", "port": "int", "site_url": "str",
-	"access_team": "str", "access_aud": "str"}
+	"access_team": "str", "access_aud": "str", "summary_runtime": "str"}
+
+// SummaryRuntimes are summary_runtime's values: the agent runtime whose CLI pm day summarize asks.
+var SummaryRuntimes = []string{"claude", "codex"}
 var required = []string{"version", "remote", "main_branch", "port"}
 
 // Error is a config that is missing, malformed, or pins another pm version.
@@ -36,14 +40,24 @@ func (e *Error) Error() string { return e.Msg }
 
 // Config is .pm/config.toml, checked.
 type Config struct {
-	Path       string
-	Version    string
-	Remote     string
-	MainBranch string
-	Port       int64
-	SiteURL    string // "" when unset: links use http://localhost:<port>
-	AccessTeam string // the Cloudflare Access team domain, <team>.cloudflareaccess.com; "" when unset
-	AccessAud  string // the Access application's AUD tag; "" when unset
+	Path           string
+	Version        string
+	Remote         string
+	MainBranch     string
+	Port           int64
+	SiteURL        string // "" when unset: links use http://localhost:<port>
+	AccessTeam     string // the Cloudflare Access team domain, <team>.cloudflareaccess.com; "" when unset
+	AccessAud      string // the Access application's AUD tag; "" when unset
+	SummaryRuntime string // summary_runtime, claude or codex; "" when unset
+}
+
+// Summary is the runtime pm day summarize asks: summary_runtime, else claude, which every repo summarized on before the
+// key existed.
+func (c Config) Summary() string {
+	if c.SummaryRuntime == "" {
+		return "claude"
+	}
+	return c.SummaryRuntime
 }
 
 // AccessMissing is the Cloudflare Access keys a set site_url needs and the config lacks: the site verifies Access on
@@ -168,12 +182,20 @@ func Read(cwd string) (Config, error) {
 		}
 		return Config{}, &Error{fmt.Sprintf("%s: %s", path, strings.Join(parts, "; "))}
 	}
+	summary := ""
+	if v, ok := data["summary_runtime"].(string); ok {
+		if summary = PyStrip(v); !slices.Contains(SummaryRuntimes, summary) {
+			return Config{}, &Error{fmt.Sprintf("%s: summary_runtime is %q; set it to one of %s", path, v,
+				strings.Join(SummaryRuntimes, ", "))}
+		}
+	}
 	site, _ := data["site_url"].(string)
 	team, _ := data["access_team"].(string)
 	aud, _ := data["access_aud"].(string)
 	return Config{Path: path, Version: data["version"].(string), Remote: data["remote"].(string),
 		MainBranch: data["main_branch"].(string), Port: data["port"].(int64),
-		SiteURL: strings.TrimRight(PyStrip(site), "/"), AccessTeam: PyStrip(team), AccessAud: PyStrip(aud)}, nil
+		SiteURL: strings.TrimRight(PyStrip(site), "/"), AccessTeam: PyStrip(team), AccessAud: PyStrip(aud),
+		SummaryRuntime: summary}, nil
 }
 
 // pyType is the name of the Python type tomllib gives a TOML value, for the two types the config checks.

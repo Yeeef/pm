@@ -554,7 +554,8 @@ def test_uninstall_waits_for_a_session_start_that_holds_the_install_lock(new_rep
 def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path: Path):
     """pm doctor asks Codex (here the fake codex app-server) which of pm's hooks it would skip, and names each with
     the fix, failing; pm init (not at session start) names them too. Without codex on PATH, doctor says the trust was
-    not checked and does not fail on it; without claude, it fails naming the owner-request judge."""
+    not checked and does not fail on it. It fails on a missing CLI only for summary_runtime's runtime, which the pm
+    service summarizes with: a machine with Codex alone passes once the repo summarizes on codex."""
     (tmp_path / "codex").mkdir()  # Codex ran on this machine: its home exists, so doctor asks it
     assert pm(new_repo, "init").returncode == 0
     git(new_repo, "add", "-A")
@@ -596,10 +597,22 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
     res = run("doctor", PATH=path)
     lines = res.stdout.splitlines()
     assert res.returncode == 1 and lines[0] == (
-        "claude: not on PATH; the owner-request Stop hook's judge runs claude -p, so without it the hook fails at every "
-        "stop, and Codex treats that failure as a silent pass; install Claude Code and log in"), res.stdout
+        "claude: not on PATH; summary_runtime in .pm/config.toml is claude, so pm day summarize, which the pm service "
+        "runs every 10 minutes, fails; install Claude Code and log in, or set summary_runtime to the runtime this "
+        "machine has"), res.stdout
     assert lines[1] == "codex: codex is not on PATH, so whether Codex runs pm's hooks was not checked", res.stdout
     assert len(lines) == 3 and lines[2].startswith("release: "), res.stdout
+    # the repo summarizes on codex: a machine without claude passes, one without codex fails naming it
+    config = new_repo / ".pm/config.toml"
+    config.write_text(config.read_text() + 'summary_runtime = "codex"\n')
+    codex_only = tmp_path / "codex-only"
+    codex_only.mkdir()
+    (codex_only / "codex").symlink_to(tmp_path / "bin/codex")
+    res = run("doctor", PATH=os.pathsep.join([str(codex_only), path]))
+    assert res.returncode == 0, res.stdout
+    res = run("doctor", PATH=path)
+    assert res.returncode == 1 and res.stdout.splitlines()[0].startswith(
+        "codex: not on PATH; summary_runtime in .pm/config.toml is codex, so pm day summarize"), res.stdout
     # a pm service installed from that shell has no codex to queue owner replies into Codex sessions with
     assert run("service", "install", PATH=path).returncode == 0
     res = run("doctor")

@@ -1689,3 +1689,43 @@ def test_every_store_command_fails_hard_with_the_service_stopped(repo):
     assert repo.snapshot() == before, "a command wrote with the service stopped"
     repo.start_service()
     assert repo.unchanged()
+
+
+def test_day_summarize_asks_the_runtime_summary_runtime_names(repo):
+    """pm day summarize asks claude unless summary_runtime in .pm/config.toml says codex, and never the other one: on
+    codex it runs codex exec with hooks, rules and the user's config off, from a temp dir, and writes the answer with
+    codex's model; a failing codex writes nothing and does not fall back to claude; any other value fails the config."""
+    config = repo.root / ".pm/config.toml"
+    base = config.read_text()
+    log = {rt: Path(repo.env[f"FAKE_{rt.upper()}_LOG"]) for rt in ("claude", "codex")}
+
+    def calls(rt):
+        return [json.loads(line) for line in log[rt].read_text().splitlines()] if log[rt].exists() else []
+
+    res = repo.pm("day", "summarize", "--dry-run")
+    assert res.returncode == 0 and '"model": "claude-haiku-5-5"' in res.stdout, res.stdout + res.stderr
+    assert len(calls("claude")) >= 1 and calls("codex") == []
+    asked = len(calls("claude"))
+
+    config.write_text(base + 'summary_runtime = "codex"\n')
+    repo.env = dict(repo.env, FAKE_CODEX_FAIL="ERROR: usage limit")
+    res = repo.pm("day", "summarize")
+    assert res.returncode != 0 and "codex exec failed (exit 1): ERROR: usage limit; no summary written" in res.stdout + res.stderr
+    assert len(calls("claude")) == asked, "no fallback to claude"
+    assert not list((repo.store / "days").glob("*.summary.json"))
+    del repo.env["FAKE_CODEX_FAIL"]
+    res = repo.pm("day", "summarize")
+    assert res.returncode == 0, res.stdout + res.stderr
+    (summary,) = [json.loads(p.read_text()) for p in (repo.store / "days").glob("*.summary.json")][-1:]
+    assert summary["model"] == "gpt-5.6-luna" and summary["text"].startswith("Summary "), summary
+    call = calls("codex")[-1]
+    args = call["args"]
+    assert {"--ephemeral", "--ignore-user-config", "--ignore-rules"} <= set(args) and "hooks" in args
+    assert args[args.index("hooks") - 1] == "--disable" and call["instructions"] is None
+    assert repo.root not in Path(call["cwd"]).parents and "{activity}" not in call["stdin"]
+    assert len(calls("claude")) == asked
+
+    config.write_text(base + 'summary_runtime = "gpt"\n')
+    res = repo.pm("day", "summarize")
+    assert res.returncode != 0 and 'summary_runtime is "gpt"; set it to one of claude, codex' in res.stdout + res.stderr
+    config.write_text(base)
