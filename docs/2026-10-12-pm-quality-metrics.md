@@ -11,7 +11,7 @@ The reference for how healthy pm's code is: size, complexity, lint, tests, CI an
 
 - **Commit measured:** `fe05966` on origin/main, "RACE_TESTS names only top-level tests, and go_shards.py holds it (#53)", committed 2026-10-12 19:31 UTC.
 - **Measured:** 2026-10-12, 19:40–19:48 UTC, in a detached worktree of that commit. Linux, 32 cores, 62 GB, go1.26.9 (the toolchain `go.mod` names), golangci-lint 2.14.0. Other sessions ran on the same machine: the load average was 2.8 to 14.6 at the start of each timed run.
-- **Generator:** [`pm-quality-metrics.py`](pm-quality-metrics.py), beside this doc: one PEP 723 script that measures and draws every table and figure here. Method gives the commands.
+- **Generator:** `pm-quality-metrics.py`, beside this doc in the records store (`docs/` on the `records` branch; the site serves only a record's images, not the script): one PEP 723 script that measures and draws every table and figure here. Method gives the commands.
 - **Code lines:** a line that holds a Go token other than a comment (Go's own scanner); blank and comment-only lines are left out. For Python, a line that holds a token other than a comment, docstrings included.
 
 ## Headline
