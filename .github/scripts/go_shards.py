@@ -7,7 +7,9 @@ The binary is `go test -c`'s; its tests run with PACKAGE_DIR as the working dire
 tests are those `-test.list REGEX` names (every test without --run); each goes to the shard with the fewest predicted
 seconds so far, longest first. SECONDS_FILE holds one `<test> <seconds>` line per test of the binary, every test and
 no other, or the run fails before it starts, naming each test missing or stale: a new test is placed by its measured
-time, never by a guess. --update runs every test and rewrites SECONDS_FILE from their measured times.
+time, never by a guess. --run is test names joined by `|`, as Go's -run reads them; each must match a top-level
+test, or the run fails before it starts, naming each that matches none (a subtest's name selects nothing). --update
+runs every test and rewrites SECONDS_FILE from their measured times.
 
 It fails unless every shard exits 0 and every test assigned reports PASS or SKIP exactly once, so a test in no shard,
 or one the run pattern missed, fails the run. A failing shard's whole output is printed.
@@ -76,6 +78,14 @@ def main() -> int:
             for name in stale:
                 print(f"go_shards: {name} in {a.seconds_file} is no test of {a.binary}", file=sys.stderr)
             print("go_shards: rewrite it with make go-test-work UPDATE=1", file=sys.stderr)
+            return 1
+        if any(c in a.run for c in "()/"):
+            print(f"go_shards: --run {a.run!r} must be test names joined by |", file=sys.stderr)
+            return 1
+        unmatched = [name for name in a.run.split("|") if not listed(binary, a.package_dir, name)]
+        if unmatched:
+            for name in unmatched:
+                print(f"go_shards: --run name {name} matches no top-level test of {a.binary}", file=sys.stderr)
             return 1
         tests = listed(binary, a.package_dir, a.run)
     shards = assign(tests, seconds, a.shards)
