@@ -1,88 +1,89 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 504" width="900" height="504" role="img" aria-label="Statement coverage per package, Go tests and light harness combined" style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 453" width="620" height="453" role="img" aria-label="Statement coverage per package, Go tests and light harness combined" style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
 <title>Statement coverage per package, Go tests and light harness combined</title>
-<rect width="900" height="504" fill="#fcfcfb"/>
-<text x="16.0" y="22.0" font-size="14" fill="#0b0b0b" text-anchor="start" font-weight="600" >Statement coverage per package (Go tests + light harness, combined)</text>
+<rect width="620" height="453" fill="#fcfcfb"/>
+<text x="16.0" y="22.0" font-size="14" fill="#0b0b0b" text-anchor="start" font-weight="600" >Statement coverage per package: Go tests + light harness</text>
 <rect x="16.0" y="35.0" width="10.0" height="10.0" fill="#2a78d6" rx="2"></rect>
 <text x="31.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >combined</text>
-<text x="130.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >| tick: Go tests alone</text>
-<line x1="200.0" y1="52.0" x2="200.0" y2="470.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="200.0" y="486.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >0%</text>
-<line x1="310.0" y1="52.0" x2="310.0" y2="470.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="310.0" y="486.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >20%</text>
-<line x1="420.0" y1="52.0" x2="420.0" y2="470.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="420.0" y="486.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >40%</text>
-<line x1="530.0" y1="52.0" x2="530.0" y2="470.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="530.0" y="486.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >60%</text>
-<line x1="640.0" y1="52.0" x2="640.0" y2="470.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="640.0" y="486.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >80%</text>
-<line x1="750.0" y1="52.0" x2="750.0" y2="470.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="750.0" y="486.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >100%</text>
-<text x="192.0" y="68.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cli</text>
-<rect x="200.0" y="56.0" width="327.1" height="14.0" fill="#2a78d6" rx="2"><title>internal/cli: 59.5% combined, 16.0% Go alone</title></rect>
-<line x1="288.0" y1="54.0" x2="288.0" y2="72.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="68.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >59.5%  of 4,483 stmts</text>
-<text x="192.0" y="92.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >work</text>
-<rect x="200.0" y="80.0" width="466.7" height="14.0" fill="#2a78d6" rx="2"><title>internal/work: 84.9% combined, 84.2% Go alone</title></rect>
-<line x1="662.9" y1="78.0" x2="662.9" y2="96.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="92.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >84.9%  of 2,053 stmts</text>
-<text x="192.0" y="116.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >service</text>
-<rect x="200.0" y="104.0" width="449.7" height="14.0" fill="#2a78d6" rx="2"><title>internal/service: 81.8% combined, 81.3% Go alone</title></rect>
-<line x1="647.4" y1="102.0" x2="647.4" y2="120.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="116.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >81.8%  of 1,399 stmts</text>
-<text x="192.0" y="140.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >install</text>
-<rect x="200.0" y="128.0" width="369.6" height="14.0" fill="#2a78d6" rx="2"><title>internal/install: 67.2% combined, 67.0% Go alone</title></rect>
-<line x1="568.8" y1="126.0" x2="568.8" y2="144.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="140.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >67.2%  of 1,320 stmts</text>
-<text x="192.0" y="164.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >site</text>
-<rect x="200.0" y="152.0" width="511.5" height="14.0" fill="#2a78d6" rx="2"><title>internal/site: 93.0% combined, 92.5% Go alone</title></rect>
-<line x1="708.8" y1="150.0" x2="708.8" y2="168.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="164.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >93.0%  of 842 stmts</text>
-<text x="192.0" y="188.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >records</text>
-<rect x="200.0" y="176.0" width="487.1" height="14.0" fill="#2a78d6" rx="2"><title>internal/records: 88.6% combined, 83.9% Go alone</title></rect>
-<line x1="661.4" y1="174.0" x2="661.4" y2="192.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="188.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >88.6%  of 621 stmts</text>
-<text x="192.0" y="212.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >hooks</text>
-<rect x="200.0" y="200.0" width="410.9" height="14.0" fill="#2a78d6" rx="2"><title>internal/hooks: 74.7% combined, 48.5% Go alone</title></rect>
-<line x1="466.6" y1="198.0" x2="466.6" y2="216.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="212.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >74.7%  of 522 stmts</text>
-<text x="192.0" y="236.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >launch</text>
-<rect x="200.0" y="224.0" width="429.1" height="14.0" fill="#2a78d6" rx="2"><title>internal/launch: 78.0% combined, 77.0% Go alone</title></rect>
-<line x1="623.2" y1="222.0" x2="623.2" y2="240.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="236.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >78.0%  of 282 stmts</text>
-<text x="192.0" y="260.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >store</text>
-<rect x="200.0" y="248.0" width="463.4" height="14.0" fill="#2a78d6" rx="2"><title>internal/store: 84.2% combined, 72.2% Go alone</title></rect>
-<line x1="596.9" y1="246.0" x2="596.9" y2="264.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="260.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >84.2%  of 273 stmts</text>
-<text x="192.0" y="284.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >sync</text>
-<rect x="200.0" y="272.0" width="430.2" height="14.0" fill="#2a78d6" rx="2"><title>internal/sync: 78.2% combined, 78.2% Go alone</title></rect>
-<line x1="630.2" y1="270.0" x2="630.2" y2="288.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="284.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >78.2%  of 225 stmts</text>
-<text x="192.0" y="308.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >pyjson</text>
-<rect x="200.0" y="296.0" width="390.0" height="14.0" fill="#2a78d6" rx="2"><title>internal/pyjson: 70.9% combined, 66.8% Go alone</title></rect>
-<line x1="567.5" y1="294.0" x2="567.5" y2="312.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="308.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >70.9%  of 220 stmts</text>
-<text x="192.0" y="332.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >config</text>
-<rect x="200.0" y="320.0" width="385.0" height="14.0" fill="#2a78d6" rx="2"><title>internal/config: 70.0% combined, 64.4% Go alone</title></rect>
-<line x1="554.4" y1="318.0" x2="554.4" y2="336.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="332.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >70.0%  of 90 stmts</text>
-<text x="192.0" y="356.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >proc</text>
-<rect x="200.0" y="344.0" width="426.5" height="14.0" fill="#2a78d6" rx="2"><title>internal/proc: 77.6% combined, 77.6% Go alone</title></rect>
-<line x1="626.5" y1="342.0" x2="626.5" y2="360.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="356.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >77.6%  of 49 stmts</text>
-<text x="192.0" y="380.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >work/worktest</text>
-<rect x="200.0" y="368.0" width="171.1" height="14.0" fill="#2a78d6" rx="2"><title>internal/work/worktest: 31.1% combined, 31.1% Go alone</title></rect>
-<line x1="371.1" y1="366.0" x2="371.1" y2="384.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="380.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >31.1%  of 45 stmts</text>
-<text x="192.0" y="404.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >tests/render-pages</text>
-<rect x="200.0" y="392.0" width="0.0" height="14.0" fill="#2a78d6" rx="2"><title>tests/render-pages: 0.0% combined, 0.0% Go alone</title></rect>
-<line x1="200.0" y1="390.0" x2="200.0" y2="408.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="404.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >0.0%  of 31 stmts</text>
-<text x="192.0" y="428.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cmd/pm</text>
-<rect x="200.0" y="416.0" width="550.0" height="14.0" fill="#2a78d6" rx="2"><title>cmd/pm: 100.0% combined, 0.0% Go alone</title></rect>
-<line x1="200.0" y1="414.0" x2="200.0" y2="432.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="428.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >100.0%  of 9 stmts</text>
-<text x="192.0" y="452.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >(root) pm</text>
-<rect x="200.0" y="440.0" width="550.0" height="14.0" fill="#2a78d6" rx="2"><title>(root) pm: 100.0% combined, 100.0% Go alone</title></rect>
-<line x1="750.0" y1="438.0" x2="750.0" y2="456.0" stroke="#0b0b0b" stroke-width="2" />
-<text x="758.0" y="452.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >100.0%  of 1 stmts</text>
+<line x1="110.0" y1="34.0" x2="110.0" y2="46.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="117.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >Go tests alone</text>
+<line x1="130.0" y1="52.0" x2="130.0" y2="419.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="130.0" y="435.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >0%</text>
+<line x1="203.0" y1="52.0" x2="203.0" y2="419.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="203.0" y="435.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >20%</text>
+<line x1="276.0" y1="52.0" x2="276.0" y2="419.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="276.0" y="435.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >40%</text>
+<line x1="349.0" y1="52.0" x2="349.0" y2="419.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="349.0" y="435.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >60%</text>
+<line x1="422.0" y1="52.0" x2="422.0" y2="419.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="422.0" y="435.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >80%</text>
+<line x1="495.0" y1="52.0" x2="495.0" y2="419.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="495.0" y="435.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >100%</text>
+<text x="122.0" y="67.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cli</text>
+<rect x="130.0" y="56.0" width="217.1" height="13.0" fill="#2a78d6" rx="2"><title>internal/cli: 59.5% combined, 16.0% Go alone</title></rect>
+<line x1="188.4" y1="54.0" x2="188.4" y2="71.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="67.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >59.5%  of 4,483 stmts</text>
+<text x="122.0" y="88.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >work</text>
+<rect x="130.0" y="77.0" width="309.7" height="13.0" fill="#2a78d6" rx="2"><title>internal/work: 84.9% combined, 84.2% Go alone</title></rect>
+<line x1="437.2" y1="75.0" x2="437.2" y2="92.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="88.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >84.9%  of 2,053 stmts</text>
+<text x="122.0" y="109.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >service</text>
+<rect x="130.0" y="98.0" width="298.5" height="13.0" fill="#2a78d6" rx="2"><title>internal/service: 81.8% combined, 81.3% Go alone</title></rect>
+<line x1="426.9" y1="96.0" x2="426.9" y2="113.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="109.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >81.8%  of 1,399 stmts</text>
+<text x="122.0" y="130.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >install</text>
+<rect x="130.0" y="119.0" width="245.3" height="13.0" fill="#2a78d6" rx="2"><title>internal/install: 67.2% combined, 67.0% Go alone</title></rect>
+<line x1="374.7" y1="117.0" x2="374.7" y2="134.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="130.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >67.2%  of 1,320 stmts</text>
+<text x="122.0" y="151.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >site</text>
+<rect x="130.0" y="140.0" width="339.4" height="13.0" fill="#2a78d6" rx="2"><title>internal/site: 93.0% combined, 92.5% Go alone</title></rect>
+<line x1="467.7" y1="138.0" x2="467.7" y2="155.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="151.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >93.0%  of 842 stmts</text>
+<text x="122.0" y="172.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >records</text>
+<rect x="130.0" y="161.0" width="323.3" height="13.0" fill="#2a78d6" rx="2"><title>internal/records: 88.6% combined, 83.9% Go alone</title></rect>
+<line x1="436.2" y1="159.0" x2="436.2" y2="176.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="172.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >88.6%  of 621 stmts</text>
+<text x="122.0" y="193.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >hooks</text>
+<rect x="130.0" y="182.0" width="272.7" height="13.0" fill="#2a78d6" rx="2"><title>internal/hooks: 74.7% combined, 48.5% Go alone</title></rect>
+<line x1="306.9" y1="180.0" x2="306.9" y2="197.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="193.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >74.7%  of 522 stmts</text>
+<text x="122.0" y="214.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >launch</text>
+<rect x="130.0" y="203.0" width="284.8" height="13.0" fill="#2a78d6" rx="2"><title>internal/launch: 78.0% combined, 77.0% Go alone</title></rect>
+<line x1="410.9" y1="201.0" x2="410.9" y2="218.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="214.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >78.0%  of 282 stmts</text>
+<text x="122.0" y="235.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >store</text>
+<rect x="130.0" y="224.0" width="307.5" height="13.0" fill="#2a78d6" rx="2"><title>internal/store: 84.2% combined, 72.2% Go alone</title></rect>
+<line x1="393.4" y1="222.0" x2="393.4" y2="239.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="235.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >84.2%  of 273 stmts</text>
+<text x="122.0" y="256.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >sync</text>
+<rect x="130.0" y="245.0" width="285.5" height="13.0" fill="#2a78d6" rx="2"><title>internal/sync: 78.2% combined, 78.2% Go alone</title></rect>
+<line x1="415.5" y1="243.0" x2="415.5" y2="260.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="256.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >78.2%  of 225 stmts</text>
+<text x="122.0" y="277.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >pyjson</text>
+<rect x="130.0" y="266.0" width="258.8" height="13.0" fill="#2a78d6" rx="2"><title>internal/pyjson: 70.9% combined, 66.8% Go alone</title></rect>
+<line x1="373.9" y1="264.0" x2="373.9" y2="281.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="277.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >70.9%  of 220 stmts</text>
+<text x="122.0" y="298.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >config</text>
+<rect x="130.0" y="287.0" width="255.5" height="13.0" fill="#2a78d6" rx="2"><title>internal/config: 70.0% combined, 64.4% Go alone</title></rect>
+<line x1="365.2" y1="285.0" x2="365.2" y2="302.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="298.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >70.0%  of 90 stmts</text>
+<text x="122.0" y="319.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >proc</text>
+<rect x="130.0" y="308.0" width="283.1" height="13.0" fill="#2a78d6" rx="2"><title>internal/proc: 77.6% combined, 77.6% Go alone</title></rect>
+<line x1="413.1" y1="306.0" x2="413.1" y2="323.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="319.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >77.6%  of 49 stmts</text>
+<text x="122.0" y="340.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >work/worktest</text>
+<rect x="130.0" y="329.0" width="113.6" height="13.0" fill="#2a78d6" rx="2"><title>internal/work/worktest: 31.1% combined, 31.1% Go alone</title></rect>
+<line x1="243.6" y1="327.0" x2="243.6" y2="344.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="340.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >31.1%  of 45 stmts</text>
+<text x="122.0" y="361.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >tests/render-pages</text>
+<rect x="130.0" y="350.0" width="0.0" height="13.0" fill="#2a78d6" rx="2"><title>tests/render-pages: 0.0% combined, 0.0% Go alone</title></rect>
+<line x1="130.0" y1="348.0" x2="130.0" y2="365.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="361.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >0.0%  of 31 stmts</text>
+<text x="122.0" y="382.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cmd/pm</text>
+<rect x="130.0" y="371.0" width="365.0" height="13.0" fill="#2a78d6" rx="2"><title>cmd/pm: 100.0% combined, 0.0% Go alone</title></rect>
+<line x1="130.0" y1="369.0" x2="130.0" y2="386.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="382.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >100.0%  of 9 stmts</text>
+<text x="122.0" y="403.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >(root) pm</text>
+<rect x="130.0" y="392.0" width="365.0" height="13.0" fill="#2a78d6" rx="2"><title>(root) pm: 100.0% combined, 100.0% Go alone</title></rect>
+<line x1="495.0" y1="390.0" x2="495.0" y2="407.0" stroke="#0b0b0b" stroke-width="2" />
+<text x="503.0" y="403.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >100.0%  of 1 stmts</text>
 </svg>

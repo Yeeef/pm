@@ -695,6 +695,7 @@ def measure(repo, data, steps):
 SURFACE, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
 BLUE, ORANGE, AQUA, YELLOW = "#2a78d6", "#eb6834", "#1baf7a", "#eda100"
 FONT = "font-family:system-ui,-apple-system,'Segoe UI',sans-serif"
+W = 620  # the site shows an image in a paragraph at most 68ch (about 612 px) wide: draw at that width, unscaled
 
 
 class Svg:
@@ -764,15 +765,15 @@ def short_pkg(p):
 def fig_size(d, path):
     pk = sorted(d["packages"].items(), key=lambda kv: -(kv[1]["code"] + kv[1]["test"]))
     rows = [(short_pkg(k), v["code"], v["test"]) for k, v in pk]
-    rows.append(("Python harness (tests/)", 0, d["harness"]["code"]))
-    rows.append(("Python tools (release/, .github/scripts/)", d["tools"]["code"], 0))
-    left, top, bar, gap, w = 270, 56, 16, 8, 900
+    rows.append(("Python harness", 0, d["harness"]["code"]))
+    rows.append(("Python tools", d["tools"]["code"], 0))
+    left, top, bar, gap, w = 150, 56, 14, 7, W
     h = top + len(rows) * (bar + gap) + 40
     s = Svg(w, h, "Code lines per package, non-test and test")
     s.text(16, 22, "Code lines per package: non-test and test", 14, INK, weight=600)
     s.legend(16, 44, [("non-test", BLUE), ("test", ORANGE)])
     mx, tk = scale(max(a + b for _, a, b in rows), 5)
-    plot = w - left - 70
+    plot = w - left - 56
     sx = lambda v: left + v / mx * plot  # noqa: E731
     for t in tk:
         s.line(sx(t), top - 4, sx(t), h - 34, GRID)
@@ -804,12 +805,13 @@ def bin_label(lo, hi):
 def fig_complexity(c, path):
     funcs = c["funcs"]
     panels = [("gocyclo (cyclomatic)", "gocyclo", 30), ("gocognit (cognitive)", "gocognit", 40)]
-    w, h, pw = 900, 300, 400
+    w, pw, ph = W, W - 56, 130
+    h = 70 + 2 * (ph + 70)
     s = Svg(w, h, "gocyclo and gocognit distributions over all Go functions")
     s.text(16, 22, f"Complexity per function, {len(funcs):,} Go functions (tests included)", 14, INK, weight=600)
     s.legend(16, 44, [("at or under the lint threshold", BLUE), ("over it (ratcheted)", ORANGE)])
     for pi, (title, key, thr) in enumerate(panels):
-        x0, y0, ph = 40 + pi * (pw + 60), 78, 160
+        x0, y0 = 40, 86 + pi * (ph + 70)
         bins = bins_of(key)
         counts = [sum(1 for f in funcs if lo <= f.get(key, 0) <= hi) for lo, hi in bins]
         mx, tk = scale(max(counts), 4)
@@ -832,13 +834,14 @@ def fig_complexity(c, path):
 
 def fig_coverage(cov, path):
     pk = sorted(((k, v) for k, v in cov["packages"].items() if v["stmts"]), key=lambda kv: -kv[1]["stmts"])
-    left, top, bar, gap, w = 200, 56, 14, 10, 900
+    left, top, bar, gap, w = 130, 56, 13, 8, W
     h = top + len(pk) * (bar + gap) + 40
     s = Svg(w, h, "Statement coverage per package, Go tests and light harness combined")
-    s.text(16, 22, "Statement coverage per package (Go tests + light harness, combined)", 14, INK, weight=600)
+    s.text(16, 22, "Statement coverage per package: Go tests + light harness", 14, INK, weight=600)
     s.legend(16, 44, [("combined", BLUE)])
-    s.text(130, 44, "| tick: Go tests alone", 12, INK2)
-    plot = w - left - 150
+    s.line(110, 34, 110, 46, INK, 2)
+    s.text(117, 44, "Go tests alone", 12, INK2)
+    plot = w - left - 125
     sx = lambda v: left + v / 100 * plot  # noqa: E731
     for t in range(0, 101, 20):
         s.line(sx(t), top - 4, sx(t), h - 34, GRID)
@@ -855,15 +858,14 @@ def fig_coverage(cov, path):
 
 def fig_ci(ci, path, marks=(48, 43, 44, 53)):
     prs = sorted((p for p in ci["prs"] if p["wall"] is not None), key=lambda p: p["merged"])
-    w, h, left, top, right = 900, 340, 56, 64, 20
+    w, h, left, top, right = W, 330, 40, 64, 10
     pw, ph = w - left - right, h - top - 76
     sx = lambda i: left + 12 + i / (len(prs) - 1) * (pw - 24)  # noqa: E731
     slow = [max(j["run"] for j in p["jobs"]) / 60 for p in prs]
     mx, tk = scale(max(p["wall"] / 60 for p in prs), 4)
     sy = lambda v: top + ph - v / mx * ph  # noqa: E731
     s = Svg(w, h, "CI wall time per PR, first attempt on the merged head")
-    s.text(16, 22, f"CI per PR, minutes: the last {len(prs)} merged PRs in merge order (first attempt on the merged head)",
-           14, INK, weight=600)
+    s.text(16, 22, f"CI per PR, minutes: the last {len(prs)} merged PRs, in merge order", 14, INK, weight=600)
     s.legend(16, 46, [("wall: push to last check", BLUE), ("slowest job's run time", ORANGE)])
     for t in tk:
         s.line(left, sy(t), left + pw, sy(t), GRID)
@@ -873,19 +875,20 @@ def fig_ci(ci, path, marks=(48, 43, 44, 53)):
             s.line(sx(i), top - 6, sx(i), top + ph, MUTED, 1, 'stroke-dasharray="3 3"')
     day = None
     for i, p in enumerate(prs):
-        s.text(sx(i), top + ph + 14, f"#{p['number']}", 9, INK if p["number"] in marks else MUTED, "middle",
+        s.text(sx(i), top + ph + 14, p["number"], 9, INK if p["number"] in marks else MUTED, "middle",
                600 if p["number"] in marks else 400)
         if p["merged"][:10] != day:
             day = p["merged"][:10]
             s.line(sx(i) - 6, top + ph, sx(i) - 6, top + ph + 34, AXIS)
-            s.text(sx(i) - 2, top + ph + 32, f"merged {day[5:]}", 10, MUTED)
+            s.text(sx(i) - 2, top + ph + 32, day[5:], 10, MUTED)
     for series, color, vals in (("wall", BLUE, [p["wall"] / 60 for p in prs]), ("slowest job", ORANGE, slow)):
         pts = [(sx(i), sy(v)) for i, v in enumerate(vals)]
         s.path(pts, color, 2)
         for p, (x, y), v in zip(prs, pts, vals):
             s.dot(x, y, color, 3.5, f"#{p['number']} {series}: {v:.1f} min")
     s.line(left, top + ph, left + pw, top + ph, AXIS)
-    s.text(left + pw, h - 8, "dashed: the merges of #48, #43, #44 and #53", 11, MUTED, "end")
+    s.text(left + pw, h - 8, "x: PR number, then merge date (UTC); dashed: the merges of #48, #43, #44, #53", 11,
+           MUTED, "end")
     s.save(path)
 
 
@@ -896,15 +899,15 @@ def fig_trend(tr, path):
               ("Go top-level tests", [("go_tests", "tests", BLUE)]),
               ("Functions with gocyclo > 30", [("gocyclo30", "functions", BLUE)]),
               ("staticcheck findings", [("staticcheck", "findings", BLUE)])]
-    cols, pw, ph = 2, 400, 150
-    w = 70 + cols * (pw + 60)
-    h = 70 + 3 * (ph + 80)
+    cols, pw, ph = 2, 245, 120
+    w = W
+    h = 80 + 3 * (ph + 82)
     s = Svg(w, h, "Metrics at each pm-quality sprint merge")
-    s.text(16, 22, "At each pm-quality sprint PR's merge commit (x: sprint, PR)", 14, INK, weight=600)
+    s.text(16, 22, "At each pm-quality sprint PR's merge commit (x: sprint, then PR)", 14, INK, weight=600)
     s.legend(16, 44, [("Go", BLUE), ("Python harness", ORANGE)])
-    labels = [f"s{r['sprint']}" if r["sprint"] else "main" for r in rows]
+    labels = [str(r["sprint"]) if r["sprint"] else "main" for r in rows]
     for pi, (title, series) in enumerate(panels):
-        x0, y0 = 50 + (pi % cols) * (pw + 60), 90 + (pi // cols) * (ph + 80)
+        x0, y0 = 50 + (pi % cols) * (pw + 50), 92 + (pi // cols) * (ph + 82)
         s.text(x0, y0 - 12, title, 12, INK, weight=600)
         mx, tk = scale(max(r[k] for k, _, _ in series for r in rows) or 1, 3)
         sx = lambda i: x0 + 10 + i / (len(rows) - 1) * (pw - 20)  # noqa: E731
