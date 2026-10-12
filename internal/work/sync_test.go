@@ -239,8 +239,9 @@ func (x *pair) resetB(t *testing.T) {
 
 // The 2-clone test of the sprint's Done when: concurrent edits on both clones merge per the table, and child mints on
 // both clones get distinct ids. Each clone mints first (a create pulls and pushes at once), then edits offline; A
-// syncs, and B's sync merges A's edits into its own. The other merge rules that need two clones run after it on the
-// same pair, each case on items of its own (reseed).
+// syncs, and B's sync merges A's edits into its own. The other merge rules that need two clones are the
+// TestSyncTwoClones tests below: each starts a pair of its own, so the shards of go-test-work run them at once, and runs
+// its cases on that pair, each case on items of its own (reseed).
 func TestSyncTwoClonesConcurrentEditsMergePerTheTable(t *testing.T) {
 	x := newPair(t)
 	var ca, cb Item
@@ -293,6 +294,11 @@ func TestSyncTwoClonesConcurrentEditsMergePerTheTable(t *testing.T) {
 	if find(items, ca.ID).Title != "child from A" || find(items, cb.ID).Title != "child from B" {
 		t.Errorf("children %s %s", ca.ID, cb.ID)
 	}
+}
+
+// The merge-table rows for list fields: comments, labels and blockers merge per entry.
+func TestSyncTwoClonesMergeListFieldsPerEntry(t *testing.T) {
+	x := newPair(t)
 
 	t.Run("MergeCommentsUnionByID", func(t *testing.T) {
 		x := x.reseed(t)
@@ -341,6 +347,11 @@ func TestSyncTwoClonesConcurrentEditsMergePerTheTable(t *testing.T) {
 			t.Errorf("blocked_by after a removal %v", b)
 		}
 	})
+}
+
+// Close beats claim on a clean merge, and a create whose push the other clone keeps rejecting gives up.
+func TestSyncTwoClonesCloseBeatsClaimAndACreateGivesUp(t *testing.T) {
+	x := newPair(t)
 
 	// Close beats claim where Dolt merged cleanly: A closes the task while B claims it from no holder, both in the same
 	// second, so no cell conflicts; the merged item is closed with no holder.
@@ -394,6 +405,10 @@ func TestSyncTwoClonesConcurrentEditsMergePerTheTable(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestSyncTwoClonesMoveSprintKeepsTheOtherClonesWrites(t *testing.T) {
+	x := newPair(t)
 
 	// A sprint moved on one clone while the other writes under it (the work-store page, Moving a sprint, Another clone):
 	// B claims a task, edits the sprint and comments on it offline, then moves the sprint to Q through the
@@ -509,11 +524,11 @@ func (x *pair) openA(t *testing.T) *Dolt {
 }
 
 // A push that times out: the remote at the new commit means it landed; elsewhere, retry; a failing fetch drops pm-cas
-// and fails with the outcome unknown, main untouched. The other cases of the compare-and-swap, the remote and the
-// merges that fail hard run on the same pair: first the two that count the pair's items, then each on items of its own
-// (reseed); the cases that leave B a merge that fails reset B after them, and the one that pushes a broken remote head
-// runs last. The case with a store of its own runs before the pair starts: Dolt panics in a host still running when
-// another host of the process closes ("attempt to reference a closed spoolingTableReaderAt").
+// and fails with the outcome unknown, main untouched. The other cases of the compare-and-swap and the remote run on the
+// same pair: first the two that count the pair's items, then each on items of its own (reseed). The merges that fail
+// hard are the TestSyncFailsHard tests below, each on a pair of its own, so the shards of go-test-work run them at once.
+// The case with a store of its own runs before the pair starts: Dolt panics in a host still running when another host
+// of the process closes ("attempt to reference a closed spoolingTableReaderAt").
 func TestCreatePushTimeout(t *testing.T) {
 	t.Run("DoltRemoteURL", func(t *testing.T) {
 		for in, want := range map[string]string{
@@ -706,7 +721,6 @@ func TestCreatePushTimeout(t *testing.T) {
 		t.Setenv("GIT_TRACE2_EVENT", trace)
 		x := x.reseed(t) // A pushes, B pulls (a fetch into B's cache repo)
 		x.b.do(func(d *Dolt) { must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T3"})) })
-		x.b.synced = time.Now() // the create read the remote: the next case's reseed fetch into B waits out the read dedup
 		b, err := os.ReadFile(trace)
 		if err != nil {
 			t.Fatal(err)
@@ -744,8 +758,13 @@ func TestCreatePushTimeout(t *testing.T) {
 			t.Fatalf("%d of %d auto maintenances the host's fetches started were detached", detached, started)
 		}
 		t.Logf("%d auto maintenances started by a fetch, none detached", started)
-		x.a.sync() // B's create pushed: A takes it, so the next case's reseed pushes from the remote's head
 	})
+}
+
+// A merge with the same new id on both sides, or with a blocked_by cycle across the clones, fails hard; each case
+// leaves B a merge that fails and resets B after it.
+func TestSyncFailsHardOnAddAddAndACycle(t *testing.T) {
+	x := newPair(t)
 
 	// The same new id on both sides: two clones that mint a child without the compare-and-swap (as two stores with no
 	// remote would) fail the merge hard.
@@ -770,6 +789,12 @@ func TestCreatePushTimeout(t *testing.T) {
 		failedSync(t, x.b, "blocked_by cycle")
 		x.resetB(t)
 	})
+}
+
+// A conflict no merge rule settles fails hard and resets B after it; then a pull onto a remote head that fails pm's
+// checks, which leaves the remote broken, so it runs last.
+func TestSyncFailsHardOnAnUnsettledConflictAndABrokenRemoteHead(t *testing.T) {
+	x := newPair(t)
 
 	t.Run("MergeAConflictNoRuleSettlesFailsHard", func(t *testing.T) {
 		x := x.reseed(t)
