@@ -41,6 +41,11 @@ Every pm-codex sprint brings the existing design page of each area it changes to
 Owner, in chat 2026-10-12: sprint 1 left reply-delivery.md and the other area pages describing the old design, with Codex as a non-goal; the design lived only on the new pm-in-codex page.
 :::
 
+::: decision {source=owner date=2026-10-12}
+Gap 4 is not accepted: an idle Codex session waiting on the owner must be woken by the reply without the user typing, by whatever mechanism Codex supports, not necessarily the Claude Code push. This replaces gap 4 in the decision that left three gaps open; gaps 5 and 9 stay left.
+Owner, in chat 2026-10-12: a reply that waits for the next prompt is not delivery for a session waiting on the owner; look for other ways if the Claude Code mechanism does not carry over to Codex.
+:::
+
 ## Design pages
 
 > Where is the detail?
