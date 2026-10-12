@@ -123,7 +123,8 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | `internal/config` | `.pm/config.toml` read, pin check, `PORT` |
 | `internal/launch` | Pins, downloading release binaries, `exec`; a pin below 0.2.0 refused |
 | `internal/work` | The `Item` type and the store interface; Dolt schema and migrations, validation, ids and minting, ready and blocked, merge rules on conflict rows, the host (the engine and its socket server) and the client (one connection per command), `--import-bd`, `export` |
-| `internal/records` | Record parse, sections, blocks, templates, checks |
+| `internal/records` | Record parse, sections, blocks, templates, checks; a design page's `covers:` and its doublestar matcher |
+| `internal/design` | The design pages' hold on the code they cover: `pm check`'s covers and coverage checks, and the gate `pm action need --pr` and `pm sprint close` run on a PR's changed files, with the waiver form `pm design unchanged` writes |
 | `internal/store` | The `records` store: find it, flock, atomic multi-file writes, commit |
 | `internal/site` | Page templates, the Markdown renderer, `style.css` (embedded) |
 | `internal/service` | `service run` (the work store held open and served on its socket, the operations commands ask for, HTTP, snapshot, reply spool, merge poll, inbox push, sync and gc loops), unit files |
@@ -131,7 +132,7 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | `internal/hooks` | `prime` (`prime.md` from `assets.go`, chunks), `hook stop`, `hook owner-request`, `hook inbox`, git hooks |
 | `internal/session` | Which agent session runs pm (Claude Code's id, or Codex's root session's) and its runtime, from the environment and the process ancestry; liveness from Claude Code transcripts and Codex rollouts; the sessions that used a worktree, for `pm clean` |
 | `internal/install` | Managed pieces, `init`, `doctor`, `upgrade`, `uninstall`, `where` |
-| `internal/proc` | The subprocess helper: argv, cwd, captured text output, timeout |
+| `internal/proc` | The subprocess helper: argv, cwd, captured text output, timeout; `gh` runs, its JSON decoded |
 | `internal/pyjson` | JSON read and written with Python `json`'s default separators |
 | `internal/buildinfo` | The version, stamped by the release build |
 
