@@ -73,6 +73,11 @@ The design page decision-need-layout stays as it is for this sprint's code chang
 The need-text helpers moved from internal/cli/needs.go to internal/records/text.go unchanged; the layout and its refusals are the same.
 :::
 
+::: decision {source=agent date=2026-10-12}
+The design page pm-versioning stays as it is for this sprint's code changes.
+config.go gains the optional design_sources key; the pin, the launcher and the version check are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
