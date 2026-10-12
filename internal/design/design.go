@@ -19,11 +19,11 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 )
 
-// Tracked is the files git tracks in each dir (git ls-files), as slash paths relative to its top.
+// Tracked is the files git tracks in the worktree of each dir (git ls-files), as slash paths relative to its top.
 func Tracked(dirs ...string) (map[string]bool, error) {
 	out := map[string]bool{}
 	for _, d := range dirs {
-		list, err := store.Git(d, "ls-files", "--full-name")
+		list, err := store.Git(d, "ls-files", "--full-name", "--", ":/")
 		if err != nil {
 			return nil, err
 		}
