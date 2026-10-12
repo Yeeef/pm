@@ -651,10 +651,12 @@ def trend_of(repo, data):
             t0 = time.time()
             s = size_of(wt)
             issues = lint_json(wt, TREND_CONFIG, env=dict(GOMAXPROCS=gomax))
-            by = collections.Counter(i["FromLinter"] for i in issues)
+            by = collections.Counter(i["FromLinter"] + ("_test" if i["Pos"]["Filename"].endswith("_test.go") else "")
+                                     for i in issues)
             return dict(c, code=sum(p["code"] for p in s["packages"].values()),
                         test=sum(p["test"] for p in s["packages"].values()), harness=s["harness"]["code"],
-                        go_tests=s["go_tests"]["top_level"], gocyclo30=by["gocyclo"], staticcheck=by["staticcheck"],
+                        go_tests=s["go_tests"]["top_level"], gocyclo30=by["gocyclo"], gocyclo30_test=by["gocyclo_test"],
+                        staticcheck=by["staticcheck"] + by["staticcheck_test"],
                         seconds=round(time.time() - t0))
         finally:
             run(["git", "worktree", "remove", "--force", str(wt)], cwd=repo, check=False)
@@ -895,20 +897,22 @@ def fig_ci(ci, path, marks=(48, 43, 44, 53)):
 def fig_trend(tr, path):
     rows = tr["commits"]
     panels = [("Non-test Go code lines", [("code", "Go non-test", BLUE)]),
-              ("Test code lines", [("test", "Go tests", BLUE), ("harness", "Python harness", ORANGE)]),
+              ("Test code lines", [("test", "Go", BLUE), ("harness", "Python harness", AQUA)]),
               ("Go top-level tests", [("go_tests", "tests", BLUE)]),
-              ("Functions with gocyclo > 30", [("gocyclo30", "functions", BLUE)]),
+              ("Functions with gocyclo > 30", [("gocyclo30", "non-test", BLUE), ("gocyclo30_test", "_test.go", ORANGE)]),
               ("staticcheck findings", [("staticcheck", "findings", BLUE)])]
     cols, pw, ph = 2, 245, 120
     w = W
     h = 80 + 3 * (ph + 82)
     s = Svg(w, h, "Metrics at each pm-quality sprint merge")
     s.text(16, 22, "At each pm-quality sprint PR's merge commit (x: sprint, then PR)", 14, INK, weight=600)
-    s.legend(16, 44, [("Go", BLUE), ("Python harness", ORANGE)])
+    s.text(16, 44, "Go lines and tests counted per file; gocyclo and staticcheck with this commit's settings", 11, MUTED)
     labels = [str(r["sprint"]) if r["sprint"] else "main" for r in rows]
     for pi, (title, series) in enumerate(panels):
         x0, y0 = 50 + (pi % cols) * (pw + 50), 92 + (pi // cols) * (ph + 82)
-        s.text(x0, y0 - 12, title, 12, INK, weight=600)
+        s.text(x0, y0 - (28 if len(series) > 1 else 12), title, 12, INK, weight=600)
+        if len(series) > 1:
+            s.legend(x0, y0 - 10, [(name, color) for _, name, color in series])
         mx, tk = scale(max(r[k] for k, _, _ in series for r in rows) or 1, 3)
         sx = lambda i: x0 + 10 + i / (len(rows) - 1) * (pw - 20)  # noqa: E731
         sy = lambda v: y0 + ph - v / mx * ph  # noqa: E731
@@ -1046,9 +1050,11 @@ def draw(data, figdir):
     if tr:
         fig_trend(tr, figdir / "pm-quality-metrics-trend.svg")
         out += ["## trend", md_table(["sprint", "PR", "commit", "merged", "non-test lines", "Go test lines",
-                                      "harness lines", "Go tests", "gocyclo > 30", "staticcheck"],
+                                      "harness lines", "Go tests", "gocyclo > 30, non-test", "gocyclo > 30, test",
+                                      "staticcheck"],
                 [(r["sprint"] or "-", f"#{r['pr']}", r["sha"][:7], r["date"][:10], f"{r['code']:,}",
-                  f"{r['test']:,}", f"{r['harness']:,}", r["go_tests"], r["gocyclo30"], r["staticcheck"])
+                  f"{r['test']:,}", f"{r['harness']:,}", r["go_tests"], r["gocyclo30"], r["gocyclo30_test"],
+                  r["staticcheck"])
                  for r in tr["commits"]])]
     print("\n\n".join(out))
 

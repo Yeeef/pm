@@ -121,47 +121,52 @@ Six of the ten are tests; the four non-test ones are also over a complexity thre
 
 The median function is simple (3 on both scales); the tail is long: 110 functions have gocyclo > 15, and 33 have gocognit > 40. The linters score the 1,275 declared functions and 6 package-level `var X = func…` values (test seams), hence 1,018 non-test against the 1,012 declared in section 1.
 
-::: result {title="The 35 functions over a lint threshold (gocyclo > 30 or gocognit > 40), by gocognit"}
+::: result {title="Non-test: the 21 functions over a lint threshold (gocyclo > 30 or gocognit > 40), by gocognit"}
 | Function | File:line | gocyclo | gocognit |
 |---|---|---|---|
-| `results` | `internal/install/golden_test.go:191` | 36 | 130 |
-| `TestCreatePushTimeout` | `internal/work/sync_test.go:517` | 59 | 109 |
-| `TestClaimIsACompareAndSet` | `internal/work/dolt_test.go:86` | 91 | 105 |
 | `(*command).parse` | `internal/cli/cli.go:131` | 65 | 104 |
 | `(*repo).dayActivity` | `internal/cli/day.go:152` | 36 | 97 |
 | `fromIssue` | `internal/work/importbd.go:225` | 81 | 89 |
 | `cmdUninstall` | `internal/cli/install.go:680` | 55 | 86 |
 | `showDataOf` | `internal/cli/show.go:236` | 35 | 81 |
-| `TestCheckRefusesEachImpossibleState` | `internal/work/check_test.go:14` | 41 | 81 |
 | `RenderIndex` | `internal/site/site.go:980` | 36 | 72 |
 | `showProjectText` | `internal/cli/show.go:556` | 26 | 70 |
-| `TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall` | `internal/service/lifecycle_test.go:248` | 38 | 68 |
 | `cmdSprintClose` | `internal/cli/writes.go:584` | 47 | 65 |
-| `TestCommentsKeepTheirOrderWithinASecond` | `internal/work/dolt_test.go:322` | 45 | 65 |
-| `TestSyncTwoClonesConcurrentEditsMergePerTheTable` | `internal/work/sync_test.go:244` | 52 | 65 |
 | `liveUses` | `internal/cli/clean.go:315` | 32 | 62 |
-| `TestHeaderValuesTypeAsPyyamlDoes` | `internal/records/records_test.go:41` | 29 | 60 |
-| `TestLoadNeverPassesARecordSetMissingAFileGitRewrote` | `internal/cli/serve_test.go:113` | 30 | 53 |
 | `LegacyRepo` | `internal/install/legacy.go:71` | 26 | 53 |
-| `TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt` | `internal/work/access_test.go:19` | 26 | 53 |
 | `cmdInit` | `internal/cli/install.go:224` | 33 | 51 |
 | `initSteps` | `internal/cli/install.go:343` | 30 | 50 |
-| `TestMergeOtherScalarsTheLaterUpdatedAt` | `internal/work/merge_test.go:49` | 47 | 50 |
-| `TestAWriteRacingOneOutsideTheLockFailsHard` | `internal/work/concurrent_test.go:25` | 22 | 49 |
 | `plan` | `internal/install/pieces.go:798` | 26 | 48 |
-| `TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne` | `internal/launch/launch_test.go:182` | 31 | 48 |
 | `RenderRecord` | `internal/site/site.go:806` | 31 | 47 |
 | `checkItem` | `internal/work/check.go:52` | 35 | 46 |
 | `mergeItem` | `internal/work/merge.go:97` | 44 | 46 |
 | `cmdCommit` | `internal/cli/writes.go:1492` | 36 | 45 |
 | `resolveConflicts` | `internal/work/sync.go:391` | 31 | 45 |
-| `TestAnOperationOutlastingItsBoundFreesTheSlotAndAWaiterGivesUp` | `internal/work/opslot_test.go:39` | 24 | 43 |
 | `cmdSprintOpen` | `internal/cli/writes.go:423` | 32 | 41 |
 | `SetupClone` | `internal/install/clone.go:446` | 32 | 39 |
 | `dispatch` | `internal/cli/cli.go:494` | 37 | 31 |
 :::
 
-14 of the 35 are tests; 12 of the 21 non-test ones are in `internal/cli`.
+::: result {title="Tests: the 14 `_test.go` functions over a lint threshold, by gocognit"}
+| Function | File:line | gocyclo | gocognit |
+|---|---|---|---|
+| `results` | `internal/install/golden_test.go:191` | 36 | 130 |
+| `TestCreatePushTimeout` | `internal/work/sync_test.go:517` | 59 | 109 |
+| `TestClaimIsACompareAndSet` | `internal/work/dolt_test.go:86` | 91 | 105 |
+| `TestCheckRefusesEachImpossibleState` | `internal/work/check_test.go:14` | 41 | 81 |
+| `TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall` | `internal/service/lifecycle_test.go:248` | 38 | 68 |
+| `TestCommentsKeepTheirOrderWithinASecond` | `internal/work/dolt_test.go:322` | 45 | 65 |
+| `TestSyncTwoClonesConcurrentEditsMergePerTheTable` | `internal/work/sync_test.go:244` | 52 | 65 |
+| `TestHeaderValuesTypeAsPyyamlDoes` | `internal/records/records_test.go:41` | 29 | 60 |
+| `TestLoadNeverPassesARecordSetMissingAFileGitRewrote` | `internal/cli/serve_test.go:113` | 30 | 53 |
+| `TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt` | `internal/work/access_test.go:19` | 26 | 53 |
+| `TestMergeOtherScalarsTheLaterUpdatedAt` | `internal/work/merge_test.go:49` | 47 | 50 |
+| `TestAWriteRacingOneOutsideTheLockFailsHard` | `internal/work/concurrent_test.go:25` | 22 | 49 |
+| `TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne` | `internal/launch/launch_test.go:182` | 31 | 48 |
+| `TestAnOperationOutlastingItsBoundFreesTheSlotAndAWaiterGivesUp` | `internal/work/opslot_test.go:39` | 24 | 43 |
+:::
+
+Of the 35, 21 are non-test (17 over gocyclo 30, 19 over gocognit 40; 12 of them in `internal/cli`) and 14 are tests (9 over gocyclo 30, all 14 over gocognit 40); 6 of the 9 over gocyclo 30 arrived with sprint 20's folds (#48, section 6).
 
 ::: result {title="funlen findings (lines > 100 or statements > 60, comments ignored)"}
 | Kind | Findings | Non-test | Test |
@@ -345,32 +350,32 @@ Every failed-then-passed rerun is in `pm go`, 4 of 7 in the race or work jobs (t
 
 ## 6. Trend across the pm-quality sprints
 
-At the merge commit of each pm-quality sprint PR (`git log --grep "pm-quality sprint"`, the 12 commits that name a PR), plus the measured commit, in merge order. Go tests counted statically (top-level `TestX` functions); gocyclo > 30 and staticcheck with this commit's settings on every commit, tests included.
+At the merge commit of each pm-quality sprint PR (`git log --grep "pm-quality sprint"`, the 12 commits that name a PR), plus the measured commit, in merge order. Go tests counted statically (top-level `TestX` functions); gocyclo > 30 and staticcheck with this commit's settings on every commit, gocyclo split by `_test.go` file name, staticcheck over code and tests together.
 
 ![Metrics at each pm-quality sprint merge](pm-quality-metrics-trend.svg)
 
 ::: result {title="At each sprint PR's merge commit"}
-| Sprint | PR | Commit | Merged | Non-test Go lines | Go test lines | Harness lines | Go tests | gocyclo > 30 | staticcheck |
-|---|---|---|---|---|---|---|---|---|---|
-| 5 | #18 | 963fb75 | 2026-10-10 | 20,772 | 7,682 | 3,606 | 205 | 16 | 7 |
-| 10 | #25 | 2911a04 | 2026-10-10 | 21,360 | 7,968 | 3,899 | 213 | 17 | 7 |
-| 7 | #30 | cee2d7d | 2026-10-10 | 21,866 | 8,255 | 4,037 | 221 | 18 | 7 |
-| 12 | #32 | af0a631 | 2026-10-10 | 21,866 | 8,255 | 4,273 | 221 | 18 | 7 |
-| 13 | #31 | da3423c | 2026-10-10 | 21,956 | 8,471 | 4,395 | 225 | 18 | 7 |
-| 9 | #33 | b61f12d | 2026-10-10 | 22,213 | 8,497 | 4,512 | 226 | 19 | 7 |
-| 15 | #36 | 41b6696 | 2026-10-10 | 22,245 | 8,567 | 4,512 | 227 | 19 | 7 |
-| 16 | #37 | 6752e93 | 2026-10-10 | 22,320 | 8,610 | 4,585 | 228 | 19 | 7 |
-| 17 | #38 | eedbafd | 2026-10-10 | 22,320 | 8,610 | 4,585 | 228 | 19 | 7 |
-| 20 | #48 | d98406d | 2026-10-11 | 22,550 | 7,900 | 4,205 | 88 | 25 | 7 |
-| 19 | #43 | 09f62a7 | 2026-10-11 | 22,529 | 7,993 | 4,272 | 89 | 26 | 0 |
-| 18 | #44 | 5d1e05b | 2026-10-11 | 22,529 | 8,004 | 4,336 | 89 | 26 | 0 |
-| (main) | #53 | fe05966 | 2026-10-12 | 22,532 | 8,007 | 4,347 | 89 | 26 | 0 |
+| Sprint | PR | Commit | Merged | Non-test Go lines | Go test lines | Harness lines | Go tests | gocyclo > 30, non-test | gocyclo > 30, test | staticcheck |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 5 | #18 | 963fb75 | 2026-10-10 | 20,772 | 7,682 | 3,606 | 205 | 14 | 2 | 7 |
+| 10 | #25 | 2911a04 | 2026-10-10 | 21,360 | 7,968 | 3,899 | 213 | 14 | 3 | 7 |
+| 7 | #30 | cee2d7d | 2026-10-10 | 21,866 | 8,255 | 4,037 | 221 | 15 | 3 | 7 |
+| 12 | #32 | af0a631 | 2026-10-10 | 21,866 | 8,255 | 4,273 | 221 | 15 | 3 | 7 |
+| 13 | #31 | da3423c | 2026-10-10 | 21,956 | 8,471 | 4,395 | 225 | 15 | 3 | 7 |
+| 9 | #33 | b61f12d | 2026-10-10 | 22,213 | 8,497 | 4,512 | 226 | 16 | 3 | 7 |
+| 15 | #36 | 41b6696 | 2026-10-10 | 22,245 | 8,567 | 4,512 | 227 | 16 | 3 | 7 |
+| 16 | #37 | 6752e93 | 2026-10-10 | 22,320 | 8,610 | 4,585 | 228 | 16 | 3 | 7 |
+| 17 | #38 | eedbafd | 2026-10-10 | 22,320 | 8,610 | 4,585 | 228 | 16 | 3 | 7 |
+| 20 | #48 | d98406d | 2026-10-11 | 22,550 | 7,900 | 4,205 | 88 | 16 | 9 | 7 |
+| 19 | #43 | 09f62a7 | 2026-10-11 | 22,529 | 7,993 | 4,272 | 89 | 17 | 9 | 0 |
+| 18 | #44 | 5d1e05b | 2026-10-11 | 22,529 | 8,004 | 4,336 | 89 | 17 | 9 | 0 |
+| (main) | #53 | fe05966 | 2026-10-12 | 22,532 | 8,007 | 4,347 | 89 | 17 | 9 | 0 |
 :::
 
 - Non-test code grew 8.5% (20,772 to 22,532 lines), 88% of that before sprint 20.
-- Sprint 20 (#48) folded 228 top-level Go tests into 88 and cut 710 Go test lines and 380 harness lines; in the same PR gocyclo > 30 rose from 19 to 25 functions.
+- Sprint 20 (#48) folded 228 top-level Go tests into 88 and cut 710 Go test lines and 380 harness lines; the table tests it made took test functions over gocyclo 30 from 3 to 9, while non-test stayed at 16.
 - Sprint 19 (#43) took staticcheck from 7 findings to 0 and made it gate every line.
-- gocyclo > 30 rose from 16 to 26 over the project: the ratchet stops new findings on changed lines, and nothing has paid the old ones down yet.
+- Non-test functions over gocyclo 30 went from 14 to 17 over the project (one each in #30, #33 and #43, none removed); test functions from 2 to 9, 6 of them from sprint 20's folds.
 
 ## Method
 

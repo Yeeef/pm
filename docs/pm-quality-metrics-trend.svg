@@ -2,10 +2,7 @@
 <title>Metrics at each pm-quality sprint merge</title>
 <rect width="620" height="686" fill="#fcfcfb"/>
 <text x="16.0" y="22.0" font-size="14" fill="#0b0b0b" text-anchor="start" font-weight="600" >At each pm-quality sprint PR's merge commit (x: sprint, then PR)</text>
-<rect x="16.0" y="35.0" width="10.0" height="10.0" fill="#2a78d6" rx="2"></rect>
-<text x="31.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >Go</text>
-<rect x="52.0" y="35.0" width="10.0" height="10.0" fill="#eb6834" rx="2"></rect>
-<text x="67.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >Python harness</text>
+<text x="16.0" y="44.0" font-size="11" fill="#898781" text-anchor="start" font-weight="400" >Go lines and tests counted per file; gocyclo and staticcheck with this commit's settings</text>
 <text x="50.0" y="80.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Non-test Go code lines</text>
 <line x1="50.0" y1="212.0" x2="295.0" y2="212.0" stroke="#e1e0d9" stroke-width="1" />
 <text x="44.0" y="216.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
@@ -58,7 +55,11 @@
 <circle cx="285.0" cy="121.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 22,532 Go non-test</title></circle>
 <text x="291.0" y="125.9" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >22,532</text>
 <text x="58.0" y="120.9" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >20,772</text>
-<text x="345.0" y="80.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Test code lines</text>
+<text x="345.0" y="64.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Test code lines</text>
+<rect x="345.0" y="73.0" width="10.0" height="10.0" fill="#2a78d6" rx="2"></rect>
+<text x="360.0" y="82.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >Go</text>
+<rect x="381.0" y="73.0" width="10.0" height="10.0" fill="#1baf7a" rx="2"></rect>
+<text x="396.0" y="82.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >Python harness</text>
 <line x1="345.0" y1="212.0" x2="590.0" y2="212.0" stroke="#e1e0d9" stroke-width="1" />
 <text x="339.0" y="216.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
 <line x1="345.0" y1="152.0" x2="590.0" y2="152.0" stroke="#e1e0d9" stroke-width="1" />
@@ -93,35 +94,35 @@
 <text x="580.0" y="226.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >main</text>
 <text x="580.0" y="238.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#53</text>
 <path d="M355.0,119.8 L373.8,116.4 L392.5,112.9 L411.2,112.9 L430.0,110.3 L448.8,110.0 L467.5,109.2 L486.2,108.7 L505.0,108.7 L523.8,117.2 L542.5,116.1 L561.2,116.0 L580.0,115.9" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="355.0" cy="119.8" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>5 (#18): 7,682 Go tests</title></circle>
-<circle cx="373.8" cy="116.4" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>10 (#25): 7,968 Go tests</title></circle>
-<circle cx="392.5" cy="112.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>7 (#30): 8,255 Go tests</title></circle>
-<circle cx="411.2" cy="112.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>12 (#32): 8,255 Go tests</title></circle>
-<circle cx="430.0" cy="110.3" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>13 (#31): 8,471 Go tests</title></circle>
-<circle cx="448.8" cy="110.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>9 (#33): 8,497 Go tests</title></circle>
-<circle cx="467.5" cy="109.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>15 (#36): 8,567 Go tests</title></circle>
-<circle cx="486.2" cy="108.7" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>16 (#37): 8,610 Go tests</title></circle>
-<circle cx="505.0" cy="108.7" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>17 (#38): 8,610 Go tests</title></circle>
-<circle cx="523.8" cy="117.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>20 (#48): 7,900 Go tests</title></circle>
-<circle cx="542.5" cy="116.1" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>19 (#43): 7,993 Go tests</title></circle>
-<circle cx="561.2" cy="116.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>18 (#44): 8,004 Go tests</title></circle>
-<circle cx="580.0" cy="115.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 8,007 Go tests</title></circle>
+<circle cx="355.0" cy="119.8" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>5 (#18): 7,682 Go</title></circle>
+<circle cx="373.8" cy="116.4" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>10 (#25): 7,968 Go</title></circle>
+<circle cx="392.5" cy="112.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>7 (#30): 8,255 Go</title></circle>
+<circle cx="411.2" cy="112.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>12 (#32): 8,255 Go</title></circle>
+<circle cx="430.0" cy="110.3" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>13 (#31): 8,471 Go</title></circle>
+<circle cx="448.8" cy="110.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>9 (#33): 8,497 Go</title></circle>
+<circle cx="467.5" cy="109.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>15 (#36): 8,567 Go</title></circle>
+<circle cx="486.2" cy="108.7" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>16 (#37): 8,610 Go</title></circle>
+<circle cx="505.0" cy="108.7" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>17 (#38): 8,610 Go</title></circle>
+<circle cx="523.8" cy="117.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>20 (#48): 7,900 Go</title></circle>
+<circle cx="542.5" cy="116.1" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>19 (#43): 7,993 Go</title></circle>
+<circle cx="561.2" cy="116.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>18 (#44): 8,004 Go</title></circle>
+<circle cx="580.0" cy="115.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 8,007 Go</title></circle>
 <text x="586.0" y="119.9" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >8,007</text>
 <text x="353.0" y="111.8" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >7,682</text>
-<path d="M355.0,168.7 L373.8,165.2 L392.5,163.6 L411.2,160.7 L430.0,159.3 L448.8,157.9 L467.5,157.9 L486.2,157.0 L505.0,157.0 L523.8,161.5 L542.5,160.7 L561.2,160.0 L580.0,159.8" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="355.0" cy="168.7" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>5 (#18): 3,606 Python harness</title></circle>
-<circle cx="373.8" cy="165.2" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>10 (#25): 3,899 Python harness</title></circle>
-<circle cx="392.5" cy="163.6" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>7 (#30): 4,037 Python harness</title></circle>
-<circle cx="411.2" cy="160.7" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>12 (#32): 4,273 Python harness</title></circle>
-<circle cx="430.0" cy="159.3" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>13 (#31): 4,395 Python harness</title></circle>
-<circle cx="448.8" cy="157.9" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>9 (#33): 4,512 Python harness</title></circle>
-<circle cx="467.5" cy="157.9" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>15 (#36): 4,512 Python harness</title></circle>
-<circle cx="486.2" cy="157.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>16 (#37): 4,585 Python harness</title></circle>
-<circle cx="505.0" cy="157.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>17 (#38): 4,585 Python harness</title></circle>
-<circle cx="523.8" cy="161.5" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>20 (#48): 4,205 Python harness</title></circle>
-<circle cx="542.5" cy="160.7" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>19 (#43): 4,272 Python harness</title></circle>
-<circle cx="561.2" cy="160.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>18 (#44): 4,336 Python harness</title></circle>
-<circle cx="580.0" cy="159.8" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 4,347 Python harness</title></circle>
+<path d="M355.0,168.7 L373.8,165.2 L392.5,163.6 L411.2,160.7 L430.0,159.3 L448.8,157.9 L467.5,157.9 L486.2,157.0 L505.0,157.0 L523.8,161.5 L542.5,160.7 L561.2,160.0 L580.0,159.8" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="355.0" cy="168.7" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>5 (#18): 3,606 Python harness</title></circle>
+<circle cx="373.8" cy="165.2" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>10 (#25): 3,899 Python harness</title></circle>
+<circle cx="392.5" cy="163.6" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>7 (#30): 4,037 Python harness</title></circle>
+<circle cx="411.2" cy="160.7" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>12 (#32): 4,273 Python harness</title></circle>
+<circle cx="430.0" cy="159.3" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>13 (#31): 4,395 Python harness</title></circle>
+<circle cx="448.8" cy="157.9" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>9 (#33): 4,512 Python harness</title></circle>
+<circle cx="467.5" cy="157.9" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>15 (#36): 4,512 Python harness</title></circle>
+<circle cx="486.2" cy="157.0" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>16 (#37): 4,585 Python harness</title></circle>
+<circle cx="505.0" cy="157.0" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>17 (#38): 4,585 Python harness</title></circle>
+<circle cx="523.8" cy="161.5" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>20 (#48): 4,205 Python harness</title></circle>
+<circle cx="542.5" cy="160.7" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>19 (#43): 4,272 Python harness</title></circle>
+<circle cx="561.2" cy="160.0" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>18 (#44): 4,336 Python harness</title></circle>
+<circle cx="580.0" cy="159.8" r="3.5" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 4,347 Python harness</title></circle>
 <text x="586.0" y="163.8" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >4,347</text>
 <text x="353.0" y="160.7" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >3,606</text>
 <text x="50.0" y="282.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Go top-level tests</text>
@@ -176,15 +177,17 @@
 <circle cx="285.0" cy="378.4" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 89 tests</title></circle>
 <text x="291.0" y="382.4" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >89</text>
 <text x="58.0" y="324.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >205</text>
-<text x="345.0" y="282.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Functions with gocyclo &gt; 30</text>
+<text x="345.0" y="266.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Functions with gocyclo &gt; 30</text>
+<rect x="345.0" y="275.0" width="10.0" height="10.0" fill="#2a78d6" rx="2"></rect>
+<text x="360.0" y="284.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >non-test</text>
+<rect x="423.0" y="275.0" width="10.0" height="10.0" fill="#eb6834" rx="2"></rect>
+<text x="438.0" y="284.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >_test.go</text>
 <line x1="345.0" y1="414.0" x2="590.0" y2="414.0" stroke="#e1e0d9" stroke-width="1" />
 <text x="339.0" y="418.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
-<line x1="345.0" y1="374.0" x2="590.0" y2="374.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="339.0" y="378.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >10</text>
-<line x1="345.0" y1="334.0" x2="590.0" y2="334.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="339.0" y="338.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >20</text>
+<line x1="345.0" y1="354.0" x2="590.0" y2="354.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="339.0" y="358.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >10</text>
 <line x1="345.0" y1="294.0" x2="590.0" y2="294.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="339.0" y="298.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >30</text>
+<text x="339.0" y="298.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >20</text>
 <line x1="345.0" y1="414.0" x2="590.0" y2="414.0" stroke="#c3c2b7" stroke-width="1" />
 <text x="355.0" y="428.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >5</text>
 <text x="355.0" y="440.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#18</text>
@@ -212,22 +215,38 @@
 <text x="561.2" y="440.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#44</text>
 <text x="580.0" y="428.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >main</text>
 <text x="580.0" y="440.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#53</text>
-<path d="M355.0,350.0 L373.8,346.0 L392.5,342.0 L411.2,342.0 L430.0,342.0 L448.8,338.0 L467.5,338.0 L486.2,338.0 L505.0,338.0 L523.8,314.0 L542.5,310.0 L561.2,310.0 L580.0,310.0" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="355.0" cy="350.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>5 (#18): 16 functions</title></circle>
-<circle cx="373.8" cy="346.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>10 (#25): 17 functions</title></circle>
-<circle cx="392.5" cy="342.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>7 (#30): 18 functions</title></circle>
-<circle cx="411.2" cy="342.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>12 (#32): 18 functions</title></circle>
-<circle cx="430.0" cy="342.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>13 (#31): 18 functions</title></circle>
-<circle cx="448.8" cy="338.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>9 (#33): 19 functions</title></circle>
-<circle cx="467.5" cy="338.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>15 (#36): 19 functions</title></circle>
-<circle cx="486.2" cy="338.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>16 (#37): 19 functions</title></circle>
-<circle cx="505.0" cy="338.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>17 (#38): 19 functions</title></circle>
-<circle cx="523.8" cy="314.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>20 (#48): 25 functions</title></circle>
-<circle cx="542.5" cy="310.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>19 (#43): 26 functions</title></circle>
-<circle cx="561.2" cy="310.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>18 (#44): 26 functions</title></circle>
-<circle cx="580.0" cy="310.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 26 functions</title></circle>
-<text x="586.0" y="314.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >26</text>
-<text x="353.0" y="342.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >16</text>
+<path d="M355.0,330.0 L373.8,330.0 L392.5,324.0 L411.2,324.0 L430.0,324.0 L448.8,318.0 L467.5,318.0 L486.2,318.0 L505.0,318.0 L523.8,318.0 L542.5,312.0 L561.2,312.0 L580.0,312.0" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="355.0" cy="330.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>5 (#18): 14 non-test</title></circle>
+<circle cx="373.8" cy="330.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>10 (#25): 14 non-test</title></circle>
+<circle cx="392.5" cy="324.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>7 (#30): 15 non-test</title></circle>
+<circle cx="411.2" cy="324.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>12 (#32): 15 non-test</title></circle>
+<circle cx="430.0" cy="324.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>13 (#31): 15 non-test</title></circle>
+<circle cx="448.8" cy="318.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>9 (#33): 16 non-test</title></circle>
+<circle cx="467.5" cy="318.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>15 (#36): 16 non-test</title></circle>
+<circle cx="486.2" cy="318.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>16 (#37): 16 non-test</title></circle>
+<circle cx="505.0" cy="318.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>17 (#38): 16 non-test</title></circle>
+<circle cx="523.8" cy="318.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>20 (#48): 16 non-test</title></circle>
+<circle cx="542.5" cy="312.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>19 (#43): 17 non-test</title></circle>
+<circle cx="561.2" cy="312.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>18 (#44): 17 non-test</title></circle>
+<circle cx="580.0" cy="312.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 17 non-test</title></circle>
+<text x="586.0" y="316.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >17</text>
+<text x="353.0" y="322.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >14</text>
+<path d="M355.0,402.0 L373.8,396.0 L392.5,396.0 L411.2,396.0 L430.0,396.0 L448.8,396.0 L467.5,396.0 L486.2,396.0 L505.0,396.0 L523.8,360.0 L542.5,360.0 L561.2,360.0 L580.0,360.0" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="355.0" cy="402.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>5 (#18): 2 _test.go</title></circle>
+<circle cx="373.8" cy="396.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>10 (#25): 3 _test.go</title></circle>
+<circle cx="392.5" cy="396.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>7 (#30): 3 _test.go</title></circle>
+<circle cx="411.2" cy="396.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>12 (#32): 3 _test.go</title></circle>
+<circle cx="430.0" cy="396.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>13 (#31): 3 _test.go</title></circle>
+<circle cx="448.8" cy="396.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>9 (#33): 3 _test.go</title></circle>
+<circle cx="467.5" cy="396.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>15 (#36): 3 _test.go</title></circle>
+<circle cx="486.2" cy="396.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>16 (#37): 3 _test.go</title></circle>
+<circle cx="505.0" cy="396.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>17 (#38): 3 _test.go</title></circle>
+<circle cx="523.8" cy="360.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>20 (#48): 9 _test.go</title></circle>
+<circle cx="542.5" cy="360.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>19 (#43): 9 _test.go</title></circle>
+<circle cx="561.2" cy="360.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>18 (#44): 9 _test.go</title></circle>
+<circle cx="580.0" cy="360.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 9 _test.go</title></circle>
+<text x="586.0" y="364.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >9</text>
+<text x="353.0" y="394.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >2</text>
 <text x="50.0" y="484.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >staticcheck findings</text>
 <line x1="50.0" y1="616.0" x2="295.0" y2="616.0" stroke="#e1e0d9" stroke-width="1" />
 <text x="44.0" y="620.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
