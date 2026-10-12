@@ -121,6 +121,8 @@ Owner said "deliver it end to end" in chat on 2026-10-11 after reviewing the pla
 
 done: since pm 0.7.1, this clone's pm service serves a request through pm.yeeefs.com only with a valid Cloudflare Access application token, and it fails closed on a missing key or an unfetchable key set, and the owner's login through Access loads the site.
 
+Merged as 12b506f (PR #49). Merged as ad03c4d (PR #40). Merged as 6d99993 (PR #45).
+
 - The Access check in Go (PR #40): RS256 against the team's certs, `aud`, `iss`, `exp`, `nbf`, `iat`; requests carrying `Cf-Connecting-IP` need the token whatever their Host; any other Host is refused on every request; an unknown `kid` refetches the keys at most once a minute.
 - Only `type` `app` tokens pass (PR #49), so the public `meta` token from the login redirect is refused by rule.
 - `access_team` and `access_aud` config keys; `pm doctor` names a missing one.
