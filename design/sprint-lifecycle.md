@@ -36,7 +36,9 @@ end-to-end flow; the sprint record's sections are under
 
 **Non-goals**
 
-- `pm` talking to GitHub; the agent carries the merge evidence.
+- `pm` reading a PR's merge state from GitHub; the agent carries the merge evidence.
+- A model judging whether a design page's text matches the code; the gate
+  checks only that the page was edited or waived.
 - Enforcing how code is branched or reviewed beyond the review action.
 
 ## Constraints and key facts
@@ -46,9 +48,13 @@ end-to-end flow; the sprint record's sections are under
 
 - A sprint closes only once its PR is on main; a PR merged into a stacked
   base does not count.
-- `pm` never asks GitHub at close: the review action's close reason
-  ("merged as <sha>") is the merge evidence, chosen to avoid a `gh`
-  dependency.
+- `pm` never asks GitHub whether a PR merged: the review action's close
+  reason ("merged as <sha>") is the merge evidence. It asks `gh` only for the
+  files a PR changes, and only while some design page has `covers:` (Design
+  pages follow the code).
+- A rule in prose does not keep design pages current: pm-codex sprint 1
+  changed reply delivery, session claims and the owner-request hook without
+  editing their pages, although `prime.md` said to.
 - Records live in the `records` branch store, shared by every worktree; each
   `pm` write commits there, never on a code branch.
 - The scheduled `pm push` publishes Beads data and records every 10 minutes;
@@ -110,7 +116,8 @@ action is what says the sprint is not closed.
 
 The agent opens the PR and raises the review with
 `pm action need --pr URL --sprint ID --focus …`, which refuses a sprint
-whose report is not written. The review is an action under the sprint and
+whose report is not written, or a PR the design-page gate holds (below).
+The review's text links each design page covering the changed code. The review is an action under the sprint and
 blocks its close. The sprint page renders the sprint's own open needs in the
 generated "Decisions await you" and "Actions await you" sections; the review
 card (PR link, focus, reply box) is what shows the sprint awaits a merge. In
@@ -126,8 +133,30 @@ with `pm action done <review> --reason "merged as <sha>"`, and edits the
 report by hand only if review changed the work. Open tasks are closed or
 moved (`pm task move`) first. `pm sprint close <id>` then requires every task
 closed and each review closed as merged (a dismissed one, a replaced PR's or a [TEST] review, is skipped), appends "Merged as <sha> (PR #N)." to the
-Outcome, commits the record on the records branch and closes the epic. A
-sprint with no PR, or a voided one, closes without a review or a stamp.
+Outcome, commits the record on the records branch and closes the epic. It
+runs the design-page gate again on each review's PR, since a PR can change
+after its review was raised; with `--merged SHA` it runs it on `--pr`'s files,
+or without `--pr` on the files the merge commit brought. A sprint with no PR,
+or a voided one, closes without a review or a stamp.
+
+### Design pages follow the code
+
+A design page names the code its area is about in its header, `covers:`
+(see [Record layer](record-layer.md)). The gate takes the files the PR
+changes (`gh pr view --json files,changedFiles`; it refuses when gh lists
+fewer than the PR changes) and, for each design page whose covers match one,
+passes the page when one of the sprints the PR delivers either:
+
+| Way out | What it takes | What the gate reads |
+|---|---|---|
+| Updated | The page brought to the new state, committed with `pm commit`, and linked in the sprint record's Design pages | A commit to the page on the records branch since the sprint's epic was created, and a `../design/<slug>.md` link in Design pages |
+| Waived | `pm design unchanged <slug> --sprint ID --reason "…"` | A sprint decision of source agent whose first line is "The design page <slug> stays as it is for this sprint's code changes." and whose second is the reason |
+
+Otherwise it refuses, naming each page, a file it covers and both ways out.
+With no page carrying `covers:` there is nothing to gate and `gh` is not
+asked. The waiver is a decision in the sprint record, not a work-store field:
+decisions live in records, and the owner reads it on the sprint page next to
+the PR.
 
 ## Alternatives considered
 
@@ -141,7 +170,12 @@ sprint with no PR, or a voided one, closes without a review or a stamp.
 - **A `Draft:` prefix before the verdict:** older `pm` rejects an Outcome
   that does not start with done, partial or voided.
 - **`pm` checking GitHub at close:** adds a `gh` dependency to every close;
-  the review's close reason already carries the evidence.
+  the review's close reason already carries the evidence. The design-page
+  gate asks `gh` for a PR's files only, and only where pages have `covers:`.
+- **The design-page rule in prose only** (`prime.md`: edit the page to the
+  new state): broken in pm-codex sprint 1; the gate makes it structural.
+- **The waiver in the work store:** a decision with its reason is what the
+  record layer holds; a work-store field would be a second home for it.
 - **`pm` pulling the main checkout itself:** the agent runs a `--ff-only`
   pull instead, so a diverged checkout refuses visibly.
 

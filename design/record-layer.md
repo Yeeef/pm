@@ -172,6 +172,20 @@ with all of them, each holding its prompt line and "None yet.".
 | Prior art | Optional. What existing work did we learn from, and what did we take? | No |
 | Open questions | What is still unresolved? | Yes, may be empty |
 
+A design page's header may name the code its area is about, `covers:`, a
+list of path patterns relative to the repo root: doublestar globs, `*` within
+one path segment and `**` as a whole segment for any depth
+(`covers: [internal/records/**, prime.md]`); `covers: []` says the page is
+about no code. The parser refuses a non-list, a non-string, an absolute
+pattern, a `.` or `..` segment and `**` inside a segment, and `covers:` on any
+other record type. `pm check` fails on a pattern that matches no file git
+tracks in the main checkout or the worktree it runs in, and lists the tracked
+files that `design_sources` in `.pm/config.toml` names and no page covers. A
+PR that changes a covered file waits until its sprint updates or waives the
+page ([Sprint lifecycle](sprint-lifecycle.md), Design pages follow the code),
+and the site says when covered code changed after a page's last edit
+([Views and the site](views-and-site.md)).
+
 The renderer checks only that each required section's heading is present:
 not their order, extra sections, or what they hold, because free-form detail
 is what makes a design page useful. Headings carry no numbers; the table of
