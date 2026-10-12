@@ -125,6 +125,12 @@ Codex loads that file with no flag to turn it off, and a temp home would need th
   check alone would not have warned. The cache key must be the [hooks] table,
   not config.toml: pm init rewrites writable_roots at each start.
 
+- Full live parity set on the sprint 2 head 730eec3, after merging PR #47's
+  codex queue delivery (PM_PARITY_CODEX_SANDBOX=danger-full-access make
+  test-live-parity): 10 passed in 92.22 s, including Codex with no claude
+  blocked asking only in chat, and the idle interactive session woken by the
+  reply (Codex 2.5 s after the reply, through codex queue).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
