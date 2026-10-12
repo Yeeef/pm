@@ -148,6 +148,6 @@ partial: the Go jobs' own work is cut (internal/work's tests 100 s to 12.5 s loc
 
 | Item | Met | Evidence |
 |---|---|---|
-| Median wall to the last check on 3 PRs at most about 120 s | not met yet | PR 44's 4 samples: 309, 497, 373, 260 s (median 341 s); longest job run 216, 152, 196, 173 s; macOS queue up to 93, 377, 248, 124 s. Needs PRs after the merge, whose restore holds the trimmed, trimpath cache |
+| Median wall to the last check on 3 PRs at most about 120 s | not met | PR 53, the first after the merge, 3 samples (a run and two reruns): 173, 148, 168 s, median 168 s, against 341 s on PR 44 and 191-290 s before. Go cache hit by exact key and warm (go vet 0.6-1.1 s; go test -c 6-10 s linux, 25-39 s darwin, against 48 s cold); macOS queue 6-34 s. The floor is the darwin work job, 139-158 s: setup-go and cache restore about 50 s, go test -c 29-39 s, tests 47-49 s bounded by TestSyncTwoClonesConcurrentEditsMergePerTheTable alone. PR 44's 4 samples: 309, 497, 373, 260 s |
 | `go test ./internal/work` at 8 shards under 25 s, all passing | met | `make go-test-work`: 87 tests in 8 shards 12.5, 12.5, 12.6 s locally |
 | `TestCreateRefusesWithTheRemoteUnreachable` under 2 s | met | 1.15 s in `go test -run`, 1.5 s with -v (3 runs) |
