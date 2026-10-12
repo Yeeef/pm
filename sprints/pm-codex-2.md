@@ -63,6 +63,11 @@ Scope gains: a pm command run in a Codex session whose rollout holds no pm sessi
 Gap 1 detail on pm-in-codex: a Codex session in a repo whose pm hooks are untrusted gets no signal at all, since its hooks are what does not run; 0 of 43 sessions in yeeef-agents had pm context and none said so.
 :::
 
+::: decision {source=agent date=2026-10-12}
+Both hook entries name their judge: pm hook owner-request --runtime claude in .claude/settings.json and --runtime codex in .codex/hooks.json; a flagless entry runs the Claude judge, its old meaning.
+The owner decision says each runtime entry names it, never guessed; naming both keeps the entries symmetric, and pm upgrade rewrites both files anyway since the Codex entry changes.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
