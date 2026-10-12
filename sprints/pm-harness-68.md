@@ -119,7 +119,7 @@ Owner said "deliver it end to end" in chat on 2026-10-11 after reviewing the pla
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: since pm 0.7.1, this clone's pm service serves a request through pm.yeeefs.com only with a valid Cloudflare Access application token, and it fails closed on a missing key or an unfetchable key set; the owner's browser login through the tunnel is the one check left, open as an owner request.
+done: since pm 0.7.1, this clone's pm service serves a request through pm.yeeefs.com only with a valid Cloudflare Access application token, and it fails closed on a missing key or an unfetchable key set, and the owner's login through Access loads the site.
 
 - The Access check in Go (PR #40): RS256 against the team's certs, `aud`, `iss`, `exp`, `nbf`, `iat`; requests carrying `Cf-Connecting-IP` need the token whatever their Host; any other Host is refused on every request; an unknown `kid` refetches the keys at most once a minute.
 - Only `type` `app` tokens pass (PR #49), so the public `meta` token from the login redirect is refused by rule.
@@ -134,5 +134,5 @@ done: since pm 0.7.1, this clone's pm service serves a request through pm.yeeefs
 | Done when | Met | Evidence |
 |---|---|---|
 | Tests show each refusal and the valid case, localhost unchanged | Met | Go tests in `internal/service/access_test.go` (each refusal, the valid token, localhost, edge requests), with mutation checks; CI green, 12 checks, on [PR #40](https://github.com/Yeeef/pm/pull/40), [PR #49](https://github.com/Yeeef/pm/pull/49) and [PR #51](https://github.com/Yeeef/pm/pull/51) |
-| Live check on this machine: 403 without a token, normal load after the Access login | Met for the refusals; the login load waits on the owner | On :8001 with 0.7.1: Host pm.yeeefs.com with no token 403; the real meta token 403 on `type`; Host evil.example 403; localhost 200 (Findings). The browser login is an open owner request |
+| Live check on this machine: 403 without a token, normal load after the Access login | Met | On :8001 with 0.7.1: Host pm.yeeefs.com with no token 403; the real meta token 403 on `type`; Host evil.example 403; localhost 200 (Findings). The owner logged in through Access and reported the site loads (2026-10-12) |
 | The site-replies Security section matches the code | Met | [site-replies](../design/site-replies.html) Security section |
