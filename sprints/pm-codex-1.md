@@ -129,6 +129,14 @@ codex-rs 0.154: codex queue writes thread/queue/add to the SQLite thread queue, 
   / 14.2+12.2 s; solo 54.5 s / 76.4 s; mixed 78.9 s / 87.6 s. No agent typed
   pm init, and no scenario restarted the service.
 
+- Gap 4 closed with codex queue (Codex 0.149.0+, shipped as "Added codex queue
+  for sending messages to existing local or remote sessions"): the live eval
+  runs each runtime's interactive TUI in a pty, raises a need, goes idle, and
+  the owner replies with nothing typed after; Codex woke 6.1 s after the reply
+  (6.5 s in an earlier run), Claude Code 1.0 s by push. Async Codex hooks
+  cannot start a turn (measured: no turn within 90 s). make test-live-parity:
+  9 passed in 165 s at 7fcf284.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
