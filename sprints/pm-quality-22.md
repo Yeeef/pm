@@ -90,6 +90,12 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
   a check run from `internal/design` called 3 patterns dead. Tracked now
   passes the `:/` pathspec, which lists the whole worktree from anywhere.
 
+- Covers on this repo's 20 design pages: 17 name code, 3 carry `covers: []`
+  (pm-harness, the overview whose sub pages own the code; work-layer and
+  work-layer-bd-boundary, about Beads, which pm no longer uses). Of 175
+  tracked source files (internal/**, cmd/**, prompts/**, prime.md, style.css),
+  0 are uncovered and no pattern is dead (main checkout plus this worktree).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
