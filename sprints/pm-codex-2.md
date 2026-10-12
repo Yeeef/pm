@@ -95,6 +95,12 @@ Codex loads that file with no flag to turn it off, and a temp home would need th
   the owner; how-to steps read as actions); at low effort it missed 3 to 4 of
   189 runs.
 
+- No recursion, live: with a user Stop hook in CODEX_HOME/hooks.json that
+  touches a marker, a plain codex exec ran it (control, 7.0 s); three real pm
+  hook owner-request --runtime codex calls (4.3 to 6.6 s, each a block) did
+  not. Codex still loads CODEX_HOME/AGENTS.md: no flag turns it off (codex-rs
+  0.154 codex-home/src/instructions).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
