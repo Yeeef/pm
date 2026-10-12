@@ -118,6 +118,13 @@ Codex loads that file with no flag to turn it off, and a temp home would need th
   trusted and pm hooks not; the agent ran pm show and the rollout holds the
   warning (12.9 s run, no pm rules in the rollout, marker warned).
 
+- Partial trust, live: a scratch clone whose two Stop entries' Codex trust was
+  stale (as after a pm upgrade rewrote them); a codex exec session's start
+  context opened with the line naming both Stop hooks as changed since trusted
+  and the /hooks fix (7.5 s run); rules chunks 3 of 3 present, so the rollout
+  check alone would not have warned. The cache key must be the [hooks] table,
+  not config.toml: pm init rewrites writable_roots at each start.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
