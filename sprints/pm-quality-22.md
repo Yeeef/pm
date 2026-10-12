@@ -44,6 +44,7 @@ A PR cannot go to the owner for review, and its sprint cannot close, while a des
 
 - [Record layer](../design/record-layer.md): a design page's `covers:` header and `pm check`'s covers check.
 - [Sprint lifecycle](../design/sprint-lifecycle.md): the design-page gate at review and close, and `pm design unchanged`.
+- [pm CLI](../design/pm-cli.md): `pm design unchanged`, and the gate's refusals in the command table.
 - [Views and the site](../design/views-and-site.md): the line a design page shows when its covered code changed after its last edit.
 
 ## Progress
