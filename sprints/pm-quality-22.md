@@ -118,6 +118,13 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
   each parent, not the first only (3 files where the branch brought 2); `git
   diff <merge>^1 <merge>` gives the branch's files exactly.
 
+- Live check in a scratch clone of a scratch origin, on this branch's build:
+  `pm check` on the real records with the spec's design_sources printed "all
+  191 pages render; a design page covers every tracked source file";
+  agent-lifecycle's page showed "1 commit on the main branch" (prime.md
+  changed after its covers commit), and record-layer's showed the line within
+  2 s of a new covered commit, with no service restart.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
