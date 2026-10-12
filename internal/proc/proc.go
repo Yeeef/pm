@@ -40,6 +40,7 @@ type Options struct {
 	Stdin       string
 	Timeout     time.Duration
 	TimeoutText string
+	Group       bool // run it in a process group of its own, and at the timeout kill the whole group, not only argv[0]
 }
 
 // Run runs argv to its exit. A command that could not start, or that ran past its timeout, is an *Error.
@@ -71,6 +72,11 @@ func Run(argv []string, o Options) (Result, error) {
 	}
 	cmd.Stdin = strings.NewReader(o.Stdin)
 	cmd.WaitDelay = time.Second // a grandchild holding the pipes must not outlive the timeout by long
+	// a launcher script (claude's, codex's node wrapper) leaves its real process running when only it dies
+	if o.Group {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	}
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()
