@@ -1,7 +1,7 @@
 {
  "date": "2026-10-12",
- "generated_at": "2026-10-12T20:18:53+00:00",
- "digest": "9a056bb69d6b8e96",
+ "generated_at": "2026-10-12T20:59:28+00:00",
+ "digest": "91838a4b1db45b59",
  "model": "claude-haiku-5-5",
- "text": "- **Codex session replies:** The pm service now sends an owner reply into a live, idle Codex session, which wakes it up. Codex sessions also now get a notice listing the pm hooks that Codex skips.\n- **Website and site access:** The pm site now needs a valid Cloudflare Access token, and the owner confirmed that it loads. Install commands now track the latest release, and the website credits Beads and Dolt.\n- **Pull request checks:** A pull request's checks now reach their last check much faster than before. The work tests now run in parallel groups, and the Go cache stays warm.\n- **Records and metrics:** A new code and test metrics report tracks complexity, coverage, size and CI time. Design pages now name the code they cover."
+ "text": "- **Codex session replies:** An idle Codex session now wakes when the owner replies. The pm service queues each reply into a live Codex session, and a live test confirmed the wake-up.\n- **Public website access:** The public site now requires a valid Cloudflare Access token and refuses requests without one. Install commands point to the latest release, and the README and website credit Beads and Dolt.\n- **Pull request checks:** Checks now finish much faster, and the macOS and race jobs run faster too. The Go tests run in parallel, and the build cache stays warm.\n- **Design page coverage:** Design pages now name the code they cover. Work is in progress to require a design page update when covered code changes."
 }
