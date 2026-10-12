@@ -100,7 +100,7 @@ func MatchAny(patterns []string, file string) bool {
 	return false
 }
 
-var designLink = regexp.MustCompile(`\(\.\./design/([a-z0-9-]+)\.md[)#]`)
+var designLink = regexp.MustCompile(`\(\.\./design/([^/()#\s]+)\.md[)#]`)
 
 // DesignLinks is the slug of each design page a sprint or project record links in its Design pages section, in order.
 func DesignLinks(rec *Record) []string {

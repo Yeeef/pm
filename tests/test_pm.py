@@ -308,11 +308,12 @@ def commit_on(repo, day: str, msg: str) -> None:
         subprocess.run(["git", *args], cwd=repo.store, env=env, check=True, capture_output=True)
 
 
-def set_pr_files(repo, url: str, files: list[str]) -> None:
-    """What the fake gh lists as the files a PR changes."""
+def set_pr_files(repo, url: str, files: list[dict | str]) -> None:
+    """What the fake gh's pull request files API lists for a PR: a path, or the API's entry for one."""
     path = Path(repo.env["FAKE_GH_STATE"])
     prs = json.loads(path.read_text())
-    prs[url] = {"files": [{"path": f, "additions": 1, "deletions": 0} for f in files], "changedFiles": len(files)}
+    slug, n = re.fullmatch(r"https://github.com/(\S+)/pull/(\d+)", url).groups()
+    prs[f"repos/{slug}/pulls/{n}/files"] = [{"filename": f} if isinstance(f, str) else f for f in files]
     path.write_text(json.dumps(prs))
 
 
@@ -351,14 +352,14 @@ def test_a_pr_that_changes_covered_code_waits_until_its_design_page_is_updated_o
     res = repo.pm("sprint", "close", "repo-demo.1")
     assert res.returncode == 0, res.stderr
 
-    # Sprint 2's PR touched no covered file when its review was raised, then changed the parser too: the close is
-    # refused until the waiver, which is a sprint decision.
+    # Sprint 2's PR touched no covered file when its review was raised, then moved the lexer out of the parser too
+    # (a rename's old path counts): the close is refused until the waiver, which is a sprint decision.
     set_pr_files(repo, PR2, ["README.md"])
     res = repo.pm("action", "need", "--pr", PR2, "--sprint", "repo-demo.2", "--focus", "F")
     assert res.returncode == 0, res.stderr
     assert "Design pages covering" not in repo.items()["repo-demo.2.1"]["description"]
     assert repo.pm("action", "done", "repo-demo.2.1", "--reason", f"merged as {SHA}").returncode == 0
-    set_pr_files(repo, PR2, ["README.md", "src/parser/lex.go"])
+    set_pr_files(repo, PR2, ["README.md", {"filename": "src/lexer/lex.go", "previous_filename": "src/parser/lex.go"}])
     repo.mark()
     refused(repo, "sprint", "close", "repo-demo.2",
             match=r"https://github.com/o/r/pull/13 changes code that design pages cover, and sprint repo-demo.2 "
@@ -391,8 +392,7 @@ def test_the_gate_replayed_on_pr_47_names_the_pages_pm_codex_sprint_1_left_uncha
     commit_on(repo, "2026-09-30", "the design pages, before the sprint opened")
     report(repo, "Done: shipped the thing.")
     url = "https://github.com/Yeeef/pm/pull/47"
-    path = Path(repo.env["FAKE_GH_STATE"])
-    path.write_text(json.dumps({url: replay["pr"]}))
+    set_pr_files(repo, url, replay["files"])
     res = refused(repo, "action", "need", "--pr", url, "--sprint", "repo-demo.1", "--focus", "F",
                   match=r"https://github.com/Yeeef/pm/pull/47 changes code that design pages cover")
     named = re.findall(r"design/([a-z0-9-]+)\.md \(covers ", res.stderr)
@@ -412,6 +412,11 @@ def test_check_fails_on_a_covers_pattern_that_matches_nothing_and_lists_uncovere
     assert res.returncode == 1 and res.stderr == ('error: design/parser: covers pattern "src/old/**" matches no '
                                                   "tracked file; fix or remove it (a directory's files are dir/**)\n")
     repo.write("design/parser.md", design_page("[src/parser/**]"))
+    write_config(repo.root, design_sources=["src/**", "lib/**"])
+    repo.commit("a live pattern, and the sources, one of them dead")
+    res = repo.pm("check")
+    assert res.returncode == 1 and res.stderr == ('error: design_sources pattern "lib/**" matches no tracked file; '
+                                                  "fix or remove it\n")
     write_config(repo.root, design_sources=["src/**"])
     repo.commit("a live pattern, and the sources")
     res = repo.pm("check")

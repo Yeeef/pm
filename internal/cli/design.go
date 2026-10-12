@@ -23,7 +23,11 @@ func (r *repo) designGate(pr string, sprintIDs []string, files func() ([]string,
 		if err != nil {
 			return nil, err
 		}
-		sprints = append(sprints, design.Sprint{Record: rec, Opened: r.item(id).CreatedAt})
+		it := r.item(id)
+		if it == nil {
+			return nil, refuse("sprint %s is not in the work store, so the design-page check cannot tell when it opened", id)
+		}
+		sprints = append(sprints, design.Sprint{Record: rec, Opened: it.CreatedAt})
 	}
 	return design.Gate(r.records, pr, sprints, r.recs, files)
 }

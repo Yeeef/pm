@@ -27,10 +27,8 @@ func Tracked(dirs ...string) (map[string]bool, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, f := range strings.Split(list, "\n") {
-			if f != "" {
-				out[f] = true
-			}
+		for _, f := range lines(list) {
+			out[f] = true
 		}
 	}
 	return out, nil
@@ -43,6 +41,8 @@ func Check(recs []*records.Record, tracked map[string]bool, sources []string) ([
 	for _, p := range sources {
 		if err := records.CheckPattern(p); err != nil {
 			bad = append(bad, fmt.Sprintf("design_sources pattern %q %v", p, err))
+		} else if !matchesAny(p, tracked) {
+			bad = append(bad, fmt.Sprintf("design_sources pattern %q matches no tracked file; fix or remove it", p))
 		}
 	}
 	for _, r := range recs {
@@ -80,7 +80,7 @@ func matchesAny(pattern string, files map[string]bool) bool {
 }
 
 // waiverRE is the first line of a waiver's decision: the fixed form WaiverText writes and Waivers reads.
-var waiverRE = regexp.MustCompile(`^The design page ([a-z0-9-]+) stays as it is for this sprint's code changes\.$`)
+var waiverRE = regexp.MustCompile(`^The design page (\S+) stays as it is for this sprint's code changes\.$`)
 
 // WaiverText is the decision body pm design unchanged records in the sprint record: the fixed line, then the reason.
 func WaiverText(slug, reason string) string {
@@ -196,36 +196,44 @@ func refusal(pr string, sprints []Sprint, verdicts []Verdict) string {
 		pr, strings.Join(ids, ", "), strings.Join(pages, ", "), ids[0])
 }
 
-// PRFiles is the files the PR changes, as gh lists them, for Gate.
+var pullURL = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/pull/([0-9]+)$`)
+
+// PRFiles is the files the PR changes, as GitHub's pull request files API lists them (every page of it): each file's
+// path, and a renamed file's old path too, for Gate.
 func PRFiles(root, pr string) func() ([]string, error) {
 	return func() ([]string, error) {
-		var info struct {
-			Files []struct {
-				Path string `json:"path"`
-			} `json:"files"`
-			ChangedFiles int `json:"changedFiles"`
+		m := pullURL.FindStringSubmatch(pr)
+		if m == nil {
+			return nil, fmt.Errorf("the design-page check reads the files a PR changes from GitHub, and %s is no "+
+				"GitHub pull request URL (https://github.com/OWNER/REPO/pull/N)", pr)
 		}
-		if err := proc.GHJSON(root, &info, "pr", "view", pr, "--json", "files,changedFiles"); err != nil {
+		out, err := proc.GH(root, "api", "--paginate", "repos/"+m[1]+"/pulls/"+m[2]+"/files", "--jq",
+			".[] | .filename, (.previous_filename // empty)")
+		if err != nil {
 			return nil, fmt.Errorf("the design-page check needs the files %s changes: %v", pr, err)
 		}
-		if len(info.Files) != info.ChangedFiles {
-			return nil, fmt.Errorf("gh lists %d of the %d files %s changes, so the design-page check cannot see them all",
-				len(info.Files), info.ChangedFiles, pr)
-		}
-		out := make([]string, len(info.Files))
-		for i, f := range info.Files {
-			out[i] = f.Path
-		}
-		return out, nil
+		return lines(out), nil
 	}
 }
 
-// MergeFiles is the files the merge commit sha brought to its first parent, for Gate.
+// MergeFiles is the files the commit sha changed against its first parent (a merge's whole delivery), for Gate.
 func MergeFiles(root, sha string) func() ([]string, error) {
 	return func() ([]string, error) {
-		out, err := store.Git(root, "diff", "--name-only", "--no-renames", sha+"^1", sha)
-		return strings.Fields(out), err
+		out, err := store.Git(root, "diff-tree", "-r", "--root", "-m", "--first-parent", "--no-commit-id",
+			"--name-only", "--no-renames", sha)
+		return lines(out), err
 	}
+}
+
+// lines is out's non-empty lines.
+func lines(out string) []string {
+	var files []string
+	for _, f := range strings.Split(out, "\n") {
+		if f != "" {
+			files = append(files, f)
+		}
+	}
+	return files
 }
 
 // Covering is a PR review's paragraph on the pages covering the changed code, each linked under the site's URL, and

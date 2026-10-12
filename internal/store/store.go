@@ -15,7 +15,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -211,16 +210,12 @@ func Committed(store string, changes map[string]*string) ([]*records.Record, err
 // since that commit (CodeChanges).
 type Dates struct {
 	Created, Updated string
-	Edited           int64       // the unix time of its last records commit; 0 while it has uncommitted changes
-	Code             *CodeChange // nil when no commit on the main branch changed its covered code after Edited
+	Edited           int64        // the unix time of its last records commit; 0 while it has uncommitted changes
+	Code             []CodeCommit // the commits on the main branch that changed its covered code after Edited
 }
 
-// CodeChange is the commits on the main branch to a design page's covered files after its last records commit: how
-// many, and the latest one's date.
-type CodeChange struct {
-	Commits int
-	Latest  string
-}
+// CodeCommit is a commit on the main branch: its sha and its date.
+type CodeCommit struct{ SHA, Day string }
 
 // DesignDates is the dates of each design record in recs, by its rel: those of its first and last commits on the
 // records branch, following renames within its directory as git log --follow does. A page with uncommitted changes
@@ -310,8 +305,9 @@ func DesignDates(store string, recs []*records.Record, today string) (map[string
 }
 
 // CodeChanges sets the Code of each design page in dates that has covers and no uncommitted changes: the commits on
-// branch, the code's main branch, that change a file its covers match and are newer than its last records commit. The
-// records store shares the code's repository, so it runs in store: one git log per such page.
+// branch, the code's main branch, that change a file its covers match and are newer than its last records commit,
+// newest first. It follows the first parent, so a merge counts as the one commit that brought its branch, at its own
+// date. The records store shares the code's repository, so it runs in store: one git log per such page.
 func CodeChanges(store, branch string, recs []*records.Record, dates map[string]Dates) error {
 	for _, r := range recs {
 		d, ok := dates[r.Rel]
@@ -319,8 +315,8 @@ func CodeChanges(store, branch string, recs []*records.Record, dates map[string]
 		if r.Type() != "design" || !ok || d.Edited == 0 || len(covers) == 0 {
 			continue
 		}
-		args := []string{"log", "--format=%cs", "--since=" + time.Unix(d.Edited+1, 0).UTC().Format(time.RFC3339),
-			"refs/heads/" + branch, "--"}
+		args := []string{"log", "--first-parent", "--format=%H %cs",
+			"--since=" + time.Unix(d.Edited+1, 0).UTC().Format(time.RFC3339), "refs/heads/" + branch, "--"}
 		for _, c := range covers {
 			args = append(args, ":(glob)"+c)
 		}
@@ -331,8 +327,10 @@ func CodeChanges(store, branch string, recs []*records.Record, dates map[string]
 		if out == "" {
 			continue
 		}
-		days := strings.Split(out, "\n")
-		d.Code = &CodeChange{Commits: len(days), Latest: slices.Max(days)}
+		for _, line := range strings.Split(out, "\n") {
+			sha, day, _ := strings.Cut(line, " ")
+			d.Code = append(d.Code, CodeCommit{SHA: sha, Day: day})
+		}
 		dates[r.Rel] = d
 	}
 	return nil
