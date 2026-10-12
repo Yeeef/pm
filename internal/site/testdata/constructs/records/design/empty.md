@@ -2,6 +2,7 @@
 type: design
 title: Empty
 project: demo
+covers: [src/cli.go]
 ---
 
 ## Problem

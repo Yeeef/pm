@@ -805,6 +805,19 @@ func designDatesMeta(rec *Record, dates Dates) string {
 	return "<span>created " + esc(d.Created) + "</span><span>updated " + esc(d.Updated) + "</span>"
 }
 
+// codeChanged is the line a design page shows when the code its covers name changed after its last edit; "" when not.
+func codeChanged(c *store.CodeChange) string {
+	if c == nil {
+		return ""
+	}
+	n := "1 commit"
+	if c.Commits != 1 {
+		n = fmt.Sprintf("%d commits", c.Commits)
+	}
+	return `<p class="note draft">The code this page covers changed after its last edit: ` + n +
+		" on the main branch, the latest on " + esc(c.Latest) + ".</p>"
+}
+
 var (
 	progressRE  = regexp.MustCompile(`(## Progress\n(?:\n?>.*\n)*)`)
 	todayRE     = regexp.MustCompile(`(## Today\n(?:\n?>.*\n)*)`)
@@ -915,7 +928,7 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 		pre = `<p class="meta"><span>` + esc(m["date"].Str) + "</span>" + where + "</p>"
 	case "design":
 		if dates != nil {
-			pre = `<p class="meta">` + designDatesMeta(rec, dates) + "</p>"
+			pre = `<p class="meta">` + designDatesMeta(rec, dates) + "</p>" + codeChanged(dates[rec.Rel].Code)
 		}
 	}
 	source := []byte(skipFrontMatter(body))

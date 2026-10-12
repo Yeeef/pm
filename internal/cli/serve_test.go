@@ -68,7 +68,7 @@ func TestStampAndTextsSurviveGitRewritingTheRecordsMidWalk(t *testing.T) {
 	run("tag", "b")
 	run("checkout", "-q", "--detach", "a") // a's tree, with HEAD detached so each checkout below moves only files
 
-	s, err := newServedSite(dir, "t")
+	s, err := newServedSite(dir, "t", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestLoadNeverPassesARecordSetMissingAFileGitRewrote(t *testing.T) {
 	run("tag", "b")
 	run("checkout", "-q", "--detach", "a")
 
-	s, err := newServedSite(dir, "t")
+	s, err := newServedSite(dir, "t", "main")
 	if err != nil {
 		t.Fatal(err)
 	}

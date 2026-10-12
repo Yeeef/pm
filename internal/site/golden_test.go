@@ -3,6 +3,7 @@ package site
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,6 +81,23 @@ func constructsStore(t *testing.T, edits map[string]string) string {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
 	}
+	// The code's main branch in the same repository, as a clone's records store shares it: the design pages' covered
+	// files, changed before and after their records commit.
+	var stream strings.Builder
+	for _, c := range []struct {
+		day  int
+		file string
+	}{{4, "src/parser/lex.go"}, {4, "src/cli.go"}, {7, "src/parser/lex.go"},
+		{8, "docs/grammar.md"}, {9, "src/other.go"}} {
+		at := time.Date(2026, 10, c.day, 12, 0, 0, 0, time.UTC).Unix()
+		fmt.Fprintf(&stream, "commit refs/heads/main\ncommitter t <t@example.com> %d +0000\ndata 4\ncode\n"+
+			"M 100644 inline %s\ndata 3\n%02d\n\n", at, c.file, c.day)
+	}
+	cmd := exec.Command("git", "fast-import", "--quiet")
+	cmd.Dir, cmd.Env, cmd.Stdin = dir, env, strings.NewReader(stream.String())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git fast-import: %v\n%s", err, out)
+	}
 	return dir
 }
 
@@ -111,7 +129,8 @@ func constructsItems(t *testing.T, extra ...string) *records.Items {
 	return records.NewItems(items)
 }
 
-// renderStore renders the store as pm's service does: the working store, design dates from git, the day summaries.
+// renderStore renders the store as pm's service does: the working store, design dates and covered-code changes from
+// git, the day summaries.
 func renderStore(dir string, items *records.Items) (map[string]string, error) {
 	recs, err := records.Read(dir, nil)
 	if err != nil {
@@ -119,6 +138,9 @@ func renderStore(dir string, items *records.Items) (map[string]string, error) {
 	}
 	dates, err := store.DesignDates(dir, recs, store.Today())
 	if err != nil {
+		return nil, err
+	}
+	if err := store.CodeChanges(dir, "main", recs, dates); err != nil {
 		return nil, err
 	}
 	summaries, err := records.ReadSummaries(dir)

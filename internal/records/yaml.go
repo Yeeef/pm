@@ -33,7 +33,8 @@ type Value struct {
 	Kind   string
 	Str    string
 	Truthy bool
-	repr   string // repr() where it differs from str()
+	List   []Value // a list's items
+	repr   string  // repr() where it differs from str()
 }
 
 // Repr is Python's repr() of the value.
@@ -89,16 +90,16 @@ func value(n *yaml.Node) (Value, error) {
 	case yaml.AliasNode:
 		return value(n.Alias)
 	case yaml.SequenceNode:
-		parts := make([]string, len(n.Content))
+		parts, items := make([]string, len(n.Content)), make([]Value, len(n.Content))
 		for i, c := range n.Content {
 			v, err := value(c)
 			if err != nil {
 				return Value{}, err
 			}
-			parts[i] = v.Repr()
+			parts[i], items[i] = v.Repr(), v
 		}
 		s := "[" + strings.Join(parts, ", ") + "]"
-		return Value{Kind: KindList, Str: s, Truthy: len(parts) > 0}, nil
+		return Value{Kind: KindList, Str: s, Truthy: len(parts) > 0, List: items}, nil
 	case yaml.MappingNode:
 		parts := make([]string, 0, len(n.Content)/2)
 		for i := 0; i+1 < len(n.Content); i += 2 {

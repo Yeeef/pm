@@ -302,6 +302,9 @@ func Parse(path, rel, text string) (*Record, error) {
 			return nil, err
 		}
 	}
+	if err := checkCovers(meta, rel); err != nil {
+		return nil, err
+	}
 	if err := CheckBlocks(text, rel); err != nil {
 		return nil, err
 	}

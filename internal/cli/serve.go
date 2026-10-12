@@ -42,7 +42,7 @@ func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io
 	if err != nil {
 		return err
 	}
-	pages, err := newServedSite(records, filepath.Base(root))
+	pages, err := newServedSite(records, filepath.Base(root), cfg.MainBranch)
 	if err != nil {
 		return err
 	}
@@ -149,20 +149,21 @@ func summarizeDay(main string) (bool, string) {
 	return true, said
 }
 
-// servedSite is internal/site as the pm service renders it (service.Site): the records store's files, its HEAD and
-// today's date as the stamp; each look's records and items checked and their pages rendered on demand; the reply forms
-// and the status line filled on every page served.
+// servedSite is internal/site as the pm service renders it (service.Site): the records store's files, its HEAD, the
+// code's main branch and today's date as the stamp; each look's records and items checked and their pages rendered on
+// demand; the reply forms and the status line filled on every page served.
 type servedSite struct {
 	records, name string
-	heads         []string // the files whose bytes change whenever the store's HEAD commit does
+	branch        string   // the code's main branch, whose commits to covered files a design page names
+	heads         []string // the files whose bytes change whenever the store's HEAD commit or the main branch does
 	mu            gosync.Mutex
 	datesStamp    string // the stamp the cached design dates were read at
 	dates         site.Dates
 }
 
-// newServedSite reads where the records store keeps its HEAD: the worktree's HEAD, the records branch's loose ref and
-// packed-refs, read as files so a look runs no git.
-func newServedSite(records, name string) (*servedSite, error) {
+// newServedSite reads where the records store keeps its HEAD: the worktree's HEAD, the records branch's and the main
+// branch's loose refs and packed-refs, read as files so a look runs no git.
+func newServedSite(records, name, branch string) (*servedSite, error) {
 	out, err := git(records, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
 	if err != nil {
 		return nil, err
@@ -175,8 +176,9 @@ func newServedSite(records, name string) (*servedSite, error) {
 		return nil, refuse("%s keeps refs in a format other than files (reftable?); the pm service reads refs as files",
 			dirs[1])
 	}
-	return &servedSite{records: records, name: name, heads: []string{filepath.Join(dirs[0], "HEAD"),
-		filepath.Join(dirs[1], "refs/heads", store.Branch), filepath.Join(dirs[1], "packed-refs")}}, nil
+	return &servedSite{records: records, name: name, branch: branch, heads: []string{filepath.Join(dirs[0], "HEAD"),
+		filepath.Join(dirs[1], "refs/heads", store.Branch), filepath.Join(dirs[1], "refs/heads", branch),
+		filepath.Join(dirs[1], "packed-refs")}}, nil
 }
 
 // Stamp is a digest of every record file and day summary (path and bytes), the store's HEAD files and today's date.
@@ -225,7 +227,7 @@ func (s *servedSite) Stamp() (string, error) {
 }
 
 // Load reads the records as they are on disk, uncommitted edits included, and checks them against items. The design
-// pages' dates come from git, read again only when the stamp moved. Records that moved while it read them (a file gone,
+// pages' dates and their covered code's changes come from git, read again only when the stamp moved. Records that moved while it read them (a file gone,
 // or the stamp after the read not the stamp before) make it a service.Partial.
 func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	stamp, err := s.Stamp() // before the read: a write between the two moves the stamp again, and the next look reads
@@ -247,7 +249,10 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	s.mu.Lock()
 	dates := s.dates
 	if s.datesStamp != stamp {
-		if dates, err = store.DesignDates(s.records, recs, store.Today()); err != nil {
+		if dates, err = store.DesignDates(s.records, recs, store.Today()); err == nil {
+			err = store.CodeChanges(s.records, s.branch, recs, dates)
+		}
+		if err != nil {
 			s.mu.Unlock()
 			return nil, err
 		}
