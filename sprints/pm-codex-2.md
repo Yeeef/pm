@@ -88,7 +88,12 @@ Codex loads that file with no flag to turn it off, and a temp home would need th
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Judge live eval, 63 labelled cases x 3 runs, 8 calls at a time: claude
+  189/189 (median 2.01 s, p90 3.59 s, max 11.64 s); codex gpt-5.6-luna medium
+  189/189 (median 5.48 s, p90 14.10 s, max 19.69 s). Before the prompt fix
+  codex missed 4 cases (Step 1 skipped PR merge/review states not addressed to
+  the owner; how-to steps read as actions); at low effort it missed 3 to 4 of
+  189 runs.
 
 ## Delivery report
 
