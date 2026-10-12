@@ -81,8 +81,8 @@ func constructsStore(t *testing.T, edits map[string]string) string {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
 	}
-	// The code's main branch in the same repository, as a clone's records store shares it: the design pages' covered
-	// files, changed before and after their records commit.
+	// The remote's main branch as the clone fetched it, in the same repository, as a clone's records store shares it: the
+	// design pages' covered files, changed before and after their records commit.
 	var stream strings.Builder
 	for _, c := range []struct {
 		day  int
@@ -90,7 +90,7 @@ func constructsStore(t *testing.T, edits map[string]string) string {
 	}{{4, "src/parser/lex.go"}, {4, "src/cli.go"}, {7, "src/parser/lex.go"},
 		{8, "docs/grammar.md"}, {9, "src/other.go"}} {
 		at := time.Date(2026, 10, c.day, 12, 0, 0, 0, time.UTC).Unix()
-		fmt.Fprintf(&stream, "commit refs/heads/main\ncommitter t <t@example.com> %d +0000\ndata 4\ncode\n"+
+		fmt.Fprintf(&stream, "commit refs/remotes/origin/main\ncommitter t <t@example.com> %d +0000\ndata 4\ncode\n"+
 			"M 100644 inline %s\ndata 3\n%02d\n\n", at, c.file, c.day)
 	}
 	cmd := exec.Command("git", "fast-import", "--quiet")
@@ -140,7 +140,7 @@ func renderStore(dir string, items *records.Items) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := store.CodeChanges(dir, "main", recs, dates); err != nil {
+	if err := store.CodeChanges(dir, "origin/main", recs, dates); err != nil {
 		return nil, err
 	}
 	summaries, err := records.ReadSummaries(dir)
@@ -192,6 +192,29 @@ func TestPagesEqualTheGoldenPages(t *testing.T) {
 		}
 	}
 	t.Logf("%d pages compared", len(pages))
+}
+
+// A clone that never fetched the remote's main still renders every page; each design page with covers says once that
+// its code changes were not checked, and why, where the covered-code line would be.
+func TestADesignPageSaysWhyItsCoveredCodeWasNotChecked(t *testing.T) {
+	inZone(t)
+	dir := constructsStore(t, nil)
+	if out, err := exec.Command("git", "-C", dir, "update-ref", "-d", "refs/remotes/origin/main").CombinedOutput(); err != nil {
+		t.Fatalf("git update-ref -d: %v\n%s", err, out)
+	}
+	pages, err := renderStore(dir, constructsItems(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const line = `<p class="note draft">Code changes not checked: no origin/main.</p>`
+	for _, p := range []string{"design/parser.html", "design/empty.html"} {
+		if n := strings.Count(pages[p], line); n != 1 {
+			t.Errorf("%s holds the not-checked line %d times, want once", p, n)
+		}
+		if strings.Contains(pages[p], "The code this page covers changed") {
+			t.Errorf("%s says its covered code changed, with no origin/main to read", p)
+		}
+	}
 }
 
 // pm check on the constructs with one thing broken: the error it gives.

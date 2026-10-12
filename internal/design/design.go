@@ -216,11 +216,21 @@ func PRFiles(root, pr string) func() ([]string, error) {
 	}
 }
 
-// MergeFiles is the files the commit sha changed against its first parent (a merge's whole delivery), for Gate.
+// MergeFiles is the files the merge commit sha brought, against its first parent, for Gate. Only a merge commit tells
+// where a delivery starts: a squash merge, a rebase merge's last commit and a direct commit each have one parent and
+// look alike, and a rebase merge's earlier commits would go unseen, so a commit with one parent is refused.
 func MergeFiles(root, sha string) func() ([]string, error) {
 	return func() ([]string, error) {
-		out, err := store.Git(root, "diff-tree", "-r", "--root", "-m", "--first-parent", "--no-commit-id",
-			"--name-only", "--no-renames", sha)
+		parents, err := store.Git(root, "rev-list", "--parents", "-n", "1", sha)
+		if err != nil {
+			return nil, err
+		}
+		if len(strings.Fields(parents)) < 3 {
+			return nil, fmt.Errorf("--merged %s is not a merge commit, so the design-page check cannot tell which "+
+				"commits the delivery holds (a squash or a rebase merge leaves one commit per change); give the PR "+
+				"with --pr URL, whose files GitHub lists", sha[:7])
+		}
+		out, err := store.Git(root, "diff", "--name-only", "--no-renames", sha+"^1", sha)
 		return lines(out), err
 	}
 }

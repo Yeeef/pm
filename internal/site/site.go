@@ -805,11 +805,16 @@ func designDatesMeta(rec *Record, dates Dates) string {
 
 var mergedStamp = regexp.MustCompile(`Merged as ([0-9a-f]{7,40})\b`)
 
-// codeChanged is the line a design page shows when the code its covers name changed after its last edit; "" when not.
+// codeChanged is the line a design page shows when the code its covers name changed after its last edit, or why that
+// was not checked; "" when it was and nothing changed.
 // A commit is left out when a sprint that updated the page (links it in Design pages) or waived it (pm design
 // unchanged) stamped it as its merge: that sprint's page edit or waiver already answers for it, though the merge
 // lands after the edit.
-func codeChanged(page *Record, recs []*Record, commits []store.CodeCommit) string {
+func codeChanged(page *Record, recs []*Record, d store.Dates) string {
+	if d.Unchecked != "" {
+		return `<p class="note draft">Code changes not checked: ` + esc(d.Unchecked) + ".</p>"
+	}
+	commits := d.Code
 	var merges []string
 	for _, r := range recs {
 		if _, waived := design.Waivers(r)[page.Name()]; r.Type() == "sprint" &&
@@ -950,7 +955,7 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 		pre = `<p class="meta"><span>` + esc(m["date"].Str) + "</span>" + where + "</p>"
 	case "design":
 		if dates != nil {
-			pre = `<p class="meta">` + designDatesMeta(rec, dates) + "</p>" + codeChanged(rec, recs, dates[rec.Rel].Code)
+			pre = `<p class="meta">` + designDatesMeta(rec, dates) + "</p>" + codeChanged(rec, recs, dates[rec.Rel])
 		}
 	}
 	source := []byte(skipFrontMatter(body))

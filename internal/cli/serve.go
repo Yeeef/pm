@@ -42,7 +42,7 @@ func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io
 	if err != nil {
 		return err
 	}
-	pages, err := newServedSite(records, filepath.Base(root), cfg.MainBranch)
+	pages, err := newServedSite(records, filepath.Base(root), cfg.Remote+"/"+cfg.MainBranch)
 	if err != nil {
 		return err
 	}
@@ -150,20 +150,20 @@ func summarizeDay(main string) (bool, string) {
 }
 
 // servedSite is internal/site as the pm service renders it (service.Site): the records store's files, its HEAD, the
-// code's main branch and today's date as the stamp; each look's records and items checked and their pages rendered on
+// remote's main branch and today's date as the stamp; each look's records and items checked and their pages rendered on
 // demand; the reply forms and the status line filled on every page served.
 type servedSite struct {
 	records, name string
-	branch        string   // the code's main branch, whose commits to covered files a design page names
+	main          string   // <remote>/<main branch>: the remote's main, whose commits to covered files a design page names
 	heads         []string // the files whose bytes change whenever the store's HEAD commit or the main branch does
 	mu            gosync.Mutex
 	datesStamp    string // the stamp the cached design dates were read at
 	dates         site.Dates
 }
 
-// newServedSite reads where the records store keeps its HEAD: the worktree's HEAD, the records branch's and the main
-// branch's loose refs and packed-refs, read as files so a look runs no git.
-func newServedSite(records, name, branch string) (*servedSite, error) {
+// newServedSite reads where the records store keeps its HEAD: the worktree's HEAD, the records branch's loose ref, the
+// remote's main branch's (main, <remote>/<branch>) and packed-refs, read as files so a look runs no git.
+func newServedSite(records, name, main string) (*servedSite, error) {
 	out, err := git(records, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
 	if err != nil {
 		return nil, err
@@ -176,8 +176,8 @@ func newServedSite(records, name, branch string) (*servedSite, error) {
 		return nil, refuse("%s keeps refs in a format other than files (reftable?); the pm service reads refs as files",
 			dirs[1])
 	}
-	return &servedSite{records: records, name: name, branch: branch, heads: []string{filepath.Join(dirs[0], "HEAD"),
-		filepath.Join(dirs[1], "refs/heads", store.Branch), filepath.Join(dirs[1], "refs/heads", branch),
+	return &servedSite{records: records, name: name, main: main, heads: []string{filepath.Join(dirs[0], "HEAD"),
+		filepath.Join(dirs[1], "refs/heads", store.Branch), filepath.Join(dirs[1], "refs/remotes", main),
 		filepath.Join(dirs[1], "packed-refs")}}, nil
 }
 
@@ -250,7 +250,7 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	dates := s.dates
 	if s.datesStamp != stamp {
 		if dates, err = store.DesignDates(s.records, recs, store.Today()); err == nil {
-			err = store.CodeChanges(s.records, s.branch, recs, dates)
+			err = store.CodeChanges(s.records, s.main, recs, dates)
 		}
 		if err != nil {
 			s.mu.Unlock()

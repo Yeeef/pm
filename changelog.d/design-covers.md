@@ -10,5 +10,7 @@
   covering the changed code.
 - `design_sources` in `.pm/config.toml`, a list of path patterns: `pm check` lists the tracked source files it matches
   that no design page covers.
-- A design page on the site says when the code it covers changed on the main branch after its last edit: how many
-  commits, and the latest one's date. The merge of a sprint that updated or waived the page does not count.
+- A design page on the site says when the code it covers changed on the remote's main branch (as the clone last
+  fetched it) after its last edit: how many commits, and the latest one's date. The merge of a sprint that updated
+  or waived the page does not count. A clone that never fetched the remote's main shows "Code changes not checked"
+  instead.

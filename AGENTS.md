@@ -311,10 +311,12 @@ RTM_NEWADDR`) needs `danger-full-access`.
   await-you sections show it.
   `test_pm_commit_refuses_a_hand_edit_that_does_not_render_and_commits_one_that_does` holds the render check.
 - Day summaries live beside the day record as `records/days/<date>.summary.json`, written by `pm day summarize`.
-- A design page whose `covers:` match files changed by commits on the main branch after the page's last records
-  commit shows one line saying how many and the latest date, leaving out the merges a sprint that updated or waived
-  the page stamped (`store.CodeChanges`: one `git log --first-parent` per page with covers, run in the records store, which shares the code's repository; the service reads it again when the records
-  or the main branch's ref move). The constructs' store carries a `main` branch for it.
+- A design page whose `covers:` match files changed by commits on the remote's main (`refs/remotes/<remote>/<main>`,
+  as the clone last fetched it) after the page's last records commit shows one line saying how many and the latest
+  date, leaving out the merges a sprint that updated or waived the page stamped (`store.CodeChanges`: one
+  `git log --first-parent` per page with covers, run in the records store, which shares the code's repository; the
+  service reads it again when the records or that ref move). A clone without that ref renders the page with "Code
+  changes not checked: no origin/main." instead. The constructs' store carries `refs/remotes/origin/main` for it.
 - A page change shows in the golden pages (`internal/site/testdata/constructs/pages`); a construct the fixture lacks
   gets a record or item in `internal/site/testdata/constructs`.
 

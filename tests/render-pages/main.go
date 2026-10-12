@@ -62,7 +62,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := store.CodeChanges(dir, cfg.MainBranch, recs, dates); err != nil {
+	if err := store.CodeChanges(dir, cfg.Remote+"/"+cfg.MainBranch, recs, dates); err != nil {
 		return err
 	}
 	pages, err := site.RenderPages(recs, records.NewItems(items), filepath.Base(root), dates, summaries)

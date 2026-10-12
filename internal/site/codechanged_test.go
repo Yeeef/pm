@@ -49,7 +49,7 @@ func TestCodeChangedLeavesOutTheMergesOfSprintsThatUpdatedOrWaivedThePage(t *tes
 		if i == 3 {
 			in = commits[:2]
 		}
-		if got := codeChanged(page, c.recs, in); got != c.want {
+		if got := codeChanged(page, c.recs, store.Dates{Code: in}); got != c.want {
 			t.Errorf("%s: %q, want %q", c.name, got, c.want)
 		}
 	}

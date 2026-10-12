@@ -211,7 +211,8 @@ func Committed(store string, changes map[string]*string) ([]*records.Record, err
 type Dates struct {
 	Created, Updated string
 	Edited           int64        // the unix time of its last records commit; 0 while it has uncommitted changes
-	Code             []CodeCommit // the commits on the main branch that changed its covered code after Edited
+	Code             []CodeCommit // the commits on the remote's main branch that changed its covered code after Edited
+	Unchecked        string       // why its covered code was not checked, for a page with covers; "" when it was
 }
 
 // CodeCommit is a commit on the main branch: its sha and its date.
@@ -305,18 +306,30 @@ func DesignDates(store string, recs []*records.Record, today string) (map[string
 }
 
 // CodeChanges sets the Code of each design page in dates that has covers and no uncommitted changes: the commits on
-// branch, the code's main branch, that change a file its covers match and are newer than its last records commit,
-// newest first. It follows the first parent, so a merge counts as the one commit that brought its branch, at its own
-// date. The records store shares the code's repository, so it runs in store: one git log per such page.
-func CodeChanges(store, branch string, recs []*records.Record, dates map[string]Dates) error {
+// main, the remote's main branch as this clone last fetched it (refs/remotes/<main>, as pm sprint close --merged
+// names it), that change a file its covers match and are newer than its last records commit, newest first. It follows
+// the first parent, so a merge counts as the one commit that brought its branch, at its own date. The records store
+// shares the code's repository, so it runs in store: one git log per such page. A clone without that ref gets each such
+// page's Unchecked set, naming it, and no git log.
+func CodeChanges(store, main string, recs []*records.Record, dates map[string]Dates) error {
+	ref := "refs/remotes/" + main
+	known, err := Git(store, "for-each-ref", "--format=%(refname)", ref)
+	if err != nil {
+		return err
+	}
 	for _, r := range recs {
 		d, ok := dates[r.Rel]
 		covers := r.Covers()
 		if r.Type() != "design" || !ok || d.Edited == 0 || len(covers) == 0 {
 			continue
 		}
+		if known != ref {
+			d.Unchecked = "no " + main
+			dates[r.Rel] = d
+			continue
+		}
 		args := []string{"log", "--first-parent", "--format=%H %cs",
-			"--since=" + time.Unix(d.Edited+1, 0).UTC().Format(time.RFC3339), "refs/heads/" + branch, "--"}
+			"--since=" + time.Unix(d.Edited+1, 0).UTC().Format(time.RFC3339), ref, "--"}
 		for _, c := range covers {
 			args = append(args, ":(glob)"+c)
 		}
