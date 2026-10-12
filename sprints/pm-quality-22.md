@@ -68,6 +68,11 @@ The design page agent-lifecycle stays as it is for this sprint's code changes.
 prime.md gains one clause in the PR review step; the session-start and stop hooks the page describes are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-12}
+The design page decision-need-layout stays as it is for this sprint's code changes.
+The need-text helpers moved from internal/cli/needs.go to internal/records/text.go unchanged; the layout and its refusals are the same.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
