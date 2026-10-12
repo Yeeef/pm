@@ -30,6 +30,11 @@ The coordinating agent merges pm-quality PRs once CI is green and a fresh-contex
 Owner, 2026-10-10: you have agency to merge PRs and take actions; autopilot mode.
 :::
 
+::: decision {source=owner date=2026-10-12}
+pm-quality PRs merge as soon as make merge-ready passes, with no owner review; the agent merges and closes the sprint with --merged
+Owner, 2026-10-12: quality-improvement PRs need no owner approval; CI and merge-ready are the gate
+:::
+
 ## Design pages
 
 > Where is the detail?
