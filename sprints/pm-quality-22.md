@@ -74,6 +74,12 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
   session_context_hook.py), records-store (.beads and uv-cache roots). This is
   the drift this sprint's staleness line is meant to surface.
 
+- `internal/cli` sat exactly at its size cap (8920 of 8920 non-test lines), so
+  the gate lives in a new package `internal/design`, and gh's JSON call (to
+  `internal/proc`), the need-text helpers and the merge stamp (to
+  `internal/records`) moved out unchanged; `internal/cli` ends at 8910 and its
+  cap entry drops to that.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
