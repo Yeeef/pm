@@ -8,6 +8,7 @@ import re
 import shutil
 import socket
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -475,3 +476,48 @@ def test_session_start_of_a_codex_session_started_from_claude_code_takes_no_clau
     payload = hook_payload("codex", "SessionStart", session=ROOT, cwd=str(repo.root), transcript=str(tmp_path / "t"))
     context_of(run(STATE, payload, env, repo.root))
     assert repo.items()["repo-demo.1.3"]["need"]["raised_by"]["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}"
+
+
+def test_a_codex_session_whose_hooks_did_not_run_is_told_once(repo):
+    """Codex skips a hook the user has not trusted, silently: a pm command in a Codex session whose rollout holds no pm
+    session-start context before its first prompt warns once on stderr, naming the fix; a session whose rollout holds
+    it, pm's hooks themselves, and a session whose first prompt is not written yet get no warning. The command itself
+    runs as ever."""
+    def rollout(thread: str, *messages: tuple[str, str]) -> None:
+        """A Codex 0.154 rollout's opening: session_meta, Codex's own context, turn_context, then `messages`."""
+        lines = [{"type": "session_meta", "payload": {"id": thread, "cwd": str(repo.root), "originator": "codex_exec"}},
+                 {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [
+                     {"type": "input_text", "text": "# AGENTS.md instructions\n\n<INSTRUCTIONS>…"}]}},
+                 {"type": "turn_context", "payload": {"cwd": str(repo.root)}}]
+        lines += [{"type": "response_item", "payload": {"type": "message", "role": role,
+                                                        "content": [{"type": "input_text", "text": text}]}}
+                  for role, text in messages]
+        p = Path(repo.env["CODEX_HOME"]) / "sessions/2026/10/11" / f"rollout-2026-10-11T19-07-16-{thread}.jsonl"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+    skipped, hooked, unwritten = ("01a12bee-db2f-7050-ba39-116b615a19b8", "01a12bef-027d-7c33-8fb3-8fd52363eaf7",
+                                  "01a12bef-1111-7c33-8fb3-8fd52363eaf7")
+    rollout(skipped, ("user", "Run pm show."))
+    rollout(hooked, ("developer", chunks()[0]), ("user", "Run pm show."))
+    rollout(unwritten)
+
+    def show(thread: str, *args: str):
+        res = subprocess.run([*PM, *(args or ("show",))], cwd=repo.root, input="{}", capture_output=True, text=True,
+                             env=dict(repo.env, CODEX_SESSION_ID=thread, CODEX_THREAD_ID=thread), check=False)
+        return res
+
+    first = show(skipped)
+    assert first.returncode == 0 and "projects:" in first.stdout, first.stderr
+    assert first.stderr.count("warning: Codex ran none of pm's hooks in this session") == 1, first.stderr
+    assert f"open Codex in {repo.root}, trust pm's hooks in /hooks" in first.stderr
+    again = show(skipped)
+    assert again.returncode == 0 and "warning" not in again.stderr, "once per session"
+    for thread in (hooked, unwritten):
+        res = show(thread)
+        assert res.returncode == 0 and "warning" not in res.stderr, (thread, res.stderr)
+    rollout(unwritten, ("user", "Run pm show."))  # its first prompt is written now: told then
+    assert "warning: Codex ran none" in show(unwritten).stderr
+    for args in (("prime", "--subagent"), ("hook", "stop")):  # the hooks themselves never warn
+        (repo.root / f".pm/run/codex-hooks/{skipped}").unlink(missing_ok=True)
+        assert "warning" not in show(skipped, *args).stderr, args

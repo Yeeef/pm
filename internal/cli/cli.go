@@ -460,9 +460,13 @@ func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// reads its session from its input (and fails open), and help and version act as none
 	if len(argv) > 0 && argv[0] != "hook" && argv[0] != "prime" && argv[0] != "version" &&
 		!slices.Contains(argv, "-h") && !slices.Contains(argv, "--help") {
-		if _, _, err := agentSession(); err != nil {
+		id, runtime, err := agentSession()
+		if err != nil {
 			fmt.Fprintf(stderr, "error: %s\n", err)
 			return 1
+		}
+		if runtime == "codex" {
+			warnCodexHooksSkipped(id, stderr)
 		}
 	}
 	if name, args, ok := storeFormOf(argv); ok {

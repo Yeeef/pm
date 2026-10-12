@@ -134,3 +134,62 @@ func TestCodexLiveLooksUnderTheHomeItIsGiven(t *testing.T) {
 		t.Fatal("liveness was read under another home")
 	}
 }
+
+// TestCodexHooksRanReadsTheRolloutUpToTheFirstPrompt: the opening of a real Codex 0.154 rollout, with and without
+// pm's session-start context, and one whose first prompt is not written yet.
+func TestCodexHooksRanReadsTheRolloutUpToTheFirstPrompt(t *testing.T) {
+	t.Setenv("CODEX_HOME", t.TempDir())
+	msg := func(role string, texts ...string) map[string]any {
+		var content []map[string]any
+		for _, x := range texts {
+			content = append(content, map[string]any{"type": "input_text", "text": x})
+		}
+		return map[string]any{"type": "response_item", "payload": map[string]any{"type": "message", "role": role,
+			"content": content}}
+	}
+	codexContext := []map[string]any{
+		{"type": "event_msg", "payload": map[string]any{"type": "task_started"}},
+		msg("developer", "<permissions instructions>\n…"),
+		// Codex's user context: plugins, the user's AGENTS.md (which may name pm's rules), the environment
+		msg("user", "<recommended_plugins>\n…", "# AGENTS.md instructions\n\n<INSTRUCTIONS>\n# pm rules (quoted)\n", "<environment_context>…"),
+		{"type": "turn_context", "payload": map[string]any{"cwd": "/repo"}},
+	}
+	prompt := msg("user", "Run pm show.")
+	write := func(lines []map[string]any) {
+		path := rollout(t, rootThread, "", nil)
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, l := range lines {
+			b, err := json.Marshal(l)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.Write(append(b, '\n')); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range []struct {
+		name       string
+		lines      []map[string]any
+		ran, known bool
+	}{
+		{"hooks ran", append(append([]map[string]any{}, codexContext...),
+			msg("developer", RulesMark+"1 of 3): the introduction\n…"), msg("developer", "state …"), prompt), true, true},
+		{"hooks skipped", append(append([]map[string]any{}, codexContext...), prompt), false, true},
+		{"first prompt not written yet", codexContext, false, false},
+	} {
+		write(c.lines)
+		if ran, known := CodexHooksRan(rootThread); ran != c.ran || known != c.known {
+			t.Errorf("%s: got ran %v known %v, want %v %v", c.name, ran, known, c.ran, c.known)
+		}
+	}
+	if _, known := CodexHooksRan(childThread); known {
+		t.Error("a thread with no rollout: known")
+	}
+}
