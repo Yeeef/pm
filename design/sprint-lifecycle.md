@@ -136,8 +136,10 @@ closed and each review closed as merged (a dismissed one, a replaced PR's or a [
 Outcome, commits the record on the records branch and closes the epic. It
 runs the design-page gate again on each review's PR, since a PR can change
 after its review was raised; with `--merged SHA` it runs it on `--pr`'s files,
-or without `--pr` on the files the commit changed against its first parent (a
-merge's whole delivery; for a rebase merge, only its last commit). A sprint with no PR,
+or without `--pr` on the files a merge commit brought against its first
+parent. A commit with one parent (a squash or rebase merge, a direct commit)
+does not say where its delivery starts, so there it refuses and asks for
+`--pr`. A sprint with no PR,
 or a voided one, closes without a review or a stamp.
 
 ### Design pages follow the code
