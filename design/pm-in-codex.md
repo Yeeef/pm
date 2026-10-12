@@ -57,10 +57,10 @@ Each area's design lives on its own page; this page keeps a summary per area, th
 | Setup | `pm init` writes `.codex/hooks.json` (the same commands per event as `.claude/settings.json`, SessionStart on `startup\|resume\|clear\|compact`, plus SubagentStop running `pm hook stop`) and `.codex/rules/pm.rules`; `pm doctor` reports Codex's trust in pm's hooks; a typed `pm init` keeps the service unit's PATH | [pm as an installable product](../design/pm-product.md) |
 | Session identity and claims | `CODEX_SESSION_ID`, else `CODEX_THREAD_ID` mapped to its root; the innermost runtime decides when both runtimes' ids are set, and an ambiguous session refuses; liveness and `pm clean` read Codex rollouts | [Session claims](../design/session-claims.md) |
 | Owner replies | No push: `pm reply wait` within a turn, `pm hook inbox` at the next prompt, `pm show` and `pm reply read`; a Codex session never stores an inbox | [Reply delivery](../design/reply-delivery.md) |
-| Owner-request check | The same Stop hook; a null final reply passes; a failing check is a silent pass in Codex; the judge still runs `claude -p` | [Owner-request Stop hook](../design/owner-request-hook.md) |
+| Owner-request check | The same Stop hook, with `--runtime codex`: the judge runs `codex exec` on `gpt-5.6-luna`, so a Codex session needs no `claude`; a null final reply passes; a failing check is a silent pass in Codex | [Owner-request Stop hook](../design/owner-request-hook.md) |
 | Uncommitted records | The same Stop hook; a subagent's SubagentStop reads its own rollout (`agent_transcript_path`), since its tool inputs are encrypted in the parent's | [Agent lifecycle](../design/agent-lifecycle.md) |
 
-`TestClaudeAndCodexRunTheSameHooks` holds the two hook files to the same commands per event, except the differences one allowlist names with a reason: the matchers' syntax and Codex's SubagentStop.
+`TestClaudeAndCodexRunTheSameHooks` holds the two hook files to the same commands per event, except the differences one allowlist names with a reason: the matchers' syntax and Codex's SubagentStop. It reads each Stop entry's `--runtime` as the entry's own.
 
 ### Hook trust
 
@@ -76,14 +76,14 @@ The 12 gaps the sprint 1 gap list found, each with where it stands.
 
 | # | Gap | Status | How |
 |---|---|---|---|
-| 1 | Codex runs no project hook until the user trusts it, and `codex exec` skips untrusted ones silently | reported; the owner trusts once | `pm doctor` and `pm init` name the pm hooks Codex skips (see Hook trust). pm never writes the trust (owner decision). |
+| 1 | Codex runs no project hook until the user trusts it, and `codex exec` skips untrusted ones silently | reported; the owner trusts once | `pm doctor` and `pm init` name the pm hooks Codex skips (see Hook trust), and a pm command in a session whose hooks did not run warns it once. pm never writes the trust (owner decision). |
 | 2 | A Codex subagent is its own thread, with its own id | closed | `CODEX_SESSION_ID`, the root session ([Session claims](../design/session-claims.md)) |
 | 3 | A Codex run started from Claude Code inherits `CLAUDE_CODE_SESSION_ID`, which pm read first | closed | the innermost runtime decides; an ambiguous session refuses |
 | 4 | No reply push into a Codex session | partly closed | `pm reply wait` and `pm hook inbox` at the next prompt. An idle TUI is not woken: left, see Open questions |
 | 5 | Codex reads `.codex/` from the main checkout, not the worktree | left | Codex behaviour. A branch's hook change applies once main has it. In the README. |
 | 6 | The SessionStart matcher lacked `compact` | closed | matcher `startup\|resume\|clear\|compact` |
 | 7 | A subagent's records are invisible to the parent's Stop hook (encrypted inputs) | closed | Codex SubagentStop runs `pm hook stop` on `agent_transcript_path` |
-| 8 | The judge needs `claude`; Codex treats its failure as a silent pass | partly closed | A null `last_assistant_message` passes; `pm doctor` names a missing `claude`. The judge on Codex's own model is pm-codex sprint 2. |
+| 8 | The judge needs `claude`; Codex treats its failure as a silent pass | closed (pm-codex sprint 2) | Each session's judge runs on its own runtime, `codex exec` in Codex; `pm day summarize` on the runtime `summary_runtime` names; a null `last_assistant_message` passes |
 | 9 | Codex has no AskUserQuestion, which the rule names | left | A Codex agent asks through a need, the rule's other path |
 | 10 | `pm clean` did not see live Codex sessions | closed | it reads Codex rollouts |
 | 11 | A network-off Linux sandbox denies `connect()` to `work.sock` | closed, not run live | `.codex/rules/pm.rules` (see Sandbox). Bubblewrap cannot start on the owner's host. |
@@ -93,7 +93,7 @@ Gaps 5 and 9, and the idle TUI in gap 4, are left by a pm-codex project decision
 
 ### Gaps not closed
 
-Six of the 12 gaps are not closed: hook trust (1), the idle TUI (4), `.codex/` from the main checkout (5), the judge's runtime (8), no ask tool (9), and the sandbox not run live (11).
+Five of the 12 gaps are not closed: hook trust (1), the idle TUI (4), `.codex/` from the main checkout (5), no ask tool (9), and the sandbox not run live (11).
 
 #### Gap 1: Codex runs no pm hook until the user trusts it
 
@@ -103,8 +103,8 @@ Six of the 12 gaps are not closed: hook trust (1), the idle TUI (4), `.codex/` f
 | Guarantees lost while untrusted | All of them: no rules or state at session start, no Stop checks (uncommitted records, owner requests), no `pm hook inbox`. `.codex/rules/pm.rules` does not load either, so on Linux every pm command stays inside the sandbox and cannot reach `work.sock`. |
 | Evidence | 0 of the owner's 43 Codex sessions in yeeef-agents, whose `.codex/hooks.json` pm wrote, received pm context. `~/.codex/config.toml` held no `hooks.state` entries. |
 | Why it is open | pm never writes the trust (owner decision on the pm-codex project). The hash is Codex-internal and undocumented, and writing it would bypass Codex's review step. |
-| Until then | `pm doctor` and a typed `pm init` ask `codex app-server` which pm hooks Codex skips, and name the fix (see Hook trust). The owner trusts once per repo and machine, and again after a `pm upgrade` that changes a hook. |
-| Not covered | A session in an untrusted repo gets no signal: its hooks are exactly what does not run, and session start does not ask Codex. A check inside every pm command (does this Codex thread's rollout hold pm's context?) would warn the agent; it is not built. |
+| Until then | `pm doctor` and a typed `pm init` ask `codex app-server` which pm hooks Codex skips, and name the fix (see Hook trust). The owner trusts once per repo and machine, and again after a `pm upgrade` that changes a hook. A pm command in a Codex session whose hooks did not run says so on stderr, once per session: it reads the root rollout's opening (bounded at 1 MB) for pm's rules as a developer message before the first prompt, and remembers the answer in `.pm/run/codex-hooks/<session>`; `pm hook` and `pm prime` never warn. Live: an agent in an untrusted scratch clone ran `pm show` and its rollout holds the warning. |
+| Not covered | A session that runs no pm command gets no signal: its hooks are exactly what does not run, and session start does not ask Codex. |
 | Closes when | Codex offers a supported way for a tool to request trust for the hooks it installs. Managed hooks, which an admin installs and which skip trust, fit an org rollout, not a per-repo `pm init`. |
 
 #### Gap 4: an idle Codex TUI is not woken by a reply
@@ -128,15 +128,6 @@ Six of the 12 gaps are not closed: hook trust (1), the idle TUI (4), `.codex/` f
 | Until then | Hook changes reach main through a PR, as every pm piece does. The README says Codex reads `.codex/` from the main checkout. `pm doctor` checks the main checkout's `.codex/hooks.json`. |
 | Closes when | Codex reads project config from the session's worktree. |
 
-#### Gap 8: the judge needs `claude`
-
-| | |
-|---|---|
-| What happens | The owner-request judge runs `claude -p --model claude-haiku-5-5` in both runtimes, and so does `pm day summarize`. Without `claude` installed and logged in, the hook exits 1. Codex treats a failing Stop hook as a silent pass: no block, and nothing in `--json` or the rollout. |
-| Guarantee lost | On a machine with only Codex, an owner request left only in chat is never caught. |
-| Until then | `pm doctor` names a missing `claude`. The README lists `claude` as needed in Codex setups too. A null `last_assistant_message`, which Codex allows, now passes instead of failing. |
-| Closes when | [pm-codex sprint 2](../sprints/pm-codex-2.md) is on main. A Codex session's judge then runs `codex exec` with a small model, named by its hook entry; the day summary runs on a runtime the repo names; and the labelled cases pass on both backends (owner decision, 2026-10-12). |
-
 #### Gap 9: Codex has no ask tool
 
 | | |
@@ -159,7 +150,8 @@ Six of the 12 gaps are not closed: hook trust (1), the idle TUI (4), `.codex/` f
 ### Checks
 
 - CI: `TestClaudeAndCodexRunTheSameHooks`; the harness tests that drive each hook with both runtimes' real payloads (`tests/hook_payloads.json`) and assert the same output.
-- Live: `make test-live-parity`, real `claude -p` and `codex exec` sessions on a scratch clone, identical assertions per runtime: the solo scenario (context, claim, finding, need, reply, decision, record, task close), the Stop hook, the reply at the next prompt, and both runtimes on one project at once with claims refused across runtimes.
+- Live: `make test-live-parity`, real `claude -p` and `codex exec` sessions on a scratch clone, identical assertions per runtime: the solo scenario (context, claim, finding, need, reply, decision, record, task close), the Stop hook, the reply at the next prompt, and both runtimes on one project at once with claims refused across runtimes; and a Codex session with no `claude` on PATH, asking only in chat, blocked by the judge on `codex exec`.
+- Live: `make test-live` runs the owner-request judge's labelled cases on both runtimes ([Owner-request Stop hook](../design/owner-request-hook.md)).
 
 ## Alternatives considered
 
@@ -183,4 +175,4 @@ The alternatives for delivering replies into a Codex session (`codex exec resume
 
 > What is still unresolved?
 
-- Gaps 1, 4, 5, 8, 9 and 11: see Gaps not closed, each with what would close it.
+- Gaps 1, 4, 5, 9 and 11: see Gaps not closed, each with what would close it.

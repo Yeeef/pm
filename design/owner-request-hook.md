@@ -5,6 +5,7 @@ project: pm-harness
 covers:
   - "internal/hooks/ownerrequest.go"
   - "internal/cli/ownerrequest.go"
+  - "internal/ask/ask.go"
   - "prompts/owner_request_*.txt"
 ---
 
@@ -42,12 +43,14 @@ Non-goals:
 
 - A Stop hook sees the final reply (`last_assistant_message`), `session_id` and `cwd`, and can block once; on `stop_hook_active` the next stop must pass, so the hook can never loop.
 - AskUserQuestion runs mid-turn and waits for the answer, so its question is never in `last_assistant_message` and the hook never judges it. In a session nobody watches it waits forever, and the question is not on the site.
-- The judge, `claude -p --model claude-haiku-5-5` with thinking off and no settings, tools or MCP, takes about 2 s; with thinking on a verdict took 5 to 36 s. Its timeout is 15 s, inside the hook's 30 s.
+- The Claude judge, `claude -p --model claude-haiku-5-5` with thinking off and no settings, tools or MCP, takes about 2 s; with thinking on a verdict took 5 to 36 s. Its timeout is 15 s, inside the hook's 30 s.
+- The Codex judge, `codex exec --model gpt-5.6-luna` at medium reasoning effort, takes about 5.5 s (p90 14 s, 8 calls at a time); at low effort it missed 3 or 4 of 189 labelled runs. Its timeout is 40 s, inside the Codex entry's 45 s.
+- A `codex exec` child runs the hooks it finds, its own Stop included, so a judge that ran them would run the judge again. `--disable hooks` turns Codex's hook engine off; `--ignore-user-config` drops `$CODEX_HOME/config.toml` (its hooks, MCP servers, notify); `--ignore-rules` drops execpolicy rules. `$CODEX_HOME/AGENTS.md`, the user's own instructions, still loads: no flag turns it off (codex-rs 0.154 `codex-home/src/instructions`).
 - The judge sees only the reply and this session's open needs (title and the first 400 characters of the description). It knows nothing of sprints or tasks, so a rule that depends on them cannot be enforced.
 - A need's `--parent` must be an open item inside a project with a record. A project itself is refused ("not inside a project with a record"), so every need sits under a sprint or a task.
 - Codex runs only command hooks, and trusts each hook per file path and hash: a new or changed hook entry runs only after the owner approves it in `/hooks`.
 - Codex's Stop payload differs from Claude Code's in one key the hook reads: `last_assistant_message` is nullable (null for a turn that ended without a message). `session_id` is the root session's in both runtimes.
-- A Stop hook that fails (exit 1) lets the stop through in both runtimes; Codex does so silently. A check that cannot run is therefore lost, not blocking: `pm doctor` names a missing `claude` for that reason.
+- A Stop hook that fails (exit 1) lets the stop through in both runtimes; Codex does so silently. A check that cannot run is therefore lost, not blocking: so each session's judge runs on the runtime that session already has.
 - Phrase patterns (sprint 13) missed requests worded differently and blocked a reply that cited every request because one line said "waiting on you".
 - Agents cite requests by the short id `pm show` prints (`9va.29.4`). An id written in a reply is not a match by itself: only an open need of this session matches.
 
@@ -63,7 +66,7 @@ flowchart TD
   S[Stop: pm hook owner-request] --> A{stop_hook_active, or a blank,<br/>null or missing reply?}
   A -- yes --> P[pass]
   A -- no --> N[read this session's open needs]
-  N --> J[Haiku labels each sentence<br/>and matches it to a need]
+  N --> J[the judge on the session's runtime<br/>labels each sentence and matches it to a need]
   J --> B{unmatched decision, review,<br/>action or clarification;<br/>or a needless ask?}
   B -- no --> P
   B -- yes --> K[block with the reprompt]
@@ -91,7 +94,7 @@ The rule, as all three texts state it:
 
 ### The judge
 
-- `pm hook owner-request` reads the session's open needs from the work store, then asks Haiku for every sentence of the reply that addresses the owner, its kind, and the open need it matches, by meaning.
+- `pm hook owner-request --runtime claude|codex` reads the session's open needs from the work store, then asks a small model on that runtime for every sentence of the reply that addresses the owner, its kind, and the open need it matches, by meaning.
 - Kinds that block when no open need matches: `decision`, `review`, `action`, `clarification`. A sentence that makes the agent's next step depend on something the owner must first provide or do is an `action`, worded as a condition ("If you paste the log, I'll find the cause") or a statement ("Without the log I can't tell which"). A clarification asked in plain text is lost when nobody reads the chat; asked with AskUserQuestion it is not in the reply.
 - Kinds that pass: `offer` and `suggestion` that nothing waits on, and `not asked` (quotes, reports, examples, the agent's own plan, text in code blocks). An offer the work cannot finish without is a request, however politely put.
 - `authorized` (a needless ask) blocks even when a need matches.
@@ -113,20 +116,24 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | | Claude Code | Codex |
 |---|---|---|
 | Entry | `.claude/settings.json`, Stop | `.codex/hooks.json`, Stop (runs once the owner trusts pm's hooks) |
-| Command | `pm hook owner-request \|\| exit 1`, 30 s, before `pm hook stop` | the same |
+| Command | `pm hook owner-request --runtime claude \|\| exit 1`, 30 s, before `pm hook stop` | `--runtime codex`, 45 s, before `pm hook stop` |
 | Reply | `last_assistant_message`, a string | the same key, nullable: null passes |
-| Judge | `claude -p`, Haiku | the same `claude -p` call: Codex sessions need `claude` installed and logged in |
+| Judge | `claude -p`, Haiku, 15 s | `codex exec`, `gpt-5.6-luna`, 40 s, from an empty temp dir with hooks, rules and the user's config off and no saved session (`--ephemeral`); needs no `claude` |
 | A check that cannot run | exit 1 with the cause on stderr; the stop goes through | exit 1; Codex passes the stop silently |
 | AskUserQuestion (rule item 3) | the tool | none: a Codex agent's only ask is a need |
 
-- `pm doctor` names a missing `claude`: without it the hook fails at every stop, and Codex passes each one silently.
+- Each entry names its runtime; pm never guesses it. An entry without `--runtime` runs the Claude judge, as every entry did before the flag.
+- One judge prompt serves both runtimes, and every labelled case must pass on each.
+- `pm doctor` does not check either judge's CLI: a session's judge runs on its own runtime, which runs only where it is installed.
 - A Codex subagent's SubagentStop runs only `pm hook stop`; the owner-request check never judges a subagent's report (Non-goals).
 - The Stop entry runs only the two checks. `pm hook inbox`, which hands over the owner's replies, runs at UserPromptSubmit, never at Stop: an inbox block at Stop forces a continuation that ends with `stop_hook_active`, so this hook would pass the very turn that acts on the reply ([Reply delivery](../design/reply-delivery.md)).
 
 ### How it is checked
 
 - Review: prime.md, the judge prompt and the reprompt read side by side; no case is allowed by one and blocked by another.
-- `make test-live` on `tests/owner_request_cases.json`, each case 3 runs by default (`PM_LIVE_RUNS`), all with the case's verdict; after a prompt change, run 10, since a case at 4 in 10 can pass 3 of 3 by chance. Cases include the three replies blocked on 2026-10-10, labelled by the rule (a chat request with no sprint blocks), and a reply whose only question went through AskUserQuestion (passes).
+- `make test-live` on `tests/owner_request_cases.json`, on each runtime's judge, each case 3 runs by default (`PM_LIVE_RUNS`), all with the case's verdict (2026-10-12, 63 cases: Claude 189/189, median 2.0 s; Codex 189/189, median 5.5 s, p90 14.1 s); after a prompt change, run 10, since a case at 4 in 10 can pass 3 of 3 by chance. Cases include the three replies blocked on 2026-10-10, labelled by the rule (a chat request with no sprint blocks), and a reply whose only question went through AskUserQuestion (passes).
+- No recursion: the harness's fake `codex` logs the judge's argv and directory; live, a user Stop hook in `$CODEX_HOME/hooks.json` ran under a plain `codex exec` and did not under the judge's.
+- The parity live eval: a Codex session with no `claude` on its PATH that asks the owner only in chat is blocked, then raises a need.
 - A live session: a reply that asks the owner for a file only in chat is blocked and the reprompt names doing it yourself first; it passes once a need is raised under a sprint or task, or once the question moves to AskUserQuestion.
 
 ## Alternatives considered
@@ -142,6 +149,8 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | **Claude Code prompt hook** (`"type": "prompt"`, the earlier design) | Haiku reads the reply in-process | Cannot read the work store, so it checked that an id was cited, not that the need was open; Claude Code only |
 | **Phrase patterns** (sprint 13) | A phrase list plus a cited-id check | Missed requests worded differently; blocked a reply that cited its needs |
 | **Rule only** | The agent remembers | Four of six requests were asked only in chat |
+| **`claude -p` for every runtime** (sprint 1) | Codex sessions call the Claude judge | A Codex-only machine has no `claude`; the judge fails at every stop and Codex passes each silently (owner decision 2026-10-12) |
+| **Fall back to the other runtime's CLI** | Try codex when claude is missing, or the reverse | Hides a missing runtime and changes which model judges; the entry names the runtime instead |
 
 ## Prior art
 
@@ -153,5 +162,4 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 
 > What is still unresolved?
 
-1. **The judge on Codex's own runtime:** a Codex session's judge still needs `claude`. pm-codex sprint 2 runs it on the session's runtime, `codex exec` with a small model for a Codex session, named by each runtime's hook entry ([The judge and the day summary run on Codex too](../sprints/pm-codex-2.md)).
-2. **Unattended AskUserQuestion:** the agent's judgement of a "clear reason" is the only guard against a question that waits forever in a session nobody watches. If agents misjudge it, the rule narrows item 3.
+1. **Unattended AskUserQuestion:** the agent's judgement of a "clear reason" is the only guard against a question that waits forever in a session nobody watches. If agents misjudge it, the rule narrows item 3.

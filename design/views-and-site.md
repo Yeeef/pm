@@ -7,6 +7,7 @@ covers:
   - "style.css"
   - "internal/cli/day*.go"
   - "prompts/day_summary.txt"
+  - "internal/ask/ask.go"
   - "internal/cli/serve*.go"
   - "internal/service/run*.go"
 ---
@@ -134,8 +135,8 @@ sprint record's Findings, not on the daily page.
 Owner decision (2026-10-06): a day page is a fully rendered view, and its Today summary is generated through the day, not written once in the morning.
 
 - `pm day summarize` builds a plain-text digest of today: what the day page shows (per project, sprint moves and requests waiting on the owner; docs dated today) plus the records committed today, leaving out the summary files themselves. With no activity, or a digest equal to the stored summary's, it exits.
-- Otherwise it pipes the digest to `claude -p --model haiku --tools "" --setting-sources "" --no-session-persistence`, run in a temp dir so no project settings or hooks apply. The prompt asks for 2 to 4 sentences in ASD-STE100 Simplified Technical English (at most 20 words a sentence, active voice, one meaning per word, no idioms): what moved today and what waits on the owner, nothing invented.
-- It commits `{date, generated_at, digest, model, text}` to `records/days/<date>.summary.json`, taking the store lock only after the model answers. A missing or failing `claude` fails the command and writes nothing; there is no fallback text.
+- Otherwise it asks the runtime `summary_runtime` in `.pm/config.toml` names (owner decision 2026-10-12): `claude` (the default, so a repo without the key is unchanged) pipes the digest to `claude -p --model claude-haiku-5-5` with no settings, tools, MCP or saved session; `codex` to `codex exec --model gpt-5.6-luna` with hooks, rules and the user's config off and `--ephemeral`. Either runs in an empty temp dir so no project settings, hooks or instructions apply, for at most 180 s, in a process group killed whole at the timeout. A repo whose machines have only Codex sets `codex`. The prompt asks for 2 to 4 sentences in ASD-STE100 Simplified Technical English (at most 20 words a sentence, active voice, one meaning per word, no idioms): what moved today and what waits on the owner, nothing invented.
+- It commits `{date, generated_at, digest, model, text}` to `records/days/<date>.summary.json`, taking the store lock only after the model answers. A missing or failing CLI (or an empty answer) fails the command and writes nothing; there is no fallback text and no fallback to the other runtime. `pm doctor` fails while the CLI `summary_runtime` names is not on PATH. The prompt asks for at least one bullet: on a quiet day `gpt-5.6-luna` otherwise answered nothing.
 - The scheduled job (`pm push`) runs it as its `summary` step between the Beads and records pushes, every 10 minutes: it regenerates the summary only when the digest changed and does nothing otherwise; it also regenerates yesterday's once when yesterday's digest changed, so the last minutes before midnight are summarized. The step logs its own line in `pm-push.log`; a failure is flagged in `pm show`, `pm where` and the site banner like a failed push, and does not stop the records push.
 - Not chosen: a day record written each morning (stale by noon, one more chore); an hourly cap on regeneration (`--every`), dropped by the owner: the digest check already limits model calls to runs where something changed.
 
