@@ -64,6 +64,8 @@ None yet.
 
 done: the README and the website credit Beads, which inspired pm's work layer and ran pm's own tracking before the work store, and Dolt, the work store's database (PR #57), merged as 2fcc7e8 and live on the website.
 
+Merged as 2fcc7e8 (PR #57).
+
 - `README.md`: a Credits section after Docs.
 - `website/index.html`, `website/style.css`: a Credits section after Get started, two cards that stack at phone width, linked from the footer.
 
