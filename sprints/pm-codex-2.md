@@ -101,6 +101,11 @@ Codex loads that file with no flag to turn it off, and a temp home would need th
   not. Codex still loads CODEX_HOME/AGENTS.md: no flag turns it off (codex-rs
   0.154 codex-home/src/instructions).
 
+- pm day summarize on codex, live in a scratch clone with no claude on PATH:
+  wrote days/2026-10-12.summary.json (model gpt-5.6-luna) in 6.5 s, no rollout
+  left in CODEX_HOME. First try failed: on a quiet day luna answered nothing
+  (Haiku wrote a bullet); the prompt now asks for at least one bullet.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
