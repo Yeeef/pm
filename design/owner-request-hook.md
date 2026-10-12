@@ -44,6 +44,7 @@ Non-goals:
 - A Stop hook sees the final reply (`last_assistant_message`), `session_id` and `cwd`, and can block once; on `stop_hook_active` the next stop must pass, so the hook can never loop.
 - AskUserQuestion runs mid-turn and waits for the answer, so its question is never in `last_assistant_message` and the hook never judges it. In a session nobody watches it waits forever, and the question is not on the site.
 - The Claude judge, `claude -p --model claude-haiku-5-5` with thinking off and no settings, tools or MCP, takes about 2 s; with thinking on a verdict took 5 to 36 s. Its timeout is 15 s, inside the hook's 30 s.
+- Each judge runs in a process group of its own, killed whole at its timeout (both CLIs are launcher scripts), and killed by the hook when the runtime stops the hook (SIGTERM, SIGINT, SIGHUP) at its entry's timeout.
 - The Codex judge, `codex exec --model gpt-5.6-luna` at medium reasoning effort, takes about 5.5 s (p90 14 s, 8 calls at a time); at low effort it missed 3 or 4 of 189 labelled runs. Its timeout is 40 s, inside the Codex entry's 45 s.
 - A `codex exec` child runs the hooks it finds, its own Stop included, so a judge that ran them would run the judge again. `--disable hooks` turns Codex's hook engine off; `--ignore-user-config` drops `$CODEX_HOME/config.toml` (its hooks, MCP servers, notify); `--ignore-rules` drops execpolicy rules. `$CODEX_HOME/AGENTS.md`, the user's own instructions, still loads: no flag turns it off (codex-rs 0.154 `codex-home/src/instructions`).
 - The judge sees only the reply and this session's open needs (title and the first 400 characters of the description). It knows nothing of sprints or tasks, so a rule that depends on them cannot be enforced.
@@ -115,7 +116,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 
 | | Claude Code | Codex |
 |---|---|---|
-| Entry | `.claude/settings.json`, Stop | `.codex/hooks.json`, Stop (runs once the owner trusts pm's hooks) |
+| Entry | `.claude/settings.json`, Stop | `.codex/hooks.json`, Stop (runs once the owner trusts pm's hooks; a session whose start hooks ran is told at its start when Codex skips this one, as after a `pm upgrade` changed it) |
 | Command | `pm hook owner-request --runtime claude \|\| exit 1`, 30 s, before `pm hook stop` | `--runtime codex`, 45 s, before `pm hook stop` |
 | Reply | `last_assistant_message`, a string | the same key, nullable: null passes |
 | Judge | `claude -p`, Haiku, 15 s | `codex exec`, `gpt-5.6-luna`, 40 s, from an empty temp dir with hooks, rules and the user's config off and no saved session (`--ephemeral`); needs no `claude` |

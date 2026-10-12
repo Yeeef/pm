@@ -63,7 +63,16 @@ Each area's design lives on its own page; this page keeps a summary per area, th
 
 ### Hook trust
 
-pm never writes Codex's trust. `pm doctor` and a typed `pm init` ask `codex app-server` (`hooks/list`, 10 s) which of pm's hooks in the main checkout's `.codex/hooks.json` Codex would skip (untrusted, modified since trusted, or disabled; or the whole project, when Codex lists none of its hooks), and name each with the fix: open Codex in the main checkout and trust pm's hooks in `/hooks`. With no `codex` on PATH, or no `$CODEX_HOME` (the call would create Codex's state there), it says trust was not checked. Session start does not ask: it would cost seconds at every start.
+pm never writes Codex's trust. `pm doctor` and a typed `pm init` ask `codex app-server` (`hooks/list`, 10 s) which of pm's hooks in the main checkout's `.codex/hooks.json` Codex would skip (untrusted, modified since trusted, or disabled; or the whole project, when Codex lists none of its hooks), and name each with the fix: open Codex in the main checkout and trust pm's hooks in `/hooks`. With no `codex` on PATH, or no `$CODEX_HOME` (the call would create Codex's state there), it says trust was not checked.
+
+A session sees it too, in two ways:
+
+| Case | What tells the session | Cost |
+|---|---|---|
+| Codex ran none of pm's hooks (never trusted) | The first pm command the session runs prints one warning on stderr: its root rollout holds no pm rules before the first prompt | one git call and one stat per command, after the first read of the rollout's opening |
+| Codex ran some (after a `pm upgrade` rewrote a trusted entry, Codex skips that one as modified) | The state hook of a Codex session (the innermost runtime among pm's ancestors) opens the state with one line naming the skipped hooks and the fix | a `hooks/list` call (a few seconds, bounded at 8 s, beside init and where) only when `.codex/hooks.json` or the `[hooks]` trust table of the user's config changed since the answer `.pm/run/codex-trust.json` keeps; a hash of both otherwise |
+
+The state hook takes the runtime from the process ancestry, not from a flag on its entry: an entry changed in the same upgrade would itself be untrusted and could not report the others.
 
 ### Sandbox
 
@@ -102,8 +111,8 @@ Four of the 12 gaps are not closed: hook trust (1), `.codex/` from the main chec
 | Guarantees lost while untrusted | All of them: no rules or state at session start, no Stop checks (uncommitted records, owner requests), no `pm hook inbox`. `.codex/rules/pm.rules` does not load either, so on Linux every pm command stays inside the sandbox and cannot reach `work.sock`. |
 | Evidence | 0 of the owner's 43 Codex sessions in yeeef-agents, whose `.codex/hooks.json` pm wrote, received pm context. `~/.codex/config.toml` held no `hooks.state` entries. |
 | Why it is open | pm never writes the trust (owner decision on the pm-codex project). The hash is Codex-internal and undocumented, and writing it would bypass Codex's review step. |
-| Until then | `pm doctor` and a typed `pm init` ask `codex app-server` which pm hooks Codex skips, and name the fix (see Hook trust). The owner trusts once per repo and machine, and again after a `pm upgrade` that changes a hook. A pm command in a Codex session whose hooks did not run says so on stderr, once per session: it reads the root rollout's opening (bounded at 1 MB) for pm's rules as a developer message before the first prompt, and remembers the answer in `.pm/run/codex-hooks/<session>`; `pm hook` and `pm prime` never warn. Live: an agent in an untrusted scratch clone ran `pm show` and its rollout holds the warning. |
-| Not covered | A session that runs no pm command gets no signal: its hooks are exactly what does not run, and session start does not ask Codex. |
+| Until then | `pm doctor` and a typed `pm init` ask `codex app-server` which pm hooks Codex skips, and name the fix (see Hook trust). The owner trusts once per repo and machine, and again after a `pm upgrade` that changes a hook. A session is told (see Hook trust): a pm command warns once when the rollout holds no pm rules before the first prompt (bounded read of the root rollout's opening, the answer kept in `.pm/run/codex-hooks/<session>`), and a session whose start hooks ran opens with a line naming the pm hooks Codex skips. Live: an agent in an untrusted scratch clone ran `pm show` and its rollout holds the warning; a session in a clone whose Stop entries' trust was stale got the line naming both. |
+| Not covered | A session in a repo Codex runs no pm hook of that runs no pm command gets no signal: its hooks are exactly what does not run. |
 | Closes when | Codex offers a supported way for a tool to request trust for the hooks it installs. Managed hooks, which an admin installs and which skip trust, fit an org rollout, not a per-repo `pm init`. |
 
 #### Gap 5: Codex reads `.codex/` from the main checkout
