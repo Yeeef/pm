@@ -53,7 +53,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-12}
+Build the full mechanism: covers header, the gate at pm action need --pr and pm sprint close with a recorded waiver, the coverage report, the site staleness line, and covers on every existing page.
+Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; the design-page miss in pm-codex sprint 1 needs a structural fix, not a prose rule.
+:::
 
 ## Findings
 
