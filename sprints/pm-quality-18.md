@@ -158,13 +158,15 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: the Go jobs' own work is cut (internal/work's tests 100 s to 12.5 s locally, 37-65 s on macos-14; a cold Go cache halved), but a PR's wall time to its last check is not about 120 s: 168 s median on PR 53 with a warm cache and short macOS queues (341 s on PR 44, 191-290 s before), bounded by the darwin work job's cache restore, link and one 47-49 s test.
+done: a PR's CI reaches its last check in a median 115 s (PR 55, 3 samples; 191-290 s before the sprint), as internal/work's tests run in 8 balanced processes, the Go cache halves and stays warm, and the macOS work and race jobs drop to medians of 96 and 99 s.
 
 - `make go-test-work` and `make -j2 go-test-race`: internal/work's tests in 8 processes balanced by measured seconds (`.github/scripts/go_shards.py`), failing unless every test ran and passed and the seconds file names every test.
 - `go vet` and `go test` share go-build's compiles (`-trimpath`): cold GOCACHE 2455 to 1269 MB.
 - A run that saves the Go cache trims it to what it used (`.github/scripts/go_cache_trim.py`).
 - The release build test compiles with the real Go caches: 61 to 25 s locally.
 - `TestCreateRefusesWithTheRemoteUnreachable` 9.6 to 1.1-1.5 s; no production change (sprint decision).
+- PR 55: the merge-table and push-timeout tests split into 7 top-level tests (all 16 cases and 74 assertions kept), Go set up by `.github/scripts/setup_go.py` (4-8 s), module zips left out of the cache (649 to 417 MB), test binaries linked with `-ldflags=-w` (macOS link 39 to 20 s).
+- Left for later: macOS build-vet-test (95-121 s) is the longest job; the race floor is TestPullRacingLocalWriters at 32 s; the 120 s target is measured on one PR's 3 samples, not 3 PRs.
 
 ### Against "Done when"
 
