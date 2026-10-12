@@ -93,6 +93,11 @@ The design page session-claims stays as it is for this sprint's code changes.
 writes.go adds the gate to pm sprint close and moves the merge stamp to records; claims, holders and liveness are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-12}
+The design page site-replies stays as it is for this sprint's code changes.
+serve.go reads the remote's main for the covered-code line; reply forms, the spool, Access and delivery are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
