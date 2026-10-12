@@ -70,7 +70,7 @@ def test_go_test_but_work_fails_when_go_list_fails_and_tests_nothing(tmp_path):
     res = subprocess.run(["make", "-s", "go-test-but-work"], cwd=PM_DIR, env=fake_go(ok, False),
                          capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
-    assert (ok / "test.log").read_text() == "test -trimpath -tags gms_pure_go m/a m/b\n"
+    assert (ok / "test.log").read_text() == "test -trimpath -tags gms_pure_go -ldflags=-w m/a m/b\n"
 
 
 SHARDS = PM_DIR / ".github/scripts/go_shards.py"

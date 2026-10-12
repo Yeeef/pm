@@ -10,7 +10,10 @@
 # own, so the PR's next push is warm. A run whose tests fail saves too: what it compiled is as good as a passing run's,
 # and a failed push to main would otherwise leave every PR cold until the next green one. A run that saves trims the
 # restored build cache to what it used first (.github/scripts/go_cache_trim.py), so the cache, and each restore of it,
-# does not grow with every save. GOFLAGS=-count=1: the restored cache never stands in for a test run.
+# does not grow with every save. The module cache is saved without its downloaded zips: a build reads only the unpacked
+# modules beside them, and the zips, already compressed, only lengthen each restore. GOFLAGS=-count=1: the restored
+# cache never stands in for a test run. .github/scripts/setup_go.py installs Go, as actions/setup-go does but without
+# its 12 s copy into the runner's tool cache.
 name: pm go
 
 on:
@@ -56,11 +59,9 @@ jobs:
       GOFLAGS: -count=1
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Go, at go.mod's version
         id: go
-        with:
-          go-version-file: go.mod
-          cache: false
+        run: python3 .github/scripts/setup_go.py
       - name: The Go cache paths and key
         id: paths
         run: |
@@ -74,6 +75,7 @@ jobs:
         with:
           path: |
             ${{ steps.paths.outputs.mod }}
+            !${{ steps.paths.outputs.mod }}/cache/download/**/*.zip
             ${{ steps.paths.outputs.build }}
           key: ${{ steps.paths.outputs.kind }}${{ steps.paths.outputs.sum }}${{ github.sha }}
           restore-keys: |
@@ -105,5 +107,6 @@ jobs:
         with:
           path: |
             ${{ steps.paths.outputs.mod }}
+            !${{ steps.paths.outputs.mod }}/cache/download/**/*.zip
             ${{ steps.paths.outputs.build }}
           key: ${{ steps.restore.outputs.cache-primary-key }}
