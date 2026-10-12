@@ -86,6 +86,10 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
   and accepts it, so the pages carry covers already. Until then the gate holds
   no PR here: 0.7.1 has no gate.
 
+- `git ls-files --full-name` run from a subdirectory lists only that subtree:
+  a check run from `internal/design` called 3 patterns dead. Tracked now
+  passes the `:/` pathspec, which lists the whole worktree from anywhere.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
