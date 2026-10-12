@@ -82,6 +82,27 @@ pm never writes Codex's trust. `pm doctor` and a typed `pm init` ask `codex app-
 
 `pm.rules` takes a `pm` command out of the sandbox. A command that is not plain `pm …` (a heredoc body, a `cd x &&` prefix) stays inside; on Linux its connect is refused, and pm says so and names `--text-file PATH` or `--text="…"`. The agent's own `git commit` in a sandboxed worktree asks for approval, as Codex does for any `.git` write.
 
+### Gaps against Claude Code
+
+The 12 gaps the sprint 1 gap list found, each with where it stands.
+
+| # | Gap | Status | How |
+|---|---|---|---|
+| 1 | Codex runs no project hook until the user trusts it, and `codex exec` skips untrusted ones silently | reported; the owner trusts once | `pm doctor` and `pm init` name the pm hooks Codex skips (see Hook trust). pm never writes the trust (owner decision). |
+| 2 | A Codex subagent is its own thread, with its own id | closed | `CODEX_SESSION_ID`, the root session (see Session identity) |
+| 3 | A Codex run started from Claude Code inherits `CLAUDE_CODE_SESSION_ID`, which pm read first | closed | the innermost runtime decides; an ambiguous session refuses |
+| 4 | No reply push into a Codex session | partly closed | `pm reply wait` and `pm hook inbox` at the next prompt. An idle TUI is not woken: left, see Open questions |
+| 5 | Codex reads `.codex/` from the main checkout, not the worktree | left | Codex behaviour. A branch's hook change applies once main has it. In the README. |
+| 6 | The SessionStart matcher lacked `compact` | closed | matcher `startup\|resume\|clear\|compact` |
+| 7 | A subagent's records are invisible to the parent's Stop hook (encrypted inputs) | closed | Codex SubagentStop runs `pm hook stop` on `agent_transcript_path` |
+| 8 | The judge needs `claude`; Codex treats its failure as a silent pass | partly closed | A null `last_assistant_message` passes; `pm doctor` names a missing `claude`. The judge on Codex's own model is pm-codex sprint 2. |
+| 9 | Codex has no AskUserQuestion, which the rule names | left | A Codex agent asks through a need, the rule's other path |
+| 10 | `pm clean` did not see live Codex sessions | closed | it reads Codex rollouts |
+| 11 | A network-off Linux sandbox denies `connect()` to `work.sock` | closed, not run live | `.codex/rules/pm.rules` (see Sandbox). Bubblewrap cannot start on the owner's host. |
+| 12 | Claude-only wording; `live()` walked every rollout | closed | runtime-neutral refusal; rollouts found by the thread id's date |
+
+Gaps 5 and 9, and the idle TUI in gap 4, are left by a pm-codex project decision.
+
 ### Checks
 
 - CI: `TestClaudeAndCodexRunTheSameHooks`; the harness tests that drive each hook with both runtimes' real payloads (`tests/hook_payloads.json`) and assert the same output.
@@ -111,4 +132,6 @@ pm never writes Codex's trust. `pm doctor` and a typed `pm init` ask `codex app-
 > What is still unresolved?
 
 - The sandboxed path is not run live: bubblewrap cannot start on the owner's Linux host (`bwrap: loopback: Failed RTM_NEWADDR`), so the live eval runs Codex with `danger-full-access`. `PM_PARITY_CODEX_SANDBOX` unset runs it sandboxed on a host where bubblewrap works, or on macOS.
-- An idle Codex TUI is not woken by a reply; it gets it at its next prompt.
+- An idle Codex TUI is not woken by a reply; it gets it at its next prompt (gap 4).
+- Codex reads `.codex/` from the main checkout (gap 5), and has no ask tool (gap 9).
+- The judge on Codex's own model (gap 8): pm-codex sprint 2.
