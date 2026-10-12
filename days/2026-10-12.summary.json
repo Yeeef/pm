@@ -1,7 +1,7 @@
 {
  "date": "2026-10-12",
- "generated_at": "2026-10-12T18:25:21+00:00",
- "digest": "01e9c825f5730bd7",
+ "generated_at": "2026-10-12T18:35:35+00:00",
+ "digest": "a242187dc8e2825a",
  "model": "claude-haiku-5-5",
- "text": "- **Public site access:** The pm service now requires a valid Cloudflare Access token for public requests, and refuses requests without one. The owner logged in through Access and confirmed that the site loads.\n- **Website release work:** The project opened work for the website to install the latest release.\n- **pm-codex parity testing:** A final live parity run at the pull request head was recorded for pm-codex."
+ "text": "- **Public site access control:** The public site now requires a valid Cloudflare Access token for each request. Requests are denied when the key is missing or the key set cannot be fetched. The owner logged in through Access, and the site loaded.\n- **Website install links:** Install commands and the install button now point to the latest release. The harness asked the owner to review the change.\n- **Codex parity testing:** The project recorded its final live parity run at the pull request head. The project also added a finding to its sprint record."
 }
