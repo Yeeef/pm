@@ -1,0 +1,281 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 990 760" width="990" height="760" role="img" aria-label="Metrics at each pm-quality sprint merge" style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
+<title>Metrics at each pm-quality sprint merge</title>
+<rect width="990" height="760" fill="#fcfcfb"/>
+<text x="16.0" y="22.0" font-size="14" fill="#0b0b0b" text-anchor="start" font-weight="600" >At each pm-quality sprint PR's merge commit (x: sprint, PR)</text>
+<rect x="16.0" y="35.0" width="10.0" height="10.0" fill="#2a78d6" rx="2"></rect>
+<text x="31.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >Go</text>
+<rect x="52.0" y="35.0" width="10.0" height="10.0" fill="#eb6834" rx="2"></rect>
+<text x="67.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >Python harness</text>
+<text x="50.0" y="78.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Non-test Go code lines</text>
+<line x1="50.0" y1="240.0" x2="450.0" y2="240.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="244.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
+<line x1="50.0" y1="190.0" x2="450.0" y2="190.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="194.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >10K</text>
+<line x1="50.0" y1="140.0" x2="450.0" y2="140.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="144.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >20K</text>
+<line x1="50.0" y1="90.0" x2="450.0" y2="90.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="94.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >30K</text>
+<line x1="50.0" y1="240.0" x2="450.0" y2="240.0" stroke="#c3c2b7" stroke-width="1" />
+<text x="60.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s5</text>
+<text x="60.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#18</text>
+<text x="91.7" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s10</text>
+<text x="91.7" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#25</text>
+<text x="123.3" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s7</text>
+<text x="123.3" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#30</text>
+<text x="155.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s12</text>
+<text x="155.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#32</text>
+<text x="186.7" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s13</text>
+<text x="186.7" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#31</text>
+<text x="218.3" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s9</text>
+<text x="218.3" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#33</text>
+<text x="250.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s15</text>
+<text x="250.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#36</text>
+<text x="281.7" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s16</text>
+<text x="281.7" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#37</text>
+<text x="313.3" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s17</text>
+<text x="313.3" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#38</text>
+<text x="345.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s20</text>
+<text x="345.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#48</text>
+<text x="376.7" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s19</text>
+<text x="376.7" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#43</text>
+<text x="408.3" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s18</text>
+<text x="408.3" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#44</text>
+<text x="440.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >main</text>
+<text x="440.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#53</text>
+<path d="M60.0,136.1 L91.7,133.2 L123.3,130.7 L155.0,130.7 L186.7,130.2 L218.3,128.9 L250.0,128.8 L281.7,128.4 L313.3,128.4 L345.0,127.2 L376.7,127.4 L408.3,127.4 L440.0,127.3" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="60.0" cy="136.1" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s5 (#18): 20,772 Go non-test</title></circle>
+<circle cx="91.7" cy="133.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s10 (#25): 21,360 Go non-test</title></circle>
+<circle cx="123.3" cy="130.7" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s7 (#30): 21,866 Go non-test</title></circle>
+<circle cx="155.0" cy="130.7" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s12 (#32): 21,866 Go non-test</title></circle>
+<circle cx="186.7" cy="130.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s13 (#31): 21,956 Go non-test</title></circle>
+<circle cx="218.3" cy="128.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s9 (#33): 22,213 Go non-test</title></circle>
+<circle cx="250.0" cy="128.8" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s15 (#36): 22,245 Go non-test</title></circle>
+<circle cx="281.7" cy="128.4" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s16 (#37): 22,320 Go non-test</title></circle>
+<circle cx="313.3" cy="128.4" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s17 (#38): 22,320 Go non-test</title></circle>
+<circle cx="345.0" cy="127.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s20 (#48): 22,550 Go non-test</title></circle>
+<circle cx="376.7" cy="127.4" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s19 (#43): 22,529 Go non-test</title></circle>
+<circle cx="408.3" cy="127.4" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s18 (#44): 22,529 Go non-test</title></circle>
+<circle cx="440.0" cy="127.3" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 22,532 Go non-test</title></circle>
+<text x="446.0" y="131.3" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >22,532</text>
+<text x="58.0" y="128.1" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >20,772</text>
+<text x="510.0" y="78.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Test code lines</text>
+<line x1="510.0" y1="240.0" x2="910.0" y2="240.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="504.0" y="244.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
+<line x1="510.0" y1="165.0" x2="910.0" y2="165.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="504.0" y="169.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >5K</text>
+<line x1="510.0" y1="90.0" x2="910.0" y2="90.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="504.0" y="94.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >10K</text>
+<line x1="510.0" y1="240.0" x2="910.0" y2="240.0" stroke="#c3c2b7" stroke-width="1" />
+<text x="520.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s5</text>
+<text x="520.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#18</text>
+<text x="551.7" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s10</text>
+<text x="551.7" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#25</text>
+<text x="583.3" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s7</text>
+<text x="583.3" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#30</text>
+<text x="615.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s12</text>
+<text x="615.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#32</text>
+<text x="646.7" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s13</text>
+<text x="646.7" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#31</text>
+<text x="678.3" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s9</text>
+<text x="678.3" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#33</text>
+<text x="710.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s15</text>
+<text x="710.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#36</text>
+<text x="741.7" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s16</text>
+<text x="741.7" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#37</text>
+<text x="773.3" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s17</text>
+<text x="773.3" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#38</text>
+<text x="805.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s20</text>
+<text x="805.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#48</text>
+<text x="836.7" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s19</text>
+<text x="836.7" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#43</text>
+<text x="868.3" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s18</text>
+<text x="868.3" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#44</text>
+<text x="900.0" y="254.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >main</text>
+<text x="900.0" y="266.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#53</text>
+<path d="M520.0,124.8 L551.7,120.5 L583.3,116.2 L615.0,116.2 L646.7,112.9 L678.3,112.5 L710.0,111.5 L741.7,110.8 L773.3,110.8 L805.0,121.5 L836.7,120.1 L868.3,119.9 L900.0,119.9" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="520.0" cy="124.8" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s5 (#18): 7,682 Go tests</title></circle>
+<circle cx="551.7" cy="120.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s10 (#25): 7,968 Go tests</title></circle>
+<circle cx="583.3" cy="116.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s7 (#30): 8,255 Go tests</title></circle>
+<circle cx="615.0" cy="116.2" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s12 (#32): 8,255 Go tests</title></circle>
+<circle cx="646.7" cy="112.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s13 (#31): 8,471 Go tests</title></circle>
+<circle cx="678.3" cy="112.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s9 (#33): 8,497 Go tests</title></circle>
+<circle cx="710.0" cy="111.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s15 (#36): 8,567 Go tests</title></circle>
+<circle cx="741.7" cy="110.8" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s16 (#37): 8,610 Go tests</title></circle>
+<circle cx="773.3" cy="110.8" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s17 (#38): 8,610 Go tests</title></circle>
+<circle cx="805.0" cy="121.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s20 (#48): 7,900 Go tests</title></circle>
+<circle cx="836.7" cy="120.1" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s19 (#43): 7,993 Go tests</title></circle>
+<circle cx="868.3" cy="119.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s18 (#44): 8,004 Go tests</title></circle>
+<circle cx="900.0" cy="119.9" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 8,007 Go tests</title></circle>
+<text x="906.0" y="123.9" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >8,007</text>
+<text x="518.0" y="116.8" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >7,682</text>
+<path d="M520.0,185.9 L551.7,181.5 L583.3,179.4 L615.0,175.9 L646.7,174.1 L678.3,172.3 L710.0,172.3 L741.7,171.2 L773.3,171.2 L805.0,176.9 L836.7,175.9 L868.3,175.0 L900.0,174.8" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="520.0" cy="185.9" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s5 (#18): 3,606 Python harness</title></circle>
+<circle cx="551.7" cy="181.5" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s10 (#25): 3,899 Python harness</title></circle>
+<circle cx="583.3" cy="179.4" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s7 (#30): 4,037 Python harness</title></circle>
+<circle cx="615.0" cy="175.9" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s12 (#32): 4,273 Python harness</title></circle>
+<circle cx="646.7" cy="174.1" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s13 (#31): 4,395 Python harness</title></circle>
+<circle cx="678.3" cy="172.3" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s9 (#33): 4,512 Python harness</title></circle>
+<circle cx="710.0" cy="172.3" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s15 (#36): 4,512 Python harness</title></circle>
+<circle cx="741.7" cy="171.2" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s16 (#37): 4,585 Python harness</title></circle>
+<circle cx="773.3" cy="171.2" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s17 (#38): 4,585 Python harness</title></circle>
+<circle cx="805.0" cy="176.9" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s20 (#48): 4,205 Python harness</title></circle>
+<circle cx="836.7" cy="175.9" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s19 (#43): 4,272 Python harness</title></circle>
+<circle cx="868.3" cy="175.0" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>s18 (#44): 4,336 Python harness</title></circle>
+<circle cx="900.0" cy="174.8" r="3.5" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 4,347 Python harness</title></circle>
+<text x="906.0" y="178.8" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >4,347</text>
+<text x="518.0" y="177.9" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >3,606</text>
+<text x="50.0" y="308.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Go top-level tests</text>
+<line x1="50.0" y1="470.0" x2="450.0" y2="470.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="474.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
+<line x1="50.0" y1="420.0" x2="450.0" y2="420.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="424.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >100</text>
+<line x1="50.0" y1="370.0" x2="450.0" y2="370.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="374.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >200</text>
+<line x1="50.0" y1="320.0" x2="450.0" y2="320.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="324.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >300</text>
+<line x1="50.0" y1="470.0" x2="450.0" y2="470.0" stroke="#c3c2b7" stroke-width="1" />
+<text x="60.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s5</text>
+<text x="60.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#18</text>
+<text x="91.7" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s10</text>
+<text x="91.7" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#25</text>
+<text x="123.3" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s7</text>
+<text x="123.3" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#30</text>
+<text x="155.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s12</text>
+<text x="155.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#32</text>
+<text x="186.7" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s13</text>
+<text x="186.7" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#31</text>
+<text x="218.3" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s9</text>
+<text x="218.3" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#33</text>
+<text x="250.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s15</text>
+<text x="250.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#36</text>
+<text x="281.7" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s16</text>
+<text x="281.7" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#37</text>
+<text x="313.3" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s17</text>
+<text x="313.3" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#38</text>
+<text x="345.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s20</text>
+<text x="345.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#48</text>
+<text x="376.7" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s19</text>
+<text x="376.7" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#43</text>
+<text x="408.3" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s18</text>
+<text x="408.3" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#44</text>
+<text x="440.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >main</text>
+<text x="440.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#53</text>
+<path d="M60.0,367.5 L91.7,363.5 L123.3,359.5 L155.0,359.5 L186.7,357.5 L218.3,357.0 L250.0,356.5 L281.7,356.0 L313.3,356.0 L345.0,426.0 L376.7,425.5 L408.3,425.5 L440.0,425.5" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="60.0" cy="367.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s5 (#18): 205 tests</title></circle>
+<circle cx="91.7" cy="363.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s10 (#25): 213 tests</title></circle>
+<circle cx="123.3" cy="359.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s7 (#30): 221 tests</title></circle>
+<circle cx="155.0" cy="359.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s12 (#32): 221 tests</title></circle>
+<circle cx="186.7" cy="357.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s13 (#31): 225 tests</title></circle>
+<circle cx="218.3" cy="357.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s9 (#33): 226 tests</title></circle>
+<circle cx="250.0" cy="356.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s15 (#36): 227 tests</title></circle>
+<circle cx="281.7" cy="356.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s16 (#37): 228 tests</title></circle>
+<circle cx="313.3" cy="356.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s17 (#38): 228 tests</title></circle>
+<circle cx="345.0" cy="426.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s20 (#48): 88 tests</title></circle>
+<circle cx="376.7" cy="425.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s19 (#43): 89 tests</title></circle>
+<circle cx="408.3" cy="425.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s18 (#44): 89 tests</title></circle>
+<circle cx="440.0" cy="425.5" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 89 tests</title></circle>
+<text x="446.0" y="429.5" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >89</text>
+<text x="58.0" y="359.5" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >205</text>
+<text x="510.0" y="308.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >Functions with gocyclo &gt; 30</text>
+<line x1="510.0" y1="470.0" x2="910.0" y2="470.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="504.0" y="474.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
+<line x1="510.0" y1="420.0" x2="910.0" y2="420.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="504.0" y="424.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >10</text>
+<line x1="510.0" y1="370.0" x2="910.0" y2="370.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="504.0" y="374.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >20</text>
+<line x1="510.0" y1="320.0" x2="910.0" y2="320.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="504.0" y="324.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >30</text>
+<line x1="510.0" y1="470.0" x2="910.0" y2="470.0" stroke="#c3c2b7" stroke-width="1" />
+<text x="520.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s5</text>
+<text x="520.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#18</text>
+<text x="551.7" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s10</text>
+<text x="551.7" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#25</text>
+<text x="583.3" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s7</text>
+<text x="583.3" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#30</text>
+<text x="615.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s12</text>
+<text x="615.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#32</text>
+<text x="646.7" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s13</text>
+<text x="646.7" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#31</text>
+<text x="678.3" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s9</text>
+<text x="678.3" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#33</text>
+<text x="710.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s15</text>
+<text x="710.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#36</text>
+<text x="741.7" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s16</text>
+<text x="741.7" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#37</text>
+<text x="773.3" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s17</text>
+<text x="773.3" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#38</text>
+<text x="805.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s20</text>
+<text x="805.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#48</text>
+<text x="836.7" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s19</text>
+<text x="836.7" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#43</text>
+<text x="868.3" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s18</text>
+<text x="868.3" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#44</text>
+<text x="900.0" y="484.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >main</text>
+<text x="900.0" y="496.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#53</text>
+<path d="M520.0,390.0 L551.7,385.0 L583.3,380.0 L615.0,380.0 L646.7,380.0 L678.3,375.0 L710.0,375.0 L741.7,375.0 L773.3,375.0 L805.0,345.0 L836.7,340.0 L868.3,340.0 L900.0,340.0" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="520.0" cy="390.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s5 (#18): 16 functions</title></circle>
+<circle cx="551.7" cy="385.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s10 (#25): 17 functions</title></circle>
+<circle cx="583.3" cy="380.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s7 (#30): 18 functions</title></circle>
+<circle cx="615.0" cy="380.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s12 (#32): 18 functions</title></circle>
+<circle cx="646.7" cy="380.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s13 (#31): 18 functions</title></circle>
+<circle cx="678.3" cy="375.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s9 (#33): 19 functions</title></circle>
+<circle cx="710.0" cy="375.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s15 (#36): 19 functions</title></circle>
+<circle cx="741.7" cy="375.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s16 (#37): 19 functions</title></circle>
+<circle cx="773.3" cy="375.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s17 (#38): 19 functions</title></circle>
+<circle cx="805.0" cy="345.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s20 (#48): 25 functions</title></circle>
+<circle cx="836.7" cy="340.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s19 (#43): 26 functions</title></circle>
+<circle cx="868.3" cy="340.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s18 (#44): 26 functions</title></circle>
+<circle cx="900.0" cy="340.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 26 functions</title></circle>
+<text x="906.0" y="344.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >26</text>
+<text x="518.0" y="382.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >16</text>
+<text x="50.0" y="538.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600" >staticcheck findings</text>
+<line x1="50.0" y1="700.0" x2="450.0" y2="700.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="704.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >0</text>
+<line x1="50.0" y1="625.0" x2="450.0" y2="625.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="629.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >5</text>
+<line x1="50.0" y1="550.0" x2="450.0" y2="550.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="44.0" y="554.0" font-size="11" fill="#898781" text-anchor="end" font-weight="400" >10</text>
+<line x1="50.0" y1="700.0" x2="450.0" y2="700.0" stroke="#c3c2b7" stroke-width="1" />
+<text x="60.0" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s5</text>
+<text x="60.0" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#18</text>
+<text x="91.7" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s10</text>
+<text x="91.7" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#25</text>
+<text x="123.3" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s7</text>
+<text x="123.3" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#30</text>
+<text x="155.0" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s12</text>
+<text x="155.0" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#32</text>
+<text x="186.7" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s13</text>
+<text x="186.7" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#31</text>
+<text x="218.3" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s9</text>
+<text x="218.3" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#33</text>
+<text x="250.0" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s15</text>
+<text x="250.0" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#36</text>
+<text x="281.7" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s16</text>
+<text x="281.7" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#37</text>
+<text x="313.3" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s17</text>
+<text x="313.3" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#38</text>
+<text x="345.0" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s20</text>
+<text x="345.0" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#48</text>
+<text x="376.7" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s19</text>
+<text x="376.7" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#43</text>
+<text x="408.3" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >s18</text>
+<text x="408.3" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#44</text>
+<text x="440.0" y="714.0" font-size="9" fill="#898781" text-anchor="middle" font-weight="400" >main</text>
+<text x="440.0" y="726.0" font-size="8" fill="#898781" text-anchor="middle" font-weight="400" >#53</text>
+<path d="M60.0,595.0 L91.7,595.0 L123.3,595.0 L155.0,595.0 L186.7,595.0 L218.3,595.0 L250.0,595.0 L281.7,595.0 L313.3,595.0 L345.0,595.0 L376.7,700.0 L408.3,700.0 L440.0,700.0" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="60.0" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s5 (#18): 7 findings</title></circle>
+<circle cx="91.7" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s10 (#25): 7 findings</title></circle>
+<circle cx="123.3" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s7 (#30): 7 findings</title></circle>
+<circle cx="155.0" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s12 (#32): 7 findings</title></circle>
+<circle cx="186.7" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s13 (#31): 7 findings</title></circle>
+<circle cx="218.3" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s9 (#33): 7 findings</title></circle>
+<circle cx="250.0" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s15 (#36): 7 findings</title></circle>
+<circle cx="281.7" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s16 (#37): 7 findings</title></circle>
+<circle cx="313.3" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s17 (#38): 7 findings</title></circle>
+<circle cx="345.0" cy="595.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s20 (#48): 7 findings</title></circle>
+<circle cx="376.7" cy="700.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s19 (#43): 0 findings</title></circle>
+<circle cx="408.3" cy="700.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>s18 (#44): 0 findings</title></circle>
+<circle cx="440.0" cy="700.0" r="3.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>main (#53): 0 findings</title></circle>
+<text x="446.0" y="704.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >0</text>
+<text x="58.0" y="587.0" font-size="10" fill="#52514e" text-anchor="start" font-weight="400" >7</text>
+</svg>
