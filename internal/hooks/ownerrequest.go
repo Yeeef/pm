@@ -14,13 +14,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Yeeef/pm"
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/pyjson"
 )
 
@@ -174,6 +178,8 @@ type judged struct {
 
 // judge asks the model on runtime which sentences of reply address the owner, and the open request each matches.
 func judge(runtime ask.Runtime, reply string, open []Request) ([]judged, error) {
+	stop := stopJudgeOnSignal()
+	defer stop()
 	out, err := ask.Ask(runtime, ask.Call{System: pm.OwnerRequestSystem, Prompt: judgePrompt(reply, open),
 		Timeout: judgeTimeout[runtime]})
 	var ae *ask.Error
@@ -188,6 +194,28 @@ func judge(runtime ask.Runtime, reply string, open []Request) ([]judged, error) 
 		return nil, hookErrorf("%s answered out of shape: %s", runtime.Command(), pyjson.StrRepr(head(out, 300)))
 	}
 	return items, nil
+}
+
+// stopJudgeOnSignal makes a SIGTERM, SIGINT or SIGHUP to the hook (the runtime killing it at its entry's timeout) kill
+// the judge's process group too, which runs in a group of its own and would outlive the hook, then exit 1 as a check
+// that did not run. The func it returns stops the handling.
+func stopJudgeOnSignal() func() {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case sig := <-sigs:
+			proc.KillGroups()
+			fmt.Fprintf(os.Stderr, "pm hook owner-request: stopped by %s; the owner-request check did not run\n", sig)
+			os.Exit(1)
+		case <-done:
+		}
+	}()
+	return func() {
+		signal.Stop(sigs)
+		close(done)
+	}
 }
 
 var jsonSpan = regexp.MustCompile(`(?s)\{.*\}`) // the first { to the last }, as Python's re.search(r"\{.*\}", re.S)

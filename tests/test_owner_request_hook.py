@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import json
 import os
+import signal
+import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
-from conftest import CHECKOUT, hook_payload
+from conftest import CHECKOUT, PM, hook_payload
 
 ME, OTHER = "sess-me", "sess-other"
 AT = "2026-10-01T12:00:00Z"
@@ -207,3 +210,32 @@ def test_an_entry_without_runtime_runs_the_claude_judge(needs):
     """An entry written before --runtime existed kept its meaning: the claude judge."""
     run(needs, judged=answer())
     assert len(claude_calls(needs)) == 1 and calls(needs, "codex") == []
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP], ids=lambda s: s.name)
+def test_a_hook_stopped_mid_judge_takes_its_judge_with_it(needs, sig):
+    """The judge runs in a process group of its own, so a runtime that kills the hook at its entry's timeout would leave
+    it running: the hook kills the judge's group when it is stopped, and exits 1 as a check that did not run."""
+    env = dict(needs.env, FAKE_CODEX_SLEEP="30", FAKE_CODEX_OUTPUT=answer())
+    event = {"session_id": ME, "hook_event_name": "Stop", "stop_hook_active": False, "last_assistant_message": "Ask?"}
+    hook = subprocess.Popen([*PM, "hook", "owner-request", "--runtime", "codex"], cwd=needs.root, env=env,
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    hook.stdin.write(json.dumps(event))
+    hook.stdin.close()
+    log = Path(needs.env["FAKE_CODEX_LOG"])
+    deadline = time.monotonic() + 20
+    while not (log.exists() and log.read_text().strip()) and time.monotonic() < deadline:
+        time.sleep(0.05)  # noqa: TID251 — polling for the judge to start, under its deadline
+    (call,) = calls(needs, "codex")
+    hook.send_signal(sig)
+    assert hook.wait(timeout=10) == 1
+    assert "stopped by" in hook.stderr.read() and hook.stdout.read() == ""
+    gone = time.monotonic() + 5
+    while time.monotonic() < gone:
+        try:
+            os.kill(call["pid"], 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.05)  # noqa: TID251 — polling for the kill to land, under its deadline
+    else:
+        pytest.fail(f"the judge {call['pid']} outlived its hook")
