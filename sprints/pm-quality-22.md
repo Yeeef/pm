@@ -96,6 +96,13 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
   tracked source files (internal/**, cmd/**, prompts/**, prime.md, style.css),
   0 are uncovered and no pattern is dead (main checkout plus this worktree).
 
+- Replayed on PR #47 as `gh pr view 47 --json files` listed it (64 files, head
+  bbe28d2, no renames), the gate refuses the review naming 13 of the 20 pages,
+  reply-delivery, owner-request-hook and session-claims among them; a separate
+  Python matcher over the same covers gives the same 13. PR #47 has since
+  grown to 68 files and adds internal/session/**, internal/cli/inbox.go and
+  internal/hooks/inbox*.go, which no page covers yet.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
