@@ -134,7 +134,7 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: the Go jobs' own work is cut (internal/work's tests 100 s to 12.5 s locally, 37-65 s on macos-14; a cold Go cache halved), but the PR's measured wall time to its last check was not yet about 120 s: macOS runner queueing and main's not yet trimpath-warm cache dominated its runs.
+partial: the Go jobs' own work is cut (internal/work's tests 100 s to 12.5 s locally, 37-65 s on macos-14; a cold Go cache halved), but a PR's wall time to its last check is not about 120 s: 168 s median on PR 53 with a warm cache and short macOS queues (341 s on PR 44, 191-290 s before), bounded by the darwin work job's cache restore, link and one 47-49 s test.
 
 - `make go-test-work` and `make -j2 go-test-race`: internal/work's tests in 8 processes balanced by measured seconds (`.github/scripts/go_shards.py`), failing unless every test ran and passed and the seconds file names every test.
 - `go vet` and `go test` share go-build's compiles (`-trimpath`): cold GOCACHE 2455 to 1269 MB.
