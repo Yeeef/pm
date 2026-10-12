@@ -60,10 +60,15 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the website's install commands and pill point at GitHub's latest release, so they stay current after each release.
+
+- `website/index.html`: both `curl … install.sh` commands use `releases/latest/download/install.sh`; the pill reads "Latest release" and links to `releases/latest`; step 1 says it installs the latest release.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- No pinned release in the install commands or pill: met; the only `0.6.0` left is the dated transcript label, out of scope.
+- `releases/latest/download/install.sh` serves the latest script: met; it holds `version='0.7.1'`, and `releases/latest` redirects to `pm-v0.7.1`.
+- Page renders at phone width: 375px and 1280px give `scrollWidth` equal to the viewport.
+- PR on main: PR #52, CI green; waits on review.
