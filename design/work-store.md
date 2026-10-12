@@ -146,7 +146,7 @@ An item has a fixed set of typed fields, stored as the columns and tables under 
 | Field | Type | Replaces in bd |
 |---|---|---|
 | `kind` | `decision` \| `action` \| `review` | label `human`; label `action`; `metadata.review` present |
-| `raised_by` | `{session, inbox, host}`, or null when no session raised it | `metadata.session`, `inbox`, `inbox_host`; 44 of 154 sample needs have no session |
+| `raised_by` | `{session, inbox, host}`, or null when no session raised it; `inbox` (the messaging socket) and `host` are a Claude Code session's only, empty for a Codex session ([Reply delivery](../design/reply-delivery.md)) | `metadata.session`, `inbox`, `inbox_host`; 44 of 154 sample needs have no session |
 | `delivered` | int: owner replies that reached `raised_by.session` | `metadata.picked_up` |
 | `review` | `{pr, sprints, designs, focus, merged, merge_reported}`, only on `kind=review` | `metadata.review`, `external_ref`, `metadata.merged`, `metadata.merge_reported` |
 

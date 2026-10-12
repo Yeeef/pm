@@ -123,7 +123,10 @@ so agents read `records/...` as before. `/records` is in the repo's
 files, and no hook or CI check guards `records/`.
 
 Claude Code reaches the store through `permissions.additionalDirectories`
-and Codex through `writable_roots` (Setup and sync, below).
+and Codex through `writable_roots` (Setup and sync, below). A `pm` command itself
+(`pm commit`, `pm finding add`) runs outside Codex's sandbox through
+`.codex/rules/pm.rules`, since the sandbox blocks the pm service's socket
+([pm in Codex](../design/pm-in-codex.md), Sandbox).
 
 | Worktree state | What setup and the checks do |
 |---|---|

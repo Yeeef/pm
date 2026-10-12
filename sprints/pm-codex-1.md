@@ -33,7 +33,18 @@ Moved from pm-harness sprint 34 on 2026-10-10.
 
 > Where is the detail?
 
-- [pm in Codex](../design/pm-in-codex.md): what pm installs for Codex, session identity, owner replies, hook trust, the sandbox, and the parity checks.
+- [pm in Codex](../design/pm-in-codex.md): the Codex area's overview: the runtime facts, a summary per area linking its page, hook trust, the sandbox, the 12 gaps and the parity checks.
+- [Reply delivery](../design/reply-delivery.md): the routes per runtime: push, `pm reply wait`, `pm hook inbox` at UserPromptSubmit, `pm show` and `pm reply read`; only a Claude Code session stores an inbox.
+- [Session claims](../design/session-claims.md): session resolution across runtimes, liveness over Codex rollouts, live sessions in worktrees for `pm clean`.
+- [Owner-request Stop hook](../design/owner-request-hook.md): the hook in Codex: a null reply passes, a failing check passes silently, the judge still on `claude -p`.
+- [pm as an installable product](../design/pm-product.md): the Codex pieces `pm init` writes, `pm doctor`'s Codex trust report, the service unit's PATH.
+- [Agent lifecycle](../design/agent-lifecycle.md): the hooks by runtime, session ids, how a Codex session gets a reply, the Codex SubagentStop.
+- [Replies on the site](../design/site-replies.md): which session raised a request in Codex, and the routes besides the push.
+- [pm CLI](../design/pm-cli.md): the agent hooks per event in both runtimes, `pm reply wait`.
+- [pm in Go](../design/pm-go.md): the `internal/session` package, `hook inbox`, `.codex/rules/pm.rules`, the settled Codex sandbox question.
+- [Shared records store](../design/records-store.md): `pm` commands run outside Codex's sandbox through `.codex/rules/pm.rules`.
+- [Work store](../design/work-store.md): a need's `raised_by` inbox is a Claude Code session's only.
+- [Project management harness](../design/pm-harness.md): the agent lifecycle summary names how a Codex session gets a reply.
 
 ## Progress
 

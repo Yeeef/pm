@@ -110,7 +110,8 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | `internal/site` | Page templates, the Markdown renderer, `style.css` (embedded) |
 | `internal/service` | `service run` (the work store held open and served on its socket, the operations commands ask for, HTTP, snapshot, reply spool, merge poll, inbox push, sync and gc loops), unit files |
 | `internal/sync` | Records push and work-store sync, run by the service and `pm sync` |
-| `internal/hooks` | `prime` (`prime.md` from `assets.go`, chunks), `hook stop`, `hook owner-request`, git hooks |
+| `internal/hooks` | `prime` (`prime.md` from `assets.go`, chunks), `hook stop`, `hook owner-request`, `hook inbox`, git hooks |
+| `internal/session` | Which agent session runs pm (Claude Code's id, or Codex's root session's) and its runtime, from the environment and the process ancestry; liveness from Claude Code transcripts and Codex rollouts; the sessions that used a worktree, for `pm clean` |
 | `internal/install` | Managed pieces, `init`, `doctor`, `upgrade`, `uninstall`, `where` |
 | `internal/proc` | The subprocess helper: argv, cwd, captured text output, timeout |
 | `internal/pyjson` | JSON read and written with Python `json`'s default separators |
@@ -290,7 +291,7 @@ A command never restarts the service: parallel commands would restart it many ti
 | Scope | Piece |
 |---|---|
 | Machine | `pm` in the bin dir; the `pins/` cache; the service unit running `<abs path of the bin-dir pm> service run`; Codex `writable_roots` including `.pm/store/work` |
-| Repo (tracked) | `.pm/config.toml`, `README.md`, `.gitignore`; pm's hook entries; `.gitignore` block; pm's git hooks in `.pm/hooks`, which `core.hooksPath` points at |
+| Repo (tracked) | `.pm/config.toml`, `README.md`, `.gitignore`; pm's hook entries; `.codex/rules/pm.rules`; `.gitignore` block; pm's git hooks in `.pm/hooks`, which `core.hooksPath` points at |
 | Clone | `records` store; the work store at `<main>/.pm/store/work`, cloned from the remote, or created and pushed when the remote has none; the `records/` link |
 
 `pm init` keeps its shape: a repo half on first install, and a clone and worktree half on every run, including `--session-start`.
@@ -393,7 +394,7 @@ The alternative to the service-held store: each pm command opens the embedded st
 | 3 | Release base URL for the Go launcher's tests | a. `net/http` with a documented `PM_RELEASE_URL` setting (mirrors, tests); b. `curl` on `PATH`, faked in tests; c. `gh release download` | a |
 | 4 | Language of the black-box suite | a. keep pytest; b. port it to Go `testscript` | a; revisit if Python in a Go project costs CI time or confuses contributors |
 | 5 | `--help` layout | a. a cobra template that mimics argparse; b. cobra's default layout, with only the text held | b. Agents read the text, and tests assert the text, not the layout |
-| 6 | Codex sandbox | A command in a Codex session must connect to the service's socket `.pm/run/work.sock`; whether the sandbox allows a connect to a Unix socket inside `writable_roots` is not recorded | `pm init` keeps `.pm/store/work` and `.pm/run` in `writable_roots`; the implementation checks the connect in a Codex session |
+| 6 | Codex sandbox: a command in a Codex session must reach `.pm/run/work.sock`, and Codex's network-off Linux sandbox denies `connect()` by seccomp | a. `.codex/rules/pm.rules` runs a plain `pm` command outside the sandbox; b. `network_access = true`; c. a unix-socket allowlist (macOS only) | a ([pm in Codex](../design/pm-in-codex.md), Sandbox); the sandboxed path is not run live, since bubblewrap cannot start on the owner's Linux host |
 | 7 | Go version | go.mod `go 1.26` (bd builds with go1.26.7; this Mac has go1.27.1) | 1.26, raised when Dolt requires it |
 | 8 | Dolt APIs the host reaches past the driver: `embedded.LoadMultiEnvFromDir`, `engine.NewSqlEngine`, `DoltDatabaseProvider.Register`, `sqlserver.SetRunningServer` | a. use them, pinned with Dolt in `go.mod`; b. an HTTP API on a second socket for the operations | a; a Dolt bump runs the host's tests first |
 | 9 | A clone whose main checkout path makes the socket path 104 bytes or more | a. fail hard, naming the limit; b. a socket under a short per-user directory | a; no clone near the limit is recorded |

@@ -29,7 +29,7 @@ pm is now moving to another repo, so it has to become a product: installed with 
 - Changing Beads or what Beads tells agents; whether pm forks or replaces Beads is [sprint 36](../sprints/pm-harness-36.md).
 - Hosts other than GitHub, and agent runtimes without hooks (only Claude Code and Codex).
 - Other git hook managers (husky, pre-commit) in the first version.
-- Codex parity beyond carrying today's Codex pieces; that is [sprint 34](../sprints/pm-harness-34.md).
+- Codex parity beyond carrying Codex's pieces; that is [pm in Codex](../design/pm-in-codex.md).
 
 ## Constraints and key facts
 
@@ -41,7 +41,7 @@ pm is now moving to another repo, so it has to become a product: installed with 
 - `pm setup` requires an existing `records` branch on the remote and existing `refs/dolt/data`; it refuses to create either.
 - Beads keeps its repo footprint in `.beads/` (tracked `config.yaml`, `metadata.json`, `README.md`, `hooks/`, and a `.gitignore` for its database and runtime files). Its context reaches agents two ways: a short block in `AGENTS.md` between `BEGIN/END BEADS INTEGRATION` markers carrying a version and hash, and `bd prime` from a SessionStart hook. Beads moved away from full instructions in `AGENTS.md` because they cost tokens and went stale on upgrade.
 - Beads' git hooks live in `.beads/hooks/` (`core.hooksPath`) and mark Beads' part with section markers; `bd hooks install` documents that any content outside the markers is preserved across installs and upgrades (`bd hooks install --help`, bd 1.3.1). pm's code already sits there, after Beads' end marker, but without markers of its own.
-- Claude Code's SessionStart fires on startup, resume, clear and compact, and SubagentStart fires for each subagent, so a hook reaches every context an agent works in. Claude Code passes each hook's text inline only up to 10,000 characters (a longer one reaches the model as a 2 KB preview and a file path); the cap is per hook, not in total. The hooks of one entry run in parallel, so their texts arrive in any order (measured on Claude Code 2.1.292). The [hooks reference](https://code.claude.com/docs/en/hooks.md) documents the cap, gives no reason for it, has no setting to raise it, and says Claude Code does not ask the model to read the saved file.
+- Claude Code's SessionStart fires on startup, resume, clear and compact, and SubagentStart fires for each subagent, so a hook reaches every context an agent works in. Codex 0.154 fires SessionStart on the same four sources (its matcher names them), has SubagentStart, Stop and SubagentStop, and passed context chunks up to 9,926 characters whole; it runs a project's hooks only once the user trusts the project and each hook. Claude Code passes each hook's text inline only up to 10,000 characters (a longer one reaches the model as a 2 KB preview and a file path); the cap is per hook, not in total. The hooks of one entry run in parallel, so their texts arrive in any order (measured on Claude Code 2.1.292). The [hooks reference](https://code.claude.com/docs/en/hooks.md) documents the cap, gives no reason for it, has no setting to raise it, and says Claude Code does not ask the model to read the saved file.
 
 ## Design
 
@@ -64,7 +64,7 @@ pm init
 | Scope | Piece | Written by |
 |---|---|---|
 | Machine | the `pm` binary in `~/.local/bin` and its pins cache; the pm service per clone (systemd user service or launchd agent); Codex sandbox `writable_roots` per clone | `pm init` |
-| Repo (tracked) | `.pm/` (below); pm's hook entries in `.claude/settings.json` and `.codex/hooks.json`; pm's lines in `.gitignore`, `/records` among them; pm's marked section in each `.beads/hooks/*` file it needs | `pm init`, `pm upgrade` |
+| Repo (tracked) | `.pm/` (below); pm's hook entries in `.claude/settings.json` and `.codex/hooks.json`; `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox ([pm in Codex](../design/pm-in-codex.md), Sandbox); pm's lines in `.gitignore`, `/records` among them; pm's marked section in each `.beads/hooks/*` file it needs | `pm init`, `pm upgrade` |
 | Clone | the store checkout at `<main>/.pm/store/records` (git-ignored); Beads database and config; `core.hooksPath` (Beads' `.beads/hooks`); the Beads agent profile | `pm init` |
 | Worktree | the `records/` link to the store | `pm init`, run by the `post-checkout` hook |
 
@@ -105,14 +105,14 @@ All of pm's agent context comes from hooks; the repo's instruction files carry n
 - `pm prime` prints pm's rules (embedded in the binary, so they match the pinned version) and `pm show`. The rules are about 25,000 characters, so they run as one hook per chunk (owner decision, 2026-10-07): `pm prime --rules N` prints chunk N of 4, cut at fixed headings, each under the cap and under a title naming its place and sections, since the chunks arrive in any order. The SessionStart entry runs the 4 chunks and `pm prime --state` for startup, resume, clear and compact, so all the rules come back after compaction. An agent can also run plain `pm prime` by hand: the rules whole, then the state.
 - The rules `pm prime` prints include one merged list for anything addressed to the owner: put the conclusion first; use 4 bullets or fewer; no ids, hashes or file names unless the owner asks; give the page link, not a file path; tell what each number measures; use ASD-STE100 approved words, each with one meaning; at most 20 words per instruction sentence and 25 per description sentence; active voice and simple tenses; one instruction per sentence.
 - Subagents get the same rules: the SubagentStart entry runs the same 4 chunk hooks (each envelope names the event that ran it), then `pm prime --subagent`, one line naming the Beads agent profile. A subagent gets no `pm show`.
-- Codex's SessionStart has no compact event today (`.codex/hooks.json` matches startup, resume and clear); how Codex gets the rules back after compaction is sprint 34's.
-- Every other hook is a `pm hook <name>` subcommand. `pm hook <name>` does not install anything: it is the command the runtime runs when the event fires, and it holds that hook's logic (installing the entries is `pm init`'s job): `pm hook stop` (uncommitted records), `pm hook reply-wait` (PostToolUse), and `pm hook owner-request` (the Stop check for requests left only in chat, in both Claude Code and Codex). No hook needs the repo's issue-id prefix.
+- `.codex/hooks.json` runs the same command per event as `.claude/settings.json`: its SessionStart matcher is `startup|resume|clear|compact`, so Codex gets the rules back after compaction too, and it adds SubagentStop running `pm hook stop` on the subagent's own rollout. `TestClaudeAndCodexRunTheSameHooks` holds the two files equal but for the differences one allowlist names with a reason.
+- Every other hook is a `pm hook <name>` subcommand. `pm hook <name>` does not install anything: it is the command the runtime runs when the event fires, and it holds that hook's logic (installing the entries is `pm init`'s job): `pm hook stop` (uncommitted records, at Stop and Codex's SubagentStop), `pm hook owner-request` (the Stop check for requests left only in chat) and `pm hook inbox` (UserPromptSubmit: the owner's replies not yet delivered, [Reply delivery](../design/reply-delivery.md)), in both Claude Code and Codex. No hook needs the repo's issue-id prefix.
 - pm is self-contained: the `pm` CLI orchestrates the work and gives the context about itself, and it does the progressive disclosure that a skill would otherwise do. `pm prime` gives the model and the procedures at every session start; `pm show` gives project state level by level; each command's `--help` holds that command's and its subsystem's detail (the pm service's, for one). The context sits beside the code it describes, so the two change together and do not drift. There is no `pm guide` and no installed skill; a rule found missing later goes into code, into `pm prime` or into the `--help` of the command it concerns.
 - `pm prime`'s text has a "what" part (the layers; the objects, how they relate and their invariants; the interfaces: the site for the owner, the `pm` CLI and the records for agents; how to work with them), then "how" parts as ordered procedures with a balanced amount of command reference (reading state; project, sprint and task operation; records operation; needs and actions), then the owner-writing list. It also states the key rules that code, hooks or CI enforce, at the step where they fire, so agents stay clear of the guards and the guards act as a safety net. A command list generated from the parser follows it.
 - `pm prime` also reports the pm service's health (below).
 - pm's context sits beside Beads' context, not over it: Beads keeps its `AGENTS.md` block and its `bd prime` hook unchanged.
 
-Hook entries call `pm prime` or `pm hook <name>`, never a file path. An entry is pm's if its command starts with `pm prime` or `pm hook `; `pm upgrade` and `pm uninstall` touch only those entries and keep the rest of each settings file byte for byte. `pm` finds its own hooks the same way: `pm reply wait` advice depends on whether a `pm hook reply-wait` entry is present, and messages name `pm init`, not `bin/pm setup`. When `pm` is not installed, the hook fails with a non-zero exit and the host shows the error; there is no silent fallback.
+Hook entries call `pm prime` or `pm hook <name>`, never a file path. An entry is pm's if its command starts with `pm prime` or `pm hook `; `pm upgrade` and `pm uninstall` touch only those entries and keep the rest of each settings file byte for byte. `pm` finds its own hooks the same way: messages name `pm init`, not `bin/pm setup`. When `pm` is not installed, the hook fails with a non-zero exit and the host shows the error; there is no silent fallback.
 
 ### The pm service
 
@@ -121,6 +121,7 @@ One supervised background process per clone serves the site and pushes Beads dat
 - `pm service install|status|restart|logs`. `pm init` installs it: a systemd user service on Linux, a launchd agent with `KeepAlive` on macOS. The supervisor restarts it after a crash.
 - The site is served live from the store and Beads; nothing is built to disk. `pm check` validates the records (what `make render` did as a check), and `pm commit` runs the same check.
 - `pm prime` reports the service's state in each session. When it is down, the agent runs `pm service restart`; if that fails, the agent raises an action to the owner and files a bug task.
+- The unit runs with the PATH of the `pm service install` that wrote it. `pm init`, typed or at session start, keeps an installed unit's PATH, since every agent runtime runs pm with a PATH of its own (Codex puts its own directory first) and a new PATH would rewrite the unit and restart the service under every live session; `pm service install` takes the caller's PATH. Either refuses a PATH on which the service's tools do not resolve.
 - Two clones on one machine need different ports (`port` in `config.toml`, or `PORT`). Machines without systemd or launchd have no service; `pm init` refuses there.
 
 ### Git hooks
@@ -154,7 +155,7 @@ pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPa
 |---|---|
 | `pm init` | One idempotent command for every scope, doing only what is missing. Repo, when `.pm/config.toml` is absent: write `.pm/`, the hook entries and the `.gitignore` lines; run `bd init` if the repo has no `.beads/`; create the `records` branch with an empty store if the remote has none; then the clone and worktree steps. Writes files and prints the commit to make; never commits on the code branch. Clone and worktree, always: what `pm setup` does today (Beads bootstrap, store checkout, `records/` link, hooks path, the pm service, Codex roots), reading names from `config.toml`; this half is what the `post-checkout` hook runs. |
 | `pm upgrade` | Move the pin; rewrite the managed pieces. |
-| `pm doctor` | Compare every managed piece with what the pinned version writes, and the clone and worktree setup with what `pm init` makes; report each difference and exit non-zero on any. |
+| `pm doctor` | Compare every managed piece with what the pinned version writes, and the clone and worktree setup with what `pm init` makes; report each difference and exit non-zero on any. It also names a missing `claude` (the owner-request judge's) and each of pm's hooks Codex would skip, read from Codex itself (`codex app-server`, `hooks/list`); pm never writes Codex's trust. A typed `pm init` reports the Codex skips too. |
 | `pm uninstall` | Remove the managed pieces (hook entries, `.gitignore` lines, pm's sections in `.beads/hooks`, `.pm/`), and the clone and machine setup (the store checkout, the `records/` link in every worktree `git worktree list` shows, the pm service, the Codex roots); keep the `records` branch and Beads. |
 
 ### Where today's pieces end up
@@ -217,4 +218,4 @@ With no `records` branch on the remote, `pm init` creates it as an orphan branch
 
 > What is still unresolved?
 
-- Whether Codex passes each hook's text whole, as Claude Code does, to sessions and subagents; settled by sprint 34.
+None yet.

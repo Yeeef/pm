@@ -45,7 +45,8 @@ the session that raised the request on its own.
   until the agent records it. A reply that closed the need (`bd human
   respond`) would break the site for as long as the agent takes to act.
 - Claude Code exports `CLAUDE_CODE_SESSION_ID` to the commands a session
-  runs, so `pm` can tell which session raises a request. Codex: not checked.
+  runs, and Codex `CODEX_SESSION_ID` (its root session's), so `pm` can tell
+  which session raises a request ([Session claims](../design/session-claims.md)).
 - Claude Code has no command that sends a message into another running
   session. `claude --bg --resume <id>` continues a stopped session, but
   starts a copy of one that is still running.
@@ -99,10 +100,11 @@ session that asked; nothing waits in the session.
 ### Raising: which session asked
 `pm decision need` and `pm action need` (a PR review too) store the raising
 session in the issue's metadata, `{"session": "<id>"}`, from
-`CLAUDE_CODE_SESSION_ID`, and its inbox socket, `{"inbox": "<path>"}`, from
-`CLAUDE_CODE_MESSAGING_SOCKET` (never the inbox's token); outside a Claude
-Code session there is none and nothing is stored. The command's output says
-whether a reply will be pushed or must be read with `pm reply read <id>`.
+the session's id, and, for a Claude Code session only, its inbox socket,
+`{"inbox": "<path>"}`, from `CLAUDE_CODE_MESSAGING_SOCKET` (never the inbox's
+token); a Codex session stores no inbox, even one it inherits. The command's
+output says whether the reply will be pushed, or how to wait for it
+(`pm reply wait <id>`, else the next prompt).
 
 ### Replying: the form and the POST
 Every awaiting card carries an invisible slot, `<!--pm-reply ID-->`. On each
@@ -145,7 +147,9 @@ the request's site replies, only once the push is accepted. Only the site's
 replies (comments by `owner (site reply)`) count, never pm's own or an agent's
 comments. A reply it cannot push waits: the card says the session is not
 running, `pm show` flags it, and `pm reply read <id>` prints it and marks it
-delivered. Closing a request through pm refuses while it holds one. The full
+delivered. A session with no inbox (Codex) gets it from `pm reply wait <id>`
+within its turn or from `pm hook inbox` at its next prompt. Closing a request
+through pm refuses while it holds one. The full
 design, with the failures it replaced and the alternatives, is
 [Reply delivery](../design/reply-delivery.md).
 
@@ -211,9 +215,9 @@ neither the store-path nor the build header.
 | Storage, decision | One comment; a reply waits while its site replies outnumber `picked_up`; the agent closes | One write | Yes |
 | Storage, action | Close it with the evidence as reason | The agent never checks the evidence | No |
 | Delivery | A message into the session | No CLI for it; `claude --bg --resume` copies a running session | No |
-| Delivery | SessionStart or UserPromptSubmit hook listing replies | Never wakes an idle session; a `bd` call on every prompt | No |
+| Delivery | SessionStart or UserPromptSubmit hook listing replies | Never wakes an idle session; a store read on every prompt | Not as the main route; UserPromptSubmit (`pm hook inbox`) is the route for a session with no inbox, see [Reply delivery](../design/reply-delivery.md) |
 | Delivery | Stop hook that blocks while a reply waits | Only at the end of a turn; an idle session never stops again | No |
-| Delivery | `pm reply wait` in the background, started by the agent, plus `pm show` | The agent must remember; on 2026-10-05 it did not | No |
+| Delivery | `pm reply wait` in the background, started by the agent, plus `pm show` | The agent must remember; on 2026-10-05 it did not | Not as the main route; `pm reply wait <id>` is how a session with no inbox waits within its turn |
 | Delivery | The raising command blocks until the answer (or `--wait` by default), run in the background | The agent must still remember to background it; run in the foreground it blocks the turn | No |
 | Delivery | A PostToolUse hook that tells the agent to start the waiter | Still relies on the agent acting on a hint | No |
 | Delivery | A detached waiter process started by `pm` | Its exit wakes nobody; the runtime does not own it | No |
@@ -227,6 +231,4 @@ neither the store-path nor the build header.
 
 > What is still unresolved?
 
-- Codex sessions have no inbox to push into; a Codex agent finds replies in
-  `pm show` and reads them with `pm reply read`.
 - The card shows no earlier replies once delivered; `bd comments <id>` does.

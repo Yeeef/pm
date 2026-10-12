@@ -51,7 +51,10 @@ step; the sprint-level flow is [Sprint lifecycle](sprint-lifecycle.md).
   top level of `pm show` (about 1,200 characters in this repo); a project's
   sprints and tasks are one command deeper.
 - A session is identified by `CLAUDE_CODE_SESSION_ID` (Claude Code) or
-  `CODEX_THREAD_ID` (Codex), which both runtimes export to every command.
+  `CODEX_SESSION_ID`, the root session's (Codex), which each runtime exports
+  to every command and shares with subagents; when both are set, the
+  innermost runtime decides, and an ambiguous session refuses
+  ([Session claims](session-claims.md)).
 - A session counts as live while its transcript was written in the last 30
   minutes; that is the only liveness signal, and it is local to the machine.
 - Agents forget instructions: four of six owner requests were asked only in
@@ -63,7 +66,8 @@ step; the sprint-level flow is [Sprint lifecycle](sprint-lifecycle.md).
 - Claude Code binds a per-session inbox socket and exports its path to every
   command as `CLAUDE_CODE_MESSAGING_SOCKET`; a line written to it starts a
   new turn in an idle session and is read between tool calls in a busy one
-  ([Reply delivery](reply-delivery.md)). Codex has no such inbox.
+  ([Reply delivery](reply-delivery.md)). Codex has no such inbox, so a
+  Codex session gets a reply through `pm reply wait` or at its next prompt.
 
 ## Design
 
@@ -82,7 +86,7 @@ stateDiagram-v2
   Work --> Work: findings and decisions via pm
   Work --> Ask: owner input needed
   Ask --> Work: raise need, continue other work
-  Work --> Answer: pm serve pushes the reply into the session
+  Work --> Answer: reply pushed, waited for, or at the next prompt
   Answer --> Work: record decision or close action
   Work --> Close: pm task close
   Close --> Orient: more ready work
@@ -97,13 +101,17 @@ before it hands back.
 
 The hooks behind it, by runtime:
 
-| Event | Claude Code (`.claude/settings.json`) | Codex (`.codex/hooks.json`) | What it does |
+| Event | Claude Code (`.claude/settings.json`) | Codex (`.codex/hooks.json`, main checkout) | What it does |
 |---|---|---|---|
-| SessionStart | `bd prime --hook-json`, `session_context_hook.py` | `bd codex-hook SessionStart`, `session_context_hook.py` (startup, resume, clear) | Beads workflow, then the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox |
-| SubagentStart | `session_context_hook.py` | same | One line naming the Beads agent profile |
-| Stop | prompt hook judged by Claude Haiku | `owner_request_hook.py` (phrase patterns) | Blocks a reply that asks the owner without a need id |
-| Stop | `uncommitted_records_hook.py` | same | Blocks while records this session named are uncommitted |
-| Pre/PostCompact, UserPromptSubmit | none | `bd codex-hook …` | Refreshes Beads context |
+| SessionStart | `pm prime --rules N` per chunk, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, then `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
+| SubagentStart | the rules chunks, then `pm prime --subagent` | the same | The rules and pm's git rule for agents |
+| UserPromptSubmit | `pm hook inbox` | the same | The owner's replies not yet delivered to this session, as context |
+| Stop | `pm hook owner-request` | the same | Blocks a reply that asks the owner only in chat |
+| Stop | `pm hook stop` | the same | Blocks while records this session named are uncommitted |
+| SubagentStop | none | `pm hook stop` on the subagent's own rollout | The same, for a subagent whose tool inputs the parent's rollout holds encrypted |
+
+Codex runs these only once the owner trusts the project and pm's hooks;
+`pm doctor` names the ones it would skip ([pm in Codex](pm-in-codex.md)).
 
 ### Start: what is in the context
 
@@ -136,7 +144,10 @@ session without entering its context.
   one line, such as "Beads agent profile: team-maintainer (commit and push
   are routine unless your brief says otherwise)."; everything else comes in
   the parent's brief.
-- **Codex** reads `AThe agent orients from the injected snapshot, the top level of `pm show`,
+- **Codex** runs the same hooks from the main checkout's
+  `.codex/hooks.json`, compaction included.
+
+The agent orients from the injected snapshot, the top level of `pm show`,
 rather than re-running it, and drills down one level at a time, only as far
 as its work needs:
 
@@ -150,9 +161,6 @@ as its work needs:
 `bd ready --exclude-type=epic` lists unblocked tasks. The agent never starts
 or briefs a task another live session holds, and work outside any sprint
 first becomes a small sprint.
-f a whole record. The agent never starts or briefs a task
-another live session holds, and work outside any sprint first becomes a
-small sprint.
 
 ### Claim
 
@@ -233,10 +241,11 @@ other ready tasks:
   until the sprint's delivery report is written; a need that asks to
   review, merge or approve a PR without `--pr` is refused.
 
-In Claude Code each stores the raising session in `metadata.session` and its
-inbox socket in `metadata.inbox`, with the machine's hostname; never the
-inbox's token, since Beads syncs to the remote. Nothing is started: no hook
-or process waits for the answer.
+Each stores the raising session; a Claude Code session also stores its
+inbox socket, with the machine's hostname, never the inbox's token, since
+the store syncs to the remote. A Codex session stores no inbox, not even one
+it inherits from a Claude Code session that started it. Nothing is started:
+no process waits for the answer unless the agent runs `pm reply wait`.
 
 ```mermaid
 sequenceDiagram
@@ -264,10 +273,13 @@ run.
 - **A failed push** (timeout, socket briefly missing) stays undelivered;
   `pm serve` sweeps open requests every 60 s and pushes again. A repeat
   delivery is tolerated; a lost one is not.
-- **A session that cannot be reached** (it ended, it runs in Codex with no
-  inbox, or its inbox is on another machine than `pm serve`) keeps the
-  reply undelivered: `pm show`, and so the next session's start, flags the
-  request, and `pm reply read ID` prints the reply and marks it delivered.
+- **A session with no inbox** (Codex) waits within its turn with
+  `pm reply wait ID`, or gets the reply at its next prompt from
+  `pm hook inbox`; a Claude Code session whose push failed gets it there too.
+- **A session that cannot be reached** (it ended, or its inbox is on another
+  machine than the service) keeps the reply undelivered: `pm show`, and so
+  the next session's start, flags the request, and `pm reply read ID` prints
+  the reply and marks it delivered.
   A resumed session binds a new socket; its start hook points its open
   requests at it, and the sweep delivers what the old one missed.
 - Closing a request (`pm decision add --need`, `pm decision close`,
@@ -305,7 +317,12 @@ Closing a task stamps its commit; two Stop hooks each block once, and on
   `pm action done`.
 - The uncommitted-records hook names only dirty store files whose paths
   appear in this session's tool calls, since other sessions write the same
-  store.
+  store. In Codex it also runs at SubagentStop on the subagent's own
+  rollout, since the parent's rollout holds a subagent's tool inputs
+  encrypted.
+- The owner-request check fails open: in Codex a check that cannot run (no
+  `claude` for its judge) passes the stop silently, so `pm doctor` names a
+  missing `claude`.
 - The session pushes neither Beads data nor records: the scheduled
   `pm push` does every 10 minutes from the main checkout. Code goes up as
   a PR; the sprint's report, review and close follow
