@@ -27,6 +27,7 @@ Moved from pm-harness sprint 34 on 2026-10-10.
 - A gap list of Codex against Claude Code is written, each gap closed or recorded as a decision to leave it.
 - A real Codex session raises a need, is woken by the owner's reply, and commits a record, with the transcript as evidence.
 - The setup docs say what a Codex user runs, and nothing else is needed.
+- Every existing design page whose area this sprint changes is brought to the new state, and the sprint's Design pages section lists it.
 
 ## Design pages
 

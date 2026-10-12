@@ -36,6 +36,7 @@ The owner-request Stop judge runs on the session's own runtime, Haiku for Claude
 - The live parity eval gains a scenario where a Codex session on a machine without `claude` asks the owner only in chat, and the judge blocks it.
 - `pm day summarize`, with the repo's summary runtime set to codex, writes a summary in a scratch clone.
 - `pm doctor` names the configured runtime's missing binary.
+- Every existing design page whose area this sprint changes is brought to the new state, and the sprint's Design pages section lists it.
 
 ## Design pages
 
