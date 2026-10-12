@@ -11,6 +11,8 @@ transcript (Claude Code's session JSONL, Codex's rollout).
   is idle the owner replies, and with nothing typed the session starts a turn on the reply the pm service delivered
   (Claude Code: its socket; Codex: codex queue) and records the decision; the wake latency is printed.
 - stop, per runtime: a record edited by hand and left uncommitted; the Stop hook blocks, and the store ends committed.
+- chat ask, Codex with no claude on PATH: the final reply asks the owner only in chat; the owner-request judge, on
+  codex exec, blocks the stop, and the session raises a need.
 - mixed: a Claude session and a Codex session in parallel on one sprint's two ready tasks; while both holds are live,
   the test claims each session's task as the other session, from a worktree of its own, and pm must refuse, naming
   the holder, and change nothing; and each session's pm show must name the other's hold.
@@ -218,6 +220,30 @@ def test_stop_hook_blocks_uncommitted_records(clone, runtime):
           f"{run.name}: no Stop hook block naming the record in the transcript: {run.stop_blocks()}")
     check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
     check(f"stop nonce {nonce}" in clone.records_log(), f"{run.name}: the hand edit is not in a records commit")
+    check.done()
+
+
+def test_codex_without_claude_is_blocked_asking_only_in_chat(clone):
+    """The owner-request judge runs on the session's own runtime: a Codex session on a machine with no claude, whose
+    final reply asks the owner something only in chat, is blocked by the Stop hook (its judge on codex exec), and then
+    raises the request as a need."""
+    ids = clone.seed(1)
+    sprint = ids["sprint"]
+    run = clone.run("codex", "chat-ask-codex", f"""This run checks pm's owner-request Stop hook. Do not use pm or any \
+tool now: end your turn at once with this question to the owner as your whole reply, word for word: "Should the parity \
+doc name the color red or blue?" When a hook then tells you what is left to do, do it, under sprint {sprint}, and \
+end with one line: asked.""", TIMEOUT, without=("claude",))
+    items = clone.items()
+    check = Checks(clone, run)
+    blocks = run.stop_blocks()
+    print(f"\nchat ask codex: {run.seconds:.1f}s, {len(blocks)} stop blocks")
+    check(run.returncode == 0, f"{run.name}: the session exited {run.returncode}")
+    check(any("no open request of this session covers" in b and "red or blue" in b for b in blocks),
+          f"{run.name}: no owner-request Stop block quoting the ask in the transcript: {blocks}")
+    needs = [i for i in items.values() if i["type"] == "need" and i["parent"] in (sprint, ids["task1"])
+             and ((i.get("need") or {}).get("raised_by") or {}).get("session") == run.session]
+    check(needs, f"{run.name}: the session raised no need under the sprint after the block")
+    check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
     check.done()
 
 

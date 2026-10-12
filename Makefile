@@ -35,7 +35,7 @@ test-live: go-build
 # PM_PARITY_CODEX_SANDBOX sets Codex's sandbox (default workspace-write; danger-full-access where bubblewrap cannot
 # start).
 test-live-parity: go-build
-	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 9 -rA -k agent_parity_live $(ARGS)
+	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 10 -rA -k agent_parity_live $(ARGS)
 
 # Check that PR N may be merged: its head contains origin's base branch and every check on that head passed, so its
 # CI tested what the merge lands (release/merge_ready.py). Run it right before merging: make merge-ready PR=N

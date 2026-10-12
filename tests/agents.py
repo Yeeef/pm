@@ -415,9 +415,10 @@ class Clone:
         env = {k: v for k, v in self.env.items() if not INHERITED.match(k)}
         return dict(env, CODEX_HOME=str(self.codex_home), CLAUDE_CONFIG_DIR=str(CLAUDE_DIR))
 
-    def start(self, runtime: str, name: str, prompt: str, resume: str = "") -> Agent:
+    def start(self, runtime: str, name: str, prompt: str, resume: str = "", without: tuple[str, ...] = ()) -> Agent:
         """Start a headless session of `runtime` in the main checkout on `prompt`, or resume the session `resume`
-        with it as its next prompt; its output streams to the test's tmp dir."""
+        with it as its next prompt; its output streams to the test's tmp dir. `without` names commands the session's
+        PATH must not hold: each directory holding one is left out."""
         trust = f'projects."{self.root}".trust_level="trusted"'
         if runtime == "claude":
             argv = [shutil.which("claude", path=REAL_PATH) or "claude", "-p", prompt, "--model", CLAUDE_MODEL,
@@ -428,16 +429,21 @@ class Clone:
             argv = [shutil.which("codex", path=REAL_PATH) or "codex", "exec",
                     *(["resume"] if resume else []), "--json", "-c", f'sandbox_mode="{CODEX_SANDBOX}"', "-c", trust,
                     *(["-m", CODEX_MODEL] if CODEX_MODEL else []), *([resume] if resume else []), prompt]
+        env = self.agent_env()
+        env["PATH"] = os.pathsep.join(d for d in env["PATH"].split(os.pathsep)
+                                      if not any((Path(d) / tool).exists() for tool in without))
+        assert not any(shutil.which(tool, path=env["PATH"]) for tool in without), without
         out = self.out / f"{name}.{runtime}.jsonl"
         with out.open("w") as f:
-            proc = subprocess.Popen(argv, cwd=self.root, env=self.agent_env(), stdin=subprocess.DEVNULL, stdout=f,
+            proc = subprocess.Popen(argv, cwd=self.root, env=env, stdin=subprocess.DEVNULL, stdout=f,
                                     stderr=subprocess.STDOUT, start_new_session=True)
         agent = Agent(self, runtime, name, proc, out, time.monotonic())
         threading.Thread(target=agent.watch, daemon=True).start()
         return agent
 
-    def run(self, runtime: str, name: str, prompt: str, timeout: float, resume: str = "") -> Run:
-        return self.start(runtime, name, prompt, resume).finish(timeout)
+    def run(self, runtime: str, name: str, prompt: str, timeout: float, resume: str = "",
+            without: tuple[str, ...] = ()) -> Run:
+        return self.start(runtime, name, prompt, resume, without).finish(timeout)
 
     def close(self) -> None:
         """Remove the logins copied for the agents, stop the clone's pm service and whatever else the fake supervisor
