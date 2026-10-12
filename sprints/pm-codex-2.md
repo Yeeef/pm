@@ -53,7 +53,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-12}
+Done when gains: every existing design page whose area the sprint changes (the owner-request hook, the day summary, config) is brought to the new state and listed in Design pages.
+Owner rule for every pm-codex sprint, 2026-10-12.
+:::
 
 ## Findings
 
