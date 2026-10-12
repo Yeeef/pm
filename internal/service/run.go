@@ -873,9 +873,9 @@ func (s *server) sweep() {
 // ok is false for a socket that is gone.
 func inboxKey(rb *work.RaisedBy) (key string, ok bool) {
 	path := rb.Inbox
-	if _, codex := session.CodexHomeOf(path); codex {
+	if home, codex := session.CodexHomeOf(path); codex {
 		key = path
-		for _, p := range session.Rollouts(rb.Session) {
+		for _, p := range session.RolloutsIn(home, rb.Session) {
 			if st, err := os.Stat(p); err == nil {
 				key += fmt.Sprintf("\x00%s\x00%d", p, st.ModTime().UnixNano())
 			}

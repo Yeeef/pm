@@ -122,3 +122,15 @@ func current(t *testing.T) string {
 	}
 	return id
 }
+
+// TestCodexLiveLooksUnderTheHomeItIsGiven: the pm service asks whether a Codex session is live under the CODEX_HOME
+// its need stores, whatever its own CODEX_HOME is.
+func TestCodexLiveLooksUnderTheHomeItIsGiven(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CODEX_HOME", home)
+	rollout(t, rootThread, "", nil)
+	t.Setenv("CODEX_HOME", t.TempDir()) // the service's own
+	if !CodexLive(home, rootThread) || CodexLive(os.Getenv("CODEX_HOME"), rootThread) {
+		t.Fatal("liveness was read under another home")
+	}
+}

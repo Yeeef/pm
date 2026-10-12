@@ -54,11 +54,11 @@ const rootThread = "01a12beb-06b9-7f40-8ecb-6468bfec7783"
 // as a dead Claude Code socket is; a codex missing from PATH, older than 0.149.0, or answering for another thread is
 // an undelivered outcome that says why.
 func TestAReplyIsQueuedIntoALiveCodexSession(t *testing.T) {
-	saved := SessionLive
-	t.Cleanup(func() { SessionLive = saved })
+	saved := CodexLive
+	t.Cleanup(func() { CodexLive = saved })
 	live := true
-	SessionLive = func(s string) bool { return s == rootThread && live }
 	home := codexHome(t)
+	CodexLive = func(h, s string) bool { return h == home && s == rootThread && live }
 	n := codexNeed(home)
 	text := "pm: owner reply to decision p-1.2.1 (Pick a port), relayed from the site:\n  [x] yes"
 
@@ -122,10 +122,10 @@ func TestAReplyIsQueuedIntoALiveCodexSession(t *testing.T) {
 // session's need is queued into that session with the text a Claude Code push sends, and marked delivered once codex
 // said it queued it.
 func TestTheServiceQueuesAReplyIntoACodexSessionAndMarksItDelivered(t *testing.T) {
-	saved := SessionLive
-	t.Cleanup(func() { SessionLive = saved })
-	SessionLive = func(s string) bool { return s == rootThread }
+	saved := CodexLive
+	t.Cleanup(func() { CodexLive = saved })
 	home := codexHome(t)
+	CodexLive = func(h, s string) bool { return h == home && s == rootThread }
 	w := newFakeWork(codexNeed(home))
 	main := t.TempDir()
 	log := fakeCodex(t, "0.154.0", rootThread)

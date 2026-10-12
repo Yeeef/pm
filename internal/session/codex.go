@@ -15,14 +15,17 @@ import (
 // subagent is a thread of its own, with its own CODEX_THREAD_ID; Codex 0.154 also sets CODEX_SESSION_ID, the root
 // thread's id, which pm prefers.
 
-// Rollouts is the paths of thread's rollouts. A Codex thread id is a UUIDv7, whose first 48 bits are its start in
-// Unix milliseconds, so only the date directories that start can be in, in any time zone, are read; for another id,
-// every date directory is.
-func Rollouts(thread string) []string {
+// Rollouts is the paths of thread's rollouts under this process's CODEX_HOME (RolloutsIn).
+func Rollouts(thread string) []string { return RolloutsIn(CodexHome(), thread) }
+
+// RolloutsIn is the paths of thread's rollouts under the CODEX_HOME home. A Codex thread id is a UUIDv7, whose first
+// 48 bits are its start in Unix milliseconds, so only the date directories that start can be in, in any time zone,
+// are read; for another id, every date directory is.
+func RolloutsIn(home, thread string) []string {
 	if !sessionID.MatchString(thread) {
 		return nil
 	}
-	sessions := filepath.Join(CodexHome(), "sessions")
+	sessions := filepath.Join(home, "sessions")
 	name := "rollout-*-" + thread + ".jsonl"
 	start, ok := uuid7Start(thread)
 	if !ok {

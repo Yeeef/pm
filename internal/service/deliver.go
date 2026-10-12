@@ -270,8 +270,12 @@ func MarkWithin(st work.Store, marks []Mark, budget time.Duration, now func() ti
 // Hostname is this machine's name, as a need stores its inbox's host; a variable so tests can move a need elsewhere.
 var Hostname = os.Hostname
 
-// SessionLive is whether a session's transcript changed within the live window; a variable so tests can end one.
-var SessionLive = session.Live
+// SessionLive is whether a session's transcript changed within the live window, and CodexLive whether a Codex
+// session's rollout under the CODEX_HOME its need stores did; variables so tests can end one.
+var (
+	SessionLive = session.Live
+	CodexLive   = session.CodexLive
+)
 
 // PushInbox hands text, as one user message, to the session that raised the need, only on the machine that stored its
 // inbox: written into a Claude Code session's inbox socket, connecting only once the line is ready, or queued into a
@@ -298,7 +302,7 @@ func PushInbox(n *work.Item, text string) string {
 		return "not running: the session's inbox is on " + where + ", not this machine"
 	}
 	if home, codex := session.CodexHomeOf(rb.Inbox); codex {
-		if !SessionLive(rb.Session) {
+		if !CodexLive(home, rb.Session) {
 			return "not running: the session that asked has ended"
 		}
 		return queueCodex(home, rb.Session, text)

@@ -29,6 +29,17 @@ const codexInbox = "codex-queue:"
 // CodexInbox is the inbox of a Codex session whose CODEX_HOME is home.
 func CodexInbox(home string) string { return codexInbox + home }
 
+// CodexLive is whether one of thread's rollouts under the CODEX_HOME home changed within LiveWindow: the pm service
+// asks it of a Codex session by the home its need stores, not by its own.
+func CodexLive(home, thread string) bool {
+	for _, p := range RolloutsIn(home, thread) {
+		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < LiveWindow {
+			return true
+		}
+	}
+	return false
+}
+
 // Inbox is the inbox the pm service pushes the replies of a session of runtime into: Claude Code's messaging socket
 // for a Claude Code session (a Codex run started from one inherits that socket, and a push there would land in the
 // Claude Code session); for a Codex session, its CODEX_HOME, under which the service queues the reply (codex queue);
