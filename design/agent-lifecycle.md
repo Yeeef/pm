@@ -245,10 +245,11 @@ other ready tasks:
   until the sprint's delivery report is written; a need that asks to
   review, merge or approve a PR without `--pr` is refused.
 
-Each stores the raising session; a Claude Code session also stores its
-inbox socket, with the machine's hostname, never the inbox's token, since
-the store syncs to the remote. A Codex session stores no inbox, not even one
-it inherits from a Claude Code session that started it. Nothing is started:
+Each stores the raising session and its inbox, with the machine's hostname:
+a Claude Code session's socket, never the inbox's token, since the store
+syncs to the remote; a Codex session's CODEX_HOME, under which the pm service
+runs `codex queue`, never a socket it inherits from a Claude Code session
+that started it. Nothing is started:
 no process waits for the answer unless the agent runs `pm reply wait`.
 
 ```mermaid
@@ -277,9 +278,11 @@ run.
 - **A failed push** (timeout, socket briefly missing) stays undelivered;
   `pm serve` sweeps open requests every 60 s and pushes again. A repeat
   delivery is tolerated; a lost one is not.
-- **A session with no inbox** (Codex) waits within its turn with
+- **A Codex session** gets the reply queued with `codex queue` under its
+  CODEX_HOME while it is live; an idle TUI starts a turn on it.
+- **A session with no inbox** waits within its turn with
   `pm reply wait ID`, or gets the reply at its next prompt from
-  `pm hook inbox`; a Claude Code session whose push failed gets it there too.
+  `pm hook inbox`; a session whose push failed gets it there too.
 - **A session that cannot be reached** (it ended, or its inbox is on another
   machine than the service) keeps the reply undelivered: `pm show`, and so
   the next session's start, flags the request, and `pm reply read ID` prints

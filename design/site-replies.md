@@ -107,11 +107,11 @@ session that asked; nothing waits in the session.
 ### Raising: which session asked
 `pm decision need` and `pm action need` (a PR review too) store the raising
 session in the issue's metadata, `{"session": "<id>"}`, from
-the session's id, and, for a Claude Code session only, its inbox socket,
+the session's id, and its inbox: for a Claude Code session its socket,
 `{"inbox": "<path>"}`, from `CLAUDE_CODE_MESSAGING_SOCKET` (never the inbox's
-token); a Codex session stores no inbox, even one it inherits. The command's
-output says whether the reply will be pushed, or how to wait for it
-(`pm reply wait <id>`, else the next prompt).
+token); for a Codex session its CODEX_HOME, `codex-queue:<CODEX_HOME>`, never
+the Claude Code socket it inherits. The command's output says how the reply
+will be pushed or queued, and how to wait for it (`pm reply wait <id>`).
 
 ### Replying: the form and the POST
 Every awaiting card carries an invisible slot, `<!--pm-reply ID-->`. On each
@@ -154,8 +154,9 @@ the request's site replies, only once the push is accepted. Only the site's
 replies (comments by `owner (site reply)`) count, never pm's own or an agent's
 comments. A reply it cannot push waits: the card says the session is not
 running, `pm show` flags it, and `pm reply read <id>` prints it and marks it
-delivered. A session with no inbox (Codex) gets it from `pm reply wait <id>`
-within its turn or from `pm hook inbox` at its next prompt. Closing a request
+delivered. A Codex session gets it queued with `codex queue`, which starts a
+turn when the session is idle; a session with no inbox gets it from
+`pm reply wait <id>` within its turn or from `pm hook inbox` at its next prompt. Closing a request
 through pm refuses while it holds one. The full
 design, with the failures it replaced and the alternatives, is
 [Reply delivery](../design/reply-delivery.md).
