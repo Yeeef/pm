@@ -88,6 +88,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 needs.go adds the design-page gate to raising a PR review; reply delivery, inbox push and reply read are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-12}
+The design page session-claims stays as it is for this sprint's code changes.
+writes.go adds the gate to pm sprint close and moves the merge stamp to records; claims, holders and liveness are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
