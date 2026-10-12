@@ -107,6 +107,25 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
   also exposed a read-dedup race (a create's remote read not recorded), fixed
   in #44 before merge.
 
+- PR 53, the first PR after #44 merged, 3 samples (one run and two reruns of
+  all four workflows, same head): wall from the first job created to the last
+  check done 173, 148, 168 s, median 168 s, against 341 s on #44 and 191-290 s
+  before the sprint; not yet about 120 s. Every Go job restored main's ffd2b26
+  cache by its exact key, warm: go vet 0.6 s (linux) and 1.1 s (darwin), go
+  test -c of internal/work 6-10 s on linux, 25-39 s on darwin (a link;
+  darwin's cmd/pm link alone is 13 s; cold on #44 was 48 s). macOS queue was
+  6-34 s, so queueing did not set the floor here. Per job, queue / run in s (3
+  samples): work darwin 34/139, 9/139, 10/158; race darwin 8/146, 8/118,
+  11/138; build-vet-test darwin 6/87, 7/87, 10/102; integration 3/71, 3/83,
+  2/75; lint-deadcode 2/70, 2/95, 3/68; work linux 2/61, 3/65, 3/65;
+  build-vet-test linux 2/61, 3/44, 3/49; light 3/58, 3/63, 3/62; race linux
+  2/59, 3/59, 3/51; lint-go 3/39, 3/43, 3/40; lint-py and changelog 3-4/5-9.
+  The floor is the darwin work job (139-158 s): setup-go 12-19 s and the 1 GB
+  cache restore 34-37 s before any compile, go test -c 29-39 s, then the tests
+  47-49 s, bounded by one test
+  (TestSyncTwoClonesConcurrentEditsMergePerTheTable, 47-49 s alone in its
+  shard on macos-14).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
