@@ -42,7 +42,11 @@ The owner-request Stop judge runs on the session's own runtime, Haiku for Claude
 
 > Where is the detail?
 
-None yet.
+- [Owner-request Stop hook](../design/owner-request-hook.md): the judge on each session's runtime, the `codex exec` call, its no-recursion and timeouts, the live eval on both runtimes.
+- [Views and the site](../design/views-and-site.md): the Today summary on the runtime `summary_runtime` names.
+- [pm in Codex](../design/pm-in-codex.md): gap 8 closed; gap 1's warning to a session whose hooks did not run.
+- [pm as an installable product](../design/pm-product.md): `summary_runtime` in `.pm/config.toml`, `pm doctor`'s runtime check, the Stop entries' `--runtime`.
+- [pm CLI](../design/pm-cli.md): `pm day summarize`'s row.
 
 ## Progress
 
