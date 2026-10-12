@@ -58,6 +58,11 @@ Done when gains: every existing design page whose area the sprint changes (the o
 Owner rule for every pm-codex sprint, 2026-10-12.
 :::
 
+::: decision {source=agent date=2026-10-12}
+Scope gains: a pm command run in a Codex session whose rollout holds no pm session-start context warns, once per session, that Codex skipped pm hooks and names the fix (trust them in /hooks).
+Gap 1 detail on pm-in-codex: a Codex session in a repo whose pm hooks are untrusted gets no signal at all, since its hooks are what does not run; 0 of 43 sessions in yeeef-agents had pm context and none said so.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
