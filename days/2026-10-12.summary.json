@@ -1,7 +1,7 @@
 {
  "date": "2026-10-12",
- "generated_at": "2026-10-12T19:16:34+00:00",
- "digest": "3b2dabaf00e4a9ae",
+ "generated_at": "2026-10-12T19:27:01+00:00",
+ "digest": "65eef7caedee9cec",
  "model": "claude-haiku-5-5",
- "text": "- **Public site access:** The pm site now requires a valid Cloudflare Access token. The service refuses a request when it has no key or cannot fetch the key set. The owner logged in through Cloudflare Access, and the site loads.\n- **Codex parity documentation:** Design pages for setup, the agent lifecycle, site replies, and the CLI now state the Codex changes. The pm in Codex page lists each open gap, its cost, and what closes it.\n- **Website install commands:** The install commands and install pill now point to the latest GitHub release. They stay current after each release.\n- **Design-page update checks:** Work started to require a design page update when covered code changes. Design pages will show when their covered code changed after the last edit."
+ "text": "- **Site access control:** The public pm site now requires a valid Cloudflare Access token, and it refuses requests when the key is missing. The owner confirmed that the site loads through Access.\n- **Design pages tied to code:** Design pages now name the code they cover, and the site shows when that code changed after the last edit. Work started on a gate for pm action need and pm sprint close.\n- **Codex parity:** pm in Codex completed a final live parity run. Its design page lists each open gap, its cost, and what covers it. Work started to run the judge and day summary on Codex.\n- **Install and test checks:** The website install commands and install pill now point to the latest release. The race test list names only top-level tests, and a check enforces that rule."
 }
