@@ -62,6 +62,8 @@ None yet.
 
 done: the website's install commands and pill point at GitHub's latest release, so they stay current after each release.
 
+Merged as ffd2b26 (PR #52).
+
 - `website/index.html`: both `curl … install.sh` commands use `releases/latest/download/install.sh`; the pill reads "Latest release" and links to `releases/latest`; step 1 says it installs the latest release.
 
 ### Against "Done when"
