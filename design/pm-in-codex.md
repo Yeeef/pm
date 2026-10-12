@@ -112,7 +112,7 @@ Four of the 12 gaps are not closed: hook trust (1), `.codex/` from the main chec
 | Evidence | 0 of the owner's 43 Codex sessions in yeeef-agents, whose `.codex/hooks.json` pm wrote, received pm context. `~/.codex/config.toml` held no `hooks.state` entries. |
 | Why it is open | pm never writes the trust (owner decision on the pm-codex project). The hash is Codex-internal and undocumented, and writing it would bypass Codex's review step. |
 | Until then | `pm doctor` and a typed `pm init` ask `codex app-server` which pm hooks Codex skips, and name the fix (see Hook trust). The owner trusts once per repo and machine, and again after a `pm upgrade` that changes a hook. A session is told (see Hook trust): a pm command warns once when the rollout holds no pm rules before the first prompt (bounded read of the root rollout's opening, the answer kept in `.pm/run/codex-hooks/<session>`), and a session whose start hooks ran opens with a line naming the pm hooks Codex skips. Live: an agent in an untrusted scratch clone ran `pm show` and its rollout holds the warning; a session in a clone whose Stop entries' trust was stale got the line naming both. |
-| Not covered | A session in a repo Codex runs no pm hook of that runs no pm command gets no signal: its hooks are exactly what does not run. |
+| Not covered | A session that runs no pm command, where Codex runs none of pm's hooks, gets no signal: its hooks are exactly what does not run. |
 | Closes when | Codex offers a supported way for a tool to request trust for the hooks it installs. Managed hooks, which an admin installs and which skip trust, fit an org rollout, not a per-repo `pm init`. |
 
 #### Gap 5: Codex reads `.codex/` from the main checkout
