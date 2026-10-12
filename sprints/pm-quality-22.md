@@ -103,6 +103,17 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
   grown to 68 files and adds internal/session/**, internal/cli/inbox.go and
   internal/hooks/inbox*.go, which no page covers yet.
 
+- A fresh-context review of the first 5 commits found 7 issues, all fixed: `gh
+  pr view --json files` lists at most 100 files (now the paginated pull
+  request files API); a rename hid its old path (now counted); a non-GitHub PR
+  URL failed opaquely (now refused with why); a sprint missing from the work
+  store crashed (now refused); `--merged` without `--pr` saw only a rebase
+  merge's last commit and failed on a root commit (now a merge commit only,
+  else refused naming --pr); every correctly updated page read as stale once
+  its PR merged (now a sprint's stamped merge is left out when it updated or
+  waived the page); a dead `design_sources` pattern passed silently (now
+  fails).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
