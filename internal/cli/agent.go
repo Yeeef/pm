@@ -266,7 +266,6 @@ func (r *repo) apply(writes []store.Write, message, prefix string) (string, erro
 const (
 	sessionEnv      = session.ClaudeEnv
 	codexSessionEnv = session.CodexThreadEnv
-	inboxEnv        = "CLAUDE_CODE_MESSAGING_SOCKET"
 	liveWindow      = int(session.LiveWindow / time.Second) // seconds, as refusals name it
 )
 

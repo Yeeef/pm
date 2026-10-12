@@ -589,6 +589,9 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	for _, d := range service.Drift(main, port) {
 		out = append(out, "service: "+d)
 	}
+	if d := service.CodexDrift(main); d != "" {
+		out = append(out, "service: "+d)
+	}
 	if isDir(CodexHome()) && isDir(records) {
 		path := filepath.Join(CodexHome(), "config.toml")
 		_, _, have, err := CodexConfig(path)

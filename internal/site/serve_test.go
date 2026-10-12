@@ -37,18 +37,22 @@ func TestFillRepliesAndStatus(t *testing.T) {
 	}
 }
 
-// TestACodexNeedsReplyWaitsForItsSession: a session that stores no inbox (Codex's) gets no push, so a reply to its
-// need is not "not running": the card after the reply and the need's thread say it waits for that session, at its
-// next prompt or through pm reply wait; a need with an inbox keeps the not-delivered text.
-func TestACodexNeedsReplyWaitsForItsSession(t *testing.T) {
-	card := FillReplies("<!--pm-reply x-1 decision-->", "tok", map[string]Reply{
-		"x-1": {State: "sent", Text: "Ok.", RID: "r1", Delivery: "no push"}})
-	if !strings.Contains(card, "waiting for the session that asked, which gets no push (a Codex session): it sees "+
-		"the reply at its next prompt, or now if it waits with pm reply wait") || strings.Contains(card, "not running") {
+// TestAReplyToASessionWithNoInboxWaitsForIt: a session that stores no inbox gets no push, so a reply to its need is
+// not "not running": the card after the reply and the need's thread say it waits for that session, at its next prompt
+// or through pm reply wait; a need with an inbox, a Claude Code socket or a Codex route, keeps the not-delivered text.
+// With codex missing from the service's PATH, the card says so and how to fix it.
+func TestAReplyToASessionWithNoInboxWaitsForIt(t *testing.T) {
+	card := FillReplies("<!--pm-reply x-1 decision--><!--pm-reply x-2 decision-->", "tok", map[string]Reply{
+		"x-1": {State: "sent", Text: "Ok.", RID: "r1", Delivery: "no push"},
+		"x-2": {State: "sent", Text: "Ok.", RID: "r2", Delivery: "no codex"}})
+	if !strings.Contains(card, "waiting for the session that asked, which has no inbox pm can push to: it sees "+
+		"the reply at its next prompt, or now if it waits with pm reply wait") || strings.Contains(card, "not running") ||
+		!strings.Contains(card, "codex is not on the pm service's PATH") {
 		t.Errorf("card: %s", card)
 	}
 	at := time.Date(2026, 10, 3, 10, 0, 0, 0, time.UTC)
-	for inbox, want := range map[string]string{"": NotPushed, "/run/claude.sock": NotDelivered} {
+	for inbox, want := range map[string]string{"": NotPushed, "/run/claude.sock": NotDelivered,
+		"codex-queue:/home/u/.codex": NotDelivered} {
 		it := &Item{ID: "x-1", Type: work.Need, Status: work.Open, Need: &work.NeedInfo{Kind: work.Decision,
 			RaisedBy: &work.RaisedBy{Session: "cx", Inbox: inbox}},
 			Comments: []work.Comment{{ID: "c1", Kind: work.Reply, Author: "owner", Text: "Ok.", CreatedAt: at}}}

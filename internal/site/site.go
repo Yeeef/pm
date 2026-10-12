@@ -588,11 +588,12 @@ func cardWhere(it *Item, proj *Record, items *Items, recs []*Record, frm *Record
 }
 
 // NotDelivered is a site reply's state before it reaches the asking session; NotPushed for a session that stores no
-// inbox (a Codex session's), which the pm service cannot push into.
+// inbox, which the pm service cannot push into (a Claude Code session has its messaging socket, a Codex session its
+// CODEX_HOME to queue the reply under).
 const (
 	NotDelivered = "not delivered yet: the session that asked is not running, or the push failed and the pm service " +
 		"tries again; the next session sees it"
-	NotPushed = "not delivered yet: the session that asked gets no push (a Codex session); it sees the reply at its " +
+	NotPushed = "not delivered yet: the session that asked has no inbox pm can push to; it sees the reply at its " +
 		"next prompt, or now if it waits with pm reply wait"
 )
 

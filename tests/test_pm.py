@@ -314,14 +314,15 @@ SITE_URL = ("--question", "Where does pm keep the public site URL?",
 
 
 def test_a_codex_session_never_takes_the_claude_code_inbox_it_inherits(repo):
-    """A Codex run started from a Claude Code session inherits CLAUDE_CODE_MESSAGING_SOCKET: its need stores no
-    inbox (a push there would land in the Claude Code session), and it is told it gets no push."""
+    """A Codex run started from a Claude Code session inherits CLAUDE_CODE_MESSAGING_SOCKET: its need stores its own
+    route instead, the CODEX_HOME the pm service queues the reply under (a push to the socket would land in the Claude
+    Code session), and it is told the reply is queued into it."""
     repo.env = dict(repo.env, CODEX_SESSION_ID="cx-root", CLAUDE_CODE_MESSAGING_SOCKET="/run/claude-parent.sock")
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
     assert res.returncode == 0, res.stderr
-    assert "this session gets no push of the owner's reply" in res.stdout, res.stdout
+    assert "the pm service queues the owner's reply into this Codex session (codex queue)" in res.stdout, res.stdout
     raised = repo.items()["repo-demo.1.3"]["need"]["raised_by"]
-    assert raised["session"] == "cx-root" and not raised.get("inbox"), raised
+    assert raised["session"] == "cx-root" and raised["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}", raised
     # the Claude Code session itself stores its inbox, and is told how to wait within its turn too
     repo.env = dict(repo.env, CODEX_SESSION_ID="", CLAUDE_CODE_SESSION_ID="cl-1")
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
@@ -565,9 +566,9 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
     assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
     assert res.returncode == 0, res.stderr
-    # a session with no inbox (Codex) gets no push: it is told how to wait for the reply
-    assert ("this session gets no push of the owner's reply (no inbox, as in Codex): wait for it within this turn "
-            "with pm reply wait repo-demo.1.4 (in the background where the runtime allows), else it reaches the "
+    # a session pm has no inbox for gets no push: it is told how to wait for the reply
+    assert ("this session gets no push of the owner's reply (no inbox pm can push to): wait for it within this "
+            "turn with pm reply wait repo-demo.1.4 (in the background where the runtime allows), else it reaches the "
             "session at its next prompt, and pm reply read repo-demo.1.4 prints it") in res.stdout
     assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.2", "--focus", "F").returncode == 0
     action, decision, review = "repo-demo.1.3", "repo-demo.1.4", "repo-demo.2.1"
@@ -1455,9 +1456,10 @@ def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
     assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 2
 
 
-def test_show_refresh_inbox_points_a_sessions_needs_at_its_inbox_or_at_none(repo):
-    """A Claude Code session's open needs follow its socket; a Codex session's lose the Claude Code socket an earlier
-    pm stored on them (inherited from the Claude Code session that started Codex), so no reply is pushed there."""
+def test_show_refresh_inbox_points_a_sessions_needs_at_its_own_inbox(repo):
+    """A Claude Code session's open needs follow its socket; a Codex session's trade the Claude Code socket an earlier
+    pm stored on them (inherited from the Claude Code session that started Codex) for its CODEX_HOME, which the pm
+    service queues the reply under, so no reply is pushed into the Claude Code session."""
     stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
     for nid, session in (("repo-demo.1.3", "sess-cl"), ("repo-demo.1.4", "sess-cx")):
         repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task", "parent": "repo-demo.1",
@@ -1470,7 +1472,7 @@ def test_show_refresh_inbox_points_a_sessions_needs_at_its_inbox_or_at_none(repo
     assert repo.pm("show", "--refresh-inbox").returncode == 0
     items = repo.items()
     assert items["repo-demo.1.3"]["need"]["raised_by"]["inbox"] == "/run/new.sock"
-    assert not items["repo-demo.1.4"]["need"]["raised_by"].get("inbox"), items["repo-demo.1.4"]["need"]
+    assert items["repo-demo.1.4"]["need"]["raised_by"]["inbox"] == f"codex-queue:{base['CODEX_HOME']}"
 
 
 def test_a_need_closed_by_its_decision_or_its_no_decision_close_records_the_session(repo):

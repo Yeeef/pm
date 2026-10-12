@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""A stand-in for `codex app-server` in tests, which pm doctor and pm init ask whether Codex runs pm's hooks: it answers
+"""A stand-in for codex in tests. `codex --version` says 0.154.0, a codex with codex queue, which pm doctor checks the
+pm service has. `codex app-server`, which pm doctor and pm init ask whether Codex runs pm's hooks, answers
 initialize, then hooks/list with each command hook of <cwd>/.codex/hooks.json in Codex 0.154's shape, every one
 trusted unless $FAKE_CODEX_TRUST names a JSON file mapping "<event label>:<group>:<handler>" to another trust status;
 {"project": "untrusted"} there lists no hook, as Codex does for a project the user has not trusted."""
@@ -14,8 +15,11 @@ LABEL = {"PreToolUse": "pre_tool_use", "PermissionRequest": "permission_request"
          "SessionEnd": "session_end", "UserPromptSubmit": "user_prompt_submit", "SubagentStart": "subagent_start",
          "SubagentStop": "subagent_stop", "Stop": "stop", "Interrupt": "interrupt"}
 
+if sys.argv[1:] == ["--version"]:  # a codex with codex queue, so the pm service's codex is current
+    print("codex-cli 0.154.0")
+    sys.exit(0)
 if sys.argv[1:] != ["app-server"]:
-    sys.exit(f"fake codex: only app-server, not {sys.argv[1:]}")
+    sys.exit(f"fake codex: only --version and app-server, not {sys.argv[1:]}")
 trust = json.loads(Path(os.environ["FAKE_CODEX_TRUST"]).read_text()) if os.environ.get("FAKE_CODEX_TRUST") else {}
 
 

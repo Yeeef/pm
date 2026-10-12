@@ -551,12 +551,10 @@ var innermost = session.Innermost
 // agentSession is this command's agent session and its runtime (session.Current).
 func agentSession() (id, runtime string, err error) { return session.Current(innermost) }
 
-// sessionInbox is the inbox the pm service pushes this session's replies into: Claude Code's messaging socket, and
-// only when the session is Claude Code's. A Codex run started from a Claude Code session inherits that session's
-// socket; a push there would land in the Claude Code session.
+// sessionInbox is the inbox the pm service pushes this session's replies into (session.Inbox).
 func sessionInbox() string {
-	if _, runtime, err := agentSession(); err != nil || runtime != "claude" {
-		return ""
+	if _, runtime, err := agentSession(); err == nil {
+		return session.Inbox(runtime)
 	}
-	return strings.TrimSpace(os.Getenv(inboxEnv))
+	return ""
 }

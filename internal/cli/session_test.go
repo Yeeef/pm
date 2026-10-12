@@ -5,7 +5,11 @@ import (
 	"testing"
 )
 
-func TestSessionInboxIsClaudeCodesOnly(t *testing.T) {
+// TestSessionInboxIsTheRuntimesOwn: a Claude Code session's inbox is its messaging socket; a Codex session's is its
+// CODEX_HOME, which the pm service queues the reply under, never the Claude Code socket it inherits.
+func TestSessionInboxIsTheRuntimesOwn(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CODEX_HOME", home)
 	t.Setenv("CLAUDE_CODE_MESSAGING_SOCKET", "/run/claude.sock")
 	t.Setenv("CODEX_THREAD_ID", "")
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "cl")
@@ -16,8 +20,8 @@ func TestSessionInboxIsClaudeCodesOnly(t *testing.T) {
 	// a Codex run started from a Claude Code session inherits its socket, not its session id
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "")
 	t.Setenv("CODEX_SESSION_ID", "cx")
-	if got := sessionInbox(); got != "" {
-		t.Errorf("a Codex session got Claude Code's inbox %q", got)
+	if got := sessionInbox(); got != "codex-queue:"+home {
+		t.Errorf("a Codex session's inbox: %q", got)
 	}
 }
 

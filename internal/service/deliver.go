@@ -273,9 +273,10 @@ var Hostname = os.Hostname
 // SessionLive is whether a session's transcript changed within the live window; a variable so tests can end one.
 var SessionLive = session.Live
 
-// PushInbox writes text as one user message into the inbox socket of the session that raised the need, connecting
-// only once the line is ready, and only on the machine that stored it. "" once the line is written; else why not:
-// "no push: …" (a live session that stores no inbox, as a Codex session's: the reply waits for it), "not running: …"
+// PushInbox hands text, as one user message, to the session that raised the need, only on the machine that stored its
+// inbox: written into a Claude Code session's inbox socket, connecting only once the line is ready, or queued into a
+// live Codex session with codex queue (queueCodex). "" once handed over; else why not: "no push: …" (a live session
+// that stores no inbox: the reply waits for it), "no codex: …" (codex is not on the service's PATH), "not running: …"
 // (no session, or one whose transcript has ended, another machine, the socket gone or refusing) or "failed: …".
 func PushInbox(n *work.Item, text string) string {
 	if n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Session == "" {
@@ -295,6 +296,12 @@ func PushInbox(n *work.Item, text string) string {
 			where = "an unknown host"
 		}
 		return "not running: the session's inbox is on " + where + ", not this machine"
+	}
+	if home, codex := session.CodexHomeOf(rb.Inbox); codex {
+		if !SessionLive(rb.Session) {
+			return "not running: the session that asked has ended"
+		}
+		return queueCodex(home, rb.Session, text)
 	}
 	msg := &pyjson.Object{Keys: []string{"role", "content"}, Values: map[string]any{"role": "user", "content": text}}
 	line := pyjson.Dumps(&pyjson.Object{Keys: []string{"type", "message"},

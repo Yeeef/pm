@@ -464,7 +464,8 @@ def test_inbox_hands_nothing_over_at_a_stop(repo, tmp_path):
 @pytest.mark.integration
 def test_session_start_of_a_codex_session_started_from_claude_code_takes_no_claude_inbox(repo, tmp_path):
     """Codex's hooks get no CODEX_* variables and inherit the Claude Code session's that started Codex: session start
-    runs pm show as the Codex session, so its needs lose the Claude Code socket an earlier pm stored on them."""
+    runs pm show as the Codex session, so its needs trade the Claude Code socket an earlier pm stored on them for the
+    session's CODEX_HOME, which the pm service queues the reply under."""
     repo.add_issue({"id": "repo-demo.1.3", "title": "Parser?", "status": "open", "issue_type": "task",
                     "parent": "repo-demo.1", "labels": ["human"], "created_at": "2026-10-01T12:00:00Z",
                     "updated_at": "2026-10-01T12:00:00Z",
@@ -473,4 +474,4 @@ def test_session_start_of_a_codex_session_started_from_claude_code_takes_no_clau
     env = dict(repo.env, CLAUDE_CODE_SESSION_ID="claude-parent", CLAUDE_CODE_MESSAGING_SOCKET="/run/claude.sock")
     payload = hook_payload("codex", "SessionStart", session=ROOT, cwd=str(repo.root), transcript=str(tmp_path / "t"))
     context_of(run(STATE, payload, env, repo.root))
-    assert not repo.items()["repo-demo.1.3"]["need"]["raised_by"].get("inbox")
+    assert repo.items()["repo-demo.1.3"]["need"]["raised_by"]["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}"

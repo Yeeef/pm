@@ -600,6 +600,13 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
         "stop, and Codex treats that failure as a silent pass; install Claude Code and log in"), res.stdout
     assert lines[1] == "codex: codex is not on PATH, so whether Codex runs pm's hooks was not checked", res.stdout
     assert len(lines) == 3 and lines[2].startswith("release: "), res.stdout
+    # a pm service installed from that shell has no codex to queue owner replies into Codex sessions with
+    assert run("service", "install", PATH=path).returncode == 0
+    res = run("doctor")
+    assert res.returncode == 1 and ("service: codex is not on the pm service's PATH, so owner replies cannot be "
+                                    "queued into Codex sessions (they wait for their next prompt); install codex "
+                                    "0.149.0 or later and run pm service install from a shell where it is on PATH"
+                                    ) in res.stdout.splitlines(), res.stdout
 
 
 def test_init_with_a_path_of_its_own_leaves_the_running_service_alone(new_repo: Path, tmp_path: Path):

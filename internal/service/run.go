@@ -30,6 +30,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/session"
 	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
 )
@@ -840,16 +841,10 @@ func (s *server) sweep() {
 		if !ReplyWaiting(n) && MergeWaiting(n) == "" {
 			continue
 		}
-		path := n.Need.RaisedBy.Inbox
-		st, err := os.Stat(path)
-		if err != nil {
+		key, ok := inboxKey(n.Need.RaisedBy)
+		if !ok {
 			continue // no socket: the session is not running
 		}
-		var ino uint64
-		if sys, ok := st.Sys().(*syscall.Stat_t); ok {
-			ino = sys.Ino
-		}
-		key := fmt.Sprintf("%s\x00%d\x00%d", path, ino, st.ModTime().UnixNano())
 		s.mu.Lock()
 		last := s.swept[n.ID]
 		s.mu.Unlock()
@@ -871,6 +866,31 @@ func (s *server) sweep() {
 		s.swept[n.ID] = next
 		s.mu.Unlock()
 	}
+}
+
+// inboxKey is what the sweep compares to skip a session found not running until it may be back: a socket's path,
+// inode and mtime; for a Codex route, its session's newest rollout's path and mtime, which change when it runs again.
+// ok is false for a socket that is gone.
+func inboxKey(rb *work.RaisedBy) (key string, ok bool) {
+	path := rb.Inbox
+	if _, codex := session.CodexHomeOf(path); codex {
+		key = path
+		for _, p := range session.Rollouts(rb.Session) {
+			if st, err := os.Stat(p); err == nil {
+				key += fmt.Sprintf("\x00%s\x00%d", p, st.ModTime().UnixNano())
+			}
+		}
+		return key, true
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		return "", false
+	}
+	var ino uint64
+	if sys, ok := st.Sys().(*syscall.Stat_t); ok {
+		ino = sys.Ino
+	}
+	return fmt.Sprintf("%s\x00%d\x00%d", path, ino, st.ModTime().UnixNano()), true
 }
 
 // ticker, at start and every MergePoll: look at each open review's PR without a seen merge (with gh), and hand one
