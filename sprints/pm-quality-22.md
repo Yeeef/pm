@@ -114,6 +114,10 @@ Owner chose it in chat, 2026-10-12, over a gate-only build or a proposal doc; th
   waived the page); a dead `design_sources` pattern passed silently (now
   fails).
 
+- `git diff-tree -m --first-parent <merge>` lists the merge's diff against
+  each parent, not the first only (3 files where the branch brought 2); `git
+  diff <merge>^1 <merge>` gives the branch's files exactly.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
