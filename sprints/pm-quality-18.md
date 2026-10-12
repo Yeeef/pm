@@ -160,6 +160,8 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
 
 done: a PR's CI reaches its last check in a median 115 s (PR 55, 3 samples; 191-290 s before the sprint), as internal/work's tests run in 8 balanced processes, the Go cache halves and stays warm, and the macOS work and race jobs drop to medians of 96 and 99 s.
 
+Merged as 5d1e05b (PR #44). Merged as fe05966 (PR #53).
+
 - `make go-test-work` and `make -j2 go-test-race`: internal/work's tests in 8 processes balanced by measured seconds (`.github/scripts/go_shards.py`), failing unless every test ran and passed and the seconds file names every test.
 - `go vet` and `go test` share go-build's compiles (`-trimpath`): cold GOCACHE 2455 to 1269 MB.
 - A run that saves the Go cache trims it to what it used (`.github/scripts/go_cache_trim.py`).
