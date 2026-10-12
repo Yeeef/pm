@@ -221,7 +221,7 @@ func codexHooks() entries {
 				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10)})
 			},
 			"Stop": func() *pyjson.Object {
-				return obj("hooks", []any{h("pm hook owner-request --runtime codex || exit 1", "Checking for owner requests asked only in chat", 30),
+				return obj("hooks", []any{h("pm hook owner-request --runtime codex || exit 1", "Checking for owner requests asked only in chat", 45),
 					h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
 			},
 			"SubagentStop": func() *pyjson.Object {

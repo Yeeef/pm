@@ -36,7 +36,8 @@ const (
 // Runtimes are the runtimes pm can ask, by name.
 var Runtimes = []string{string(Claude), string(Codex)}
 
-// Model is the small model each runtime answers on: Claude Haiku, and Codex's fast listed model.
+// Model is the small model each runtime answers on: Claude Haiku, and Codex's fast listed model. Codex's reasons at
+// medium effort: at low, the judge's live eval missed 3 or 4 of its 189 runs; at medium, none.
 func (r Runtime) Model() string {
 	if r == Codex {
 		return "gpt-5.6-luna"
@@ -92,7 +93,7 @@ var codexOff = []string{"--disable", "plugins", "--disable", "recommended_plugin
 // its answer); the prompt goes on stdin.
 func (r Runtime) Args(c Call, dir string) []string {
 	if r == Codex {
-		args := []string{"codex", "exec", "--model", r.Model(), "-c", `model_reasoning_effort="low"`, "--ephemeral",
+		args := []string{"codex", "exec", "--model", r.Model(), "-c", `model_reasoning_effort="medium"`, "--ephemeral",
 			"--skip-git-repo-check", "--sandbox", "read-only", "--ignore-user-config", "--ignore-rules",
 			"--disable", "hooks"}
 		args = append(args, codexOff...)

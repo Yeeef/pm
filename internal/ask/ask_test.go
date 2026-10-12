@@ -50,7 +50,7 @@ echo "codex banner and progress"; printf ' {"items": []} \n' > "$out"`)
 	args := strings.Split(strings.TrimSpace(read(t, filepath.Join(log, "args"))), "\n")
 	for _, want := range [][]string{{"exec"}, {"--disable", "hooks"}, {"--ignore-user-config"}, {"--ignore-rules"},
 		{"--ephemeral"}, {"--skip-git-repo-check"}, {"--sandbox", "read-only"}, {"--model", "gpt-5.6-luna"},
-		{"-c", `model_reasoning_effort="low"`}} {
+		{"-c", `model_reasoning_effort="medium"`}} {
 		if !containsRun(args, want) {
 			t.Errorf("args %q lack %q", args, want)
 		}

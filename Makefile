@@ -23,8 +23,9 @@ test-full: go-build
 	  exit 2; fi
 	$(PYRUN) python tests/run.py -n auto $(ARGS)
 
-# Check the owner-request Stop hook's Haiku judge on its labelled cases with live model calls; run after editing
-# its prompt. PM_LIVE_RUNS sets the runs per case (default 3).
+# Check the owner-request Stop hook's judge on its labelled cases with live model calls, on each runtime (Claude Haiku
+# through claude -p, a small Codex model through codex exec); run after editing its prompt. PM_LIVE_RUNS sets the runs
+# per case (default 3); PM_LIVE_RUNTIMES=codex runs one runtime.
 test-live: go-build
 	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -s -k owner_request_prompt_live
 

@@ -26,9 +26,10 @@ import (
 
 const authorized = "authorized" // a needless ask: blocks even when an open request matches
 
-// judgeTimeout is how long the judge may take on each runtime, inside the hook entry's 30 s: a Claude verdict takes
-// about 2 s, a Codex one about 5 s (codex exec starts slower).
-var judgeTimeout = map[ask.Runtime]time.Duration{ask.Claude: 15 * time.Second, ask.Codex: 20 * time.Second}
+// judgeTimeout is how long the judge may take on each runtime, inside its hook entry's timeout (Claude Code's 30 s,
+// Codex's 45 s). Measured by the live eval, 8 calls at a time: Claude's verdict median 2 s, max 12 s; Codex's median
+// 5.5 s, p90 14 s, max 20 s (codex exec starts slower, and its model reasons at medium effort).
+var judgeTimeout = map[ask.Runtime]time.Duration{ask.Claude: 15 * time.Second, ask.Codex: 40 * time.Second}
 
 var asks = map[string]bool{"decision": true, "review": true, "action": true, "clarification": true} // kinds that block unless one matches
 

@@ -1,9 +1,13 @@
-"""Live regression eval for the owner-request Stop hook's judge: each labelled case in owner_request_cases.json runs
-the hook as the runtimes run it (JSON on stdin), in a repo whose work store holds that case's open needs, against the
-real `claude -p` Haiku judge, RUNS times (PM_LIVE_RUNS, default 3), and every run must give the case's verdict.
+"""Live regression eval for the owner-request Stop hook's judge, on each runtime it runs on: each labelled case in
+owner_request_cases.json runs the hook as the runtimes run it (JSON on stdin), in a repo whose work store holds that
+case's open needs, against the real judge (`--runtime claude`: Claude Haiku through `claude -p`; `--runtime codex`: a
+small Codex model through `codex exec`), RUNS times (PM_LIVE_RUNS, default 3), and every run must give the case's
+verdict on every runtime.
 
-Skipped unless PM_LIVE_TESTS=1 and `claude` is on PATH; run with `make test-live` after editing the judge prompt.
-It prints each case's pass count and the per-call latency (median, max).
+Skipped unless PM_LIVE_TESTS=1; a runtime whose CLI is not on PATH is skipped. Run with `make test-live` after editing
+the judge prompt; PM_LIVE_RUNTIMES (default "claude codex") picks the runtimes. It prints each runtime's pass counts and its
+per-call latency (median, p90, max). Claude runs as the user (their HOME and Claude config, where its login is); Codex with
+a temp CODEX_HOME holding copies of the user's auth.json and global AGENTS.md, which the real judge also reads.
 """
 
 from __future__ import annotations
@@ -21,23 +25,37 @@ import pytest
 
 from conftest import ISSUES, PM, REAL, Repo, make_repo
 
-pytestmark = pytest.mark.skipif(
-    os.environ.get("PM_LIVE_TESTS") != "1" or shutil.which("claude") is None,
-    reason="live model tests: set PM_LIVE_TESTS=1 (make test-live) with `claude` on PATH",
-)
+pytestmark = pytest.mark.skipif(os.environ.get("PM_LIVE_TESTS") != "1",
+                                reason="live model tests: set PM_LIVE_TESTS=1 (make test-live)")
 
 HOOK = [*PM, "hook", "owner-request"]
 DATA = json.loads((Path(__file__).resolve().parent / "owner_request_cases.json").read_text())
 CASES = {c["name"]: c for c in DATA["cases"]}
 RUNS = int(os.environ.get("PM_LIVE_RUNS", "3"))
-WORKERS = 8  # concurrent claude calls; more makes each call slower
+WORKERS = 8  # concurrent judge calls; more makes each call slower
 SESSIONS = {"me": "11111111-live-me", "other": "22222222-live-other"}
+RUNTIMES = os.environ.get("PM_LIVE_RUNTIMES", "claude codex").split()
+REAL_CODEX = Path(REAL["CODEX_HOME"] or Path(REAL["HOME"]) / ".codex")
 
 
 AT = "2026-10-01T12:00:00Z"
-# the real claude runs as the user, who is logged in under their own HOME and Claude Code config, not the tests' temp ones
-CLAUDE_ENV = dict(os.environ, HOME=REAL["HOME"],
-                  CLAUDE_CONFIG_DIR=REAL["CLAUDE_CONFIG_DIR"] or str(Path(REAL["HOME"]) / ".claude"))
+
+
+def judge_env(runtime: str, tmp: Path) -> dict[str, str]:
+    """The environment the real judge runs with: Claude as the user, who is logged in under their own HOME and Claude
+    Code config, not the tests' temp ones; Codex with a temp CODEX_HOME holding copies of the user's login and global
+    instructions, so no run touches the user's Codex state."""
+    env = dict(os.environ, HOME=REAL["HOME"],
+               CLAUDE_CONFIG_DIR=REAL["CLAUDE_CONFIG_DIR"] or str(Path(REAL["HOME"]) / ".claude"))
+    if runtime == "codex":
+        home = tmp / "codex-home"
+        home.mkdir()
+        assert (REAL_CODEX / "auth.json").is_file(), f"Codex is not logged in: no {REAL_CODEX / 'auth.json'}"
+        for name in ("auth.json", "AGENTS.md"):
+            if (REAL_CODEX / name).is_file():
+                shutil.copyfile(REAL_CODEX / name, home / name)
+        env["CODEX_HOME"] = str(home)
+    return env
 
 
 def issues(case: dict) -> list[dict]:
@@ -55,15 +73,17 @@ def clone(n: int, case: dict, tmp: Path) -> Repo:
     return make_repo(tmp / str(n), issues(case))
 
 
-def run_case(case: dict, root: Path) -> tuple[str, float]:
-    """The hook's verdict on `case` (pass or block) and the call's seconds."""
+def run_case(case: dict, root: Path, runtime: str, env: dict) -> tuple[str, float]:
+    """The hook's verdict on `case` (pass, block, needless or needless+block) with its judge on `runtime`, and the
+    call's seconds; "error: <stderr>" when the check did not run."""
     event = {"session_id": SESSIONS["me"], "hook_event_name": "Stop", "stop_hook_active": False,
              "last_assistant_message": case["reply"]}
     start = time.monotonic()
-    res = subprocess.run(HOOK, input=json.dumps(event), cwd=root, env=CLAUDE_ENV, capture_output=True, text=True,
-                         timeout=60, check=False)
+    res = subprocess.run([*HOOK, "--runtime", runtime], input=json.dumps(event), cwd=root, env=env,
+                         capture_output=True, text=True, timeout=60, check=False)
     took = time.monotonic() - start
-    assert res.returncode == 0, res.stderr
+    if res.returncode != 0:
+        return f"error: {res.stderr.strip()}", took
     if not res.stdout.strip():
         return "pass", took
     reason = json.loads(res.stdout)["reason"]
@@ -71,26 +91,34 @@ def run_case(case: dict, root: Path) -> tuple[str, float]:
     return {(True, False): "needless", (False, True): "block", (True, True): "needless+block"}[needless, request], took
 
 
-@pytest.fixture(scope="module")
-def verdicts(tmp_path_factory):
-    tmp = tmp_path_factory.mktemp("live")
+@pytest.fixture(scope="module", params=RUNTIMES)
+def verdicts(request, tmp_path_factory):
+    """Every case's verdicts, RUNS each, on one runtime's judge."""
+    runtime = request.param
+    if shutil.which(runtime) is None:
+        pytest.skip(f"{runtime} is not on PATH")
+    tmp = tmp_path_factory.mktemp(f"live-{runtime}")
+    env = judge_env(runtime, tmp)
     with ThreadPoolExecutor(WORKERS) as pool:
         clones = dict(zip(CASES, pool.map(lambda nc: clone(nc[0], CASES[nc[1]], tmp), enumerate(CASES)), strict=True))
     try:
         jobs = [name for name in CASES for _ in range(RUNS)]
         start = time.monotonic()
         with ThreadPoolExecutor(WORKERS) as pool:
-            results = list(pool.map(lambda name: run_case(CASES[name], clones[name].root), jobs))
+            results = list(pool.map(lambda name: run_case(CASES[name], clones[name].root, runtime, env), jobs))
     finally:
         for r in clones.values():
             r.stop_service()
     times = [t for _, t in results]
     out = {name: [v for n, (v, _) in zip(jobs, results, strict=True) if n == name] for name in CASES}
-    print(f"\n{len(jobs)} hook runs in {time.monotonic() - start:.1f}s, {WORKERS} at a time; per run median "
-          f"{statistics.median(times):.2f}s, max {max(times):.2f}s")
+    passed = sum(v == CASES[n]["expect"] for n, (v, _) in zip(jobs, results, strict=True))
+    print(f"\n{runtime}: {passed}/{len(jobs)} hook runs gave the case's verdict, in {time.monotonic() - start:.1f}s, "
+          f"{WORKERS} at a time; per run median {statistics.median(times):.2f}s, "
+          f"p90 {statistics.quantiles(times, n=10)[-1]:.2f}s, max {max(times):.2f}s")
     for name, got in out.items():
         want = CASES[name]["expect"]
-        print(f"  {sum(v == want for v in got)}/{RUNS}  {want:5}  {name}")
+        print(f"  {sum(v == want for v in got)}/{RUNS}  {want:5}  {name}"
+              + "".join(f"\n      got {v}" for v in sorted(set(got)) if v != want))
     return out
 
 
