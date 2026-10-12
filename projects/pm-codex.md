@@ -31,6 +31,11 @@ Three Codex gaps stay open: an idle Codex TUI is not woken by a reply (it gets i
 Codex 0.154 offers no outside path into a TUI (embedded app-server), no ask-the-user tool outside plan mode, and no worktree-local .codex; each is Codex behaviour pm cannot change, and each degrades no guarantee: the need path and pm show cover them.
 :::
 
+::: decision {source=owner date=2026-10-12}
+The owner-request judge runs on the session runtime: Haiku through claude -p for a Claude Code session, a small model through codex exec for a Codex session, named by each runtime hook entry, never guessed. pm day summarize runs on a per-repo runtime set in .pm/config.toml, with no automatic fallback. The work lands in a new sprint after PR #47.
+Owner, in chat 2026-10-12: a Codex user should not need claude installed; without it the judge fails and Codex treats the failure as a silent pass, so the owner-request check is lost.
+:::
+
 ## Design pages
 
 > Where is the detail?
