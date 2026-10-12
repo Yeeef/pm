@@ -16,12 +16,13 @@ pm is one Go module (`go.mod`); the pytest suite in `tests/` is its black-box ha
 | `prompts/` | The model prompts and hook texts: the owner-request judge's system prompt and block reasons, `pm day summarize`'s prompt |
 | `style.css` | The one stylesheet every page of the site gets |
 | `internal/cli` | Every command: `commands.go` holds the command tree and every help text, `cli.go` the parser and `main`, `agentcmds.go` the agent commands (bodies in `writes.go`, `needs.go`, `day.go`, `show*.go`, `where.go`; shared context and checks in `agent.go`), `install.go` `pm init`, `doctor`, `upgrade`, `uninstall` and the git hooks, `serve.go` `pm service run`, `clean.go` `pm clean`, `push.go` `pm push`, `ownerrequest.go` the owner-request hook's work-store read. `work.go` `pm export` and `pm init --import-bd FILE`/`--import FILE`, `store_commands.go` the work-store commands' bodies: the tree's leaves that parse their own flags (`task ready/edit/release`, `dep add/rm`, `comment add`, `need dismiss`, `reply add`, `sync`), and the forms `show ID` and `task add --parent TASK`, the one argv `Execute` routes before the tree (`storeFormOf`). Every command pm runs is in the tree, so in `pm --help`: `commands_test.go` fails otherwise |
-| `internal/hooks` | `pm prime` (SessionStart and SubagentStart context), `pm hook stop` (uncommitted records) and `pm hook owner-request` (the Haiku judge and its `claude -p` arguments) |
+| `internal/hooks` | `pm prime` (SessionStart and SubagentStart context), `pm hook stop` (uncommitted records) and `pm hook owner-request` (the judge on the session's runtime, `--runtime claude` or `codex`) |
+| `internal/ask` | One prompt through an agent runtime's CLI, for the judge and `pm day summarize`: Claude Haiku through `claude -p`, or `gpt-5.6-luna` through `codex exec`, each from an empty temp dir with no hooks, no project instructions and no saved session, in a process group killed whole at the timeout |
 | `internal/work` | The work store on embedded Dolt: schema, invariant checks, ids, ready and blocked, the bd import, `pm export` and its import (`pm init --import`), sync through the git remote under `refs/pm/work` with the merge rules in `merge.go` and the child-id compare-and-swap on the scratch branch `pm-cas` in `sync.go`, which a sprint move (`move.go`) runs too. `host.go` is the host, which only `pm service run` starts: the Dolt engine held open and served on `<main>/.pm/run/work.sock` with `pm_version()`, `pm_sync()`, `pm_create(?)`, `pm_move_sprint(?)` and `pm_setup()`; `dolt.go` the client every command and the service's own loops use, `work.Dial`, with the version handshake, and every write under the store's fair write lock, `lock.go`, which the host serves as `pm_lock()` and `pm_unlock()`. `sync_test.go` runs two hosted clones on a local bare repo, `access_test.go` holds the one access path (only `host.go` loads an engine, only `pm service run` starts a host), `bench_test.go` the store benchmarks, which run with `PM_BENCH_STORE=<a copy of a clone's .pm/store/work>`; `worktest` holds `ServeAt` (a host and a client on a clone directory the caller gives, for a Go test that needs a store) and a read-only fake store |
 | `internal/records`, `internal/store` | Record parsing and checks; the records store (the `records` worktree, its lock, design dates) |
 | `internal/site` | The pages, rendered on demand by the service (`serve.go`: reply forms, the status line) and by `pm check` |
 | `internal/service` | The pm service: `service.Run` against the work store's client, its change mark, sync and gc, and a `Site` interface; its unit files and lifecycle; `access.go`, the check every request passes first (its `Host`, and on a public one the Cloudflare Access token). `internal/cli/serve.go` wires it to the clone: `pm service run` hosts the work store (`work.NewHost`) and reaches it through its own socket; `pm service install` and `restart` manage a unit that runs the pm at `config.BinPath()` |
-| `internal/session` | Which agent session runs pm and which sessions are live: the session from the environment (`CLAUDE_CODE_SESSION_ID`, Codex's `CODEX_SESSION_ID`, else `CODEX_THREAD_ID` mapped to its root thread through its rollout), the innermost runtime from the process ancestry when both are set (`runtime.go`), Codex's rollouts (`codex.go`), a session's liveness (`live.go`) and the worktrees live sessions used, for `pm clean` (`uses.go`) |
+| `internal/session` | Which agent session runs pm and which sessions are live: the session from the environment (`CLAUDE_CODE_SESSION_ID`, Codex's `CODEX_SESSION_ID`, else `CODEX_THREAD_ID` mapped to its root thread through its rollout), the innermost runtime from the process ancestry when both are set (`runtime.go`), Codex's rollouts (`codex.go`), whether pm's session-start hooks ran in a Codex session (`CodexHooksRan`; `codexhooks.go` warns a pm command once per session when they did not), a session's liveness (`live.go`) and the worktrees live sessions used, for `pm clean` (`uses.go`) |
 | `internal/sync` | The push steps and their state, which `pm push` (`internal/cli/push.go`) runs once |
 | `internal/install` | `pm init`, `doctor`, `upgrade`, `uninstall`: the repo's pieces (`pieces.go`; pm's git hook section lives in its own tracked `.pm/hooks/post-checkout`), the pieces an earlier pm wrote and this one retired with the main branch's `records/` copy (`Retired` in `pieces.go`: the copy and guard workflows and the `pre-commit` section, named by `pm doctor` and removed by `pm upgrade`; the per-worktree sparse checkout, turned off by `pm init` in `clone.go` once the worktree tracks no `records/`), Beads' pieces taken out by `pm init` and `pm upgrade` and named by `pm doctor` (bd's hook entries in `.claude/settings.json` and `.codex/hooks.json`, the Beads block in `CLAUDE.md` and a non-link `AGENTS.md`; `.beads/` itself stays), the records-branch bootstrap, the clone's setup (`clone.go`) with the work store attached to the remote's `refs/pm/work` (`workstore.go`: cloned, or created and pushed), `core.hooksPath` set to the main checkout's `.pm/hooks` (moved off Beads' `.beads/hooks`), Codex roots (`codex.go`), pm copied into the bin dir (`binary.go`), and the pre-package harness's pieces found and refused (`legacy.go`) |
 | `internal/launch` | The launcher, which `cmd/pm` runs first: the installed pm runs each repo's pinned version. A Go pin (0.2.0 and up) execs `pins/<pin>/pm`, downloaded once from release `pm-v<pin>` with no token (`$PM_RELEASE_URL` replaces GitHub's release download URL), and when that fails, through the GitHub API with a token from `$GH_TOKEN` or `gh auth token` (`$PM_RELEASE_API` replaces the API URL), then checked against `SHA256SUMS` and the kept `sha256` (`go.go`); a pin below 0.2.0 (a retired Python release) or one that names no release fails hard, naming `pm upgrade --to <X>`; `How()` is `pm where`'s line; `latest.go` reads the latest release (`<api>/releases/latest`) for `pm doctor`'s line on a newer one. `pm version` prints the build's version, `dev` when untagged |
@@ -46,8 +47,8 @@ the new state, and the trail of findings stays in the sprint record.
 | `make test` | The light harness set: `tests/run.py -n auto -m "not integration"` against `.go/pm` |
 | `make test-full ARGS="-k serve"` | The harness tests `-k` selects, the integration ones too; without `ARGS` it refuses (`CI=1` forces the whole set) |
 | `uv run pytest -q -n auto tests/test_hooks.py` | One file, or `-k name` for one test, after `make go-build` |
-| `make test-live` | The live eval: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; needs `claude` on PATH, logged in |
-| `make test-live-parity` | The parity live eval: `PM_LIVE_TESTS=1`, `-k agent_parity_live`, its 9 scenarios at once (95 s to 5 min); needs `claude` and `codex` on PATH, both logged in (The parity live eval) |
+| `make test-live` | The judge's live eval on each runtime: `PM_LIVE_TESTS=1`, `-k owner_request_prompt_live`; `PM_LIVE_RUNTIMES` (default `claude codex`) picks the runtimes, each needs its CLI on PATH, logged in |
+| `make test-live-parity` | The parity live eval: `PM_LIVE_TESTS=1`, `-k agent_parity_live`, its 10 scenarios at once (95 s to 5 min); needs `claude` and `codex` on PATH, both logged in (The parity live eval) |
 | `make test-go` | `gofmt -l` on the module's Go files (`make go-fmt`: it names each file gofmt would change and fails), `go vet` and `go test` with `-trimpath -tags gms_pure_go` (Dolt needs the tag; `-trimpath` shares go-build's compiles), then `internal/service` and the work store's concurrency tests (`RACE_TESTS`) again under `-race`: its parts `go-build`, `go-fmt`, `go-vet`, `go-test-but-work`, `go-test-work` and `go-test-race` (`make -j2` runs its two halves at once); `go-test` runs `GO_PKGS` alone (`make go-test GO_PKGS=./internal/service`). `go-test-work` runs `internal/work`'s tests in `WORK_SHARDS` (8) processes at once through `.github/scripts/go_shards.py`, balanced by `.github/scripts/work-test-seconds.txt`, which must name every test and no other: a new or renamed test fails it until `make go-test-work UPDATE=1` measures and rewrites the file; the race tests shard the same way. `.github/workflows/pm-go.yml` runs the parts as parallel jobs on macOS and Linux (build, gofmt, vet and every package's tests but `internal/work`'s; `internal/work`'s; the race tests), with `-count=1` and the Go caches the last push to main saved, each trimmed to what its run used (`.github/scripts/go_cache_trim.py`). The bd import's round trip runs on `internal/work/testdata`; `PM_BD_EXPORT=<bd export > file> PM_BD_RECORDS=$(pm where records)` runs it on a real export |
 | `make lint` | The linters, each pinned in the Makefile, as `.github/workflows/pm-lint.yml` runs them, in three parallel jobs (`lint-go`, `lint-deadcode`, `lint-py`) that restore `pm-go.yml`'s Go cache: `golangci-lint` (`.golangci.yml`, `GOLANGCI_LINT_VERSION`, on PATH) twice, its gating linters on every line, then its ratcheted ones (`RATCHET`: errcheck with blank checks, gocyclo, gocognit, funlen, the file-length cap, reassign) on the lines changed since the merge base with `origin/main`; `deadcode` from pm's binaries and from the tests; `ruff check` on `tests/` and `release/` (`pyproject.toml`). Its parts: `lint-go`, `lint-deadcode`, `lint-py`. A finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python); a test waits on a condition with a deadline, never a fixed sleep. `size_test.go` caps a package's non-test Go lines at 5000, with `internal/cli` on a ratchet allowlist (`oversized`) |
 
@@ -122,7 +123,8 @@ What the tests are:
   second clone) and `pushed` (a bare origin plus a second clone, for `pm push`).
 - Fakes: `fake_gh.py` answers `gh pr view` and `gh pr list --head` from `$FAKE_GH_STATE`. `fake_env` sets
   `PM_RELEASE_API` to a port that refuses, so `pm doctor` never reaches GitHub; a test that wants a release serves one
-  there. `fake_claude.py` stands in for `claude -p` and logs each call. `fake_sched.py` stands in for `launchctl`,
+  there. `fake_claude.py` stands in for `claude -p` and logs each call; `fake_codex.py` for `codex app-server` (the
+  hook trust pm doctor asks for) and `codex exec` (logged to `$FAKE_CODEX_LOG` with its working dir and instructions). `fake_sched.py` stands in for `launchctl`,
   `systemctl` and `crontab`, with each unit's enabled state (what `pm service stop` sets).
 
 ## Releasing pm
@@ -180,13 +182,22 @@ workflow:
 
 ## The judge and its live eval
 
-The owner-request Stop hook calls Haiku through `claude -p` (`judgeArgs` in `internal/hooks/ownerrequest.go`, thinking
-off; its prompt is `prompts/owner_request_system.txt`).
+The owner-request Stop hook's judge runs on the session's own runtime, which each hook entry names (owner decision,
+2026-10-12): `--runtime claude` asks Claude Haiku through `claude -p` (thinking off), `--runtime codex` asks
+`gpt-5.6-luna` at medium reasoning effort through `codex exec`; `internal/ask` holds both calls. The Codex call runs with
+`--disable hooks`, `--ignore-user-config`, `--ignore-rules` and `--ephemeral`, from an empty temp dir: a child that
+ran hooks would run the judge again at its own Stop. Codex still reads `$CODEX_HOME/AGENTS.md`, the user's own
+instructions, which no flag turns off. Timeouts: 15 s for Claude inside a 30 s hook entry, 40 s for Codex inside 45 s.
+Either judge that cannot run exits 1 with the cause on stderr, which Claude Code shows and Codex takes as a pass. One
+prompt serves both: `prompts/owner_request_system.txt`.
 Its labelled cases are `tests/owner_request_cases.json`: a final reply, the open needs the work store holds and the
 verdict the rule gives. After editing the prompt, run `make test-live`: each case runs `PM_LIVE_RUNS` times
-(default 3), 8 calls at once, and every run must give the case's verdict; it prints pass counts and latency.
+(default 3) on each runtime, 8 calls at once, and every run must give the case's verdict; it prints each runtime's
+pass counts and latency (median, p90, max). 2026-10-12, 63 cases: Claude 189/189, median 2.0 s, p90 3.6 s; Codex
+189/189, median 5.5 s, p90 14.1 s, max 19.7 s.
 A case's label comes from the rule, never from what the judge answers: a miss is a prompt change, not a relabel.
-It runs the hook with the user's `HOME` and Claude config (`REAL` in `conftest.py`), where the judge's `claude` login is.
+It runs the Claude judge with the user's `HOME` and Claude config (`REAL` in `conftest.py`), where its login is, and
+the Codex judge with a temp `CODEX_HOME` holding copies of the user's `auth.json` and `AGENTS.md`.
 The rule is one rule in three texts: the request rule in `prime.md`, the judge prompt and the block reasons
 (`owner_request_reason.txt`, `owner_request_needless.txt`). A rule change edits all of them in one commit and adds a
 labelled case for each case it moves.
@@ -209,8 +220,10 @@ UserPromptSubmit hook and records the decision. Stop, per runtime: a hand edit l
 blocks. Idle wake, per runtime: an interactive session (the TUI, in a pty) raises a need and ends its turn; once it
 is idle, the owner replies and, with nothing typed into it, the session starts a turn on the reply the service
 delivered (Claude Code: pushed into its socket; Codex: `codex queue`) and records the decision; it prints the wake
-latency. Mixed: a Claude and a Codex session on one sprint's two tasks at once, each `pm show` naming the other's
-hold, and each one's claim of the other's task, run by the test as that session, refused naming the holder. The 9 scenarios run at once, 95 s to 5 min
+latency. Chat ask, Codex only: a Codex session with no `claude` on its PATH ends its turn asking the owner only in
+chat; the owner-request judge, on `codex exec`, blocks it, and the session raises a need. Mixed: a Claude and a Codex
+session on one sprint's two tasks at once, each `pm show` naming the other's hold, and each one's claim of the other's
+task, run by the test as that session, refused naming the holder. The 10 scenarios run at once, 95 s to 5 min
 in all (the solo Claude run is the long one when it polls for the reply instead of waiting); `-rA` prints each
 run's latency and its transcript paths. Claude runs with the user's Claude config, its
 user settings left out; Codex with a temp `CODEX_HOME` holding a copy of the user's `auth.json`, pm's hooks trusted
@@ -245,12 +258,13 @@ RTM_NEWADDR`) needs `danger-full-access`.
 - `pm init` writes the hook entries (`claudeHooks` and `codexHooks` in `internal/install/pieces.go`) into
   `.claude/settings.json` (SessionStart: `pm prime --rules N --hook-json` for each chunk, then `--state
   --hook-json`; SubagentStart: the same chunks, then `--subagent --hook-json`; UserPromptSubmit: `pm hook inbox`;
-  Stop: `pm hook owner-request` then `pm hook stop`, each `|| exit 1`; no inbox at Stop, whose block would end the
+  Stop: `pm hook owner-request --runtime claude` then `pm hook stop`, each `|| exit 1`; no inbox at Stop, whose block would end the
   continuation with `stop_hook_active` and so let the stop checks through) and `.codex/hooks.json` (the same, with
-  the SessionStart matcher `startup|resume|clear|compact`, plus SubagentStop: `pm hook stop` on the subagent's own rollout, since Codex
+  the SessionStart matcher `startup|resume|clear|compact`, `--runtime codex` and a 45 s timeout for the judge, plus SubagentStop: `pm hook stop` on the subagent's own rollout, since Codex
   encrypts a subagent's prompt in its parent's); Codex runs hooks by default, so pm writes no `.codex/config.toml`
   setting for them, and `.codex/rules/pm.rules`, which runs pm outside Codex's sandbox. A hook change edits both
-  functions; `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for.
+  functions; `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for (it
+  reads each entry's `--runtime` as its own, and `TestEachRuntimesJudgeRunsOnThatRuntime` holds what each names).
   Hooks fail open on their own errors (one line on stderr); a `pm` missing from PATH fails each hook with the shell's
   error.
 - `pm init` is the one install command. Its repo half (pm's pieces, the records branch) runs only when the worktree has
