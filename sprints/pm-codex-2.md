@@ -110,6 +110,10 @@ Codex loads that file with no flag to turn it off, and a temp home would need th
   PM_PARITY_CODEX_SANDBOX=danger-full-access: 8 passed in 96.5 s; the new
   scenario 27.0 s, one Stop block quoting the ask, then a need raised.
 
+- Codex hooks warning, live: codex exec in a scratch clone with the project
+  trusted and pm hooks not; the agent ran pm show and the rollout holds the
+  warning (12.9 s run, no pm rules in the rollout, marker warned).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
