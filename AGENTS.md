@@ -199,14 +199,18 @@ that `pm init` set up, asserting from the work store, the records store and each
 agent's prose. Solo, per runtime with the same assertions: the session-start context; claim, finding, a decision need
 the owner (the test, `pm reply add`) answers 30 s later, a decision citing it (sprint or project level), a committed doc, the task closed by
 the session, with how the reply reached it printed. The one assertion that differs by runtime, by design: a
-Claude session's need stores its own messaging socket as the inbox the service pushes into, a Codex session's none,
-as raised and after a resumed session's start refreshes it. Every scenario also fails when the fake supervisor's log shows the clone's
+Claude session's need stores its own messaging socket as the inbox the service pushes into, a Codex session's
+`codex-queue:<its CODEX_HOME>`, which the service queues the reply under, as raised and after a resumed session's start
+refreshes it. Every scenario also fails when the fake supervisor's log shows the clone's
 service reloaded or restarted after setup (an agent's own `pm init` must not restart it under the others), and prints
 whether each session typed `pm init`. Next prompt, per runtime: a session raises a need and ends its
 turn, the owner answers, and the session resumed on a prompt that does not name the need gets the reply from the
 UserPromptSubmit hook and records the decision. Stop, per runtime: a hand edit left uncommitted, which the Stop hook
-blocks. Mixed: a Claude and a Codex session on one sprint's two tasks at once, each `pm show` naming the other's
-hold, and each one's claim of the other's task, run by the test as that session, refused naming the holder. The 7 scenarios run at once, 95 s to 5 min
+blocks. Idle wake, per runtime: an interactive session (the TUI, in a pty) raises a need and ends its turn; once it
+is idle, the owner replies and, with nothing typed into it, the session starts a turn on the reply the service
+delivered (Claude Code: pushed into its socket; Codex: `codex queue`) and records the decision; it prints the wake
+latency. Mixed: a Claude and a Codex session on one sprint's two tasks at once, each `pm show` naming the other's
+hold, and each one's claim of the other's task, run by the test as that session, refused naming the holder. The 9 scenarios run at once, 95 s to 5 min
 in all (the solo Claude run is the long one when it polls for the reply instead of waiting); `-rA` prints each
 run's latency and its transcript paths. Claude runs with the user's Claude config, its
 user settings left out; Codex with a temp `CODEX_HOME` holding a copy of the user's `auth.json`, pm's hooks trusted
