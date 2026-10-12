@@ -80,6 +80,11 @@ Done when gains: every existing design page whose area the sprint changed is bro
 Owner, in chat 2026-10-12; the sprint had changed reply delivery, session identity, the owner-request hook and setup without editing their pages.
 :::
 
+::: decision {source=agent date=2026-10-12}
+The pm service delivers an owner reply into a live Codex session with codex queue --thread <root session> --message <the push text>, under the CODEX_HOME the session raised the need with; an idle Codex TUI starts a turn with it, as a Claude Code session does with its socket push. pm reply wait and pm hook inbox stay. This closes gap 4 in this sprint and PR #47.
+codex-rs 0.154: codex queue writes thread/queue/add to the SQLite thread queue, and every app-server, the TUI embedded one included, dispatches it with start_turn_if_idle within 10 s (ext/queue/src/service.rs:88-246); measured live: an idle TUI started the turn 6.4 s after a 0.18 s queue call, on the npm install, with nothing global. Async hooks cannot start a turn (measured). The idle-session wake is this sprint own Done when, so it lands here.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
