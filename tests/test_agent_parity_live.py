@@ -7,6 +7,9 @@ transcript (Claude Code's session JSONL, Codex's rollout).
   owner (this test, through `pm reply add`) while the session waits; the decision citing it; a doc; the task closed.
 - next prompt, per runtime: a session raises a need and ends its turn; the owner answers; the session, resumed on a
   prompt that does not name the need, gets the reply from the UserPromptSubmit hook and records the decision.
+- wake, per runtime: an interactive session (the runtime's TUI, in a pty) raises a need and ends its turn; once it
+  is idle the owner replies, and with nothing typed the session starts a turn on the reply the pm service delivered
+  (Claude Code: its socket; Codex: codex queue) and records the decision; the wake latency is printed.
 - stop, per runtime: a record edited by hand and left uncommitted; the Stop hook blocks, and the store ends committed.
 - mixed: a Claude session and a Codex session in parallel on one sprint's two ready tasks; while both holds are live,
   the test claims each session's task as the other session, from a worktree of its own, and pm must refuse, naming
@@ -30,7 +33,7 @@ from pathlib import Path
 
 import pytest
 
-from agents import Clone, Run, git
+from agents import Clone, Run, Tui, git
 from conftest import chunks
 
 pytestmark = [
@@ -99,13 +102,15 @@ def inbox_by_runtime(check: Checks, run: Run, need: dict, when: str) -> None:
     Code names it <XDG_RUNTIME_DIR>/cc-socks/<its pid>.sock, and a resumed session binds a new one, which session start
     refreshes); a Codex session has no socket, so its need carries none (pm reply wait and the UserPromptSubmit hook
     reach it). It guards pm's hook-side runtime detection: a hook whose CLAUDE_CODE_SESSION_ID differs from the
-    payload's session_id is Codex's, and must not store the Claude Code socket it inherited."""
+    payload's session_id is Codex's, and must not store the Claude Code socket it inherited: a Codex session's need
+    carries its CODEX_HOME, under which the pm service queues the reply (codex queue)."""
     inbox = ((need.get("need") or {}).get("raised_by") or {}).get("inbox")
     if run.runtime == "claude":
         check(inbox and inbox.endswith(f"/cc-socks/{run.pid}.sock"),
               f"{run.name}: {when}, the need's inbox is {inbox!r}, not this session's socket .../cc-socks/{run.pid}.sock")
     else:
-        check(not inbox, f"{run.name}: {when}, a Codex session's need carries an inbox: {inbox!r}")
+        want = f"codex-queue:{check.clone.codex_home}"
+        check(inbox == want, f"{run.name}: {when}, a Codex session's need carries the inbox {inbox!r}, not {want!r}")
 
 
 def owner_answers(clone: Clone, task: str, seen: dict, stop: threading.Event, agent) -> None:
@@ -218,8 +223,9 @@ def test_stop_hook_blocks_uncommitted_records(clone, runtime):
 
 @pytest.mark.parametrize("runtime", RUNTIMES)
 def test_reply_reaches_the_session_at_its_next_prompt(clone, runtime):
-    """A session that raised a need and ended its turn gets the owner's reply from the UserPromptSubmit hook when it is
-    resumed, and records it."""
+    """A session that raised a need and ended its turn gets the owner's reply when it is resumed, and records it: from
+    the UserPromptSubmit hook, or, for a Codex session the pm service queued the reply into while its rollout was live,
+    as the queued message the resumed thread takes in."""
     ids = clone.seed(1)
     sprint = ids["sprint"]
     asked = clone.run(runtime, f"next-prompt-1-{runtime}", f"""You work in this git repo, whose project work pm \
@@ -242,8 +248,10 @@ raising it, with one line: asked.""", TIMEOUT)
     check(raised == asked.session, f"{asked.name}: the need was raised by {raised}, not the session")
     inbox_by_runtime(check, asked, need, "as raised")
     check(replied is not None and replied.returncode == 0, f"the owner's reply failed: {replied}")
-    check(any(OWNER_ANSWER in c for c in run.prompt_contexts()),
-          f"{run.name}: no UserPromptSubmit hook context carried the reply: {run.prompt_contexts()}")
+    reached = run.reached_by(OWNER_ANSWER)
+    check(any(r.startswith("hook") or r == "queued" for r in reached),
+          f"{run.name}: the reply reached the resumed session by {reached or 'nothing'}, not the UserPromptSubmit hook "
+          f"or a message the pm service queued into it")
     need = items.get(need.get("id", ""), {})
     inbox_by_runtime(check, run, need, "after the resumed session's start refreshed it")
     check((need.get("need") or {}).get("delivered", 0) >= 1, f"{run.name}: the reply was not delivered: {need.get('need')}")
@@ -254,6 +262,63 @@ raising it, with one line: asked.""", TIMEOUT)
           f"{run.name}: no owner decision in the sprint or project record cites the need")
     check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
     check.done()
+
+
+@pytest.mark.parametrize("runtime", RUNTIMES)
+def test_an_idle_interactive_session_is_woken_by_the_owners_reply(clone, runtime):
+    """An interactive session (Claude Code's or Codex's TUI, in a pty) raises a need and ends its turn without
+    waiting. Once it is idle, the owner replies; with nothing typed into it, the session starts a turn on the reply,
+    which the pm service delivered into it (Claude Code: its messaging socket; Codex: codex queue), and records the
+    decision citing the need. Prints the wake latency, from the reply to the turn that takes it in."""
+    ids = clone.seed(1)
+    sprint = ids["sprint"]
+    tui = Tui(clone, runtime, f"wake-{runtime}", f"""You work in this git repo, whose project work pm tracks; pm's rules are in your context. Use pm to ask the owner to decide, under sprint {sprint}: should the parity doc name the color red or blue? Red is the default, as the simplest. Do not wait for the answer: end your turn right after raising it, with one line: asked. When the owner's answer reaches you later, record it as pm says, and reply with one line: recorded.""")
+    need, replied, woke, deadline = {}, None, None, time.monotonic() + TIMEOUT
+    try:
+        while time.monotonic() < deadline and not need:  # the need, then the session idle
+            need = next((i for i in clone.items().values() if i["parent"] == sprint and i["type"] == "need"), {})
+            time.sleep(2)  # noqa: TID251 — the poll interval over a live session, under its deadline
+        while time.monotonic() < deadline and need and not tui.idle(quiet=8):
+            time.sleep(2)  # noqa: TID251 — the poll interval over a live session, under its deadline
+        replied_at = time.monotonic()
+        replied = clone.pm("reply", "add", need["id"], text=OWNER_ANSWER) if need else None
+        while time.monotonic() < deadline and replied and woke is None:  # the reply as a turn's input
+            if any(r in ("pushed", "queued") for r in tui_reached(tui)):
+                woke = time.monotonic() - replied_at
+            time.sleep(0.5)  # noqa: TID251 — the poll interval the wake latency is measured at
+        while time.monotonic() < deadline and woke is not None and \
+                clone.items().get(need["id"], {}).get("status") != "closed":
+            time.sleep(2)  # noqa: TID251 — the poll interval over a live session, under its deadline
+    finally:
+        run = tui.run()
+    items = clone.items()
+    need = items.get(need.get("id", ""), need)
+    check = Checks(clone, run)
+    print(f"\nwake {runtime}: woke {f'{woke:.1f}s' if woke is not None else 'never'} after the owner's reply, by "
+          f"{run.reached_by(OWNER_ANSWER) or 'nothing'}")
+    check(need, f"{run.name}: the session raised no need under {sprint}")
+    raised = ((need.get("need") or {}).get("raised_by") or {}).get("session")
+    check(raised and raised == run.session, f"{run.name}: the need was raised by {raised}, not the session {run.session}")
+    inbox_by_runtime(check, run, need, "as raised")
+    check(replied is not None and replied.returncode == 0, f"the owner's reply failed: {replied}")
+    check(woke is not None, f"{run.name}: no turn took the reply in within {TIMEOUT:.0f}s, with nothing typed")
+    want = "pushed" if runtime == "claude" else "queued"
+    check(want in run.reached_by(OWNER_ANSWER),
+          f"{run.name}: the reply reached the session by {run.reached_by(OWNER_ANSWER)}, not {want}")
+    check((need.get("need") or {}).get("delivered", 0) >= 1, f"{run.name}: the reply was not delivered: {need.get('need')}")
+    check((need.get("status"), need.get("resolution"), need.get("closed_by")) == ("closed", "answered", run.session),
+          f"{run.name}: the need is {need.get('status')}/{need.get('resolution')} closed by {need.get('closed_by')}")
+    decided = [(clone.store() / f).read_text() for f in ("sprints/demo-1.md", "projects/demo.md")]
+    check(any(cites(r, need.get("id", "?")) for r in decided),
+          f"{run.name}: no owner decision in the sprint or project record cites the need")
+    check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
+    check.done()
+
+
+def tui_reached(tui: Tui) -> list[str]:
+    """How the owner's answer reached the TUI's session so far (Run.reached_by), from its live transcript."""
+    t = tui.transcript()
+    return Run(tui.runtime, tui.name, "", t, 0, 0, tui.log, tui.entries()).reached_by(OWNER_ANSWER) if t else []
 
 
 def as_session(clone: Clone, runtime: str, session: str, *args: str, cwd: Path | None = None):

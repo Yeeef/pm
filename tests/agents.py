@@ -15,12 +15,18 @@ HOME, the pm bin dir and the supervisor's units are the scratch ones in either r
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import json
 import os
+import pty
 import re
+import select
 import shutil
+import signal
 import socket
+import struct
 import subprocess
+import termios
 import threading
 import time
 from dataclasses import dataclass, field
@@ -207,13 +213,19 @@ class Run:
         return out
 
     def reached_by(self, text: str) -> list[str]:
-        """How `text` reached the session: "pushed" for a message queued into it from outside; "hook" for a hook's
-        context; else each command whose output held it, or "background" for a background command's notice."""
+        """How `text` reached the session: "pushed" for a message Claude Code's inbox took in, "queued" for one codex
+        queue put on a Codex thread, each a turn's input; "hook" for a hook's context; else each command whose output
+        held it, or "background" for a background command's notice."""
         out, calls = [], {}
         for e in self.entries:
             if self.runtime == "claude":
                 if (e.get("type"), e.get("operation")) == ("queue-operation", "enqueue") and text in str(e.get("content", "")):
                     out.append("background" if "<task-notification>" in e["content"] else "pushed")
+                content = (e.get("message") or {}).get("content")
+                said = content if isinstance(content, str) else " ".join(
+                    c.get("text", "") for c in content or [] if isinstance(c, dict) and c.get("type") == "text")
+                if e.get("type") == "user" and text in said and "<task-notification>" not in said:
+                    out.append("pushed")  # an idle session takes a pushed message in as its turn's prompt
                 a = e.get("attachment") or {}
                 if a.get("type") == "hook_additional_context" and text in json.dumps(a):
                     out.append(f"hook {a.get('hookEvent')}")
@@ -231,6 +243,8 @@ class Run:
                     out.append(calls.get(p.get("call_id"), "?"))
                 elif p.get("type") == "message" and p.get("role") == "developer" and text in json.dumps(p):
                     out.append("hook")
+                elif p.get("type") == "message" and p.get("role") == "user" and text in json.dumps(p):
+                    out.append("queued")  # a message codex queue put on the thread, its turn's input
         return out
 
 
@@ -455,6 +469,131 @@ class Agent:
                          and e["payload"].get("id") == session), {})
             session = meta.get("session_id") or session
         return Run(self.runtime, self.name, session, transcript, took, rc, self.out, entries, self.proc.pid)
+
+
+# ---------------------------------------------------------------- an interactive session in a pty
+
+class Tui:
+    """A runtime's interactive TUI (Claude Code's `claude`, Codex's `codex`) in a pseudo-terminal, as a person runs it,
+    on a first prompt given on its command line. A thread reads the screen into a log, answers the terminal's queries
+    (cursor position, device attributes, colors) as a terminal does, and accepts Claude Code's folder-trust dialog for
+    the scratch clone should it show; nothing else is ever typed. Claude Code runs on a config dir of the clone's own
+    (claude_config), so its first-run state and its transcripts never touch the user's."""
+
+    def __init__(self, clone: Clone, runtime: str, name: str, prompt: str):
+        self.clone, self.runtime, self.name = clone, runtime, name
+        self.started = time.time()
+        self.claude_dir = claude_config(clone)
+        env = dict(clone.agent_env(), CLAUDE_CONFIG_DIR=str(self.claude_dir))
+        trust = f'projects."{clone.root}".trust_level="trusted"'
+        if runtime == "claude":
+            argv = [shutil.which("claude", path=REAL_PATH) or "claude", prompt, "--model", CLAUDE_MODEL,
+                    "--setting-sources", "project,local", "--allowedTools", "Bash", "Edit", "Write", "Read", "Glob",
+                    "Grep"]
+        else:
+            argv = [shutil.which("codex", path=REAL_PATH) or "codex", "--no-alt-screen", "-s", CODEX_SANDBOX,
+                    "-a", "never", "-c", trust, *(["-m", CODEX_MODEL] if CODEX_MODEL else []), prompt]
+        self.log = clone.out / f"{name}.{runtime}.tty"
+        self.pid, self.fd = pty.fork()
+        if self.pid == 0:  # the child: the TUI, in the checkout, with the agents' environment and a terminal's
+            os.chdir(clone.root)
+            os.execvpe(argv[0], argv, dict(env, TERM="xterm-256color", COLUMNS="120", LINES="40"))
+        fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
+        self.screen = b""
+        self.alive = True
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self) -> None:
+        answers = {b"\x1b[6n": b"\x1b[1;1R", b"\x1b[c": b"\x1b[?62;c", b"\x1b[0c": b"\x1b[?62;c",
+                   b"\x1b]10;?": b"\x1b]10;rgb:ffff/ffff/ffff\x1b\\", b"\x1b]11;?": b"\x1b]11;rgb:0000/0000/0000\x1b\\"}
+        trusted = False
+        with self.log.open("ab") as log:
+            while self.alive:
+                r, _, _ = select.select([self.fd], [], [], 0.2)
+                if not r:
+                    continue
+                try:
+                    data = os.read(self.fd, 65536)
+                except OSError:
+                    break
+                log.write(data)
+                self.screen = (self.screen + data)[-20000:]
+                for ask, answer in answers.items():
+                    if ask in data:
+                        os.write(self.fd, answer)
+                plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", self.screen)
+                if self.runtime == "claude" and not trusted and b"trust the files in this folder" in plain:
+                    os.write(self.fd, b"\r")  # "Yes, proceed": the scratch clone is the eval's own
+                    trusted = True
+
+    def transcript(self) -> Path | None:
+        """The session's transcript, the newest one begun since the TUI started: Claude Code's session JSONL for the
+        checkout, or Codex's rollout under the clone's CODEX_HOME."""
+        if self.runtime == "claude":
+            key = re.sub(r"[^A-Za-z0-9]", "-", str(self.clone.root))
+            found = list(self.claude_dir.glob(f"projects/{key}/*.jsonl"))
+        else:
+            found = list(self.clone.codex_home.glob("sessions/*/*/*/rollout-*.jsonl"))
+        found = [f for f in found if f.stat().st_mtime >= self.started]
+        return max(found, key=lambda f: f.stat().st_mtime) if found else None
+
+    def entries(self) -> list[dict]:
+        t = self.transcript()
+        return _load(t) if t else []
+
+    def session(self) -> str:
+        """The session as pm names it: Claude Code's session id; Codex's root thread id, from the rollout's
+        session_meta."""
+        for e in self.entries():
+            if self.runtime == "claude" and e.get("sessionId"):
+                return e["sessionId"]
+            if self.runtime == "codex" and e.get("type") == "session_meta":
+                p = e["payload"]
+                return p.get("session_id") or p.get("id", "")
+        return ""
+
+    def idle(self, quiet: float) -> bool:
+        """Whether the session has ended its turn and its transcript has not changed for `quiet` seconds: Claude
+        Code's last entry an assistant's reply that ends its turn (or a hook's after it), Codex's a task_complete."""
+        t = self.transcript()
+        if not t or time.time() - t.stat().st_mtime < quiet:
+            return False
+        last = [e for e in self.entries() if e.get("type") in ("assistant", "user", "event_msg")]
+        if self.runtime == "codex":
+            ended = [e for e in last if e.get("type") == "event_msg"]
+            return bool(ended) and (ended[-1].get("payload") or {}).get("type") == "task_complete"
+        turns = [e for e in last if e.get("type") in ("assistant", "user")]
+        return bool(turns) and turns[-1].get("type") == "assistant" and \
+            (turns[-1].get("message") or {}).get("stop_reason") in ("end_turn", None)
+
+    def run(self) -> Run:
+        """The session as a Run, its transcript copied beside the TUI's log; the TUI is stopped first."""
+        self.alive = False
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(self.pid, signal.SIGTERM)
+        with contextlib.suppress(ChildProcessError):
+            os.waitpid(self.pid, 0)
+        session, found = self.session(), self.transcript()
+        transcript = self.log.with_name(f"{self.name}.{self.runtime}-transcript.jsonl")
+        if found:
+            shutil.copyfile(found, transcript)
+        return Run(self.runtime, self.name, session, transcript, time.time() - self.started, 0, self.log,
+                   _load(transcript), self.pid)
+
+
+def claude_config(clone: Clone) -> Path:
+    """A Claude Code config dir of the clone's own for an interactive session: a copy of the user's login, first-run
+    onboarding done and the clone trusted, as a user's would be after their first session there."""
+    d = clone.tmp / "claude-tui"
+    if not d.exists():
+        d.mkdir()
+        creds = CLAUDE_DIR / ".credentials.json"
+        assert creds.is_file(), f"Claude Code is not logged in: no {creds}"
+        shutil.copyfile(creds, d / ".credentials.json")
+        (d / ".claude.json").write_text(json.dumps({
+            "hasCompletedOnboarding": True, "theme": "dark",
+            "projects": {str(clone.root): {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True}}}))
+    return d
 
 
 # The user's PATH, where the real claude and codex are: the tests' own PATH puts the fakes first.
