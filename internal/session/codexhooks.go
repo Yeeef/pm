@@ -1,4 +1,4 @@
-package cli
+package session
 
 import (
 	"fmt"
@@ -9,22 +9,17 @@ import (
 
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
-	"github.com/Yeeef/pm/internal/session"
 )
 
 // codexHooksDir holds, under the main checkout's .pm/run, one file per Codex session pm checked: "ran" or "warned".
 const codexHooksDir = "codex-hooks"
 
-// warnCodexHooksSkipped tells a Codex session, once, that Codex ran none of pm's hooks in it: its rollout holds no pm
+// WarnCodexHooksSkipped tells Codex session id, running a pm command in here, once, that Codex ran none of pm's hooks in it: its rollout holds no pm
 // session-start context before its first prompt, as when the user has not trusted pm's hooks (Codex skips an untrusted
 // hook silently). Without them the session has no pm rules, no Stop checks and no replies at its prompts. Each session
 // is checked until pm can tell, then remembered in .pm/run, so a later command costs one stat. It never fails the
 // command: anything it cannot read is no warning.
-func warnCodexHooksSkipped(id string, stderr io.Writer) {
-	here, err := cwd()
-	if err != nil {
-		return
-	}
+func WarnCodexHooksSkipped(here, id string, stderr io.Writer) {
 	res, err := proc.Run([]string{"git", "rev-parse", "--path-format=absolute", "--git-common-dir"},
 		proc.Options{Cwd: &here})
 	if err != nil || res.Code != 0 {
@@ -38,7 +33,7 @@ func warnCodexHooksSkipped(id string, stderr io.Writer) {
 	if _, err := os.Stat(mark); err == nil {
 		return
 	}
-	ran, known := session.CodexHooksRan(id)
+	ran, known := CodexHooksRan(id)
 	if !known {
 		return
 	}

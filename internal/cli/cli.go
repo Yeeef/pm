@@ -27,6 +27,7 @@ import (
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/session"
 )
 
 type kind int
@@ -465,8 +466,8 @@ func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "error: %s\n", err)
 			return 1
 		}
-		if runtime == "codex" {
-			warnCodexHooksSkipped(id, stderr)
+		if here, err := cwd(); err == nil && runtime == "codex" {
+			session.WarnCodexHooksSkipped(here, id, stderr)
 		}
 	}
 	if name, args, ok := storeFormOf(argv); ok {
