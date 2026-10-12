@@ -1,7 +1,7 @@
 {
  "date": "2026-10-12",
- "generated_at": "2026-10-12T19:47:47+00:00",
- "digest": "dec1a0ac6aebd485",
+ "generated_at": "2026-10-12T19:58:06+00:00",
+ "digest": "2fa12cc9ee92e7a8",
  "model": "claude-haiku-5-5",
- "text": "- **Codex integration:** Design pages now describe the Codex parity changes. The Codex parity report records the final live run at the pull request head.\n- **Public site access:** Requests need a valid Cloudflare Access token, and the service fails closed without one. The owner confirmed that the site loads through Access.\n- **Quality checks:** A check refuses race-test names that match no top-level test. Design pages now name the code they cover.\n- **Website install links:** Install commands and the install pill now point to the latest release. They stay current after each release."
+ "text": "- **Codex integration for pm:** The pm service now queues replies into a live Codex session. Design pages now record the Codex parity state. Work on the owner-request judge and the day summary for Codex has started.\n- **Code and test quality:** The pull request check list now names only top-level tests. A check rejects any test name that matches no top-level test. Complexity counts now separate production code from test code. A new page shows code and test metrics with trend figures.\n- **Public site access:** The pm service serves pm.yeeefs.com only with a valid Cloudflare Access token. The service fails closed when the key is missing or cannot be fetched. The owner logged in through Access and confirmed that the site loads.\n- **Website install links:** The install commands and the install pill now point at the latest release. They stay current after each release. The owner reviewed and merged the change."
 }
