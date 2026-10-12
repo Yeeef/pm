@@ -73,6 +73,11 @@ pm doctor fails on a missing CLI only for the runtime summary_runtime names, and
 The pm service runs the summary unattended every 10 minutes; each judge runs on the runtime of the session that stops, which runs only where that runtime is installed, so a Codex-only machine must not fail for lacking claude.
 :::
 
+::: decision {source=agent date=2026-10-12}
+The Codex judge is gpt-5.6-luna at medium reasoning effort, 40 s timeout inside a 45 s Codex hook entry; the Claude judge keeps 15 s inside 30 s.
+At low effort the live eval missed 3 or 4 of 189 runs; at medium 189 of 189, median 5.5 s, p90 14 s; 8 concurrent calls pushed the tail past 25 s.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
