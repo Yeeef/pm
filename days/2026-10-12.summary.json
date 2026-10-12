@@ -1,7 +1,7 @@
 {
  "date": "2026-10-12",
- "generated_at": "2026-10-11T23:43:14+00:00",
- "digest": "71ea482ac5274793",
+ "generated_at": "2026-10-12T18:25:21+00:00",
+ "digest": "01e9c825f5730bd7",
  "model": "claude-haiku-5-5",
- "text": "- **pm-codex parity testing:** A final live parity run finished at the pull request head. Its results are now written in the sprint report."
+ "text": "- **Public site access:** The pm service now requires a valid Cloudflare Access token for public requests, and refuses requests without one. The owner logged in through Access and confirmed that the site loads.\n- **Website release work:** The project opened work for the website to install the latest release.\n- **pm-codex parity testing:** A final live parity run at the pull request head was recorded for pm-codex."
 }
