@@ -126,6 +126,30 @@ A real write already refuses in ~5 ms; the 9 s path needs the remote lost within
   (TestSyncTwoClonesConcurrentEditsMergePerTheTable, 47-49 s alone in its
   shard on macos-14).
 
+- PR 55 cut the macOS work and race jobs below 110 s. (1) The two longest
+  internal/work tests (merge table 26.8 s, TestCreatePushTimeout 23.2 s
+  locally; 47 and 41 s on macos-14) ran many cases on one shared pair, so each
+  held a shard. They are split into 7 top-level tests with a pair each: 16
+  subtests and 74 assertions before and after. go-test-work at 8 shards: 27.2
+  to 13.6 s locally (29 tests, longest 11.3 s); 47 to 38 s on macos-14, now
+  CPU-bound on 3 cores. (2) setup-go spent 12 s of its 14-20 s copying Go into
+  the tool cache. .github/scripts/setup_go.py (go.dev archive, checked against
+  go.dev's sha256) takes 4-8 s. (3) The saved Go cache held 256 MB of module
+  zips, which a build never reads beside the unpacked modules (built with them
+  deleted and GOPROXY=off). They are deleted before the save, and the key
+  carries 'unzipped': 649 to 417 MB. Restore went from 35-37 to 18-28 s.
+  actions/cache's '!' paths could not drop them, since it archives a listed
+  directory whole. (4) Test binaries link with -ldflags=-w: macOS go test -c
+  went from 39 to 20 s (work) and from 32 to 21 s (race). The work and race
+  binaries cannot be shared, since race's is built with -race. Three reruns of
+  PR 55 at d5157b2, all 12 checks, macOS work/race/build-vet-test run times
+  and wall to the last check: 96/99/105 s and 115 s; 91/86/95 s and 102 s;
+  105/109/121 s and 177 s, with work queued 72 s on macOS. Median: work 96 s,
+  race 99 s, wall 115 s. Before, on PR 53: work 139-158 s, race 118-146 s,
+  median wall 168 s. The final head f316b59: 85/109/101 s, wall 119 s. darwin
+  build-vet-test (95-121 s) is now the longest job; race's floor is
+  TestPullRacingLocalWriters, 32 s under -race.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
