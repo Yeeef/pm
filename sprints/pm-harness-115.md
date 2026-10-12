@@ -62,10 +62,14 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the README and the website credit Beads, which inspired pm's work layer and ran pm's own tracking before the work store, and Dolt, the work store's database (PR #57); the merge waits on the owner's review.
+
+- `README.md`: a Credits section after Docs.
+- `website/index.html`, `website/style.css`: a Credits section after Get started, two cards that stack at phone width, linked from the footer.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- The README and the live website show the Credits section with working links: met for the PR, not yet live. Links answer 200 (`github.com/steveyegge/beads` redirects to `github.com/gastownhall/beads`, the link used; `github.com/dolthub/dolt`). Headless Chromium on the page: scrollWidth 390/390 at 390 px and 1440/1440 at 1440 px, light and dark. CI on e3ed2cb: 12 checks passed (one changelog run cancelled by its re-run after the `no-changelog` label).
+- The PR is merged to main and the Pages deploy serves it: not yet; it waits on the owner's review, raised on this sprint.
