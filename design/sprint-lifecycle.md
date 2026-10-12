@@ -136,15 +136,17 @@ closed and each review closed as merged (a dismissed one, a replaced PR's or a [
 Outcome, commits the record on the records branch and closes the epic. It
 runs the design-page gate again on each review's PR, since a PR can change
 after its review was raised; with `--merged SHA` it runs it on `--pr`'s files,
-or without `--pr` on the files the merge commit brought. A sprint with no PR,
+or without `--pr` on the files the commit changed against its first parent (a
+merge's whole delivery; for a rebase merge, only its last commit). A sprint with no PR,
 or a voided one, closes without a review or a stamp.
 
 ### Design pages follow the code
 
 A design page names the code its area is about in its header, `covers:`
 (see [Record layer](record-layer.md)). The gate takes the files the PR
-changes (`gh pr view --json files,changedFiles`; it refuses when gh lists
-fewer than the PR changes) and, for each design page whose covers match one,
+changes from GitHub's pull request files API (`gh api --paginate`, every
+page, a renamed file's old path as well as its new one; a PR URL that is not
+GitHub's is refused, since its files cannot be read) and, for each design page whose covers match one,
 passes the page when one of the sprints the PR delivers either:
 
 | Way out | What it takes | What the gate reads |
