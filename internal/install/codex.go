@@ -12,6 +12,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
 )
@@ -39,12 +40,7 @@ func home() string {
 }
 
 // CodexHome is $CODEX_HOME, else ~/.codex.
-func CodexHome() string {
-	if h := os.Getenv("CODEX_HOME"); h != "" {
-		return h
-	}
-	return filepath.Join(home(), ".codex")
-}
+func CodexHome() string { return session.CodexHome() }
 
 // Resolve is Python's Path.resolve(): absolute, with the symlinks of the part that exists followed.
 func Resolve(p string) string {

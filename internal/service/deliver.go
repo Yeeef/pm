@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -269,14 +270,25 @@ func MarkWithin(st work.Store, marks []Mark, budget time.Duration, now func() ti
 // Hostname is this machine's name, as a need stores its inbox's host; a variable so tests can move a need elsewhere.
 var Hostname = os.Hostname
 
+// SessionLive is whether a session's transcript changed within the live window; a variable so tests can end one.
+var SessionLive = session.Live
+
 // PushInbox writes text as one user message into the inbox socket of the session that raised the need, connecting
 // only once the line is ready, and only on the machine that stored it. "" once the line is written; else why not:
-// "not running: …" (no inbox stored, another machine, the socket gone or refusing) or "failed: …".
+// "no push: …" (a live session that stores no inbox, as a Codex session's: the reply waits for it), "not running: …"
+// (no session, or one whose transcript has ended, another machine, the socket gone or refusing) or "failed: …".
 func PushInbox(n *work.Item, text string) string {
-	if n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Inbox == "" {
-		return "not running: the request stores no session inbox"
+	if n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Session == "" {
+		return "not running: the request names no session"
 	}
 	rb := n.Need.RaisedBy
+	if rb.Inbox == "" {
+		if !SessionLive(rb.Session) {
+			return "not running: the session that asked has ended"
+		}
+		return "no push: the session that asked gets no push; it sees the reply at its next prompt, or now if it " +
+			"waits with pm reply wait"
+	}
 	if host, _ := Hostname(); rb.Host != host {
 		where := rb.Host
 		if where == "" {

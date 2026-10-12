@@ -13,6 +13,26 @@ const LiveWindow = 30 * time.Minute
 // sessionID is the form of a session or thread id pm looks a transcript up by.
 var sessionID = regexp.MustCompile(`^[\w-]+$`)
 
+// CodexHome is $CODEX_HOME, else ~/.codex: where Codex keeps its config and its rollouts.
+func CodexHome() string {
+	if h := os.Getenv("CODEX_HOME"); h != "" {
+		return h
+	}
+	return filepath.Join(home(), ".codex")
+}
+
+// home is $HOME, else the user's home directory, else "" (no transcript is found under it).
+func home() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
+	}
+	h, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return h
+}
+
 // claudeConfigDir is Claude Code's config dir, which holds its transcripts under projects/.
 func claudeConfigDir() string {
 	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {

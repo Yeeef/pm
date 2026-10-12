@@ -63,6 +63,7 @@ var delivery = map[string]string{
 	"delivered":          "delivered to the agent's session",
 	"nothing to deliver": "the agent had read it already",
 	"not running":        "not delivered: the session that asked is not running, the next one will see it",
+	"no push":            "waiting for the session that asked, which gets no push (a Codex session): it sees the reply at its next prompt, or now if it waits with pm reply wait",
 	"failed":             "not delivered yet: the push failed; the pm service tries again every minute",
 }
 

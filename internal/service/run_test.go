@@ -827,3 +827,26 @@ func TestSinceIsTheRepliesFromTheWaitsSecond(t *testing.T) {
 		}
 	}
 }
+
+// TestAPushToASessionWithNoInboxWaitsForItWhileItLives: a need whose session stores no inbox (a Codex session's) gets
+// no push; while the session's transcript is live the reply waits for it ("no push"), once it has ended, or when no
+// session asked, the next session sees it ("not running").
+func TestAPushToASessionWithNoInboxWaitsForItWhileItLives(t *testing.T) {
+	saved := SessionLive
+	t.Cleanup(func() { SessionLive = saved })
+	n := need("p-1.2.1", work.Decision, "")
+	n.Need.RaisedBy = &work.RaisedBy{Session: "cx"}
+	for live, want := range map[bool]string{
+		true: "no push: the session that asked gets no push; it sees the reply at its next prompt, or now if it " +
+			"waits with pm reply wait",
+		false: "not running: the session that asked has ended"} {
+		SessionLive = func(s string) bool { return s == "cx" && live }
+		if got := PushInbox(&n, "a reply"); got != want {
+			t.Errorf("live %v: %q", live, got)
+		}
+	}
+	if got := PushInbox(&work.Item{ID: "p-1.2.2", Type: work.Need, Need: &work.NeedInfo{Kind: work.Decision}},
+		"a reply"); got != "not running: the request names no session" {
+		t.Errorf("no session: %q", got)
+	}
+}

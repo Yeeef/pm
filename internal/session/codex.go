@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/Yeeef/pm/internal/install"
 )
 
 // Codex keeps each thread's transcript, its rollout, at $CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<thread>.jsonl,
@@ -24,7 +22,7 @@ func Rollouts(thread string) []string {
 	if !sessionID.MatchString(thread) {
 		return nil
 	}
-	sessions := filepath.Join(install.CodexHome(), "sessions")
+	sessions := filepath.Join(CodexHome(), "sessions")
 	name := "rollout-*-" + thread + ".jsonl"
 	start, ok := uuid7Start(thread)
 	if !ok {

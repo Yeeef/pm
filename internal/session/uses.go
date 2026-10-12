@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/Yeeef/pm/internal/install"
 )
 
 // Use is a live session's latest use of a worktree.
@@ -44,7 +42,7 @@ func Uses(main string, worktrees []string, under string) (map[string]Use, error)
 		return u.found, err
 	}
 	var c codexScan
-	err = recentLines(filepath.Join(install.CodexHome(), "sessions"), u.now, func(name string) bool {
+	err = recentLines(filepath.Join(CodexHome(), "sessions"), u.now, func(name string) bool {
 		return strings.HasPrefix(name, "rollout-") && strings.HasSuffix(name, ".jsonl")
 	}, func(first bool, line []byte) { c.line(u, first, line) })
 	return u.found, err

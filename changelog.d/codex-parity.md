@@ -42,6 +42,9 @@
   its next sweep.
 - A need closed by `pm decision add --need` or `pm decision close` records the closing session, as other closes do.
 - A Codex session's needs lose the Claude Code inbox an earlier pm stored on them, at its next session start.
+- The site's reply to a need of a live session that gets no push (a Codex session) says the reply waits for that
+  session, at its next prompt or through `pm reply wait`; it said the session was not running. "Not running" is kept
+  for a session whose transcript has ended.
 - A typed `pm init` keeps an installed service unit's PATH: run from Codex, which puts its own directory first on
   every command's PATH, it rewrote the unit and restarted the clone's pm service under every live session (their pm
   commands failed meanwhile), and a Claude Code session's `pm init` flipped it back. `pm service install` takes the
