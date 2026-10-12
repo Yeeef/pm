@@ -1,7 +1,7 @@
 {
  "date": "2026-10-12",
- "generated_at": "2026-10-12T19:58:06+00:00",
- "digest": "2fa12cc9ee92e7a8",
+ "generated_at": "2026-10-12T20:08:24+00:00",
+ "digest": "6825af6c425258ff",
  "model": "claude-haiku-5-5",
- "text": "- **Codex integration for pm:** The pm service now queues replies into a live Codex session. Design pages now record the Codex parity state. Work on the owner-request judge and the day summary for Codex has started.\n- **Code and test quality:** The pull request check list now names only top-level tests. A check rejects any test name that matches no top-level test. Complexity counts now separate production code from test code. A new page shows code and test metrics with trend figures.\n- **Public site access:** The pm service serves pm.yeeefs.com only with a valid Cloudflare Access token. The service fails closed when the key is missing or cannot be fetched. The owner logged in through Access and confirmed that the site loads.\n- **Website install links:** The install commands and the install pill now point at the latest release. They stay current after each release. The owner reviewed and merged the change."
+ "text": "- **Codex session replies:** An idle Codex session now wakes when the owner replies. The pm service queues each reply into a live Codex session. A live parity test passed on Codex.\n- **Public site login:** The public pm site now requires a valid Cloudflare Access token. A request without a valid token is refused. The owner logged in and confirmed that the site loads.\n- **Website install and credits:** The website install commands now point to the latest release. A Credits section for Beads and Dolt now appears in the README and website.\n- **Code checks and design pages:** A check now refuses race test names that match no top-level test. Design pages now name the code they cover."
 }
