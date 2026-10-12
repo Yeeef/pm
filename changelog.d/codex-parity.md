@@ -5,9 +5,16 @@
    `.codex/rules/pm.rules`. Commit them with the pin move.
 2. Where Codex works in the repo: open Codex in the main checkout, trust the project if it is not, run `/hooks` and
    trust pm's hooks, new and changed ones included. `pm doctor` names any of pm's hooks Codex would skip.
+3. For owner replies to reach Codex sessions, have codex 0.149.0 or later on the pm service's PATH: run
+   `pm service install` from a shell where it is. `pm doctor` names a missing or older one.
 
 ### Added
 
+- The pm service delivers an owner reply into a live Codex session as it pushes one into a Claude Code session: with
+  `codex queue` under the CODEX_HOME the session raised the need with, which starts a turn when the session is idle
+  (measured: 6.1 s after the reply in an idle Codex TUI). A Codex session's need records that CODEX_HOME; a session
+  that has ended keeps the reply undelivered, and a codex missing from the service's PATH or older than 0.149.0 is
+  named on the reply's card and by `pm doctor`.
 - `pm reply wait <id> [--timeout DURATION]`: wait within the turn for a new reply from the owner to a need, then
   print it (and mark it delivered, as `pm reply read` does); a reply delivered before the wait is no new one, so an
   agent that asks again waits for the next. The output of a raised need names it.
@@ -37,14 +44,15 @@
 
 - A Codex run started from a Claude Code session no longer stores that session's inbox
   (`$CLAUDE_CODE_MESSAGING_SOCKET`, which Codex inherits) on its needs, so its replies are no longer pushed into the
-  Claude Code session.
+  Claude Code session; its needs carry its own CODEX_HOME.
 - The pm service pushes a reply `pm reply add` stored as soon as the work store moves; it waited up to a minute for
   its next sweep.
 - A need closed by `pm decision add --need` or `pm decision close` records the closing session, as other closes do.
-- A Codex session's needs lose the Claude Code inbox an earlier pm stored on them, at its next session start.
-- The site's reply to a need of a live session that gets no push (a Codex session) says the reply waits for that
-  session, at its next prompt or through `pm reply wait`; it said the session was not running. "Not running" is kept
-  for a session whose transcript has ended.
+- A Codex session's needs trade the Claude Code inbox an earlier pm stored on them for the session's CODEX_HOME, at
+  its next session start.
+- The site's reply to a need of a live session with no inbox says the reply waits for that session, at its next
+  prompt or through `pm reply wait`; it said the session was not running. "Not running" is kept for a session whose
+  transcript has ended.
 - A typed `pm init` keeps an installed service unit's PATH: run from Codex, which puts its own directory first on
   every command's PATH, it rewrote the unit and restarted the clone's pm service under every live session (their pm
   commands failed meanwhile), and a Claude Code session's `pm init` flipped it back. `pm service install` takes the
