@@ -1,7 +1,7 @@
 {
  "date": "2026-10-12",
- "generated_at": "2026-10-12T19:06:16+00:00",
- "digest": "519cbaf3f79db7cb",
+ "generated_at": "2026-10-12T19:16:34+00:00",
+ "digest": "3b2dabaf00e4a9ae",
  "model": "claude-haiku-5-5",
- "text": "- **Codex runtime parity:** Design pages for setup, the agent lifecycle, site replies, and the CLI now state the Codex changes. Work started to run the owner-request judge and the day summary on Codex.\n- **Public site access:** The public host now needs a valid Cloudflare Access token, and the owner confirmed the site loads. If the key is missing or unavailable, the service refuses requests.\n- **Install links:** Install commands and pill now point at the latest release, so they stay current after each release.\n- **Design coverage checks:** Work started to flag design pages whose covered code changed after their last edit. Work also started on a gate that checks design coverage at pull request and sprint close."
+ "text": "- **Public site access:** The pm site now requires a valid Cloudflare Access token. The service refuses a request when it has no key or cannot fetch the key set. The owner logged in through Cloudflare Access, and the site loads.\n- **Codex parity documentation:** Design pages for setup, the agent lifecycle, site replies, and the CLI now state the Codex changes. The pm in Codex page lists each open gap, its cost, and what closes it.\n- **Website install commands:** The install commands and install pill now point to the latest GitHub release. They stay current after each release.\n- **Design-page update checks:** Work started to require a design page update when covered code changes. Design pages will show when their covered code changed after the last edit."
 }
