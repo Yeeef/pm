@@ -83,7 +83,7 @@ def fake_test_binary(tmp_path: Path, tests: list[str], skip: str = "", fail: str
     binary = tmp_path / "pkg.test"
     binary.write_text(f"""#!/bin/sh
 case "$1" in
-  -test.list) printf '%s\\n' {" ".join(tests)} | grep -E "$2" ;;
+  -test.list) printf '%s\\n' {" ".join(tests)} | grep -E "$2" || true ;;
   *) while [ $# -gt 0 ]; do [ "$1" = -test.run ] && re="$2"; shift; done
      rc=0
      for t in $(printf '%s' "$re" | sed 's/^^(//; s/)[$]$//' | tr '|' ' '); do
@@ -125,6 +125,19 @@ def test_go_shards_refuses_a_test_with_no_measured_seconds_or_a_stale_one_and_ru
     assert "TestNew has no measured seconds" in res.stderr
     assert "TestGone in" in res.stderr and "is no test of" in res.stderr
     assert "make go-test-work UPDATE=1" in res.stderr
+    assert not (tmp_path / "ran.log").exists()
+
+
+def test_go_shards_refuses_a_run_name_that_matches_no_top_level_test_and_runs_nothing(tmp_path):
+    binary = fake_test_binary(tmp_path, ["TestARacingB", "TestC"])
+    res = run_shards(tmp_path, binary, "TestARacingB 1\nTestC 1\n", "--run", "Racing|Eight|TestC|Gone")
+    assert res.returncode == 1
+    assert "--run name Eight matches no top-level test" in res.stderr
+    assert "--run name Gone matches no top-level test" in res.stderr
+    assert "Racing matches" not in res.stderr and "TestC matches" not in res.stderr
+    res = run_shards(tmp_path, binary, "TestARacingB 1\nTestC 1\n", "--run", "TestC/sub")
+    assert res.returncode == 1
+    assert "must be test names joined by |" in res.stderr
     assert not (tmp_path / "ran.log").exists()
 
 

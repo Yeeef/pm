@@ -73,7 +73,7 @@ go-build:
 
 # The work store's concurrency tests, which make test-go runs again under the race detector (about a minute; the whole
 # internal/work package under -race would take several): the write lock, the slot, gc and merges racing writers.
-RACE_TESTS := Racing|Migrating|Eight|Opposite|OutsideTheLock|NotStarved|Outlasting|HungFetch|WriteLock|PmLock|ASecondLock
+RACE_TESTS := Racing|Migrating|OutsideTheLock|Outlasting|WriteLock|PmLock|ASecondLock
 # Build, then the gofmt check, go vet and the Go tests (with the same tag: the embedded Dolt needs it), then the pm
 # service and the work store's concurrency tests (RACE_TESTS) again under -race. pm-go.yml runs the parts as parallel
 # jobs: go-build, go-fmt, go-vet and go-test-but-work; go-test-work; go-test-race.
