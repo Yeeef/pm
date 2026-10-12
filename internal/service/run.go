@@ -458,13 +458,13 @@ func (s *server) page(path string) (int, string, *snapshot) {
 			"<p>This page offers a reload once the site has it.</p>"), snap
 	}
 	text := r.text
-	// the push banner is read on every request: the sync changes it, not the records
+	// the push and main checkout banners are read on every request: the sync and git change them, not the records
 	if path == "index.html" || strings.HasPrefix(path, "projects/") {
 		banner, err := pmsync.Banner(s.d.Main, s.d.Records, s.d.Remote)
 		if err != nil {
 			banner = `<div class="note draft push"><p>` + html.EscapeString(err.Error()) + `</p></div>`
 		}
-		text = strings.Replace(text, "</nav>", "</nav>"+banner, 1)
+		text = strings.Replace(text, "</nav>", "</nav>"+banner+s.texts.mainBanner(), 1)
 	}
 	// a sent reply stays on its card until the snapshot's items hold its comment
 	shown := map[string]Reply{}

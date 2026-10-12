@@ -165,6 +165,7 @@ type showData struct {
 	site     string
 	projects []*showProject
 	push     []string
+	main     string // the main checkout's flag (service.Texts.MainFlag); "" when it is current
 	today    string
 	summary  *records.Summary
 	feedback *showFeedback // nil before the repo's pm feedback doc has an entry
@@ -232,7 +233,7 @@ func showDecisionsOf(rec *records.Record, level string) []showDecision {
 var showListItem = regexp.MustCompile(`(?m)^(?:[-*]|\d+\.) `)
 
 // showDataOf is Python's show_data: every open project with its open sprints, tasks, needs, last decisions and
-// feedback, the push flags and today's summary.
+// feedback, the push flags, the main checkout's flag and today's summary.
 func showDataOf(e *env, r *repo) (*showData, error) {
 	main := store.MainOf(r.records)
 	url, err := showSiteURL(e.here, main)
@@ -355,6 +356,9 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 	if data.push, err = pmsync.Flags(main, r.records, cfg.Remote); err != nil {
 		return nil, err
 	}
+	if data.main, err = (service.Texts{Main: main, Remote: cfg.Remote, MainBranch: cfg.MainBranch}).MainFlag(); err != nil {
+		return nil, err
+	}
 	data.today = store.Today()
 	summaries, err := records.ReadSummaries(r.records)
 	if err != nil {
@@ -452,7 +456,7 @@ func (d *showData) json() any {
 	if d.feedback != nil {
 		feedback = showObj{{"entries", d.feedback.entries}, {"url", d.feedback.url}}
 	}
-	return showObj{{"site", d.site}, {"projects", projects}, {"push", push}, {"today", showObj{{"date", d.today},
+	return showObj{{"site", d.site}, {"projects", projects}, {"push", push}, {"main_checkout", showOpt(d.main)}, {"today", showObj{{"date", d.today},
 		{"page", "days/" + d.today + ".html"}, {"summary", summary}, {"generated_at", generated}}}, {"feedback", feedback}}
 }
 
@@ -496,7 +500,7 @@ func showFeedbackLine(f *showFeedback) string {
 	return "feedback: " + doc + `; when pm gets in your way, run pm feedback add [--project NAME] --text="…"`
 }
 
-// showText is the top level: push failures, tasks other live sessions hold, the site, the feedback doc, and one line
+// showText is the top level: push failures, the main checkout's flag, tasks other live sessions hold, the site, the feedback doc, and one line
 // per project with each open owner request and undelivered reply.
 func showText(d *showData) string {
 	var out []string
@@ -505,6 +509,9 @@ func showText(d *showData) string {
 		for _, l := range d.push {
 			out = append(out, "  "+l)
 		}
+	}
+	if d.main != "" {
+		out = append(out, "warning: "+d.main)
 	}
 	me := currentSession()
 	var others []string

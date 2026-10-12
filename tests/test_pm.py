@@ -1090,6 +1090,43 @@ def served(repo):
         repo.start_service()  # the per-test service again, for what the test reads after
 
 
+@pytest.mark.integration
+def test_site_status_and_show_flag_a_main_checkout_behind_its_remote_or_off_main(repo, served, tmp_path):
+    origin, other = tmp_path / "main-origin.git", tmp_path / "main-other"
+    repo.git("init", "-q", "--bare", "-b", "main", str(origin))
+    repo.git("remote", "add", "origin", str(origin))
+    repo.git("push", "-q", "origin", "main")
+    repo.git("clone", "-q", str(origin), str(other))
+    repo.git("-c", "user.name=o", "-c", "user.email=o@example.com", "commit", "-q", "--allow-empty", "-m", "ahead",
+             cwd=other)
+    repo.git("push", "-q", "origin", "main", cwd=other)
+    repo.git("fetch", "-q", "origin")  # the flag counts against the remote-tracking ref; it never fetches
+    main = repo.git("rev-parse", "--show-toplevel").strip()
+    behind = (f"main checkout {main} is 1 commit(s) behind origin/main, so hooks and rules run old code; "
+              f"run git -C {main} pull --ff-only origin main")
+
+    def shown() -> tuple[str, str, str]:
+        page = re.search(r'(?s)<div class="note draft push"><p><strong>Main checkout</strong>.*?</div>',
+                         load(f"{served}/"))
+        status = [l for l in repo.pm("service", "status").stdout.splitlines() if l.startswith("main      ")]
+        show = [l for l in repo.pm("show").stdout.splitlines() if "main checkout" in l]
+        return page.group(0) if page else "", "\n".join(status), "\n".join(show)
+
+    page, status, show = shown()
+    assert f"<li>{behind}</li>" in page, page
+    assert status == "main      needs attention: " + behind, status
+    assert show == "warning: " + behind, show
+
+    repo.git("pull", "-q", "--ff-only", "origin", "main")
+    assert shown() == ("", "", ""), "an up-to-date main checkout is not flagged"
+
+    repo.git("switch", "-q", "-c", "feature")
+    off = (f"main checkout {main} is on branch feature, not main, so hooks and rules read another tree; "
+           f"run git -C {main} switch main")
+    page, status, show = shown()
+    assert f"<li>{off}</li>" in page and status == "main      needs attention: " + off and show == "warning: " + off
+
+
 # ---------------------------------------------------------------- replies on the site
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):

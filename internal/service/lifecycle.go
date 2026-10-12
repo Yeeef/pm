@@ -474,9 +474,9 @@ func offPin(main, build string) bool {
 const Stopped = "stopped by pm service stop: it stays stopped at login and at session start; run pm service restart to " +
 	"start it"
 
-// Status is pm service status: the service's health, its pushes and its garbage collection; non-zero when it is
-// down or a push needs attention.
-func Status(main, remote string) (int, string, error) {
+// Status is pm service status: the service's health, its pushes, the main checkout and its garbage collection;
+// non-zero when it is down, a push needs attention or the main checkout is flagged (MainFlag).
+func Status(main, remote, branch string) (int, string, error) {
 	ok, line := Health(main)
 	described, err := pmsync.Describe(main)
 	if err != nil {
@@ -490,9 +490,16 @@ func Status(main, remote string) (int, string, error) {
 	for _, f := range flags {
 		lines = append(lines, "push      needs attention: "+f)
 	}
+	behind, err := Texts{main, remote, branch}.MainFlag()
+	if err != nil {
+		return 1, "", err
+	}
+	if behind != "" {
+		lines = append(lines, "main      needs attention: "+behind)
+	}
 	lines = append(lines, GCLine(main), fmt.Sprintf("log       %s (pm service logs)", LogPath(main)))
 	code := 0
-	if !ok || len(flags) > 0 {
+	if !ok || len(flags) > 0 || behind != "" {
 		code = 1
 	}
 	return code, strings.Join(lines, "\n"), nil

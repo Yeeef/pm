@@ -106,7 +106,7 @@ func runService(sub string, p *Parsed, here string, stdout, stderr io.Writer) er
 		return nil
 	}
 	if sub == "status" {
-		code, said, err := service.Status(main, cfg.Remote)
+		code, said, err := service.Status(main, cfg.Remote, cfg.MainBranch)
 		if err != nil {
 			return err
 		}

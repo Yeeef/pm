@@ -175,7 +175,9 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 	tmp := t.TempDir()
 	main := filepath.Join(tmp, "main")
 	os.MkdirAll(filepath.Join(main, ".pm/store/records"), 0o755)
-	os.MkdirAll(filepath.Join(main, ".git"), 0o755)
+	if out, err := exec.Command("git", "init", "-q", "-b", "main", main).CombinedOutput(); err != nil {
+		t.Fatal(err, string(out))
+	}
 	os.WriteFile(filepath.Join(main, ".pm/config.toml"), []byte(`version = "`+Version()+`"`+"\n"), 0o644)
 	t.Setenv("HOME", filepath.Join(tmp, "home"))
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "home/.config"))
@@ -192,7 +194,7 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 	RestartWait = 10 * time.Second
 	defer func() { RestartWait = saved }()
 
-	code, out, err := Status(main, "origin")
+	code, out, err := Status(main, "origin", "main")
 	if err != nil || code != 1 || !strings.Contains(out, "not installed; run pm service install") {
 		t.Fatal(code, out, err)
 	}
@@ -203,7 +205,7 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 		!strings.Contains(said, "serving http://localhost:"+strconv.Itoa(port)) {
 		t.Fatal(said, err)
 	}
-	code, out, err = Status(main, "origin")
+	code, out, err = Status(main, "origin", "main")
 	lines := strings.Split(out, "\n")
 	if err != nil || code != 0 || !strings.HasSuffix(lines[0], "running; the site answers on :"+strconv.Itoa(port)) ||
 		!strings.Contains(out, "log       "+LogPath(main)+" (pm service logs)") ||
@@ -222,7 +224,7 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 		t.Fatal("installed and current:", said, err)
 	}
 	stopServices(t, filepath.Join(tmp, "sched.json")) // the process dies; nothing restarts it here
-	code, out, _ = Status(main, "origin")
+	code, out, _ = Status(main, "origin", "main")
 	if code != 1 || !strings.Contains(out, "down: nothing answers on :"+strconv.Itoa(port)+"; run pm service restart") {
 		t.Fatal(code, out)
 	}
