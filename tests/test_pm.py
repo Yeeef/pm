@@ -293,11 +293,11 @@ def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
 # ---------------------------------------------------------------- design pages: covers and the gate
 
 
-def design_page(covers: str) -> str:
+def design_page(covers: str, title: str = "The parser") -> str:
     """A design page whose header carries `covers`, every section with one line."""
     sections = ("Problem", "Goals and non-goals", "Constraints and key facts", "Design", "Alternatives considered",
                 "Open questions")
-    return (f"---\ntype: design\ntitle: The parser\nproject: demo\ncovers: {covers}\n---\n\n"
+    return (f"---\ntype: design\ntitle: {title}\nproject: demo\ncovers: {covers}\n---\n\n"
             + "".join(f"## {name}\n\nNone yet.\n\n" for name in sections))
 
 
@@ -378,6 +378,25 @@ def test_a_pr_that_changes_covered_code_waits_until_its_design_page_is_updated_o
             match=r"records/sprints/demo-2.md already records that design page parser stays as it is")
     res = repo.pm("sprint", "close", "repo-demo.2")
     assert res.returncode == 0, res.stderr
+
+
+def test_the_gate_replayed_on_pr_47_names_the_pages_pm_codex_sprint_1_left_unchanged(repo):
+    """pm-codex sprint 1's PR #47 changed reply delivery, session claims and the owner-request hook without editing
+    their design pages. Replayed with its real file list and this repo's pages' covers, the review is refused naming
+    each of those pages."""
+    replay = json.loads((Path(__file__).parent / "pr47_replay.json").read_text())
+    (repo.records / "design").mkdir()
+    for slug, covers in replay["covers"].items():
+        repo.write(f"design/{slug}.md", design_page(json.dumps(covers), title=slug))
+    commit_on(repo, "2026-09-30", "the design pages, before the sprint opened")
+    report(repo, "Done: shipped the thing.")
+    url = "https://github.com/Yeeef/pm/pull/47"
+    path = Path(repo.env["FAKE_GH_STATE"])
+    path.write_text(json.dumps({url: replay["pr"]}))
+    res = refused(repo, "action", "need", "--pr", url, "--sprint", "repo-demo.1", "--focus", "F",
+                  match=r"https://github.com/Yeeef/pm/pull/47 changes code that design pages cover")
+    named = re.findall(r"design/([a-z0-9-]+)\.md \(covers ", res.stderr)
+    assert {"reply-delivery", "owner-request-hook", "session-claims"} <= set(named), named
 
 
 def test_check_fails_on_a_covers_pattern_that_matches_nothing_and_lists_uncovered_sources(repo):
