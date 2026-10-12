@@ -106,6 +106,10 @@ Codex loads that file with no flag to turn it off, and a temp home would need th
   left in CODEX_HOME. First try failed: on a quiet day luna answered nothing
   (Haiku wrote a bullet); the prompt now asks for at least one bullet.
 
+- Parity live eval with the new Codex-without-claude chat-ask scenario,
+  PM_PARITY_CODEX_SANDBOX=danger-full-access: 8 passed in 96.5 s; the new
+  scenario 27.0 s, one Stop block quoting the ask, then a need raised.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
