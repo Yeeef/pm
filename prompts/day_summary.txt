@@ -10,6 +10,7 @@ only if it is notable. Tell only what happened that day: a request to the owner 
 day, but never tell the owner what to do and never add a theme of open requests or next steps. Name work by what it
 does. Never write ids, sprint numbers, task numbers, PR numbers or other numbers. Write in ASD-STE100 Simplified
 Technical English: short sentences of at most 20 words, active voice, one meaning for each word, no idioms. Do not
-invent anything that is not below. Output only the bullets, no heading, no preamble.
+invent anything that is not below. Write at least one bullet: on a day of only routine steps, one bullet that names what
+was opened, set up or started. Output only the bullets, no heading, no preamble.
 
 {activity}

@@ -134,7 +134,7 @@ func TestAFailureNamesTheRuntimeAndItsWords(t *testing.T) {
 		err.Error() != "codex exec failed (exit 1): ERROR: You've hit your usage limit." {
 		t.Errorf("got %v", err)
 	}
-	fake(t, "codex", `exit 0`) // no last message: no answer
+	fake(t, "codex", `echo "progress" >&2; exit 0`) // no last message: no answer, whatever it printed
 	if _, err := Ask(Codex, Call{Prompt: "p", Timeout: 5 * time.Second}); err == nil ||
 		err.Error() != "codex exec failed (exit 0): no output" {
 		t.Errorf("got %v", err)

@@ -151,8 +151,10 @@ func Ask(r Runtime, c Call) (string, error) {
 	if text := config.PyStrip(answer); res.Code == 0 && text != "" {
 		return text, nil
 	}
-	said := res.Stderr
-	if said == "" {
+	said := res.Stderr // an exit 0 with no answer: Codex's progress says nothing about why
+	if res.Code == 0 {
+		said = ""
+	} else if said == "" {
 		said = res.Stdout
 	}
 	said = strings.Join(strings.FieldsFunc(said, config.IsPySpace), " ")
