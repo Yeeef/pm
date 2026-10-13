@@ -67,6 +67,11 @@ The design page decision-need-layout stays as it is for this sprint's code chang
 PR #61 touched needs.go only for pm action need --pr's check that the PR targets main and the restamp path of pm action done; a decision need's layout did not change
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page reply-delivery stays as it is for this sprint's code changes.
+PR #61's needs.go change is the PR-base check on raising a review and the review restamp; how a reply reaches a session did not change
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
