@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T21:52:43+00:00",
- "digest": "fa5518b605f62740",
+ "generated_at": "2026-10-13T22:03:04+00:00",
+ "digest": "361991985798a0b6",
  "model": "claude-haiku-5-5",
- "text": "- **Codex runs pm fully:** A Codex session now gets the same pm guarantees as a Claude Code session. The owner-request judge and the day summary also run on Codex.\n- **Releases and upgrades:** Releases now publish from CI automatically under a written policy. `pm upgrade` now prints the guide of every release it crosses and prunes unused launcher pins.\n- **Code layout and checks:** The command code now sits in noun-based packages, and the parser no longer imitates argparse. Sprint close checks only the covers patterns that the sprint changed.\n- **Owner requests and feedback:** The owner chose a session-end feedback ask instead of a Stop-hook ask. A rule change in review says that opening owner-requested work needs no leave."
+ "text": "- **Codex parity:** A Codex session now gets the same pm guarantees as a Claude Code session. The owner-request judge and the day summary also run on Codex. A pm command in a Codex session now reports when its hooks did not run.\n- **Release automation:** CI now publishes a pm release on each releasing merge, with no manual step. `pm upgrade` prints the upgrade guide for every release it crosses. It also removes launcher pins that no checkout uses.\n- **Code quality and stability:** The race CI job no longer fails from a Dolt panic. Command code is split by noun, and old parser and JSON leftovers are removed. Sprint close checks only the coverage patterns that the sprint changed.\n- **Owner request rule:** A rule that opening owner-requested work needs no leave passed its tests. It awaits the owner's review."
 }
