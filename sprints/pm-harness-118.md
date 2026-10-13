@@ -64,6 +64,11 @@ Codex first-wins is a rollout check right before codex queue; the window between
 The window is about a second, and a double answer costs one extra user turn the agent can see; closing it would need control of Codex we do not have.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The first task is a pty test of the subagent path, before any other code.
+If Claude Code runs the PermissionRequest hook before the dialog for subagents, the hook must step aside there, and how it can tell decides the hook design.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
