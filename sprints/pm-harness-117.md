@@ -47,7 +47,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-13}
+pm upgrade --to X takes the crossed releases upgrade guides from the release notes pm X embeds (CHANGELOG.md and changelog.d/ via assets.go), not from the network; X own guide is its section, else its entry files assembled as release/changelog.py does.
+pm upgrade --to X always runs pm X, which carries every earlier release notes, so no download, token or new release asset is needed and nothing can be unreachable; under the release-on-merge flow the build precedes the release commit, so X section can only come from its entries.
+:::
 
 ## Findings
 
