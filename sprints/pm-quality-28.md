@@ -63,6 +63,11 @@ The design page agent-lifecycle stays as it is for this sprint's code changes.
 prime.md's sprint close line narrows one refusal; the session lifecycle is unchanged.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page pm-product stays as it is for this sprint's code changes.
+prime.md's sprint close line narrows one refusal; packaging, config keys and install are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
