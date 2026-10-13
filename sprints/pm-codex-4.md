@@ -52,7 +52,10 @@ This repo runs pm 0.8.0, the first release with the Codex work: its pin moved, i
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-13}
+The design page pm-go stays as it is for this sprint's code changes.
+PR 66 adds a test-only config.Keys and moves settingsOf into install as SettingsOf; the package table and dependency diagram (install imports config) stay true
+:::
 
 ## Findings
 
