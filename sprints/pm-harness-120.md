@@ -81,10 +81,20 @@ The owner asked for this rule in chat on 2026-10-13.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: agents now open the project, sprint or task for work the owner asked for without asking leave, and the owner-request judge blocks asking that leave as a needless ask, in PR #69.
+
+- prime.md: a new invariant beside the push/PR one ("the request is the leave"; a request that states the goal confirms it; ask what an unclear goal is, never leave to open), and the `open a project` line and `pm project open --help` say a request that states the goal confirms it.
+- Judge prompt: the "authorized" kind names opening a project, sprint or task for work the owner asked for; asking whether to open one for work nobody asked for stays a decision, asking the goal stays a clarification.
+- Needless block reason: lists opening the project, sprint or task for requested work among the authorized steps.
+- Six labelled cases (3 needless, 2 block, 1 pass); the design page Owner-request Stop hook updated to the new state.
+- A second commit fixes the Codex judge's id-citing misses, which origin/main's prompt also had (Findings).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Done when | Met | Evidence |
+|---|---|---|
+| `make test` passes | met | 88 passed, 148 skipped (the live cases) |
+| `make test-live` passes every case on both runtimes, 3 runs each | met | 74 cases: Claude 222/222, median 2.32 s, p90 4.02 s; Codex 222/222, median 5.62 s, p90 13.78 s (Findings) |
+| The PR's CI is green and its review raised with `pm action need --pr` | met | PR #69: 12 of 12 checks pass; the review need is raised under this sprint |
