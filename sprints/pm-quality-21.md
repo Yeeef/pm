@@ -60,7 +60,9 @@ The Done when says no function exceeds 30; applying it globally gives an exact c
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Baseline: internal/cli has 8,896 non-test Go lines; writes.go has 1,576
+  total lines, install.go 1,013, needs.go 950. Before changes, make test
+  passed 83 tests, skipped 136, in 11.27 seconds.
 
 ## Delivery report
 
