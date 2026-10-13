@@ -3,6 +3,7 @@ package cli
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
@@ -90,15 +90,20 @@ func (e *env) summarizeOne(r *repo, runtime ask.Runtime, day, activity string, d
 		return "", err
 	}
 	generated := time.Now().UTC().Format("2006-01-02T15:04:05") + "+00:00"
-	body := "{\n" // json.dumps(data, indent=1, ensure_ascii=False)
-	for i, kv := range [][2]string{{"date", day}, {"generated_at", generated}, {"digest", digest},
-		{"model", runtime.Model()}, {"text", text}} {
-		if i > 0 {
-			body += ",\n"
-		}
-		body += " " + pyjson.String(kv[0], false) + ": " + pyjson.String(kv[1], false)
+	var b strings.Builder
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", " ")
+	if err := enc.Encode(struct {
+		Date        string `json:"date"`
+		GeneratedAt string `json:"generated_at"`
+		Digest      string `json:"digest"`
+		Model       string `json:"model"`
+		Text        string `json:"text"`
+	}{day, generated, digest, runtime.Model(), text}); err != nil {
+		return "", err
 	}
-	body += "\n}\n"
+	body := b.String()
 	if dryRun {
 		return "dry run, nothing written; would write " + r.rel(path) + ":\n" + body, nil
 	}

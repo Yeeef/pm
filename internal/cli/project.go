@@ -7,13 +7,14 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 func cmdProjectOpen(e *env, p *Parsed) (string, error) {
 	name := p.Get("name")
 	if !slugRE.MatchString(name) {
-		return "", refuse("project name %s must be lowercase words joined by '-'", pyRepr(name))
+		return "", refuse("project name %s must be lowercase words joined by '-'", strconv.Quote(name))
 	}
 	title := strip(p.Get("title"))
 	if title == "" {
@@ -33,7 +34,7 @@ func cmdProjectOpen(e *env, p *Parsed) (string, error) {
 		taken = taken || rec.Type() == "project" && rec.Name() == name
 	}
 	if taken {
-		return "", refuse("project %s already exists (%s)", pyRepr(name), r.rel(path))
+		return "", refuse("project %s already exists (%s)", strconv.Quote(name), r.rel(path))
 	}
 	const plannedID = "pm-planned-project"
 	text := func(id string) string { return records.ProjectText(records.YAMLStr(title), id, goal) }

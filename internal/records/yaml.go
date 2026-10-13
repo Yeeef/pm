@@ -1,6 +1,8 @@
 package records
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
@@ -10,8 +12,6 @@ import (
 	"time"
 
 	"go.yaml.in/yaml/v3"
-
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // A header value's Python type, as pyyaml's safe_load (YAML 1.1) gives it. go.yaml.in/yaml/v3 reads YAML 1.2, where
@@ -37,11 +37,11 @@ type Value struct {
 	repr   string  // repr() where it differs from str()
 }
 
-// Repr is Python's repr() of the value.
+// Repr is the value as an error message or a list's str() quotes it: a string Go-quoted, else its repr().
 func (v Value) Repr() string {
 	switch {
 	case v.Kind == KindStr:
-		return pyjson.StrRepr(v.Str)
+		return strconv.Quote(v.Str)
 	case v.repr != "":
 		return v.repr
 	}
@@ -126,13 +126,13 @@ func str(s string) Value { return Value{Kind: KindStr, Str: s, Truthy: s != ""} 
 // plain one is typed by YAML 1.1's implicit resolvers.
 func scalar(n *yaml.Node) (Value, error) {
 	if n.Style&yaml.TaggedStyle != 0 && n.Tag != "!!str" {
-		return Value{}, fmt.Errorf("the header value %s has the tag %s, which pm does not read", pyjson.StrRepr(n.Value), n.Tag)
+		return Value{}, fmt.Errorf("the header value %q has the tag %s, which pm does not read", n.Value, n.Tag)
 	}
 	if n.Style&(yaml.DoubleQuotedStyle|yaml.SingleQuotedStyle|yaml.LiteralStyle|yaml.FoldedStyle|yaml.TaggedStyle) != 0 {
 		return str(n.Value), nil
 	}
 	if strings.ContainsRune(n.Value, '\t') {
-		return Value{}, fmt.Errorf("the header value %s holds a tab, which pyyaml refuses", pyjson.StrRepr(n.Value))
+		return Value{}, fmt.Errorf("the header value %q holds a tab, which pyyaml refuses", n.Value)
 	}
 	return Resolve(n.Value)
 }
@@ -160,7 +160,7 @@ func Resolve(s string) (Value, error) {
 		b := strings.Contains("yes true on", strings.ToLower(s))
 		return Value{Kind: KindBool, Str: map[bool]string{true: "True", false: "False"}[b], Truthy: b}, nil
 	case s == "=" || s == "<<": // YAML 1.1's value and merge keys, which SafeLoader cannot construct
-		return Value{}, fmt.Errorf("the header value %s is a YAML 1.1 key, which pyyaml refuses", pyjson.StrRepr(s))
+		return Value{}, fmt.Errorf("the header value %q is a YAML 1.1 key, which pyyaml refuses", s)
 	case nullRE.MatchString(s):
 		return Value{Kind: KindNull, Str: "None"}, nil
 	case intRE.MatchString(s):
@@ -235,7 +235,7 @@ func resolveFloat(s string) Value {
 		f, _ = strconv.ParseFloat(s, 64)
 	}
 	f *= sign
-	repr := pyjson.FloatRepr(f)
+	repr := floatRepr(f)
 	switch {
 	case math.IsInf(f, 1):
 		repr = "inf"
@@ -247,13 +247,33 @@ func resolveFloat(s string) Value {
 	return Value{Kind: KindFloat, Str: repr, Truthy: f != 0}
 }
 
+// floatRepr is Python's repr() of a float, as pyyaml's str() of a header float gives it: the shortest digits that
+// round-trip, in exponent form below 1e-4 and from 1e16 up.
+func floatRepr(f float64) string {
+	e := strconv.FormatFloat(f, 'e', -1, 64) // d.ddde±XX
+	mant, exp, _ := strings.Cut(e, "e")
+	x, _ := strconv.Atoi(exp) //nolint:errcheck // FormatFloat's exponent is always a signed decimal
+	if x < -4 || x >= 16 {
+		sign := "+"
+		if x < 0 {
+			sign, x = "-", -x
+		}
+		return fmt.Sprintf("%se%s%02d", mant, sign, x)
+	}
+	s := strconv.FormatFloat(f, 'f', -1, 64)
+	if !strings.Contains(s, ".") {
+		s += ".0"
+	}
+	return s
+}
+
 func resolveTimestamp(s string) (Value, error) {
 	m := timestampParts.FindStringSubmatch(s)
 	atoi := func(x string) int { n, _ := strconv.Atoi(x); return n }
 	y, mo, d := atoi(m[1]), atoi(m[2]), atoi(m[3])
 	date := time.Date(y, time.Month(mo), d, 0, 0, 0, 0, time.UTC)
 	if date.Year() != y || int(date.Month()) != mo || date.Day() != d {
-		return Value{}, fmt.Errorf("the header value %s is no valid date", pyjson.StrRepr(s))
+		return Value{}, fmt.Errorf("the header value %q is no valid date", s)
 	}
 	if m[4] == "" {
 		iso := fmt.Sprintf("%04d-%02d-%02d", y, mo, d)
@@ -261,7 +281,7 @@ func resolveTimestamp(s string) (Value, error) {
 	}
 	h, mi, sec := atoi(m[4]), atoi(m[5]), atoi(m[6])
 	if h > 23 || mi > 59 || sec > 59 {
-		return Value{}, fmt.Errorf("the header value %s is no valid time", pyjson.StrRepr(s))
+		return Value{}, fmt.Errorf("the header value %q is no valid time", s)
 	}
 	out := fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", y, mo, d, h, mi, sec)
 	if frac := m[7]; frac != "" {
@@ -290,7 +310,13 @@ func YAMLStr(s string) string {
 	if plainRoundTrips(s) {
 		return s
 	}
-	return pyjson.String(s, false)
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(s); err != nil {
+		panic(err) // a string always encodes
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 // pyyaml's reader rejects these characters anywhere in a stream.

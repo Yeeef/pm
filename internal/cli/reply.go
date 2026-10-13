@@ -7,6 +7,7 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -63,7 +64,7 @@ func restampReview(e *env, r *repo, need *work.Item, reason string) (string, err
 	m := mergedAs.FindStringSubmatch(reason)
 	if m == nil {
 		return "", refuse("review %s is closed as %s, without 'merged as <sha>'; once its work is on main, restamp it "+
-			"with pm action done %s --reason \"merged as <sha>\"", id, pyRepr(old), id)
+			"with pm action done %s --reason \"merged as <sha>\"", id, strconv.Quote(old), id)
 	}
 	if _, err := onMain(e, "merged as", m[1]); err != nil {
 		return "", err

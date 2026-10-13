@@ -113,8 +113,8 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
     # A misspelt option is not a finding: three agents stored a literal `--text=…` before pm finding add took
     # --text.
     refused(repo, "finding", "add", "--sprint", "repo-demo.1", "--txt=It parses 9 of 10.",
-            match=r"the finding text starts with --, an option pm finding add does not have: '--txt=It parses 9 of "
-                  r"10\.'; give the text as one quoted argument")
+            match=r'the finding text starts with --, an option pm finding add does not have: "--txt=It parses 9 of '
+                  r'10\."; give the text as one quoted argument')
     refused(repo, "finding", "add", "--sprint", "repo-demo.1", "It parses.", "--text=It parses too.",
             match=r"give the finding as one argument or with --text or --text-file - <<'EOF', not both")
     # folded: test_task_move_takes_a_task_from_directly_under_a_project_into_its_sprint
@@ -185,7 +185,7 @@ def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
     assert res.returncode == 0, res.stderr
     assert res.stdout.startswith("demo  repo-demo  A demo project.\ndecisions await you (1):\n")
     assert "Sprint 1: First  .1  " in res.stdout
-    refused(repo, "show", "--project", "old", match=r"no open project 'old'; open ones: demo$")
+    refused(repo, "show", "--project", "old", match=r'no open project "old"; open ones: demo$')
     refused(repo, "show", "--project", "demo", "--json", match="--project prints text only; drop --json")
     refused(repo, "show", "--project", "demo", "--sprint", "repo-demo.1", match="--sprint prints text only, one sprint")
     refused(repo, "show", "--project", "demo", "--record", "demo", "--section", "Goal",
@@ -280,7 +280,7 @@ def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
     repo.mark()
     refused(repo, "sprint", "close", "repo-demo.3", "--merged", off_main, "--pr", PR,
             match=rf"--merged {off_main} is not on origin/main; give the merge commit once the PR is on main")
-    refused(repo, "sprint", "close", "repo-demo.3", "--merged", "HEAD", match=r"--merged 'HEAD' is not a commit sha")
+    refused(repo, "sprint", "close", "repo-demo.3", "--merged", "HEAD", match=r'--merged "HEAD" is not a commit sha')
     refused(repo, "sprint", "close", "repo-demo.3", "--pr", PR, match=r"--pr names the PR whose merge --merged gives")
     refused(repo, "sprint", "close", "repo-demo.2", "--merged", on_main,
             match=r"sprint repo-demo.2 holds PR review repo-demo.2.1 \(https://github.com/o/r/pull/12\), whose close "
@@ -303,7 +303,7 @@ def test_a_review_of_a_pr_that_does_not_target_main_is_refused_naming_the_fix(re
     refused(repo, *review, match=r"--pr https://github.com/o/r/pull/12: pm reads its base branch from GitHub, and "
                                  r"cannot: gh pr view .* failed: GraphQL: Could not resolve to a PullRequest")
     repo.set_pr(PR, "OPEN", base="codex-parity")
-    refused(repo, *review, match=r"--pr https://github.com/o/r/pull/12 merges into 'codex-parity', not main, so its "
+    refused(repo, *review, match=r"--pr https://github.com/o/r/pull/12 merges into \"codex-parity\", not main, so its "
                                  r"merge does not deliver the sprint; raise the review on the PR that reaches main, or "
                                  r"retarget this one first \(gh pr edit https://github.com/o/r/pull/12 --base main\)")
     repo.set_pr(PR, "OPEN")
@@ -334,11 +334,11 @@ def test_action_done_restamps_a_review_closed_before_its_pr_reached_main(repo, t
     assert repo.pm("action", "done", review, "--reason", first).returncode == 0
     assert repo.pm("action", "done", action, "--reason", "restarted").returncode == 0
     repo.mark()
-    refused(repo, "sprint", "close", "repo-demo.1", match=rf"PR review {review} \({PR}\) is closed as '{first}', not "
+    refused(repo, "sprint", "close", "repo-demo.1", match=rf"PR review {review} \({PR}\) is closed as \"{first}\", not "
                                                          rf"'merged as <sha>'; .* restamp it: pm action done {review} "
                                                          r"--reason \"merged as <sha>\"")
     refused(repo, "action", "done", review, "--reason", "it landed",
-            match=rf"review {review} is closed as '{first}', without 'merged as <sha>'; once its work is on main, "
+            match=rf"review {review} is closed as \"{first}\", without 'merged as <sha>'; once its work is on main, "
                   rf"restamp it with pm action done {review} --reason \"merged as <sha>\"")
     refused(repo, "action", "done", review, "--reason", f"merged as {off_main}",
             match=rf"merged as {off_main} is not on origin/main; give the merge commit once the PR is on main")
@@ -452,7 +452,7 @@ def test_a_pr_that_changes_covered_code_waits_until_its_design_page_is_updated_o
             match=r"https://github.com/o/r/pull/13 changes code that design pages cover, and sprint repo-demo.2 "
                   r"neither updated nor waived them: design/parser.md \(covers src/parser/lex.go\)")
     refused(repo, "design", "unchanged", "lexer", "--sprint", "repo-demo.2", "--reason", "R.",
-            match=r"no design page 'lexer'; known: parser")
+            match=r'no design page "lexer"; known: parser')
     refused(repo, "design", "unchanged", "parser", "--sprint", "repo-demo.1", "--reason", "R.",
             match=r"sprint repo-demo.1 is closed or not in the work store")
     res = repo.pm("design", "unchanged", "parser", "--sprint", "repo-demo.2", "--reason",
@@ -595,7 +595,7 @@ def test_check_lists_covers_patterns_that_match_nothing_as_waiting_and_lists_unc
                                '  design/parser.md: covers pattern "src/cli/split.go"\n'), res.stdout
     repo.write("design/parser.md", design_page("[src/parser/**, /src/old/**]"))
     res = repo.pm("check")
-    assert res.returncode == 1 and ("design/parser: covers pattern '/src/old/**' is not relative to the repo root "
+    assert res.returncode == 1 and ('design/parser: covers pattern "/src/old/**" is not relative to the repo root '
                                     "(no leading /)") in res.stderr, res
     repo.write("design/parser.md", design_page("[src/parser/**]"))
     (repo.records / "design/agents.md").unlink()
@@ -811,7 +811,7 @@ def test_sprint_move_in_one_go_and_its_refusals(repo):
             match="repo-demo.1.3 is not a sprint in the work store")
     refused(repo, "sprint", "move", "repo-demo.2", "--to", "old", text=MOVE_REASON,
             match=r"project old \(repo-old\) is closed; move the sprint to an open project")
-    refused(repo, "sprint", "move", "repo-demo.2", "--to", "nope", text=MOVE_REASON, match="no project record named 'nope'")
+    refused(repo, "sprint", "move", "repo-demo.2", "--to", "nope", text=MOVE_REASON, match='no project record named "nope"')
     refused(repo, "sprint", "move", "repo-demo.2", "--to", "site", text="One line.", match="the decision body is a single line")
     refused(repo, "sprint", "move", "repo-demo.2", "--to", "demo", text=MOVE_REASON,
             match=r"sprint repo-demo.2 is in project demo already, as sprint 2")
@@ -857,15 +857,15 @@ def test_sprint_edit_renames_the_sprint_in_both_stores_and_records_why(repo):
     refused(repo, "sprint", "edit", "repo-demo.1.2", "--title", "X", text=RENAME_REASON,
             match="repo-demo.1.2 is not a sprint in the work store")
     refused(repo, "sprint", "edit", "repo-demo.1", "--title", "First", text=RENAME_REASON,
-            match="sprint repo-demo.1 is titled 'First' already")
+            match='sprint repo-demo.1 is titled "First" already')
     refused(repo, "sprint", "edit", "repo-demo.1", "--title", "Sprint 1: Tables", text=RENAME_REASON,
-            match=r"--title 'Sprint 1: Tables' carries a 'Sprint <n>: ' prefix; give the title alone")
+            match=r"--title \"Sprint 1: Tables\" carries a 'Sprint <n>: ' prefix; give the title alone")
     refused(repo, "sprint", "edit", "repo-demo.1", "--title", "Tables", text="One line.",
             match="the decision body is a single line")
     res = repo.pm("sprint", "edit", "repo-demo.1", "--title", "Parse: tables too", text=RENAME_REASON)
     assert res.returncode == 0, res.stderr
     assert repo.changes() == {"repo-demo.1": {"title": "Sprint 1: Parse: tables too"}}
-    assert committed(repo, ["pm: renamed sprint repo-demo.1 to 'Sprint 1: Parse: tables too' and added a sprint "
+    assert committed(repo, ["pm: renamed sprint repo-demo.1 to \"Sprint 1: Parse: tables too\" and added a sprint "
                             "decision to records/sprints/demo-1.md"])
     text = (repo.records / "sprints/demo-1.md").read_text()
     assert text.startswith('---\ntype: sprint\ntitle: "Parse: tables too"\nbead: repo-demo.1\n---\n')

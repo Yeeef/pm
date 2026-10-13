@@ -9,6 +9,7 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -28,7 +29,7 @@ func dedupe(list []string) []string {
 func raiseReview(e *env, p *Parsed) (string, error) {
 	pr := strip(p.Get("pr"))
 	if !urlRE.MatchString(pr) {
-		return "", refuse("--pr %s is not a URL; give the pull request's link", pyRepr(pr))
+		return "", refuse("--pr %s is not a URL; give the pull request's link", strconv.Quote(pr))
 	}
 	focus := strip(p.Get("focus"))
 	if focus == "" {
@@ -158,7 +159,7 @@ func prReachesMain(here, root, pr string) error {
 	}
 	if got.Base != cfg.MainBranch {
 		return refuse("--pr %s merges into %s, not %s, so its merge does not deliver the sprint; raise the review on "+
-			"the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)", pr, pyRepr(got.Base),
+			"the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)", pr, strconv.Quote(got.Base),
 			cfg.MainBranch, cfg.MainBranch, pr, cfg.MainBranch)
 	}
 	return nil

@@ -15,8 +15,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // Types is every record type in the order Python's REQUIRED lists them, which a refusal names.
@@ -229,7 +227,7 @@ func checkDatedHeader(meta Meta, rel string) error {
 	}
 	day := meta["date"].Str
 	if !dayRE.MatchString(day) {
-		return errorf("%s: date must be YYYY-MM-DD, got %s", rel, pyjson.StrRepr(day))
+		return errorf("%s: date must be YYYY-MM-DD, got %q", rel, day)
 	}
 	if feedback {
 		return nil

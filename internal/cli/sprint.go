@@ -158,7 +158,7 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	var mergedSHA string
 	if agentMerge {
 		if pr = strip(pr); prGiven && !urlRE.MatchString(pr) {
-			return "", refuse("--pr %s is not a URL; give the pull request's link", pyRepr(pr))
+			return "", refuse("--pr %s is not a URL; give the pull request's link", strconv.Quote(pr))
 		}
 		var err error
 		if mergedSHA, err = onMain(e, "--merged", strip(merged)); err != nil { // before the records lock: it fetches
@@ -300,7 +300,7 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 			}
 			return nil, nil, refuse("PR review %s (%s) is closed as %s, not 'merged as <sha>'; a sprint closes only once each PR "+
 				"delivering it is on main, so the close stamps its merge commit into the Outcome; once its work is on main, "+
-				"restamp it: pm action done %s --reason \"merged as <sha>\"", rv.ID, rv.Need.Review.PR, pyRepr(why), rv.ID)
+				"restamp it: pm action done %s --reason \"merged as <sha>\"", rv.ID, rv.Need.Review.PR, strconv.Quote(why), rv.ID)
 		}
 		pr := rv.Need.Review.PR
 		if strings.Contains(pr, "/pull/") {
@@ -383,7 +383,7 @@ var shaRE = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 // given names the sha in a refusal (--merged, merged as).
 func onMain(e *env, given, sha string) (string, error) {
 	if !shaRE.MatchString(sha) {
-		return "", refuse("%s %s is not a commit sha: 7 to 40 hex digits", given, pyRepr(sha))
+		return "", refuse("%s %s is not a commit sha: 7 to 40 hex digits", given, strconv.Quote(sha))
 	}
 	cfg, err := config.Load(e.here)
 	if err != nil {

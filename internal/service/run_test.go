@@ -486,13 +486,13 @@ func TestAReplyIsRefusedWithItsReason(t *testing.T) {
 		code int
 		said string
 	}{
-		{ok, "evil.example:80", 403, "refused: Host 'evil.example:80' is neither this machine nor the configured site_url; open the site at http://localhost:0"},
+		{ok, "evil.example:80", 403, "refused: Host \"evil.example:80\" is neither this machine nor the configured site_url; open the site at http://localhost:0"},
 		{with("token", "x"), "", 403, "refused: the reply carries no valid token; reload the page (the server may have restarted) and send it again"},
-		{with("id", "p-9"), "", 400, "refused: 'p-9' is not a request waiting on the owner"},
-		{with("id", "p-1.2.3"), "", 400, "refused: 'p-1.2.3' is not a request waiting on the owner"},
+		{with("id", "p-9"), "", 400, "refused: \"p-9\" is not a request waiting on the owner"},
+		{with("id", "p-1.2.3"), "", 400, "refused: \"p-1.2.3\" is not a request waiting on the owner"},
 		{with("id", "p-1.2.2"), "", 400, "refused: p-1.2.2 is already closed (done by hand)"},
 		{with("text", " \r\n "), "", 400, "refused: the reply is empty"},
-		{with("rid", "a b"), "", 400, "refused: 'a b' is not a reply id"},
+		{with("rid", "a b"), "", 400, "refused: \"a b\" is not a reply id"},
 	}
 	for _, c := range cases {
 		code, _, body := s.post(c.form, c.host)

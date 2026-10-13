@@ -7,6 +7,7 @@ import (
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -96,7 +97,7 @@ func needMarkdown(p *Parsed) (string, error) {
 	for _, o := range pairs(p, "option") {
 		label := o[0]
 		if !optionLabel.MatchString(label) {
-			return "", refuse("the option label %s is not letters and digits only, e.g. a, b or keep", pyRepr(label))
+			return "", refuse("the option label %s is not letters and digits only, e.g. a, b or keep", strconv.Quote(label))
 		}
 		if _, ok := options[label]; ok {
 			return "", refuse("two options have the label %s; give each option its own label", label)

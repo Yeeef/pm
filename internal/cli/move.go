@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"time"
 )
 
@@ -294,7 +295,7 @@ func cmdSprintEdit(e *env, p *Parsed) (string, error) {
 	}
 	if sprintPrefix.MatchString(title) {
 		return "", refuse("--title %s carries a 'Sprint <n>: ' prefix; give the title alone, and pm keeps the sprint's "+
-			"number in front of it", pyRepr(title))
+			"number in front of it", strconv.Quote(title))
 	}
 	r, err := e.load(false)
 	if err != nil {
@@ -314,7 +315,7 @@ func cmdSprintEdit(e *env, p *Parsed) (string, error) {
 	}
 	old := rec.Title()
 	if title == old {
-		return "", refuse("sprint %s is titled %s already", id, pyRepr(title))
+		return "", refuse("sprint %s is titled %s already", id, strconv.Quote(title))
 	}
 	if err := decisionBody(reason); err != nil {
 		return "", err
@@ -344,13 +345,13 @@ func cmdSprintEdit(e *env, p *Parsed) (string, error) {
 	if err := ws.Edit(id, &full, nil); err != nil {
 		return "", err
 	}
-	out, err := r.apply(w, fmt.Sprintf("renamed sprint %s to %s and added a sprint decision to %s", id, pyRepr(full),
+	out, err := r.apply(w, fmt.Sprintf("renamed sprint %s to %s and added a sprint decision to %s", id, strconv.Quote(full),
 		r.rel(rec.Path)), "pm: ")
 	if err != nil {
 		if uerr := ws.Edit(id, &sp.Title, nil); uerr != nil {
-			return "", fmt.Errorf("%w; putting back the title %s failed too: %v", err, pyRepr(sp.Title), uerr)
+			return "", fmt.Errorf("%w; putting back the title %s failed too: %v", err, strconv.Quote(sp.Title), uerr)
 		}
-		return "", fmt.Errorf("%w; the work-store step is undone: %s is titled %s again", err, id, pyRepr(sp.Title))
+		return "", fmt.Errorf("%w; the work-store step is undone: %s is titled %s again", err, id, strconv.Quote(sp.Title))
 	}
 	return out, nil
 }

@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Yeeef/pm/internal/design"
@@ -65,7 +66,7 @@ func cmdDesignUnchanged(e *env, p *Parsed) (string, error) {
 		return "", refuse("sprint %s is closed or not in the work store; waive a page in an open sprint", id)
 	}
 	if known := r.designSlugs(); !slices.Contains(known, slug) {
-		return "", refuse("no design page %s; known: %s", pyRepr(slug), strings.Join(known, ", "))
+		return "", refuse("no design page %s; known: %s", strconv.Quote(slug), strings.Join(known, ", "))
 	}
 	if _, ok := design.Waivers(rec)[slug]; ok {
 		return "", refuse("%s already records that design page %s stays as it is", r.rel(rec.Path), slug)

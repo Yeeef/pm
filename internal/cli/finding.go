@@ -5,6 +5,7 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/textwrap"
 	"github.com/Yeeef/pm/internal/work"
+	"strconv"
 	"strings"
 )
 
@@ -17,7 +18,7 @@ func cmdFindingAdd(e *env, p *Parsed) (string, error) {
 		text = strip(strings.Join(words, " "))
 		if strings.HasPrefix(text, "--") {
 			return "", refuse("the finding text starts with --, an option pm finding add does not have: %s; give "+
-				"the text as one quoted argument, with --text=\"…\", or with --text-file - <<'EOF'", pyRepr(text))
+				"the text as one quoted argument, with --text=\"…\", or with --text-file - <<'EOF'", strconv.Quote(text))
 		}
 	}
 	if text == "" {

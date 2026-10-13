@@ -7,13 +7,14 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 	"path/filepath"
 	"slices"
+	"strconv"
 )
 
 // newRecord is the checks every new-record command makes first: the slug's form (badSlug the refusal, with the slug
 // for its %s) and a non-empty title.
 func newRecord(badSlug, slug, title string) error {
 	if !slugRE.MatchString(slug) {
-		return refuse(badSlug, pyRepr(slug))
+		return refuse(badSlug, strconv.Quote(slug))
 	}
 	if strip(title) == "" {
 		return refuse("--title is empty")

@@ -1,6 +1,7 @@
 // Package proc runs a command as Python pm's subprocess.run(capture_output=True, text=True, timeout=…) does, and
-// reports a failure to start or a timeout as the Python exception would: its type name and its str(). pm prints both
-// in hook lines and refusals ("pm show did not run at session start (FileNotFoundError: [Errno 2] …)").
+// reports a failure to start or a timeout as the Python exception would: its type name and its message, with values
+// quoted as Go quotes them. pm prints both in hook lines and refusals ("pm show did not run at session start
+// (FileNotFoundError: [Errno 2] …)").
 package proc
 
 import (
@@ -11,12 +12,11 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // Error is a command that did not run to an exit status: Python's OSError subclasses and subprocess.TimeoutExpired.
@@ -55,7 +55,7 @@ func Run(argv []string, o Options) (Result, error) {
 	if !strings.Contains(path, "/") {
 		found, err := exec.LookPath(path)
 		if err != nil {
-			return Result{}, &Error{"FileNotFoundError", "[Errno 2] No such file or directory: " + Repr(path)}
+			return Result{}, &Error{"FileNotFoundError", "[Errno 2] No such file or directory: " + strconv.Quote(path)}
 		}
 		path = found
 	}
@@ -90,7 +90,7 @@ func Run(argv []string, o Options) (Result, error) {
 	}
 	if ctx.Err() == context.DeadlineExceeded {
 		return Result{}, &Error{"TimeoutExpired",
-			fmt.Sprintf("Command '%s' timed out after %s seconds", ReprList(argv), o.TimeoutText)}
+			fmt.Sprintf("Command %q timed out after %s seconds", argv, o.TimeoutText)}
 	}
 	var exit *exec.ExitError
 	switch {
@@ -103,7 +103,7 @@ func Run(argv []string, o Options) (Result, error) {
 		}
 		return Result{text(out), text(errb), code}, nil
 	case errors.Is(err, fs.ErrPermission):
-		return Result{}, &Error{"PermissionError", "[Errno 13] Permission denied: " + Repr(argv[0])}
+		return Result{}, &Error{"PermissionError", "[Errno 13] Permission denied: " + strconv.Quote(argv[0])}
 	default:
 		return Result{}, &Error{"OSError", err.Error()}
 	}
@@ -131,25 +131,13 @@ func dirError(dir string) error {
 	st, err := os.Stat(dir)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return &Error{"FileNotFoundError", "[Errno 2] No such file or directory: " + Repr(dir)}
+		return &Error{"FileNotFoundError", "[Errno 2] No such file or directory: " + strconv.Quote(dir)}
 	case errors.Is(err, fs.ErrPermission):
-		return &Error{"PermissionError", "[Errno 13] Permission denied: " + Repr(dir)}
+		return &Error{"PermissionError", "[Errno 13] Permission denied: " + strconv.Quote(dir)}
 	case err != nil:
 		return &Error{"OSError", err.Error()}
 	case !st.IsDir():
-		return &Error{"NotADirectoryError", "[Errno 20] Not a directory: " + Repr(dir)}
+		return &Error{"NotADirectoryError", "[Errno 20] Not a directory: " + strconv.Quote(dir)}
 	}
 	return nil
-}
-
-// Repr is Python's repr() of a str.
-func Repr(s string) string { return pyjson.StrRepr(s) }
-
-// ReprList is Python's repr() of a list of str.
-func ReprList(items []string) string {
-	parts := make([]string, len(items))
-	for i, s := range items {
-		parts[i] = Repr(s)
-	}
-	return "[" + strings.Join(parts, ", ") + "]"
 }

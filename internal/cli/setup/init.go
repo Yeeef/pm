@@ -10,7 +10,6 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/install"
 	"github.com/Yeeef/pm/internal/proc"
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -50,7 +49,7 @@ func checkSiteURL(u string) error {
 	p, err := url.Parse(u)
 	if err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.Hostname() == "" || p.Path != "" ||
 		p.RawQuery != "" || p.Fragment != "" {
-		return fmt.Errorf("--site-url %s is not an http(s) base URL like https://pm.example.com", pyjson.StrRepr(u))
+		return fmt.Errorf("--site-url %q is not an http(s) base URL like https://pm.example.com", u)
 	}
 	return nil
 }

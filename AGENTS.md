@@ -22,7 +22,7 @@ it covers.
 | `internal/site`, `internal/service` | The pages; the pm service, its units and its access check |
 | `internal/install`, `internal/launch` | `pm init`, `doctor`, `upgrade`, `uninstall`; the launcher that runs a repo's pinned release |
 | `internal/session`, `internal/sync` | Which session runs pm and which are live; the push steps |
-| `internal/config`, `buildinfo`, `proc`, `pyjson`, `textwrap` | `.pm/config.toml`; the build's version; subprocesses; JSON as Python pm wrote it; Python's `textwrap.fill` |
+| `internal/config`, `buildinfo`, `proc`, `textwrap` | `.pm/config.toml`; the build's version; subprocesses; Python's `textwrap.fill` |
 | `tests/` | The harness: `conftest.py` (fixtures, seeds, the integration guard), the fakes, the live evals |
 | `release/`, `install.sh`, `CHANGELOG.md`, `changelog.d/` | The release build and tools (`release/README.md`); released notes; unreleased entry files |
 | `.github/workflows/`, `.github/scripts/` | CI on every PR and push to main, the release, the website deploy; their helpers |

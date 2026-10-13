@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -28,8 +29,6 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/proc"
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/session"
 	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
@@ -579,9 +578,14 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 			u = &url.URL{Path: target}
 		}
 		_, text, snap := s.page(pathOf(u.Path))
-		body := fmt.Sprintf(`{"asof": %s, "page": %s}`, pyjson.FloatRepr(float64(snap.asOf.UnixMicro())/1e6),
-			pyjson.String(digest(text), true))
-		s.reply(w, 200, "application/json", []byte(body))
+		body, err := json.Marshal(struct {
+			AsOf float64 `json:"asof"`
+			Page string  `json:"page"`
+		}{float64(snap.asOf.UnixMicro()) / 1e6, digest(text)})
+		if err != nil {
+			panic(err) // a float from a time and a hex digest always encode
+		}
+		s.reply(w, 200, "application/json", body)
 		return
 	}
 	if ctype, ok := ImageTypes[strings.ToLower(path.Ext(r.URL.Path))]; ok {
@@ -703,7 +707,7 @@ func (s *server) check(form url.Values, items map[string]*work.Item) (int, strin
 	text := config.PyStrip(strings.ReplaceAll(form.Get("text"), "\r\n", "\n"))
 	n := items[id]
 	if n == nil || n.Type != work.Need {
-		return 400, fmt.Sprintf("refused: %s is not a request waiting on the owner", proc.Repr(id)), ""
+		return 400, fmt.Sprintf("refused: %q is not a request waiting on the owner", id), ""
 	}
 	if n.Status == work.Closed {
 		why := n.CloseReason
@@ -732,7 +736,7 @@ func (s *server) take(form url.Values) (int, string) {
 		rid = newUUID()
 	}
 	if !replyID.MatchString(rid) {
-		return 400, fmt.Sprintf("refused: %s is not a reply id", proc.Repr(rid))
+		return 400, fmt.Sprintf("refused: %q is not a reply id", rid)
 	}
 	e := Entry{RID: rid, ID: id, Text: text, At: float64(time.Now().UnixMicro()) / 1e6}
 	added, err := SpoolAdd(s.d.Spool, e)

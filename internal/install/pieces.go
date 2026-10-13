@@ -29,9 +29,9 @@
 // pushed); codex.go the Codex roots; codextrust.go and sessiontrust.go which of pm's hooks Codex trusts (SessionTrust,
 // the state hook's check in a Codex session, kept in .pm/run/codex-trust.json); binary.go pm copied into the bin dir;
 // pins.go the launcher's pins that no checkout on the machine pins, which pm upgrade prunes and pm doctor names;
-// legacy.go the pre-package harness's pieces, found and refused; git.go the git calls, among them the records
-// branch's bootstrap (CreateRecordsBranch). golden_test.go holds the pieces on a table of inputs to
-// testdata/pieces.json.
+// legacy.go the pre-package harness's pieces, found and refused; jsonobject.go a JSON settings file read and rewritten
+// with every key in its order; git.go the git calls, among them the records branch's bootstrap (CreateRecordsBranch).
+// golden_test.go holds the pieces on a table of inputs to testdata/pieces.json.
 package install
 
 import (

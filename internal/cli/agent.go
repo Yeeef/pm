@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/site"
@@ -145,7 +145,7 @@ func (r *repo) project(name string) (*records.Record, error) {
 	if list == "" {
 		list = "none"
 	}
-	return nil, refuse("no project record named %s; known projects: %s", pyRepr(name), list)
+	return nil, refuse("no project record named %s; known projects: %s", strconv.Quote(name), list)
 }
 
 // rel is a store path as pm names it: records/<path>.
@@ -354,6 +354,3 @@ func firstSentence(text string, limit int) string {
 	}
 	return s
 }
-
-// pyRepr is Python's repr() of a string.
-func pyRepr(s string) string { return pyjson.StrRepr(s) }

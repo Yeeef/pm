@@ -144,7 +144,7 @@ func TestThePublicHostNeedsACloudflareAccessTokenThatVerifies(t *testing.T) {
 			other := strings.Split(k.sign(nil, nil, map[string]any{"sub": "someone else"}), ".")
 			return p[0] + "." + other[1] + "." + p[2]
 		}(), refused + "signature verification failed"},
-		{"HS256", k.sign(nil, map[string]any{"alg": "HS256"}, nil), refused + "its algorithm is 'HS256', not RS256"},
+		{"HS256", k.sign(nil, map[string]any{"alg": "HS256"}, nil), refused + "its algorithm is \"HS256\", not RS256"},
 		{"wrong aud", k.sign(nil, nil, map[string]any{"aud": []string{"other"}}), refused + "its audience is not this Access application's"},
 		{"no aud", k.sign(nil, nil, map[string]any{"aud": nil}), refused + "it has no aud claim"},
 		{"wrong iss", k.sign(nil, nil, map[string]any{"iss": "https://evil.cloudflareaccess.com"}), refused + "its issuer is not the configured Access team"},
@@ -156,7 +156,7 @@ func TestThePublicHostNeedsACloudflareAccessTokenThatVerifies(t *testing.T) {
 		{"meta token", k.sign(nil, nil, map[string]any{"type": "meta", "iss": nil}), refused + "it is not an Access application token (type app)"},
 		{"org token", k.sign(nil, nil, map[string]any{"type": "org"}), refused + "it is not an Access application token (type app)"},
 		{"no type", k.sign(nil, nil, map[string]any{"type": nil}), refused + "it is not an Access application token (type app)"},
-		{"unknown kid", k.sign(nil, map[string]any{"kid": "k9"}, nil), refused + "the team's keys hold no key with kid 'k9'"},
+		{"unknown kid", k.sign(nil, map[string]any{"kid": "k9"}, nil), refused + "the team's keys hold no key with kid \"k9\""},
 	}
 	for _, c := range cases {
 		if got := s.refusal(request("pm.example.com:443", AccessHeader, c.token)); got != c.said {
@@ -180,7 +180,7 @@ func TestThePublicHostNeedsACloudflareAccessTokenThatVerifies(t *testing.T) {
 		after time.Duration
 		want  int
 	}{{refetchEvery - time.Second, before}, {refetchEvery, before + 1}, {refetchEvery + time.Second, before + 1}} {
-		if err := s.access.verify(unknown, team, aud, at.Add(c.after)); err == nil || !strings.Contains(err.Error(), "no key with kid 'k2'") {
+		if err := s.access.verify(unknown, team, aud, at.Add(c.after)); err == nil || !strings.Contains(err.Error(), "no key with kid \"k2\"") {
 			t.Errorf("an unknown kid %s after the fetch: %v", c.after, err)
 		}
 		if got := k.count(); got != c.want {
@@ -249,7 +249,7 @@ func TestLocalhostIsServedAsBeforeAndAnEdgeForwardedRequestNeedsTheTokenWhatever
 		for _, host := range []string{"evil.example:80", ""} { // a rebinding domain, and no Host at all
 			shown := "None"
 			if host != "" {
-				shown = "'" + host + "'"
+				shown = `"` + host + `"`
 			}
 			want := "refused: Host " + shown + " is neither this machine nor the configured site_url; open the site at "
 			if got := s.refusal(request(host, AccessHeader, k.sign(nil, nil, nil))); !strings.HasPrefix(got, want) {
