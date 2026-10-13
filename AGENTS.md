@@ -214,9 +214,11 @@ hold, and each one's claim of the other's task, run by the test as that session,
 in all (the solo Claude run is the long one when it polls for the reply instead of waiting); `-rA` prints each
 run's latency and its transcript paths. Claude runs with the user's Claude config, its
 user settings left out; Codex with a temp `CODEX_HOME` holding a copy of the user's `auth.json`, pm's hooks trusted
-through `codex app-server` as the TUI's review trusts them. `PM_PARITY_CODEX_SANDBOX` sets Codex's sandbox (default
-`workspace-write`); a host where bubblewrap cannot start (`bwrap: loopback: Failed RTM_NEWADDR`) needs
-`danger-full-access`.
+through `codex app-server` as the TUI's review trusts them; an interactive Claude session with a config dir of its own
+holding a copy of the user's `.credentials.json`. Every login copy goes through `agents.login_copy`: mode 600, removed
+when the test ends, a failed one too (`test_login_copies.py` holds the harness to it). `PM_PARITY_CODEX_SANDBOX` sets
+Codex's sandbox (default `workspace-write`); a host where bubblewrap cannot start (`bwrap: loopback: Failed
+RTM_NEWADDR`) needs `danger-full-access`.
 
 ## Changing prime.md and the hooks
 

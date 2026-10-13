@@ -8,6 +8,9 @@ the records store, and the pm service, which the fake supervisor runs. The agent
 - Codex with CODEX_HOME a temp dir holding a copy of the user's auth.json and a config this module writes: the clone
   trusted, and each of pm's hooks trusted by its hash, as the Codex user's own trust review would leave it.
 
+Every copy of a login (Codex's auth.json, Claude Code's .credentials.json for a TUI) is made by login_copy: mode 600,
+removed when the clone closes, which its fixture runs after a failed test and a failed setup too.
+
 HOME, the pm bin dir and the supervisor's units are the scratch ones in either runtime, so a hook's
 `pm init --session-start` never touches the user's pm, units or Codex config.
 """
@@ -29,6 +32,7 @@ import subprocess
 import termios
 import threading
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -248,6 +252,19 @@ class Run:
         return out
 
 
+@contextlib.contextmanager
+def login_copy(src: Path, dst: Path) -> Iterator[Path]:
+    """A copy of a runtime's login (Codex's auth.json, Claude Code's .credentials.json) at `dst`, readable by the user
+    alone (mode 600), removed when the block exits, a failing block too: the copies hold the user's live tokens."""
+    fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(src.read_bytes())
+        yield dst
+    finally:
+        dst.unlink(missing_ok=True)
+
+
 def _load(path: Path) -> list[dict]:
     out = []
     if path.exists():
@@ -260,10 +277,20 @@ def _load(path: Path) -> list[dict]:
 # ---------------------------------------------------------------- the scratch clone
 
 class Clone:
-    """A repo set up by `pm init` under `tmp`, with its origin, its pm service and the scratch homes the agents use."""
+    """A repo set up by `pm init` under `tmp`, with its origin, its pm service and the scratch homes the agents use.
+    The logins copied for its agents are `logins`, removed by close, which a failed setup runs too."""
 
     def __init__(self, tmp: Path):
         self.tmp = tmp
+        self.logins = contextlib.ExitStack()
+        try:
+            self._set_up()
+        except BaseException:
+            self.close()
+            raise
+
+    def _set_up(self) -> None:
+        tmp = self.tmp
         self.root = tmp / "repo"
         self.origin = tmp / "origin.git"
         self.port = free_port()
@@ -370,7 +397,7 @@ class Clone:
         each of pm's hooks must then be listed trusted."""
         self.codex_home.mkdir(exist_ok=True)
         assert REAL_CODEX_AUTH.is_file(), f"Codex is not logged in: no {REAL_CODEX_AUTH}"
-        shutil.copyfile(REAL_CODEX_AUTH, self.codex_home / "auth.json")
+        self.logins.enter_context(login_copy(REAL_CODEX_AUTH, self.codex_home / "auth.json"))
         config = self.codex_home / "config.toml"
         text = config.read_text() if config.exists() else ""
         config.write_text(text + f'\n[projects."{self.root}"]\ntrust_level = "trusted"\n')
@@ -413,8 +440,10 @@ class Clone:
         return self.start(runtime, name, prompt, resume).finish(timeout)
 
     def close(self) -> None:
-        """Stop the clone's pm service and whatever else the fake supervisor started, and drop the Claude Code
-        project dirs this clone's sessions left in the user's Claude config (their transcripts are copied)."""
+        """Remove the logins copied for the agents, stop the clone's pm service and whatever else the fake supervisor
+        started, and drop the Claude Code project dirs this clone's sessions left in the user's Claude config (their
+        transcripts are copied)."""
+        self.logins.close()
         stop_services(self.tmp)
         for d in CLAUDE_DIR.glob("projects/" + re.sub(r"[^A-Za-z0-9]", "-", str(self.tmp)) + "*"):
             shutil.rmtree(d, ignore_errors=True)
@@ -582,14 +611,15 @@ class Tui:
 
 
 def claude_config(clone: Clone) -> Path:
-    """A Claude Code config dir of the clone's own for an interactive session: a copy of the user's login, first-run
-    onboarding done and the clone trusted, as a user's would be after their first session there."""
+    """A Claude Code config dir of the clone's own for an interactive session: a copy of the user's login (one of the
+    clone's logins), first-run onboarding done and the clone trusted, as a user's would be after their first session
+    there."""
     d = clone.tmp / "claude-tui"
     if not d.exists():
         d.mkdir()
         creds = CLAUDE_DIR / ".credentials.json"
         assert creds.is_file(), f"Claude Code is not logged in: no {creds}"
-        shutil.copyfile(creds, d / ".credentials.json")
+        clone.logins.enter_context(login_copy(creds, d / ".credentials.json"))
         (d / ".claude.json").write_text(json.dumps({
             "hasCompletedOnboarding": True, "theme": "dark",
             "projects": {str(clone.root): {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True}}}))
