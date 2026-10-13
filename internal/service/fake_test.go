@@ -217,6 +217,7 @@ func (s *fakeStore) Create(work.New) (work.Item, error)                  { retur
 func (s *fakeStore) Edit(string, *string, *string) error                 { return errUnused }
 func (s *fakeStore) Close(string, string, work.Resolution, string) error { return errUnused }
 func (s *fakeStore) SetResolution(string, work.Resolution) error         { return errUnused }
+func (s *fakeStore) SetCloseReason(string, string) error                 { return errUnused }
 func (s *fakeStore) Move(string, string) error                           { return errUnused }
 func (s *fakeStore) MoveSprint(string, string, string) (work.Item, error) {
 	return work.Item{}, errUnused

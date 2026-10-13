@@ -529,11 +529,12 @@ class Repo:
         seeded = {i["id"] for i in issues if before.get(i["id"]) != json.dumps(i, sort_keys=True)}
         self.base.update({iid: self.imported[iid] for iid in seeded})
 
-    def set_pr(self, url: str, state: str, merge: str | None = None) -> None:
-        """What the fake gh reports for a PR: its state and, once merged, its merge commit."""
+    def set_pr(self, url: str, state: str, merge: str | None = None, base: str = "main") -> None:
+        """What the fake gh reports for a PR: its state, the branch it merges into and, once merged, its merge
+        commit."""
         path = Path(self.env["FAKE_GH_STATE"])
         prs = json.loads(path.read_text())
-        prs[url] = {"state": state, "mergeCommit": {"oid": merge} if merge else None}
+        prs[url] = {"state": state, "baseRefName": base, "mergeCommit": {"oid": merge} if merge else None}
         path.write_text(json.dumps(prs))
 
     def set_commit(self, slug: str, sha: str) -> None:

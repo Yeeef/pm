@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/textwrap"
 )
 
 // Expected values were Python pm 0.1.x's on the same inputs (its section parser, first sentence and textwrap.fill as
@@ -14,7 +15,7 @@ import (
 func TestWrapFillPutsALongWordOnItsOwnLine(t *testing.T) {
 	want := "- " + strings.TrimSpace(strings.Repeat("a ", 38)) + "\n  " + strings.TrimSpace(strings.Repeat("a ", 12)) +
 		"\n  " + strings.Repeat("v", 90) + "\n  end"
-	if got := wrapFill(strings.Repeat("a ", 50)+strings.Repeat("v", 90)+" end", 78, "- ", "  "); got != want {
+	if got := textwrap.Fill(strings.Repeat("a ", 50)+strings.Repeat("v", 90)+" end", 78, "- ", "  "); got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 	t.Run("ParseSectionsTakesUnicodeSpaceAfterAHeading", func(t *testing.T) {
