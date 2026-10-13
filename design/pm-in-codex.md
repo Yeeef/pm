@@ -40,6 +40,7 @@ Codex 0.154 (codex-rs `rust-v0.154.0`) against Claude Code 2.1.296:
 | Stop `last_assistant_message` | a string | nullable |
 | SessionStart sources | startup, resume, clear, compact | the same |
 | Sandbox | pm's paths in `permissions.additionalDirectories` | Linux with the network off denies `connect()` by seccomp, so no sandboxed command reaches `work.sock`; an execpolicy `allow` rule runs a command outside the sandbox when every segment matches; a heredoc script is one unsplit segment |
+| Approval modes | auto mode | `--approve-for-me` (config: `approvals_reviewer = "auto_review"`, `approval_policy = "on-request"`, `sandbox_mode = "workspace-write"`; the TUI's Auto-review preset) is the counterpart and what a user is expected to run: commands run in the sandbox, and a command the model asks to run outside it (`sandbox_permissions: "require_escalated"`) is decided by a reviewer model call (`codex-auto-review` on a ChatGPT login, low effort, read-only, 90 s deadline, a failed review denies); Codex never retries outside the sandbox on its own. Other modes: a sandbox mode with approval `never` (`codex exec`'s default), or `--dangerously-bypass-approvals-and-sandbox`. An execpolicy `allow` covering every segment skips both the sandbox and the reviewer |
 | Env inheritance | | Codex keeps its launcher's env but `*_TOKEN`, `*_KEY`, `*_SECRET`: a Codex run started from Claude Code sees `CLAUDE_CODE_SESSION_ID` and the messaging socket |
 
 ## Design
@@ -76,11 +77,11 @@ The state hook takes the runtime from the process ancestry, not from a flag on i
 
 ### Sandbox
 
-`.codex/rules/pm.rules` holds `prefix_rule(pattern=["pm"], decision="allow")`: a command whose every segment is a plain `pm …` runs outside the sandbox without approval, as pm's hooks already do. A command that is not (a heredoc body, a `cd x &&` prefix) stays inside; on Linux its connect to `work.sock` is refused, and pm says so and names `--text-file PATH` or `--text="…"`. The agent's own `git commit` in a sandboxed worktree asks for approval, as Codex does for any `.git` write; `writable_roots` lets a sandboxed session edit records ([Shared records store](../design/records-store.md)).
+`.codex/rules/pm.rules` holds `prefix_rule(pattern=["pm"], decision="allow")`: a command whose every segment is a plain `pm …` runs outside the sandbox without approval, as pm's hooks already do. A command that is not (a heredoc body, a `cd x &&` prefix) stays inside; on Linux its connect to `work.sock` is refused, and pm says so and names `--text-file PATH` or `--text="…"`. Under `--approve-for-me` the model may instead ask to run it outside the sandbox, which costs one reviewer call (about 2 s). The agent's own `git commit` in a sandboxed worktree asks for approval, as Codex does for any `.git` write; `writable_roots` lets a sandboxed session edit records ([Shared records store](../design/records-store.md)).
 
 ### Gaps against Claude Code
 
-The 12 gaps the sprint 1 gap list found, each with where it stands. A gap marked closed is closed on the open PRs: [#47](https://github.com/Yeeef/pm/pull/47) (pm-codex sprint 1) and, for gaps 8 and 9, [#56](https://github.com/Yeeef/pm/pull/56) (pm-codex sprint 2). Neither is on main or in a release yet; the released pm (0.7.1) has every gap open.
+The 12 gaps the sprint 1 gap list found, each with where it stands. A gap marked closed is closed on main by [#47](https://github.com/Yeeef/pm/pull/47) (pm-codex sprint 1), which carried [#56](https://github.com/Yeeef/pm/pull/56) (pm-codex sprint 2) for gaps 8 and 9; no release has them yet, so the released pm (0.7.1) has every gap open.
 
 | # | Gap | Status | How |
 |---|---|---|---|
@@ -94,14 +95,14 @@ The 12 gaps the sprint 1 gap list found, each with where it stands. A gap marked
 | 8 | The judge needs `claude`; Codex treats its failure as a silent pass | closed (pm-codex sprint 2) | Each session's judge runs on its own runtime, `codex exec` in Codex; `pm day summarize` on the runtime `summary_runtime` names; a null `last_assistant_message` passes |
 | 9 | The rule named only Claude Code's AskUserQuestion; Codex's ask tools differ | closed (#56) | The rule's three texts name each runtime's ask tool: AskUserQuestion; Codex's `request_user_input_async` in Default mode (gpt-6 models: a non-blocking pick list, the answer arrives as a new user message) and the blocking `request_user_input` in Plan mode. The owner-request hook reads the stopping turn's ask tool calls from the transcript and gives their questions to the judge as asked ([Owner-request Stop hook](../design/owner-request-hook.md)). |
 | 10 | `pm clean` did not see live Codex sessions | closed | it reads Codex rollouts |
-| 11 | A network-off Linux sandbox denies `connect()` to `work.sock` | closed, not run live | `.codex/rules/pm.rules` (see Sandbox). Bubblewrap cannot start on the owner's host. |
+| 11 | A network-off Linux sandbox denies `connect()` to `work.sock` | left (owner decision): designed, not run live where bubblewrap cannot start | `.codex/rules/pm.rules` (see Sandbox). Bubblewrap cannot start on the owner's host, and pm does not change the host. |
 | 12 | Claude-only wording; `live()` walked every rollout | closed | runtime-neutral refusal; rollouts found by the thread id's date |
 
-Gap 5 is left by a pm-codex project decision. Each gap not closed is detailed under Gaps not closed.
+Gaps 5 and 11 are left by pm-codex project decisions. Each gap not closed is detailed under Gaps not closed.
 
 ### Gaps not closed
 
-Three of the 12 gaps are not closed: hook trust (1), `.codex/` from the main checkout (5), and the sandbox not run live (11).
+Three of the 12 gaps are not closed: hook trust (1), `.codex/` from the main checkout (5), and the sandbox not run live where bubblewrap cannot start (11).
 
 #### Gap 1: Codex runs no pm hook until the user trusts it
 
@@ -126,16 +127,18 @@ Three of the 12 gaps are not closed: hook trust (1), `.codex/` from the main che
 | Until then | Hook changes reach main through a PR, as every pm piece does. The README says Codex reads `.codex/` from the main checkout. `pm doctor` checks the main checkout's `.codex/hooks.json`. |
 | Closes when | Codex reads project config from the session's worktree. |
 
-#### Gap 11: the sandboxed path is not run live
+#### Gap 11: the sandboxed path is not run live (left)
 
 | | |
 |---|---|
 | What is designed | `.codex/rules/pm.rules` runs a plain `pm …` command outside the sandbox. This rests on codex-rs `exec_policy.rs:440`, which bypasses the sandbox when every segment of a command is allowed. Without the rule, a network-off Linux sandbox denies `connect()` to `work.sock` by seccomp (`landlock.rs:100-117`). |
 | Not run live | Bubblewrap cannot start on the owner's Linux host (`bwrap: loopback: Failed RTM_NEWADDR`), so every live run used `danger-full-access`. Five things have not been run: a pm command reaching `work.sock` under `workspace-write` through the rule; the heredoc case being refused with pm's message (the EPERM path; the tests reach the same code through EACCES); records edits through `writable_roots`; the agent's own `git commit` asking for approval; and macOS Seatbelt. |
 | Why it cannot run here | Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor (`kernel.apparmor_restrict_unprivileged_userns=1`). No profile exempts `/usr/bin/bwrap`, the bubblewrap Codex prefers over its bundled one, so bwrap is moved into the `unprivileged_userns` profile and loses every capability: loopback setup fails (`RTM_NEWADDR`), and without `--unshare-net` its uid map write fails. The kernel log holds 3,191 bwrap transitions into that profile. No Codex setting avoids the user namespace. `network_access = true` fails one step earlier. The deprecated `use_legacy_landlock` mode refuses `workspace-write` and does not protect `.git`. |
-| Fix (owner action, needs root) | Ubuntu's `bwrap-userns-restrict` profile from `apparmor-profiles`, the default from Ubuntu 25.04 on and assumed by openai/codex#14963. Also remove the stale writable root `yeeef-agents/.beads` from `~/.codex/config.toml`: it is now a plain file, and Codex aborts every `workspace-write` run on it. |
+| Left | Owner decision on the pm-codex project, 2026-10-13: pm does not get Codex's sandbox running on such a host; the cause and the fix below are for a user to apply. |
+| Fix (user action, needs root) | Ubuntu's `bwrap-userns-restrict` profile from `apparmor-profiles`, the default from Ubuntu 25.04 on and assumed by openai/codex#14963. Also remove the stale writable root `yeeef-agents/.beads` from `~/.codex/config.toml`: it is now a plain file, and Codex aborts every `workspace-write` run on it. |
 | Evidence so far | `codex execpolicy check` allows `pm show` and `pm commit -m x records/a.md`, and does not allow `pmx`, `rm -rf x` or a heredoc script (`TestCodexRulesAllowPmAlone`). |
-| Closes when | `make test-live-parity` passes with `PM_PARITY_CODEX_SANDBOX` unset on macOS or on a Linux host where bubblewrap starts. |
+| `--approve-for-me` on this host | Every sandboxed command fails (`bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`). A plain `pm …` command still runs, unsandboxed and unreviewed, through `pm.rules`. Any other command fails once; the model then asks to run it outside the sandbox, and the reviewer allows it. Codex's file edit tool (`apply_patch`) reads the file through the same bubblewrap helper and fails even when the model asks to run it outside the sandbox, before any review. Live parity set, `PM_PARITY_CODEX_SANDBOX=approve-for-me`, 12 scenarios: 11 passed. The Stop scenario failed: the session's two `apply_patch` attempts failed on bubblewrap, and it ended without the record edit the Stop hook should block. The reviewer made 10 decisions across the Codex sessions, all allow, each 1.1 to 4.1 s (median 1.7 s), each about 8.9k input tokens (4.9k cached) and 110 output tokens. pm itself failed nowhere. |
+| Closes when | A user installs the fix; then `make test-live-parity` passes with `PM_PARITY_CODEX_SANDBOX=approve-for-me`, the Codex mode a user runs, on that host or on macOS. On this host the set passes with `danger-full-access` only. |
 
 ### Checks
 
