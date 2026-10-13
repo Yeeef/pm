@@ -19,11 +19,28 @@ transcript (Claude Code's session JSONL, Codex's rollout).
   the test claims each session's task as the other session, from a worktree of its own, and pm must refuse, naming
   the holder, and change nothing; and each session's pm show must name the other's hold.
 
-Skipped unless PM_LIVE_TESTS=1 with `claude` and `codex` on PATH, both logged in; run with `make test-live-parity`.
-PM_PARITY_CODEX_SANDBOX sets Codex's mode: approve-for-me (what a Codex user runs, like Claude Code's auto mode) or a
-sandbox mode with no approvals (default workspace-write; danger-full-access where bubblewrap cannot start),
-PM_PARITY_TIMEOUT each session's limit in seconds (default 600). Each run prints its latency, and its output and
-transcript paths, kept under the test's tmp dir.
+The one assertion that differs by runtime, by design: a Claude session's need stores its own messaging socket as the
+inbox the service pushes into, a Codex session's `codex-queue:<its CODEX_HOME>`, which the service queues the reply
+under, as raised and after a resumed session's start refreshes it. Every scenario also fails when the fake
+supervisor's log shows the clone's service reloaded or restarted after setup (an agent's own pm init must not restart
+it under the others), and prints whether each session typed pm init. The chat-ask scenario leaves the session-start
+hooks untrusted (Clone.distrust): with pm's rules in context an agent raises the need before it stops, and the Stop
+hook would have nothing to judge. The ask-tool scenario picks an option at the TUI's keyboard (Tui.keys; Codex's pick
+list opens with Shift+Left).
+
+Skipped unless PM_LIVE_TESTS=1 with `claude` and `codex` on PATH, both logged in; run with `make test-live-parity`:
+the 12 scenarios run at once, one worker each, 95 s to 5 min in all (the solo Claude run is the long one when it polls
+for the reply instead of waiting); test_ci holds that count to the scenarios pytest collects and to the Makefile's
+-n. PM_PARITY_TIMEOUT sets each session's limit in seconds (default 600). Each run prints its latency, and its output
+and transcript paths, kept under the test's tmp dir (-rA shows them).
+
+PM_PARITY_CODEX_SANDBOX sets Codex's mode: approve-for-me, or a sandbox mode with no approvals (workspace-write, the
+default, read-only, danger-full-access). A Codex user is expected to run approve-for-me (--approve-for-me, Codex's
+counterpart of Claude Code's auto mode): the workspace-write sandbox, approval on request, and each request to run
+outside the sandbox decided by Codex's automatic reviewer (a codex-auto-review model call). A host where bubblewrap
+cannot start (`bwrap: loopback: Failed RTM_NEWADDR`) runs no sandboxed command: under approve-for-me the session asks
+to run each failed command outside the sandbox and the reviewer allows it, but Codex's file edit tool (apply_patch)
+fails there before any review, so the Stop scenario fails; such a host passes the set only with danger-full-access.
 """
 
 from __future__ import annotations

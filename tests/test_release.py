@@ -1,5 +1,6 @@
 """pm's release tooling: install.sh against a local release server, and the release build (release/build.sh),
-which takes the version from the release tag alone."""
+which takes the version from the release tag alone. The build runs only with PM_RELEASE_BUILD=1, as
+pm-release-build.yml runs it (it builds twice, in a scratch clone, tagged then untagged)."""
 
 from __future__ import annotations
 

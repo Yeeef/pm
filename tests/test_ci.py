@@ -1,9 +1,12 @@
-"""The CI workflows' own logic: which changes run the release build test, the Go test job's package list, and the
-release on a push to main (its jobs, their tokens, and the scripts of its plan and tag steps, run against a local bare
-origin). The expected results come from what each job is for, on fake tools built here."""
+"""The CI workflows' own logic: which changes run the release build test (pm-release-build.yml's push and
+pull_request path lists equal, naming what can alter the release build), the Go test job's package list (make
+go-test-but-work failing when go list fails) and go_shards.py's shards, the parity eval's scenario count, and the
+release on a push to main (its jobs, their tokens, main_ci.py, and the scripts of its plan and tag steps, run against a
+local bare origin and a fake gh). The expected results come from what each job is for, on fake tools built here."""
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import os
@@ -48,17 +51,17 @@ def test_the_release_build_runs_on_every_change_to_what_pm_version_runs():
 
 
 def test_the_parity_eval_runs_every_scenario_at_once_and_its_docs_count_them():
-    """make test-live-parity gives each scenario a worker, so a run takes as long as its slowest scenario, and AGENTS.md
-    names how many there are: both follow the scenarios pytest collects, which a new scenario changes."""
+    """make test-live-parity gives each scenario a worker, so a run takes as long as its slowest scenario, and the eval's
+    docstring names how many there are: both follow the scenarios pytest collects, which a new scenario changes."""
     res = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:xdist",
                           "tests/test_agent_parity_live.py"], cwd=PM_DIR, capture_output=True, text=True, check=False)
     scenarios = [line for line in res.stdout.splitlines() if "::" in line]
     assert res.returncode == 0 and scenarios, res.stdout + res.stderr
     target = re.search(r"^test-live-parity:.*\n\t(.*)$", (PM_DIR / "Makefile").read_text(), re.M)
     assert target and re.search(r" -n (\d+) ", target[1])[1] == str(len(scenarios)), target
-    agents = (PM_DIR / "AGENTS.md").read_text()
-    counts = re.findall(r"\b[Ii]ts (\d+) scenarios|\bThe (\d+) scenarios", agents)
-    assert len(counts) == 2 and {a or b for a, b in counts} == {str(len(scenarios))}, counts
+    doc = ast.get_docstring(ast.parse((PM_DIR / "tests/test_agent_parity_live.py").read_text()))
+    counts = re.findall(r"\b[Tt]he (\d+) scenarios", doc)
+    assert counts == [str(len(scenarios))], counts
 
 
 def fake_go(tmp_path: Path, list_fails: bool) -> dict[str, str]:

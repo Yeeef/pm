@@ -8,8 +8,10 @@ the records store, and the pm service, which the fake supervisor runs. The agent
 - Codex with CODEX_HOME a temp dir holding a copy of the user's auth.json and a config this module writes: the clone
   trusted, and each of pm's hooks trusted by its hash, as the Codex user's own trust review would leave it.
 
-Every copy of a login (Codex's auth.json, Claude Code's .credentials.json for a TUI) is made by login_copy: mode 600,
-removed when the clone closes, which its fixture runs after a failed test and a failed setup too.
+Every copy of a login (Codex's auth.json, Claude Code's .credentials.json for an interactive Claude session's config
+dir of its own) is made by login_copy: mode 600, removed when the clone closes, which its fixture runs after a failed
+test and a failed setup too; test_login_copies.py holds the harness to it. Codex's hooks are trusted through `codex
+app-server`, as the TUI's review trusts them.
 
 HOME, the pm bin dir and the supervisor's units are the scratch ones in either runtime, so a hook's
 `pm init --session-start` never touches the user's pm, units or Codex config.

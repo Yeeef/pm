@@ -5,10 +5,16 @@ small Codex model through `codex exec`), RUNS times (PM_LIVE_RUNS, default 3), a
 verdict on every runtime.
 
 Skipped unless PM_LIVE_TESTS=1; a runtime whose CLI is not on PATH is skipped. Run with `make test-live` after editing
-the judge prompt; PM_LIVE_RUNTIMES (default "claude codex") picks the runtimes. It prints each runtime's pass counts and its
-per-call latency (median, p90, max). Claude runs as the user (their HOME and Claude config, where its login is); Codex with
-a temp CODEX_HOME holding copies of the user's auth.json and global AGENTS.md, which the real judge also reads
-(each mode 600, removed once the runs end).
+the judge prompt; PM_LIVE_RUNTIMES (default "claude codex") picks the runtimes. Calls run 8 at once. It prints each
+runtime's pass counts and its per-call latency (median, p90, max). Claude runs as the user (their HOME and Claude
+config, REAL in conftest, where its login is); Codex with a temp CODEX_HOME holding copies of the user's auth.json and
+global AGENTS.md, which the real judge also reads (each mode 600, removed once the runs end).
+
+A case is a final reply, the open needs the work store holds and the verdict the rule gives. Its label comes from the
+rule, never from what the judge answers: a miss is a prompt change, not a relabel. The rule is one rule in three
+texts (prime.md's request rule, prompts/owner_request_system.txt, and the block reasons owner_request_reason.txt and
+owner_request_needless.txt); a rule change edits all of them in one commit and adds a labelled case for each case it
+moves.
 """
 
 from __future__ import annotations

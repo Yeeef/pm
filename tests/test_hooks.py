@@ -1,5 +1,8 @@
 """`pm prime` (the session and subagent context) and `pm hook stop` (blocks on this session's uncommitted records),
-run as the runtimes run them: JSON on stdin, in a temp clone."""
+run as the runtimes run them: JSON on stdin, in a temp clone. The rules' chunks are checked against conftest.chunks(),
+cut from prime.md: test_rules_chunks_fit_the_cap_and_add_up_to_the_rules fails when a chunk outgrows Claude Code's
+cap; then move a heading in internal/hooks' Starts and in conftest's RULE_STARTS, or add one plus its hook entries,
+which test_init_bootstraps_a_brand_new_repo checks."""
 
 from __future__ import annotations
 
