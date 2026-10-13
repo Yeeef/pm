@@ -18,6 +18,7 @@ permissions:
   id-token: write
 
 env:
+  CLAUDE_CODE_VERSION: 2.1.296  # both jobs install this exact Claude Code; the labelled cases were calibrated on it
   ANTHROPIC_FEDERATION_RULE_ID: fdrl_01FPgmhV9MXPPY18z4vYRWUd
   ANTHROPIC_ORGANIZATION_ID: 16513404-406e-458a-92bb-0720e7d32b6a
   ANTHROPIC_SERVICE_ACCOUNT_ID: svac_019ad6gM9VcxVkWWU71SXEp7
@@ -33,7 +34,7 @@ jobs:
           fetch-depth: 0  # the diff runs from the merge base with the PR's base branch
       - name: Install Claude Code
         run: |
-          curl -fsSL https://claude.ai/install.sh | bash
+          curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CODE_VERSION"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Grade AGENTS.md (make agents-md-check)
         env:
@@ -56,7 +57,8 @@ jobs:
         id: changed
         run: |
           if git diff --name-only "origin/${{ github.base_ref }}...HEAD" |
-              grep -qE '^(tests/agents_md/|tests/test_agents_md_live\.py$|\.github/workflows/agents-md\.yml$)'; then
+              grep -qE -e '^(tests/agents_md/|tests/(test_agents_md_live|conftest|run)\.py$)' \
+                -e '^(Makefile|\.github/workflows/agents-md\.yml)$'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "The PR leaves the evaluation alone: its labelled cases do not run."
@@ -71,7 +73,7 @@ jobs:
       - name: Install Claude Code
         if: steps.changed.outputs.run == 'true'
         run: |
-          curl -fsSL https://claude.ai/install.sh | bash
+          curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CODE_VERSION"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: The evaluation's labelled cases, one run each (make test-live-agents-md)
         if: steps.changed.outputs.run == 'true'
