@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T21:00:19+00:00",
- "digest": "415f689673ad0076",
+ "generated_at": "2026-10-13T21:11:21+00:00",
+ "digest": "b19996f663fc86d3",
  "model": "claude-haiku-5-5",
- "text": "- **Codex runtime support:** A Codex session now gets the same pm guarantees as a Claude Code session. The owner-request judge and the day summary now run on each session's own runtime.\n- **Release automation:** Releases now follow a written policy and run in CI without a manual step. Upgrades now show every crossed release's steps and remove unused launcher pins.\n- **Design and code checks:** A design page now names the code it covers. A pull request that changes that code waits until its sprint updates the page or records why not.\n- **CI sign-in for Claude:** GitHub Actions now reaches the Anthropic API through workload identity federation. A test run in a pull request confirmed the token exchange and a Claude call."
+ "text": "- **Codex parity and review:** A Codex session now gets the same pm guarantees as a Claude Code session. Sprint 2 shipped the owner-request judge and day summary on Codex, and the owner merged the work to main.\n- **Release and pin move:** pm 0.8.0 was released and the repo pin moved to 0.8.3, the newest release. The owner trusted pm's Codex hooks, so `pm doctor` reports no skipped hook.\n- **Release automation:** pm now releases by a written policy, automatically, with no manual step. Releases 0.8.1 and 0.8.2 were published by CI.\n- **Pin upgrades:** `pm upgrade --to X` now prints the upgrade guide of every release it crosses. It also prunes launcher pins that no checkout uses, and pm 0.8.4 shipped this change.\n- **Design coverage:** A PR that changes covered code now waits at `pm action need --pr` and `pm sprint close` until its sprint updates the design page or records why it stays as it is.\n- **Session feedback:** pm stopped planning a Stop-hook feedback ask and moved to a session-end ask instead."
 }
