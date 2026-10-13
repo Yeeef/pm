@@ -50,7 +50,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-13}
+In scope too: pm-lint and pm-release-build restore pm-go.yml's current cache key (go-unzipped-...), and make lint-deadcode runs its two analyses at once.
+Both are on the PR critical path to ~90 s: lint-deadcode ran 67-92 s, restoring a stale pre-unzipped cache that only stays alive because lint keeps restoring it; its two type-checks run serially on 4 cores (10 s each with 32 cores locally, about 35 s CPU each).
+:::
 
 ## Findings
 
