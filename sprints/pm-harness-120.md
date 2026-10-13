@@ -59,7 +59,13 @@ The owner asked for this rule in chat on 2026-10-13.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- make test-live on the new rule, 74 cases x 3 runs: Claude 222/222, median
+  2.35 s, p90 4.14 s; Codex 219/222, median 5.37 s, p90 13.96 s: three old
+  id-citing cases missed once each. origin/main's prompt misses them too (8
+  runs of the 7 id cases on Codex: 53/56 on main, 54/56 with the rule). A
+  probe of raw Codex answers: 'Please decide 9va.15.3' unmatched 7/16 (the
+  listed need has another id), a PR review cited by id with no open requests
+  read as pending 2/16.
 
 ## Delivery report
 
