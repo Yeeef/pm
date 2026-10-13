@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T17:11:35+00:00",
- "digest": "62776562611271a7",
+ "generated_at": "2026-10-13T17:21:48+00:00",
+ "digest": "48c6973e85d17157",
  "model": "claude-haiku-5-5",
- "text": "- **Codex sandbox on the host:** The owner's host blocked Codex's sandbox. The cause and the fix are now documented. The sprint raised a request for the owner to let the sandbox run here.\n- **Gap fix release status:** Fixes for closed gaps now sit on pull requests. They are not yet on main or released."
+ "text": "- **Codex sandbox on host:** The owner's host cannot run Codex's sandbox. The design record now explains why and gives the fix. A request to the owner covers the host setup.\n- **Ask-the-user tools:** pm's rule knew only one ask tool, AskUserQuestion. The design record now lists the ask tools Codex has for Default and Plan modes.\n- **Fixes awaiting merge:** Fixes for the closed gaps live on pull requests. They are not yet on the main branch or in a release."
 }
