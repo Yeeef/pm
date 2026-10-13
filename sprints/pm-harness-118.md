@@ -74,6 +74,14 @@ Owner chose it in chat over a one-way mirror: an owner away from the terminal mu
   enforces first-wins: pm must check the rollout for a user message after the
   question before queueing.
 
+- Rejected paths (from Claude Code's strings, not run): the MCP channels
+  permission relay skips requiresUserInteraction tools and carries only
+  allow/deny; the Remote Control bridge races the dialog but needs the
+  claude.ai bridge. Codex's blocking request_user_input is the app-server
+  request item/tool/requestUserInput, reachable by a second client only with
+  app-server --listen unix:// and TUI --remote; untested whether a pending
+  request reaches that client.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
