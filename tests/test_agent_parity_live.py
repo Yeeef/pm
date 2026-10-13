@@ -20,9 +20,10 @@ transcript (Claude Code's session JSONL, Codex's rollout).
   the holder, and change nothing; and each session's pm show must name the other's hold.
 
 Skipped unless PM_LIVE_TESTS=1 with `claude` and `codex` on PATH, both logged in; run with `make test-live-parity`.
-PM_PARITY_CODEX_SANDBOX sets Codex's sandbox (default workspace-write; danger-full-access where bubblewrap cannot
-start), PM_PARITY_TIMEOUT each session's limit in seconds (default 600). Each run prints its latency, and its output
-and transcript paths, kept under the test's tmp dir.
+PM_PARITY_CODEX_SANDBOX sets Codex's mode: approve-for-me (what a Codex user runs, like Claude Code's auto mode) or a
+sandbox mode with no approvals (default workspace-write; danger-full-access where bubblewrap cannot start),
+PM_PARITY_TIMEOUT each session's limit in seconds (default 600). Each run prints its latency, and its output and
+transcript paths, kept under the test's tmp dir.
 """
 
 from __future__ import annotations
