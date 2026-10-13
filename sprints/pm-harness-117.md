@@ -72,6 +72,12 @@ pm upgrade is the one command that changes pins and runs as the new pin, so prun
   is prunable. Old worktrees, not repos, hold most old pins, so pm clean
   (removing merged worktrees) is what frees them for pm upgrade to prune.
 
+- PR #63 builds a release at the merge commit, before its release commit
+  writes X's section into CHANGELOG.md, so pm X's embedded notes lack its own
+  section; Guides falls back to X's entry files, assembled as changelog.py
+  does (Go test holds the renumbering; the harness test compares with
+  changelog.py on the real notes).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
