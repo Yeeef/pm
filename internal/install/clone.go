@@ -8,7 +8,6 @@ import (
 
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/proc"
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/store"
 )
@@ -152,18 +151,18 @@ func claudeConfigDir() string {
 
 // claudeSettings is .claude/settings.local.json's data ({} when absent) and its permissions.additionalDirectories
 // (nil when it has none); fixHint ends a parse refusal.
-func claudeSettings(path, fixHint string) (*pyjson.Object, []any, error) {
+func claudeSettings(path, fixHint string) (*object, []any, error) {
 	t, err := Read(path)
 	if err != nil {
 		return nil, nil, err
 	}
-	data := pyjson.NewObject()
+	data := newObject()
 	if t != nil {
-		v, err := pyjson.Loads(*t)
+		v, err := parseJSON(*t)
 		if err != nil {
 			return nil, nil, refuse("cannot parse %s: %s; fix it by hand%s", path, err, fixHint)
 		}
-		o, ok := v.(*pyjson.Object)
+		o, ok := v.(*object)
 		if !ok {
 			return nil, nil, refuse("%s: permissions.additionalDirectories is not a list of paths; fix it by hand", path)
 		}
@@ -173,7 +172,7 @@ func claudeSettings(path, fixHint string) (*pyjson.Object, []any, error) {
 	if !data.Has("permissions") {
 		return data, nil, nil
 	}
-	perms, ok := data.Get("permissions").(*pyjson.Object)
+	perms, ok := data.Get("permissions").(*object)
 	if !ok {
 		return nil, nil, bad
 	}
@@ -218,9 +217,9 @@ func SetupClaude(top, records string) (string, error) {
 	if listHas(dirs, records) {
 		return "", nil
 	}
-	perms, _ := data.Get("permissions").(*pyjson.Object)
-	if perms == nil {
-		perms = pyjson.NewObject()
+	perms, ok := data.Get("permissions").(*object)
+	if !ok {
+		perms = newObject()
 		data.Set("permissions", perms)
 	}
 	perms.Set("additionalDirectories", append(dirs, records))
@@ -251,7 +250,7 @@ func RemoveClaude(top, records string) (string, error) {
 		}
 		kept = append(kept, d)
 	}
-	perms := data.Get("permissions").(*pyjson.Object)
+	perms := data.Get("permissions").(*object) //nolint:errcheck // claudeSettings checked it: dirs came from it
 	if len(kept) == 0 {
 		perms.Delete("additionalDirectories")
 		if len(perms.Keys) == 0 {

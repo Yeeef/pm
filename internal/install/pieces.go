@@ -41,14 +41,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"syscall"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // Error is a piece that cannot be written without changing what is not pm's, or a setup step refused; nothing was
@@ -101,19 +99,19 @@ func ConfigText(s Settings) string {
 	for _, kv := range [][2]string{{"site_url", s.SiteURL}, {"access_team", s.AccessTeam}, {"access_aud", s.AccessAud},
 		{"summary_runtime", s.SummaryRuntime}} {
 		if kv[1] != "" {
-			site += kv[0] + " = " + pyjson.String(kv[1], true) + "\n"
+			site += kv[0] + " = " + tomlString(kv[1]) + "\n"
 		}
 	}
 	if len(s.DesignSources) > 0 {
 		quoted := make([]string, len(s.DesignSources))
 		for i, p := range s.DesignSources {
-			quoted[i] = pyjson.String(p, true)
+			quoted[i] = tomlString(p)
 		}
 		site += "design_sources = [" + strings.Join(quoted, ", ") + "]\n"
 	}
-	return "version = " + pyjson.String(buildinfo.Version, true) + "   # the pm version every session must run\n" +
-		"remote = " + pyjson.String(s.Remote, true) + "\n" +
-		"main_branch = " + pyjson.String(s.MainBranch, true) + "\n" +
+	return "version = " + tomlString(buildinfo.Version) + "   # the pm version every session must run\n" +
+		"remote = " + tomlString(s.Remote) + "\n" +
+		"main_branch = " + tomlString(s.MainBranch) + "\n" +
 		fmt.Sprintf("port = %d         # the site port; the PORT environment variable overrides it for one run\n", s.Port) +
 		site
 }
@@ -166,7 +164,7 @@ func whole(rel, content string) Piece {
 
 // isPMHook is whether a hook entry is pm's: its command starts with "pm prime" or "pm hook ".
 func isPMHook(h any) bool {
-	o, ok := h.(*pyjson.Object)
+	o, ok := h.(*object)
 	if !ok {
 		return false
 	}
@@ -174,8 +172,8 @@ func isPMHook(h any) bool {
 	return ok && (strings.HasPrefix(cmd, "pm prime") || strings.HasPrefix(cmd, "pm hook "))
 }
 
-func obj(pairs ...any) *pyjson.Object {
-	o := pyjson.NewObject()
+func obj(pairs ...any) *object {
+	o := newObject()
 	for i := 0; i < len(pairs); i += 2 {
 		o.Set(pairs[i].(string), pairs[i+1])
 	}
@@ -185,7 +183,7 @@ func obj(pairs ...any) *pyjson.Object {
 // entries is pm's matcher group per event, in the order pm writes the events.
 type entries struct {
 	events []string
-	groups map[string]func() *pyjson.Object // a fresh copy each call
+	groups map[string]func() *object // a fresh copy each call
 }
 
 func rulesCount() int { return len(hooks.Starts) }
@@ -204,17 +202,17 @@ func claudeHooks() entries {
 	}
 	return entries{
 		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "Stop"},
-		groups: map[string]func() *pyjson.Object{
-			"SessionStart": func() *pyjson.Object {
+		groups: map[string]func() *object{
+			"SessionStart": func() *object {
 				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", 30)), "matcher", "")
 			},
-			"SubagentStart": func() *pyjson.Object {
+			"SubagentStart": func() *object {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", 15)), "matcher", "")
 			},
-			"UserPromptSubmit": func() *pyjson.Object {
+			"UserPromptSubmit": func() *object {
 				return obj("hooks", []any{h("pm hook inbox || exit 1", 10)})
 			},
-			"Stop": func() *pyjson.Object {
+			"Stop": func() *object {
 				return obj("hooks", []any{h("pm hook owner-request --runtime claude || exit 1", 30), h("pm hook stop || exit 1", 10)})
 			},
 		},
@@ -239,35 +237,32 @@ func codexHooks() entries {
 	}
 	return entries{
 		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "Stop", "SubagentStop"},
-		groups: map[string]func() *pyjson.Object{
-			"SessionStart": func() *pyjson.Object {
+		groups: map[string]func() *object{
+			"SessionStart": func() *object {
 				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", "Loading pm init, pm where and pm show", 30)),
 					"matcher", "startup|resume|clear|compact")
 			},
-			"SubagentStart": func() *pyjson.Object {
+			"SubagentStart": func() *object {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Loading pm's git rule for agents", 15)))
 			},
-			"UserPromptSubmit": func() *pyjson.Object {
+			"UserPromptSubmit": func() *object {
 				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10)})
 			},
-			"Stop": func() *pyjson.Object {
+			"Stop": func() *object {
 				return obj("hooks", []any{h("pm hook owner-request --runtime codex || exit 1", "Checking for owner requests asked only in chat", 45),
 					h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
 			},
-			"SubagentStop": func() *pyjson.Object {
+			"SubagentStop": func() *object {
 				return obj("hooks", []any{h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
 			},
 		},
 	}
 }
 
-// DumpJSON is how pm writes a JSON settings file: two-space indent, non-ASCII kept, a final newline.
-func DumpJSON(data any) string { return pyjson.DumpsIndent(data, 2, false) + "\n" }
-
 // settingsFile is a settings file's data, its `hooks` checked to map events to lists of matcher groups.
 type settingsFile struct {
-	data   *pyjson.Object
-	events *pyjson.Object // nil when the file has no hooks
+	data   *object
+	events *object // nil when the file has no hooks
 }
 
 // loadHooks is the settings file's data, refused unless it is a JSON object whose hooks maps events to lists of matcher
@@ -275,20 +270,20 @@ type settingsFile struct {
 // byte that is not pm's.
 func loadHooks(rel string, text *string, layout bool) (settingsFile, error) {
 	if text == nil {
-		return settingsFile{data: pyjson.NewObject()}, nil
+		return settingsFile{data: newObject()}, nil
 	}
-	v, err := pyjson.Loads(*text)
+	v, err := parseJSON(*text)
 	if err != nil {
 		return settingsFile{}, refuse("%s is not valid JSON (%s); fix it by hand and run pm init again", rel, err)
 	}
 	bad := refuse("%s: hooks is not a map of events to lists of matcher groups; fix it by hand", rel)
-	data, ok := v.(*pyjson.Object)
+	data, ok := v.(*object)
 	if !ok {
 		return settingsFile{}, bad
 	}
-	var events *pyjson.Object
+	var events *object
 	if data.Has("hooks") {
-		if events, ok = data.Get("hooks").(*pyjson.Object); !ok {
+		if events, ok = data.Get("hooks").(*object); !ok {
 			return settingsFile{}, bad
 		}
 		for _, e := range events.Keys {
@@ -297,7 +292,7 @@ func loadHooks(rel string, text *string, layout bool) (settingsFile, error) {
 				return settingsFile{}, bad
 			}
 			for _, g := range gs {
-				g, ok := g.(*pyjson.Object)
+				g, ok := g.(*object)
 				if !ok {
 					return settingsFile{}, bad
 				}
@@ -317,7 +312,7 @@ func loadHooks(rel string, text *string, layout bool) (settingsFile, error) {
 }
 
 func groupHooks(g any) []any {
-	o := g.(*pyjson.Object)
+	o := g.(*object) //nolint:errcheck // loadHooks checked that every group is an object
 	hs, _ := o.Get("hooks").([]any)
 	return hs
 }
@@ -334,7 +329,7 @@ func hooksPresent(rel string, want entries) func(*string) (bool, error) {
 				gs, _ := f.events.Get(event).([]any)
 				for _, g := range gs {
 					for _, h := range groupHooks(g) {
-						if o, ok := h.(*pyjson.Object); ok {
+						if o, ok := h.(*object); ok {
 							if c, ok := o.Get("command").(string); ok {
 								have[c] = true
 							}
@@ -343,7 +338,7 @@ func hooksPresent(rel string, want entries) func(*string) (bool, error) {
 				}
 			}
 			for _, h := range groupHooks(want.groups[event]()) {
-				if !have[h.(*pyjson.Object).Get("command").(string)] {
+				if !have[h.(*object).Get("command").(string)] { //nolint:errcheck // pm's own hook, built with a command
 					return false, nil
 				}
 			}
@@ -359,7 +354,7 @@ func dropPMHooks(gs []any) []any { return dropHooks(gs, isPMHook) }
 func dropHooks(gs []any, is func(any) bool) []any {
 	kept := []any{}
 	for _, g := range gs {
-		o := g.(*pyjson.Object)
+		o := g.(*object) //nolint:errcheck // loadHooks checked that every group is an object
 		hs := groupHooks(g)
 		var others []any
 		mine := false
@@ -391,7 +386,7 @@ func hooksApply(rel string, want entries) func(*string) (string, error) {
 		}
 		events := f.events
 		if events == nil {
-			events = pyjson.NewObject()
+			events = newObject()
 			f.data.Set("hooks", events)
 		}
 		for _, e := range events.Keys {
@@ -406,7 +401,7 @@ func hooksApply(rel string, want entries) func(*string) (string, error) {
 }
 
 // hooksPart is pm's hooks by event, in order, each as written and with the matcher of its group, with object keys
-// sorted so that it compares as the Python dicts do.
+// sorted so that it compares equal however a file orders them.
 func hooksPart(rel string) func(*string) (string, bool, error) {
 	return func(text *string) (string, bool, error) {
 		if text == nil {
@@ -416,13 +411,13 @@ func hooksPart(rel string) func(*string) (string, bool, error) {
 		if err != nil {
 			return "", false, err
 		}
-		mine := pyjson.NewObject()
+		mine := newObject()
 		if f.events != nil {
 			for _, e := range f.events.Keys {
 				var hs []any
 				for _, g := range f.events.Get(e).([]any) {
 					var matcher any
-					if o, ok := g.(*pyjson.Object); ok { // loadHooks checked it is
+					if o, ok := g.(*object); ok { // loadHooks checked it is
 						matcher = o.Get("matcher")
 					}
 					for _, h := range groupHooks(g) {
@@ -438,32 +433,6 @@ func hooksPart(rel string) func(*string) (string, bool, error) {
 		}
 		return canonical(mine), len(mine.Keys) > 0, nil
 	}
-}
-
-// canonical is v as JSON with every object's keys sorted: equal for values Python compares equal.
-func canonical(v any) string {
-	switch t := v.(type) {
-	case *pyjson.Object:
-		keys := append([]string(nil), t.Keys...)
-		sort.Strings(keys)
-		var b strings.Builder
-		b.WriteByte('{')
-		for i, k := range keys {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			b.WriteString(pyjson.String(k, true) + ":" + canonical(t.Values[k]))
-		}
-		b.WriteByte('}')
-		return b.String()
-	case []any:
-		parts := make([]string, len(t))
-		for i, e := range t {
-			parts[i] = canonical(e)
-		}
-		return "[" + strings.Join(parts, ",") + "]"
-	}
-	return pyjson.Dumps(v, true)
 }
 
 // hooksRemove is the settings without pm's hooks: a group or event pm's removal empties goes too, and so does hooks and
@@ -654,7 +623,7 @@ func leftoverOf(rel string) (leftover, bool) {
 // settings, bd codex-hook <event> in Codex's), so pm prime is the only context (the work-store page, Constraints
 // resolved, row 7).
 func isBeadsHook(h any) bool {
-	o, ok := h.(*pyjson.Object)
+	o, ok := h.(*object)
 	if !ok {
 		return false
 	}
@@ -675,7 +644,7 @@ func beadsHooksFind(rel string) func(string) (string, error) {
 					if !isBeadsHook(h) {
 						continue
 					}
-					if c := h.(*pyjson.Object).Get("command").(string); !contains(cmds, c) {
+					if c := h.(*object).Get("command").(string); !contains(cmds, c) { //nolint:errcheck // isBeadsHook checked both
 						cmds = append(cmds, c)
 					}
 				}

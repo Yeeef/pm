@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // runtimeDifference is one way pm's hook entries for Claude Code and for Codex differ: an event's commands, or the
@@ -46,7 +45,7 @@ func commandsAndMatcher(t *testing.T, e entries, event string) ([]string, any) {
 	g := group()
 	var cmds []string
 	for _, h := range groupHooks(g) {
-		o, ok := h.(*pyjson.Object)
+		o, ok := h.(*object)
 		if !ok {
 			t.Fatalf("%s: a hook that is no object: %v", event, h)
 		}
@@ -63,7 +62,7 @@ func TestEachRuntimesJudgeRunsOnThatRuntime(t *testing.T) {
 	for runtime, e := range map[string]entries{"claude": claudeHooks(), "codex": codexHooks()} {
 		var judges []string
 		for _, h := range groupHooks(e.groups["Stop"]()) {
-			o, ok := h.(*pyjson.Object)
+			o, ok := h.(*object)
 			if !ok {
 				t.Fatalf("%s's Stop: a hook that is no object: %v", runtime, h)
 			}
