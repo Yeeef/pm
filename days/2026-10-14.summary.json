@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-13T22:37:03+00:00",
- "digest": "3ff71841caaed1f4",
+ "generated_at": "2026-10-13T22:47:25+00:00",
+ "digest": "acf3ba3630014ec9",
  "model": "claude-haiku-5-5",
- "text": "- **Pull request checks:** Each pull request now starts at most two macOS jobs, and docs-only changes skip the Go matrix. Median run time still missed the target, because macOS runners have few cores.\n- **Sprint close checks:** Sprint close now checks only the covers patterns that the sprint added or changed. Another session's older pending pattern no longer blocks a sprint close.\n- **AGENTS.md evaluation voting:** A part fails only on a finding a majority of its calls agree on.\n- **Check wording and review:** Work started to make pm check's waiting line name the close rule. A review request for one pull request went to the owner."
+ "text": "- **CI run speed:** Each pull request now starts at most two macOS jobs, and a docs-only change skips the Go checks. The median run time is still above the target.\n- **Sprint close rule:** A sprint now closes only on the coverage patterns it added or changed while open. Pending patterns from other sessions no longer block it.\n- **Agent evaluation voting:** The vote now applies to passages. A passage fails only when a majority of its calls agree on a finding.\n- **Design page review:** The pm-cli and sprint-lifecycle design pages were recorded as staying as they are."
 }
