@@ -7,11 +7,13 @@ verdict on every runtime.
 Skipped unless PM_LIVE_TESTS=1; a runtime whose CLI is not on PATH is skipped. Run with `make test-live` after editing
 the judge prompt; PM_LIVE_RUNTIMES (default "claude codex") picks the runtimes. It prints each runtime's pass counts and its
 per-call latency (median, p90, max). Claude runs as the user (their HOME and Claude config, where its login is); Codex with
-a temp CODEX_HOME holding copies of the user's auth.json and global AGENTS.md, which the real judge also reads.
+a temp CODEX_HOME holding copies of the user's auth.json and global AGENTS.md, which the real judge also reads
+(each mode 600, removed once the runs end).
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import secrets
@@ -24,6 +26,7 @@ from pathlib import Path
 
 import pytest
 
+from agents import login_copy
 from conftest import ISSUES, PM, REAL, Repo, make_repo
 
 pytestmark = pytest.mark.skipif(os.environ.get("PM_LIVE_TESTS") != "1",
@@ -42,10 +45,10 @@ REAL_CODEX = Path(REAL["CODEX_HOME"] or Path(REAL["HOME"]) / ".codex")
 AT = "2026-10-01T12:00:00Z"
 
 
-def judge_env(runtime: str, tmp: Path) -> dict[str, str]:
+def judge_env(runtime: str, tmp: Path, logins: contextlib.ExitStack) -> dict[str, str]:
     """The environment the real judge runs with: Claude as the user, who is logged in under their own HOME and Claude
     Code config, not the tests' temp ones; Codex with a temp CODEX_HOME holding copies of the user's login and global
-    instructions, so no run touches the user's Codex state."""
+    instructions (each a login_copy in `logins`, removed when it closes), so no run touches the user's Codex state."""
     env = dict(os.environ, HOME=REAL["HOME"],
                CLAUDE_CONFIG_DIR=REAL["CLAUDE_CONFIG_DIR"] or str(Path(REAL["HOME"]) / ".claude"))
     if runtime == "codex":
@@ -54,7 +57,7 @@ def judge_env(runtime: str, tmp: Path) -> dict[str, str]:
         assert (REAL_CODEX / "auth.json").is_file(), f"Codex is not logged in: no {REAL_CODEX / 'auth.json'}"
         for name in ("auth.json", "AGENTS.md"):
             if (REAL_CODEX / name).is_file():
-                shutil.copyfile(REAL_CODEX / name, home / name)
+                logins.enter_context(login_copy(REAL_CODEX / name, home / name))
         env["CODEX_HOME"] = str(home)
     return env
 
@@ -120,17 +123,19 @@ def verdicts(request, tmp_path_factory):
     if shutil.which(runtime) is None:
         pytest.skip(f"{runtime} is not on PATH")
     tmp = tmp_path_factory.mktemp(f"live-{runtime}")
-    env = judge_env(runtime, tmp)
-    with ThreadPoolExecutor(WORKERS) as pool:
-        clones = dict(zip(CASES, pool.map(lambda nc: clone(nc[0], CASES[nc[1]], tmp), enumerate(CASES)), strict=True))
-    try:
-        jobs = [name for name in CASES for _ in range(RUNS)]
-        start = time.monotonic()
+    with contextlib.ExitStack() as logins:
+        env = judge_env(runtime, tmp, logins)
         with ThreadPoolExecutor(WORKERS) as pool:
-            results = list(pool.map(lambda name: run_case(CASES[name], clones[name].root, runtime, env), jobs))
-    finally:
-        for r in clones.values():
-            r.stop_service()
+            clones = dict(zip(CASES, pool.map(lambda nc: clone(nc[0], CASES[nc[1]], tmp), enumerate(CASES)),
+                              strict=True))
+        try:
+            jobs = [name for name in CASES for _ in range(RUNS)]
+            start = time.monotonic()
+            with ThreadPoolExecutor(WORKERS) as pool:
+                results = list(pool.map(lambda name: run_case(CASES[name], clones[name].root, runtime, env), jobs))
+        finally:
+            for r in clones.values():
+                r.stop_service()
     times = [t for _, t in results]
     out = {name: [v for n, (v, _) in zip(jobs, results, strict=True) if n == name] for name in CASES}
     passed = sum(v == CASES[n]["expect"] for n, (v, _) in zip(jobs, results, strict=True))
