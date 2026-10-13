@@ -92,6 +92,8 @@ writes.go's change is in pm sprint close's design-page check; task claims and ho
 
 done: `pm check` lists a covers pattern that matches no tracked file as waiting on unmerged work and passes, and `pm sprint close` holds the sprint's design pages' covers to the remote's main instead.
 
+Merged as a6262b6 (PR #68).
+
 - `pm check`: dead covers patterns listed as waiting, exit 0; a malformed covers pattern and a dead `design_sources` pattern still fail.
 - `pm sprint close`, both forms: fetches the remote's main and refuses while a page in the sprint's Design pages, or one its gate names, has a covers pattern that matches no file there, naming page, pattern and the fix.
 - `--help` of both commands, `prime.md`'s close line, a changelog entry, and the pages [Sprint lifecycle](../design/sprint-lifecycle.md), [Record layer](../design/record-layer.md) and [pm CLI](../design/pm-cli.md) at the new state.
