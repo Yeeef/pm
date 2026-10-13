@@ -93,12 +93,15 @@ func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	root.SetErr(stderr)
 	err := root.Execute()
 	var ue *usageError
-	var ec interface{ ExitCode() int }
+	var ec *exitCode
+	var se setup.ExitError
 	switch {
 	case err == nil:
 		return 0
 	case errors.As(err, &ec):
-		return ec.ExitCode()
+		return ec.code
+	case errors.As(err, &se):
+		return se.Code
 	case errors.As(err, &ue):
 		fmt.Fprintf(stderr, "usage: %s\n%s: error: %s\n", ue.Cmd.Usage(), ue.Cmd.Prog(), ue.Msg)
 		return 2

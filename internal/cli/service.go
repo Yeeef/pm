@@ -18,8 +18,6 @@ type exitCode struct{ code int }
 
 func (e *exitCode) Error() string { return "exit " + strconv.Itoa(e.code) }
 
-func (e *exitCode) ExitCode() int { return e.code }
-
 // git runs git in dir and returns its stripped stdout; a failure is a records error.
 func git(dir string, args ...string) (string, error) {
 	res, err := proc.Run(append([]string{"git"}, args...), proc.Options{Cwd: &dir})
