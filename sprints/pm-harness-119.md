@@ -51,7 +51,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-13}
+Interactive mode turns off only the owner-request judge; pm hook stop (uncommitted records) stays on in both modes.
+An uncommitted hand edit is a mistake whether or not the owner is watching; only the chat-ask rule depends on the owner being present.
+:::
 
 ## Findings
 
