@@ -199,3 +199,11 @@ pm task close without --reason closed a task as done (default reason Done) when 
 About project `pm-codex`.
 
 A stacked PR (#56, base codex-parity) was merged by the owner into its base branch, not main. I closed its review need pm-v498.2.4 right away with a reason naming the branch merge, not "merged as <sha>". When the work reached main inside PR #47 (1cd0fa4), sprint 2 could no longer close: pm sprint close refuses a review not closed as "merged as <sha>"; `--merged <sha> --pr URL` refuses while the sprint holds a review; `pm action done` refuses an already closed action; and nothing restamps a closed review. What would have helped: either pm action done on a closed PR review accepting a corrected "merged as <sha>" when the old reason had none; or pm action need --pr refusing (or warning) when the PR's base is not the main branch, which is where this started.
+
+### 2026-10-13 20:08 UTC, session `01a136aa-47ae-7c91-b663-430d17831171`
+
+About project `pm-quality`.
+
+Sprint 21: the owner-request Stop hook blocked the final status report saying PR #62 was ready for review and the sprint awaited merge, despite the existing open review need pm-d2k5.21.2. The need was raised by a subagent working under this session; pm show --sprint pm-d2k5.21 displayed it. Rewording the final report to explicitly say that request pm-d2k5.21.2 is open on the site cleared the block. What would have helped: the judge recognizing a status report already covered by an open PR review need across the parent/subagent session, or explaining that the report must cite that existing need rather than implying a new request is missing.
+
+The injected development instructions also describe pm design unchanged, while this clone pins pm 0.7.1, whose command tree does not expose it. The sprint agent reported this mismatch while preparing the design review gate. What would have helped: clearly distinguishing development-HEAD commands from those available through the repo pin, with an explicit supported command for the development workflow.
