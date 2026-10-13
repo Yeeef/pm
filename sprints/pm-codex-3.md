@@ -38,7 +38,7 @@ The live parity eval runs Codex the way a careful user does: with `--approve-for
 
 > Where is the detail?
 
-None yet.
+- [pm in Codex](../design/pm-in-codex.md): Codex's approval modes, `--approve-for-me` against `pm.rules`, gap 11.
 
 ## Progress
 
@@ -100,10 +100,19 @@ This task belongs to sprint 4, which ships 0.8.0 into this repo and closes sprin
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the live parity eval can run Codex in its auto mode, `--approve-for-me`, which AGENTS.md names as the mode a Codex user is expected to run, and pm 0.8.0 is released with the pm-codex work.
+
+- `PM_PARITY_CODEX_SANDBOX=approve-for-me` (PR #58), with what the mode does and how it meets `pm.rules` on the pm-in-codex page.
+- pm 0.8.0: tag pm-v0.8.0 on c43ebbb, release workflow green.
+- The post-release steps (pin move, service install, Codex trust, closing sprint 2) moved to pm-codex sprint 4.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Done when | Met | Evidence |
+|---|---|---|
+| The approve-for-me live run on this host, each scenario's result and cause in Findings, no assertion weakened | met | 11 passed, 1 failed in 112.68 s. The one failure is bwrap on this host (gap 11, left by owner decision): apply_patch reads through bwrap even when escalated. The reviewer made 10 decisions, all allowed, median 1.7 s. See Findings. |
+| AGENTS.md and pm-in-codex say which Codex mode the eval and a real user run | met | AGENTS.md parity section (PR #58); [pm in Codex](../design/pm-in-codex.md) Constraints "Approval modes", Sandbox, gap 11 |
+| `pm doctor` prints no codex service line once a release is pinned here | moved | to pm-codex sprint 4 with its tasks (sprint decisions). The release itself is done: pm-v0.8.0. |
+| Design pages of changed areas updated and listed | met | pm-in-codex (records c136f2d) |
