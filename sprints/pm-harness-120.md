@@ -38,7 +38,7 @@ for the rule in chat on 2026-10-13.
 
 > Where is the detail?
 
-None yet.
+- [Owner-request Stop hook](../design/owner-request-hook.md): item 4 of the rule and the prime.md row name opening the project, sprint or task for work the owner asked for.
 
 ## Progress
 

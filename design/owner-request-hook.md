@@ -84,11 +84,11 @@ The rule, as all three texts state it:
 1. Do what you can yourself first. Ask the owner only for what only the owner can do: a choice, a credential, a review or merge, a step outside the agent's reach.
 2. Raise each such request as a need under the task or sprint it belongs to. If no sprint or task holds it, open one first (`pm task add`, or `pm sprint open` for work no open sprint fits).
 3. When there is a clear reason not to raise a need, such as the owner plainly being in the chat and wanting to answer there, ask with the runtime's ask tool (AskUserQuestion in Claude Code; `request_user_input_async` in Codex, `request_user_input` in its Plan mode), never as a question in plain text.
-4. Do not ask leave for a step you are authorized to take: working a sprint's tasks, committing, pushing its branch, opening its PR.
+4. Do not ask leave for a step you are authorized to take: opening the project, sprint or task for work the owner asked for, working a sprint's tasks, committing, pushing its branch, opening its PR. The owner's request is the leave to open; a request that states the goal confirms it. Asking what an unclear goal is stays a clarification, and asking whether to take on work the owner did not ask for stays a decision.
 
 | Text | Where | States the rule as |
 |---|---|---|
-| prime.md | the "Never leave a request only in chat" invariant | the rule in one line: ask only for what you cannot do yourself, as a need under its task or sprint (opened if none holds it), or with the runtime's ask tool, named per runtime in one clause; item 4 is the invariant that agents push and open PRs without asking. The detail is left to the reprompt, which the agent gets whenever it matters, to keep every session's context small |
+| prime.md | the "Never leave a request only in chat" invariant | the rule in one line: ask only for what you cannot do yourself, as a need under its task or sprint (opened if none holds it), or with the runtime's ask tool, named per runtime in one clause; item 4 is the two invariants that agents push and open PRs, and open the project, sprint or task for work the owner asked for, without asking. The detail is left to the reprompt, which the agent gets whenever it matters, to keep every session's context small |
 | Judge prompt | `owner_request_system.txt` | what to block: an unmatched decision, review, action or clarification, and a needless ask (items 2 and 4); what passes: offers nothing waits on, and quotes, reports and plans |
 | Reprompt | `owner_request_reason.txt`, `owner_request_needless.txt` | how to get past a block: items 1, 2 and 3 in that order; item 4 for a needless ask |
 
