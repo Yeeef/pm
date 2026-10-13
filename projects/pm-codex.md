@@ -46,6 +46,11 @@ Gap 4 is not accepted: an idle Codex session waiting on the owner must be woken 
 Owner, in chat 2026-10-12: a reply that waits for the next prompt is not delivery for a session waiting on the owner; look for other ways if the Claude Code mechanism does not carry over to Codex.
 :::
 
+::: decision {source=owner date=2026-10-13}
+Gap 9 is closed, not left: pm rule names each runtime ask tool (Claude Code AskUserQuestion; Codex request_user_input_async in Default mode and request_user_input in Plan mode), and the owner-request hook treats a call to any of them as an ask made with the tool. Lands in PR #56 (pm-codex sprint 2). This replaces gap 9 in the decision that left gaps open; gap 5 stays left.
+Owner, in chat 2026-10-13, after research refuted the premise that Codex has no ask tool: Codex 0.154 offers request_user_input_async to gpt-6 models in Default mode and a blocking request_user_input in Plan mode, both measured in the TUI.
+:::
+
 ## Design pages
 
 > Where is the detail?
