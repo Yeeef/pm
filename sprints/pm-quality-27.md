@@ -126,6 +126,17 @@ Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup wa
   once on Linux; under 2 cores with 6 busy loops locally, 9 of 40 runs failed
   before the index.lock check and 0 of 40 after.
 
+- Done-when samples on the new layout. Wall is from the first job created to
+  the last check done; one run per PR. #71 (head ddf25f5): 138 s, macOS
+  build-test 130 s and race 109 s; its earlier heads took 165 s and 107 s. #77
+  (docs only): 88 s, with the Go jobs skipped in 4-11 s (go_changes: go=false,
+  AGENTS.md) and bounded by the harness's integration job at 85 s. #79
+  (.github/scripts only, Go runs): 141 s, and 170 s after its rebase. Median
+  of the three PRs: 138 s. Each started 2 macOS jobs. #78 started 3:
+  pm-release-build.yml is path-filtered by design and ran for its own change.
+  For comparison, other sessions' PRs on the old layout tonight: 109, 202 and
+  228 s with 3-4 macOS jobs.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
