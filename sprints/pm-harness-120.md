@@ -49,7 +49,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-13}
+Opening a project, sprint or task for work the owner asked for needs no leave, like commit, push and PR.
+The owner asked for this rule in chat on 2026-10-13.
+:::
 
 ## Findings
 
