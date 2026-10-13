@@ -136,6 +136,15 @@ Owner chose to land it with the judge work, 2026-10-13.
   blocked asking only in chat, and the idle interactive session woken by the
   reply (Codex 2.5 s after the reply, through codex queue).
 
+- Ask tools, live: Codex 0.154 records request_user_input_async as
+  function_call arguments {questions:[{title,options}]} (not question), and
+  Claude Code writes no AskUserQuestion tool_use to its transcript until the
+  owner answers, so the TUI test waits on the screen (Claude: Enter to select;
+  Codex: shift + left to answer, then the pick list). With the rule naming
+  Codex's ask tool, gpt-6-astra refused 4 of 4 times to end a turn with a
+  plain chat question even when told to (1 ask tool call, 3 needs): the
+  chat-ask parity scenario now runs without pm's session-start hooks.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
