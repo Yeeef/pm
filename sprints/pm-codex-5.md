@@ -51,7 +51,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-13}
+pm enables Codex auto mode (approval_policy on-request, approvals_reviewer auto_review, sandbox_mode workspace-write) in the repo's tracked .codex/config.toml, never in the user's global ~/.codex/config.toml.
+Only pm repos change and the setting travels with the repo; codex 0.162.1 parses these keys from a trusted repo's .codex/config.toml (bad value rejected, good values load).
+:::
 
 ## Findings
 
