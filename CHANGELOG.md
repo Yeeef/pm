@@ -29,6 +29,24 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.8.7] - 2026-10-13
+
+The site no longer serves a page set missing a record while a records sync, or another git command, is rewriting the
+records store.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.8.7/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.8.7`, then commit what it changes and merge it, as an ordinary PR.
+
+### Fixed
+
+- The pm service's lock-free read of the records repeats under the records lock when git held the store worktree's
+  index lock during it, as a checkout or a rebase does while it rewrites the files. A git that stalled between
+  unlinking a record and writing it again left that file missing from the read and from both of its checks, so the
+  read passed without it.
+
 ## [0.8.6] - 2026-10-13
 
 `pm sprint close` holds a sprint only to the design-page `covers:` patterns it added or changed, so another session's
@@ -747,6 +765,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.8.7]: https://github.com/Yeeef/pm/compare/pm-v0.8.6...pm-v0.8.7
 [0.8.6]: https://github.com/Yeeef/pm/compare/pm-v0.8.5...pm-v0.8.6
 [0.8.5]: https://github.com/Yeeef/pm/compare/pm-v0.8.4...pm-v0.8.5
 [0.8.4]: https://github.com/Yeeef/pm/compare/pm-v0.8.3...pm-v0.8.4
