@@ -61,6 +61,11 @@ Renamed the sprint from "Ask for pm feedback at Stop only when pm refused someth
 The title now names the session-end design.
 :::
 
+::: decision {source=owner date=2026-10-13}
+Ask for pm feedback once at session end, through a SessionEnd hook that resumes a fork of the ended session; no Stop hook and no refusal log
+The owner wants a session-end reflection, not a turn-end one; SessionEnd cannot reach the ending model, so a resumed fork is the only way the agent with its own context answers, and it replaces the earlier gated Stop decision
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
