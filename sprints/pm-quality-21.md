@@ -71,6 +71,11 @@ Rescope: the sprint retires the Python-port leftovers in full, not only where no
 The owner asked in chat on 2026-10-13 to take the sprint over and deliver the retirement: the byte-identical-to-Python guarantee served the migration from Python pm, which is retired (0.1.x), so nothing reads those bytes as Python wrote them; the CLI grammar and refusal wording are pm interface that prime.md and agents rely on, not emulation.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+the PR moves this page's covered code into noun files and subpackages, quotes values with Go quoting and writes its JSON with encoding/json; the page names no file layout, quoting or JSON byte form, so what it says stays true
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
