@@ -1,6 +1,6 @@
 """The AGENTS.md evaluation's own logic, offline: the rubric and the calls each mode makes, the answers it takes and
-refuses, the verdicts, the credentials a call runs with, a call's timeout, and the labelled cases' edits. A fake
-`claude` stands in for the model; tests/test_agents_md_live.py runs the real one."""
+refuses, the lines a quote is on, the vote on passages, the credentials a call runs with, a call's timeout, and the
+labelled cases' edits. A fake `claude` stands in for the model; tests/test_agents_md_live.py runs the real one."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def test_an_answer_is_taken_only_when_well_formed():
     text = "Run `make test` while working.\n"
     ok = {"quote": "Run make test while working", "problem": "p", "evidence": "Makefile:13"}
     assert evaluate.parse(call(), answer([]), text) == ([], "", 0.01)
-    assert evaluate.parse(call(), answer([ok]), text) == ([ok], "", 0.01)
+    assert evaluate.parse(call(), answer([ok]), text) == ([{**ok, "lines": [1]}], "", 0.01)
     assert evaluate.parse(call(), answer([{**ok, "quote": "Run make … working"}]), text)[1] == ""
     refused = {
         "not JSON": "oops",
@@ -101,17 +101,43 @@ def test_an_answer_is_taken_only_when_well_formed():
     assert evaluate.parse(call("complete"), answer([{**ok, "quote": ""}]), text)[1] == ""
 
 
-def test_a_criterion_fails_when_most_calls_on_one_part_find_and_errors_on_any_bad_call():
-    def res(criterion, part, found=False, error=""):
-        return evaluate.Result(evaluate.Call(criterion, part, ""), 1.0, [{"quote": "q"}] if found else [], error)
+def test_a_quote_maps_to_the_lines_it_is_on():
+    text = "# T\n\nRun `make test`\nwhile working.\n\n| a | **b** |\n\nRun make test again.\n"
+    assert evaluate.normal_lines(text)[0] == evaluate.normal(text)
+    assert evaluate.normal_lines(AGENTS_MD)[0] == evaluate.normal(AGENTS_MD)
+    assert evaluate.quote_lines("make test while working", text) == [3, 4]  # across a line break
+    assert evaluate.quote_lines("a b", text) == [6]  # without the table's and bold's marks
+    assert evaluate.quote_lines("Run make test", text) == [3, 8]  # every place it occurs
+    assert evaluate.quote_lines("# T … again", text) == [1, 8]  # each part between ellipses
+    assert evaluate.quote_lines("make lint", text) is None
 
-    r = [res("accurate", "A"), res("accurate", "B", found=True),  # one call on a part: its finding fails it
-         res("map", "f", found=True), res("map", "f"), res("map", "f"),  # 1 of 3: passes
-         res("actionable", "f", found=True), res("actionable", "f"), res("actionable", "f", found=True),  # 2 of 3
+
+def res(criterion, part, *lines, error=""):
+    """A call's result with one finding on each of `lines` (a list of line numbers each)."""
+    return evaluate.Result(evaluate.Call(criterion, part, ""), 1.0,
+                           [{"quote": f"q{ls}", "problem": "p", "evidence": "e", "lines": ls} for ls in lines], error)
+
+
+def test_a_part_fails_only_on_a_passage_a_majority_of_its_calls_agree_on_and_errors_on_any_bad_call():
+    r = [res("accurate", "A"), res("accurate", "B", [3]),  # one call on a part: its finding fails it
+         res("map", "f", [4, 5]), res("map", "f"), res("map", "f"),  # 1 of 3: passes
+         res("actionable", "f", [4, 5]), res("actionable", "f"), res("actionable", "f", [5, 6]),  # 2 of 3 overlap
+         res("no_copies", "f", [4, 5]), res("no_copies", "f", [9]), res("no_copies", "f"),  # 2 of 3, disjoint
          res("no_history", "f"), res("no_history", "f"), res("no_history", "f", error="timed out after 240s"),
          res("complete", "f")]
-    assert evaluate.verdicts(r) == {"accurate": "fail", "map": "pass", "actionable": "fail", "no_history": "error",
-                                    "complete": "pass"}
+    assert evaluate.verdicts(r) == {"accurate": "fail", "map": "pass", "actionable": "fail", "no_copies": "pass",
+                                    "no_history": "error", "complete": "pass"}
+    # one call's two findings on one passage are one vote
+    assert evaluate.verdicts([res("map", "f", [4], [4]), res("map", "f"), res("map", "f")]) == {"map": "pass"}
+
+
+def test_three_calls_where_only_two_agree_fail_on_those_two_findings_and_print_the_third_outvoted():
+    rs = [res("map", "f", [10, 11]), res("map", "f", [11, 12]), res("map", "f", [30])]
+    assert evaluate.agreed(rs) == [rs[0].findings[0], rs[1].findings[0]]
+    assert evaluate.verdicts(rs) == {"map": "fail"}
+    table = evaluate.report(rs)
+    assert "map            fail    3 call(s), 3 with findings, 2 agreed" in table
+    assert "[f] 'q[10, 11]' (lines 10-11)" in table and "[f] outvoted: 'q[30]' (line 30)" in table
 
 
 def test_a_call_drops_other_anthropic_credentials_only_under_federation():
@@ -243,22 +269,35 @@ def test_main_exits_1_on_a_finding_and_writes_every_call_to_out(fake_claude, tmp
         evaluate.main(["--mode", "diff"])
 
 
-def test_a_judgement_criterion_fails_on_two_of_its_three_calls_and_reports_their_findings(fake_claude, monkeypatch,
-                                                                                          capsys):
-    line = next(x for x in AGENTS_MD.splitlines() if x.strip())
-    found = answer([{"quote": line, "problem": "too deep", "evidence": "x.go:1"}])
+def test_a_judgement_criterion_fails_when_two_of_its_three_calls_quote_overlapping_lines(fake_claude, monkeypatch,
+                                                                                         capsys):
+    lines = [x for x in AGENTS_MD.splitlines() if len(x) > 40]
+    head, here, there = lines[0], lines[0][5:35], lines[-1]  # `here` lies within `head`'s line, `there` far from it
+
+    def found(quote):
+        return answer([{"quote": quote, "problem": "too deep", "evidence": "x.go:1"}])
+
     argv = ["--root", str(CHECKOUT), "--criteria", "map", "--jobs", "1"]  # one at a time: the n-th call, the n-th answer
-    monkeypatch.setenv("FAKE_ANSWERS", json.dumps([found, answer([]), answer([])]))
-    assert evaluate.main(argv) == 0
-    assert "map            pass    3 call(s), 1 with findings" in capsys.readouterr().out
-    fake_claude.unlink()
-    monkeypatch.setenv("FAKE_ANSWERS", json.dumps([found, answer([]), found]))
-    assert evaluate.main(argv) == 1
-    out = capsys.readouterr().out
-    assert "map            fail    3 call(s), 2 with findings" in out and out.count("too deep") == 2
-    fake_claude.unlink()
-    monkeypatch.setenv("FAKE_ANSWERS", json.dumps([answer([]), answer([]), "oops"]))  # a malformed answer is no vote
-    assert evaluate.main(argv) == 1 and "error: not JSON" in capsys.readouterr().out
+
+    def run(*answers):
+        if fake_claude.exists():
+            fake_claude.unlink()
+        monkeypatch.setenv("FAKE_ANSWERS", json.dumps(list(answers)))
+        return evaluate.main(argv), capsys.readouterr().out
+
+    code, out = run(found(head), answer([]), answer([]))
+    assert code == 0 and "map            pass    3 call(s), 1 with findings, 0 agreed" in out and "outvoted:" in out
+    code, out = run(found(head), answer([]), found(here))  # 2 of 3 on overlapping lines
+    assert code == 1 and "map            fail    3 call(s), 2 with findings, 2 agreed" in out
+    assert out.count("too deep") == 2 and "outvoted:" not in out
+    code, out = run(found(head), answer([]), found(there))  # 2 of 3 on disjoint lines
+    assert code == 0 and "map            pass    3 call(s), 2 with findings, 0 agreed" in out
+    assert out.count("outvoted:") == 2
+    code, out = run(found(there), found(head), found(here))  # 3 of 3, only 2 overlap
+    assert code == 1 and "map            fail    3 call(s), 3 with findings, 2 agreed" in out
+    assert out.count("outvoted:") == 1 and f"outvoted: {there!r}" in out
+    code, out = run(answer([]), answer([]), "oops")  # a malformed answer is no vote
+    assert code == 1 and "error: not JSON" in out
 
 
 @pytest.mark.parametrize("name", cases.CASES)
@@ -283,17 +322,24 @@ def test_a_case_is_a_repo_whose_diff_is_its_edits(tmp_path):
     assert (tmp_path / "CLAUDE.md").is_symlink() and (tmp_path / "AGENTS.md").read_text() == AGENTS_MD
 
 
-def test_a_planted_case_counts_only_a_fail_that_names_its_defect():
+def test_a_planted_case_counts_only_an_agreed_fail_that_names_its_defect():
     case = cases.CASES["no_history_dated"]
 
-    def res(*fs):
-        return [evaluate.Result(evaluate.Call("no_history", "f", ""), 1.0, list(fs))]
+    def run(*fs, outvoted=()):
+        """Three calls: two each with the findings `fs` (on line 7), one with the findings `outvoted` (on line 40)."""
+        def r(found, line):
+            return evaluate.Result(evaluate.Call("no_history", "f", ""), 1.0,
+                                   [{"problem": "", "evidence": "", "lines": [line], **f} for f in found])
+        return [r(fs, 7), r(fs, 7), r(outvoted, 40)]
 
-    assert cases.outcome(case, res()) == "pass"
-    assert cases.outcome(case, res({"quote": "Claude 189/189, median", "problem": "", "evidence": ""})) == "fail"
-    assert cases.outcome(case, res({"quote": "other", "problem": "x", "evidence": ""})).startswith("fail elsewhere")
-    assert cases.outcome(case, res({"quote": "The judge's live eval", "problem": "", "evidence": ""}),
+    assert cases.outcome(case, run()) == "pass"
+    assert cases.outcome(case, run({"quote": "Claude 189/189, median"})) == "fail"
+    assert cases.outcome(case, run({"quote": "other", "problem": "x"})) == "fail elsewhere: other; other"
+    assert cases.outcome(case, run({"quote": "other"}, outvoted=[{"quote": "Claude 189/189"}])) == \
+        "fail elsewhere: other; other"  # the outvoted finding that names the defect does not count
+    assert cases.outcome(case, run({"quote": "The judge's live eval"}),
                          added="The judge's live eval on 2026-10-12") == "fail"
     clean = cases.CASES["clean"]
-    assert cases.outcome(clean, res()) == "pass"
-    assert cases.outcome(clean, res({"quote": "q", "problem": "", "evidence": ""})) == "fail: no_history"
+    assert cases.outcome(clean, run()) == "pass"
+    assert cases.outcome(clean, run({"quote": "q"})) == "fail: no_history"
+    assert cases.outcome(clean, run(outvoted=[{"quote": "q"}])) == "pass"

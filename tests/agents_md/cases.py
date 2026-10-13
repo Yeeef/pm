@@ -6,8 +6,8 @@ looks for is gone, so a later edit of AGENTS.md that a case no longer fits shows
 tests nothing. A full-mode case edits AGENTS.md; a diff-mode case edits other files, and the evaluation reviews the
 diff. Each label comes from the rubric (rubric.md), never from what the evaluation answers.
 
-A planted case's run gives "fail" when its criterion fails with a finding that names the planted text (`marker`), so
-a fail for another reason does not count; the other criteria are not run. A clean case's run gives "pass" when every
+A planted case's run gives "fail" when its criterion fails with an agreed finding that names the planted text
+(`marker`), so a fail for another reason does not count; the other criteria are not run. A clean case's run gives "pass" when every
 criterion it runs passes.
 """
 
@@ -187,8 +187,9 @@ def planted(root: Path, base: str) -> str:
 
 def outcome(case: Case, results: list[evaluate.Result], added: str = "") -> str:
     """One run's outcome: "error: …" when a call gave no answer; for a planted case "fail" when its criterion failed on
-    a finding that names the marker or quotes the lines the case added (`added`), "fail elsewhere: …" when it failed
-    on others alone, else "pass"; for a clean case "pass", or "fail: <the criteria that failed>"."""
+    an agreed finding (evaluate.agreed) that names the marker or quotes the lines the case added (`added`), "fail
+    elsewhere: …" when it failed on others alone, else "pass"; for a clean case "pass", or "fail: <the criteria that
+    failed>"."""
     if errors := [r.error for r in results if r.error]:
         return f"error: {errors[0]}"
     verdict = evaluate.verdicts(results)
@@ -197,7 +198,8 @@ def outcome(case: Case, results: list[evaluate.Result], added: str = "") -> str:
         return f"fail: {','.join(failed)}" if failed else "pass"
     if verdict[case.criterion] == "pass":
         return "pass"
-    findings = [f for r in results if r.call.criterion == case.criterion for f in r.findings]
+    findings = [f for (crit, _), rs in evaluate.parts(results).items() if crit == case.criterion
+                for f in evaluate.agreed(rs)]
     mark = evaluate.normal(case.marker)
     if any(mark in evaluate.normal(f["quote"] + " " + f["problem"])
            or (evaluate.normal(f["quote"]) and evaluate.normal(f["quote"]) in evaluate.normal(added)) for f in findings):

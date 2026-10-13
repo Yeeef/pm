@@ -11,11 +11,15 @@ criterion but complete (VOTED) on the whole file, accurate's on each `## ` secti
 diff mode one accurate and one complete call per chunk of the diff. The calls run at once (--jobs), each killed with
 its process group at --timeout seconds, which fails the run.
 
-The calls on one part (a criterion on a section, a diff chunk or the whole file) vote: the part fails when a majority
-of them report a finding (2 of a VOTED criterion's 3; the one call of any other part), and a criterion fails when
-one of its parts fails. Each finding quotes AGENTS.md, and a quote that is not in it makes the answer malformed. A
-malformed answer, a failed or a timed-out call is no vote: it fails the run. The run exits 1 on a failed criterion or
-any such call. It prints a table with every call's findings, and writes every call's answer, seconds and cost to --out.
+Each finding quotes AGENTS.md, and a quote that is not in it makes the answer malformed; a quote's lines are the
+lines of AGENTS.md its text (each part between ellipses, at each place it occurs) is on. The calls on one part (a
+criterion on a section, a diff chunk or the whole file) vote on passages: a finding is agreed when a majority of the
+part's calls (2 of a VOTED criterion's 3) each report a finding whose lines intersect its lines, its own call
+counted, and the part fails on an agreed finding. The one call of any other part fails it on any finding. A criterion
+fails when one of its parts fails. A malformed answer, a failed or a timed-out call is no vote: it fails the run. The
+run exits 1 on a failed criterion or any such call. It prints a table with every call's findings, a finding no
+majority agrees with marked outvoted, and writes every call's answer (each finding with its lines), seconds and cost
+to --out.
 
 In GitHub Actions (ACTIONS_ID_TOKEN_REQUEST_URL set) each call first writes a fresh GitHub OIDC token for the Anthropic
 API to $ANTHROPIC_IDENTITY_TOKEN_FILE, for Claude Code's workload identity federation, and the call runs without any
@@ -27,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import json
 import os
 import re
@@ -255,14 +260,49 @@ def command(model: str) -> list[str]:
             "--no-session-persistence", "--output-format", "json", "--json-schema", json.dumps(SCHEMA)]
 
 
+MARKS = "`*_|\\"
+
+
 def normal(s: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[`*_|\\]", "", s)).strip().lower()
 
 
-def quoted(quote: str, agents_md: str) -> bool:
-    """Whether a finding's quote is AGENTS.md text: each part between ellipses, without Markdown marks or spacing."""
-    text = normal(agents_md)
-    return all(normal(p) in text for p in re.split(r"\.\.\.|…", quote) if normal(p))
+@functools.lru_cache(maxsize=8)
+def normal_lines(agents_md: str) -> tuple[str, tuple[int, ...]]:
+    """normal(agents_md), and for each of its characters the 1-based line of AGENTS.md it comes from."""
+    chars: list[str] = []
+    lines: list[int] = []
+    for n, line in enumerate(agents_md.splitlines(keepends=True), 1):
+        for c in line:
+            if c in MARKS:
+                continue
+            if c.isspace():
+                if chars and chars[-1] != " ":
+                    chars.append(" ")
+                    lines.append(n)
+                continue
+            for low in c.lower():
+                chars.append(low)
+                lines.append(n)
+    if chars and chars[-1] == " ":
+        chars.pop()
+        lines.pop()
+    return "".join(chars), tuple(lines)
+
+
+def quote_lines(quote: str, agents_md: str) -> list[int] | None:
+    """The lines of AGENTS.md a finding's quote is on: each part between ellipses, without Markdown marks or spacing,
+    at every place it occurs; None when a part is not AGENTS.md text."""
+    text, line_of = normal_lines(agents_md)
+    out: set[int] = set()
+    for part in filter(None, (normal(p) for p in re.split(r"\.\.\.|…", quote))):
+        at = text.find(part)
+        if at < 0:
+            return None
+        while at >= 0:
+            out.update(line_of[at:at + len(part)])
+            at = text.find(part, at + 1)
+    return sorted(out)
 
 
 def parse(call: Call, out: str, agents_md: str) -> tuple[list[dict], str, float]:
@@ -285,8 +325,9 @@ def parse(call: Call, out: str, agents_md: str) -> tuple[list[dict], str, float]
             continue
         if not f["evidence"].strip() or not normal(f["quote"]):
             return findings, f"a finding without its quote or evidence: {f!r}", cost
-        if not quoted(f["quote"], agents_md):
+        if (lines := quote_lines(f["quote"], agents_md)) is None:
             return findings, f"a finding quotes text that is not in AGENTS.md: {f['quote']!r}", cost
+        f["lines"] = lines
     return findings, "", cost
 
 
@@ -326,32 +367,62 @@ def run_calls(calls: list[Call], model: str, root: Path, agents_md: str, jobs: i
         return list(pool.map(lambda c: run_call(c, model, root, agents_md, timeout, env), calls))
 
 
-def verdicts(results: list[Result]) -> dict[str, str]:
-    """Each criterion's verdict: error when a call of it did not answer, fail when a majority of the calls on one of
-    its parts report a finding, else pass."""
-    parts: dict[tuple[str, str], list[Result]] = {}
+def parts(results: list[Result]) -> dict[tuple[str, str], list[Result]]:
+    """The results by part: (criterion, part)."""
+    out: dict[tuple[str, str], list[Result]] = {}
     for r in results:
-        parts.setdefault((r.call.criterion, r.call.part), []).append(r)
+        out.setdefault((r.call.criterion, r.call.part), []).append(r)
+    return out
+
+
+def agreed(rs: list[Result]) -> list[dict]:
+    """The findings of one part's calls that stand: with one call, each finding; with more, each finding whose lines
+    intersect a finding's lines in each of a majority of the calls, its own call counted."""
+    if len(rs) == 1:
+        return list(rs[0].findings)
+    need = len(rs) // 2 + 1
+    out = []
+    for r in rs:
+        for f in r.findings:
+            mine = set(f.get("lines", ()))
+            if sum(any(mine & set(g.get("lines", ())) for g in o.findings) for o in rs) >= need:
+                out.append(f)
+    return out
+
+
+def verdicts(results: list[Result]) -> dict[str, str]:
+    """Each criterion's verdict: error when a call of it did not answer, fail when one of its parts has an agreed
+    finding, else pass."""
     out: dict[str, str] = {}
-    for (crit, _), rs in parts.items():
-        v = ("error" if any(r.error for r in rs) else
-             "fail" if 2 * sum(bool(r.findings) for r in rs) > len(rs) else "pass")
+    for (crit, _), rs in parts(results).items():
+        v = "error" if any(r.error for r in rs) else "fail" if agreed(rs) else "pass"
         out[crit] = max(out.get(crit, "pass"), v, key=("pass", "fail", "error").index)
     return out
 
 
 def report(results: list[Result]) -> str:
-    """The table: a line per criterion, then each finding and error under it."""
+    """The table: a line per criterion, then each finding (outvoted ones marked) and error under it."""
     lines = [f"{'criterion':14} {'verdict':7} evidence"]
+    by = parts(results)
     for crit, v in verdicts(results).items():
         rs = [r for r in results if r.call.criterion == crit]
+        stand = [id(f) for (c, _), prs in by.items() if c == crit for f in agreed(prs)]
         lines.append(f"{crit:14} {v:7} {len(rs)} call(s), {sum(bool(r.findings) for r in rs)} with findings, "
-                     f"{max(r.seconds for r in rs):.0f}s")
+                     f"{len(stand)} agreed, {max(r.seconds for r in rs):.0f}s")
         for r in rs:
             if r.error:
                 lines.append(f"    [{r.call.part}] error: {r.error}")
-            lines += [f"    [{r.call.part}] {f['quote']!r}: {f['problem']} ({f['evidence']})" for f in r.findings]
+            lines += [f"    [{r.call.part}]{'' if id(f) in stand else ' outvoted:'} {f['quote']!r}"
+                      f"{span(f)}: {f['problem']} ({f['evidence']})" for f in r.findings]
     return "\n".join(lines)
+
+
+def span(f: dict) -> str:
+    """A finding's lines, as the table prints them."""
+    ls = f.get("lines")
+    if not ls:
+        return ""
+    return f" (line {ls[0]})" if len(ls) == 1 else f" (lines {ls[0]}-{ls[-1]})"
 
 
 def plan(mode: str, root: Path, agents_md_path: Path, base: str | None,
