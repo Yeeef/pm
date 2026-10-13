@@ -33,6 +33,7 @@ import (
 	"syscall"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
 	"github.com/Yeeef/pm/internal/pyjson"
 )
@@ -55,6 +56,15 @@ type Settings struct {
 	AccessAud  string
 	// SummaryRuntime is summary_runtime, set by hand ("" when unset): carried so a config holding it is pm's own
 	SummaryRuntime string
+	// DesignSources is design_sources, set by hand (nil when unset): carried so a config holding it is pm's own
+	DesignSources []string
+}
+
+// SettingsOf is the settings a checked config holds: what pm upgrade rewrites the config with and pm doctor compares it
+// to, so every key the config reads is here.
+func SettingsOf(c config.Config) Settings {
+	return Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL,
+		AccessTeam: c.AccessTeam, AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime, DesignSources: c.DesignSources}
 }
 
 // Piece is one managed piece. A text is nil when the file is absent.
@@ -80,6 +90,13 @@ func ConfigText(s Settings) string {
 		if kv[1] != "" {
 			site += kv[0] + " = " + pyjson.String(kv[1], true) + "\n"
 		}
+	}
+	if len(s.DesignSources) > 0 {
+		quoted := make([]string, len(s.DesignSources))
+		for i, p := range s.DesignSources {
+			quoted[i] = pyjson.String(p, true)
+		}
+		site += "design_sources = [" + strings.Join(quoted, ", ") + "]\n"
 	}
 	return "version = " + pyjson.String(buildinfo.Version, true) + "   # the pm version every session must run\n" +
 		"remote = " + pyjson.String(s.Remote, true) + "\n" +
