@@ -63,6 +63,11 @@ Of the proposed mechanical checks only the 20 KiB size cap stays; a rubric for a
 Owner chose it in chat: the defects that matter (stale behaviour claims, narration, copies) are semantic, which an agent reading the code can judge and a lint of names cannot.
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+PR #80 changes only doc comments and AGENTS.md citations in the files this page covers (the AGENTS.md file map moved into package doc comments, release citations now name release/README.md); no behaviour this page describes changed
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
