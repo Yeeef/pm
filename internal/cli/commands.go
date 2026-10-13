@@ -320,7 +320,7 @@ var tree = &command{
 				{
 					Name:        "open",
 					Help:        "create a project epic and record; Goal with --text",
-					Description: "Create a project epic and its record, with the Goal from --text. The owner confirms the goal in their own words before you open the project.",
+					Description: "Create a project epic and its record, with the Goal from --text. The owner confirms the goal in their own words before you open the project; a request from the owner that states the goal confirms it.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "name", Required: true, Kind: value},

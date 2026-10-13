@@ -80,6 +80,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A sprint's frame exists before anything runs. A scope change is a sprint decision, never a task renamed or rewritten.
 - A sprint that changes code is done when its PR is on main. A sprint with no code change has no PR; it is done when its report is written. A sprint that a finding voided is voided, not failed.
 - Agents push a sprint's branch and open its PR without asking. Only the PR review and the merge wait on the owner, raised with `pm action need --pr`.
+- Agents open the project, sprint or task for work the owner asked for without asking: the request is the leave. A request that states the goal confirms it. When the goal is unclear, ask what it is; never ask leave to open.
 - A decision has a source, a date and a reason. Without the reason, nobody can tell later if it still holds.
 - A decision lives where it governs. Project level when later sprints must follow it; sprint level when it ends with the sprint. `until` names only a known condition to revisit it.
 - A choice that is cheap to reverse, and that nobody will ask about, needs no record. The commit message is enough.
@@ -105,7 +106,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
   - Find ready work: `pm task ready`
   - See a task, its holder and its needs: `pm show <id>`
   - See every location and its state: `pm where`; `pm where records` prints the store's path.
-- open a project: `pm project open <name> --title "…"`; body: a one-paragraph Goal, once the owner confirmed the goal in their own words.
+- open a project: `pm project open <name> --title "…"`; body: a one-paragraph Goal, once the owner confirmed the goal in their own words; a request from the owner that states the goal confirms it.
 - open a sprint: `pm sprint open <project> --title "…"`; body: the frame as `## Goal`, `## Scope` and `## Done when`. It refuses a frame with a required section missing.
 - open tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. A dependency: `pm dep add <id> --on <blocker>`. A sub-task: `pm task add --parent <task> --title "…"`.
 - claim a task: `pm task claim <id>`, from your own worktree. It records your session and refuses a task that another live session holds, or a claim from the main checkout. Do not take or brief work that another live session holds.

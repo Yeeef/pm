@@ -1,5 +1,5 @@
 {
-  "_about": "Labelled cases for the owner-request Stop hook (pm hook owner-request). Each case is a final reply, the open needs and actions Beads holds when the hook runs (owner: 'me' is the stopping session, 'other' another session), and the verdict the rule gives: needless when the reply asks leave for (or offers) a step agents may take without asking (work the sprint, commit, push its branch, open its PR), even when a request matches; block when the reply asks the owner for something (a decision, a review, an action or a clarification) that no open request of this session asks for; else pass: an offer or suggestion nothing waits on, and text that asks nothing (a report, a quote, the agent's plan, a fact no step of the agent waits on, an answer to a question the owner asked, a question it put through its runtime's ask tool: AskUserQuestion, request_user_input_async or request_user_input). A case's tool_asks are the questions the session asked with its ask tool in the stopping turn; the live eval writes them into a transcript in the runtime's own format. Labels come from the rule, never from model output.",
+  "_about": "Labelled cases for the owner-request Stop hook (pm hook owner-request). Each case is a final reply, the open needs and actions Beads holds when the hook runs (owner: 'me' is the stopping session, 'other' another session), and the verdict the rule gives: needless when the reply asks leave for (or offers) a step agents may take without asking (open the project, sprint or task for work the owner asked for, work the sprint, commit, push its branch, open its PR), even when a request matches; block when the reply asks the owner for something (a decision, a review, an action or a clarification) that no open request of this session asks for; else pass: an offer or suggestion nothing waits on, and text that asks nothing (a report, a quote, the agent's plan, a fact no step of the agent waits on, an answer to a question the owner asked, a question it put through its runtime's ask tool: AskUserQuestion, request_user_input_async or request_user_input). A case's tool_asks are the questions the session asked with its ask tool in the stopping turn; the live eval writes them into a transcript in the runtime's own format. Labels come from the rule, never from model output.",
   "needs": {
     "cache": {"title": "Keep the render cache on disk or in memory?", "labels": ["human"],
               "description": "The renderer caches parsed records. Options: disk (survives restarts, 20 MB), memory (faster, rebuilt on start). Default: disk."},
@@ -163,6 +163,18 @@
     {"name": "ask tool not used: the same question only in chat", "expect": "block", "open": {},
      "reply": "The doc is drafted. Should the parity doc name the color red or blue? Red is the default, as the simplest."},
     {"name": "reports a question it asked with request_user_input_async", "expect": "pass", "open": {},
-     "reply": "I asked you with request_user_input_async whether the render cache lives on disk or in memory; you picked disk, so I built it and the cache test passes (12 passed)."}
+     "reply": "I asked you with request_user_input_async whether the render cache lives on disk or in memory; you picked disk, so I built it and the cache test passes (12 passed)."},
+    {"name": "asks leave to open a sprint for work the owner asked for", "expect": "needless", "open": {},
+     "reply": "Got it: you want `pm export` to write CSV as well as JSON. That is more than one task, so it needs a sprint. Shall I open a sprint for this?"},
+    {"name": "offers to create a task for work the owner asked for", "expect": "needless", "open": {},
+     "reply": "You asked me to fix the broken link on the overview page. No open sprint holds it yet. Want me to create a task for it under sprint 26?"},
+    {"name": "asks leave to open a project for a goal the owner stated", "expect": "needless", "open": {},
+     "reply": "You asked for a public docs site whose goal is that a new user can install pm and open a first sprint without help. That takes several sprints. OK to open a project for it?"},
+    {"name": "asks whether to open a sprint for work the owner did not ask for", "expect": "block", "open": {},
+     "reply": "The broken link on the overview page is fixed and the PR is open. While in there I noticed the render cache is never cleared, which you did not ask about. Should I open a sprint to fix the cache now, or leave it for later?"},
+    {"name": "asks what the goal of a requested project is", "expect": "block", "open": {},
+     "reply": "You asked for a docs site. Before I open the project: what is its goal, in your words? Who should it serve, and what should they be able to do once it exists?"},
+    {"name": "reports the sprint it opened for requested work", "expect": "pass", "open": {},
+     "reply": "I opened sprint 27 for the CSV export you asked for, with three tasks: the writer, its tests and the help text. I've claimed the first and I'm on it."}
   ]
 }
