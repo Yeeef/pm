@@ -33,6 +33,8 @@ REPO = "https://github.com/Yeeef/pm"
 ROOT = Path(__file__).resolve().parents[1]
 CHANGELOG = ROOT / "CHANGELOG.md"
 ENTRIES = "changelog.d"  # one file per unreleased change, relative to ROOT
+# The directory's own README, tracked so the directory is never empty (pm embeds it: assets.go); never an entry
+README = "README.md"
 ENTRY_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*\.md$")
 GUIDE = "Upgrade guide"  # first in every release: the numbered steps from the previous release to this one
 CATEGORIES = [GUIDE, "Breaking changes", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
@@ -261,11 +263,11 @@ def parse_entry(name: str, text: str) -> Section:
 
 
 def read_entries(root: Path) -> list[Section]:
-    """The entry files, in name order."""
+    """The entry files, in name order: every file in the directory but its README."""
     directory = root / ENTRIES
     if not directory.exists():
         return []
-    return [parse_entry(p.name, p.read_text()) for p in sorted(directory.iterdir())]
+    return [parse_entry(p.name, p.read_text()) for p in sorted(directory.iterdir()) if p.name != README]
 
 
 def entries_summary(entries: list[Section]) -> str:
@@ -402,17 +404,21 @@ def shipped(path: str) -> bool:
     return any(path == p or (p.endswith("/") and path.startswith(p)) for p in SHIPPED)
 
 
+def is_entry(path: str) -> bool:
+    return path.startswith(f"{ENTRIES}/") and path != f"{ENTRIES}/{README}"
+
+
 def too_many_entries(added: list[str]) -> list[str]:
     """The entry files a change adds when it adds more than one: one change, one entry, so that no two entries of a
     release describe one step twice."""
-    entries = [p for p in added if p.startswith(f"{ENTRIES}/")]
+    entries = [p for p in added if is_entry(p)]
     return entries if len(entries) > 1 else []
 
 
 def needs_entry(paths: list[str], written: list[str]) -> list[str]:
     """The shipped paths among paths when written (the paths the change adds or modifies) holds no entry file, else
     none: a change that ships needs an entry."""
-    return [] if any(p.startswith(f"{ENTRIES}/") for p in written) else [p for p in paths if shipped(p)]
+    return [] if any(is_entry(p) for p in written) else [p for p in paths if shipped(p)]
 
 
 def git(*args: str) -> str:

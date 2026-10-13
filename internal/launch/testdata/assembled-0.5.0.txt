@@ -1,0 +1,7 @@
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.5.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.5.0`, then commit what it changes and merge it, as an ordinary PR.
+3. Set a key.
+4. Re-trust Codex.
+   It wraps.
+5. Restart.

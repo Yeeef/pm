@@ -1,9 +1,10 @@
-// Package pm holds the files pm embeds: prime.md, style.css and the prompts in prompts/. go:embed reaches only files at
-// or below the embedding package's directory, so this package at the module root embeds them.
+// Package pm holds the files pm embeds: prime.md, style.css, the prompts in prompts/ and the release notes
+// (CHANGELOG.md and the entry files in changelog.d/). go:embed reaches only files at or below the embedding package's
+// directory, so this package at the module root embeds them.
 package pm
 
 import (
-	_ "embed"
+	"embed"
 	"strings"
 )
 
@@ -16,6 +17,14 @@ var Rules string
 //
 //go:embed style.css
 var Style string
+
+// Notes is CHANGELOG.md and changelog.d/ as this pm was built: every earlier release's notes, and this release's
+// section or, when the build came before it was written (a release builds before its release commit), its entry
+// files. pm upgrade --to X prints the upgrade guide of each release it crosses from them (launch.Guides).
+// changelog.d/README.md, tracked and never an entry, keeps the directory from being empty, which go:embed refuses.
+//
+//go:embed CHANGELOG.md changelog.d
+var Notes embed.FS
 
 // The model prompts and hook texts in prompts/, each without its final newline.
 var (

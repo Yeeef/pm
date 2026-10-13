@@ -172,6 +172,8 @@ def test_two_branches_that_each_add_an_entry_merge_without_conflict_and_both_rea
     (tmp_path / "release").mkdir()
     shutil.copy(PM_DIR / "release" / "changelog.py", tmp_path / "release" / "changelog.py")
     (tmp_path / "CHANGELOG.md").write_text(text())
+    (tmp_path / "changelog.d").mkdir()
+    shutil.copy(PM_DIR / "changelog.d" / "README.md", tmp_path / "changelog.d" / "README.md")  # never an entry
     git("init", "-q", "-b", "main")
     git("add", "-A")
     git("commit", "-q", "-m", "base")
@@ -186,7 +188,7 @@ def test_two_branches_that_each_add_an_entry_merge_without_conflict_and_both_rea
     r = run(sys.executable, "release/changelog.py", "release", "0.3.0", "--summary", "A and B.", "--date",
             "2026-10-10")
     assert r.returncode == 0, r.stderr
-    assert not list((tmp_path / "changelog.d").glob("*.md"))
+    assert [p.name for p in (tmp_path / "changelog.d").iterdir()] == ["README.md"]  # kept: pm embeds the directory
     r = run(sys.executable, "release/changelog.py", "notes", "0.3.0")
     assert r.returncode == 0, r.stderr
     assert r.stdout == ("A and B.\n\n" + guide("0.3.0") + "\n\n### Added\n\n- New B.\n\n"
@@ -341,3 +343,23 @@ def test_plan_and_next_read_the_tags_and_the_hold_of_the_checkout(tmp_path):
     (tmp_path / "release" / "hold").write_text("\n")
     r = run(sys.executable, "release/changelog.py", "check")
     assert r.returncode == 1 and "a hold names the feature it waits for" in r.stderr
+
+
+def test_assemble_gives_the_guide_pm_upgrade_assembles_from_entry_files():
+    """pm upgrade --to X assembles X's guide from its entry files when its build has no section for X (Guides in
+    internal/launch/guide.go); its Go test wants testdata/assembled-0.5.0.txt for the entries in testdata/notes, which
+    must be what changelog.py's assemble gives, the guide the release then writes."""
+    testdata = PM_DIR / "internal/launch/testdata"
+    section = changelog.assemble("0.5.0", changelog.read_entries(testdata / "notes"))
+    guide = "\n".join(line for _, line in section.categories[changelog.GUIDE]).strip("\n") + "\n"
+    assert guide == (testdata / "assembled-0.5.0.txt").read_text()
+
+
+def test_the_readme_in_changelog_d_is_no_entry():
+    """changelog.d/README.md keeps the directory pm embeds from ever being empty: no entry to read, count or require."""
+    readme = f"{changelog.ENTRIES}/{changelog.README}"
+    assert (PM_DIR / readme).is_file()
+    assert all(e.where != readme for e in changelog.read_entries(PM_DIR))
+    assert changelog.too_many_entries([readme, "changelog.d/a.md"]) == []
+    assert changelog.needs_entry(["internal/cli/cli.go", readme], ["internal/cli/cli.go", readme]) == [
+        "internal/cli/cli.go"]

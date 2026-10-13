@@ -264,7 +264,8 @@ esac
                     "UNPUBLISHED": "", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
                     "GIT_COMMITTER_EMAIL": "t@t"}
         self.dir.mkdir()
-        for path in ("CHANGELOG.md", "install.sh", "release/changelog.py", "release/main_ci.py"):
+        for path in ("CHANGELOG.md", "changelog.d/README.md", "install.sh", "release/changelog.py",
+                     "release/main_ci.py"):
             (self.dir / path).parent.mkdir(exist_ok=True)
             shutil.copy(PM_DIR / path, self.dir / path)
         shutil.copytree(PM_DIR / ".github", self.dir / ".github")
@@ -355,6 +356,7 @@ def test_the_tag_step_pushes_the_release_commit_and_tag_together_or_neither_when
     released = o.git("rev-parse", "origin/main")
     assert o.git("rev-parse", f"pm-v{x}^{{commit}}") == released and o.git("rev-parse", "origin/main^") == sha
     assert o.git("diff", "--name-status", sha, released).splitlines() == ["M\tCHANGELOG.md", "D\tchangelog.d/a.md"]
+    assert o.git("ls-tree", "--name-only", released, "changelog.d/") == "changelog.d/README.md"  # pm embeds the dir
     assert o.git("log", "-1", "--format=%an <%ae>%n%s", released) == (
         "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>\nRelease pm 9.9.9")
     assert f"## [{x}] - " in o.git("show", f"{released}:CHANGELOG.md")

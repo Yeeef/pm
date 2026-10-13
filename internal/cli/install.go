@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Yeeef/pm"
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
@@ -519,7 +520,7 @@ func cmdDoctor(here string, stdout io.Writer) error {
 		return err
 	}
 	diffs = append(diffs, skips...)
-	notes := releaseLine(c.Version) // lines that inform and leave the exit code alone
+	notes := append(launch.ReleaseLine(c.Version), install.UnusedPins(main)...) // lines that inform, exit code aside
 	if note != "" {
 		notes = append([]string{note}, notes...)
 	}
@@ -535,25 +536,10 @@ func cmdDoctor(here string, stdout io.Writer) error {
 	return err
 }
 
-// releaseLine is pm doctor's line on a release newer than the pin, or on why it cannot tell; none when the pin is
-// the latest release. It informs, and leaves the exit code to the clone's own pieces.
-func releaseLine(pin string) []string {
-	r, err := launch.Latest()
-	if err != nil {
-		return []string{fmt.Sprintf("release: cannot read pm's latest release, so whether one is newer than the pin "+
-			"%s is not known: %v", pin, err)}
-	}
-	if !launch.Newer(r.Version, pin) {
-		return nil
-	}
-	return []string{fmt.Sprintf("release: pm %s is out, newer than this repo's pin %s; what changed: %s. To move: "+
-		"install it (curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v%s/install.sh | sh), then "+
-		"pm upgrade --to %s in a PR", r.Version, pin, r.Notes, r.Version, r.Version)}
-}
-
-// cmdUpgrade is pm upgrade: move the pin to the running pm, rewrite every managed piece as it writes them, take out
-// Beads' pieces and the retired ones and point core.hooksPath at pm's hooks; commits nothing, and names the untracking
-// of a records/ copy the branch still tracks. Without --to it never moves a pin down.
+// cmdUpgrade is pm upgrade: print the upgrade guide of each release the move crosses, then move the pin to the running
+// pm, rewrite every managed piece as it writes them, take out Beads' pieces and the retired ones, point core.hooksPath
+// at pm's hooks and prune the pins no checkout on the machine pins; commits nothing, and names the untracking of a
+// records/ copy the branch still tracks. Without --to it never moves a pin down.
 func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	to := p.Get("to")
 	if to == "" {
@@ -594,6 +580,11 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	guide, err := launch.Guides(pm.Notes, c.Version, buildinfo.Version) // before any write, as the move needs them
+	if err != nil {
+		return err
+	}
+	fmt.Fprint(stdout, guide)
 	planned, err := install.Rewrite(top, install.SettingsOf(c))
 	if err != nil {
 		return err
@@ -612,6 +603,7 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	stranded = append(stranded, install.PrunePins(main)...) // after the move, which may leave the old pin unused
 	if len(written) == 0 && !tracks {
 		if hooksPath != "" {
 			fmt.Fprintln(stdout, hooksPath)
