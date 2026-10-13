@@ -31,14 +31,15 @@ type guide struct {
 }
 
 // Guides is the upgrade guide of each release a pin move from `from` to `to` crosses, oldest first, read from notes
-// (pm.Notes); "" when the move crosses none (to is not newer than from) or to is not a version (an untagged build). A
+// (pm.Notes); "" when the move crosses none (to is not newer than from, nor another candidate of its release) or to
+// is not a version (an untagged build). A
 // crossed release whose guide notes do not hold fails hard: a missing step is what this text is for.
 func Guides(notes fs.FS, from, to string) (string, error) {
 	after := from
 	if _, ok := Key(from); !ok {
 		after = "0" // a pin that names no version comes before every release: the move may cross each one
 	}
-	if !Newer(to, after) {
+	if !Newer(to, after) && !candidates(after, to) {
 		return "", nil
 	}
 	changelog, err := fs.ReadFile(notes, "CHANGELOG.md")
@@ -83,6 +84,15 @@ func Guides(notes fs.FS, from, to string) (string, error) {
 		out = append(out, g.lines...)
 	}
 	return strings.Join(out, "\n") + "\n\n", nil
+}
+
+// candidates is whether a and b are two pre-releases of one release (0.9.0-rc.1 and 0.9.0-rc.2): a move between them
+// crosses that release's own guide, which its entries give anew for each candidate.
+func candidates(a, b string) bool {
+	ka, okA := Key(a)
+	kb, okB := Key(b)
+	return okA && okB && a != b && !Less(ka, kb) && !Less(kb, ka) && strings.Contains(a, "-") &&
+		strings.Contains(b, "-")
 }
 
 // released is each release section's upgrade guide in CHANGELOG.md, in the file's order.

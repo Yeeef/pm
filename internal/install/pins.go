@@ -37,9 +37,14 @@ func PrunePins(main string) []string {
 	if len(unused) == 0 {
 		return nil
 	}
-	for _, v := range unused {
+	for i, v := range unused {
 		if err := prunePin(v); err != nil {
-			return []string{fmt.Sprintf("pins: pruning pm %s under %s failed: %v", v, launch.Pins(), err)}
+			done := "none"
+			if i > 0 {
+				done = "pm " + strings.Join(unused[:i], ", ")
+			}
+			return []string{fmt.Sprintf("pins: pruning pm %s under %s failed, after pruning %s: %v", v, launch.Pins(),
+				done, err)}
 		}
 	}
 	return []string{fmt.Sprintf("pins: pruned pm %s under %s (%d MB), which no checkout on this machine pins; each "+
@@ -148,11 +153,11 @@ func pinsInUse(main string) (map[string]bool, error) {
 		if _, err := os.Stat(clone); errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
-		out, err := Git(clone, "worktree", "list", "--porcelain")
+		out, err := Git(clone, "worktree", "list", "--porcelain", "-z") // -z: a path git would quote is given as is
 		if err != nil {
 			return nil, fmt.Errorf("cannot list the worktrees of %s: %w", clone, err)
 		}
-		for _, line := range strings.Split(out, "\n") {
+		for _, line := range strings.Split(out, "\x00") {
 			wt, ok := strings.CutPrefix(line, "worktree ")
 			if !ok {
 				continue

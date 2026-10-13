@@ -1,6 +1,7 @@
 package launch
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -8,63 +9,18 @@ import (
 	"github.com/Yeeef/pm"
 )
 
-const testChangelog = `# Changelog
+// testNotes is a build's notes (testdata/notes): four releases, and the entry files of the next one, of which only b.md
+// and c.md give steps of their own. tests/test_changelog.py holds release/changelog.py's assemble of those entries to
+// testdata/assembled-0.5.0.txt, the guide this test wants for 0.5.0.
+var testNotes = os.DirFS("testdata/notes")
 
-Preamble, with a numbered list that is no release's:
-
-1. Not a step.
-
-## [0.4.0] - 2026-10-04
-
-Summary of 0.4.0.
-
-### Upgrade guide
-
-1. Install 0.4.0.
-2. Run pm upgrade --to 0.4.0.
-3. Restart the service; then merge every worktree's branch (steps 1 and 2 first).
-
-### Added
-
-- Something.
-
-## [0.3.1] - 2026-10-03
-
-### Upgrade guide
-
-1. Install 0.3.1.
-   It wraps.
-2. Run pm upgrade --to 0.3.1.
-
-### Fixed
-
-- A fix.
-
-## [0.3.0] - 2026-10-02
-
-### Upgrade guide
-
-1. Install 0.3.0.
-2. Run pm upgrade --to 0.3.0.
-
-## [0.2.0] - 2026-10-01
-
-### Upgrade guide
-
-1. Install 0.2.0.
-2. Run pm upgrade --to 0.2.0.
-
-[0.4.0]: https://github.com/Yeeef/pm/compare/pm-v0.3.1...pm-v0.4.0
-[0.3.1]: https://github.com/Yeeef/pm/compare/pm-v0.3.0...pm-v0.3.1
-`
-
-// testNotes is a build's notes: four releases, and the entry files of the next one, which only b.md and c.md give
-// steps of their own.
-var testNotes = fstest.MapFS{
-	"CHANGELOG.md":     {Data: []byte(testChangelog)},
-	"changelog.d/c.md": {Data: []byte("Summary of c.\n\n### Upgrade guide\n\n1. Re-trust Codex.\n   It wraps.\n2. Restart.\n\n### Fixed\n\n- c.\n")},
-	"changelog.d/a.md": {Data: []byte("Summary of a.\n\n### Added\n\n- a.\n")},
-	"changelog.d/b.md": {Data: []byte("### Upgrade guide\n\n1. Set a key.\n\n### Changed\n\n- b.\n")},
+func testChangelog(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile("testdata/notes/CHANGELOG.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
 
 func TestGuidesPrintsEachCrossedReleasesGuideOldestFirst(t *testing.T) {
@@ -74,10 +30,11 @@ func TestGuidesPrintsEachCrossedReleasesGuideOldestFirst(t *testing.T) {
 		"worktree's branch (steps 1 and 2 first)."
 	// 0.5.0 has no section yet: its entry files give its guide, the two steps every release opens with, then b's
 	// and c's own, renumbered after them, in file name order
-	g050 := "pm 0.5.0:\n1. On each machine, install the release:\n" +
-		"   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.5.0/install.sh | sh`.\n" +
-		"2. In the repo, run `pm upgrade --to 0.5.0`, then commit what it changes and merge it, as an ordinary PR.\n" +
-		"3. Set a key.\n4. Re-trust Codex.\n   It wraps.\n5. Restart."
+	assembled, err := os.ReadFile("testdata/assembled-0.5.0.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g050 := "pm 0.5.0:\n" + strings.TrimSuffix(string(assembled), "\n")
 	for _, c := range []struct {
 		from, to string
 		want     []string // each crossed release's guide, in order; none when the move crosses none
@@ -86,6 +43,8 @@ func TestGuidesPrintsEachCrossedReleasesGuideOldestFirst(t *testing.T) {
 		{"0.2.0", "0.4.0", []string{g030, g031, g040}},
 		{"0.3.1", "0.4.0-rc.1", []string{g040}}, // X's section when there is one
 		{"0.4.0-rc.1", "0.4.0", []string{g040}},
+		{"0.5.0-rc.1", "0.5.0-rc.2", []string{strings.ReplaceAll(g050, "0.5.0", "0.5.0-rc.2")}},
+		{"0.5.0-rc.2", "0.5.0-rc.2", nil},
 		{"0.1.5", "0.3.0", []string{"pm 0.2.0:\n1. Install 0.2.0.\n2. Run pm upgrade --to 0.2.0.", g030}},
 		{"not a version", "0.2.0", []string{"pm 0.2.0:\n1. Install 0.2.0.\n2. Run pm upgrade --to 0.2.0."}},
 		{"0.4.0", "0.4.0", nil}, {"0.4.0", "0.3.0", nil}, {"0.3.0", "dev", nil},
@@ -111,7 +70,7 @@ func TestGuidesPrintsEachCrossedReleasesGuideOldestFirst(t *testing.T) {
 }
 
 func TestGuidesFailWhenACrossedReleaseHasNoGuide(t *testing.T) {
-	notes := fstest.MapFS{"CHANGELOG.md": {Data: []byte(strings.Replace(testChangelog,
+	notes := fstest.MapFS{"CHANGELOG.md": {Data: []byte(strings.Replace(testChangelog(t),
 		"### Upgrade guide\n\n1. Install 0.3.1.\n   It wraps.\n2. Run pm upgrade --to 0.3.1.\n\n", "", 1))}}
 	_, err := Guides(notes, "0.3.0", "0.4.0")
 	if err == nil || !strings.Contains(err.Error(), "give release 0.3.1 no upgrade guide") {

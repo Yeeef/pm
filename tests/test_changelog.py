@@ -341,3 +341,13 @@ def test_plan_and_next_read_the_tags_and_the_hold_of_the_checkout(tmp_path):
     (tmp_path / "release" / "hold").write_text("\n")
     r = run(sys.executable, "release/changelog.py", "check")
     assert r.returncode == 1 and "a hold names the feature it waits for" in r.stderr
+
+
+def test_assemble_gives_the_guide_pm_upgrade_assembles_from_entry_files():
+    """pm upgrade --to X assembles X's guide from its entry files when its build has no section for X (Guides in
+    internal/launch/guide.go); its Go test wants testdata/assembled-0.5.0.txt for the entries in testdata/notes, which
+    must be what changelog.py's assemble gives, the guide the release then writes."""
+    testdata = PM_DIR / "internal/launch/testdata"
+    section = changelog.assemble("0.5.0", changelog.read_entries(testdata / "notes"))
+    guide = "\n".join(line for _, line in section.categories[changelog.GUIDE]).strip("\n") + "\n"
+    assert guide == (testdata / "assembled-0.5.0.txt").read_text()

@@ -10,9 +10,10 @@ import (
 	"github.com/Yeeef/pm/internal/service"
 )
 
-// pinsMachine is a machine with a data dir, a unit dir (this platform's) and two clones: main, its main checkout pinning 0.5.0 and a
-// linked worktree pinning 0.4.0, and another, with a pm service unit, pinning 0.3.0. A unit names a third clone,
-// since removed. Pins 0.2.0 to 0.6.0 are kept, each with its binary and sha256, and 0.1.9 with its sha256 alone.
+// pinsMachine is a machine with a data dir, a unit dir (this platform's) and two clones: main, its main checkout
+// pinning 0.5.0, a linked worktree pinning 0.4.0 and one, whose path git quotes, pinning 0.6.1; and another, with a
+// pm service unit, pinning 0.3.0. A unit names a third clone, since removed. Pins 0.2.0 to 0.6.1 are kept,
+// each with its binary and sha256, and 0.1.9 with its sha256 alone.
 func pinsMachine(t *testing.T) (main string) {
 	t.Helper()
 	root := t.TempDir()
@@ -30,6 +31,9 @@ func pinsMachine(t *testing.T) (main string) {
 	main = clone("main", "0.5.0")
 	run(t, main, "git", "worktree", "add", "-q", "-b", "old", filepath.Join(root, "wt"))
 	pinAt(t, filepath.Join(root, "wt"), "0.4.0")
+	quoted := filepath.Join(root, "wt\nquoted") // a path git worktree list --porcelain splits or quotes without -z
+	run(t, main, "git", "worktree", "add", "-q", "-b", "quoted", quoted)
+	pinAt(t, quoted, "0.6.1")
 	if err := os.MkdirAll(service.UnitDir(kind), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +46,7 @@ func pinsMachine(t *testing.T) (main string) {
 			t.Fatal(err)
 		}
 	}
-	for _, v := range []string{"0.1.9", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0"} {
+	for _, v := range []string{"0.1.9", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.6.1"} {
 		if err := os.MkdirAll(launch.PinDir(v), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +102,7 @@ func TestPrunePinsRemovesTheBinaryOfEachPinNoCheckoutPinsAndKeepsItsSha256(t *te
 		t.Fatalf("PrunePins = %q", got)
 	}
 	kept, sums := binaries(t)
-	if strings.Join(kept, " ") != "0.3.0 0.4.0 0.5.0" || !sums {
+	if strings.Join(kept, " ") != "0.3.0 0.4.0 0.5.0 0.6.1" || !sums {
 		t.Fatalf("binaries kept %v, every sha256 kept %v", kept, sums)
 	}
 	if got := PrunePins(main); got != nil {
@@ -134,8 +138,8 @@ func TestPrunePinsPrunesNoneWhenWhatAClonePinsCannotBeRead(t *testing.T) {
 			if !strings.HasPrefix(got, "pins: pruned none under "+launch.Pins()+": ") {
 				t.Fatalf("PrunePins = %q", got)
 			}
-			if kept, _ := binaries(t); len(kept) != 5 {
-				t.Fatalf("binaries kept %v, want all five", kept)
+			if kept, _ := binaries(t); len(kept) != 6 {
+				t.Fatalf("binaries kept %v, want all six", kept)
 			}
 			if got := strings.Join(UnusedPins(main), "\n"); !strings.HasPrefix(got, "pins: cannot tell") {
 				t.Fatalf("UnusedPins = %q", got)
