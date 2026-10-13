@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T20:17:10+00:00",
- "digest": "91ed1ef8db6667bf",
+ "generated_at": "2026-10-13T20:27:40+00:00",
+ "digest": "f167dc1fc4e88d9a",
  "model": "claude-haiku-5-5",
- "text": "- **Codex parity:** A Codex session now gets the same pm guarantees as a Claude Code session. Both runtimes can work on one project at once, and the judge and day summary run on Codex too.\n- **Release shipped:** The new pm release shipped with an install script and archives for macOS and Linux. The release policy design page now records the owner's decision.\n- **Code and design gates:** Command code now splits by noun and is checked by size and complexity gates. A design page now names covered code, and changes to that code wait until the page is updated or waived.\n- **CI reaches Anthropic API:** A test run confirmed the token exchange and a claude -p call under federation."
+ "text": "- **Codex parity:** Codex sessions now get the same pm guarantees as Claude Code. Both runtimes can work one project at once, and the judge and day summary run on Codex.\n- **pm release:** pm shipped a new release with notes, a tag, and install files for each platform. A release policy page recommends a release on every merge, with its alternatives.\n- **Code split and gates:** Command code now lives in packages split by noun, and old parser compatibility code is retired. A pull request that changes covered code now waits until its design page is updated or waived.\n- **Continuous integration identity:** The owner set up workload identity federation for GitHub Actions. A draft pull request run then confirmed the token exchange and a Claude run under federation."
 }
