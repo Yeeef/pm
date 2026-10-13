@@ -80,7 +80,14 @@ Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup wa
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- TestPullRacingLocalWriters spent about 2 s a round sleeping out Dolt's 1.1 s
+  read dedup before pushes that need no fresh fetch (A's push opening a round,
+  B's push after its racing pull: nobody pushed since their last read).
+  Skipping those two waits keeps the racing pull, its three cadences and every
+  assertion: locally under -race 14.8-15.6 s to 9.5-10.0 s (3 runs each; 6.2 s
+  of CPU in 15.3 s wall before). On macos-14 it stayed 21-27 s in both forms:
+  there the test is bound by per-operation latency on a busy 3-core runner,
+  not by the sleeps.
 
 ## Delivery report
 
