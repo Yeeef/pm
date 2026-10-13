@@ -80,7 +80,7 @@ The state hook takes the runtime from the process ancestry, not from a flag on i
 
 ### Gaps against Claude Code
 
-The 12 gaps the sprint 1 gap list found, each with where it stands.
+The 12 gaps the sprint 1 gap list found, each with where it stands. A gap marked closed is closed on the open PRs: [#47](https://github.com/Yeeef/pm/pull/47) (pm-codex sprint 1) and, for gap 8, [#56](https://github.com/Yeeef/pm/pull/56) (pm-codex sprint 2). Neither is on main or in a release yet; the released pm (0.7.1) has every gap open.
 
 | # | Gap | Status | How |
 |---|---|---|---|
