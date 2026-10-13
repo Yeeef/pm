@@ -59,6 +59,11 @@ The design page agent-lifecycle stays as it is for this sprint's code changes.
 It covers prime.md for the session lifecycle; it states neither the push/PR-without-asking invariant nor the project goal rule, so the new invariant changes nothing it describes
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page pm-cli stays as it is for this sprint's code changes.
+Only pm project open's help text changed, adding that an owner's request stating the goal confirms it; pm-cli's table lists the command's inputs and refusals, which are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
