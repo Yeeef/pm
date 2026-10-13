@@ -30,6 +30,8 @@ it covers.
 
 pm tracks its own development with the release `.pm/config.toml` pins: its projects' sprints, tasks and needs in the
 work store (the remote's `refs/pm/work`), its records (plans, decisions, design pages) on the `records` branch.
+`pm check` fails unless a design page's `covers:` holds every tracked file that `design_sources` in `.pm/config.toml`
+matches: a new source file is added to the `covers:` of the page about its area, committed with `pm commit`.
 
 ## Commands
 
@@ -83,6 +85,8 @@ ran against main as main was then, so two PRs that pass alone can break main tog
 - **A PR that changes what a release ships** (the `SHIPPED` paths in `release/changelog.py`) **adds one entry file,
   `changelog.d/<slug>.md`**, in the form `CHANGELOG.md`'s preamble gives, and never edits `CHANGELOG.md`. When users
   would not notice the change, label the PR `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
+- **Never delete `changelog.d/README.md`**: the binary embeds `CHANGELOG.md` and `changelog.d/` for `pm upgrade`'s
+  guides, and that file keeps the directory from being empty, which `go:embed` refuses (`assets_test.go`).
 - `release/README.md` holds the release workflow, the version rule, release candidates, notes fixes and a failed
   release's recovery.
 - **Never move or recreate a release tag, and never rebuild a release's assets**: launchers keep each binary's sha256
