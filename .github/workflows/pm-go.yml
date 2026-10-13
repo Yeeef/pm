@@ -8,6 +8,10 @@
 # The step summary records the binary's size per target. pm-release-build.yml runs the release build test,
 # pm-tests.yml the harness suite.
 #
+# A pull request whose changed files no Go job reads (.github/scripts/go_changes.py: docs, the harness's and the
+# release tools' Python) skips each job's steps after the check, so every job still reports, as merge_ready.py
+# requires of a workflow that runs on every PR, and passes. A push to main runs everything.
+#
 # The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
 # and go.sum, and a pull request restores main's latest, so a PR compiles only what it changed. A run that finds none
 # for its go.sum (a dependency change, a new Go version, an evicted cache) restores the latest of its kind and saves its
@@ -56,11 +60,18 @@ jobs:
       GOFLAGS: -count=1
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # a PR's merge commit and its base, which go_changes.py diffs
+      - name: Whether the changes can affect the Go jobs
+        id: changes
+        run: python3 .github/scripts/go_changes.py
       - name: Go, at go.mod's version
         id: go
+        if: steps.changes.outputs.go == 'true'
         run: python3 .github/scripts/setup_go.py
       - name: The Go cache paths and key
         id: paths
+        if: steps.changes.outputs.go == 'true'
         run: |
           echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
           echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
@@ -68,6 +79,7 @@ jobs:
           echo "sum=${{ hashFiles('go.sum') }}-" >> "$GITHUB_OUTPUT"
       - name: Restore main's latest Go cache
         id: restore
+        if: steps.changes.outputs.go == 'true'
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -85,9 +97,10 @@ jobs:
         run: python3 .github/scripts/go_cache_trim.py age "${{ steps.paths.outputs.build }}"
       - name: ${{ matrix.suite }}
         id: suite
+        if: steps.changes.outputs.go == 'true'
         run: ${{ matrix.run }}
       - name: Record the binary
-        if: matrix.binary
+        if: matrix.binary && steps.suite.outcome == 'success'
         run: |
           go version -m .go/pm | grep -E 'CGO_ENABLED=1|GOOS|GOARCH'
           size=$(wc -c < .go/pm | tr -d ' ')
