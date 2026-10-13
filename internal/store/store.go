@@ -60,6 +60,14 @@ func Git(dir string, args ...string) (string, error) {
 	return records.Strip(out), nil
 }
 
+// FetchMain fetches the remote's main branch in the checkout root into its remote-tracking ref, which it returns
+// (refs/remotes/<remote>/<branch>): what pm sprint close and pm action done check a merge against.
+func FetchMain(root, remote, branch string) (string, error) {
+	ref := "refs/remotes/" + remote + "/" + branch
+	_, err := Git(root, "fetch", "--quiet", remote, "+refs/heads/"+branch+":"+ref)
+	return ref, err
+}
+
 // PathOf is where the store of the clone containing cwd lives, whether or not it exists yet.
 func PathOf(cwd string) (string, error) {
 	common, err := Git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")

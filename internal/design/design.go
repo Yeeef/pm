@@ -34,9 +34,12 @@ func Tracked(dirs ...string) (map[string]bool, error) {
 	return out, nil
 }
 
-// Check fails on a covers pattern that matches no tracked file and on a source pattern pm cannot read, naming each;
-// otherwise it returns the tracked files a source pattern matches and no design page covers, sorted.
-func Check(recs []*records.Record, tracked map[string]bool, sources []string) ([]string, error) {
+// Check fails on a source pattern that pm cannot read or that matches no tracked file, naming each; otherwise it returns
+// the tracked files a source pattern matches and no design page covers, sorted, and each covers pattern that matches no
+// tracked file (Dead). Such a pattern waits on unmerged work: the records store is shared across branches, and the
+// gate makes a sprint bring its page to the new state before its PR merges, so a page names a file before main has
+// it. pm sprint close holds it to main instead (Dead on MainFiles).
+func Check(recs []*records.Record, tracked map[string]bool, sources []string) (uncovered, waiting []string, err error) {
 	var bad, covers []string
 	for _, p := range sources {
 		if err := records.CheckPattern(p); err != nil {
@@ -45,29 +48,113 @@ func Check(recs []*records.Record, tracked map[string]bool, sources []string) ([
 			bad = append(bad, fmt.Sprintf("design_sources pattern %q matches no tracked file; fix or remove it", p))
 		}
 	}
-	for _, r := range recs {
-		if r.Type() != "design" {
-			continue
-		}
-		for _, p := range r.Covers() {
-			covers = append(covers, p)
-			if !matchesAny(p, tracked) {
-				bad = append(bad, fmt.Sprintf("%s: covers pattern %q matches no tracked file; fix or remove it "+
-					"(a directory's files are dir/**)", r.Rel, p))
-			}
-		}
-	}
 	if bad != nil {
-		return nil, fmt.Errorf("%s", strings.Join(bad, "\n"))
+		return nil, nil, fmt.Errorf("%s", strings.Join(bad, "\n"))
 	}
-	var uncovered []string
+	var pages []*records.Record
+	for _, r := range recs {
+		if r.Type() == "design" {
+			pages = append(pages, r)
+			covers = append(covers, r.Covers()...)
+		}
+	}
 	for f := range tracked {
 		if records.MatchAny(sources, f) && !records.MatchAny(covers, f) {
 			uncovered = append(uncovered, f)
 		}
 	}
 	sort.Strings(uncovered)
-	return uncovered, nil
+	return uncovered, Dead(pages, tracked), nil
+}
+
+// Report is what pm check prints after its render line, from Check: the tracked source files no page covers (the
+// design_sources key of the config file at rel) or that a page covers each, then the covers patterns that wait on
+// unmerged work.
+func Report(recs []*records.Record, tracked map[string]bool, sources []string, rel string) (string, error) {
+	uncovered, waiting, err := Check(recs, tracked, sources)
+	if err != nil {
+		return "", err
+	}
+	var out string
+	switch {
+	case uncovered != nil:
+		out = fmt.Sprintf("; %d tracked source files (design_sources in %s) no design page covers; add each to the "+
+			"covers: of the page about its area:\n  %s", len(uncovered), rel, strings.Join(uncovered, "\n  "))
+	case sources != nil:
+		out = "; a design page covers every tracked source file"
+	}
+	if waiting != nil {
+		out += fmt.Sprintf("\n%d covers patterns match no tracked file, waiting on unmerged work; pm sprint close "+
+			"refuses a sprint whose page still names a file the remote's main lacks once its PR merges:\n  %s",
+			len(waiting), strings.Join(waiting, "\n  "))
+	}
+	return out, nil
+}
+
+// Dead is each covers pattern of the pages that matches none of files, as `<page>.md: covers pattern "<pattern>"`, in
+// page then pattern order.
+func Dead(pages []*records.Record, files map[string]bool) []string {
+	var out []string
+	for _, r := range pages {
+		for _, p := range r.Covers() {
+			if !matchesAny(p, files) {
+				out = append(out, fmt.Sprintf("%s.md: covers pattern %q", r.Rel, p))
+			}
+		}
+	}
+	return out
+}
+
+// Held is the design pages with covers that pm sprint close holds to the remote's main: those the sprint record's
+// Design pages list, then those the gate's verdicts for its PRs name, each once.
+func Held(sprint *records.Record, recs []*records.Record, verdicts []Verdict) []*records.Record {
+	var out []*records.Record
+	for _, page := range recs {
+		if page.Type() == "design" && slices.Contains(records.DesignLinks(sprint), page.Name()) {
+			out = append(out, page)
+		}
+	}
+	for _, v := range verdicts {
+		if !slices.Contains(out, v.Page) {
+			out = append(out, v.Page)
+		}
+	}
+	return slices.DeleteFunc(out, func(p *records.Record) bool { return len(p.Covers()) == 0 })
+}
+
+// LiveOnMain fetches the remote's main in the checkout root and fails while one of the pages has a covers pattern that
+// matches no file there, naming page, pattern and the fix: a page may name a file before main has it only while the
+// PR that adds it is open, and sprint id closes once that PR is merged.
+func LiveOnMain(root, remote, branch, id string, pages []*records.Record) error {
+	main := remote + "/" + branch
+	ref, err := store.FetchMain(root, remote, branch)
+	if err != nil {
+		return fmt.Errorf("sprint %s: pm cannot see %s, so it cannot check its design pages' covers against it: %v",
+			id, main, err)
+	}
+	files, err := MainFiles(root, ref)
+	if err != nil {
+		return err
+	}
+	if dead := Dead(pages, files); dead != nil {
+		return fmt.Errorf("sprint %s: its design pages name files %s does not have: %s. Fix each pattern to the file "+
+			"main has and commit the page with pm commit, or merge the PR that adds the file first; then run pm sprint "+
+			"close %s again", id, main, strings.Join(dead, ", "), id)
+	}
+	return nil
+}
+
+// MainFiles is the files of the tree at ref (the remote's main, fetched), as slash paths from the repo's top.
+func MainFiles(root, ref string) (map[string]bool, error) {
+	list, err := store.Git(root, "ls-tree", "-r", "--name-only", "--full-tree", ref)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for _, f := range lines(list) {
+		out[f] = true
+	}
+	return out, nil
 }
 
 func matchesAny(pattern string, files map[string]bool) bool {
