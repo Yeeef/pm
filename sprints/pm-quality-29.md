@@ -70,6 +70,8 @@ None yet.
 
 done: `pm check`'s waiting-pattern line and `pm check --help` now state the close rule as pm 0.8.6 applies it: only the patterns a sprint added or changed while open.
 
+Merged as 9de4072 (PR #76).
+
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
