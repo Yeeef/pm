@@ -113,6 +113,17 @@ The owner asked in chat on 2026-10-13 to take the sprint over and deliver the re
   arguments are now reported before missing required ones, so the refusal
   names the real mistake.
 
+- pyjson's real requirement was narrower than its 429 lines: of its uses only
+  the user-owned settings files (.claude/settings.json, .codex/hooks.json,
+  settings.local.json) need key order kept, now a token-based ordered object
+  in internal/install. For ASCII content every file pm writes is
+  byte-identical (pieces.json golden and the site goldens unchanged); bytes
+  change in hook output and pm show --json (compact or raw UTF-8), /version,
+  and in every message that quotes a value ('x' -> "x"; 11 harness assertions
+  updated). config.toml used to get a surrogate pair for a character outside
+  the BMP, which is invalid TOML; the new quoter is checked by decoding back
+  with BurntSushi/toml.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
