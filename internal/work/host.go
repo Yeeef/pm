@@ -374,7 +374,8 @@ func (h *Host) Sync(c context.Context) ([]string, error) {
 // in the middle of a statement to end it, and a command in CALL pm_sync() or pm_create() is in the middle of one
 // while it waits for the slot, so a collection that held the slot would wait for it until its timeout. One
 // collection runs at a time (Dolt allows one), and the next begins only once each session's visit by the last has
-// ended (host_gc.go).
+// ended (host_gc.go). A collection whose client gave up at c's bound may still run in the server, past gcMu: the
+// service's next one is GCInterval later.
 func (h *Host) GC(c context.Context) error {
 	h.gcMu.Lock()
 	defer h.gcMu.Unlock()
