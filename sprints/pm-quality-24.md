@@ -47,7 +47,10 @@ The race job passes or fails for a reason in the code under test. On PR #61's se
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-13}
+The design page work-store stays as it is for this sprint's code changes.
+Its Garbage row (DOLT_GC on a schedule, online, session-aware safepoints) still holds; the wait for each visit's end is host detail, on the pm-go page's gc bullets
+:::
 
 ## Findings
 
