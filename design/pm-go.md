@@ -9,7 +9,6 @@ covers:
   - "internal/buildinfo/**"
   - "internal/config/**"
   - "internal/proc/**"
-  - "internal/pyjson/**"
   - "internal/cli/serve*.go"
   - "internal/cli/service.go"
   - "internal/service/run*.go"
@@ -90,7 +89,7 @@ Reading: opening once per process meets the 300 ms goal about 5 times over, but 
 | Regexes | Go `regexp` is RE2: no lookarounds, no backreferences, and `\w` is ASCII only. The 9 patterns that needed them (section splits, sentence and word splitting, the id match) are scanning code, each with its own table test, not `regexp2` |
 | Character counts | `hooks.CAP` and the sentence and word limits count runes (`utf8.RuneCountInString`), not bytes: `prime.md` has more bytes than characters |
 | YAML | front matter keeps YAML 1.1 typing (`yes`, `on` and dates are typed), so headers quote as they always did; `internal/records/testdata/expected.json` holds the cases |
-| JSON | `internal/pyjson` preserves stored/exported JSON and user-visible repr/error forms. Machine-only Claude inbox messages use `encoding/json`; receivers consume the decoded `type`, `role` and `content` fields |
+| JSON | `encoding/json` reads and writes all of it, with HTML escaping off where a person or a file sees the output, and typed structs where pm builds an object (field order is key order). A settings file pm merges its hooks or a path into (`.claude/settings.json`, `.codex/hooks.json`, `.claude/settings.local.json`) is read into an ordered object (`internal/install/jsonobject.go`), so the user's keys and values keep their order and their numbers' text, and written with a two-space indent: for ASCII text the bytes Python pm wrote. Messages quote a value with Go's `%q`; `.pm/config.toml` and Codex's writable roots quote theirs as TOML basic strings |
 | Refusal texts | `prime.md` and the harness cite them word for word |
 
 ## Design
@@ -139,7 +138,6 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | `internal/ask` | One prompt through an agent runtime's CLI on a small model: `claude -p` (Haiku) or `codex exec`, from an empty temp directory, with no hooks, project instructions or saved session, bounded in time; the owner-request judge and `pm day summarize` use it, with no fallback from one runtime to the other |
 | `internal/install` | Managed pieces, `init`, `doctor`, `upgrade`, `uninstall`, `where` |
 | `internal/proc` | The subprocess helper: argv, cwd, captured text output, timeout; optionally a process group of its own, killed whole at the timeout or by `KillGroups` when pm itself is stopped (a runtime CLI's launcher script would otherwise leave its real process running); `gh` runs, its JSON decoded |
-| `internal/pyjson` | JSON read and written with Python `json`'s default separators |
 | `internal/buildinfo` | The version, stamped by the release build |
 
 - **Embedded files.** `//go:embed` reads only files at or below the package directory, so `assets.go`, package `pm` at the module root, embeds `prime.md`, `style.css` and the model prompts in `prompts/`. The test that checks the noun list against `prime.md` reads the cobra tree.
