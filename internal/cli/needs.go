@@ -11,6 +11,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/design"
+	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/session"
@@ -419,6 +420,9 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 				strings.Join(unwritten, " and "), verb, records.NotClosed)
 		}
 	}
+	if err := prReachesMain(e.here, r.root, pr); err != nil {
+		return "", err
+	}
 	parent := sprints[0]
 	designs := dedupe(p.values["design"])
 	known := r.designSlugs()
@@ -473,6 +477,30 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 	return fmt.Sprintf("raised review %s under %s; %s; the pm service pushes the PR's merge to main the same way; once "+
 		"the PR is on main: pm action done %s --reason \"merged as <sha>\"", made.ID, parent, deliveryHint(made.ID),
 		made.ID), nil
+}
+
+// prReachesMain refuses a GitHub PR whose base is not the main branch: a stacked PR merges into another PR's branch,
+// so its review could never close as merged on main.
+func prReachesMain(here, root, pr string) error {
+	if !pullURL.MatchString(pr) {
+		return nil
+	}
+	cfg, err := config.Load(here)
+	if err != nil {
+		return err
+	}
+	var got struct {
+		Base string `json:"baseRefName"`
+	}
+	if err := proc.GHJSON(root, &got, "pr", "view", pr, "--json", "baseRefName"); err != nil {
+		return refuse("--pr %s: pm reads its base branch from GitHub, and cannot: %v", pr, err)
+	}
+	if got.Base != cfg.MainBranch {
+		return refuse("--pr %s merges into %s, not %s, so its merge does not deliver the sprint; raise the review on "+
+			"the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)", pr, pyRepr(got.Base),
+			cfg.MainBranch, cfg.MainBranch, pr, cfg.MainBranch)
+	}
+	return nil
 }
 
 // cmdNeedEdit rewrites an open action's or decision need's body, with raiseNeed's checks, until the owner replies.
@@ -829,7 +857,7 @@ func cmdActionDone(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	if need.Status == work.Closed {
-		return "", refuse("action %s is already closed", id)
+		return restampReview(e, r, need, reason)
 	}
 	if err := refuseUnread(need); err != nil {
 		return "", err
@@ -845,6 +873,38 @@ func cmdActionDone(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("closed action %s: %s", id, reason), nil
+}
+
+// restampReview gives a PR review closed without "merged as <sha>" (its PR merged into a stacked base) that reason
+// once sha is on the remote's main, so its sprint can close; the old reason stays after it. Any other closed action
+// is refused.
+func restampReview(e *env, r *repo, need *work.Item, reason string) (string, error) {
+	id, old := need.ID, need.CloseReason
+	if need.Need == nil || need.Need.Kind != work.Review || need.Resolution != work.Done || mergedAs.MatchString(old) {
+		return "", refuse("action %s is already closed", id)
+	}
+	m := mergedAs.FindStringSubmatch(reason)
+	if m == nil {
+		return "", refuse("review %s is closed as %s, without 'merged as <sha>'; once its work is on main, restamp it "+
+			"with pm action done %s --reason \"merged as <sha>\"", id, pyRepr(old), id)
+	}
+	if _, err := onMain(e, "merged as", m[1]); err != nil {
+		return "", err
+	}
+	reason += "; first closed as: " + old
+	planned := *need
+	planned.CloseReason = reason
+	if err := r.checkPlanned(nil, r.with(planned)); err != nil {
+		return "", err
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	if err := ws.SetCloseReason(id, reason); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("restamped review %s: %s", id, reason), nil
 }
 
 // ---------------------------------------------------------------- pm reply read

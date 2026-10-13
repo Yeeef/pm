@@ -236,6 +236,7 @@ def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
 def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
     """The whole loop: a written report, a review under the sprint, a refusal while the review is open, the review
     closed as merged once the PR is on main, then a close that stamps the merge and names its records commit."""
+    repo.set_pr(PR, "OPEN")
     repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
     report(repo, "Done: shipped the thing.")
     res = repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F")
@@ -290,6 +291,66 @@ def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
     assert repo.pm("check").returncode == 0
 
 
+def test_a_review_of_a_pr_that_does_not_target_main_is_refused_naming_the_fix(repo):
+    """A stacked PR merges into another PR's branch, so its review could never close as merged on main: pm action need
+    --pr refuses a GitHub PR whose base is not the main branch, or whose base gh cannot tell, and writes nothing."""
+    report(repo, "Done: shipped the thing.")
+    review = ("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F")
+    refused(repo, *review, match=r"--pr https://github.com/o/r/pull/12: pm reads its base branch from GitHub, and "
+                                 r"cannot: gh pr view .* failed: GraphQL: Could not resolve to a PullRequest")
+    repo.set_pr(PR, "OPEN", base="codex-parity")
+    refused(repo, *review, match=r"--pr https://github.com/o/r/pull/12 merges into 'codex-parity', not main, so its "
+                                 r"merge does not deliver the sprint; raise the review on the PR that reaches main, or "
+                                 r"retarget this one first \(gh pr edit https://github.com/o/r/pull/12 --base main\)")
+    repo.set_pr(PR, "OPEN")
+    res = repo.pm(*review)
+    assert res.returncode == 0, res.stderr
+
+
+@pytest.mark.integration
+def test_action_done_restamps_a_review_closed_before_its_pr_reached_main(repo, tmp_path):
+    """A review closed while its PR had merged only into a stacked base holds its sprint's close; once the work is on
+    main, pm action done <review> --reason "merged as <sha>" restamps it, keeping the old reason, and the sprint closes.
+    A reason without it, a sha not on main, a review closed as merged and any other closed action are refused."""
+    repo.git("init", "-q", "--bare", str(tmp_path / "origin.git"))
+    repo.git("remote", "add", "origin", str(tmp_path / "origin.git"))
+    repo.git("push", "-q", "origin", "main")
+    on_main = repo.git("rev-parse", "HEAD").strip()
+    wt = repo.worktree("stacked")
+    (wt / "x.txt").write_text("x\n")
+    repo.git("add", "x.txt", cwd=wt)
+    repo.git("commit", "-qm", "not on main", cwd=wt)
+    off_main = repo.git("rev-parse", "HEAD", cwd=wt).strip()
+    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
+    report(repo, "Done: shipped the thing.")
+    repo.set_pr(PR, "OPEN")
+    assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F").returncode == 0
+    assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
+    review, action, first = "repo-demo.1.3", "repo-demo.1.4", "PR merged into stacked as d74c717, not yet on main"
+    assert repo.pm("action", "done", review, "--reason", first).returncode == 0
+    assert repo.pm("action", "done", action, "--reason", "restarted").returncode == 0
+    repo.mark()
+    refused(repo, "sprint", "close", "repo-demo.1", match=rf"PR review {review} \({PR}\) is closed as '{first}', not "
+                                                         r"'merged as <sha>'")
+    refused(repo, "action", "done", review, "--reason", "it landed",
+            match=rf"review {review} is closed as '{first}', without 'merged as <sha>'; once its work is on main, "
+                  rf"restamp it with pm action done {review} --reason \"merged as <sha>\"")
+    refused(repo, "action", "done", review, "--reason", f"merged as {off_main}",
+            match=rf"merged as {off_main} is not on origin/main; give the merge commit once the PR is on main")
+    refused(repo, "action", "done", action, "--reason", f"merged as {on_main[:7]}", match=rf"action {action} is "
+                                                                                          r"already closed")
+    res = repo.pm("action", "done", review, "--reason", f"merged as {on_main[:7]}")
+    assert res.returncode == 0, res.stderr
+    restamped = f"merged as {on_main[:7]}; first closed as: {first}"
+    assert repo.changes() == {review: {"close_reason": restamped}}
+    repo.mark()
+    refused(repo, "action", "done", review, "--reason", f"merged as {on_main[:7]}",
+            match=rf"action {review} is already closed")
+    res = repo.pm("sprint", "close", "repo-demo.1")
+    assert res.returncode == 0, res.stderr
+    assert f"Merged as {on_main[:7]} (PR #12)." in (repo.records / "sprints/demo-1.md").read_text()
+
+
 # ---------------------------------------------------------------- design pages: covers and the gate
 
 
@@ -329,6 +390,8 @@ def test_a_pr_that_changes_covered_code_waits_until_its_design_page_is_updated_o
     commit_on(repo, "2026-09-30", "the parser page, before the sprints opened")
     report(repo, "Done: shipped the thing.")
     set_pr_files(repo, PR, ["src/parser/lex.go", "README.md"])
+    repo.set_pr(PR, "OPEN")
+    repo.set_pr(PR2, "OPEN")
     gate = (r"https://github.com/o/r/pull/12 changes code that design pages cover, and sprint repo-demo.1 neither "
             r"updated nor waived them: design/parser.md \(covers src/parser/lex.go\)\. For each page, bring it to the "
             r"new state, commit it with pm commit and link it in the sprint record's Design pages section, or record "
@@ -392,6 +455,7 @@ def test_the_gate_replayed_on_pr_47_names_the_pages_pm_codex_sprint_1_left_uncha
     commit_on(repo, "2026-09-30", "the design pages, before the sprint opened")
     report(repo, "Done: shipped the thing.")
     url = "https://github.com/Yeeef/pm/pull/47"
+    repo.set_pr(url, "OPEN")
     set_pr_files(repo, url, replay["files"])
     res = refused(repo, "action", "need", "--pr", url, "--sprint", "repo-demo.1", "--focus", "F",
                   match=r"https://github.com/Yeeef/pm/pull/47 changes code that design pages cover")
@@ -696,6 +760,7 @@ def test_sprint_edit_renames_the_sprint_in_both_stores_and_records_why(repo):
 def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
     """pm need edit: an action takes a new description, a decision need new parts in the one layout; a need that holds
     a reply, a closed need, a PR review and a task are refused, as is the wrong form of body for the kind."""
+    repo.set_pr(PR, "OPEN")
     # folded: test_decision_need_refuses_a_malformed_part_and_writes_nothing
     for flags, error in MALFORMED_NEEDS:
         res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *flags)

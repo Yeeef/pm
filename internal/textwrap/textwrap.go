@@ -1,15 +1,16 @@
-package cli
+// Package textwrap is Python's textwrap.fill, as pm finding add wraps a finding.
+package textwrap
 
 import (
 	"strings"
 	"unicode/utf8"
 )
 
-// wrapFill is Python's textwrap.fill(text, width, initial_indent=first, subsequent_indent=rest,
+// Fill is Python's textwrap.fill(text, width, initial_indent=first, subsequent_indent=rest,
 // break_long_words=False, break_on_hyphens=False): tabs expanded, each ASCII whitespace character made a space, the
 // text cut into words and whitespace runs, lines filled greedily, a word longer than a line put on a line of its own,
 // whitespace dropped at the start of each line after the first and at the end of every line.
-func wrapFill(text string, width int, first, rest string) string {
+func Fill(text string, width int, first, rest string) string {
 	text = expandTabs(text, 8)
 	text = strings.Map(func(r rune) rune {
 		if strings.ContainsRune("\t\n\x0b\x0c\r", r) {

@@ -170,6 +170,9 @@ func TestClaimIsACompareAndSet(t *testing.T) {
 	if err := d.SetResolution(task.ID, NoDecision); err != nil || get(t, d, task.ID).Resolution != NoDecision {
 		t.Fatal(err)
 	}
+	if err := d.SetCloseReason(task.ID, "done it twice"); err != nil || get(t, d, task.ID).CloseReason != "done it twice" {
+		t.Fatal(err)
+	}
 
 	// A move note is read only from pm's own comments: a session's note in the same words is no move.
 	t.Run("SprintMovesReadsOnlyPmsNotes", func(t *testing.T) {
@@ -396,6 +399,7 @@ func TestCommentsKeepTheirOrderWithinASecond(t *testing.T) {
 			d.Edit(task.ID, ptr(""), nil),                          // no title
 			d.Move(task.ID, "demo-none"),                           // no such parent
 			d.SetResolution(task.ID, Done),                         // open
+			d.SetCloseReason(task.ID, "r"),                         // open
 			d.DepAdd(task.ID, "demo-none"),                         // no such blocker
 			d.DepAdd(task.ID, task.ID),                             // itself
 			d.DepRemove(task.ID, "demo-none"),                      // no such link

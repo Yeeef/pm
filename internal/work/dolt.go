@@ -1090,6 +1090,17 @@ func (d *Dolt) SetResolution(id string, resolution Resolution) error {
 	})
 }
 
+// SetCloseReason sets a closed item's close reason (pm action done restamps a closed PR review with its merge).
+func (d *Dolt) SetCloseReason(id, reason string) error {
+	return d.update("set the close reason of", id, func(it *Item, _ *Index) error {
+		if it.Status != Closed {
+			return itemError(id, "is open; only a closed item has a close reason")
+		}
+		it.CloseReason = reason
+		return nil
+	})
+}
+
 // Move gives a task or a need a new parent (pm task move takes any open item that is no project or sprint); its id
 // stays.
 func (d *Dolt) Move(id, parent string) error {

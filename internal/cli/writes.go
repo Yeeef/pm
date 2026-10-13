@@ -20,6 +20,7 @@ import (
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/textwrap"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -124,7 +125,7 @@ func cmdFindingAdd(e *env, p *Parsed) (string, error) {
 	if it := r.item(sprintID); it != nil && it.Status == work.Closed {
 		return "", refuse("sprint %s is closed; add the finding to an open sprint", sprintID)
 	}
-	entry := wrapFill(text, 78, "- ", "  ")
+	entry := textwrap.Fill(text, 78, "- ", "  ")
 	updated, err := records.InsertEntry(rec.Text, "Findings", entry)
 	if err != nil {
 		return "", err
@@ -571,7 +572,7 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 			return "", refuse("--pr %s is not a URL; give the pull request's link", pyRepr(pr))
 		}
 		var err error
-		if mergedSHA, err = onMain(e, strip(merged)); err != nil { // before the records lock: it fetches
+		if mergedSHA, err = onMain(e, "--merged", strip(merged)); err != nil { // before the records lock: it fetches
 			return "", err
 		}
 	}
@@ -735,10 +736,11 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 // shaRE is a commit's hex sha, as --merged takes it.
 var shaRE = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 
-// onMain is the full sha of the commit sha names, refused unless it is on the remote's main branch, fetched first.
-func onMain(e *env, sha string) (string, error) {
+// onMain is the full sha of the commit sha names, refused unless it is on the remote's main branch, fetched first;
+// given names the sha in a refusal (--merged, merged as).
+func onMain(e *env, given, sha string) (string, error) {
 	if !shaRE.MatchString(sha) {
-		return "", refuse("--merged %s is not a commit sha: 7 to 40 hex digits", pyRepr(sha))
+		return "", refuse("%s %s is not a commit sha: 7 to 40 hex digits", given, pyRepr(sha))
 	}
 	cfg, err := config.Load(e.here)
 	if err != nil {
@@ -751,14 +753,14 @@ func onMain(e *env, sha string) (string, error) {
 	main := cfg.Remote + "/" + cfg.MainBranch
 	if _, err := store.Git(root, "fetch", "--quiet", cfg.Remote, fmt.Sprintf("+refs/heads/%s:refs/remotes/%s",
 		cfg.MainBranch, main)); err != nil {
-		return "", refuse("--merged %s: pm cannot see %s, so it cannot check the commit is on it: %v", sha, main, err)
+		return "", refuse("%s %s: pm cannot see %s, so it cannot check the commit is on it: %v", given, sha, main, err)
 	}
 	full, err := store.Git(root, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
 	if err != nil {
-		return "", refuse("--merged %s is no commit of this repo, %s included", sha, main)
+		return "", refuse("%s %s is no commit of this repo, %s included", given, sha, main)
 	}
 	if _, err := store.Git(root, "merge-base", "--is-ancestor", full, "refs/remotes/"+main); err != nil {
-		return "", refuse("--merged %s is not on %s; give the merge commit once the PR is on main", sha, main)
+		return "", refuse("%s %s is not on %s; give the merge commit once the PR is on main", given, sha, main)
 	}
 	return full, nil
 }
