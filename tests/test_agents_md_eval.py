@@ -36,12 +36,12 @@ def test_the_rubric_has_every_criterion_in_order():
         evaluate.rubric("# r\n\n## accurate\n\nx\n")
 
 
-def test_full_mode_makes_one_call_per_criterion_and_one_accurate_call_per_section():
+def test_full_mode_makes_three_calls_per_criterion_and_section_and_one_complete_call():
     text = "# T\n\nintro\n\n## A\n\na `x`\n\n## B\n\nb\n"
     assert evaluate.sections(text) == [("A", "# T\n\nintro\n\n## A\n\na `x`\n\n"), ("B", "## B\n\nb\n")]
     calls = evaluate.full_calls(text, CHECKOUT, evaluate.CRITERIA)
-    assert [(c.criterion, c.part) for c in calls] == [("accurate", "A"), ("accurate", "B"), *(
-        (c, "the whole file") for c in evaluate.CRITERIA[1:])]
+    assert [(c.criterion, c.part) for c in calls] == [*[("accurate", "A")] * 3, *[("accurate", "B")] * 3, *(
+        (c, "the whole file") for c in evaluate.CRITERIA[1:-1] for _ in range(3)), ("complete", "the whole file")]
     by = {c.criterion: c.prompt for c in calls}
     assert "<prime_md>" in by["no_copies"] and "<changelog_preamble>" in by["no_copies"]
     assert "<prime_md>" in by["consistent"] and "<prime_md>" not in by["map"]
@@ -101,11 +101,17 @@ def test_an_answer_is_taken_only_when_well_formed():
     assert evaluate.parse(call("complete"), answer([{**ok, "quote": ""}]), text)[1] == ""
 
 
-def test_a_criterion_fails_on_any_finding_and_errors_on_any_bad_call():
-    r = [evaluate.Result(call(), 1.0), evaluate.Result(call(), 1.0, [{"quote": "q"}]),
-         evaluate.Result(call("map"), 1.0), evaluate.Result(call("complete"), 1.0),
-         evaluate.Result(call("complete"), 1.0, error="timed out after 240s")]
-    assert evaluate.verdicts(r) == {"accurate": "fail", "map": "pass", "complete": "error"}
+def test_a_criterion_fails_when_most_calls_on_one_part_find_and_errors_on_any_bad_call():
+    def res(criterion, part, found=False, error=""):
+        return evaluate.Result(evaluate.Call(criterion, part, ""), 1.0, [{"quote": "q"}] if found else [], error)
+
+    r = [res("accurate", "A"), res("accurate", "B", found=True),  # one call on a part: its finding fails it
+         res("map", "f", found=True), res("map", "f"), res("map", "f"),  # 1 of 3: passes
+         res("actionable", "f", found=True), res("actionable", "f"), res("actionable", "f", found=True),  # 2 of 3
+         res("no_history", "f"), res("no_history", "f"), res("no_history", "f", error="timed out after 240s"),
+         res("complete", "f")]
+    assert evaluate.verdicts(r) == {"accurate": "fail", "map": "pass", "actionable": "fail", "no_history": "error",
+                                    "complete": "pass"}
 
 
 def test_a_call_drops_other_anthropic_credentials_only_under_federation():
@@ -165,7 +171,8 @@ if os.environ.get("FAKE_HANG"):
     child = subprocess.Popen(["sleep", "60"])
     open(os.environ["FAKE_HANG"], "w").write(str(child.pid))
     time.sleep(60)
-print(os.environ["FAKE_ANSWER"])
+answers = os.environ.get("FAKE_ANSWERS")  # a JSON list: the n-th call (by the log's lines) gets the n-th answer
+print(json.loads(answers)[len(open(os.environ["FAKE_LOG"]).readlines()) - 1] if answers else os.environ["FAKE_ANSWER"])
 """
 
 
@@ -228,12 +235,30 @@ def test_main_exits_1_on_a_finding_and_writes_every_call_to_out(fake_claude, tmp
     monkeypatch.setenv("FAKE_ANSWER", answer([{"quote": line, "problem": "vague", "evidence": "Makefile:1"}]))
     assert evaluate.main(argv) == 1
     got = json.loads(out.read_text())
-    assert got["verdicts"] == {"map": "fail", "actionable": "fail"} and len(got["calls"]) == 2
+    assert got["verdicts"] == {"map": "fail", "actionable": "fail"} and len(got["calls"]) == 6
     assert "map            fail" in capsys.readouterr().out
     with pytest.raises(SystemExit):
         evaluate.main(["--criteria", "bogus"])
     with pytest.raises(SystemExit, match="needs --base"):
         evaluate.main(["--mode", "diff"])
+
+
+def test_a_judgement_criterion_fails_on_two_of_its_three_calls_and_reports_their_findings(fake_claude, monkeypatch,
+                                                                                          capsys):
+    line = next(x for x in AGENTS_MD.splitlines() if x.strip())
+    found = answer([{"quote": line, "problem": "too deep", "evidence": "x.go:1"}])
+    argv = ["--root", str(CHECKOUT), "--criteria", "map", "--jobs", "1"]  # one at a time: the n-th call, the n-th answer
+    monkeypatch.setenv("FAKE_ANSWERS", json.dumps([found, answer([]), answer([])]))
+    assert evaluate.main(argv) == 0
+    assert "map            pass    3 call(s), 1 with findings" in capsys.readouterr().out
+    fake_claude.unlink()
+    monkeypatch.setenv("FAKE_ANSWERS", json.dumps([found, answer([]), found]))
+    assert evaluate.main(argv) == 1
+    out = capsys.readouterr().out
+    assert "map            fail    3 call(s), 2 with findings" in out and out.count("too deep") == 2
+    fake_claude.unlink()
+    monkeypatch.setenv("FAKE_ANSWERS", json.dumps([answer([]), answer([]), "oops"]))  # a malformed answer is no vote
+    assert evaluate.main(argv) == 1 and "error: not JSON" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("name", cases.CASES)

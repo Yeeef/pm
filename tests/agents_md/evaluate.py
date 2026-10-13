@@ -6,13 +6,16 @@
     evaluate.py --mode auto --base origin/main     full when that diff changes AGENTS.md, else diff
 
 Each check is one `claude -p` call from the checkout root, with the read-only tools alone (Read, Grep, Glob), no
-settings, hooks, CLAUDE.md or MCP servers, and a JSON schema for its answer. Full mode makes one call per criterion,
-and one accurate call per `## ` section of AGENTS.md; diff mode one accurate and one complete call per chunk of the
-diff. The calls run at once (--jobs), each killed with its process group at --timeout seconds, which fails the run.
+settings, hooks, CLAUDE.md or MCP servers, and a JSON schema for its answer. Full mode makes VOTES (3) calls for each
+criterion but complete (VOTED) on the whole file, accurate's on each `## ` section of AGENTS.md, and one complete call;
+diff mode one accurate and one complete call per chunk of the diff. The calls run at once (--jobs), each killed with
+its process group at --timeout seconds, which fails the run.
 
-A criterion fails when any of its calls reports a finding; each finding quotes AGENTS.md, and a quote that is not in
-it makes the answer malformed. The run exits 1 on a failed criterion, a malformed answer, a failed or timed-out call.
-It prints a table, and writes every call's answer, seconds and cost to --out.
+The calls on one part (a criterion on a section, a diff chunk or the whole file) vote: the part fails when a majority
+of them report a finding (2 of a VOTED criterion's 3; the one call of any other part), and a criterion fails when
+one of its parts fails. Each finding quotes AGENTS.md, and a quote that is not in it makes the answer malformed. A
+malformed answer, a failed or a timed-out call is no vote: it fails the run. The run exits 1 on a failed criterion or
+any such call. It prints a table with every call's findings, and writes every call's answer, seconds and cost to --out.
 
 In GitHub Actions (ACTIONS_ID_TOKEN_REQUEST_URL set) each call first writes a fresh GitHub OIDC token for the Anthropic
 API to $ANTHROPIC_IDENTITY_TOKEN_FILE, for Claude Code's workload identity federation, and the call runs without any
@@ -41,6 +44,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 RUBRIC = HERE / "rubric.md"
 CRITERIA = ("accurate", "non_inferable", "map", "no_copies", "actionable", "no_history", "consistent", "complete")
+VOTED = CRITERIA[:-1]  # full mode asks each VOTES times on each part and takes the majority
+VOTES = 3
 DIFF_CRITERIA = ("accurate", "complete")
 MODEL = "haiku"
 TIMEOUT = 240  # seconds per call; a call past it fails the run
@@ -117,7 +122,7 @@ def fenced(name: str, text: str) -> str:
 
 
 def full_calls(agents_md: str, root: Path, criteria: tuple[str, ...]) -> list[Call]:
-    """Full mode's calls: one per criterion on the whole file, accurate split by AGENTS.md section."""
+    """Full mode's calls: each criterion on the whole file, accurate on each section; VOTES calls for a VOTED one."""
     pre, crit = rubric(RUBRIC.read_text())
     head = (f"{pre}\n\nYou grade the AGENTS.md below on one criterion. The checkout is the current directory; the "
             "AGENTS.md under review is the text given here, not the file on disk, which may differ.\n\n"
@@ -125,17 +130,18 @@ def full_calls(agents_md: str, root: Path, criteria: tuple[str, ...]) -> list[Ca
     calls = []
     for c in criteria:
         task = f"## Criterion: {c}\n\n{crit[c]}"
+        n = VOTES if c in VOTED else 1
         if c == "accurate":
             for heading, _ in sections(agents_md):
-                calls.append(Call(c, heading, f"{head}\n\n{task}\n\nCheck only the claims in the section "
-                                              f"`{heading}`; the rest of the file is context.\n\n{ANSWER}"))
+                calls += [Call(c, heading, f"{head}\n\n{task}\n\nCheck only the claims in the section "
+                                           f"`{heading}`; the rest of the file is context.\n\n{ANSWER}")] * n
             continue
         extra = ""
         if c in ("no_copies", "consistent"):
             extra = "\n\n" + fenced("prime_md", (root / "prime.md").read_text())
             if c == "no_copies":
                 extra += "\n\n" + fenced("changelog_preamble", changelog_preamble(root))
-        calls.append(Call(c, "the whole file", f"{head}{extra}\n\n{task}\n\n{ANSWER}"))
+        calls += [Call(c, "the whole file", f"{head}{extra}\n\n{task}\n\n{ANSWER}")] * n
     return calls
 
 
@@ -321,12 +327,16 @@ def run_calls(calls: list[Call], model: str, root: Path, agents_md: str, jobs: i
 
 
 def verdicts(results: list[Result]) -> dict[str, str]:
-    """Each criterion's verdict: error when a call of it did not answer, fail on any finding, else pass."""
-    out: dict[str, str] = {}
+    """Each criterion's verdict: error when a call of it did not answer, fail when a majority of the calls on one of
+    its parts report a finding, else pass."""
+    parts: dict[tuple[str, str], list[Result]] = {}
     for r in results:
-        v = "error" if r.error else "fail" if r.findings else "pass"
-        prev = out.get(r.call.criterion, "pass")
-        out[r.call.criterion] = max(prev, v, key=("pass", "fail", "error").index)
+        parts.setdefault((r.call.criterion, r.call.part), []).append(r)
+    out: dict[str, str] = {}
+    for (crit, _), rs in parts.items():
+        v = ("error" if any(r.error for r in rs) else
+             "fail" if 2 * sum(bool(r.findings) for r in rs) > len(rs) else "pass")
+        out[crit] = max(out.get(crit, "pass"), v, key=("pass", "fail", "error").index)
     return out
 
 
@@ -335,7 +345,8 @@ def report(results: list[Result]) -> str:
     lines = [f"{'criterion':14} {'verdict':7} evidence"]
     for crit, v in verdicts(results).items():
         rs = [r for r in results if r.call.criterion == crit]
-        lines.append(f"{crit:14} {v:7} {len(rs)} call(s), {max(r.seconds for r in rs):.0f}s")
+        lines.append(f"{crit:14} {v:7} {len(rs)} call(s), {sum(bool(r.findings) for r in rs)} with findings, "
+                     f"{max(r.seconds for r in rs):.0f}s")
         for r in rs:
             if r.error:
                 lines.append(f"    [{r.call.part}] error: {r.error}")
