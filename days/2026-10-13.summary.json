@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T21:21:39+00:00",
- "digest": "1124b2600fc7c8f0",
+ "generated_at": "2026-10-13T21:42:20+00:00",
+ "digest": "1c6335f190d7f1f2",
  "model": "claude-haiku-5-5",
- "text": "- **Codex parity:** A Codex session now has the same pm guarantees as a Claude Code session. Both runtimes now run the owner-request judge and the day summary.\n- **Releases and upgrades:** pm now releases by a written policy, with no manual step. `pm upgrade` prints the guide of every release it crosses, and it prunes unused launcher pins.\n- **Design pages and checks:** A PR that changes covered code waits until its design page is updated or waived. The parser now accepts only full option names, and retired Python-port code is gone.\n- **Owner decisions and setup:** The owner chose a session-end feedback ask instead of a Stop-hook ask. The owner also set up GitHub Actions access to Anthropic through workload identity federation."
+ "text": "- **Codex parity:** A Codex session now gets the same pm guarantees as a Claude Code session. The owner-request judge runs on the session's own runtime, and pm reports when Codex skipped its hooks.\n- **Releases and upgrades:** Releases now publish by themselves when a merge calls for a release. `pm upgrade` prints the guide of every release it crosses and removes launcher pins that no repository uses.\n- **Code cleanup:** Leftover code from the Python port is removed. The command code now splits by noun, and the parser refuses shortened option names.\n- **Design page checks:** A covers pattern for unmerged code no longer fails `pm check`. `pm sprint close` checks the sprint's design pages against the remote's main instead."
 }
