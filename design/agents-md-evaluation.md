@@ -52,7 +52,7 @@ Non-goals:
 | A Linux argument is at most 128 KiB | The prompt goes on stdin |
 | GitHub Actions to the Anthropic API works through workload identity federation (sprint 23 Findings) | No stored API key; a fresh OIDC token per call, as the GitHub JWT lives 5 min |
 | `release/merge_ready.py` requires every workflow with a `pull_request` trigger and no `paths` | The workflow has no paths filter; a conditional job skips itself instead |
-| A stochastic grader false-fails a clean file on borderline readings | The rubric fails only clear defects, every fail must quote AGENTS.md, and the clean case must pass every run |
+| A stochastic grader false-fails a clean file on borderline readings: one call per criterion failed half the clean full runs (sprint 23 Findings) | The rubric fails only clear defects, every fail must quote AGENTS.md, full mode takes a majority of 3 calls, and the clean case must pass every run |
 
 ## Design
 
@@ -89,14 +89,20 @@ root, the prompt on stdin, in a process group of its own killed whole at the tim
 
 | Mode | When | Calls |
 |---|---|---|
-| full | `--mode full`, or `auto` when the diff since the merge base changes AGENTS.md | One per criterion on the whole file; `accurate` one per `## ` section of AGENTS.md (the whole file as context); `no_copies` and `consistent` get `prime.md` (and the preamble) in the prompt. 18 calls on an 11.6 KB AGENTS.md |
+| full | `--mode full`, or `auto` when the diff since the merge base changes AGENTS.md | One per criterion on the whole file; `accurate` one per `## ` section of AGENTS.md (the whole file as context); `no_copies` and `consistent` get `prime.md` (and the preamble) in the prompt. Each of these parts but `complete`'s gets 3 calls (the vote). 52 calls on an AGENTS.md of 11 sections |
 | diff | `--mode diff --base REF`, or `auto` otherwise | `accurate` (does the diff make an AGENTS.md claim false?) and `complete` (does it add a rule AGENTS.md lacks?) on each chunk of `git diff <merge-base>...HEAD`, cut at file boundaries at 60,000 characters; testdata, `uv.lock`, `go.sum` and the work-test seconds file left out. An empty diff makes no call and passes |
 
-All calls of a run go at once (`--jobs`, 16). The answer schema is `{"findings": [{"quote", "problem", "evidence"}]}`;
-a criterion fails on any finding. An answer is malformed, and the run fails, when it is not JSON, has no structured
-output, has a finding without quote or evidence, or quotes text that is not in AGENTS.md (compared without Markdown
-marks and spacing, ellipses splitting a quote); a complete finding has an empty quote. A timed-out or failed call
-fails the run. Never a retry: a verdict means one answer. The run prints a table of criteria, findings and errors,
+All calls of a run go at once (`--jobs`, 16). The answer schema is `{"findings": [{"quote", "problem", "evidence"}]}`.
+
+The vote: the calls on one part (a criterion on one section, on the whole file, or on one diff chunk) vote, and the
+part fails when a majority of them report a finding: 2 of 3 for every full-mode criterion but `complete`, which,
+like each diff-mode call, is one call that fails on any finding. A criterion fails when one of its parts fails. The
+table prints every call's findings, the outvoted ones too, and the count of calls with findings.
+
+An answer is malformed, and the run fails, when it is not JSON, has no structured output, has a finding without
+quote or evidence, or quotes text that is not in AGENTS.md (compared without Markdown marks and spacing, ellipses
+splitting a quote); a complete finding has an empty quote. A timed-out, failed or malformed call is no vote: it fails
+the run. Never a retry: the number of calls is fixed before the run, so a verdict means the same thing every time. The run prints a table of criteria, findings and errors,
 writes every call's answer, seconds and cost to `--out`, and exits 1 on anything but every criterion passing.
 `--agents-md PATH` grades another file against the same checkout; `--criteria` narrows full mode.
 
@@ -160,6 +166,8 @@ numbers are in sprint 23's Findings.
 | The Agent SDK (Python) | A dependency and a second agent loop for what `claude -p` with a schema already does |
 | One call grading every criterion | Long, unfocused calls; one per criterion keeps each call under the timeout and its answer about one thing |
 | Retrying a failed or malformed call | A retry changes what a verdict means; a flaky grader shows in the labelled cases instead |
+| One call per criterion, failing on any finding | Measured on the clean file: half the full runs false-failed (map, non_inferable, accurate) |
+| A vote on `complete` and in diff mode | Neither false-failed in the measurement (complete 0 of 14 runs; diff mode 0 of 15 on five merged PRs); a vote would triple their calls for nothing |
 
 ## Prior art
 
@@ -181,5 +189,7 @@ numbers are in sprint 23's Findings.
 - A full run's slowest accuracy call has reached 149 s of its 240 s timeout; a longer AGENTS.md section may need a
   finer split.
 - How Claude Code behaves when a call outlives the 10 min federated token (not reached at 240 s per call).
-- Grader variance on the clean file over many PRs: the calibration measured 3 runs per case; a false fail in CI shows
-  as a failed check, and its findings name what it read.
+- Residual variance under the vote: 1 of 10 clean full runs still false-failed (non_inferable, two calls on two
+  different passages). The vote counts calls with findings, not agreement on one defect; requiring the failing calls
+  to name the same passage, or fixing the passages that draw repeated findings, would lower it. Full mode runs only on
+  a PR that changes AGENTS.md; diff mode, on every other PR, did not false-fail.
