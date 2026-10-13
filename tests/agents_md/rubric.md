@@ -16,6 +16,8 @@ Each criterion below is judged pass or fail on its own.
 - No evidence, no fail. When in doubt about a claim, look it up with the tools (Read, Grep, Glob) before you judge.
   A claim you checked and could not refute passes. Style preferences, wording you would choose differently and
   improvements that fix no defect are not findings.
+- Report only what clearly breaks the criterion, a defect an editor of AGENTS.md would fix once shown it. A passage
+  that could be read either way passes.
 - A criterion with no finding passes.
 - The rules the complete criterion lists belong in AGENTS.md even where the code also states them: a rule of that
   list, stated in a sentence or two (what triggers it and what to do), is never a non_inferable, map or no_copies

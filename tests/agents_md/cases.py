@@ -179,10 +179,16 @@ def calls(case: Case, root: Path, base: str) -> list[evaluate.Call]:
     return evaluate.full_calls(agents_md, root, (case.criterion,) if case.criterion else evaluate.CRITERIA)
 
 
-def outcome(case: Case, results: list[evaluate.Result]) -> str:
+def planted(root: Path, base: str) -> str:
+    """The lines the case's edits added to AGENTS.md."""
+    diff = git(root, "diff", "-U0", base, "HEAD", "--", "AGENTS.md")
+    return "\n".join(line[1:] for line in diff.splitlines() if line.startswith("+") and not line.startswith("+++"))
+
+
+def outcome(case: Case, results: list[evaluate.Result], added: str = "") -> str:
     """One run's outcome: "error: …" when a call gave no answer; for a planted case "fail" when its criterion failed on
-    a finding naming the marker, "fail elsewhere: …" when it failed on others alone, else "pass"; for a clean case
-    "pass", or "fail: <the criteria that failed>"."""
+    a finding that names the marker or quotes the lines the case added (`added`), "fail elsewhere: …" when it failed
+    on others alone, else "pass"; for a clean case "pass", or "fail: <the criteria that failed>"."""
     if errors := [r.error for r in results if r.error]:
         return f"error: {errors[0]}"
     verdict = evaluate.verdicts(results)
@@ -193,6 +199,7 @@ def outcome(case: Case, results: list[evaluate.Result]) -> str:
         return "pass"
     findings = [f for r in results if r.call.criterion == case.criterion for f in r.findings]
     mark = evaluate.normal(case.marker)
-    if any(mark in evaluate.normal(f["quote"] + " " + f["problem"]) for f in findings):
+    if any(mark in evaluate.normal(f["quote"] + " " + f["problem"])
+           or (evaluate.normal(f["quote"]) and evaluate.normal(f["quote"]) in evaluate.normal(added)) for f in findings):
         return "fail"
     return "fail elsewhere: " + "; ".join(f["quote"][:80] or f["problem"][:80] for f in findings)

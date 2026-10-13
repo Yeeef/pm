@@ -58,7 +58,8 @@ def outcomes(request, tmp_path_factory):
     runs: dict[tuple[str, int], list[evaluate.Result]] = {}
     for (name, run, _), r in zip(jobs, results, strict=True):
         runs.setdefault((name, run), []).append(r)
-    out = {name: [cases.outcome(CASES[name], runs[name, n]) for n in range(RUNS)] for name in CASES}
+    added = {name: cases.planted(roots[name], bases[name]) for name in CASES}
+    out = {name: [cases.outcome(CASES[name], runs[name, n], added[name]) for n in range(RUNS)] for name in CASES}
     passed = sum(o == CASES[name].expect for name, os_ in out.items() for o in os_)
     run_secs = [max(r.seconds for r in rs) for rs in runs.values()]
     print(f"\n{model}: {passed}/{len(CASES) * RUNS} runs gave the case's verdict, {len(jobs)} calls in {took:.0f}s, "

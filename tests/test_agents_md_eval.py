@@ -220,6 +220,9 @@ def test_a_case_is_a_repo_whose_diff_is_its_edits(tmp_path):
     base = cases.materialize(cases.CASES["diff_renamed_target"], CHECKOUT, tmp_path)
     diff, names = evaluate.pr_diff(tmp_path, base)
     assert names == ["Makefile"] and "+merge-check:" in diff
+    assert cases.planted(tmp_path, base) == ""
+    base = cases.materialize(cases.CASES["actionable_dont"], CHECKOUT, tmp_path / "planted")
+    assert cases.planted(tmp_path / "planted", base) == "Don't break the hooks.\n"
     assert (tmp_path / "CLAUDE.md").is_symlink() and (tmp_path / "AGENTS.md").read_text() == AGENTS_MD
 
 
@@ -232,6 +235,8 @@ def test_a_planted_case_counts_only_a_fail_that_names_its_defect():
     assert cases.outcome(case, res()) == "pass"
     assert cases.outcome(case, res({"quote": "Claude 189/189, median", "problem": "", "evidence": ""})) == "fail"
     assert cases.outcome(case, res({"quote": "other", "problem": "x", "evidence": ""})).startswith("fail elsewhere")
+    assert cases.outcome(case, res({"quote": "The judge's live eval", "problem": "", "evidence": ""}),
+                         added="The judge's live eval on 2026-10-12") == "fail"
     clean = cases.CASES["clean"]
     assert cases.outcome(clean, res()) == "pass"
     assert cases.outcome(clean, res({"quote": "q", "problem": "", "evidence": ""})) == "fail: no_history"

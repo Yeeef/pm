@@ -41,7 +41,7 @@ work store (the remote's `refs/pm/work`), its records (plans, decisions, design 
 | `uv run pytest -q -n auto tests/test_hooks.py` | One file, or `-k name` for one test, after `make go-build` |
 | `make test-go` | The Go checks: gofmt, vet, the tests, the race tests; `make go-test GO_PKGS=./internal/service` runs one package. Go commands need `-tags gms_pure_go` |
 | `make lint` | The linters as CI runs them; needs golangci-lint at `GOLANGCI_LINT_VERSION` on PATH |
-| `make test-live` | The owner-request judge's live eval on each runtime (`PM_LIVE_RUNTIMES`, default `claude codex`; each CLI on PATH, logged in) |
+| `make test-live` | The owner-request judge's live eval (below) |
 | `make test-live-parity` | The parity live eval (below) |
 | `make agents-md-check`, `make test-live-agents-md` | This file graded against `tests/agents_md/rubric.md` (CI runs it on every PR); that grader's labelled cases |
 | `make merge-ready PR=<n>` | The check before every merge (Merging) |
@@ -142,7 +142,7 @@ agent's prose; `tests/test_agent_parity_live.py`'s docstring lists the scenarios
 ## Live checks
 
 A change to setup, the hooks, the site or replies gets a live check besides its tests, in the form the sprint's
-"Done when" names.
+"Done when" names (`pm show --sprint ID`).
 
 - **A need raised during a test or a live check starts its title with `[TEST]`**; once the check is done, close it with
   `pm need dismiss <id> --reason "[TEST] done"`.
