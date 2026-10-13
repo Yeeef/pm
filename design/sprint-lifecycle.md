@@ -191,17 +191,32 @@ sprint's branch has. `pm check` lists such a pattern as waiting on unmerged
 work and passes ([Record layer](record-layer.md)). The close is where main
 must have the file: `pm sprint close`, in both forms, fetches the remote's
 main (the ref `--merged` checks) and reads its tree, then refuses while a
-page has a covers pattern that matches no file there.
+page holds a covers pattern of the sprint's that matches no file there.
 
 | Pages held | Why |
 |---|---|
 | Each design page the sprint record's Design pages links | The sprint brought it to the new state |
 | Each design page the gate names for the sprint's PRs, updated or waived | The PR changed code it covers |
 
-A page without covers is not held, and with no page held nothing is fetched.
-The refusal names each page and pattern and the two ways out: fix the
-pattern to the file main has and commit the page, or merge the PR that adds
-the file first.
+Pages are shared, so a held page may carry another sprint's pending
+pattern, for a file that sprint's open PR adds. Only the sprint's own
+patterns hold it: those the page did not hold at the last records commit
+before the sprint's epic was created.
+
+| Case | Held against the sprint |
+|---|---|
+| A pattern on the page before the sprint opened, left as it was | No: another sprint's to keep live |
+| A pattern added while the sprint was open | Yes |
+| A pattern edited while the sprint was open | Yes: the edited text is a new pattern |
+| A page created while the sprint was open, or no records commit before it opened | Every pattern |
+| A pattern another session added to the page while the sprint was open | Yes: a records commit names no sprint |
+
+The last row is the rule's known cost: two sprints open at once that both
+edit one page's covers hold each other's pending patterns, as before. The
+refusal says so: it names each page and pattern and the two ways out, fix
+the pattern to the file main has and commit the page, or merge the PR that
+adds the file first, which may be another sprint's. A page without covers is
+not held, and with no pattern of the sprint's nothing is fetched.
 
 ## Alternatives considered
 
@@ -212,6 +227,15 @@ the file first.
   (27 patterns on main at once), since the gate makes a
   page name a file before main has it. The close is the first point where
   main must have the file.
+- **Holding every pattern of a held page at the close:** a sprint waited on
+  any other session's open PR whose pattern sat on a shared page (the CLI
+  split's patterns on the pm CLI page held every sprint that touched the
+  CLI), although the sprint did nothing to the pattern.
+- **Attributing each records commit to a session or a sprint:** records
+  commits carry neither, a subagent shares its parent's session (one session
+  runs several sprints at once), and the owner commits with none; adding a
+  required sprint to every `pm commit` costs every edit for a case the time
+  window already covers but for concurrent edits to one page.
 
 - **A draft paragraph in the report** (`Draft until its PR merges.`, shown
   as a "Draft — closes when PR #N merges" banner): it duplicated the open

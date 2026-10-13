@@ -35,7 +35,9 @@ A sprint closes on the strength of its own work. Since pm 0.8.5, `pm sprint clos
 
 > Where is the detail?
 
-None yet.
+- [Sprint lifecycle](../design/sprint-lifecycle.md): Covers hold on main at the close, which patterns are the sprint's, and the alternatives.
+- [Record layer](../design/record-layer.md): what `pm sprint close` holds that `pm check` lists as waiting.
+- [pm CLI](../design/pm-cli.md): `pm sprint close`'s refusals.
 
 ## Progress
 
