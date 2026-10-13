@@ -16,7 +16,7 @@ func TestArgumentChecks(t *testing.T) {
 		help   bool
 	}{
 		{name: "values", args: []string{"--number", " +01 ", "--pick", "left", "--pair", "label", "text", "-3", "tail"}, values: map[string][]string{"number": {"1"}, "pick": {"left"}, "pair": {"label\x00text"}, "first": {"-3"}, "rest": {"tail"}}},
-		{name: "abbreviation", args: []string{"--num=2", "--pick", "right", "x"}, values: map[string][]string{"number": {"2"}, "pick": {"right"}, "first": {"x"}, "rest": nil}},
+		{name: "abbreviation", args: []string{"--num=2", "--pick", "right", "x"}, err: "unrecognized arguments: --num=2"},
 		{name: "repeat", args: []string{"--pick", "left", "--pair", "a", "b", "--pair", "c", "d", "x"}, values: map[string][]string{"pick": {"left"}, "pair": {"a\x00b", "c\x00d"}, "first": {"x"}, "rest": nil}},
 		{name: "group conflict", args: []string{"--pick", "left", "--other", "x"}, err: "argument --other: not allowed with argument --pick"},
 		{name: "required positional", args: []string{"--pick", "left"}, err: "the following arguments are required: first"},
@@ -26,7 +26,8 @@ func TestArgumentChecks(t *testing.T) {
 		{name: "missing pair", args: []string{"--pair", "a"}, err: "argument --pair: expected 2 arguments"},
 		{name: "missing flag value", args: []string{"--number"}, err: "argument --number: expected one argument"},
 		{name: "unknown", args: []string{"--unknown", "--pick", "left", "x"}, err: "unrecognized arguments: --unknown"},
-		{name: "ambiguous", args: []string{"--p", "x"}, err: "ambiguous option: --p could match --pick, --pair"},
+		{name: "prefix of two", args: []string{"--p", "x"}, err: "unrecognized arguments: --p"},
+		{name: "unknown before required", args: []string{"--pik", "left"}, err: "unrecognized arguments: --pik"},
 		{name: "help", args: []string{"--help"}, help: true},
 		{name: "option terminator", args: []string{"--pick", "left", "--", "--number"}, values: map[string][]string{"pick": {"left"}, "first": {"--number"}, "rest": nil}},
 	} {

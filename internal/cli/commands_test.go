@@ -81,3 +81,27 @@ func TestEveryCommandPmRunsIsListedInHelp(t *testing.T) {
 		}
 	}
 }
+
+// TestAnAbbreviatedOptionIsRefused: an option is named whole; a prefix of one is an unrecognized argument, refused
+// before the required option it left out is named.
+func TestAnAbbreviatedOptionIsRefused(t *testing.T) {
+	t.Chdir(t.TempDir()) // no repo: a command that got past the refusal fails on that, never on a real store
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "cl")
+	t.Setenv("CODEX_SESSION_ID", "")
+	t.Setenv("CODEX_THREAD_ID", "")
+	for _, tt := range []struct {
+		argv []string
+		msg  string
+	}{
+		{[]string{"task", "add", "--tit", "x"}, "unrecognized arguments: --tit x"},
+		{[]string{"task", "add", "--sprint", "s-1", "--tit=x"}, "unrecognized arguments: --tit=x"},
+		{[]string{"task", "close", "x-1", "--drop"}, "unrecognized arguments: --drop"},
+	} {
+		var out, errb bytes.Buffer
+		code := Execute(tt.argv, strings.NewReader(""), &out, &errb)
+		if want := "pm: error: " + tt.msg + "\n"; code != 2 || !strings.HasPrefix(errb.String(), "usage: pm [-h]") ||
+			!strings.HasSuffix(errb.String(), want) {
+			t.Errorf("pm %s: exit %d, stderr %q; want exit 2 ending %q", strings.Join(tt.argv, " "), code, errb.String(), want)
+		}
+	}
+}

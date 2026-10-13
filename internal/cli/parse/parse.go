@@ -1,4 +1,7 @@
-// Package parse builds pm's command tree and validates its arguments with pflag.
+// Package parse builds pm's command tree on cobra and validates its arguments with pflag: pm's argument grammar
+// (switches, repeated and two-value options, optional and trailing positionals, required options, alternative-option
+// groups, choices; an option only by its whole name, a prefix refused as an unrecognized argument) and the --help
+// layout internal/cli's testdata/help.golden freezes.
 package parse
 
 import (
@@ -9,7 +12,6 @@ import (
 	"io"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -116,8 +118,9 @@ func (p *Parsed[T]) ValuesOf(dest string) []string { return p.Values[dest] }
 // PairSep joins a two-value option inside pflag, which holds one string per occurrence.
 const PairSep = "\x00"
 
-// Parse validates options in command-line order, then positionals and required groups.
-// Unknown arguments are reported by the root command.
+// Parse validates options in command-line order, then positionals, then refuses the arguments the command does not
+// take (reported by the root command), then the required ones missing: a mistyped option is named as itself, not as
+// the option it left out.
 func (c *Command[T]) Parse(args []string, fs *pflag.FlagSet) (*Parsed[T], bool, error) {
 	joined, unknown, err := c.normalize(args)
 	if err != nil {
@@ -134,11 +137,11 @@ func (c *Command[T]) Parse(args []string, fs *pflag.FlagSet) (*Parsed[T], bool, 
 	if err != nil {
 		return nil, false, err
 	}
-	if err := c.require(p, missing, seen); err != nil {
-		return nil, false, err
-	}
 	if extra := slices.Concat(unknown, rest); len(extra) > 0 {
 		return nil, false, &UsageError[T]{c.root(), "unrecognized arguments: " + strings.Join(extra, " ")}
+	}
+	if err := c.require(p, missing, seen); err != nil {
+		return nil, false, err
 	}
 	return p, false, nil
 }
@@ -158,16 +161,6 @@ func (c *Command[T]) check(a *Arg, v string) (string, error) {
 			quote(given), quoteAll(a.Choices))}
 	}
 	return v, nil
-}
-
-// flagOrder puts help first, followed by declared options in order.
-func (c *Command[T]) flagOrder(flag string) int {
-	for i, a := range c.Args {
-		if slices.Contains(a.Flags, flag) {
-			return i
-		}
-	}
-	return -1
 }
 
 // notOption marks a word that starts with '-' but is a value, not an option: a negative number, or text with a space.
@@ -291,6 +284,8 @@ func (c *Command[T]) root() *Command[T] {
 	return c
 }
 
+// normalize readies args for pflag: a Two option and its two values become one word, a value that starts with '-'
+// is marked notOption, and an option the command does not name (a prefix of one included) is set aside as unknown.
 func (c *Command[T]) normalize(args []string) ([]string, []string, error) {
 	known, pairs := map[string]bool{"-h": true, "--help": true}, map[string]bool{}
 	for _, a := range c.Args {
@@ -308,14 +303,7 @@ func (c *Command[T]) normalize(args []string) ([]string, []string, error) {
 			joined = append(joined, args[i:]...)
 			break
 		}
-		long := strings.HasPrefix(t, "--")
-		if long {
-			var err error
-			t, err = c.longOption(t, known)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
+		long := strings.HasPrefix(t, "--") // only a whole option name is known: --tit is no --title
 		switch {
 		case pairs[t]:
 			if i+2 >= len(args) {
@@ -445,28 +433,4 @@ func (c *Command[T]) require(p *Parsed[T], missing []string, seen map[int]*Arg) 
 		}
 	}
 	return nil
-}
-
-func (c *Command[T]) longOption(t string, known map[string]bool) (string, error) {
-	name, optionValue, eq := strings.Cut(t, "=")
-	if !known[name] {
-		var matches []string
-		for f := range known {
-			if strings.HasPrefix(f, "--") && strings.HasPrefix(f, name) {
-				matches = append(matches, f)
-			}
-		}
-		sort.Slice(matches, func(x, y int) bool { return c.flagOrder(matches[x]) < c.flagOrder(matches[y]) })
-		if len(matches) > 1 {
-			return "", &UsageError[T]{c, fmt.Sprintf("ambiguous option: %s could match %s", t,
-				strings.Join(matches, ", "))}
-		}
-		if len(matches) == 1 {
-			t = matches[0]
-			if eq {
-				t += "=" + optionValue
-			}
-		}
-	}
-	return t, nil
 }
