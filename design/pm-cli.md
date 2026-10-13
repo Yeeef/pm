@@ -5,6 +5,7 @@ project: pm-harness
 covers:
   - "internal/cli/cli.go"
   - "internal/cli/commands*.go"
+  - "internal/cli/help.go"
   - "internal/cli/parse/**"
   - "internal/cli/fsutil/**"
   - "internal/textwrap/**"

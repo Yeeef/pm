@@ -5,6 +5,7 @@ project: pm-harness
 covers:
   - "internal/install/**"
   - "internal/cli/setup/**"
+  - "internal/cli/install.go"
   - "internal/cli/service.go"
   - "internal/service/unit*.go"
   - "internal/service/lifecycle*.go"
@@ -105,6 +106,8 @@ port = 8000              # the service's site port; the PORT environment variabl
 # summary_runtime = "codex"   # optional: the runtime pm day summarize asks, claude (the default) or codex; no fallback
 # design_sources = ["internal/**", "prime.md"]   # optional: the source files a design page should cover; pm check lists those no page's covers: match
 ```
+
+pm owns the file whole: `pm upgrade` rewrites it and `pm doctor` compares it with what the pinned version writes, the keys set by hand (`access_team`, `access_aud`, `summary_runtime`, `design_sources`) included. So every key the config reads is a key the writer keeps; a key it dropped would read as drift and be deleted by the next `pm upgrade`.
 
 The public site URL is a repo setting: every clone prints the same links, and `pm init --site-url URL` writes it, never a hand edit.
 

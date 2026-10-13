@@ -4,6 +4,7 @@ title: How a repo runs the right pm version
 project: pm-harness
 covers:
   - "internal/launch/**"
+  - "install.sh"
   - "internal/config/**"
   - "internal/buildinfo/**"
 ---

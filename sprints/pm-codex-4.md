@@ -41,6 +41,7 @@ This repo runs pm 0.8.0, the first release with the Codex work: its pin moved, i
 - [Sprint lifecycle](../design/sprint-lifecycle.md): `pm action need --pr` refuses a PR whose base is not main; `pm action done` restamps a review closed without `merged as <sha>`.
 - [pm CLI](../design/pm-cli.md): the `pm action done` and `pm action need --pr` rows; `covers:` follows the word wrapper to `internal/textwrap`.
 - [Work store](../design/work-store.md): `work.SetCloseReason` in "Inside pm", and how the close group merges after a restamp.
+- [pm as an installable product](../design/pm-product.md): `config.toml` is pm's whole, every key it reads kept by `pm upgrade` and compared by `pm doctor`, `design_sources` included; `covers:` gains `internal/cli/install.go`.
 
 ## Progress
 

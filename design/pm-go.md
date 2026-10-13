@@ -4,6 +4,7 @@ title: pm in Go
 project: pm-harness
 covers:
   - "cmd/**"
+  - "assets.go"
   - "internal/launch/**"
   - "internal/buildinfo/**"
   - "internal/config/**"
