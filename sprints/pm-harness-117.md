@@ -1,0 +1,73 @@
+---
+type: sprint
+title: "Pin moves across many releases: every crossed release's steps shown, old pins pruned"
+bead: yeeef-agents-9va.127
+---
+
+## Goal
+
+> What should be true when this sprint ends, and why now?
+
+Releases now come on every merge, so a repo's pin move often crosses several releases, and each one leaves a binary behind. A pin move must show the owner every upgrade step of every release it crosses, so no step is missed. A machine must not keep every release ever pinned: about 113 MB each, never pruned.
+
+## Scope
+
+> What's in, and what's explicitly out? Keep this high level; implementation
+> details go in a design page.
+
+**In:**
+- `pm upgrade --to X` prints the upgrade guide steps of each release after the current pin up to X, read from the release notes (the CHANGELOG.md of X), grouped by release, before it rewrites anything.
+- Pruning launcher pins (`<data dir>/pm/pins/<X>`) that no repo on this machine pins, with the kept sha256 rule intact: a pruned pin's sha256 record stays, so a later download is still checked.
+- When pruning runs (pm upgrade, pm doctor, or a command), and what it reports.
+- Tests, `--help`, and the design pages of the areas changed.
+
+**Out:**
+- Moving pins automatically.
+
+## Done when
+
+> What evidence will show the goal is met?
+
+- A pin move across three releases prints each release's steps in order; a harness test with a local release server shows it.
+- After a pin move, the old pin's binary is gone when no repo on the machine pins it, and its sha256 record stays; a test shows a re-download of a pruned pin is still checked against the record.
+- Every existing design page whose area this sprint changes is brought to the new state and listed in Design pages.
+
+## Design pages
+
+> Where is the detail?
+
+None yet.
+
+## Progress
+
+> Where is the sprint now? Generated from the work store when the page is rendered.
+> Do not write here.
+
+## Decisions
+
+> What did we choose inside this sprint, and why?
+
+None yet.
+
+## Findings
+
+> What did we learn that changes the design, the plan, or how we work? Add
+> results with their numbers.
+
+None yet.
+
+## Delivery report
+
+> Written at close. Each part holds "Not closed yet." until then.
+
+### Outcome
+
+> Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
+
+Not closed yet.
+
+### Against "Done when"
+
+> Each item, met or not, with its evidence (a page, a command, a number).
+
+Not closed yet.
