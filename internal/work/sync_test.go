@@ -116,6 +116,14 @@ func (c *clone) sync() SyncResult {
 	return r
 }
 
+// push syncs at once, without waiting out the read dedup, for a clone whose last read of the remote still holds all it
+// has (nobody pushed since), so a deduped fetch misses nothing: it pushes the clone's own writes.
+func (c *clone) push() {
+	c.t.Helper()
+	c.do(func(d *Dolt) { must(d.Sync()) })
+	c.synced = time.Now()
+}
+
 func (c *clone) items() []Item {
 	c.t.Helper()
 	var items []Item
