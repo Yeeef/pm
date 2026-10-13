@@ -100,10 +100,17 @@ This sprint changes only the pm upgrade and pm doctor help texts in commands.go;
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm upgrade --to X` prints the upgrade guide of every release it crosses before it writes, and prunes the launcher pins no checkout on the machine pins, keeping each one's sha256; the PR waits on review.
+
+- Guides from the release notes pm X embeds (`assets.go` `Notes`, `internal/launch/guide.go`): no network; X's own guide from its section, else its entry files as `release/changelog.py` assembles them; a crossed release without a guide fails before any write.
+- Pruning (`internal/install/pins.go`, `service.Clones`): the clones are this one and each with a pm service unit; every worktree's pin is kept; anything unreadable prunes none. `pm doctor` names prunable pins without failing.
+- PR: https://github.com/Yeeef/pm/pull/65
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **A pin move across three releases prints each release's steps in order: met.** `test_upgrade_prints_the_upgrade_guide_of_every_release_it_crosses_before_it_writes` (`tests/test_launch.py`) moves a repo from 0.7.0 to this build: it prints 0.7.1, 0.8.0, 0.8.1, 0.8.2 and the build's own guide, in that order and before "moved the pin", each equal to what `release/changelog.py` reads from the real notes. The steps come from the notes pm X embeds, not from a server (sprint decision), so this test needs no release server; the pruning test below uses one. `internal/launch/guide_test.go` covers the version edges (pre-releases, rc to rc, a downgrade, an untagged build, a missing guide failing), and `tests/test_changelog.py` holds its assembled guide to `changelog.py assemble` on one shared fixture.
+- **After a pin move the old pin's binary is gone when no repo pins it, its sha256 stays, and a re-download is checked: met.** `test_upgrade_prunes_the_pins_no_checkout_pins_and_a_pruned_pin_downloads_checked` (local release server through `PM_RELEASE_URL`): the repo moves off 0.2.0, `pm upgrade` prunes `pins/0.2.0/pm` and keeps `pins/0.2.0/sha256` unchanged, keeps 0.3.0, which another clone with a unit pins; a tampered 0.2.0 then fails with "changed since this machine first downloaded it" and writes nothing; the original downloads again. `internal/install/pins_test.go`: worktree pins (one whose path holds a newline) and unit clones kept; three unreadable cases prune none. Live, read-only, on this machine: only 0.4.0 (118 MB) is prunable (Findings).
+- **Every design page whose area changed is at the new state and listed: met.** pm-versioning (new Pin moves subsection), pm-go, pm-product and release-policy (its two open questions answered) are edited and listed in Design pages; pm-cli is waived (only help texts changed).
+- Checks: `make lint` 0 issues; `make test-go` pass; `make test` 89 passed; `tests/test_launch.py`, `test_config.py`, `test_changelog.py` and every `-k "upgrade or doctor"` test pass; CI on PR #65 (head 09e2ec7): all 14 checks pass. A fresh-context review found no correctness issue; its minor findings are fixed in the PR.
