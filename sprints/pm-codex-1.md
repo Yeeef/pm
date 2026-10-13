@@ -148,6 +148,14 @@ codex-rs 0.154: codex queue writes thread/queue/add to the SQLite thread queue, 
   writable root, written by the old harness, and Codex aborts every
   workspace-write run on it.
 
+- Gap 9 was recorded on a wrong premise. Codex 0.154 has ask tools:
+  request_user_input_async in Default mode for gpt-6 models (a non-blocking
+  inline pick list; the answer arrives as a new user message; measured in the
+  TUI), and a blocking request_user_input in Plan mode (measured). Only
+  request_user_input in Default mode is gated, behind the under-development
+  flag default_mode_request_user_input. The open gap is that pm's rule, judge
+  and block reasons know only AskUserQuestion.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
