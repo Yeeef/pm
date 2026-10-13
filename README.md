@@ -51,7 +51,8 @@ Some of the refusals:
 - `pm sprint close` refuses while the delivery report is unwritten, a task is open, or a PR review is not merged.
 - `pm commit` checks that the whole records store still renders before it commits a hand edit.
 - The owner-request Stop hook blocks an agent that ends its turn asking the human for something only in chat, and
-  tells it to raise a need instead. A small model, run through `claude -p`, judges the final reply.
+  tells it to raise a need instead. A small model on the session's own runtime judges the final reply: Claude Haiku
+  through `claude -p` in Claude Code, a small Codex model through `codex exec` in Codex.
 - `pm hook stop` blocks an agent that hands back with records it edited left uncommitted.
 
 ```mermaid
@@ -139,9 +140,10 @@ the clone (the records store, the work store, the pm service). It changes only w
 what differs and `pm upgrade` rewrites it. One `pm` on PATH serves every repo: in a repo that pins another version,
 it downloads that release once and runs it.
 
-Needs: `git`; `gh` for pull-request features; `claude`, installed and logged in, for the owner-request hook's judge
-and `pm day summarize`, Codex setups included; `uv` only for the one-time move of a clone off the pre-package
-harness, which `pm init` names. A repo pinned below 0.2.0 (a retired release) must move its pin with
+Needs: `git`; `gh` for pull-request features; the agent runtime you use, Claude Code (`claude`) or Codex (`codex`),
+logged in: each session's owner-request judge runs on its own runtime, and `pm day summarize`, which the pm service
+runs, on the one `summary_runtime` in `.pm/config.toml` names (`claude` by default, `codex` for a repo whose machines
+have only Codex); `uv` only for the one-time move of a clone off the pre-package harness, which `pm init` names. A repo pinned below 0.2.0 (a retired release) must move its pin with
 `pm upgrade --to <X>` first.
 
 ### In Codex
@@ -155,6 +157,13 @@ subcommand, so each runs outside the sandbox without asking for approval. Then, 
    for a session in a worktree, and runs none of a project's hooks or rules until the project is trusted.
 2. In Codex, run `/hooks` and trust pm's hooks. pm never writes that trust; `pm doctor` asks Codex (where
    `$CODEX_HOME` exists) and names each of pm's hooks Codex would skip, and the project when Codex runs none of them.
+3. On a machine without Claude Code, set `summary_runtime = "codex"` in `.pm/config.toml` and commit it, so the pm
+   service summarizes the day with Codex; `pm doctor` fails while the runtime that key names is not on PATH.
+
+Codex needs no `claude`: a Codex session's owner-request judge runs `codex exec` (a small model, from an empty temp
+directory, with hooks, rules and your `config.toml` off, saving no session). A pm command in a Codex session whose
+hooks did not run, because Codex skipped them, says so once, with the fix; and a session whose start hooks ran while
+Codex skips others of pm's hooks (after a `pm upgrade` changed one you had trusted) is told which, at its start.
 
 The pm service delivers an owner's reply into a live Codex session with `codex queue` (codex 0.149.0 or later on the
 service's PATH: run `pm service install` from a shell where it is), and an idle session starts a turn on it, as a

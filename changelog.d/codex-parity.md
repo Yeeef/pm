@@ -27,7 +27,6 @@
   disabled, or whether it runs none of the project's, and names them with the fix; a typed `pm init` names them too.
   pm never writes Codex's trust. Without `codex` on PATH, or without `$CODEX_HOME` (Codex never ran on the machine,
   and the call would make its state), it says the trust was not checked.
-- `pm doctor` fails when `claude` is not on PATH: the owner-request hook's judge needs it, in Codex too.
 
 ### Changed
 

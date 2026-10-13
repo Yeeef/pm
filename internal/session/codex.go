@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -132,4 +134,64 @@ func CodexRoot(thread string) string {
 		thread = next
 	}
 	return thread
+}
+
+// RulesMark is how pm's session-start context opens (hooks.Chunks's title line): Codex records each SessionStart hook's
+// additionalContext in the rollout as a developer message, ahead of the user's first prompt.
+const RulesMark = "# pm rules ("
+
+// hooksScan bounds CodexHooksRan's read: the rollout's opening lines (session_meta, Codex's own context, then the
+// hooks' and the first prompt) take some 150 KB; a session that ran pm's hooks has them well inside this.
+const hooksScan = 1 << 20
+
+// CodexHooksRan is whether pm's session-start hooks ran in the Codex session: whether its root rollout holds pm's rules
+// as a developer message before the user's first prompt, the first user message after the first turn_context (the
+// user messages before it are Codex's own context: plugins, AGENTS.md, the environment). known is false when pm cannot
+// tell: no rollout, an unreadable one, or one whose first prompt is not written yet (or lies past the bounded read).
+func CodexHooksRan(session string) (ran, known bool) {
+	paths := Rollouts(session)
+	if len(paths) == 0 {
+		return false, false
+	}
+	f, err := os.Open(paths[0])
+	if err != nil {
+		return false, false
+	}
+	defer f.Close() //nolint:errcheck // read only
+	r := bufio.NewReaderSize(io.LimitReader(f, hooksScan), 64<<10)
+	turn := false // a turn_context has passed
+	for {
+		line, err := r.ReadBytes('\n')
+		if err != nil { // the end of what is written, or of the bounded read
+			return false, false
+		}
+		var entry struct {
+			Type    string `json:"type"`
+			Payload struct {
+				Type, Role string
+				Content    []struct{ Text string }
+			} `json:"payload"`
+		}
+		if json.Unmarshal(line, &entry) != nil {
+			continue
+		}
+		if entry.Type == "turn_context" {
+			turn = true
+		}
+		if entry.Type != "response_item" || entry.Payload.Type != "message" {
+			continue
+		}
+		switch entry.Payload.Role {
+		case "developer":
+			for _, c := range entry.Payload.Content {
+				if strings.HasPrefix(c.Text, RulesMark) {
+					return true, true
+				}
+			}
+		case "user":
+			if turn {
+				return false, true
+			}
+		}
+	}
 }

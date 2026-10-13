@@ -53,6 +53,8 @@ type Settings struct {
 	SiteURL    string
 	AccessTeam string // the Cloudflare Access keys, set by hand: carried so a config holding them is pm's own
 	AccessAud  string
+	// SummaryRuntime is summary_runtime, set by hand ("" when unset): carried so a config holding it is pm's own
+	SummaryRuntime string
 }
 
 // Piece is one managed piece. A text is nil when the file is absent.
@@ -73,7 +75,8 @@ func ptr(s string) *string { return &s }
 // ConfigText is .pm/config.toml as pm init writes it.
 func ConfigText(s Settings) string {
 	site := ""
-	for _, kv := range [][2]string{{"site_url", s.SiteURL}, {"access_team", s.AccessTeam}, {"access_aud", s.AccessAud}} {
+	for _, kv := range [][2]string{{"site_url", s.SiteURL}, {"access_team", s.AccessTeam}, {"access_aud", s.AccessAud},
+		{"summary_runtime", s.SummaryRuntime}} {
 		if kv[1] != "" {
 			site += kv[0] + " = " + pyjson.String(kv[1], true) + "\n"
 		}
@@ -182,7 +185,7 @@ func claudeHooks() entries {
 				return obj("hooks", []any{h("pm hook inbox || exit 1", 10)})
 			},
 			"Stop": func() *pyjson.Object {
-				return obj("hooks", []any{h("pm hook owner-request || exit 1", 30), h("pm hook stop || exit 1", 10)})
+				return obj("hooks", []any{h("pm hook owner-request --runtime claude || exit 1", 30), h("pm hook stop || exit 1", 10)})
 			},
 		},
 	}
@@ -218,7 +221,7 @@ func codexHooks() entries {
 				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10)})
 			},
 			"Stop": func() *pyjson.Object {
-				return obj("hooks", []any{h("pm hook owner-request || exit 1", "Checking for owner requests asked only in chat", 30),
+				return obj("hooks", []any{h("pm hook owner-request --runtime codex || exit 1", "Checking for owner requests asked only in chat", 45),
 					h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
 			},
 			"SubagentStop": func() *pyjson.Object {

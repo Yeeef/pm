@@ -23,9 +23,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/install"
+	"github.com/Yeeef/pm/internal/session"
 )
 
 type kind int
@@ -459,9 +462,13 @@ func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// reads its session from its input (and fails open), and help and version act as none
 	if len(argv) > 0 && argv[0] != "hook" && argv[0] != "prime" && argv[0] != "version" &&
 		!slices.Contains(argv, "-h") && !slices.Contains(argv, "--help") {
-		if _, _, err := agentSession(); err != nil {
+		id, runtime, err := agentSession()
+		if err != nil {
 			fmt.Fprintf(stderr, "error: %s\n", err)
 			return 1
+		}
+		if here, err := cwd(); err == nil && runtime == "codex" {
+			session.WarnCodexHooksSkipped(here, id, stderr)
 		}
 	}
 	if name, args, ok := storeFormOf(argv); ok {
@@ -533,13 +540,20 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		default:
 			part.Chunk, _ = strconv.Atoi(v) // parse checked it is one of the chunk numbers
 		}
+		if session.Innermost() == "codex" { // the state hook of a Codex session: whether Codex skips any of pm's hooks
+			part.Trust = install.SessionTrust
+		}
 		return hooks.CmdPrime(part, p.Get("hook_json") == "true", Nouns(), stdin, stdout)
 	case "hook stop":
 		return hooks.HookStop(stdin, stdout, stderr)
 	case "hook inbox":
 		return hooks.HookInbox(here, pendingReplies, stdin, stdout, stderr)
 	case "hook owner-request":
-		if code, err := hooks.HookOwnerRequest(here, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
+		runtime := ask.Runtime(p.Get("runtime")) // parse checked it is one of ask.Runtimes
+		if runtime == "" {
+			runtime = ask.Claude // an entry written before --runtime existed ran the claude judge
+		}
+		if code, err := hooks.HookOwnerRequest(here, runtime, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
 			return err
 		} else {
 			return &exitCode{code}

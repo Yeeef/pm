@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -40,6 +41,7 @@ type Options struct {
 	Stdin       string
 	Timeout     time.Duration
 	TimeoutText string
+	Group       bool // run it in a process group of its own, and at the timeout kill the whole group, not only argv[0]
 }
 
 // Run runs argv to its exit. A command that could not start, or that ran past its timeout, is an *Error.
@@ -71,9 +73,21 @@ func Run(argv []string, o Options) (Result, error) {
 	}
 	cmd.Stdin = strings.NewReader(o.Stdin)
 	cmd.WaitDelay = time.Second // a grandchild holding the pipes must not outlive the timeout by long
+	// a launcher script (claude's, codex's node wrapper) leaves its real process running when only it dies
+	if o.Group {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	}
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
-	err := cmd.Run()
+	err := cmd.Start()
+	if err == nil {
+		if o.Group {
+			groups.Store(cmd.Process.Pid, true)
+			defer groups.Delete(cmd.Process.Pid)
+		}
+		err = cmd.Wait()
+	}
 	if ctx.Err() == context.DeadlineExceeded {
 		return Result{}, &Error{"TimeoutExpired",
 			fmt.Sprintf("Command '%s' timed out after %s seconds", ReprList(argv), o.TimeoutText)}
@@ -93,6 +107,18 @@ func Run(argv []string, o Options) (Result, error) {
 	default:
 		return Result{}, &Error{"OSError", err.Error()}
 	}
+}
+
+// groups is the process groups of the Group commands running now, by leader pid.
+var groups sync.Map
+
+// KillGroups kills the process group of every Group command running now: for a process that is itself being stopped,
+// whose children run in groups of their own and would outlive it.
+func KillGroups() {
+	groups.Range(func(pid, _ any) bool {
+		syscall.Kill(-pid.(int), syscall.SIGKILL) //nolint:errcheck,forcetypeassert // a group already gone is fine; only Run stores, an int
+		return true
+	})
 }
 
 // text is captured output as text=True gives it: universal newlines, \r\n and \r read as \n.

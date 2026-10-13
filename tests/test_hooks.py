@@ -8,11 +8,12 @@ import re
 import shutil
 import socket
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, hook_payload, nouns, \
-    rules, stop_services, write_config
+    rules, stop_services, write_config, VERSION
 
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
@@ -475,3 +476,90 @@ def test_session_start_of_a_codex_session_started_from_claude_code_takes_no_clau
     payload = hook_payload("codex", "SessionStart", session=ROOT, cwd=str(repo.root), transcript=str(tmp_path / "t"))
     context_of(run(STATE, payload, env, repo.root))
     assert repo.items()["repo-demo.1.3"]["need"]["raised_by"]["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}"
+
+
+def test_a_codex_session_whose_hooks_did_not_run_is_told_once(repo):
+    """Codex skips a hook the user has not trusted, silently: a pm command in a Codex session whose rollout holds no pm
+    session-start context before its first prompt warns once on stderr, naming the fix; a session whose rollout holds
+    it, pm's hooks themselves, and a session whose first prompt is not written yet get no warning. The command itself
+    runs as ever."""
+    def rollout(thread: str, *messages: tuple[str, str]) -> None:
+        """A Codex 0.154 rollout's opening: session_meta, Codex's own context, turn_context, then `messages`."""
+        lines = [{"type": "session_meta", "payload": {"id": thread, "cwd": str(repo.root), "originator": "codex_exec"}},
+                 {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [
+                     {"type": "input_text", "text": "# AGENTS.md instructions\n\n<INSTRUCTIONS>…"}]}},
+                 {"type": "turn_context", "payload": {"cwd": str(repo.root)}}]
+        lines += [{"type": "response_item", "payload": {"type": "message", "role": role,
+                                                        "content": [{"type": "input_text", "text": text}]}}
+                  for role, text in messages]
+        p = Path(repo.env["CODEX_HOME"]) / "sessions/2026/10/11" / f"rollout-2026-10-11T19-07-16-{thread}.jsonl"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+    skipped, hooked, unwritten = ("01a12bee-db2f-7050-ba39-116b615a19b8", "01a12bef-027d-7c33-8fb3-8fd52363eaf7",
+                                  "01a12bef-1111-7c33-8fb3-8fd52363eaf7")
+    rollout(skipped, ("user", "Run pm show."))
+    rollout(hooked, ("developer", chunks()[0]), ("user", "Run pm show."))
+    rollout(unwritten)
+
+    def show(thread: str, *args: str):
+        res = subprocess.run([*PM, *(args or ("show",))], cwd=repo.root, input="{}", capture_output=True, text=True,
+                             env=dict(repo.env, CODEX_SESSION_ID=thread, CODEX_THREAD_ID=thread), check=False)
+        return res
+
+    first = show(skipped)
+    assert first.returncode == 0 and "projects:" in first.stdout, first.stderr
+    assert first.stderr.count("warning: Codex ran none of pm's hooks in this session") == 1, first.stderr
+    assert f"open Codex in {repo.root}, trust pm's hooks in /hooks" in first.stderr
+    again = show(skipped)
+    assert again.returncode == 0 and "warning" not in again.stderr, "once per session"
+    for thread in (hooked, unwritten):
+        res = show(thread)
+        assert res.returncode == 0 and "warning" not in res.stderr, (thread, res.stderr)
+    rollout(unwritten, ("user", "Run pm show."))  # its first prompt is written now: told then
+    assert "warning: Codex ran none" in show(unwritten).stderr
+    for args in (("prime", "--subagent"), ("hook", "stop")):  # the hooks themselves never warn
+        (repo.root / f".pm/run/codex-hooks/{skipped}").unlink(missing_ok=True)
+        assert "warning" not in show(skipped, *args).stderr, args
+
+
+@pytest.mark.integration
+def test_a_codex_sessions_start_names_the_pm_hooks_codex_skips(repo, tmp_path):
+    """A pm upgrade that rewrites one Codex hook entry leaves Codex's trust in it stale: Codex skips that hook and runs
+    the unchanged ones. The state hook of a Codex session (pm runs under a codex process) asks Codex (here the fake
+    app-server) which of pm's hooks it skips and opens the state with one line naming them and the fix; it asks again
+    only when .codex/hooks.json or the Codex config changed. A Claude Code session asks nothing."""
+    init_ready(repo)
+    upgraded = repo.pm("upgrade", "--to", VERSION)  # pm's pieces as this pm writes them, .codex/hooks.json included
+    assert (repo.root / ".codex/hooks.json").exists(), upgraded.stdout + upgraded.stderr
+    codex_home = Path(repo.env["CODEX_HOME"])
+    codex_home.mkdir(exist_ok=True)
+    (codex_home / "config.toml").write_text("# trust as the user left it\n")
+    trust = tmp_path / "trust.json"
+    trust.write_text(json.dumps({"stop:0:0": "modified"}))  # the judge's entry changed since the user trusted it
+    env = dict(repo.env, FAKE_CODEX_TRUST=str(trust))
+    app_log = Path(repo.env["FAKE_CODEX_APP_LOG"])
+    payload = hook_payload("codex", "SessionStart", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"))
+
+    def start(under: str) -> str:
+        """The state hook, run as Codex runs it: under a process named `under`."""
+        res = subprocess.run([under, "-c", '"$0" "$@"; :', *STATE], executable="/bin/sh", input=json.dumps(payload),
+                             env=env, cwd=repo.root, capture_output=True, text=True, timeout=60, check=False)
+        return context_of(res)
+
+    def calls() -> int:
+        return len(app_log.read_text().splitlines()) if app_log.exists() else 0
+
+    before = calls()
+    first = start("codex")
+    line = first.split("\n\n", 1)[0]
+    assert line.startswith("warning: this Codex session runs only the pm hooks Codex trusts."), first[:400]
+    assert "which changed since you trusted them: stop `pm hook owner-request --runtime codex || exit 1`" in line
+    assert f"open Codex in {repo.root} and trust pm's hooks in /hooks" in line
+    assert calls() == before + 1
+    assert start("codex").split("\n\n", 1)[0] == line and calls() == before + 1, "unchanged files: no second ask"
+    # the user trusts it in /hooks, which writes Codex's config: asked again, and nothing to say
+    trust.write_text("{}")
+    (codex_home / "config.toml").write_text("# trust as the user left it\n[hooks.state]\n")
+    assert not start("codex").startswith("warning: this Codex session") and calls() == before + 2
+    assert not start("claude").startswith("warning: this Codex session") and calls() == before + 2

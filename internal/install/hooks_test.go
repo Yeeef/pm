@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -27,7 +28,15 @@ var runtimeDifferences = map[runtimeDifference]string{
 		"prompt, which pm hook stop reads at the parent's Stop",
 }
 
-// commandsAndMatcher is the commands of event's group, in order, and its matcher (nil when it has none).
+// ownRuntime is the one part of a command that differs by design and is no runtimeDifferences entry, so that the rest
+// of the command stays held equal: the owner-request judge runs on the session's own runtime (owner decision,
+// 2026-10-12: Haiku through claude -p for Claude Code, a small model through codex exec for Codex, so a machine with one
+// runtime keeps the check), and each entry names it. commandsAndMatcher reads it as "--runtime <own>", and
+// TestEachRuntimesJudgeRunsOnThatRuntime holds what each entry names.
+var ownRuntime = regexp.MustCompile(`--runtime (claude|codex)\b`)
+
+// commandsAndMatcher is the commands of event's group, in order, with ownRuntime read as "--runtime <own>", and its
+// matcher (nil when it has none).
 func commandsAndMatcher(t *testing.T, e entries, event string) ([]string, any) {
 	t.Helper()
 	group, ok := e.groups[event]
@@ -45,9 +54,27 @@ func commandsAndMatcher(t *testing.T, e entries, event string) ([]string, any) {
 		if !ok {
 			t.Fatalf("%s: a hook with no command: %v", event, o)
 		}
-		cmds = append(cmds, c)
+		cmds = append(cmds, ownRuntime.ReplaceAllString(c, "--runtime <own>"))
 	}
 	return cmds, g.Get("matcher")
+}
+
+func TestEachRuntimesJudgeRunsOnThatRuntime(t *testing.T) {
+	for runtime, e := range map[string]entries{"claude": claudeHooks(), "codex": codexHooks()} {
+		var judges []string
+		for _, h := range groupHooks(e.groups["Stop"]()) {
+			o, ok := h.(*pyjson.Object)
+			if !ok {
+				t.Fatalf("%s's Stop: a hook that is no object: %v", runtime, h)
+			}
+			if c, ok := o.Get("command").(string); ok && strings.Contains(c, "hook owner-request") {
+				judges = append(judges, c)
+			}
+		}
+		if want := "pm hook owner-request --runtime " + runtime + " || exit 1"; !reflect.DeepEqual(judges, []string{want}) {
+			t.Errorf("%s's Stop runs the judge as %q, not %q", runtime, judges, want)
+		}
+	}
 }
 
 func TestClaudeAndCodexRunTheSameHooks(t *testing.T) {

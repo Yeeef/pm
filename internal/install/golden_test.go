@@ -23,8 +23,8 @@ import (
 
 var update = flag.Bool("update", false, "rewrite testdata/pieces.json from the results now")
 
-var goldenSettings = []Settings{{"origin", "main", 8123, "", "", ""},
-	{"upstream", "trunk", 8000, "https://pm.example.com", "team.cloudflareaccess.com", "aud-tag"}}
+var goldenSettings = []Settings{{"origin", "main", 8123, "", "", "", ""},
+	{"upstream", "trunk", 8000, "https://pm.example.com", "team.cloudflareaccess.com", "aud-tag", "codex"}}
 
 // Inputs, mostly from the setup tests' fixtures: Beads' hook file with the repo's own lines, settings files of the
 // user's, an unterminated .gitignore, an older pm's parts, and the broken forms pm refuses.

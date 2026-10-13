@@ -408,6 +408,20 @@ class Clone:
         assert wrote and wrote <= listed.keys(), f"Codex does not list pm's hooks {sorted(wrote - listed.keys())}"
         assert all(listed[c] == "trusted" for c in wrote), f"pm's hooks are not all trusted in Codex: {listed}"
 
+    def distrust(self, event: str) -> int:
+        """Leave Codex's trust in each of pm's hooks of `event` (its label: session_start, stop, ...) stale, as after a
+        pm upgrade rewrote the entry: Codex then skips those hooks and runs the others. The number made stale."""
+        config = self.codex_home / "config.toml"
+        out, stale, inside = [], 0, False
+        for line in config.read_text().splitlines():
+            if line.startswith("["):
+                inside = f":{event}:" in line
+            if inside and line.startswith("trusted_hash"):
+                line, stale = 'trusted_hash = "sha256:' + "0" * 64 + '"', stale + 1
+            out.append(line)
+        config.write_text("\n".join(out) + "\n")
+        return stale
+
     def agent_env(self) -> dict[str, str]:
         """What either runtime runs with: the clone's environment (the fakes' supervisor and gh, the pm under test on
         PATH, the scratch HOME and CODEX_HOME), and the user's Claude config dir, where Claude Code's login and the
@@ -415,9 +429,10 @@ class Clone:
         env = {k: v for k, v in self.env.items() if not INHERITED.match(k)}
         return dict(env, CODEX_HOME=str(self.codex_home), CLAUDE_CONFIG_DIR=str(CLAUDE_DIR))
 
-    def start(self, runtime: str, name: str, prompt: str, resume: str = "") -> Agent:
+    def start(self, runtime: str, name: str, prompt: str, resume: str = "", without: tuple[str, ...] = ()) -> Agent:
         """Start a headless session of `runtime` in the main checkout on `prompt`, or resume the session `resume`
-        with it as its next prompt; its output streams to the test's tmp dir."""
+        with it as its next prompt; its output streams to the test's tmp dir. `without` names commands the session's
+        PATH must not hold: each directory holding one is left out."""
         trust = f'projects."{self.root}".trust_level="trusted"'
         if runtime == "claude":
             argv = [shutil.which("claude", path=REAL_PATH) or "claude", "-p", prompt, "--model", CLAUDE_MODEL,
@@ -428,16 +443,21 @@ class Clone:
             argv = [shutil.which("codex", path=REAL_PATH) or "codex", "exec",
                     *(["resume"] if resume else []), "--json", "-c", f'sandbox_mode="{CODEX_SANDBOX}"', "-c", trust,
                     *(["-m", CODEX_MODEL] if CODEX_MODEL else []), *([resume] if resume else []), prompt]
+        env = self.agent_env()
+        env["PATH"] = os.pathsep.join(d for d in env["PATH"].split(os.pathsep)
+                                      if not any((Path(d) / tool).exists() for tool in without))
+        assert not any(shutil.which(tool, path=env["PATH"]) for tool in without), without
         out = self.out / f"{name}.{runtime}.jsonl"
         with out.open("w") as f:
-            proc = subprocess.Popen(argv, cwd=self.root, env=self.agent_env(), stdin=subprocess.DEVNULL, stdout=f,
+            proc = subprocess.Popen(argv, cwd=self.root, env=env, stdin=subprocess.DEVNULL, stdout=f,
                                     stderr=subprocess.STDOUT, start_new_session=True)
         agent = Agent(self, runtime, name, proc, out, time.monotonic())
         threading.Thread(target=agent.watch, daemon=True).start()
         return agent
 
-    def run(self, runtime: str, name: str, prompt: str, timeout: float, resume: str = "") -> Run:
-        return self.start(runtime, name, prompt, resume).finish(timeout)
+    def run(self, runtime: str, name: str, prompt: str, timeout: float, resume: str = "",
+            without: tuple[str, ...] = ()) -> Run:
+        return self.start(runtime, name, prompt, resume, without).finish(timeout)
 
     def close(self) -> None:
         """Remove the logins copied for the agents, stop the clone's pm service and whatever else the fake supervisor
@@ -506,7 +526,7 @@ class Tui:
     """A runtime's interactive TUI (Claude Code's `claude`, Codex's `codex`) in a pseudo-terminal, as a person runs it,
     on a first prompt given on its command line. A thread reads the screen into a log, answers the terminal's queries
     (cursor position, device attributes, colors) as a terminal does, and accepts Claude Code's folder-trust dialog for
-    the scratch clone should it show; nothing else is ever typed. Claude Code runs on a config dir of the clone's own
+    the scratch clone should it show; nothing else is typed but what a test sends as the owner (keys). Claude Code runs on a config dir of the clone's own
     (claude_config), so its first-run state and its transcripts never touch the user's."""
 
     def __init__(self, clone: Clone, runtime: str, name: str, prompt: str):
@@ -554,6 +574,17 @@ class Tui:
                 if self.runtime == "claude" and not trusted and b"trust the files in this folder" in plain:
                     os.write(self.fd, b"\r")  # "Yes, proceed": the scratch clone is the eval's own
                     trusted = True
+
+    def keys(self, *presses: bytes) -> None:
+        """Type into the TUI as the owner at its keyboard, one key press at a time, as a person types them."""
+        for k in presses:
+            os.write(self.fd, k)
+            time.sleep(0.3)  # noqa: TID251 — a person's pace between key presses, which a TUI's input loop expects
+
+    def text(self) -> str:
+        """The screen's recent output as plain text, the terminal's control sequences left out."""
+        return re.sub(r"\x1b(\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|[()][A-Z0-9]|.)", "",
+                      self.screen.decode("utf-8", "replace"))
 
     def transcript(self) -> Path | None:
         """The session's transcript, the newest one begun since the TUI started: Claude Code's session JSONL for the

@@ -11,6 +11,10 @@ transcript (Claude Code's session JSONL, Codex's rollout).
   is idle the owner replies, and with nothing typed the session starts a turn on the reply the pm service delivered
   (Claude Code: its socket; Codex: codex queue) and records the decision; the wake latency is printed.
 - stop, per runtime: a record edited by hand and left uncommitted; the Stop hook blocks, and the store ends committed.
+- ask tool, per runtime: an interactive session asks a multiple-choice question with its ask tool; the test answers
+  it in the TUI; the Stop hook does not block and no need is raised.
+- chat ask, Codex with no claude on PATH: the final reply asks the owner only in chat; the owner-request judge, on
+  codex exec, blocks the stop, and the session raises a need.
 - mixed: a Claude session and a Codex session in parallel on one sprint's two ready tasks; while both holds are live,
   the test claims each session's task as the other session, from a worktree of its own, and pm must refuse, naming
   the holder, and change nothing; and each session's pm show must name the other's hold.
@@ -23,6 +27,7 @@ and transcript paths, kept under the test's tmp dir.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
@@ -221,6 +226,32 @@ def test_stop_hook_blocks_uncommitted_records(clone, runtime):
     check.done()
 
 
+def test_codex_without_claude_is_blocked_asking_only_in_chat(clone):
+    """The owner-request judge runs on the session's own runtime: a Codex session on a machine with no claude, whose
+    final reply asks the owner something only in chat, is blocked by the Stop hook (its judge on codex exec), and then
+    raises the request as a need."""
+    ids = clone.seed(1)
+    sprint = ids["sprint"]
+    # without pm's session-start rules (their hooks left untrusted), so the agent asks in chat as told: with them, a
+    # rule-abiding agent raises the need before it ever stops, and the Stop hook has nothing to judge
+    assert clone.distrust("session_start") > 0
+    run = clone.run("codex", "chat-ask-codex", f"""This run checks a Stop hook. Do not use any tool now: end your turn at \
+once with this question to the owner as your whole reply, word for word: "Should the parity doc name the color red or \
+blue?" When a hook then tells you what is left to do, do it, under sprint {sprint}, and end with one line: asked.""", TIMEOUT, without=("claude",))
+    items = clone.items()
+    check = Checks(clone, run)
+    blocks = run.stop_blocks()
+    print(f"\nchat ask codex: {run.seconds:.1f}s, {len(blocks)} stop blocks")
+    check(run.returncode == 0, f"{run.name}: the session exited {run.returncode}")
+    check(any("no open request of this session covers" in b and "red or blue" in b for b in blocks),
+          f"{run.name}: no owner-request Stop block quoting the ask in the transcript: {blocks}")
+    needs = [i for i in items.values() if i["type"] == "need" and i["parent"] in (sprint, ids["task1"])
+             and ((i.get("need") or {}).get("raised_by") or {}).get("session") == run.session]
+    check(needs, f"{run.name}: the session raised no need under the sprint after the block")
+    check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
+    check.done()
+
+
 @pytest.mark.parametrize("runtime", RUNTIMES)
 def test_reply_reaches_the_session_at_its_next_prompt(clone, runtime):
     """A session that raised a need and ended its turn gets the owner's reply when it is resumed, and records it: from
@@ -312,6 +343,68 @@ def test_an_idle_interactive_session_is_woken_by_the_owners_reply(clone, runtime
     check(any(cites(r, need.get("id", "?")) for r in decided),
           f"{run.name}: no owner decision in the sprint or project record cites the need")
     check(clone.uncommitted_records() == "", f"{run.name}: uncommitted records: {clone.uncommitted_records()}")
+    check.done()
+
+
+ASK_TOOLS = {"claude": ("AskUserQuestion",), "codex": ("request_user_input_async", "request_user_input")}
+
+
+def ask_tool_calls(entries: list[dict], runtime: str) -> list[dict]:
+    """The session's ask tool calls, as its transcript records them: Claude Code's tool_use, Codex's function_call."""
+    out = []
+    for e in entries:
+        if runtime == "claude":
+            content = (e.get("message") or {}).get("content")
+            out += [c for c in (content if isinstance(content, list) else [])
+                    if isinstance(c, dict) and c.get("type") == "tool_use" and c.get("name") in ASK_TOOLS[runtime]]
+        elif e.get("type") == "response_item" and (e.get("payload") or {}).get("type") == "function_call" and \
+                e["payload"].get("name") in ASK_TOOLS[runtime]:
+            out.append(e["payload"])
+    return out
+
+
+@pytest.mark.parametrize("runtime", RUNTIMES)
+def test_an_ask_made_with_the_runtimes_ask_tool_is_not_blocked(clone, runtime):
+    """The owner is in the chat of an interactive session (Claude Code's or Codex's TUI, in a pty), which asks a
+    multiple-choice question with its runtime's ask tool (AskUserQuestion; Codex's request_user_input_async in Default
+    mode). The owner (this test) picks Blue in the TUI. The owner-request Stop hook must not block the turn that asked,
+    and no need is raised for the question."""
+    clone.seed(1)
+    tui = Tui(clone, runtime, f"ask-tool-{runtime}", """I am here in this chat. Ask me one multiple-choice question \
+with your ask tool for questions to the user (not in plain text, and not as a pm need): "Should the parity doc name \
+the color red or blue?" with the options Red and Blue. After asking, do not wait or poll: end your turn. When my \
+answer reaches you, reply with one line: chose <the color>.""")
+    # how the owner reaches the pick list: Claude Code shows it at once; Codex shows "? 1 question, shift + ← to
+    # answer", and the pick list once the owner opens it
+    shown, opener = {"claude": ("Enter to select", ()), "codex": ("to answer", (b"\x1b[1;2D",))}[runtime]
+    answered, deadline = False, time.monotonic() + TIMEOUT
+    try:
+        while time.monotonic() < deadline and shown not in tui.text():
+            time.sleep(1)  # noqa: TID251 — the poll interval over a live session's screen, under its deadline
+        if shown in tui.text():
+            time.sleep(2)  # noqa: TID251 — the question settles on screen before the owner's key presses
+            tui.keys(*opener)
+            while time.monotonic() < deadline and runtime == "codex" and "enter submit" not in tui.text():
+                time.sleep(1)  # noqa: TID251 — the pick list opening, under its deadline
+            tui.keys(b"\x1b[B", b"\r")  # the owner picks the second option, Blue
+            answered = True
+        while time.monotonic() < deadline and answered and not \
+                re.search(r"chose\W+blue", " ".join(json.dumps(e) for e in tui.entries()[-6:]), re.I):
+            time.sleep(2)  # noqa: TID251 — the poll interval over a live session, under its deadline
+        while time.monotonic() < deadline and answered and not tui.idle(quiet=5):
+            time.sleep(2)  # noqa: TID251 — the poll interval over a live session, under its deadline
+    finally:
+        run = tui.run()
+    asked = ask_tool_calls(run.entries, runtime)
+    items = clone.items()
+    check = Checks(clone, run)
+    blocks = [b for b in run.stop_blocks() if "no open request of this session" in b or "authorized" in b]
+    print(f"\nask tool {runtime}: {run.seconds:.1f}s, {len(asked)} ask tool calls, {len(blocks)} owner-request blocks")
+    check(asked, f"{run.name}: the session made no {' or '.join(ASK_TOOLS[runtime])} call")
+    check(not blocks, f"{run.name}: the owner-request Stop hook blocked the turn: {blocks}")
+    needs = [i for i in items.values() if i["type"] == "need"]
+    check(not needs, f"{run.name}: needs were raised for a question asked with the ask tool: {[n['id'] for n in needs]}")
+    check(re.search(r"chose\W+blue", run.text(), re.I), f"{run.name}: the owner's pick never reached the session")
     check.done()
 
 
