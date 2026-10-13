@@ -68,10 +68,18 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: the pin move to 0.8.0 (PR #60) and the review restamp (PR #61) are ready. Restarting the service with codex, the Codex trust, and closing sprint 2 follow their merges.
+
+- PR #60: `pm upgrade --to 0.8.0`: the pin, the hook entries for both runtimes, `.codex/rules/pm.rules`, and the post-checkout marker.
+- PR #61: `pm action done` restamps a closed PR review that lacks "merged as <sha>"; `pm action need --pr` refuses a PR whose base is not main.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Done when | Met | Evidence |
+|---|---|---|
+| `.pm/config.toml` on main pins 0.8.0; `pm version` in the main checkout prints 0.8.0 | not yet | PR #60, CI 12/12; in its worktree `pm version` prints 0.8.0 |
+| `pm doctor` prints no codex service line and no "Codex skips" line | not yet | after #60 merges: `pm service install` from a shell with codex 0.154.0, then the owner's trust step |
+| `pm sprint close pm-v498.2` succeeds | not yet | needs #61 in a release pinned here; under the release-on-merge policy its merge releases it |
+| Design pages of changed areas updated and listed | met | Sprint lifecycle, pm CLI, Work store (records ad9b8e2, 6f2cdc4) |
