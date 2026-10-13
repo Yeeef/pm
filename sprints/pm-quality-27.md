@@ -65,6 +65,11 @@ The design page pm-go stays as it is for this sprint's code changes.
 Only the records read's index-lock check in serve.go changed; views-and-site holds that.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page site-replies stays as it is for this sprint's code changes.
+Only the records read's index-lock check in serve.go changed; views-and-site holds that.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
