@@ -49,7 +49,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-13}
+Scope gains cutting pm 0.8.0 from main now with the pm-codex work only (PRs #47 and #56); the design-page gate (#54) goes into a later release.
+Owner, in chat 2026-10-13: release now rather than wait for #54.
+:::
 
 ## Findings
 
