@@ -67,7 +67,10 @@ pm upgrade is the one command that changes pins and runs as the new pin, so prun
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Pins in use on this machine (4 clones with units, every worktree read,
+  2026-10-13): 0.1.0, 0.3.0, 0.5.0, 0.6.0, 0.7.1, 0.8.0; only 0.4.0 (118 MB)
+  is prunable. Old worktrees, not repos, hold most old pins, so pm clean
+  (removing merged worktrees) is what frees them for pm upgrade to prune.
 
 ## Delivery report
 
