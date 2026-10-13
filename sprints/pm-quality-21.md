@@ -182,6 +182,20 @@ the PR moves this page's covered code into noun files and subpackages, quotes va
   json.tool, whose default output (ensure_ascii) is refused again for
   non-ASCII content.
 
+- Parity live eval: on this host Codex's bubblewrap sandbox cannot start
+  (bwrap: loopback: Failed RTM_NEWADDR;
+  apparmor_restrict_unprivileged_userns=1), so under the default
+  workspace-write sandbox every Codex scenario that runs git or edits a file
+  fails: branch run 5 failed, 7 passed (603 s); origin/main baseline 4 failed,
+  8 passed (605 s), the same scenarios plus chat-ask passing by luck. PR head
+  with PM_PARITY_CODEX_SANDBOX=danger-full-access, Codex scenarios: 6 passed,
+  1 failed (607 s); all 6 Claude scenarios passed on the branch run. The one
+  failure, Codex's ask tool, fails the same on origin/main: Shift+Left does
+  not open the request_user_input_async pick list on codex-cli 0.162.1, a
+  test-harness issue outside this sprint. No transcript shows a hook error, a
+  JSON parse error, an unrecognized-argument refusal or a quoting problem;
+  Codex's judge parsed the compact hook JSON and blocked the chat-only ask.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
