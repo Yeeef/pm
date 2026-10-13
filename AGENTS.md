@@ -61,9 +61,7 @@ A new file that `design_sources` (`.pm/config.toml`) matches goes into the `cove
   `light_unless_integration` in `conftest.py` fails an unmarked test that starts one of these.
 - **A test that pins another version and does not test the launch sets `PM_LAUNCHED=<pin>`**, as a launched pm has
   it; without it the launcher downloads that release from GitHub.
-- Seed work data only through `repo.set_issue` and `repo.add_issue`, before pm's first write (a seed re-imports the
-  store), and read it with `repo.items()`, `repo.changes()` or `repo.unchanged()`; `conftest.py`'s docstring has the
-  forms.
+- A test seeds and reads work data only through the `repo` helpers that `conftest.py`'s docstring names.
 - **Golden files** (`internal/site`, `internal/install`): after an intended change, rewrite them with
   `go test -tags gms_pure_go ./internal/<pkg> -run Golden -update` and review the diff in the PR; never hand-edit one
   to make a test pass.
