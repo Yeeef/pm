@@ -567,8 +567,8 @@ def test_the_gate_replayed_on_pr_47_names_the_pages_pm_codex_sprint_1_left_uncha
     assert {"reply-delivery", "owner-request-hook", "session-claims"} <= set(named), named
 
 
-WAITING = ("covers patterns match no tracked file, waiting on unmerged work; pm sprint close refuses a sprint whose "
-           "page still names a file the remote's main lacks once its PR merges:\n")
+WAITING = ("covers patterns match no tracked file, waiting on unmerged work; pm sprint close refuses a sprint only "
+           "on a pattern it added or changed while open that its merged PR leaves missing on the remote's main:\n")
 
 
 def test_check_lists_covers_patterns_that_match_nothing_as_waiting_and_lists_uncovered_sources(repo):

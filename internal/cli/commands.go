@@ -545,7 +545,7 @@ var tree = &command{
 		{
 			name:        "check",
 			help:        "check that every record renders with the work store, writing nothing; the check before a commit, and the one pm commit runs",
-			description: "Check that every record renders with the work store, writing nothing; pm commit runs the same check. It lists the tracked source files no design page covers: those the path patterns of design_sources in .pm/config.toml match (e.g. design_sources = [\"internal/**\", \"prime.md\"]; unset, no list), and fails on a design_sources pattern that matches no tracked file. It also lists each design page's covers: pattern that matches no file git tracks in the main checkout or this worktree, as waiting on unmerged work, and passes: a sprint brings its page to the new state before its PR merges, so a page names a file before main has it; pm sprint close holds each pattern to the remote's main. A malformed pattern fails.",
+			description: "Check that every record renders with the work store, writing nothing; pm commit runs the same check. It lists the tracked source files no design page covers: those the path patterns of design_sources in .pm/config.toml match (e.g. design_sources = [\"internal/**\", \"prime.md\"]; unset, no list), and fails on a design_sources pattern that matches no tracked file. It also lists each design page's covers: pattern that matches no file git tracks in the main checkout or this worktree, as waiting on unmerged work, and passes: a sprint brings its page to the new state before its PR merges, so a page names a file before main has it; pm sprint close holds a sprint to the remote's main only for the patterns it added or changed while open. A malformed pattern fails.",
 		},
 		{
 			name: "sync",
