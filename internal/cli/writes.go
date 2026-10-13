@@ -9,7 +9,8 @@ import (
 	"time"
 )
 
-// The commands that write records and work items: findings, feedback, new docs, design pages and postmortems,
+// The shapes, patterns and helpers shared by the commands that write records and work items (each in its noun's
+// file): findings, feedback, new docs, design pages and postmortems,
 // projects and sprints opened and closed, tasks added, closed, claimed and moved. Each refuses before any write; a
 // write that touches both stores writes the work store first, then the records.
 

@@ -73,6 +73,7 @@ hold it).
 - A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python). gocyclo
   gates every function at 30; `size_test.go` caps a package at 5000 non-test Go lines (`internal/cli` on a ratchet
   allowance) and a file under `internal/cli` at 800; one past a cap is split along a seam.
+- A func's doc comment under `internal/cli` starts with the func's name (`doc_test.go`): move it with its func.
 
 ## Merging
 

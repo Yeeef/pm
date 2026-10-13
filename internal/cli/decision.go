@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// decisionTarget is the open project or sprint record a decision of --level goes into, named by its flag.
 func (r *repo) decisionTarget(p *Parsed) (*records.Record, error) {
 	level, ok := given(p, "level")
 	if !ok {
@@ -224,8 +225,6 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 	return fmt.Sprintf("%s; if it sets a rule after all, record it with pm decision add --need %s, which marks the "+
 		"need answered", done, id), nil
 }
-
-// noteAuthor is who a note pm writes is by: this session, else the owner at a shell.
 
 func (r *repo) decisionSource(p *Parsed, body string) (string, string, *work.Item, error) {
 	var err error

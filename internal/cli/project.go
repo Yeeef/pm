@@ -59,7 +59,6 @@ func cmdProjectOpen(e *env, p *Parsed) (string, error) {
 	return out, nil
 }
 
-// parseSections splits a frame like "## Goal\n…\n## Scope\n…" into section bodies.
 func cmdProjectClose(e *env, p *Parsed) (string, error) {
 	r, err := e.load(false)
 	if err != nil {
@@ -111,5 +110,3 @@ func cmdProjectClose(e *env, p *Parsed) (string, error) {
 }
 
 // ---------------------------------------------------------------- tasks
-
-// openSprint is the record of an open sprint item.

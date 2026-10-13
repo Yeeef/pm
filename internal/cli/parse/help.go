@@ -115,7 +115,7 @@ func (c *Command[T]) usageParts() (parts []string, nOpt int) {
 	return parts, nOpt
 }
 
-// usage is the usage line after "usage: ", wrapped as argparse wraps it to the terminal's width (HelpFormatter: the
+// Usage is the usage line after "usage: ", wrapped as argparse wraps it to the terminal's width (HelpFormatter: the
 // width shutil.get_terminal_size gives, less 2): when "usage: " and the line are longer, the parts go on lines indented
 // under the first part after the prog, the positionals starting a line of their own.
 func (c *Command[T]) Usage() string {
@@ -211,7 +211,7 @@ func section(title string, items []helpItem, column int) string {
 	return b.String()
 }
 
-// help is the command's --help text.
+// HelpText is the command's --help text.
 func (c *Command[T]) HelpText() string {
 	var positionals, options []helpItem
 	for _, a := range c.Args {

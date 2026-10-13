@@ -15,6 +15,8 @@ import (
 	"strings"
 )
 
+// Doctor is pm doctor: every managed piece against what this pm writes, and the clone and worktree against what pm
+// init makes; non-zero on any difference.
 func Doctor(here string, stdout io.Writer) error {
 	c, err := config.Load(here)
 	if err != nil {
@@ -89,8 +91,3 @@ func Doctor(here string, stdout io.Writer) error {
 	}
 	return err
 }
-
-// cmdUpgrade is pm upgrade: print the upgrade guide of each release the move crosses, then move the pin to the running
-// pm, rewrite every managed piece as it writes them, take out Beads' pieces and the retired ones, point core.hooksPath
-// at pm's hooks and prune the pins no checkout on the machine pins; commits nothing, and names the untracking of a
-// records/ copy the branch still tracks. Without --to it never moves a pin down.

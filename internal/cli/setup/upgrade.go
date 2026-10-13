@@ -13,6 +13,10 @@ import (
 	"strings"
 )
 
+// Upgrade is pm upgrade: print the upgrade guide of each release the move crosses, then move the pin to the running
+// pm, rewrite every managed piece as it writes them, take out Beads' pieces and the retired ones, point core.hooksPath
+// at pm's hooks and prune the pins no checkout on the machine pins; commits nothing, and names the untracking of a
+// records/ copy the branch still tracks. Without --to it never moves a pin down.
 func Upgrade(p Arguments, here string, stdout io.Writer) error {
 	to := p.Get("to")
 	if to == "" {

@@ -22,7 +22,6 @@ import (
 // records branch and the remote's work store (refs/pm/work) stay, and so does pm in the
 // bin dir, which other clones run. Refused before anything changes when the store holds uncommitted records or a piece
 // cannot be removed without touching what is not pm's.
-
 func Uninstall(here string, stdout io.Writer) error {
 	u, err := planUninstall(here)
 	if err != nil {

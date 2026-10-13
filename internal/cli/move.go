@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// decisionBody checks a decision body: two lines or more, no block opened.
 func decisionBody(body string) error {
 	if body == "" {
 		return refuse("the decision body is empty; pass it with %s: %s", textForms, decisionShape)
@@ -238,8 +239,6 @@ func moveText(r *repo, id string, mv work.SprintMove) string {
 		"both projects", id, name(mv.From), mv.FromNumber, name(mv.To), mv.ToNumber, sprintName(name(mv.To), mv.ToNumber))
 }
 
-// moveWrites is a move's records step, one commit: the sprint record renamed to <project>-<number>, its text
-// unchanged, and the move as a source=agent decision in both projects' records.
 // moveDate is the UTC date of the sprint's last move note, which the move's decisions carry: the records step is then
 // the same on every clone and in every time zone, so a rerun on a clone whose records had not synced another clone's
 // finished step writes that step again, and the records sync's rebase onto it drops the copy.
@@ -354,8 +353,6 @@ func cmdSprintEdit(e *env, p *Parsed) (string, error) {
 	}
 	return out, nil
 }
-
-// ---------------------------------------------------------------- pm commit
 
 func (r *repo) finishSprintMove(sp *work.Item, rec *records.Record, id, toName string) (string, error) {
 	if rec.Name() == sprintName(toName, sp.Number) {

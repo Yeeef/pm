@@ -86,7 +86,7 @@ func (p *Parsed[T]) Get(dest string) string {
 	return v[len(v)-1]
 }
 
-// given is the first of these dests' arguments that was given, or nil.
+// Given is the first of these dests' arguments that was given, or nil.
 func (p *Parsed[T]) Given(dests ...string) *Arg {
 	for _, d := range dests {
 		if _, ok := p.Values[d]; ok {

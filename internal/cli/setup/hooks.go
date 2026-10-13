@@ -48,7 +48,7 @@ func GitPostCheckout(p Arguments, here string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-// hookGitPreCommit is pm hook git-pre-commit, retired with the main branch's records/ copy, whose guard it was: it does
+// GitPreCommit is pm hook git-pre-commit, retired with the main branch's records/ copy, whose guard it was: it does
 // nothing. An earlier pm's section in the main checkout's .pm/hooks/pre-commit runs it in every worktree of the clone
 // until pm upgrade's removal of that section reaches the main checkout, so a worktree already pinned to this pm must
 // still commit.

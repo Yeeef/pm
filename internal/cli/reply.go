@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// noteAuthor is who a note pm writes is by: this session, else the owner at a shell.
 func noteAuthor() string {
 	if s := currentSession(); s != "" {
 		return s

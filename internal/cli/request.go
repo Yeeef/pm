@@ -11,6 +11,7 @@ import (
 	"unicode"
 )
 
+// wordBefore is whether s holds a Python word character just before byte i, where \b before a word fails.
 func wordBefore(s string, i int) bool {
 	if i == 0 {
 		return false
@@ -280,8 +281,6 @@ func cmdActionNeed(e *env, p *Parsed) (string, error) {
 	}
 	return raiseReview(e, p)
 }
-
-// dedupe is list with each value once, in first-seen order.
 
 func needCosts(p *Parsed, options map[string]string, labels []string) (map[string]string, error) {
 	costs := map[string]string{}

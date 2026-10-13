@@ -208,7 +208,7 @@ func commitHint(top string, before map[string]string, written []string) (string,
 		"\"Install pm %s\"", branch, strings.Join(changed, " "), buildinfo.Version), nil
 }
 
-// cmdInit is pm init: the repo's half only when the worktree has no .pm/config.toml yet (a first install; pm doctor
+// Init is pm init: the repo's half only when the worktree has no .pm/config.toml yet (a first install; pm doctor
 // reports and pm upgrade rewrites a changed piece after that), then the clone's and this worktree's half every time,
 // pm on the machine, and the pm service last. Session start runs it, so every worktree an agent works in is ready. The
 // repo's pieces are written, never committed: the output names the commit to make, also when a later step fails.

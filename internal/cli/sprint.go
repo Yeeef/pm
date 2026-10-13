@@ -16,6 +16,7 @@ import (
 	"strings"
 )
 
+// parseSections splits a frame like "## Goal\n…\n## Scope\n…" into section bodies.
 func parseSections(text string, allowed []string) (map[string]string, error) {
 	locs := sectionHead.FindAllStringSubmatchIndex(text, -1)
 	head := text
@@ -414,6 +415,7 @@ func containsItem(list []*work.Item, it *work.Item) bool {
 	return false
 }
 
+// openSprint is the record of an open sprint item.
 func (r *repo) openSprint(id string) (*records.Record, error) {
 	rec, err := r.sprint(id)
 	if err != nil {

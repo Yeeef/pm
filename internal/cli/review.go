@@ -12,6 +12,7 @@ import (
 	"strings"
 )
 
+// dedupe is list with each value once, in first-seen order.
 func dedupe(list []string) []string {
 	var out []string
 	for _, v := range list {
@@ -103,8 +104,6 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 		"the PR is on main: pm action done %s --reason \"merged as <sha>\"", made.ID, parent, deliveryHint(made.ID),
 		made.ID), nil
 }
-
-// cmdNeedEdit rewrites an open action's or decision need's body, with raiseNeed's checks, until the owner replies.
 
 func (r *repo) reviewReports(sprints []string) error {
 	for _, sid := range sprints {

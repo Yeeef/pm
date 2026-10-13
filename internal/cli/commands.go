@@ -12,7 +12,7 @@ import (
 	"github.com/Yeeef/pm/internal/hooks"
 )
 
-// chunkNumbers is pm prime --rules's Choices: 1 to the number of rules chunks.
+// chunkNumbers is pm prime --rules's choices: 1 to the number of rules chunks.
 func chunkNumbers() []string {
 	out := make([]string, len(hooks.Starts))
 	for i := range out {

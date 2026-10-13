@@ -46,5 +46,3 @@ func cmdFindingAdd(e *env, p *Parsed) (string, error) {
 	}
 	return r.apply(w, "added a finding to "+r.rel(rec.Path), "pm: ")
 }
-
-// feedbackDoc is the repo's pm feedback doc, or nil before its first entry.

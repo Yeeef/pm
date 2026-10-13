@@ -314,6 +314,10 @@ func PushInbox(n *work.Item, text string) string {
 		} `json:"message"`
 	}{Type: "user"}
 	message.Message.Role, message.Message.Content = "user", text
+	line, err := json.Marshal(message)
+	if err != nil {
+		return "failed: " + err.Error()
+	}
 	conn, err := net.DialTimeout("unix", rb.Inbox, PushTimeout)
 	if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
 		return "not running: the session is not running"
@@ -323,7 +327,7 @@ func PushInbox(n *work.Item, text string) string {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(PushTimeout))
-	if err := json.NewEncoder(conn).Encode(message); err != nil {
+	if _, err := conn.Write(append(line, '\n')); err != nil {
 		return "failed: " + err.Error()
 	}
 	return ""

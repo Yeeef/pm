@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// feedbackDoc is the repo's pm feedback doc, or nil before its first entry.
 func feedbackDoc(recs []*records.Record) *records.Record {
 	for _, r := range recs {
 		if records.IsFeedbackDoc(r) {

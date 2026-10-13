@@ -245,5 +245,3 @@ func heldElsewhere(id string, task *work.Item, sid, then string) error {
 	}
 	return nil
 }
-
-// decisionBody checks a decision body: two lines or more, no block opened.

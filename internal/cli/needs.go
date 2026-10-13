@@ -9,8 +9,9 @@ import (
 	"regexp"
 )
 
-// The commands that carry the owner's needs and replies: decisions recorded or asked for, actions and PR reviews
-// raised and closed, and replies read. Each refuses before any write. A site
+// The shapes and patterns shared by the commands that carry the owner's needs and replies (each in its noun's file),
+// pm need edit and the need checks: decisions recorded or asked for, actions and PR reviews raised and closed, and
+// replies read. Each refuses before any write. A site
 // reply only adds a reply comment; a need stays open until a session records it with one of these commands, which close
 // it with its resolution (the work-store page, Commands).
 
@@ -44,7 +45,7 @@ var (
 	pullNumber  = regexp.MustCompile(`/pull/(\p{Nd}+)`)
 )
 
-// wordBefore is whether s holds a Python word character just before byte i, where \b before a word fails.
+// cmdNeedEdit rewrites an open action's or decision need's body, with raiseNeed's checks, until the owner replies.
 func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 	r, err := e.load(false)
 	if err != nil {
@@ -146,5 +147,3 @@ func answered(need *work.Item, resolution work.Resolution, reason string) work.I
 	c.Resolution = resolution
 	return c
 }
-
-// decisionTarget is the open project or sprint record a decision of --level goes into, named by its flag.
