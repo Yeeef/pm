@@ -1,0 +1,7 @@
+{
+ "date": "2026-10-13",
+ "generated_at": "2026-10-13T17:11:35+00:00",
+ "digest": "62776562611271a7",
+ "model": "claude-haiku-5-5",
+ "text": "- **Codex sandbox on the host:** The owner's host blocked Codex's sandbox. The cause and the fix are now documented. The sprint raised a request for the owner to let the sandbox run here.\n- **Gap fix release status:** Fixes for closed gaps now sit on pull requests. They are not yet on main or released."
+}
