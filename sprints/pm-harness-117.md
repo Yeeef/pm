@@ -57,6 +57,11 @@ The machine registry of clones is the pm service units (one per clone, written b
 Every clone set up by any pm since 0.2.0 already has a unit, so clones on old pins are seen too; a registry that only new pm versions write would miss them and prune pins they still use.
 :::
 
+::: decision {source=agent date=2026-10-13}
+pm upgrade prunes on every run (a move, or --to the pin); pm doctor names prunable pins without failing; pm clean does not prune, unlike the release-policy default.
+pm upgrade is the one command that changes pins and runs as the new pin, so pruning sits with it; the main checkout moves only after the PR merges, so doctor names what remains and pm upgrade --to the pin prunes it; keeping pm clean to worktrees avoids a second command with delete powers over the pins.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
