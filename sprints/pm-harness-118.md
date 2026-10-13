@@ -59,7 +59,13 @@ Owner chose it in chat over a one-way mirror: an owner away from the terminal mu
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Claude Code 2.1.296: a PermissionRequest hook (matcher AskUserQuestion) runs
+  unawaited beside the open dialog and shares its claim(). Live pty run: the
+  hook printed allow with updatedInput.answers {"Which color?":"Red"} 3 s
+  after the dialog showed; the dialog closed with 'Allowed by
+  PermissionRequest hook' and toolUseResult.answers held Red. Answered locally
+  first (Blue), the hook was not killed and its late answer was ignored, so
+  pm's hook must exit by itself. answers is keyed by question text.
 
 ## Delivery report
 
