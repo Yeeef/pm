@@ -39,7 +39,7 @@ A PR's CI finishes in about 90 s, and two PRs running at once wait less for macO
 
 > Where is the detail?
 
-None yet.
+- [Views and site](../design/views-and-site.md): a records read while git holds the store worktree's index lock is repeated under the records lock.
 
 ## Progress
 
