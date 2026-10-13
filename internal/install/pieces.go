@@ -28,8 +28,9 @@
 // Beads' .beads/hooks); workstore.go the work store attached to the remote's refs/pm/work (cloned, or created and
 // pushed); codex.go the Codex roots; codextrust.go and sessiontrust.go which of pm's hooks Codex trusts (SessionTrust,
 // the state hook's check in a Codex session, kept in .pm/run/codex-trust.json); binary.go pm copied into the bin dir;
-// legacy.go the pre-package harness's pieces, found and refused. golden_test.go holds the pieces on a table of inputs
-// to testdata/pieces.json.
+// legacy.go the pre-package harness's pieces, found and refused; git.go the git calls, among them the records
+// branch's bootstrap (CreateRecordsBranch). golden_test.go holds the pieces on a table of inputs to
+// testdata/pieces.json.
 package install
 
 import (
