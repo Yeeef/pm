@@ -69,9 +69,7 @@ A new file that `design_sources` (`.pm/config.toml`) matches goes into the `cove
   to make a test pass.
 - **After adding or renaming an `internal/work` test, run `make go-test-work UPDATE=1`**: it measures and rewrites
   `.github/scripts/work-test-seconds.txt`, which must name every test and no other, or `go-test-work` fails.
-- A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python). A test
-  waits on a condition with a deadline, never a fixed sleep. `size_test.go` caps a package's lines: split a package
-  rather than raise the cap.
+- A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python).
 
 ## Merging
 
@@ -109,8 +107,8 @@ ran against main as main was then, so two PRs that pass alone can break main tog
   fit the cap can overflow it together.
 - **A hook change edits both `claudeHooks` and `codexHooks`** (`internal/install/pieces.go`);
   `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for.
-- Hooks fail open, the owner-request judge excepted (`internal/hooks`' package doc). Keep `pm hook inbox` on
-  UserPromptSubmit alone, never on Stop (`internal/hooks/inbox.go` says why).
+- Hooks fail open on their own errors, the owner-request judge's exit 1 included (`internal/hooks`' package doc).
+  Keep `pm hook inbox` on UserPromptSubmit alone, never on Stop (`internal/hooks/inbox.go` says why).
 
 ## pm init
 
