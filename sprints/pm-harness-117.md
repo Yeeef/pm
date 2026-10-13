@@ -78,6 +78,12 @@ pm upgrade is the one command that changes pins and runs as the new pin, so prun
   does (Go test holds the renumbering; the harness test compares with
   changelog.py on the real notes).
 
+- go:embed fails the build when a pattern matches an empty directory: one
+  pattern names CHANGELOG.md and changelog.d/ so a checkout without
+  changelog.d/ builds, but a local changelog.d/ left empty (changelog.py
+  release deletes the files, not the dir) fails make go-build until it is
+  removed. git never checks out an empty dir, so CI is not affected.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
