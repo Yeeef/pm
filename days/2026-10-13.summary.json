@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T19:35:05+00:00",
- "digest": "1fdf59e9e76aa13b",
+ "generated_at": "2026-10-13T19:45:31+00:00",
+ "digest": "358d7896849ba951",
  "model": "claude-haiku-5-5",
- "text": "- **Codex parity:** A Codex session now gets the same pm guarantees as a Claude Code session. The owner-request judge and day summary run on Codex, and a pm command warns when Codex hooks did not run.\n- **Release shipped:** A new pm release shipped with the Codex work, with an install script and macOS and Linux builds. A release policy design page now recommends releasing on each merge.\n- **Design and code gates:** A change to covered code waits at review and sprint close until its design page is updated or waived. Command code now splits by noun, and old parser compatibility code is removed."
+ "text": "- **Codex runtime parity:** Codex sessions now have the same pm guarantees as Claude Code sessions. The judge and the day summary now run on Codex too.\n- **Release shipped:** The pm release shipped with an install script and macOS and Linux builds. It carries the Codex work.\n- **Design coverage gate:** A pull request that changes covered code now waits until its sprint updates the design page or records a waiver. Command code now lives in noun packages, with size and complexity gates.\n- **Release policy:** The release policy page now records the owner's decision: a minor release needs the owner to act. Continuous delivery per merge is the recommended option."
 }
