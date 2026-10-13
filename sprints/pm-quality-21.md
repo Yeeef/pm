@@ -98,6 +98,13 @@ The owner asked in chat on 2026-10-13 to take the sprint over and deliver the re
   parser already used pflag before this sprint; its remaining normalization
   and explicit checks are now staged in the parse package.
 
+- Review of PR #62 found the field rename had also capitalised words inside 11
+  commands' help strings (Required:, Kind, Description); no test held help
+  text. A walk of all 77 command paths against a main build went from 11
+  differing to 0, and help.golden now freezes every --help output. A scan of
+  doc comments found 14 the split had moved off their functions; doc_test.go
+  now fails on a doc comment that does not open with its function's name.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
