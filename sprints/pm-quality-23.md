@@ -68,7 +68,20 @@ Owner chose it in chat: the defects that matter (stale behaviour claims, narrati
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Anthropic workload identity federation works end to end from a GitHub
+  Actions pull_request run of Yeeef/pm, first try
+  (https://github.com/Yeeef/pm/actions/runs/38459842702, draft PR #64,
+  closed): GitHub OIDC token sub
+  repo:Yeeef@34886010/pm@1411907115:pull_request, aud
+  https://api.anthropic.com; exchange at /v1/oauth/token HTTP 200, token_type
+  Bearer, expires_in 598 s, scope workspace:developer; Claude Code 2.1.296
+  from the native installer (curl https://claude.ai/install.sh | bash, 11 s);
+  claude -p --model haiku with ANTHROPIC_FEDERATION_RULE_ID, _ORGANIZATION_ID,
+  _SERVICE_ACCOUNT_ID, _WORKSPACE_ID and ANTHROPIC_IDENTITY_TOKEN_FILE set, no
+  ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN or CLAUDE_CODE_OAUTH_TOKEN, no
+  --bare, exited 0 in 2.6 s with output WIF OK. No token appears in the job
+  log. The OIDC token was fetched fresh right before claude -p; how claude
+  behaves past the GitHub JWT's 5 min lifetime in a longer run was not tested.
 
 ## Delivery report
 
