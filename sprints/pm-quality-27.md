@@ -89,6 +89,16 @@ Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup wa
   there the test is bound by per-operation latency on a busy 3-core runner,
   not by the sleeps.
 
+- macOS cost per job, from job logs (macos-14, 3 cores): checkout, setup_go
+  and cache restore 25-35 s (restore 19-28 s: ~9 s download at 50 MB/s, ~15 s
+  gtar+zstd extract of ~67k files); pm's link 18-20 s wall on 8-9 s CPU; every
+  package's tests but internal/work's 30-47 s; internal/work's 50 s (compile
+  7-9 s, 8 shards 33-54 s); the race tests 63-70 s (compile 16-26 s, shards
+  28-40 s). CPU from bash time: internal/work's tests 111 s in 50 s (74% of 3
+  cores), race 107 s in 70 s. Running build, tests and internal/work's at once
+  (-j3) took 96 s against 98 s one after the other: the cores are the bound,
+  so 2 macOS jobs cost about 125 s and 105-110 s.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
