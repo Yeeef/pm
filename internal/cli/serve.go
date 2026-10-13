@@ -159,6 +159,9 @@ type servedSite struct {
 	mu            gosync.Mutex
 	datesStamp    string // the stamp the cached design dates were read at
 	dates         site.Dates
+	// the store worktree's index.lock, which git holds while it rewrites the worktree (a checkout, a rebase); a git status
+	// that refreshes the index takes it too, which costs a read under the records lock
+	indexLock string
 }
 
 // newServedSite reads where the records store keeps its HEAD: the worktree's HEAD, the records branch's loose ref, the
@@ -178,7 +181,7 @@ func newServedSite(records, name, main string) (*servedSite, error) {
 	}
 	return &servedSite{records: records, name: name, main: main, heads: []string{filepath.Join(dirs[0], "HEAD"),
 		filepath.Join(dirs[1], "refs/heads", store.Branch), filepath.Join(dirs[1], "refs/remotes", main),
-		filepath.Join(dirs[1], "packed-refs")}}, nil
+		filepath.Join(dirs[1], "packed-refs")}, indexLock: filepath.Join(dirs[0], "index.lock")}, nil
 }
 
 // Stamp is a digest of every record file and day summary (path and bytes), the store's HEAD files and today's date.
@@ -230,6 +233,7 @@ func (s *servedSite) Stamp() (string, error) {
 // pages' dates and their covered code's changes come from git, read again only when the stamp moved. Records that moved while it read them (a file gone,
 // or the stamp after the read not the stamp before) make it a service.Partial.
 func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
+	rewriting := exists(s.indexLock)
 	stamp, err := s.Stamp() // before the read: a write between the two moves the stamp again, and the next look reads
 	if err != nil {
 		return nil, err
@@ -264,8 +268,9 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 		return nil, err
 	}
 	// A records sync rewrote them mid-read: a file listed went, or the walk missed one being rewritten, which only the
-	// stamp shows. The service reads again under the records lock.
-	if after, err := s.Stamp(); err != nil || after != stamp || gone != nil {
+	// stamp shows, or git was rewriting the worktree, which a git that stalled mid-checkout hides from both stamps (each
+	// walk misses the same unlinked file). The service reads again under the records lock.
+	if after, err := s.Stamp(); err != nil || after != stamp || gone != nil || rewriting || exists(s.indexLock) {
 		return nil, &service.Partial{Pages: served, Gone: gone}
 	}
 	return served, nil
