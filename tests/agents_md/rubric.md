@@ -48,6 +48,12 @@ or docstrings, the Makefile and its comments, or a `--help` text already says.
 - Pass: commands, rules and conventions that the code does not state, the reasons behind them, and short pointers
   ("the hook entries are `claudeHooks` and `codexHooks` in `internal/install/pieces.go`"). A table of the Make
   targets an agent runs, each with a line on what it is for and when to run it, passes.
+- Exempt: a passage stating one of the must-know rules is never a defect under this criterion. They are: merging
+  through `make merge-ready`; not running the whole integration set locally; a `changelog.d/` entry or the
+  `no-changelog` label; never moving a release tag; golden files rewritten with `-update`; `make go-test-work
+  UPDATE=1` for a new or renamed `internal/work` test; when a test is marked `integration`; `PM_LAUNCHED`; the
+  owner-request rule's three texts and its case labels; a hook change editing both `claudeHooks` and `codexHooks`;
+  `[TEST]` needs; live checks in a scratch clone.
 
 ## map
 
@@ -58,6 +64,12 @@ holding that detail.
   subsystem, its protocol or schema, every parameter of a mechanism, a long paragraph or table row that walks through
   one component. Several sentences of such detail where one sentence and a pointer would do.
 - Pass: each area gets a line or a short paragraph and a pointer to where its detail lives.
+- Exempt: a passage stating one of the must-know rules is never a defect under this criterion. They are: merging
+  through `make merge-ready`; not running the whole integration set locally; a `changelog.d/` entry or the
+  `no-changelog` label; never moving a release tag; golden files rewritten with `-update`; `make go-test-work
+  UPDATE=1` for a new or renamed `internal/work` test; when a test is marked `integration`; `PM_LAUNCHED`; the
+  owner-request rule's three texts and its case labels; a hook change editing both `claudeHooks` and `codexHooks`;
+  `[TEST]` needs; live checks in a scratch clone.
 
 ## no_copies
 
@@ -68,6 +80,12 @@ Nothing in AGENTS.md copies `prime.md` (every session in this repo loads it alre
   words, or reworded with nothing added).
 - Pass: AGENTS.md names `prime.md` or the changelog rules and points to them, or states a rule for pm's developers
   that neither holds.
+- Exempt: a passage stating one of the must-know rules is never a defect under this criterion. They are: merging
+  through `make merge-ready`; not running the whole integration set locally; a `changelog.d/` entry or the
+  `no-changelog` label; never moving a release tag; golden files rewritten with `-update`; `make go-test-work
+  UPDATE=1` for a new or renamed `internal/work` test; when a test is marked `integration`; `PM_LAUNCHED`; the
+  owner-request rule's three texts and its case labels; a hook change editing both `claudeHooks` and `codexHooks`;
+  `[TEST]` needs; live checks in a scratch clone.
 
 ## actionable
 
