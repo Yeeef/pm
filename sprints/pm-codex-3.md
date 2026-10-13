@@ -74,7 +74,17 @@ This task belongs to sprint 4, which ships 0.8.0 into this repo and closes sprin
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Codex's auto mode is --approve-for-me (codex 0.154):
+  approvals_reviewer=auto_review, approval_policy=on-request,
+  sandbox_mode=workspace-write; the reviewer is a separate read-only thread
+  (codex-auto-review on a ChatGPT login) with a 90 s deadline, and an allow
+  rule covering every segment, such as pm.rules for a plain pm command, skips
+  both the sandbox and the reviewer. The live set in this mode on this host
+  (bwrap blocked by AppArmor): 11 passed, 1 failed in 112.68 s. The failure is
+  test_stop_hook_blocks_uncommitted_records[codex]: apply_patch reads through
+  bwrap, which cannot start, even when escalated, so the edit never happened.
+  The reviewer made 10 decisions, all allowed, 1.1 to 4.1 s each (median 1.7
+  s), about 8.9k input tokens each. No assertion was changed.
 
 ## Delivery report
 
