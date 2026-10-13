@@ -105,6 +105,22 @@ Owner chose it in chat: the defects that matter (stale behaviour claims, narrati
   failed on borderline readings until the rubric asked for clear defects only
   (a passage that reads either way passes); 4 clean runs then passed.
 
+- AGENTS.md eval grader variance, haiku, clean branch. Before (one call per
+  criterion, any finding fails): 4 of 8 full runs false-failed; per criterion
+  map 3/8 (always the hooks fail-open bullet), non_inferable 1/8, accurate 1/8
+  (one section call on correct Map text),
+  no_copies/actionable/no_history/consistent/complete 0/8; $0.10-0.15 and
+  87-144 s per run (18 calls). Diff mode on the last 5 merged PRs (#68, #67,
+  #65, #66, #60), 3 runs each: 15/15 pass, $0.002-0.036 and 10-42 s per run;
+  no real finding. After (majority of 3 calls per part for every full-mode
+  criterion but complete; complete and diff mode single): judgement-only vote
+  4/4 full runs pass ($0.17-0.21, 120-141 s, 30 calls); with accurate voted
+  too 3/4 ($0.29-0.31, 150-186 s, 52 calls), the fail non_inferable 2/3 on two
+  different passages; clean case in calibration 2/2. Under the vote 1 of 10
+  clean full runs false-failed, against 4 of 8 before. Calibration
+  PM_LIVE_RUNS=2: 26/26 runs gave the case's verdict ($0.90, 251 s), accurate
+  cases again with accurate voted 4/4 ($0.80, 177 s). Total spend $4.73.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
