@@ -58,7 +58,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     env:
-      GOFLAGS: -count=1
+      GOFLAGS: -count=1 -v
     steps:
       - uses: actions/checkout@v4
       - name: Go, at go.mod's version
