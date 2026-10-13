@@ -1,5 +1,5 @@
 pm reads and writes JSON with Go's own encoder now that Python pm is retired, and quotes a value in its messages the
-Go way; the files pm writes in a repo stay byte for byte the same when their text is ASCII.
+Go way; the files pm writes in a repo stay byte for byte the same when their text is ASCII. pm reads each option only by its whole name.
 
 ### Changed
 
@@ -19,3 +19,10 @@ Go way; the files pm writes in a repo stay byte for byte the same when their tex
   (`1.50` stays `1.50`) where pm rewrote it the way Python writes numbers, and `pm init` no longer refuses a file
   only for such a number. A string holding U+2028 or U+2029 is now written with that character escaped, so `pm init`
   refuses a file that holds either one raw as not laid out as pm writes JSON.
+
+### Removed
+
+- An abbreviated option is refused: `pm task add --tit x` no longer means `--title x` but fails with
+  `unrecognized arguments: --tit x`, as any unknown argument does. Write each option in full. A prefix could change
+  meaning when a command gained an option that shares it, and no agent or doc in use relied on one. A command line
+  with both an unknown argument and a missing required one now names the unknown one.
