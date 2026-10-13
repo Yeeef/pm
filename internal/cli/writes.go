@@ -682,7 +682,8 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	if pages := design.Held(rec, r.recs, gated); pages != nil {
 		cfg, err := config.Load(e.here)
 		if err == nil {
-			err = design.LiveOnMain(r.root, cfg.Remote, cfg.MainBranch, id, pages)
+			s := design.Sprint{Record: rec, Opened: epic.CreatedAt}
+			err = design.LiveOnMain(r.root, cfg.Remote, cfg.MainBranch, r.records, s, pages)
 		}
 		if err != nil {
 			return "", err

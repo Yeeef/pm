@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Yeeef/pm/internal/records"
 )
@@ -73,7 +74,7 @@ func TestMainFilesReadsTheTreeAtARefNotTheWorktree(t *testing.T) {
 		t.Errorf("MainFiles = %v, %v; want the ref's two files", files, err)
 	}
 	recs := []*records.Record{page(t, "design/a", "covers: [a/**, a/new.go]\n")}
-	if got := Dead(recs, files); !reflect.DeepEqual(got, []string{`design/a.md: covers pattern "a/new.go"`}) {
+	if got := Dead(recs, files, (*records.Record).Covers); !reflect.DeepEqual(got, []string{`design/a.md: covers pattern "a/new.go"`}) {
 		t.Errorf("Dead = %v; want the unmerged file's pattern", got)
 	}
 }
@@ -142,5 +143,44 @@ func TestMergeFilesReadsAMergeCommitAndRefusesASingleParentOne(t *testing.T) {
 		"files GitHub lists"
 	if err == nil || err.Error() != want {
 		t.Errorf("MergeFiles(one parent): %v, want %q", err, want)
+	}
+}
+
+func TestOwnIsThePatternsTheSprintAddedOrChangedSinceItOpened(t *testing.T) {
+	dir := t.TempDir()
+	commit := func(day, covers string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Join(dir, "design"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		text := "---\ntype: design\ntitle: T\nproject: demo\ncovers: " + covers + "\n---\n\nx\n"
+		if err := os.WriteFile(filepath.Join(dir, "design/p.md"), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		for _, args := range [][]string{{"add", "-A"}, {"commit", "-qm", day}} {
+			cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
+			cmd.Env = append(os.Environ(), "GIT_AUTHOR_DATE="+day+"T12:00:00Z", "GIT_COMMITTER_DATE="+day+"T12:00:00Z")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %v\n%s", args, err, out)
+			}
+		}
+	}
+	if out, err := exec.Command("git", "-C", dir, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	opened := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	commit("2026-09-20", "[a/**, pending/x.go, old.go]")
+	commit("2026-10-02", "[a/**, pending/x.go, new.go, a/y.go]") // in the sprint: old.go edited to new.go, a/y.go added
+	now := page(t, "design/p", "covers: [a/**, pending/x.go, new.go, a/y.go]\n")
+	got, err := Own(dir, now, opened)
+	if err != nil || !reflect.DeepEqual(got, []string{"new.go", "a/y.go"}) {
+		t.Errorf("Own = %v, %v; want the edited and the added pattern, not the ones the page held before", got, err)
+	}
+	if got, err := Own(dir, now, time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)); err != nil || len(got) != 4 {
+		t.Errorf("Own of a sprint opened before any commit = %v, %v; want every pattern", got, err)
+	}
+	created := page(t, "design/q", "covers: [a/**]\n") // a page made during the sprint: no design/q.md before it
+	if got, err := Own(dir, created, opened); err != nil || !reflect.DeepEqual(got, []string{"a/**"}) {
+		t.Errorf("Own of a page created in the sprint = %v, %v; want every pattern", got, err)
 	}
 }

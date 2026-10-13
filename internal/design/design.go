@@ -38,7 +38,7 @@ func Tracked(dirs ...string) (map[string]bool, error) {
 // the tracked files a source pattern matches and no design page covers, sorted, and each covers pattern that matches no
 // tracked file (Dead). Such a pattern waits on unmerged work: the records store is shared across branches, and the
 // gate makes a sprint bring its page to the new state before its PR merges, so a page names a file before main has
-// it. pm sprint close holds it to main instead (Dead on MainFiles).
+// it. pm sprint close holds the patterns a sprint added to main instead (LiveOnMain).
 func Check(recs []*records.Record, tracked map[string]bool, sources []string) (uncovered, waiting []string, err error) {
 	var bad, covers []string
 	for _, p := range sources {
@@ -64,7 +64,7 @@ func Check(recs []*records.Record, tracked map[string]bool, sources []string) (u
 		}
 	}
 	sort.Strings(uncovered)
-	return uncovered, Dead(pages, tracked), nil
+	return uncovered, Dead(pages, tracked, (*records.Record).Covers), nil
 }
 
 // Report is what pm check prints after its render line, from Check: the tracked source files no page covers (the
@@ -91,18 +91,46 @@ func Report(recs []*records.Record, tracked map[string]bool, sources []string, r
 	return out, nil
 }
 
-// Dead is each covers pattern of the pages that matches none of files, as `<page>.md: covers pattern "<pattern>"`, in
-// page then pattern order.
-func Dead(pages []*records.Record, files map[string]bool) []string {
+// Dead is each pattern of the pages (covers gives a page's patterns) that matches none of files, as `<page>.md: covers
+// pattern "<pattern>"`, in page then pattern order.
+func Dead(pages []*records.Record, files map[string]bool, covers func(*records.Record) []string) []string {
 	var out []string
 	for _, r := range pages {
-		for _, p := range r.Covers() {
+		for _, p := range covers(r) {
 			if !matchesAny(p, files) {
 				out = append(out, fmt.Sprintf("%s.md: covers pattern %q", r.Rel, p))
 			}
 		}
 	}
 	return out
+}
+
+// Own is the covers patterns of the committed page that the sprint opened at opened added or changed: those its covers
+// did not hold at the last records commit (dir is the store) before the sprint opened. With no commit before then, or
+// no page in it, every pattern is the sprint's. A records commit names no sprint, so another session's commit to the
+// page while the sprint is open counts as the sprint's.
+func Own(dir string, page *records.Record, opened time.Time) ([]string, error) {
+	base, err := store.Git(dir, "rev-list", "-1", "--before="+opened.Add(-time.Second).UTC().Format(time.RFC3339), "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	var before []string
+	if base != "" {
+		if there, err := store.Git(dir, "ls-tree", "--name-only", base, "--", page.Rel+".md"); err != nil {
+			return nil, err
+		} else if there != "" {
+			text, err := store.Git(dir, "show", base+":"+page.Rel+".md")
+			if err != nil {
+				return nil, err
+			}
+			old, err := records.Parse(page.Path, page.Rel, text+"\n")
+			if err != nil {
+				return nil, fmt.Errorf("the page as it was before the sprint opened (records commit %s): %w", base[:7], err)
+			}
+			before = old.Covers()
+		}
+	}
+	return slices.DeleteFunc(page.Covers(), func(p string) bool { return slices.Contains(before, p) }), nil
 }
 
 // Held is the design pages with covers that pm sprint close holds to the remote's main: those the sprint record's
@@ -122,10 +150,23 @@ func Held(sprint *records.Record, recs []*records.Record, verdicts []Verdict) []
 	return slices.DeleteFunc(out, func(p *records.Record) bool { return len(p.Covers()) == 0 })
 }
 
-// LiveOnMain fetches the remote's main in the checkout root and fails while one of the pages has a covers pattern that
-// matches no file there, naming page, pattern and the fix: a page may name a file before main has it only while the
-// PR that adds it is open, and sprint id closes once that PR is merged.
-func LiveOnMain(root, remote, branch, id string, pages []*records.Record) error {
+// LiveOnMain fetches the remote's main in the checkout root and fails while one of the pages has a covers pattern the
+// sprint added or changed (Own; dir is the records store) that matches no file there, naming page, pattern and the
+// fix: a page may name a file before main has it only while the PR that adds it is open, and the sprint closes once
+// its PR is merged. A pattern on the page before the sprint opened is another sprint's to keep live, and is not held.
+// With no pattern of the sprint's, nothing is fetched.
+func LiveOnMain(root, remote, branch, dir string, s Sprint, pages []*records.Record) error {
+	id, own, n := s.Record.Bead(), map[*records.Record][]string{}, 0
+	for _, p := range pages {
+		patterns, err := Own(dir, p, s.Opened)
+		if err != nil {
+			return err
+		}
+		own[p], n = patterns, n+len(patterns)
+	}
+	if n == 0 {
+		return nil
+	}
 	main := remote + "/" + branch
 	ref, err := store.FetchMain(root, remote, branch)
 	if err != nil {
@@ -136,10 +177,11 @@ func LiveOnMain(root, remote, branch, id string, pages []*records.Record) error 
 	if err != nil {
 		return err
 	}
-	if dead := Dead(pages, files); dead != nil {
-		return fmt.Errorf("sprint %s: its design pages name files %s does not have: %s. Fix each pattern to the file "+
-			"main has and commit the page with pm commit, or merge the PR that adds the file first, which may be "+
-			"another sprint's; then run pm sprint close %s again", id, main, strings.Join(dead, ", "), id)
+	if dead := Dead(pages, files, func(p *records.Record) []string { return own[p] }); dead != nil {
+		return fmt.Errorf("sprint %s: covers patterns it added or changed since it opened name files %s does not have: "+
+			"%s. Fix each pattern to the file main has and commit the page with pm commit, or merge the PR that adds the "+
+			"file first, which may be another sprint's that edited the page while this one was open; then run pm sprint "+
+			"close %s again", id, main, strings.Join(dead, ", "), id)
 	}
 	return nil
 }
