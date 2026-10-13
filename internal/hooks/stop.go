@@ -10,6 +10,7 @@ package hooks
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 const stopReason = "These records in the store (%[1]s) have uncommitted changes, and this session's tool calls name them:\n" +
@@ -39,7 +39,7 @@ func git(cwd *string, args ...string) (string, *proc.Error) {
 	}
 	if res.Code != 0 {
 		return "", &proc.Error{Type: "CalledProcessError",
-			Msg: fmt.Sprintf("Command '%s' returned non-zero exit status %d.", proc.ReprList(argv), res.Code)}
+			Msg: fmt.Sprintf("Command %q returned non-zero exit status %d.", argv, res.Code)}
 	}
 	return res.Stdout, nil
 }
@@ -78,16 +78,16 @@ func Dirty(store string) ([]string, *proc.Error) {
 type call struct{ input, agent string }
 
 // toolCalls is the tool calls in one transcript line.
-func toolCalls(entry *pyjson.Object) ([]call, error) {
-	switch entry.Get("type") {
+func toolCalls(entry map[string]any) ([]call, error) {
+	switch entry["type"] {
 	case "assistant":
 		var content any
-		switch m := entry.Get("message").(type) {
-		case *pyjson.Object:
-			content = m.Get("content")
+		switch m := entry["message"].(type) {
+		case map[string]any:
+			content = m["content"]
 		default:
-			if pyjson.Truthy(m) {
-				return nil, fmt.Errorf("a transcript line's message is a %s, not an object", pyjson.TypeName(m))
+			if truthy(m) {
+				return nil, fmt.Errorf("a transcript line's message is a %s, not an object", jsonType(m))
 			}
 		}
 		blocks, ok := content.([]any)
@@ -96,33 +96,35 @@ func toolCalls(entry *pyjson.Object) ([]call, error) {
 		}
 		var out []call
 		for _, b := range blocks {
-			if o, ok := b.(*pyjson.Object); ok && o.Get("type") == "tool_use" {
-				c := call{input: pyjson.Dumps(o.Get("input"), false)}
-				if name := o.Get("name"); name == "Agent" || name == "Task" {
-					c.agent, _ = o.Get("id").(string)
+			if o, ok := b.(map[string]any); ok && o["type"] == "tool_use" {
+				c := call{input: dumps(o["input"])}
+				if name := o["name"]; name == "Agent" || name == "Task" {
+					if id, ok := o["id"].(string); ok {
+						c.agent = id
+					}
 				}
 				out = append(out, c)
 			}
 		}
 		return out, nil
 	case "response_item":
-		payload, ok := entry.Get("payload").(*pyjson.Object)
+		payload, ok := entry["payload"].(map[string]any)
 		if !ok {
 			return nil, nil
 		}
-		field := func(key string) any {
-			if v, ok := payload.Values[key]; ok {
+		field := func(key string) string { // a string as it is, anything else as JSON
+			if v, ok := payload[key].(string); ok {
 				return v
 			}
-			return ""
+			return dumps(payload[key])
 		}
-		switch payload.Get("type") {
+		switch payload["type"] {
 		case "function_call":
-			return []call{{input: pyjson.Str(field("arguments"))}}, nil
+			return []call{{input: field("arguments")}}, nil
 		case "custom_tool_call":
-			return []call{{input: pyjson.Str(field("input"))}}, nil
+			return []call{{input: field("input")}}, nil
 		case "local_shell_call":
-			return []call{{input: pyjson.Dumps(payload.Get("action"), false)}}, nil
+			return []call{{input: dumps(payload["action"])}}, nil
 		}
 	}
 	return nil, nil
@@ -130,35 +132,35 @@ func toolCalls(entry *pyjson.Object) ([]call, error) {
 
 // returns is the ids among pending of the subagent calls that this transcript line says have returned: a tool result
 // that is not a background launch, or a task notification naming the call.
-func returns(entry *pyjson.Object, pending []string) []string {
-	var texts []string                              // the line's text, where a task notification can be
-	if c, ok := entry.Get("content").(string); ok { // a queued message
+func returns(entry map[string]any, pending []string) []string {
+	var texts []string                          // the line's text, where a task notification can be
+	if c, ok := entry["content"].(string); ok { // a queued message
 		texts = append(texts, c)
 	}
 	var blocks []any
-	if m, ok := entry.Get("message").(*pyjson.Object); ok {
-		switch c := m.Get("content").(type) {
+	if m, ok := entry["message"].(map[string]any); ok {
+		switch c := m["content"].(type) {
 		case string:
 			texts = append(texts, c)
 		case []any:
 			blocks = c
 		}
 	}
-	launch, _ := entry.Get("toolUseResult").(*pyjson.Object)
-	background := launch != nil && pyjson.Truthy(launch.Get("isAsync"))
+	launch, ok := entry["toolUseResult"].(map[string]any)
+	background := ok && truthy(launch["isAsync"])
 	var out []string
 	for _, id := range pending {
 		done := false
 		for _, b := range blocks {
-			o, ok := b.(*pyjson.Object)
+			o, ok := b.(map[string]any)
 			if !ok {
 				continue
 			}
-			switch o.Get("type") {
+			switch o["type"] {
 			case "tool_result":
-				done = done || (o.Get("tool_use_id") == id && !background)
+				done = done || (o["tool_use_id"] == id && !background)
 			case "text":
-				if t, ok := o.Get("text").(string); ok {
+				if t, ok := o["text"].(string); ok {
 					texts = append(texts, t)
 				}
 			}
@@ -249,12 +251,8 @@ func (t *touches) scanLines(raw string) error {
 		if len(hits) == 0 && len(pending) == 0 {
 			continue
 		}
-		v, err := pyjson.Loads(line)
-		if err != nil {
-			continue
-		}
-		entry, ok := v.(*pyjson.Object)
-		if !ok {
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil || entry == nil {
 			continue
 		}
 		for _, id := range returns(entry, pending) {
@@ -281,8 +279,8 @@ func (t *touches) scanLines(raw string) error {
 
 // StopReason is the block reason for this stop, or "" to let it through; what it lets through for an error it says on
 // stderr.
-func StopReason(event *pyjson.Object, stderr io.Writer) (string, error) {
-	if pyjson.Truthy(event.Get("stop_hook_active")) {
+func StopReason(event Event, stderr io.Writer) (string, error) {
+	if truthy(event["stop_hook_active"]) {
 		return "", nil
 	}
 	cwd, err := eventString(event, "cwd")
@@ -318,10 +316,10 @@ func StopReason(event *pyjson.Object, stderr io.Writer) (string, error) {
 	var mine []string
 	readable := false
 	key := "transcript_path"
-	if pyjson.Truthy(event.Get("agent_transcript_path")) { // a subagent's stop: its own transcript
+	if truthy(event["agent_transcript_path"]) { // a subagent's stop: its own transcript
 		key = "agent_transcript_path"
 	}
-	if pyjson.Truthy(event.Get(key)) {
+	if truthy(event[key]) {
 		transcript, err := eventString(event, key)
 		if err != nil {
 			return "", err
@@ -347,6 +345,18 @@ func StopReason(event *pyjson.Object, stderr io.Writer) (string, error) {
 	return fmt.Sprintf(stopReason, store, strings.Join(files, "\n")), nil
 }
 
+// dumps is v, a value encoding/json read, as compact JSON with <, > and & as they are: a tool call's input as text, in
+// which to look for a path.
+func dumps(v any) string {
+	var b strings.Builder
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		panic(err) // a value json.Unmarshal read always encodes
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
 // resolve is Python's Path.resolve(): symlinks followed where the path exists.
 func resolve(p string) string {
 	if r, err := filepath.EvalSymlinks(p); err == nil {
@@ -369,6 +379,5 @@ func HookStop(stdin io.Reader, stdout, stderr io.Writer) error {
 	if err != nil || reason == "" {
 		return err
 	}
-	_, err = fmt.Fprintln(stdout, pyjson.Dumps([][2]any{{"decision", "block"}, {"reason", reason}}, true))
-	return err
+	return writeJSON(stdout, blockFor(reason))
 }

@@ -95,7 +95,7 @@ func TestFailuresNameOneLine(t *testing.T) {
 		for in, want := range map[string]string{
 			`[1]`: "the hook input is not a JSON object",
 			`{}`:  "the hook input has no session_id",
-			`{"session_id": "s", "last_assistant_message": 7}`: "the hook input's last_assistant_message is a int, " +
+			`{"session_id": "s", "last_assistant_message": 7}`: "the hook input's last_assistant_message is a number, " +
 				"not a string", // null or missing is no reply, which asks nothing
 			`{"session_id": "s", "last_assistant_message": "Ask?"}`: "reading this session's open needs failed: " +
 				"work store: none at /x",

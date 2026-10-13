@@ -26,7 +26,7 @@ func (f *fakePending) read(dir, session string) ([]string, func() error, error) 
 
 func TestInboxHandsOverTheSessionsUndeliveredRepliesBeforeItMarksThem(t *testing.T) {
 	reply := "pm: owner reply to decision x.1 (Rename X?), relayed from the site:\n  [2026-10-03T12:00:00Z] Yes."
-	want := `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "The owner replied to ` +
+	want := `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"The owner replied to ` +
 		`requests this session raised:\n\n` + strings.ReplaceAll(reply, "\n", `\n`) + `"}}` + "\n"
 	var out, errb bytes.Buffer
 	f := &fakePending{texts: []string{reply}, out: &out}
