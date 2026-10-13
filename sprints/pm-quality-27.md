@@ -60,6 +60,11 @@ In scope too: the service's lock-free records read (internal/cli serve.go Load) 
 TestLoadNeverPassesARecordSetMissingAFileGitRewrote failed in 4 of 4 macOS runs with build, tests and work tests at once (-j3), and once on Linux: a git stalled mid-checkout leaves the same file missing from both stamps, so a read passed without it. Under CPU contention locally: 9 of 40 runs failed before, 0 of 40 after. The -j3 layout is what brings the macOS build-test job from 138 s to about 90 s.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page pm-go stays as it is for this sprint's code changes.
+Only the records read's index-lock check in serve.go changed; views-and-site holds that.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
