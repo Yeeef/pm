@@ -58,6 +58,11 @@ The AGENTS.md size cap is 20 KiB (20,480 bytes), not 16 KiB.
 Owner chose it in chat: it leaves room for the rules an agent would get wrong untold and stays well under the 32 KiB Codex reads.
 :::
 
+::: decision {source=owner date=2026-10-13}
+Of the proposed mechanical checks only the 20 KiB size cap stays; a rubric for a good AGENTS.md and an agentic evaluation against it, run in CI and required to pass, replace the reference lint, the number guard and the duplication check.
+Owner chose it in chat: the defects that matter (stale behaviour claims, narration, copies) are semantic, which an agent reading the code can judge and a lint of names cannot.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
