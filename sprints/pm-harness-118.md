@@ -69,6 +69,11 @@ The first task is a pty test of the subagent path, before any other code.
 If Claude Code runs the PermissionRequest hook before the dialog for subagents, the hook must step aside there, and how it can tell decides the hook design.
 :::
 
+::: decision {source=agent date=2026-10-13}
+An ask-tool question is a decision need tied to a live session (the session waits on it now), not a third need kind; once answered it closes as setting no rule unless the agent records a decision citing it.
+Decision and action say what the owner gives; a question differs only in how the answer travels (to one waiting session, at once), so a new kind would duplicate the decision need on the site and in the rules.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
