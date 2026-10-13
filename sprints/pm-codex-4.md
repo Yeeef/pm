@@ -77,10 +77,12 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: the pin moved to 0.8.2, the newest release, which carries the review restamp (PR #61, released as pm 0.8.2), and the service runs with codex; the owner's Codex trust step and sprint 2's design-page gate remain.
+partial: the pin moved to 0.8.3, the newest release, which carries the review restamp (PR #61, pm 0.8.2) and keeps `design_sources` (PR #66, pm 0.8.3); the service runs with codex, `design_sources` is set, and sprint 2 is closed; the owner's Codex trust step remains.
 
 - PR #60 (merged as 21dcf17): `pm upgrade --to 0.8.2`, redone from 0.8.0 once 0.8.1 and 0.8.2 were out: the pin, the hook entries for both runtimes, `.codex/rules/pm.rules`, and the post-checkout marker.
 - PR #61 (merged as 83e1787, released as pm-v0.8.2): `pm action done` restamps a closed PR review that lacks "merged as <sha>"; `pm action need --pr` refuses a PR whose base is not main.
+- PR #66 (merged as 1036382, released by CI as pm-v0.8.3): `pm upgrade` and `pm doctor` keep `design_sources`. 0.8.2's config writer dropped the key, so setting it read as drift in `pm doctor`, and the next `pm upgrade` would have deleted it. `TestConfigTextKeepsEveryKey` rewrites a config that sets every accepted key and reads it back equal.
+- PR #67 (merged as 783b2d1): pin 0.8.3 and `design_sources = ["internal/**", "cmd/**", "prompts/**", "prime.md", "style.css", "assets.go", "install.sh", "release/build.sh"]`: the planned list plus the other shipped files. `go.mod` and `go.sum` are left out, since a dependency bump would hold its PR to the pm-go page. Covers were added for `assets.go` (pm-go), `install.sh` (pm-versioning), `internal/cli/help.go` (pm-cli) and `internal/cli/install.go` (pm-product).
 
 ### Against "Done when"
 
@@ -88,7 +90,7 @@ partial: the pin moved to 0.8.2, the newest release, which carries the review re
 
 | Done when | Met | Evidence |
 |---|---|---|
-| `.pm/config.toml` on main pins 0.8.0; `pm version` in the main checkout prints 0.8.0 | met, at 0.8.2 | PR #60 merged as 21dcf17, CI 12/12; main pins 0.8.2, the newest release; after `git pull --ff-only` the main checkout's `pm version` prints 0.8.2 |
-| `pm doctor` prints no codex service line and no "Codex skips" line | partly | `pm service install` from a shell with codex-cli 0.162.1 on PATH: no codex service line. `pm doctor` still prints two "Codex skips" lines (2 of 12 hooks untrusted, 5 of 12 changed since trusted), which the owner's trust step (action pm-v498.1.3) clears |
-| `pm sprint close pm-v498.2` succeeds | not yet | Review pm-v498.2.4 restamped as merged as 1cd0fa4 with pm 0.8.2. The close is now refused by the design-page gate (pm 0.8.1): PR #56 changes code that agent-lifecycle, pm-go, pm-versioning and session-claims cover, and sprint 2 neither updated nor waived them |
+| `.pm/config.toml` on main pins 0.8.0; `pm version` in the main checkout prints 0.8.0 | met, at 0.8.3 | PR #60 (21dcf17) pinned 0.8.2; PR #67 (783b2d1, CI 12/12) pins 0.8.3, the newest release; after `git pull --ff-only` and `pm service restart`, the main checkout's `pm version` prints 0.8.3 |
+| `pm doctor` prints no codex service line and no "Codex skips" line | met in this repo | `pm doctor` in the main checkout at 0.8.3 (2026-10-13, after PR #67): one line, "every managed piece and the clone's setup match what pm init makes", exit 0; no codex service line and no "Codex skips" line, and `pm init` prints no Codex line either. Earlier the same day it printed two "Codex skips" lines (2 of 12 hooks untrusted, 5 of 12 changed since trusted). The owner's trust action pm-v498.1.3 names each repo Codex works in; only this one is checked here |
+| `pm sprint close pm-v498.2` succeeds | met | `pm sprint close pm-v498.2`: "closed pm-v498.2: done … stamped the Outcome: Merged as 1cd0fa4 (PR #56)", once agent-lifecycle, pm-go and session-claims were brought to the new state (records fdb8216) and pm-versioning was waived. Before that, with review pm-v498.2.4 restamped as merged as 1cd0fa4 (pm 0.8.2), the design-page gate (pm 0.8.1) refused the close: PR #56 changed code those four pages cover |
 | Design pages of changed areas updated and listed | met | Sprint lifecycle, pm CLI, Work store (records ad9b8e2, 6f2cdc4) |
