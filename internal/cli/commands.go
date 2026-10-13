@@ -89,7 +89,7 @@ var tree = &command{
 						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "the project the feedback is about"},
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "the sprint the feedback is about"},
 						{Flags: []string{"--task"}, Dest: "task", Metavar: []string{"ID"}, Kind: value, Help: "the task the feedback is about"},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "Required: what happened and what would have helped; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: what happened and what would have helped; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 						{Flags: []string{"--session"}, Dest: "session", Metavar: []string{"ID"}, Kind: value, Help: "the session to record; default: this session's id from the environment"},
 					},
@@ -162,7 +162,7 @@ var tree = &command{
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: appendValue, Help: "with --pr: an open sprint the PR delivers, its report written (repeatable)"},
 						{Flags: []string{"--focus"}, Dest: "focus", Kind: value, Help: "with --pr: what to look at first: risky changes, open choices"},
 						{Flags: []string{"--design"}, Dest: "design", Metavar: []string{"SLUG"}, Kind: appendValue, Help: "with --pr: a design page behind the PR (repeatable, optional)"},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "without --pr, Required: what the owner should do and why; with --pr, optional extra context; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "without --pr, required: what the owner should do and why; with --pr, optional extra context; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
@@ -179,7 +179,7 @@ var tree = &command{
 		},
 		{
 			Name:    "need",
-			Help:    "needs of any Kind: decisions, actions and reviews",
+			Help:    "needs of any kind: decisions, actions and reviews",
 			SubDest: "sub",
 			Subs: []*command{
 				{
@@ -189,7 +189,7 @@ var tree = &command{
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "need_id", Required: true, Kind: value, Help: "the open need's id"},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "an action's new Description: what the owner should do and why; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "an action's new description: what the owner should do and why; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 						{Flags: []string{"--question"}, Dest: "question", Metavar: []string{"TEXT"}, Kind: appendValue, Help: "a decision need's question"},
 						{Flags: []string{"--fact"}, Dest: "fact", Metavar: []string{"TEXT"}, Kind: appendValue, Help: "a decision need's fact; repeat it for each fact"},
@@ -260,7 +260,7 @@ var tree = &command{
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
 						{Flags: []string{"--bead"}, Dest: "bead", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the sprint or task the doc belongs to"},
 						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Group: 1, Help: "the project the doc belongs to"},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 2, Help: "Required: the doc's Markdown body; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 2, Help: "required: the doc's Markdown body; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 2, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
@@ -325,7 +325,7 @@ var tree = &command{
 					Args: []arg{
 						{Dest: "name", Required: true, Kind: value},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "Required: the project's Goal; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: the project's Goal; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
@@ -351,7 +351,7 @@ var tree = &command{
 					Args: []arg{
 						{Dest: "project", Required: true, Kind: value, Help: "project record name, e.g. pm-harness"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "Required: the frame, '## Goal', '## Scope' and '## Done when' sections; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: the frame, '## Goal', '## Scope' and '## Done when' sections; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
@@ -373,7 +373,7 @@ var tree = &command{
 					Args: []arg{
 						{Dest: "sprint_id", Required: true, Kind: value, Help: "the sprint's id"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value, Help: "the new title, without 'Sprint <n>: '"},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "Required: why the title changes, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: why the title changes, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
@@ -385,7 +385,7 @@ var tree = &command{
 					Args: []arg{
 						{Dest: "sprint_id", Required: true, Kind: value, Help: "the sprint's id"},
 						{Flags: []string{"--to"}, Dest: "to", Metavar: []string{"PROJECT"}, Required: true, Kind: value, Help: "the open project the sprint moves to, by record name, e.g. pm-harness"},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "Required: why the sprint moves, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: why the sprint moves, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
@@ -414,7 +414,7 @@ var tree = &command{
 					Description: "Close a task as done. The reason ends with what holds the work: '(commit <hash>)' for HEAD if it was committed after the task started, else the --commit given: a commit of this repo, OWNER/REPO@SHA for another repo's commit, or a PR URL, the last two resolved with gh; one that does not resolve, or a PR closed without merging, is refused. Without --commit, a warning when HEAD is older than the task or the working tree has uncommitted changes. --dropped closes it as not done instead (resolution dismissed, shown as dropped and left out of a sprint's task counts), with a required --reason and no commit; a task it blocks no longer waits on it. Refuses a task that another live session holds, as pm task claim does; that session closes it or releases it with pm task release.",
 					Args: []arg{
 						{Dest: "task_id", Required: true, Kind: value, Help: "the task's id"},
-						{Flags: []string{"--reason"}, Dest: "reason", Kind: value, Help: "what was done (default: Done); with --dropped, Required: why it is not done"},
+						{Flags: []string{"--reason"}, Dest: "reason", Kind: value, Help: "what was done (default: Done); with --dropped, required: why it is not done"},
 						{Flags: []string{"--commit"}, Dest: "commit", Metavar: []string{"REF"}, Kind: value, Help: "what holds the work: a commit of this repo, OWNER/REPO@SHA or a PR URL (default: HEAD, if newer than the task)"},
 						{Flags: []string{"--dropped"}, Dest: "dropped", Kind: flagTrue, Help: "close it as not done: no commit, a reason required"},
 					},
@@ -436,7 +436,7 @@ var tree = &command{
 					Args: []arg{
 						{Dest: "task_id", Required: true, Kind: value, Help: "the task's id"},
 						{Flags: []string{"--to"}, Dest: "to", Metavar: []string{"SPRINT_ID"}, Required: true, Kind: value, Help: "the open sprint the task moves to"},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "Required: why the task moves, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: why the task moves, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},

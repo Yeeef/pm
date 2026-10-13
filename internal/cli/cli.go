@@ -5,7 +5,8 @@
 // has its own file (task.go, sprint.go, decision.go, …), the setup package holds pm init, doctor, upgrade and
 // uninstall, and fsutil the path helpers both share. store_commands.go holds the work-store commands' bodies, and the
 // forms show ID and task add --parent TASK, the one argv Execute routes before the tree (storeFormOf). Every command pm
-// runs is in the tree, so in pm --help: commands_test.go fails otherwise.
+// runs is in the tree, so in pm --help: commands_test.go fails otherwise. help_golden_test.go holds every command's
+// --help to testdata/help.golden.
 package cli
 
 import (

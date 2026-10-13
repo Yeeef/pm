@@ -65,9 +65,9 @@ hold it).
 - **A test that pins another version and does not test the launch sets `PM_LAUNCHED=<pin>`**, as a launched pm has
   it; without it the launcher downloads that release from GitHub.
 - A test seeds and reads work data only through the `repo` helpers that `conftest.py`'s docstring names.
-- **Golden files** (`internal/site`, `internal/install`): after an intended change, rewrite them with
-  `go test -tags gms_pure_go ./internal/<pkg> -run Golden -update` and review the diff in the PR; never hand-edit one
-  to make a test pass.
+- **Golden files** (`internal/site`, `internal/install`, and every `--help` text in `internal/cli`): after an intended
+  change, rewrite them with `go test -tags gms_pure_go ./internal/<pkg> -run Golden -update` and review the diff in the
+  PR; never hand-edit one to make a test pass.
 - **After adding or renaming an `internal/work` test, run `make go-test-work UPDATE=1`**: it measures and rewrites
   `.github/scripts/work-test-seconds.txt`, which must name every test and no other, or `go-test-work` fails.
 - A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python). gocyclo
