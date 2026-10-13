@@ -57,7 +57,17 @@ Its Garbage row (DOLT_GC on a schedule, online, session-aware safepoints) still 
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Cause: a Dolt bug, not pm's use of the engine. In
+  gcctx/gc_safepoint_controller.go (Dolt b130ee82ebe9, unchanged on Dolt main
+  2026-10-13), DOLT_GC visits each idle session in a goroutine that calls
+  wg.Done() and only then EndOutstandingVisitCall(), which closes whichever
+  channel the session's state holds at that moment. The collection's Wait
+  returns on the wait group, so a collection begun right after (the test runs
+  10 back to back) can store a new channel in that state first; both
+  goroutines then close it: 'panic: close of closed channel' at line 86, the
+  stack in both CI failures (jobs 115494040739, 115514850412). One DOLT_GC
+  makes one Waiter, so only back-to-back collections hit it; the service
+  collects every 24 h.
 
 ## Delivery report
 
