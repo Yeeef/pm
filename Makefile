@@ -2,7 +2,7 @@ UV ?= uv
 # The harness (tests/, pytest) runs in the environment uv keeps at .venv, from pyproject.toml's dev group.
 PYRUN := $(UV) run --quiet
 
-.PHONY: test test-full test-live test-live-parity test-go go-build go-fmt go-vet go-test go-test-but-work go-test-work \
+.PHONY: test test-full test-live test-live-parity test-live-agents-md agents-md-check test-go go-build go-fmt go-vet go-test go-test-but-work go-test-work \
 	go-build-pm go-test-race go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
@@ -36,6 +36,21 @@ test-live: go-build
 # a sandbox mode with no approvals (default workspace-write; danger-full-access where bubblewrap cannot start).
 test-live-parity: go-build
 	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 12 -rA -k agent_parity_live $(ARGS)
+
+# Grade AGENTS.md against tests/agents_md/rubric.md with claude -p reading the checkout (tests/agents_md/evaluate.py):
+# MODE=full checks every criterion on the whole file, MODE=diff checks that the diff since BASE makes no AGENTS.md
+# claim false and adds no rule it lacks, MODE=auto (the default) is full when that diff changes AGENTS.md. Each call
+# runs with the user's claude login (in CI: workload identity federation, agents-md.yml); the answers go to .go/.
+BASE ?= origin/main
+MODE ?= auto
+agents-md-check:
+	python3 tests/agents_md/evaluate.py --mode $(MODE) --base $(BASE) --out .go/agents-md.json
+
+# Check the AGENTS.md evaluation on its labelled cases (tests/agents_md/cases.py) with live model calls; run after
+# editing the rubric or the runner. PM_LIVE_RUNS sets the runs per case (default 3); PM_AGENTS_MD_MODELS="haiku sonnet"
+# compares models.
+test-live-agents-md: go-build
+	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -s -k agents_md_live
 
 # Check that PR N may be merged: its head contains origin's base branch and every check on that head passed, so its
 # CI tested what the merge lands (release/merge_ready.py). Run it right before merging: make merge-ready PR=N
