@@ -30,8 +30,8 @@ it covers.
 
 pm tracks its own development with the release `.pm/config.toml` pins: its projects' sprints, tasks and needs in the
 work store (the remote's `refs/pm/work`), its records (plans, decisions, design pages) on the `records` branch.
-A new file that `design_sources` (`.pm/config.toml`) matches goes into the `covers:` of its area's design page; a
-`covers:` edit naming a file not yet on main fails `pm check` in every other worktree (`go doc ./internal/design`).
+A new file that `design_sources` (`.pm/config.toml`) matches goes into the `covers:` of its area's design page once
+its PR is on main, not before (`go doc ./internal/design` says why).
 
 ## Commands
 
@@ -81,8 +81,6 @@ ran against main as main was then, so two PRs that pass alone can break main tog
 - **A PR that changes what a release ships** (the `SHIPPED` paths in `release/changelog.py`) **adds one entry file,
   `changelog.d/<slug>.md`**, in the form `CHANGELOG.md`'s preamble gives, and never edits `CHANGELOG.md`. When users
   would not notice the change, label the PR `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
-- **Never delete `changelog.d/README.md`**: the binary embeds `CHANGELOG.md` and `changelog.d/` for `pm upgrade`'s
-  guides, and that file keeps the directory from being empty, which `go:embed` refuses (`assets_test.go`).
 - `release/README.md` holds the release workflow, the version rule, release candidates, notes fixes and a failed
   release's recovery.
 - **Never move or recreate a release tag, and never rebuild a release's assets**: launchers keep each binary's sha256
@@ -93,9 +91,7 @@ ran against main as main was then, so two PRs that pass alone can break main tog
 
 - `prime.md` carries only what a user's agents need. Guidance for developing pm, `[TEST]` needs and this repo's checks
   go here, never in `prime.md` or a `--help` text.
-- A new noun needs no edit to `prime.md`: `pm prime` appends the noun list built from the command tree
-  (`test_prime_lists_every_agent_command_pm_help_lists`). A new command's rules go in its `--help`; `prime.md` names
-  it only where a procedure runs it.
+- A new command's rules go in its `--help`; `prime.md` names it only where a procedure runs it.
 - Keep `prime.md` and `--help` in step with the code: a refusal `prime.md` names must exist in `internal/cli` with that
   wording, and a flag named in either must parse. `test_pm.py` asserts refusal texts: grep it before rewording one.
 - A body shown in pm's docs, `--help` texts and hints takes one of the two forms `prime.md`'s Bodies paragraph gives,
