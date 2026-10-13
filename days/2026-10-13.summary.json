@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T19:03:23+00:00",
- "digest": "c4081837b80841b0",
+ "generated_at": "2026-10-13T19:14:15+00:00",
+ "digest": "8cf2a46421631f98",
  "model": "claude-haiku-5-5",
- "text": "- **Codex runtime parity:** A Codex session now gets the same pm guarantees as a Claude Code session. Both runtimes can now work on one project at once.\n- **Judge and day summary on Codex:** The owner-request judge and the day summary now run on Codex too. A pm command in a Codex session now reports when its hooks did not run.\n- **Merge to main:** The Codex parity work merged to the main branch. Work started on the next pm release, which ships it.\n- **Codex sandbox limit:** Codex's sandbox cannot start on the owner's host. The owner chose to leave this gap open, and the design records the measured behavior."
+ "text": "- **Codex session parity:** A Codex session now gets the same pm guarantees as a Claude Code session. The judge and the day summary also run on Codex now.\n- **Design page coverage gate:** Design pages now name the code they cover. A pull request that changes covered code waits at review and sprint close until its design page is updated or waived.\n- **pm release:** The pm release now ships an install script, checksums, and binaries for macOS and Linux.\n- **Codex sandbox limit:** The Codex sandbox cannot start on the owner's host. The owner chose to leave that gap open."
 }
