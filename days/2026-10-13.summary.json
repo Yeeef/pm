@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T20:06:40+00:00",
- "digest": "30a1a31b6113db93",
+ "generated_at": "2026-10-13T20:17:10+00:00",
+ "digest": "91ed1ef8db6667bf",
  "model": "claude-haiku-5-5",
- "text": "- **Codex runtime parity:** Codex sessions now get the same pm guarantees as Claude Code sessions. The owner-request judge and day summary also run on Codex, and commands report when Codex hooks did not run.\n- **Release shipping:** pm shipped a release with the Codex work, with install scripts and binaries for macOS and Linux. The release policy now records the owner's decision: a minor release means the owner must act.\n- **Design page coverage:** Design pages now name the code they cover. A pull request that changes covered code waits until its design page is updated or waived.\n- **CI checks and setup:** CI checks now use a rubric and an agentic evaluation, replacing the old lint and duplication checks. A PR run confirmed that GitHub Actions reaches the Anthropic API through workload identity federation."
+ "text": "- **Codex parity:** A Codex session now gets the same pm guarantees as a Claude Code session. Both runtimes can work on one project at once, and the judge and day summary run on Codex too.\n- **Release shipped:** The new pm release shipped with an install script and archives for macOS and Linux. The release policy design page now records the owner's decision.\n- **Code and design gates:** Command code now splits by noun and is checked by size and complexity gates. A design page now names covered code, and changes to that code wait until the page is updated or waived.\n- **CI reaches Anthropic API:** A test run confirmed the token exchange and a claude -p call under federation."
 }
