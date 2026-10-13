@@ -48,7 +48,10 @@ bead: pm-d2k5.26
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-13}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+prime.md's sprint close line gains one refusal; the page's session lifecycle is unchanged.
+:::
 
 ## Findings
 
