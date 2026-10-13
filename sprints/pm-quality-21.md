@@ -64,6 +64,14 @@ The Done when says no function exceeds 30; applying it globally gives an exact c
   total lines, install.go 1,013, needs.go 950. Before changes, make test
   passed 83 tests, skipped 136, in 11.27 seconds.
 
+- Verification: make test passed 83 tests (136 skipped) in 11.31 s; focused
+  setup integration passed 18 tests in 12.69 s. make lint passed all gates and
+  the ratchet with zero findings. make test-go passed, including eight race
+  tests in eight shards (11.4 s). All rendered site goldens remain unchanged.
+  Command package: 7,445 non-test lines (down from 8,896); largest file is
+  commands.go at 714 lines. Every Go function is at most cyclomatic complexity
+  30, now a global CI gate; every cli Go file is capped at 800 lines.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
