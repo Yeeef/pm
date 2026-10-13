@@ -30,8 +30,9 @@ it covers.
 
 pm tracks its own development with the release `.pm/config.toml` pins: its projects' sprints, tasks and needs in the
 work store (the remote's `refs/pm/work`), its records (plans, decisions, design pages) on the `records` branch.
-A new file that `design_sources` (`.pm/config.toml`) matches goes into the `covers:` of its area's design page once
-its PR is on main, not before (`go doc ./internal/design` says why).
+A new file that `design_sources` (`.pm/config.toml`) matches goes into the `covers:` of its area's design page in the
+sprint that adds it, before its PR merges: `pm check` lists the pattern as waiting, and `pm sprint close` refuses until
+it matches a file on the remote's main (`go doc ./internal/design`).
 
 ## Commands
 

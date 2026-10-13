@@ -8,7 +8,8 @@
 // remote under refs/pm/work, and the child-id compare-and-swap on the scratch branch pm-cas, which a sprint move
 // (move.go) runs too; merge.go the merge rules. host.go is the host, which only pm service run starts: the Dolt engine
 // held open and served on <main>/.pm/run/work.sock with pm_version(), pm_sync(), pm_create(?), pm_move_sprint(?) and
-// pm_setup(). dolt.go is the client every command and the service's own loops use (Dial), with the version handshake,
+// pm_setup(); host_gc.go holds its collections to one at a time, each waiting out the last one's visits (a Dolt
+// bug). dolt.go is the client every command and the service's own loops use (Dial), with the version handshake,
 // and every write under the store's fair write lock (lock.go), which the host serves as pm_lock() and pm_unlock().
 //
 // Tests: sync_test.go runs two hosted clones on a local bare repo; access_test.go holds the one access path (only

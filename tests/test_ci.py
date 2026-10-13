@@ -1,8 +1,10 @@
 """The CI workflows' own logic: which changes run the release build test (pm-release-build.yml's push and
 pull_request path lists equal, naming what can alter the release build), the Go test job's package list (make
-go-test-but-work failing when go list fails) and go_shards.py's shards, the parity eval's scenario count, and the
-release on a push to main (its jobs, their tokens, main_ci.py, and the scripts of its plan and tag steps, run against a
-local bare origin and a fake gh). The expected results come from what each job is for, on fake tools built here."""
+go-test-but-work failing when go list fails) and go_shards.py's shards, go_changes.py's skip of the Go jobs' work on a
+PR no Go job reads (each job still running on every PR), the linters' restore of pm-go.yml's Go cache, the parity
+eval's scenario count, and the release on a push to main (its jobs, their tokens, main_ci.py, and the scripts of its
+plan and tag steps, run against a local bare origin and a fake gh). The expected results come from what each job is
+for, on fake tools built here."""
 
 from __future__ import annotations
 
