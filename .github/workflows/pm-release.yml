@@ -1,31 +1,55 @@
-# pm's release (AGENTS.md, Releasing pm): a tag pm-v<X> pushed on a main commit is the whole release (a pre-release
-# tag, pm-v<X>-rc.<n>, may name any commit, a PR's included). X comes from the tag name alone; no file holds it. Each
-# release target is built natively (cgo needs it) by release/build.sh, which stamps X into the binary; then one GitHub
-# release pm-v<X> gets both tarballs, SHA256SUMS and install.sh with X filled in, marked a pre-release when X has a "-"
-# suffix (pm-v0.3.0-rc.1). Its notes are X's section of CHANGELOG.md at the tagged commit (a pre-release's: X's
-# section, else the one the entry files in changelog.d/ give), which opens with its upgrade guide: release/changelog.py
-# notes. A tag whose changelog has no such section fails before any build. pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
+# pm's release (AGENTS.md, Releasing pm). A release is a tag pm-v<X> on a main commit with one GitHub release: both
+# tarballs, built natively (cgo needs it) by release/build.sh, which stamps X into the binary, SHA256SUMS and
+# install.sh with X filled in. Its notes are X's section of CHANGELOG.md at the tagged commit, which opens with its
+# upgrade guide (release/changelog.py notes). X is in no source file. Two ways in:
+#
+# - A push to main releases on its own, with no one cutting it, when release/changelog.py plan says so: the push
+#   leaves entry files in changelog.d/ and there is no release/hold. X is the last release bumped as the entries ask
+#   (changelog.py next). The run waits for main's CI on the commit (release/main_ci.py), builds it, then pushes the
+#   release commit (X's section written into CHANGELOG.md, the entry files deleted) to main and the tag in one atomic
+#   push, then publishes. The build comes before the tag, so a failed build leaves no tag; a push rejected because main
+#   moved leaves none either, and the run for the newer commit releases every entry. A tag pushed with GITHUB_TOKEN
+#   starts no workflow, so this one run builds and publishes.
+# - A tag pushed by hand: a release candidate pm-v<X>-rc.<n> on any commit, a PR's included (its notes: X's section,
+#   else the one the entry files give), or a major release on a main commit whose CHANGELOG.md has X's section.
+#
+# pm-release-notes.yml re-renders an existing release's notes from main's CHANGELOG.md.
 name: pm release
 
 on:
   push:
+    branches: [main]
     tags: ["pm-v*"]
 
 permissions:
   contents: read
 
+# Pushes to main release one run at a time, and none is cut short: a later push waits, and a pending run is replaced
+# by a newer one, which releases every entry the replaced one would have. Each hand-pushed tag has its own group, so
+# no push to main replaces its run.
+concurrency:
+  group: pm-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   version:
     runs-on: ubuntu-22.04
+    timeout-minutes: 60  # main_ci.py waits up to 45 minutes for main's CI
+    permissions:
+      contents: read
+      actions: read  # main_ci.py reads the workflow runs on the commit
     outputs:
-      version: ${{ steps.v.outputs.version }}
-      prerelease: ${{ steps.v.outputs.prerelease }}
+      release: ${{ steps.v.outputs.release || steps.plan.outputs.release }}
+      version: ${{ steps.v.outputs.version || steps.plan.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease || steps.plan.outputs.prerelease }}
+      tag: ${{ steps.v.outputs.tag || steps.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - name: Take X from the tag, a version of at least 0.2.0 (below it, Python pm's, retired), a pre-release suffix left out
+          fetch-depth: 0  # the tags, for the last release
+      - name: A tag pushed by hand, X from it, a version of at least 0.2.0 (below it, Python pm's, retired)
         id: v
+        if: github.ref_type == 'tag'
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -40,19 +64,53 @@ jobs:
             git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
               { echo "::error::tag $TAG names $GITHUB_SHA, which is not on main"; exit 1; }
           fi
-          echo "version=$x" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          { echo "release=true"; echo "version=$x"; echo "prerelease=$pre"; echo "tag=$TAG"; } >> "$GITHUB_OUTPUT"
           echo "tag $TAG: version $x, pre-release $pre" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: The release has its notes in CHANGELOG.md (release/changelog.py)
+      - name: The tag's release has its notes in CHANGELOG.md (release/changelog.py)
+        if: github.ref_type == 'tag'
         env:
           X: ${{ steps.v.outputs.version }}
         run: |
           python3 release/changelog.py check
           python3 release/changelog.py notes "$X" > notes.md
           { echo "### Notes"; echo; cat notes.md; } >> "$GITHUB_STEP_SUMMARY"
+      - name: A push to main, what it releases (changelog.py plan), once main's CI on the commit passed (main_ci.py)
+        id: plan
+        if: github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          none() { echo "no release: $1" | tee -a "$GITHUB_STEP_SUMMARY"; echo "release=false" >> "$GITHUB_OUTPUT"; }
+          moved() {
+            tip=$(git ls-remote origin refs/heads/main | cut -f1)
+            [ -n "$tip" ] || { echo "::error::cannot read origin's main"; exit 1; }
+            [ "$tip" != "$GITHUB_SHA" ]
+          }
+          if moved; then none "main moved past $GITHUB_SHA; the run for the newer commit releases"; exit 0; fi
+          # a release whose tag was pushed but whose publish failed is finished before any later one
+          last=$(git tag --list 'pm-v*' | grep -E '^pm-v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          gh release view "$last" --json tagName > /dev/null || {
+            echo "::error::tag $last has no GitHub release: re-run the publish job of the run that pushed it (gh run rerun <run id> --job <publish job id>); no later release runs until then"
+            exit 1; }
+          err=$(mktemp)
+          plan=$(python3 release/changelog.py plan 2> "$err") || { cat "$err" >&2; exit 1; }
+          sed 's/^warning: /::warning::/' "$err"
+          case $plan in
+            "release "*) x=${plan#release } ;;
+            *) none "${plan#none: }"; exit 0 ;;
+          esac
+          if ! python3 release/main_ci.py "$GITHUB_SHA"; then
+            if moved; then none "main's CI on $GITHUB_SHA did not pass, and main moved past it"; exit 0; fi
+            exit 1
+          fi
+          if moved; then none "main moved past $GITHUB_SHA while its CI ran; the run for the newer commit releases"; exit 0; fi
+          { echo "release=true"; echo "version=$x"; echo "prerelease=false"; echo "tag=pm-v$x"; } >> "$GITHUB_OUTPUT"
+          echo "releases pm $x from $GITHUB_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
 
   build:
     needs: version
+    if: needs.version.outputs.release == 'true'
     strategy:
       matrix:
         include:
@@ -71,7 +129,7 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
       - name: Build and pack (release/build.sh)
-        run: release/build.sh dist "${{ github.ref_name }}"
+        run: release/build.sh dist "${{ needs.version.outputs.tag }}"
       - name: Check the tarball holds pm reporting X
         run: |
           tar="dist/pm-$X-${{ matrix.target }}.tar.gz"
@@ -86,17 +144,71 @@ jobs:
           path: dist/pm-${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz
           if-no-files-found: error
 
-  release:
+  tag:
     needs: [version, build]
+    if: github.ref_type == 'branch' && needs.version.outputs.release == 'true'
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write  # GITHUB_TOKEN pushes the release commit to main and the tag
+    outputs:
+      pushed: ${{ steps.push.outputs.pushed }}
+    env:
+      X: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Commit X's section with the entry files deleted, then push it to main and tag it in one atomic push
+        id: push
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 release/changelog.py release "$X"
+          python3 release/changelog.py check
+          git add -A CHANGELOG.md changelog.d
+          git commit -q -m "Release pm $X" -m "Written by the pm release workflow from the entry files at $GITHUB_SHA."
+          # the release commit ships nothing, so the binary built from the merge commit is the tagged commit's:
+          # CHANGELOG.md changed, entry files deleted, nothing else
+          other=$(git diff --name-status --no-renames HEAD^ HEAD | grep -Ev '^(M.CHANGELOG\.md|D.changelog\.d/[^/]+\.md)$' || true)
+          [ -z "$other" ] || { echo "::error::the release commit changes more than CHANGELOG.md and entry files: $other"; exit 1; }
+          git tag "pm-v$X"
+          released=$(git rev-parse HEAD)
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/pm-v$X" || true
+          # judged by what origin holds, not by the push's exit: a push that landed but reported a failure published
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          [ -n "$tip" ] || { echo "::error::cannot read origin's main after the push"; exit 1; }
+          if [ "$tip" = "$released" ] && [ "$(git ls-remote origin "refs/tags/pm-v$X" | cut -f1)" = "$released" ]; then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            echo "pushed release commit $(git rev-parse --short HEAD) to main, tagged pm-v$X" | tee -a "$GITHUB_STEP_SUMMARY"
+          elif [ "$tip" != "$GITHUB_SHA" ] && [ "$tip" != "$released" ]; then
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            echo "no release: main moved past $GITHUB_SHA while this ran; the run for the newer commit releases" |
+              tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::the push of the release commit and tag pm-v$X failed, and main has not moved"
+            exit 1
+          fi
+
+  publish:
+    needs: [version, build, tag]
+    # a hand-pushed tag publishes once built; a push to main, once its tag job pushed the tag
+    if: >-
+      always() && needs.build.result == 'success' &&
+      (needs.tag.outputs.pushed == 'true' || (github.ref_type == 'tag' && needs.tag.result == 'skipped'))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
     permissions:
       contents: write
     env:
       X: ${{ needs.version.outputs.version }}
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ needs.version.outputs.tag }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
       - uses: actions/download-artifact@v4
         with:
           path: dist

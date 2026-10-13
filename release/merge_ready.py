@@ -8,6 +8,11 @@
 
 Each PR's CI runs on its head merged with its base as the base was then. Two PRs that pass alone can break main
 together; a head that contains the base, with every check passed, is the merged result tested.
+
+A head may lack the release workflow's own commits on the base (Releasing pm): each one, by github-actions[bot],
+writes a release's section into CHANGELOG.md and deletes the entry files it released, which ship nothing and run no
+test but the changelog's format, so a PR need not rebase and re-run its CI for them. The PR must touch neither
+CHANGELOG.md nor a deleted entry file.
 """
 
 from __future__ import annotations
@@ -19,6 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PASSED = {"SUCCESS", "SKIPPED", "NEUTRAL"}
+BOT = "41898282+github-actions[bot]@users.noreply.github.com"  # the author of the release workflow's commits
 
 
 def run(*args: str) -> str:
@@ -49,6 +55,26 @@ def pr_workflows(root: Path) -> set[str]:
         if name and not any(b.startswith(("paths:", "paths-ignore:")) for b in block):
             names.add(name)
     return names
+
+
+def is_release_commit(author: str, changes: list[str]) -> bool:
+    """A release commit: by the release workflow, changing CHANGELOG.md and deleting entry files, nothing else
+    (changes: git diff-tree --name-status lines)."""
+    return author == BOT and bool(changes) and all(
+        c == "M\tCHANGELOG.md" or (c.startswith("D\tchangelog.d/") and c.endswith(".md")) for c in changes)
+
+
+def lacks_only_release_commits(base_sha: str, head: str) -> bool:
+    """Whether every commit of the base that head lacks is a release commit, and head's own changes touch none of
+    their files."""
+    touched: set[str] = set()
+    for c in run("git", "rev-list", base_sha, f"^{head}").split():
+        changes = run("git", "diff-tree", "--no-commit-id", "--name-status", "-r", "--no-renames", c).splitlines()
+        if not is_release_commit(run("git", "log", "-1", "--format=%ae", c).strip(), changes):
+            return False
+        touched |= {line.split("\t", 1)[1] for line in changes}
+    base = run("git", "merge-base", base_sha, head).strip()
+    return not touched & set(run("git", "diff", "--name-only", "--no-renames", f"{base}..{head}").split())
 
 
 def failed_checks(rollup: list[dict], required: set[str]) -> list[str]:
@@ -90,7 +116,8 @@ def main(argv: list[str]) -> int:
     why = []
     if fetched(f"refs/pull/{n}/head") != head:
         why.append("its head moved on the remote while this ran; run it again")
-    elif subprocess.run(["git", "merge-base", "--is-ancestor", base_sha, head], check=False).returncode:
+    elif subprocess.run(["git", "merge-base", "--is-ancestor", base_sha, head], check=False).returncode and \
+            not lacks_only_release_commits(base_sha, head):
         why.append(f"its head {head[:7]} does not contain origin/{base} {base_sha[:7]}, so its CI did not test what "
                    f"the merge lands: rebase it onto origin/{base} (or merge origin/{base} into it), push, and wait "
                    "for its CI")
@@ -98,7 +125,9 @@ def main(argv: list[str]) -> int:
     if why:
         print(f"PR #{n} is not ready to merge:\n" + "\n".join(f"- {w}" for w in why), file=sys.stderr)
         return 1
-    print(f"PR #{n} is ready: its head {head[:7]} contains origin/{base} {base_sha[:7]}, and every "
+    contains = "contains" if not subprocess.run(["git", "merge-base", "--is-ancestor", base_sha, head],
+                                                 check=False).returncode else "lacks only release commits of"
+    print(f"PR #{n} is ready: its head {head[:7]} {contains} origin/{base} {base_sha[:7]}, and every "
           "check on it passed. Merge that head and only it:\n"
           f"  gh pr merge {n} --squash --match-head-commit {head}")
     return 0

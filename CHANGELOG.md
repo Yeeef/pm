@@ -3,14 +3,17 @@
 Every change to Go pm that its users can notice, by release. The format is
 [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), and pm follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). History before 0.2.0 (Python pm) is in the git tags
-only.
+only. Every merge to main that carries an entry releases; while pm is 0.x, a minor release asks a repo that moves its
+pin for a step beyond installing it and `pm upgrade` (or removes something), and a patch release asks for none.
 
 - What is merged but not released is in `changelog.d/`, one file per change, so that two pull requests never edit
   the same lines: `changelog.d/<slug>.md`, the slug naming the change in lowercase letters, digits and `-`. An entry
-  file holds only `###` categories and their items, as a release's section does (`### Fixed`, then its bullets).
+  file opens with its summary paragraph, then holds `###` categories and their items, as a release's section does
+  (`### Fixed`, then its bullets). It names no step by its number: the release renumbers them.
 - This file holds released sections only, newest first: `## [X.Y.Z] - YYYY-MM-DD` (the release's date). A release
   writes its section from the entry files and deletes them (`release/changelog.py release X`).
-- A release's section opens with a summary paragraph: what the release is about, in one to three sentences.
+- A release's section opens with a summary paragraph: what the release is about, in one to three sentences; its
+  entries' summaries, joined.
 - Then `### Upgrade guide`, always: a numbered list (`1. `, `2. `, …) of the exact steps that move a repo from the
   previous release to this one. The release writes the first two, installing the release and `pm upgrade --to X`;
   a change that needs another step adds it in its entry file as `### Upgrade guide`, numbered from `1. `, and the
@@ -18,7 +21,7 @@ only.
 - Then these `###` categories, only these, in this order, each only when it has an entry: `Breaking changes`,
   `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 - An entry is a `- ` bullet written for pm's users: what they can now do, or what behaves differently. A breaking
-  change says what breaks and why, and may point at its step in the guide. Wrap lines freely: the release notes join
+  change says what breaks and why. Wrap lines freely: the release notes join
   them.
 - Each section has a link reference at the bottom: its compare view against the release before it.
 

@@ -30,9 +30,9 @@ pm is one Go module (`go.mod`); the pytest suite in `tests/` is its black-box ha
 | `internal/config`, `buildinfo`, `proc`, `pyjson` | `.pm/config.toml` (every command fails hard without it or on another pinned version); the build's version; subprocess runs; JSON written as pm has always written it |
 | `release/build.sh`, `install.sh` | The release build: `build.sh OUT_DIR [pm-v<X>]` builds this machine's binary with `X` from the tag (else the `pm-v*` tag on HEAD, else `dev`) and packs `pm-<X>-<os>-<arch>.tar.gz`; `.github/workflows/pm-release.yml` runs it (Releasing pm). `install.sh`, a release asset with `@VERSION@` filled in, installs that release's binary to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` after checking it against `SHA256SUMS`, downloading as the launcher does (with curl or wget; the token path needs curl); `tests/test_release.py` runs both |
 | `tests/` | The harness: the pytest suite, its fakes and the live eval (below); `tests/render-pages` prints every page as the service renders it, for the harness's page tests. `pyproject.toml` and `uv.lock` are its environment |
-| `CHANGELOG.md`, `changelog.d/`, `release/changelog.py`, `release/merge_ready.py` | Released sections' notes, the unreleased changes' entry files, and their tool: `check`, `notes X`, `pr BASE`, `release X` (Releasing pm); the merge check, `make merge-ready PR=N` (Tests) |
+| `CHANGELOG.md`, `changelog.d/`, `release/changelog.py`, `release/main_ci.py`, `release/merge_ready.py` | Released sections' notes, the unreleased changes' entry files, and their tool: `check`, `notes X`, `pr BASE`, `plan`, `next`, `release X` (Releasing pm); the release's wait for main's CI on its commit; the merge check, `make merge-ready PR=N` (Tests) |
 | `website/` | pm's public website, https://yeeef.github.io/pm/: one static page (`index.html`, `style.css`, the site screenshots in `img/`), no build step; `.github/workflows/website.yml` deploys it. Not shipped |
-| `.github/workflows/` | CI (`pm-tests.yml`: the harness; `pm-go.yml`: the Go build and tests; `pm-lint.yml`: `make lint`; `pm-changelog.yml`) on every PR and push to main, the release build test (`pm-release-build.yml`) when a change can alter the release build and on a `pm-v*` tag, the release (`pm-release.yml`) on a `pm-v*` tag, and a release's notes re-rendered by hand (`pm-release-notes.yml`), and the website deployed to GitHub Pages (`website.yml`) on a push to main that changes `website/`. `.github/scripts/` holds their helpers, which `make test-go` runs too (`go_shards.py`, `go_cache_trim.py`). No branch tracks `records/`: records live only on the `records` branch |
+| `.github/workflows/` | CI (`pm-tests.yml`: the harness; `pm-go.yml`: the Go build and tests; `pm-lint.yml`: `make lint`; `pm-changelog.yml`) on every PR and push to main, the release build test (`pm-release-build.yml`) when a change can alter the release build and on a `pm-v*` tag, the release (`pm-release.yml`) on every push to main and on a `pm-v*` tag pushed by hand, and a release's notes re-rendered by hand (`pm-release-notes.yml`), and the website deployed to GitHub Pages (`website.yml`) on a push to main that changes `website/`. `.github/scripts/` holds their helpers, which `make test-go` runs too (`go_shards.py`, `go_cache_trim.py`). No branch tracks `records/`: records live only on the `records` branch |
 
 pm tracks its own development here, with the release that `.pm/config.toml` pins: the work store (the remote's
 `refs/pm/work`) holds the `pm-harness` project's sprints, tasks and needs, the `records` branch holds its records, and
@@ -66,7 +66,10 @@ on that head passed (a check that ran twice there, re-run or cancelled by a late
 workflow that runs on every PR (a `pull_request` trigger without `paths`) has its checks there; then it prints `gh pr merge <n> --squash --match-head-commit <sha>`, which merges that
 head and no later push. Each PR's CI runs against main as main was when it ran, so two PRs that pass alone can break
 main together (two rules chunks that each fit the cap, together 18 characters over). A refused PR is rebased onto
-`origin/main`, pushed, and merged once its new CI passes. GitHub's merge queue does not exist for a user-owned repo,
+`origin/main`, pushed, and merged once its new CI passes. A head may lack the release workflow's own commits on
+main (by `github-actions[bot]`: `CHANGELOG.md` changed and entry files deleted, nothing else; Releasing pm) when the
+PR touches none of their files: they ship nothing, so a release after a merge does not stale every open PR.
+GitHub's merge queue does not exist for a user-owned repo,
 and branch protection's "require branches to be up to date" is a repo setting; this check needs neither.
 `tests/test_merge_ready.py` runs it against a local bare origin and the fake `gh`.
 
@@ -130,35 +133,47 @@ What the tests are:
 
 ## Releasing pm
 
-A release is its notes and a tag: a PR that gives `X` its section in `CHANGELOG.md`, then
-`git tag pm-v<X> <a commit on main> && git push origin pm-v<X>`. No bump commit, and no code file holds `X`:
-`.github/workflows/pm-release.yml` takes `X` from the tag name, and `release/build.sh` stamps it into the binary
-(`-ldflags -X …/buildinfo.Version=<X>`); an untagged build reports `dev`, which no repo pins. On the tag push the
-workflow:
+pm releases on every merge to main that leaves an entry file in `changelog.d/`, with no one cutting it (owner
+decision, pm-harness; the policy page is the `release-policy` design page). A release is a tag `pm-v<X>` on a main
+commit and its GitHub release; no code file holds `X`: `release/build.sh` stamps it into the binary
+(`-ldflags -X …/buildinfo.Version=<X>`), and an untagged build reports `dev`, which no repo pins.
+`.github/workflows/pm-release.yml`, on each push to main (one run at a time, none cut short; a pending run is replaced
+by a newer one, which releases every entry; a hand-pushed tag's run is in a group of its own):
 
 | Job | Does |
 |---|---|
-| `version` | Takes `X` from the tag; it must be at least 0.2.0 (below it are Python pm's retired releases) and name a commit on main, unless it is a pre-release, and its `CHANGELOG.md` must pass `release/changelog.py check` and hold `X`'s notes (`changelog.py notes X`) |
-| `build` | `release/build.sh dist pm-v<X>` natively on `macos-14` (darwin-arm64) and `ubuntu-22.04` (linux-amd64), cgo needing native runners; checks the tarball holds one `pm` whose `pm version` prints `X` |
-| `release` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets, `--prerelease` when `X` has a `-` suffix, and notes `changelog.py notes X`: `X`'s section, its upgrade guide first |
+| `version` | `release/changelog.py plan`: `release X`, or `none: <why>` (no entry file; a `release/hold`; a `CHANGELOG.md` section written by hand whose tag is not pushed yet). No release either when main moved past the commit (the newer commit's run releases). It fails while the last release tag has no GitHub release (a failed publish, finished first). Then `release/main_ci.py` waits for every workflow run of that push to main and requires each to pass, each workflow that runs on every push to main included |
+| `build` | `release/build.sh dist pm-v<X>` at the merge commit, natively on `macos-14` (darwin-arm64) and `ubuntu-22.04` (linux-amd64), cgo needing native runners; checks the tarball holds one `pm` whose `pm version` prints `X` |
+| `tag` | `changelog.py release X` at the merge commit (`X`'s section from the entry files, which it deletes), committed by `github-actions[bot]` and checked to change only `CHANGELOG.md` and entry files, then `git push --atomic` of that commit to main and the tag `pm-v<X>`, with `GITHUB_TOKEN` (`contents: write`), judged by what origin then holds. Main moved: no release from this run |
+| `publish` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets and notes `changelog.py notes X`: `X`'s section, its upgrade guide first |
 
-- Write the notes first. `CHANGELOG.md` (Keep a Changelog, rules in its preamble) holds every Go release's notes,
-  for pm's users. Each release opens with `### Upgrade guide`, a numbered list of the exact steps from the previous
-  release (install it, `pm upgrade --to X`, then whatever else, such as `pm service restart` in each clone); a
-  breaking change says what breaks and why, and points at its step. A PR that changes what a release ships
-  (`SHIPPED` in `release/changelog.py`: Go sources but tests, embedded files, `go.mod`, `install.sh`,
-  `release/build.sh`) adds its own entry file, `changelog.d/<slug>.md`: the `###` categories it touches, each with
-  its bullets, and an `### Upgrade guide` numbered from `1. ` for a step beyond installing and `pm upgrade --to X`.
-  One file per change, never an edit to `CHANGELOG.md`, so parallel PRs never conflict over the changelog
-  (`changelog.py check` refuses an `## [Unreleased]` section there). When users would not notice the change, label
-  the PR `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
-- To release `X` (SemVer from the entry files: a breaking change bumps the minor while pm is 0.x, an addition the
-  minor too, else the patch), run `python3 release/changelog.py release X --summary "<what the release is about>"`
-  in a PR: it writes `## [X] - <today, UTC>` above the newest release from the entry files (each category's
-  bullets, entries in name order; an upgrade guide that opens with installing X and `pm upgrade --to X`, then the
-  entries' steps, renumbered) with its link reference, and deletes the entry files. Edit the section by hand where
-  it needs it (the summary's wrap, the guide's wording), merge it, then tag the merge. A tag whose changelog has no
-  `X` section fails before any build.
+A tag pushed with `GITHUB_TOKEN` starts no workflow, so one run builds, tags and publishes; no secret is needed. A
+tag pushed by hand (a release candidate, a major) runs `version` from the tag (at least 0.2.0, a release on a main
+commit whose `CHANGELOG.md` holds `X`'s notes), then `build` and `publish`.
+
+- **The version** is the last release tag (`pm-vX.Y.Z`, pre-releases left out) bumped as the entries ask
+  (`changelog.py next`). While pm is 0.x: the minor when an entry has its own `### Upgrade guide` (a step beyond
+  installing the release and `pm upgrade --to X`) or `### Removed`, since a repo that moves its pin must act;
+  every other release, new features and breaking changes without a step included, is a patch. 1.0 and later majors
+  only by the owner's decision: `changelog.py release X --summary "…"` in a PR, merged, then the tag pushed by hand.
+- **The entry** is the notes. `CHANGELOG.md` (Keep a Changelog, rules in its preamble) holds every Go release's notes,
+  for pm's users. A PR that changes what a release ships (`SHIPPED` in `release/changelog.py`: Go sources but tests,
+  embedded files, `go.mod`, `install.sh`, `release/build.sh`) adds one entry file, `changelog.d/<slug>.md`: a summary
+  paragraph for users (the release's summary is its entries'), then the `###` categories it touches, each with its
+  bullets, and an `### Upgrade guide` numbered from `1. ` for a step beyond installing and `pm upgrade --to X`. It
+  names no step by its number, since the release renumbers them; a breaking change says what breaks and why. One
+  file per change (`changelog.py pr` refuses a second), never an edit to `CHANGELOG.md`, so parallel PRs never
+  conflict over the changelog (`changelog.py check` refuses an `## [Unreleased]` section there). When users would not
+  notice the change, label the PR `no-changelog` instead; its merge releases nothing. `pm-changelog.yml` checks both
+  on every PR.
+- **Main is releasable after every merge.** A feature that lands in parts lands as one PR, through a feature branch
+  merged once, or in parts users cannot reach that add no entry. When parts users can reach must land first, the
+  first adds `release/hold`, one line naming the feature and the PR that completes it, and that PR deletes it; while
+  it exists nothing releases, fixes included, and `plan` warns once it is older than 3 days.
+- **A failed release.** A failed build or a rejected push leaves no commit and no tag: the next merge releases
+  everything. A failed publish after the push leaves the tag with no release: re-run the run's failed jobs
+  (`gh run rerun <id> --failed`; no asset was ever downloaded, so this moves no tag); every later run fails until
+  then.
 - Fix or backfill a published release's notes by changing its section on main, then
   `gh workflow run pm-release-notes.yml -f version=<X>`: it replaces the release's notes alone (`gh release edit`).
 
@@ -168,13 +183,17 @@ workflow:
   `release X` would write it with the rc's version in its first two steps; it fails when there is no entry file.
 - Never move or recreate a release tag, and never rebuild a release's assets: launchers keep each binary's sha256
   in `<data dir>/pm/pins/<X>/sha256` and fail hard when a later download differs.
-- Moving a repo's pin is a separate, ordinary PR once the release exists (`pm upgrade --to X`, merged any way).
+- Moving a repo's pin is a separate, ordinary PR, by hand, when the repo wants a release (`pm upgrade --to X`, merged
+  any way), pm's own repo included; `pm doctor` names a newer release. A move across several releases follows each
+  one's upgrade guide.
 - Install it on a machine with `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<X>/install.sh | sh`.
   The repo is public, so `install.sh` and the launchers download with no token; only when that fails, a token from
   `$GH_TOKEN` or `gh auth token` makes them try the GitHub API, as a private copy of the repo needs.
   `$PM_RELEASE_URL` names a mirror.
-- `test_changelog.py` checks `changelog.py`'s rules, notes, release section and PR check, and that two branches
-  that each add an entry merge without a conflict and reach the release together; `test_release.py` checks the rest:
+- `test_changelog.py` checks `changelog.py`'s rules, notes, release section, PR check, plan and version rule, and that
+  two branches that each add an entry merge without a conflict and reach the release together. `test_ci.py` checks
+  `pm-release.yml`'s jobs and tokens, `main_ci.py`, and runs the `version` job's plan step and the `tag` step's
+  script against a local bare origin and a fake `gh`. `test_release.py` checks the rest:
   `install.sh` against a local server, and (in `pm-release-build.yml`, `PM_RELEASE_BUILD=1`, as it builds twice) the
   build in a scratch clone, tagged then untagged. `pm-release-build.yml` runs on a PR or push that changes `release/`,
   `install.sh`, `go.mod`, `go.sum`, `internal/buildinfo`, `cmd/pm`, `internal/launch`, the test or itself, and on

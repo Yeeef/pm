@@ -65,8 +65,8 @@ def guide(version: str) -> str:
 
 
 def test_release_writes_x_s_section_above_the_newest_with_its_link():
-    entries = [changelog.parse_entry("a.md", "### Fixed\n\n- Fix A.\n"),
-               changelog.parse_entry("b.md", "### Added\n\n- New B.\n")]
+    entries = [changelog.parse_entry("a.md", "S.\n\n### Fixed\n\n- Fix A.\n"),
+               changelog.parse_entry("b.md", "S.\n\n### Added\n\n- New B.\n")]
     out = changelog.release(text(), entries, "0.3.0", "2026-10-10", "Two changes.")
     log = changelog.parse(out)
     assert [s.name for s in log.sections] == ["0.3.0", "0.2.1", "0.2.0"]
@@ -80,8 +80,11 @@ def test_release_writes_x_s_section_above_the_newest_with_its_link():
         changelog.release(text(), [], "0.3.0", "2026-10-10", "S.")
     with pytest.raises(changelog.ChangelogError, match="newest first"):
         changelog.release(text(), entries, "0.1.9", "2026-10-10", "S.")
-    with pytest.raises(changelog.ChangelogError, match="summary paragraph"):
-        changelog.release(text(), entries, "0.3.0", "2026-10-10", " ")
+    # with no summary given, the release's is its entries', joined in name order
+    out = changelog.release(text(), [changelog.parse_entry("a.md", "Fixes A.\n\n### Fixed\n\n- Fix A.\n"),
+                                     changelog.parse_entry("b.md", "Adds\nB.\n\n### Added\n\n- New B.\n")],
+                            "0.3.0", "2026-10-10")
+    assert changelog.notes(changelog.parse(out), [], "0.3.0").startswith("Fixes A. Adds B.\n\n### Upgrade guide")
 
     # folded: test_a_valid_changelog_passes_and_gives_each_release_its_notes_unwrapped
     log = changelog.parse(text())
@@ -95,22 +98,22 @@ def test_release_writes_x_s_section_above_the_newest_with_its_link():
     # folded: test_a_release_with_no_section_has_no_notes
     log = changelog.parse(text())
     with pytest.raises(changelog.ChangelogError, match=r"no '## \[0.3.0\] - <date>' section"):
-        changelog.notes(log, [changelog.parse_entry("a.md", "### Fixed\n\n- A fix.\n")], "0.3.0")
+        changelog.notes(log, [changelog.parse_entry("a.md", "S.\n\n### Fixed\n\n- A fix.\n")], "0.3.0")
 
     # folded: test_entries_assemble_by_category_in_name_order_with_the_guide_s_steps_after_the_two_every_release_has
-    b = changelog.parse_entry("b.md", "### Upgrade guide\n\n1. Restart the\n   service.\n\n### Fixed\n\n- Fix B.\n")
-    a = changelog.parse_entry("a.md", "### Added\n\n- New A.\n\n### Fixed\n\n- Fix A.\n")
-    c = changelog.parse_entry("c.md", "### Upgrade guide\n\n1. Rerun init.\n2. Commit it.\n")
+    b = changelog.parse_entry("b.md", "S.\n\n### Upgrade guide\n\n1. Restart the\n   service.\n\n### Fixed\n\n- Fix B.\n")
+    a = changelog.parse_entry("a.md", "S.\n\n### Added\n\n- New A.\n\n### Fixed\n\n- Fix A.\n")
+    c = changelog.parse_entry("c.md", "S.\n\n### Upgrade guide\n\n1. Rerun init.\n2. Commit it.\n")
     entries = sorted([b, a, c], key=lambda e: e.where)
     assert changelog.notes(changelog.parse(text()), entries, "0.3.0-rc.1") == (
-        guide("0.3.0-rc.1") + "\n3. Restart the service.\n4. Rerun init.\n5. Commit it.\n\n"
+        "S. S. S.\n\n" + guide("0.3.0-rc.1") + "\n3. Restart the service.\n4. Rerun init.\n5. Commit it.\n\n"
         "### Added\n\n- New A.\n\n### Fixed\n\n- Fix A.\n- Fix B.")
     with pytest.raises(changelog.ChangelogError, match=r"changelog.d/ holds no entries; pre-release 0.3.0-rc.1"):
         changelog.notes(changelog.parse(text()), [], "0.3.0-rc.1")
 
     # folded: test_a_pre_release_takes_its_version_s_section_when_there_is_one
     log = changelog.parse(text())
-    entries = [changelog.parse_entry("a.md", "### Fixed\n\n- A fix.\n")]
+    entries = [changelog.parse_entry("a.md", "S.\n\n### Fixed\n\n- A fix.\n")]
     assert changelog.notes(log, entries, "0.2.1-rc.1") == changelog.notes(log, entries, "0.2.1")
 
 
@@ -120,7 +123,7 @@ def test_release_wraps_the_summary_so_no_line_starts_a_list_item():
     lines = changelog.wrap(summary)
     assert all(len(line) <= changelog.WIDTH for line in lines) and " ".join(lines) == summary
     assert not any(line.startswith(("- ", "#")) or changelog.STEP.match(line) for line in lines[1:])
-    entries = [changelog.parse_entry("a.md", "### Fixed\n\n- Fix A.\n")]
+    entries = [changelog.parse_entry("a.md", "S.\n\n### Fixed\n\n- Fix A.\n")]
     log = changelog.parse(changelog.release(text(), entries, "0.3.0", "2026-10-10", summary))
     assert changelog.notes(log, [], "0.3.0").startswith(summary + "\n\n### Upgrade guide")
     with pytest.raises(changelog.ChangelogError, match="reword it"):
@@ -172,8 +175,8 @@ def test_two_branches_that_each_add_an_entry_merge_without_conflict_and_both_rea
     git("init", "-q", "-b", "main")
     git("add", "-A")
     git("commit", "-q", "-m", "base")
-    change("fix-a", "fix-a", "### Fixed\n\n- Fix A.\n")
-    change("add-b", "add-b", "### Added\n\n- New B.\n\n### Fixed\n\n- Fix B.\n")
+    change("fix-a", "fix-a", "Fix A.\n\n### Fixed\n\n- Fix A.\n")
+    change("add-b", "add-b", "New B.\n\n### Added\n\n- New B.\n\n### Fixed\n\n- Fix B.\n")
     git("checkout", "-q", "main")
     git("merge", "-q", "--no-ff", "-m", "merge fix-a", "fix-a")
     git("merge", "-q", "--no-ff", "-m", "merge add-b", "add-b")  # cut from the same base: no rebase between
@@ -244,16 +247,97 @@ def test_the_real_changelog_and_entries_pass():
         links=f"[Unreleased]: {REPO}/compare/pm-v0.2.1...HEAD\n" + LINKS))
 
     # folded: test_an_entry_file_holds_only_categories_and_their_items
-    entry = changelog.parse_entry("fix-x.md", "### Added\n\n- A command.\n\n### Fixed\n\n- A fix\n  wrapped.\n")
+    entry = changelog.parse_entry("fix-x.md", "S.\n\n### Added\n\n- A command.\n\n### Fixed\n\n- A fix\n  wrapped.\n")
     assert entry.where == "changelog.d/fix-x.md"
     assert list(entry.categories) == ["Added", "Fixed"]
-    assert "its first line is a category heading" in entry_refused("a.md", "A fix.\n\n### Fixed\n\n- A fix.\n")
-    assert "at least one '### ' category" in entry_refused("a.md", "\n")
+    assert "an entry opens with its summary paragraph" in entry_refused("a.md", "### Fixed\n\n- A fix.\n")
+    assert "at least one '### ' category" in entry_refused("a.md", "S.\n")
     assert "an entry holds only '### ' category headings" in entry_refused("a.md", "## [0.3.0] - 2026-10-10\n")
-    assert "unknown category 'Improvements'" in entry_refused("a.md", "### Improvements\n\n- X.\n")
-    assert "changelog.d/a.md:3: a category holds only '- ' bullets" in entry_refused("a.md", "### Fixed\n\nA fix.\n")
-    assert "empty 'Fixed' category" in entry_refused("a.md", "### Fixed\n\n")
-    assert "category 'Added' comes after 'Fixed'" in entry_refused("a.md", "### Fixed\n\n- F.\n\n### Added\n\n- A.\n")
-    assert "step 1 should start '1. '" in entry_refused("a.md", "### Upgrade guide\n\n3. Restart.\n")
-    assert "the slug lowercase letters" in entry_refused("Fix X.md", "### Fixed\n\n- A fix.\n")
-    assert "the slug lowercase letters" in entry_refused("README", "### Fixed\n\n- A fix.\n")
+    assert "unknown category 'Improvements'" in entry_refused("a.md", "S.\n\n### Improvements\n\n- X.\n")
+    assert "changelog.d/a.md:5: a category holds only '- ' bullets" in entry_refused("a.md", "S.\n\n### Fixed\n\nA fix.\n")
+    assert "empty 'Fixed' category" in entry_refused("a.md", "S.\n\n### Fixed\n\n")
+    assert "category 'Added' comes after 'Fixed'" in entry_refused("a.md", "S.\n\n### Fixed\n\n- F.\n\n### Added\n\n- A.\n")
+    assert "step 1 should start '1. '" in entry_refused("a.md", "S.\n\n### Upgrade guide\n\n3. Restart.\n")
+    assert "the slug lowercase letters" in entry_refused("Fix X.md", "S.\n\n### Fixed\n\n- A fix.\n")
+    assert "the slug lowercase letters" in entry_refused("README", "S.\n\n### Fixed\n\n- A fix.\n")
+
+
+def entry(categories: str, summary: str = "S.") -> changelog.Section:
+    return changelog.parse_entry("e.md", f"{summary}\n\n{categories}")
+
+
+TAGS = ["pm-v0.1.6", "pm-v0.8.0", "pm-v0.9.0-rc.1", "pm-v0.3.1-rc.1"]
+
+
+def test_plan_releases_entries_with_the_bump_a_pin_move_s_action_asks():
+    """The owner's rule while pm is 0.x: a minor release asks a repo that moves its pin to act (an upgrade step of an
+    entry's own) or removes something; every other release, new features included, is a patch; never a major."""
+    fixed, added = entry("### Fixed\n\n- F.\n"), entry("### Added\n\n- A.\n")
+    step = entry("### Upgrade guide\n\n1. Restart the service.\n\n### Fixed\n\n- F.\n")
+    removed = entry("### Removed\n\n- `pm old`.\n")
+    breaking = entry("### Breaking changes\n\n- An exit code.\n")
+    assert changelog.plan([], None, TAGS) == "none: changelog.d/ holds no entry, so nothing users would notice is unreleased"
+    assert changelog.plan([added], "Codex parity, completed by #61", TAGS) == (
+        "none: release/hold holds releases: Codex parity, completed by #61")
+    assert changelog.plan([added], None, TAGS) == "release 0.8.1"  # the last release, not the later rc
+    assert changelog.plan([fixed, added, breaking], None, TAGS) == "release 0.8.1"
+    assert changelog.plan([fixed, step], None, TAGS) == "release 0.9.0"
+    assert changelog.plan([removed], None, TAGS) == "release 0.9.0"
+    assert changelog.plan([added], None, TAGS, newest="0.8.0") == "release 0.8.1"
+    assert changelog.plan([added], None, TAGS, newest="1.0.0") == (  # a major written by hand, its tag not pushed
+        "none: CHANGELOG.md holds [1.0.0], written by hand and not tagged yet: push pm-v1.0.0 first")
+    assert changelog.next_version("0.9.4", [added]) == "0.9.5"
+    assert changelog.next_version("0.99.3", [removed]) == "0.100.0"  # 1.0 only by a hand-pushed tag
+    assert changelog.last_release(["pm-v0.9.0", "pm-v0.10.0", "pm-v0.2.0"]) == "0.10.0"
+    with pytest.raises(changelog.ChangelogError, match="no release tag"):
+        changelog.last_release(["pm-v0.9.0-rc.1"])
+
+    # folded: an entry carries its own summary, names no step by number, and one change adds one entry
+    assert entry("### Fixed\n\n- F.\n", summary="Fixes\nit.").summary == ["Fixes", "it.", ""]
+    assert "summary is one paragraph" in entry_refused("a.md", "One.\n\nTwo.\n\n### Fixed\n\n- F.\n")
+    assert "summary is one paragraph" in entry_refused("a.md", "- A list.\n\n### Fixed\n\n- F.\n")
+    assert "changelog.d/a.md:5: an entry names no step by its number" in entry_refused(
+        "a.md", "S.\n\n### Upgrade guide\n\n1. Restart, as step 2 says.\n")
+    assert "names no step by its number" in entry_refused("a.md", "S.\n\n### Fixed\n\n- See Steps 3 and 4.\n")
+    assert changelog.too_many_entries(["changelog.d/a.md", "internal/x.go"]) == []
+    assert changelog.too_many_entries(["changelog.d/a.md", "changelog.d/b.md"]) == ["changelog.d/a.md",
+                                                                                   "changelog.d/b.md"]
+
+
+def test_plan_and_next_read_the_tags_and_the_hold_of_the_checkout(tmp_path):
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+           "GIT_COMMITTER_EMAIL": "t@t"}
+
+    def run(*args: str, **extra: str) -> subprocess.CompletedProcess:
+        return subprocess.run(args, cwd=tmp_path, env={**env, **extra}, capture_output=True, text=True, check=False)
+
+    def commit(message: str, **extra: str):
+        assert run("git", "add", "-A").returncode == 0
+        r = run("git", "commit", "-q", "-m", message, **extra)
+        assert r.returncode == 0, r.stderr
+
+    (tmp_path / "release").mkdir()
+    shutil.copy(PM_DIR / "release" / "changelog.py", tmp_path / "release" / "changelog.py")
+    (tmp_path / "CHANGELOG.md").write_text(text())
+    run("git", "init", "-q", "-b", "main")
+    commit("base")
+    run("git", "tag", "pm-v0.2.1")
+    r = run(sys.executable, "release/changelog.py", "plan")
+    assert (r.returncode, r.stdout) == (0, "none: changelog.d/ holds no entry, so nothing users would notice is "
+                                           "unreleased\n")
+    assert "nothing to release" in run(sys.executable, "release/changelog.py", "next").stderr
+    (tmp_path / "changelog.d").mkdir()
+    (tmp_path / "changelog.d" / "a.md").write_text("Adds A.\n\n### Added\n\n- A.\n")
+    commit("an entry")
+    assert run(sys.executable, "release/changelog.py", "plan").stdout == "release 0.2.2\n"
+    assert run(sys.executable, "release/changelog.py", "next").stdout == "0.2.2\n"
+
+    (tmp_path / "release" / "hold").write_text("Feature F, completed by #9\n")
+    commit("hold", GIT_COMMITTER_DATE="2026-01-01T00:00:00Z")
+    r = run(sys.executable, "release/changelog.py", "plan")
+    assert r.stdout == "none: release/hold holds releases: Feature F, completed by #9\n"
+    assert "warning: release/hold has held every release for" in r.stderr  # more than 3 days ago
+    assert "release/hold: Feature F" in run(sys.executable, "release/changelog.py", "check").stdout
+    (tmp_path / "release" / "hold").write_text("\n")
+    r = run(sys.executable, "release/changelog.py", "check")
+    assert r.returncode == 1 and "a hold names the feature it waits for" in r.stderr
