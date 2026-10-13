@@ -105,6 +105,14 @@ The owner asked in chat on 2026-10-13 to take the sprint over and deliver the re
   doc comments found 14 the split had moved off their functions; doc_test.go
   now fails on a doc comment that does not open with its function's name.
 
+- Abbreviated flags had no real users: 0 in prime.md, prompts, help, tests,
+  hook entries, website and records; 0 in ~1,766 pm commands with a flag
+  across 137 agent transcripts (1 false positive inside quoted text). The
+  store commands that parse their own flags never accepted abbreviations. pm
+  task add --tit x now exits 2 with 'unrecognized arguments: --tit x'; unknown
+  arguments are now reported before missing required ones, so the refusal
+  names the real mistake.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
