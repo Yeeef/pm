@@ -95,6 +95,11 @@ Scope gains gap 9: the request rule in its three texts names each runtime ask to
 Owner chose to land it with the judge work, 2026-10-13.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page pm-versioning stays as it is for this sprint's code changes.
+Its config row says unknown keys fail hard and the version key must equal the running pm; summary_runtime is one more optional key that rule already covers, and the page names no config key list, launcher or pin behavior that sprint 2 changed
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
