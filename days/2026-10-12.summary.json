@@ -1,7 +1,7 @@
 {
  "date": "2026-10-12",
- "generated_at": "2026-10-13T18:52:42+00:00",
- "digest": "b3d2634063305b58",
+ "generated_at": "2026-10-13T19:13:51+00:00",
+ "digest": "d768eec019990e5f",
  "model": "claude-haiku-5-5",
- "text": "- **Codex session replies:** The pm service now sends an owner reply into a live, idle Codex session. Live testing showed the session wakes within seconds. The design pages now list each open Codex gap and what covers it.\n- **Website access and install:** The pm site's public host now requires a valid Cloudflare Access token. Requests without one fail. The owner logged in and reported that the site loads. The install commands now link to the latest release. The README and website now credit Beads and Dolt.\n- **Continuous integration speed:** Pull request checks now finish much faster. Test splitting and a warm Go cache cut the wait. A check now rejects race-test names that match no top-level test.\n- **Design page coverage:** Design pages now name the code they cover, in a `covers:` header."
+ "text": "- **Codex session support:** An idle Codex session now wakes when the owner replies. The pm service queues each reply into a live Codex session through codex queue.\n- **Public site access:** The public pm site now refuses requests without a valid Cloudflare Access token. The owner confirmed that the site loads through Cloudflare Access.\n- **CI check speed:** Pull request checks now reach their last step much sooner than before. Work-package tests run in parallel, and the macOS and race jobs finish faster.\n- **Website install and credits:** Install commands now point to the latest release, so they stay current. The README and website now credit Beads and Dolt."
 }
