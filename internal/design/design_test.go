@@ -20,22 +20,61 @@ func page(t *testing.T, rel, header string) *records.Record {
 	return rec
 }
 
-func TestCheckFailsOnADeadPatternAndListsUncoveredSources(t *testing.T) {
+func TestCheckListsDeadPatternsAsWaitingAndUncoveredSources(t *testing.T) {
 	tracked := map[string]bool{"internal/a/a.go": true, "internal/b/b.go": true, "prime.md": true, "README.md": true}
 	recs := []*records.Record{page(t, "design/a", "covers: [internal/a/**]\n"), page(t, "design/none", "")}
-	got, err := Check(recs, tracked, []string{"internal/**", "prime.md"})
-	if err != nil || !reflect.DeepEqual(got, []string{"internal/b/b.go", "prime.md"}) {
-		t.Errorf("Check = %v, %v; want the two uncovered sources", got, err)
+	got, waiting, err := Check(recs, tracked, []string{"internal/**", "prime.md"})
+	if err != nil || !reflect.DeepEqual(got, []string{"internal/b/b.go", "prime.md"}) || waiting != nil {
+		t.Errorf("Check = %v, %v, %v; want the two uncovered sources", got, waiting, err)
 	}
-	if got, err := Check(recs, tracked, nil); err != nil || got != nil {
-		t.Errorf("Check without sources = %v, %v; want nothing", got, err)
+	if got, waiting, err := Check(recs, tracked, nil); err != nil || got != nil || waiting != nil {
+		t.Errorf("Check without sources = %v, %v, %v; want nothing", got, waiting, err)
 	}
-	recs = append(recs, page(t, "design/dead", "covers: [internal/c/**, prime.md]\n"))
-	_, err = Check(recs, tracked, []string{"internal/**"})
-	want := `design/dead: covers pattern "internal/c/**" matches no tracked file; fix or remove it (a directory's files ` +
-		`are dir/**)`
-	if err == nil || err.Error() != want {
-		t.Errorf("Check with a dead pattern: %v, want %q", err, want)
+	recs = append(recs, page(t, "design/dead", "covers: [internal/c/**, prime.md, internal/d.go]\n"))
+	got, waiting, err = Check(recs, tracked, []string{"internal/**"})
+	want := []string{`design/dead.md: covers pattern "internal/c/**"`, `design/dead.md: covers pattern "internal/d.go"`}
+	if err != nil || !reflect.DeepEqual(waiting, want) || !reflect.DeepEqual(got, []string{"internal/b/b.go"}) {
+		t.Errorf("Check with dead patterns = %v, %v, %v; want them waiting, not fatal", got, waiting, err)
+	}
+	_, _, err = Check(recs, tracked, []string{"internal/**", "lib/**"})
+	if err == nil || err.Error() != `design_sources pattern "lib/**" matches no tracked file; fix or remove it` {
+		t.Errorf("Check with a dead source pattern: %v, want it fatal", err)
+	}
+}
+
+func TestMainFilesReadsTheTreeAtARefNotTheWorktree(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	git("init", "-q")
+	for _, f := range []string{"a/x.go", "b.md"} {
+		if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(f)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("add", "-A")
+	git("commit", "-qm", "c")
+	git("update-ref", "refs/remotes/origin/main", "HEAD")
+	if err := os.WriteFile(filepath.Join(dir, "a/new.go"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "-A")
+	git("commit", "-qm", "unmerged")
+	files, err := MainFiles(filepath.Join(dir, "a"), "refs/remotes/origin/main")
+	if err != nil || !reflect.DeepEqual(files, map[string]bool{"a/x.go": true, "b.md": true}) {
+		t.Errorf("MainFiles = %v, %v; want the ref's two files", files, err)
+	}
+	recs := []*records.Record{page(t, "design/a", "covers: [a/**, a/new.go]\n")}
+	if got := Dead(recs, files); !reflect.DeepEqual(got, []string{`design/a.md: covers pattern "a/new.go"`}) {
+		t.Errorf("Dead = %v; want the unmerged file's pattern", got)
 	}
 }
 

@@ -631,11 +631,13 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	}
 	type merge struct{ sha, pr string }
 	var merges []merge
+	var gated []design.Verdict // the pages the gate names for the sprint's PRs, held to the remote's main below
 	for _, rv := range reviews {
 		if rv.Resolution == work.Dismissed { // a replaced PR's review, or a [TEST] one: it delivers nothing
 			continue
 		}
-		if _, err := r.designGate(rv.Need.Review.PR, rv.Need.Review.Sprints, design.PRFiles(r.root, rv.Need.Review.PR)); err != nil {
+		v, err := r.designGate(rv.Need.Review.PR, rv.Need.Review.Sprints, design.PRFiles(r.root, rv.Need.Review.PR))
+		if gated = append(gated, v...); err != nil {
 			return "", err
 		}
 		if agentMerge {
@@ -664,7 +666,8 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		if prGiven {
 			named, files = pr, design.PRFiles(r.root, pr)
 		}
-		if _, err := r.designGate(named, []string{id}, files); err != nil {
+		v, err := r.designGate(named, []string{id}, files)
+		if gated = append(gated, v...); err != nil {
 			return "", err
 		}
 		label := ""
@@ -675,6 +678,15 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 			}
 		}
 		merges = append(merges, merge{mergedSHA[:7], label})
+	}
+	if pages := design.Held(rec, r.recs, gated); pages != nil {
+		cfg, err := config.Load(e.here)
+		if err == nil {
+			err = design.LiveOnMain(r.root, cfg.Remote, cfg.MainBranch, id, pages)
+		}
+		if err != nil {
+			return "", err
+		}
 	}
 	b, err := os.ReadFile(rec.Path)
 	if err != nil {
@@ -751,8 +763,7 @@ func onMain(e *env, given, sha string) (string, error) {
 		return "", err
 	}
 	main := cfg.Remote + "/" + cfg.MainBranch
-	if _, err := store.Git(root, "fetch", "--quiet", cfg.Remote, fmt.Sprintf("+refs/heads/%s:refs/remotes/%s",
-		cfg.MainBranch, main)); err != nil {
+	if _, err := store.FetchMain(root, cfg.Remote, cfg.MainBranch); err != nil {
 		return "", refuse("%s %s: pm cannot see %s, so it cannot check the commit is on it: %v", given, sha, main, err)
 	}
 	full, err := store.Git(root, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
