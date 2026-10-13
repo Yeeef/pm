@@ -189,10 +189,20 @@ Owner chose it in chat: the defects that matter (stale behaviour claims, narrati
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: AGENTS.md is an 11.7 KB map that Claude Code, Codex and Grok Build read whole, and an agent grades it against a rubric on every PR, signed in through workload identity federation with no stored API key (PR #80).
+
+- AGENTS.md went from 44,134 bytes and 363 lines (Codex read 240) to 11,738 bytes; the Layout table moved into Go package doc comments, test narration into the tests' module docstrings, the release procedure into `release/README.md`.
+- `tests/test_agents_md.py` holds the 20,480-byte cap and the `CLAUDE.md` link.
+- `tests/agents_md/` holds the rubric (8 criteria), the runner (`make agents-md-check`: full mode on a PR that changes AGENTS.md, diff mode on every other PR) and 13 labelled cases (`make test-live-agents-md`); full mode votes 3 calls per part and fails a passage only when 2 calls agree on it.
+- `.github/workflows/agents-md.yml` runs it on every PR, required by `make merge-ready`; each call gets its own fresh GitHub OIDC token file.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **Size, met:** `wc -c AGENTS.md` is 11,738 (cap 20,480); `tests/test_agents_md.py` fails above the cap (checked with the cap set to 100).
+- **The evaluation passes the new AGENTS.md and fails each planted case, met with one noted miss:** haiku calibration 39/39 (13 cases x 3 runs) before the rebases; on the final file 13/13 locally (`PM_LIVE_RUNS=1`, 211 s, $0.87) and 13/13 in CI after one CI run where the planted `map_detail` case passed (a grader false negative) and was re-run. Clean full mode on the final file: 4/4 local runs passed (113-166 s, $0.30-0.34 each); CI run 38480797824 passed all 8 criteria in 134 s for $0.27. Diff mode: 15/15 passes on the last 5 merged PRs' diffs. The measurements are in Findings.
+- **Runs in CI on every PR and required, met:** `agents-md.yml` has a `pull_request` trigger with no `paths`; `release/merge_ready.py` names it among the required workflows (`tests/test_merge_ready.py`); `make merge-ready PR=80` accepted head 0fe969f with every check passed.
+- **The must-know rules are still in AGENTS.md, met:** the `complete` criterion passed on every clean run, and each rule was grepped in the rewrite.
+- **`make test`, `make test-go`, `make lint` and CI, met:** `make test` 129 passed; `make go-fmt go-vet`, `make lint-go` (0 issues), `make lint-py` clean; all 15 checks on PR #80 passed.
+- **Known limits:** a fork's PR gets no OIDC token, so the required check fails there (the runner says so and names the remedy); the `cases` job, which runs only when the evaluation's own files change, runs each case once, so grader noise can fail it and a re-run is the remedy.
