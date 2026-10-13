@@ -50,7 +50,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-13}
+The AGENTS.md size cap is 20 KiB (20,480 bytes), not 16 KiB.
+Owner chose it in chat: it leaves room for the rules an agent would get wrong untold and stays well under the 32 KiB Codex reads.
+:::
 
 ## Findings
 
