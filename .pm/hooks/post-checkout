@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
-# --- BEGIN PM v0.8.2 ---
+# --- BEGIN PM v0.8.3 ---
 pm hook git-post-checkout "$@" || exit $?
 # --- END PM ---
