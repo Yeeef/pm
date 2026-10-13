@@ -16,7 +16,7 @@ TESTS = Path(__file__).resolve().parent
 
 
 def test_a_login_copy_is_the_users_alone_and_gone_after_a_failing_body(tmp_path):
-    src = tmp_path / "auth.json"
+    src = tmp_path / "login"  # not a login's name: pytest keeps tmp_path, and a find for leftover copies must miss it
     src.write_text('{"tokens": "secret"}')
     dst = tmp_path / "home" / "auth.json"
     dst.parent.mkdir()
