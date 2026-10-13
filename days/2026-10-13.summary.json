@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T19:24:44+00:00",
- "digest": "a7e7af7860b612e7",
+ "generated_at": "2026-10-13T19:35:05+00:00",
+ "digest": "1fdf59e9e76aa13b",
  "model": "claude-haiku-5-5",
- "text": "- **Codex runtime support:** A Codex session now gets the same pm guarantees as a Claude Code session. The judge and day summary also run on Codex, and CI parity tests and a live eval check it.\n- **New pm release:** The new pm release shipped with an install script and archives for Linux and macOS. A new design page recommends a release after each merge; the owner decision is still open.\n- **Design page coverage gate:** A pull request that changes covered code now waits at review requests and sprint close. It waits until its sprint updates the design page or records why it stays unchanged.\n- **Owner decisions and limits:** The owner set the AGENTS.md size cap and left one Codex sandbox gap open. A design page explains why Codex's sandbox cannot start on the owner's host, and measures the fallback."
+ "text": "- **Codex parity:** A Codex session now gets the same pm guarantees as a Claude Code session. The owner-request judge and day summary run on Codex, and a pm command warns when Codex hooks did not run.\n- **Release shipped:** A new pm release shipped with the Codex work, with an install script and macOS and Linux builds. A release policy design page now recommends releasing on each merge.\n- **Design and code gates:** A change to covered code waits at review and sprint close until its design page is updated or waived. Command code now splits by noun, and old parser compatibility code is removed."
 }
