@@ -47,6 +47,9 @@ The owner-request Stop judge runs on the session's own runtime, Haiku for Claude
 - [pm in Codex](../design/pm-in-codex.md): gaps 8 and 9 closed; gap 1's warning to a session whose hooks did not run, and the start line naming the hooks Codex skips.
 - [pm as an installable product](../design/pm-product.md): `summary_runtime` in `.pm/config.toml`, `pm doctor`'s runtime check, the Stop entries' `--runtime`.
 - [pm CLI](../design/pm-cli.md): `pm day summarize`'s row.
+- [Agent lifecycle](../design/agent-lifecycle.md): the Stop entries' `--runtime` and each runtime's judge, the ask-tool path for asking the owner, a judge that cannot run exiting 1 and its process group killed with the hook, and the two Codex hooks-skipped checks (the state hook's trust line, the first command's warning).
+- [pm in Go](../design/pm-go.md): `internal/ask` in the package table and the dependency diagram, `summary_runtime` in `internal/config`, `internal/proc`'s process groups, `internal/session`'s hooks-ran check.
+- [Session claims](../design/session-claims.md): the Codex hooks-skipped check a session's first command runs on its rollout.
 
 ## Progress
 

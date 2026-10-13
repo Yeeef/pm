@@ -78,6 +78,7 @@ A command's session, from its environment:
 - **Ancestry.** Read once per command, from `/proc` on Linux and `ps` on macOS, at most 64 levels up.
 - **Ambiguous refuses everywhere.** Every command that may act as a session refuses an ambiguous one before it runs, the self-parsing store commands included; `version`, `prime`, `hook` and `--help` act as none. A hook reads its session from its input payload, never from the environment.
 - **Session-start context.** The SessionStart hook runs `pm show --refresh-inbox` as the starting session: in Claude Code with the hook's own environment; otherwise (Codex) with `CODEX_SESSION_ID` set to the payload's `session_id` and Claude Code's session variables removed.
+- **Codex hooks skipped.** A Codex session's first command (not `hook`, `prime`, `version` or `--help`) checks once whether Codex ran pm's session-start hooks in it: whether its root rollout holds a developer message opening with pm's rules title (`# pm rules (`) before the first user message after the first `turn_context` (the user messages before it are Codex's own context). Ran none: one warning on stderr naming the fix (trust pm's hooks in `/hooks`). It reads at most the rollout's first 1 MiB, says nothing while it cannot tell (no rollout, first prompt not yet written), never fails the command, and keeps each session's answer in `<main>/.pm/run/codex-hooks/<id>`.
 - **The inbox follows the runtime.** Only a Claude Code session stores a messaging socket on the needs it raises ([Reply delivery](../design/reply-delivery.md)).
 
 ### Claiming

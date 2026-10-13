@@ -110,12 +110,28 @@ The hooks behind it, by runtime:
 | SessionStart | `pm prime --rules N` per chunk, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, then `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
 | SubagentStart | the rules chunks, then `pm prime --subagent` | the same | The rules and pm's git rule for agents |
 | UserPromptSubmit | `pm hook inbox` | the same | The owner's replies not yet delivered to this session, as context |
-| Stop | `pm hook owner-request` | the same | Blocks a reply that asks the owner only in chat |
+| Stop | `pm hook owner-request --runtime claude` (judge: Haiku through `claude -p`, 30 s) | `pm hook owner-request --runtime codex` (judge: a small Codex model through `codex exec`, 45 s) | Blocks a reply that asks the owner only in chat; the judge runs on the session's own runtime |
 | Stop | `pm hook stop` | the same | Blocks while records this session named are uncommitted |
 | SubagentStop | none | `pm hook stop` on the subagent's own rollout | The same, for a subagent whose tool inputs the parent's rollout holds encrypted |
 
-Codex runs these only once the owner trusts the project and pm's hooks;
-`pm doctor` names the ones it would skip ([pm in Codex](pm-in-codex.md)).
+Codex runs these only once the owner trusts the project and pm's hooks, and
+skips an untrusted hook silently; `pm doctor` names the ones it would skip
+([pm in Codex](pm-in-codex.md)). Two checks make a skip visible in the
+session itself:
+
+- **Some hooks skipped.** In a Codex session, the state hook opens with one
+  line naming each of pm's hooks Codex skips and the fix, as when a
+  `pm upgrade` rewrote an entry and Codex's trust in it went stale. It asks
+  Codex only when the main checkout's `.codex/hooks.json` or the `[hooks]`
+  table of the user's Codex `config.toml` changed since the last answer,
+  which `.pm/run/codex-trust.json` keeps, and says nothing when it cannot
+  tell.
+- **Every hook skipped.** When no hook ran, no state hook can say so: the
+  first pm command a Codex session runs reads its rollout, and when no pm
+  rules precede the first prompt, it warns once on stderr that the session
+  has no rules, Stop checks or replies, and how to trust the hooks. Each
+  session's answer is kept under `.pm/run/codex-hooks/`, so later commands
+  cost a stat.
 
 ### Start: what is in the context
 
@@ -244,6 +260,11 @@ other ready tasks:
 - **PR review**, `pm action need --pr URL --sprint ID --focus …`: refused
   until the sprint's delivery report is written; a need that asks to
   review, merge or approve a PR without `--pr` is refused.
+- **The runtime's ask tool**, when the owner is plainly in the chat:
+  AskUserQuestion in Claude Code; `request_user_input_async` in Codex,
+  `request_user_input` in its Plan mode. The owner-request check reads the
+  turn's ask-tool calls from the transcript and treats their questions as
+  open requests, so the reply's repeat of one does not block.
 
 Each stores the raising session and its inbox, with the machine's hostname:
 a Claude Code session's socket, never the inbox's token, since the store
@@ -327,9 +348,15 @@ Closing a task stamps its commit; two Stop hooks each block once, and on
   store. In Codex it also runs at SubagentStop on the subagent's own
   rollout, since the parent's rollout holds a subagent's tool inputs
   encrypted.
-- The owner-request check fails open: in Codex a check that cannot run (no
-  `claude` for its judge) passes the stop silently, so `pm doctor` names a
-  missing `claude`.
+- The owner-request check judges on the session's own runtime, so a
+  machine with only Codex keeps it. A check that cannot run (unusable input,
+  an unreadable work store, a failed or out-of-shape model call) exits 1
+  with the cause on stderr: the stop goes through, and the failure shows.
+  When the runtime kills the hook at its entry's timeout, the hook kills the
+  judge's process group too, so no judge outlives it. The judge's CLI is
+  the session's own runtime, so it is installed wherever its sessions run;
+  `pm doctor` checks only the CLI that `summary_runtime` names, which the
+  pm service summarizes days with.
 - The session pushes neither Beads data nor records: the scheduled
   `pm push` does every 10 minutes from the main checkout. Code goes up as
   a PR; the sprint's report, review and close follow

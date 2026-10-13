@@ -105,16 +105,17 @@ pm is one Go module at the root of the `Yeeef/pm` repo: `go.mod` (module `github
 flowchart TD
   main[cmd/pm] --> launch
   main --> cli
-  cli --> hooks & site & service & install & work & records & store & config
+  cli --> hooks & site & service & install & work & records & store & config & ask
   service --> site & work & store & sync
   sync --> work & store
   site --> records & work
-  hooks --> work & records
+  hooks --> work & records & ask
+  ask --> agents[(claude and codex CLIs)]
   install --> config & store & work & service
   work --> dolt[(Dolt, embedded in the pm service: dolthub/driver)]
   store --> git[(git CLI)]
 ```
-Reading: only `work` touches Dolt: in the service it opens the engine and serves it on a Unix socket, everywhere else it is a SQL client of that socket. Only `store`, `sync` and `install` run `git`; everything else sees typed items and record structs.
+Reading: only `work` touches Dolt: in the service it opens the engine and serves it on a Unix socket, everywhere else it is a SQL client of that socket. Only `store`, `sync` and `install` run `git`; everything else sees typed items and record structs. Only `ask` asks a model for an answer (the judge's, a day's summary); `install` and `service` run `codex` for its hooks' trust and its reply queue, never a model call.
 
 | Package | Holds |
 |---|---|
@@ -123,7 +124,7 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | `internal/cli/parse` | pflag argument parsing, explicit positional/group/required checks, two-value option normalization and compatible help/error rendering |
 | `internal/cli/setup` | Init, doctor, upgrade, uninstall and git-hook command stages, using `internal/install` for managed pieces and clone setup |
 | `internal/cli/fsutil` | Filesystem predicates and path resolution shared by commands and setup |
-| `internal/config` | `.pm/config.toml` read, pin check, `PORT` |
+| `internal/config` | `.pm/config.toml` read, pin check, `PORT`; `summary_runtime` (`claude` or `codex`, unset reads as `claude`; any other value fails hard) |
 | `internal/launch` | Pins, downloading release binaries, `exec`; a pin below 0.2.0 refused |
 | `internal/work` | The `Item` type and the store interface; Dolt schema and migrations, validation, ids and minting, ready and blocked, merge rules on conflict rows, the host (the engine and its socket server) and the client (one connection per command), `--import-bd`, `export` |
 | `internal/records` | Record parse, sections, blocks, templates, checks; a design page's `covers:` and its doublestar matcher |
@@ -133,9 +134,10 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | `internal/service` | `service run` (the work store held open and served on its socket, the operations commands ask for, HTTP, snapshot, reply spool, merge poll, inbox push, sync and gc loops), unit files |
 | `internal/sync` | Records push and work-store sync, run by the service and `pm sync` |
 | `internal/hooks` | `prime` (`prime.md` from `assets.go`, chunks), `hook stop`, `hook owner-request`, `hook inbox`, git hooks |
-| `internal/session` | Which agent session runs pm (Claude Code's id, or Codex's root session's) and its runtime, from the environment and the process ancestry; liveness from Claude Code transcripts and Codex rollouts; the sessions that used a worktree, for `pm clean` |
+| `internal/session` | Which agent session runs pm (Claude Code's id, or Codex's root session's) and its runtime, from the environment and the process ancestry; liveness from Claude Code transcripts and Codex rollouts; the sessions that used a worktree, for `pm clean`; whether Codex ran pm's session-start hooks in a session, read from its rollout, for the once-per-session warning when it ran none |
+| `internal/ask` | One prompt through an agent runtime's CLI on a small model: `claude -p` (Haiku) or `codex exec`, from an empty temp directory, with no hooks, project instructions or saved session, bounded in time; the owner-request judge and `pm day summarize` use it, with no fallback from one runtime to the other |
 | `internal/install` | Managed pieces, `init`, `doctor`, `upgrade`, `uninstall`, `where` |
-| `internal/proc` | The subprocess helper: argv, cwd, captured text output, timeout; `gh` runs, its JSON decoded |
+| `internal/proc` | The subprocess helper: argv, cwd, captured text output, timeout; optionally a process group of its own, killed whole at the timeout or by `KillGroups` when pm itself is stopped (a runtime CLI's launcher script would otherwise leave its real process running); `gh` runs, its JSON decoded |
 | `internal/pyjson` | JSON read and written with Python `json`'s default separators |
 | `internal/buildinfo` | The version, stamped by the release build |
 
