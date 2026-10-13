@@ -36,7 +36,7 @@ The race job passes or fails for a reason in the code under test. On PR #61's se
 
 > Where is the detail?
 
-None yet.
+- [pm in Go](../design/pm-go.md): the gc bullets under Store access: the service holds the store, on why a collection returns only once its visits to the other sessions have ended.
 
 ## Progress
 
