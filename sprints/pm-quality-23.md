@@ -167,6 +167,20 @@ Owner chose it in chat: the defects that matter (stale behaviour claims, narrati
   diff_neutral passed; 142 calls, 211 s, $0.87. Evaluation spend in all about
   $3.40.
 
+- agents md on PR #80, its first real runs. Run 1 (38478854312): 14 of 52
+  check calls and the cases job failed at start, Token exchange failed with
+  status 401: every claude -p read one shared ANTHROPIC_IDENTITY_TOKEN_FILE
+  that 16 calls at once replaced; fixed (each call gets its own token file).
+  Run 2 (38479772413): 0 token failures; check passed 52 calls in 156 s,
+  $0.25; cases 12/13, the clean file failed non_inferable on an agreed
+  finding, the #77 Go-skip bullet restating go_changes.py's docstring (a local
+  probe found it 1 of 4); cut to a pointer, then 4/4 local probes of
+  non_inferable, actionable and map passed. Run 3 (38480797824, head 0fe969f
+  on main 0.8.8): check passed (134 s, $0.27, no agreed finding); cases 12/13,
+  map_detail passed instead of failing (a grader false negative); its re-run
+  13/13 ($0.68, 218 s). Local evaluation spend about $4.00; CI spend about
+  $2.8 over 3 runs and the re-run.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
