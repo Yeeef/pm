@@ -169,6 +169,19 @@ the PR moves this page's covered code into noun files and subpackages, quotes va
   the BMP, which is invalid TOML; the new quoter is checked by decoding back
   with BurntSushi/toml.
 
+- Live upgrade check, scratch origin and clone with scratch HOME/CODEX_HOME
+  and the harness's fake supervisor: a clone set up by pm 0.8.2, with user
+  content in .claude/settings.json, settings.local.json and .codex/hooks.json
+  (unusual key order, non-ASCII, &<>, floats), then pm upgrade to this build,
+  pm service restart, pm doctor (exit 0, every piece matches), pm init and
+  every hook run: all hook files byte-identical to what 0.8.2 left; only the
+  pin line in .pm/config.toml and the post-checkout marker changed. With pm's
+  Stop entry removed, pm upgrade rewrote the file byte-identical to the
+  original. Hook output is valid JSON, non-ASCII raw. Pre-existing wart, both
+  versions: the 'not laid out as pm writes JSON' refusal suggests python3 -m
+  json.tool, whose default output (ensure_ascii) is refused again for
+  non-ASCII content.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
