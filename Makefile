@@ -66,7 +66,7 @@ merge-ready:
 # Dolt tree again.
 GOLANGCI_LINT_VERSION := 2.14.0
 DEADCODE := golang.org/x/tools/cmd/deadcode@v0.52.0
-RATCHET := errcheck,gocyclo,gocognit,funlen,revive,reassign
+RATCHET := errcheck,gocognit,funlen,revive,reassign
 lint: lint-go lint-deadcode lint-py
 lint-go:
 	@v=$$(golangci-lint version --short 2>/dev/null); [ "$$v" = "$(GOLANGCI_LINT_VERSION)" ] || { \

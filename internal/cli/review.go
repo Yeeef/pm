@@ -1,0 +1,166 @@
+package cli
+
+import (
+	"fmt"
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/design"
+	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
+	"slices"
+	"strings"
+)
+
+func dedupe(list []string) []string {
+	var out []string
+	for _, v := range list {
+		if !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// raiseReview raises a PR review: a need of kind review carrying what the owner reads first, the PR, its sprints, the
+// design pages behind it and the focus, so the site links each to its page.
+func raiseReview(e *env, p *Parsed) (string, error) {
+	pr := strip(p.Get("pr"))
+	if !urlRE.MatchString(pr) {
+		return "", refuse("--pr %s is not a URL; give the pull request's link", pyRepr(pr))
+	}
+	focus := strip(p.Get("focus"))
+	if focus == "" {
+		return "", refuse("--focus is empty; say what to look at first: the risky changes and the open choices")
+	}
+	extra := p.Get("text")
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	sprints := dedupe(p.Values["sprint"])
+	// A sprint closes only once its PR merges, so every sprint a PR under review delivers is open, and its delivery
+	// report is written, for the owner to read next to the diff. The review goes under the first sprint and blocks its
+	// close.
+	if err := r.reviewReports(sprints); err != nil {
+		return "", err
+	}
+	if err := prReachesMain(e.here, r.root, pr); err != nil {
+		return "", err
+	}
+	parent := sprints[0]
+	designs := dedupe(p.Values["design"])
+	known := r.designSlugs()
+	for _, slug := range designs {
+		if !slices.Contains(known, slug) {
+			list := strings.Join(known, ", ")
+			if list == "" {
+				list = "none"
+			}
+			return "", refuse("--design %s has no design page; known: %s", slug, list)
+		}
+	}
+	verdicts, err := r.designGate(pr, sprints, design.PRFiles(r.root, pr))
+	if err != nil {
+		return "", err
+	}
+	title := strip(p.Get("title"))
+	if title == "" {
+		title = "Review " + pr
+		if m := pullNumber.FindStringSubmatch(pr); m != nil {
+			title = "Review PR #" + m[1]
+		}
+	}
+	desc := fmt.Sprintf("Review %s, which delivers %s.\n\nFocus: %s", pr, strings.Join(sprints, ", "), focus)
+	if designs != nil {
+		desc += "\n\nDesign pages: " + strings.Join(designs, ", ")
+	}
+	if verdicts != nil {
+		site, err := showSiteURL(e.here, store.MainOf(r.records))
+		if err != nil {
+			return "", err
+		}
+		desc += "\n\n" + design.Covering(site, verdicts)
+	}
+	if extra != "" {
+		desc += "\n\n" + extra
+	}
+	rb, err := raisedBy()
+	if err != nil {
+		return "", err
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	made, err := ws.Create(work.New{Type: work.Need, Parent: parent, Title: title, Description: desc,
+		Need: &work.NeedInfo{Kind: work.Review, RaisedBy: rb,
+			Review: &work.ReviewInfo{PR: pr, Sprints: sprints, Designs: designs, Focus: focus}}})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("raised review %s under %s; %s; the pm service pushes the PR's merge to main the same way; once "+
+		"the PR is on main: pm action done %s --reason \"merged as <sha>\"", made.ID, parent, deliveryHint(made.ID),
+		made.ID), nil
+}
+
+// cmdNeedEdit rewrites an open action's or decision need's body, with raiseNeed's checks, until the owner replies.
+
+func (r *repo) reviewReports(sprints []string) error {
+	for _, sid := range sprints {
+		rec, err := r.sprint(sid)
+		if err != nil {
+			return err
+		}
+		if it := r.item(sid); it != nil && it.Status == work.Closed {
+			return refuse("sprint %s is closed, but a sprint closes only after its PR merges; a PR under review "+
+				"delivers only open sprints", sid)
+		}
+		line, err := records.Outcome(rec)
+		if err != nil {
+			return err
+		}
+		var unwritten []string
+		for _, part := range []struct{ name, text string }{{"Outcome", line},
+			{`Against "Done when"`, records.ReportPart(rec, `Against "Done when"`)}} {
+			if part.text == "" || part.text == records.NotClosed {
+				unwritten = append(unwritten, "'"+part.name+"'")
+			}
+		}
+		if unwritten != nil {
+			verb := "is"
+			if len(unwritten) > 1 {
+				verb = "are"
+			}
+			return refuse("%s: the committed Delivery report %s %s still '%s'; write the Outcome (done, partial or "+
+				"voided, plus one sentence, then optional bullets) and each 'Done when' item with its evidence, and "+
+				"commit them with pm commit, so the owner reads the report while reviewing the PR", r.rel(rec.Path),
+				strings.Join(unwritten, " and "), verb, records.NotClosed)
+		}
+	}
+	return nil
+}
+
+// prReachesMain refuses a GitHub PR whose base is not the main branch: a stacked PR merges into another PR's branch,
+// so its review could never close as merged on main.
+func prReachesMain(here, root, pr string) error {
+	if !pullURL.MatchString(pr) {
+		return nil
+	}
+	cfg, err := config.Load(here)
+	if err != nil {
+		return err
+	}
+	var got struct {
+		Base string `json:"baseRefName"`
+	}
+	if err := proc.GHJSON(root, &got, "pr", "view", pr, "--json", "baseRefName"); err != nil {
+		return refuse("--pr %s: pm reads its base branch from GitHub, and cannot: %v", pr, err)
+	}
+	if got.Base != cfg.MainBranch {
+		return refuse("--pr %s merges into %s, not %s, so its merge does not deliver the sprint; raise the review on "+
+			"the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)", pr, pyRepr(got.Base),
+			cfg.MainBranch, cfg.MainBranch, pr, cfg.MainBranch)
+	}
+	return nil
+}

@@ -85,162 +85,178 @@ func TestCheckRefusesEachImpossibleState(t *testing.T) {
 		t.Error(err)
 	}
 
-	t.Run("ReadyTasksInTheirOrder", func(t *testing.T) {
-		x := index(t, tree())
-		var got []string
-		for _, it := range x.ReadyTasks(live) {
-			got = append(got, it.ID)
-		}
-		want := []string{P + ".1.1", P + ".1.1.1", P + ".1.4", P + ".1.7", P + ".1.10", P + ".3"}
+	t.Run("ReadyTasksInTheirOrder", checkReadyTasksInTheirOrder)
+
+	t.Run("BlockedAndItsReasons", checkBlockedAndItsReasons)
+
+	t.Run("ClosingTheBlockerFreesTheTasks", checkClosingTheBlockerFreesTheTasks)
+
+	t.Run("CyclesIncludeAncestors", checkCyclesIncludeAncestors)
+
+	t.Run("CheckIDTakesThePagesFormat", checkCheckIDTakesThePagesFormat)
+
+	t.Run("NewRootMintsFourBase36CharactersAndALongerOneOnAHit", checkNewRootMintsFourBase36CharactersAndALongerOneOnAHit)
+
+	t.Run("NextChildIsOneAboveTheHighestChildNumberEverMinted", checkNextChildIsOneAboveTheHighestChildNumberEverMinted)
+
+	t.Run("IDsOrderByTheirNumbers", checkIDsOrderByTheirNumbers)
+}
+
+func checkReadyTasksInTheirOrder(t *testing.T) {
+	x := index(t, tree())
+	var got []string
+	for _, it := range x.ReadyTasks(live) {
+		got = append(got, it.ID)
+	}
+	want := []string{P + ".1.1", P + ".1.1.1", P + ".1.4", P + ".1.7", P + ".1.10", P + ".3"}
+	if !slices.Equal(got, want) {
+		t.Errorf("ready:\n got %v\nwant %v", got, want)
+	}
+}
+
+func checkBlockedAndItsReasons(t *testing.T) {
+	x := index(t, tree())
+	for id, want := range map[string][]Blocker{
+		P + ".1.2":   {{P + ".1.1", ""}},
+		P + ".1.2.1": {{P + ".1.1", P + ".1.2"}},
+		P + ".2.1":   {{P + ".1", P + ".2"}},
+		P + ".2":     {{P + ".1", ""}},
+		P + ".1.8":   {{P + ".2", ""}},
+		P + ".1.9":   {{P + ".1.6", ""}},
+		P + ".1.7":   nil, // its blocker is closed
+		P + ".1.1.1": nil, // a parent never blocks its child
+		P + ".1":     nil, // and a child never blocks its parent
+	} {
+		got := x.OpenBlockers(id)
 		if !slices.Equal(got, want) {
-			t.Errorf("ready:\n got %v\nwant %v", got, want)
+			t.Errorf("%s: open blockers %v, want %v", id, got, want)
 		}
-	})
+		if x.Blocked(id) != (len(want) > 0) {
+			t.Errorf("%s: blocked %v", id, x.Blocked(id))
+		}
+	}
+	// A closed item is not blocked, whatever its blockers.
+	items := tree()
+	closed(&items[slices.IndexFunc(items, func(i Item) bool { return i.ID == P+".1.2" })])
+	if index(t, items).Blocked(P + ".1.2") {
+		t.Error("a closed item is blocked")
+	}
+}
 
-	t.Run("BlockedAndItsReasons", func(t *testing.T) {
-		x := index(t, tree())
-		for id, want := range map[string][]Blocker{
-			P + ".1.2":   {{P + ".1.1", ""}},
-			P + ".1.2.1": {{P + ".1.1", P + ".1.2"}},
-			P + ".2.1":   {{P + ".1", P + ".2"}},
-			P + ".2":     {{P + ".1", ""}},
-			P + ".1.8":   {{P + ".2", ""}},
-			P + ".1.9":   {{P + ".1.6", ""}},
-			P + ".1.7":   nil, // its blocker is closed
-			P + ".1.1.1": nil, // a parent never blocks its child
-			P + ".1":     nil, // and a child never blocks its parent
-		} {
-			got := x.OpenBlockers(id)
-			if !slices.Equal(got, want) {
-				t.Errorf("%s: open blockers %v, want %v", id, got, want)
-			}
-			if x.Blocked(id) != (len(want) > 0) {
-				t.Errorf("%s: blocked %v", id, x.Blocked(id))
-			}
+func checkClosingTheBlockerFreesTheTasks(t *testing.T) {
+	items := tree()
+	for i := range items {
+		if items[i].ID == P+".1" || items[i].ID == P+".1.1" {
+			closed(&items[i])
 		}
-		// A closed item is not blocked, whatever its blockers.
-		items := tree()
-		closed(&items[slices.IndexFunc(items, func(i Item) bool { return i.ID == P+".1.2" })])
-		if index(t, items).Blocked(P + ".1.2") {
-			t.Error("a closed item is blocked")
-		}
-	})
+	}
+	x := index(t, items)
+	if !x.Ready(P+".2.1", live) {
+		t.Error("the sprint blocking .2 closed, yet .2.1 is not ready")
+	}
+	if x.Ready(P+".1.2", live) {
+		t.Error(".1.2's blocker closed, but its sprint is closed: not ready")
+	}
+}
 
-	t.Run("ClosingTheBlockerFreesTheTasks", func(t *testing.T) {
-		items := tree()
-		for i := range items {
-			if items[i].ID == P+".1" || items[i].ID == P+".1.1" {
-				closed(&items[i])
-			}
+func checkCyclesIncludeAncestors(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		items []Item
+		cycle string
+	}{
+		{"none", tree(), ""},
+		{"two tasks", []Item{item(P, Project, ""), item(P+".1", Task, P, blockedBy(P+".2")),
+			item(P+".2", Task, P, blockedBy(P+".1"))}, P + ".1 -> " + P + ".2 -> " + P + ".1"},
+		{"a task blocks its own sprint", []Item{item(P, Project, ""), item(P+".1", Sprint, P, number(1),
+			blockedBy(P+".1.1")), item(P+".1.1", Task, P+".1")}, P + ".1.1 -> " + P + ".1.1"}, // .1.1 waits on .1's blockers: itself
+		{"through a sprint", []Item{item(P, Project, ""), item(P+".1", Sprint, P, number(1), blockedBy(P+".2.1")),
+			item(P+".2", Sprint, P, number(2)), item(P+".2.1", Task, P+".2", blockedBy(P+".1.1")),
+			item(P+".1.1", Task, P+".1")}, P + ".2.1 -> " + P + ".1.1 -> " + P + ".2.1"},
+		{"closed items too", []Item{item(P, Project, ""), item(P+".1", Task, P, closed, blockedBy(P+".2")),
+			item(P+".2", Task, P, closed, blockedBy(P+".1"))}, P + ".1 -> " + P + ".2 -> " + P + ".1"},
+		// A task blocked by its own ancestor is no cycle: a parent never waits for its children.
+		{"a task blocked by its sprint", []Item{item(P, Project, ""), item(P+".1", Sprint, P, number(1)),
+			item(P+".1.1", Task, P+".1", blockedBy(P+".1"))}, ""},
+	} {
+		got := strings.Join(index(t, c.items).Cycle(), " -> ")
+		if got != c.cycle {
+			t.Errorf("%s: cycle %q, want %q", c.name, got, c.cycle)
 		}
-		x := index(t, items)
-		if !x.Ready(P+".2.1", live) {
-			t.Error("the sprint blocking .2 closed, yet .2.1 is not ready")
+		err := Check(c.items)
+		if (err != nil) != (c.cycle != "") || err != nil && !strings.Contains(err.Error(), "blocked_by cycle") {
+			t.Errorf("%s: Check: %v", c.name, err)
 		}
-		if x.Ready(P+".1.2", live) {
-			t.Error(".1.2's blocker closed, but its sprint is closed: not ready")
-		}
-	})
+	}
+}
 
-	t.Run("CyclesIncludeAncestors", func(t *testing.T) {
-		for _, c := range []struct {
-			name  string
-			items []Item
-			cycle string
-		}{
-			{"none", tree(), ""},
-			{"two tasks", []Item{item(P, Project, ""), item(P+".1", Task, P, blockedBy(P+".2")),
-				item(P+".2", Task, P, blockedBy(P+".1"))}, P + ".1 -> " + P + ".2 -> " + P + ".1"},
-			{"a task blocks its own sprint", []Item{item(P, Project, ""), item(P+".1", Sprint, P, number(1),
-				blockedBy(P+".1.1")), item(P+".1.1", Task, P+".1")}, P + ".1.1 -> " + P + ".1.1"}, // .1.1 waits on .1's blockers: itself
-			{"through a sprint", []Item{item(P, Project, ""), item(P+".1", Sprint, P, number(1), blockedBy(P+".2.1")),
-				item(P+".2", Sprint, P, number(2)), item(P+".2.1", Task, P+".2", blockedBy(P+".1.1")),
-				item(P+".1.1", Task, P+".1")}, P + ".2.1 -> " + P + ".1.1 -> " + P + ".2.1"},
-			{"closed items too", []Item{item(P, Project, ""), item(P+".1", Task, P, closed, blockedBy(P+".2")),
-				item(P+".2", Task, P, closed, blockedBy(P+".1"))}, P + ".1 -> " + P + ".2 -> " + P + ".1"},
-			// A task blocked by its own ancestor is no cycle: a parent never waits for its children.
-			{"a task blocked by its sprint", []Item{item(P, Project, ""), item(P+".1", Sprint, P, number(1)),
-				item(P+".1.1", Task, P+".1", blockedBy(P+".1"))}, ""},
-		} {
-			got := strings.Join(index(t, c.items).Cycle(), " -> ")
-			if got != c.cycle {
-				t.Errorf("%s: cycle %q, want %q", c.name, got, c.cycle)
-			}
-			err := Check(c.items)
-			if (err != nil) != (c.cycle != "") || err != nil && !strings.Contains(err.Error(), "blocked_by cycle") {
-				t.Errorf("%s: Check: %v", c.name, err)
-			}
+func checkCheckIDTakesThePagesFormat(t *testing.T) {
+	for _, id := range []string{"yeeef-agents-9va", "yeeef-agents-9va.41.2", "demo-abc", "demo-abcd1234", "a_b-x9z.10"} {
+		if err := CheckID(id); err != nil {
+			t.Errorf("%s: %v", id, err)
 		}
-	})
+	}
+	for _, id := range []string{"9va", "-9va", "demo-ab", "demo-abcdefghi", "demo-9VA", "demo-9va.0", "demo-9va.01",
+		"demo-9va.", "demo-9va..1", "demo-9va.x", "demo-9va.-1", "de mo-9va", "my.repo-9va"} {
+		if err := CheckID(id); err == nil {
+			t.Errorf("%s passed", id)
+		}
+	}
+}
 
-	t.Run("CheckIDTakesThePagesFormat", func(t *testing.T) {
-		for _, id := range []string{"yeeef-agents-9va", "yeeef-agents-9va.41.2", "demo-abc", "demo-abcd1234", "a_b-x9z.10"} {
-			if err := CheckID(id); err != nil {
-				t.Errorf("%s: %v", id, err)
-			}
+func checkNewRootMintsFourBase36CharactersAndALongerOneOnAHit(t *testing.T) {
+	random := bytes.NewReader(bytes.Repeat([]byte{0, 1, 35, 36, 71}, 20))
+	first := ""
+	id, err := NewRoot("demo", func(id string) bool {
+		if first == "" {
+			first = id
+			return true
 		}
-		for _, id := range []string{"9va", "-9va", "demo-ab", "demo-abcdefghi", "demo-9VA", "demo-9va.0", "demo-9va.01",
-			"demo-9va.", "demo-9va..1", "demo-9va.x", "demo-9va.-1", "de mo-9va", "my.repo-9va"} {
-			if err := CheckID(id); err == nil {
-				t.Errorf("%s passed", id)
-			}
-		}
-	})
+		return false
+	}, random)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != "demo-01z0" || id != "demo-z01z0" { // bytes mod 36: 0 1 35 36 → 0 1 z 0; then 71 0 1 35 36
+		t.Errorf("first %s, then %s", first, id)
+	}
+	if _, err := NewRoot("demo", func(string) bool { return true }, random); err == nil ||
+		!strings.Contains(err.Error(), "taken") {
+		t.Errorf("every id taken: %v", err)
+	}
+	if _, err := NewRoot("", func(string) bool { return false }, random); err == nil {
+		t.Error("minted without a prefix")
+	}
+}
 
-	t.Run("NewRootMintsFourBase36CharactersAndALongerOneOnAHit", func(t *testing.T) {
-		random := bytes.NewReader(bytes.Repeat([]byte{0, 1, 35, 36, 71}, 20))
-		first := ""
-		id, err := NewRoot("demo", func(id string) bool {
-			if first == "" {
-				first = id
-				return true
-			}
-			return false
-		}, random)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if first != "demo-01z0" || id != "demo-z01z0" { // bytes mod 36: 0 1 35 36 → 0 1 z 0; then 71 0 1 35 36
-			t.Errorf("first %s, then %s", first, id)
-		}
-		if _, err := NewRoot("demo", func(string) bool { return true }, random); err == nil ||
-			!strings.Contains(err.Error(), "taken") {
-			t.Errorf("every id taken: %v", err)
-		}
-		if _, err := NewRoot("", func(string) bool { return false }, random); err == nil {
-			t.Error("minted without a prefix")
-		}
-	})
+func checkNextChildIsOneAboveTheHighestChildNumberEverMinted(t *testing.T) {
+	p := "demo-9va"
+	ids := []string{p, p + ".1", p + ".2", p + ".10", p + ".2.5", "demo-abc.11", p + ".1.10.1"}
+	if got := NextChild(ids, p); got != p+".11" {
+		t.Errorf("%s", got)
+	}
+	// A moved-away child keeps its id, so its number counts wherever it sits now: the ids are all that count.
+	if got := NextChild(append(ids, p+".12"), p); got != p+".13" {
+		t.Errorf("%s", got)
+	}
+	// p.1's children are p.1.<n>: p.10 and p.10.1 are not among them.
+	if got := NextChild(append(ids, p+".10.1"), p+".1"); got != p+".1.1" {
+		t.Errorf("%s", got)
+	}
+	if got := NextChild(ids, p+".2"); got != p+".2.6" {
+		t.Errorf("%s", got)
+	}
+}
 
-	t.Run("NextChildIsOneAboveTheHighestChildNumberEverMinted", func(t *testing.T) {
-		p := "demo-9va"
-		ids := []string{p, p + ".1", p + ".2", p + ".10", p + ".2.5", "demo-abc.11", p + ".1.10.1"}
-		if got := NextChild(ids, p); got != p+".11" {
-			t.Errorf("%s", got)
-		}
-		// A moved-away child keeps its id, so its number counts wherever it sits now: the ids are all that count.
-		if got := NextChild(append(ids, p+".12"), p); got != p+".13" {
-			t.Errorf("%s", got)
-		}
-		// p.1's children are p.1.<n>: p.10 and p.10.1 are not among them.
-		if got := NextChild(append(ids, p+".10.1"), p+".1"); got != p+".1.1" {
-			t.Errorf("%s", got)
-		}
-		if got := NextChild(ids, p+".2"); got != p+".2.6" {
-			t.Errorf("%s", got)
-		}
-	})
-
-	t.Run("IDsOrderByTheirNumbers", func(t *testing.T) {
-		ids := []string{"x-9va.10", "x-9va.2", "x-9va", "x-9va.2.1", "x-abc", "x-9va.1"}
-		slices.SortFunc(ids, CompareIDs)
-		if got := strings.Join(ids, " "); got != "x-9va x-9va.1 x-9va.2 x-9va.2.1 x-9va.10 x-abc" {
-			t.Error(got)
-		}
-		ids = []string{"x-9va.100", "x-9va.9.10", "x-9va.39", "x-9va.b", "x-9va.9.2", "x-9va.9", "x-9va.01", "x-9va.1"}
-		slices.SortFunc(ids, CompareIDs)
-		if got := strings.Join(ids, " "); got != "x-9va.01 x-9va.1 x-9va.9 x-9va.9.2 x-9va.9.10 x-9va.39 x-9va.100 x-9va.b" {
-			t.Error(got)
-		}
-	})
+func checkIDsOrderByTheirNumbers(t *testing.T) {
+	ids := []string{"x-9va.10", "x-9va.2", "x-9va", "x-9va.2.1", "x-abc", "x-9va.1"}
+	slices.SortFunc(ids, CompareIDs)
+	if got := strings.Join(ids, " "); got != "x-9va x-9va.1 x-9va.2 x-9va.2.1 x-9va.10 x-abc" {
+		t.Error(got)
+	}
+	ids = []string{"x-9va.100", "x-9va.9.10", "x-9va.39", "x-9va.b", "x-9va.9.2", "x-9va.9", "x-9va.01", "x-9va.1"}
+	slices.SortFunc(ids, CompareIDs)
+	if got := strings.Join(ids, " "); got != "x-9va.01 x-9va.1 x-9va.9 x-9va.9.2 x-9va.9.10 x-9va.39 x-9va.100 x-9va.b" {
+		t.Error(got)
+	}
 }

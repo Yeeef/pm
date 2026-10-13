@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,6 +17,8 @@ import (
 type exitCode struct{ code int }
 
 func (e *exitCode) Error() string { return "exit " + strconv.Itoa(e.code) }
+
+func (e *exitCode) ExitCode() int { return e.code }
 
 // git runs git in dir and returns its stripped stdout; a failure is a records error.
 func git(dir string, args ...string) (string, error) {
@@ -63,10 +65,7 @@ func findStore(cwd string) (main, records string, err error) {
 	return main, records, nil
 }
 
-func isDir(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && st.IsDir()
-}
+func isDir(p string) bool { return fsutil.IsDir(p) }
 
 // resolvePath is Python's Path.resolve(): symlinks followed where the path exists.
 func resolvePath(p string) string {

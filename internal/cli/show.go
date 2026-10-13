@@ -288,41 +288,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 			if sp.Status == work.Closed {
 				continue
 			}
-			tasks := r.x.Children(sp.ID)
-			s := &showSprint{id: sp.ID, name: name, title: sp.Title, state: site.State(sp, r.x), total: len(tasks)}
-			doneWhen := ""
-			if rec != nil {
-				doneWhen = records.SectionText(rec.Body, "Done when")
-				rel, out := rec.Rel, url+"/"+rec.Out()
-				s.record, s.url = &rel, &out
-				s.goal = firstSentence(records.SectionText(rec.Body, "Goal"), 110)
-			}
-			s.doneWhenItems = len(showListItem.FindAllStringIndex(doneWhen, -1))
-			if s.doneWhenItems == 0 {
-				s.doneWhen = firstSentence(doneWhen, 110)
-			}
-			for _, t := range tasks {
-				if t.Status == work.Closed {
-					if site.State(t, r.x) == "done" {
-						s.done++
-					} else { // dropped: not done, and no longer to do
-						s.total--
-					}
-					continue
-				}
-				status := string(t.Status)
-				if t.Holder != nil {
-					status = "in_progress"
-				}
-				blocked := []string{}
-				for _, b := range t.BlockedBy {
-					if x := r.item(b); x == nil || x.Status != work.Closed {
-						blocked = append(blocked, b)
-					}
-				}
-				s.tasks = append(s.tasks, showTask{id: t.ID, title: t.Title, state: site.State(t, r.x), status: status,
-					human: t.Type == work.Need, kind: site.Kind(t), blockedBy: blocked, holder: holderOf(t)})
-			}
+			s := r.showSprintOf(sp, rec, name, url)
 			sprints = append(sprints, s)
 		}
 		sort.SliceStable(decisions, func(i, j int) bool {
@@ -680,4 +646,43 @@ func sprintDetail(r *repo, id string) (string, error) {
 		out = append(out, line)
 	}
 	return strings.Join(out, "\n"), nil
+}
+
+func (r *repo) showSprintOf(sp *work.Item, rec *records.Record, name, url string) *showSprint {
+	tasks := r.x.Children(sp.ID)
+	s := &showSprint{id: sp.ID, name: name, title: sp.Title, state: site.State(sp, r.x), total: len(tasks)}
+	doneWhen := ""
+	if rec != nil {
+		doneWhen = records.SectionText(rec.Body, "Done when")
+		rel, out := rec.Rel, url+"/"+rec.Out()
+		s.record, s.url = &rel, &out
+		s.goal = firstSentence(records.SectionText(rec.Body, "Goal"), 110)
+	}
+	s.doneWhenItems = len(showListItem.FindAllStringIndex(doneWhen, -1))
+	if s.doneWhenItems == 0 {
+		s.doneWhen = firstSentence(doneWhen, 110)
+	}
+	for _, t := range tasks {
+		if t.Status == work.Closed {
+			if site.State(t, r.x) == "done" {
+				s.done++
+			} else { // dropped: not done, and no longer to do
+				s.total--
+			}
+			continue
+		}
+		status := string(t.Status)
+		if t.Holder != nil {
+			status = "in_progress"
+		}
+		blocked := []string{}
+		for _, b := range t.BlockedBy {
+			if x := r.item(b); x == nil || x.Status != work.Closed {
+				blocked = append(blocked, b)
+			}
+		}
+		s.tasks = append(s.tasks, showTask{id: t.ID, title: t.Title, state: site.State(t, r.x), status: status,
+			human: t.Type == work.Need, kind: site.Kind(t), blockedBy: blocked, holder: holderOf(t)})
+	}
+	return s
 }

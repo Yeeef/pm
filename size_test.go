@@ -15,7 +15,7 @@ const maxPackageLines = 5000
 // oversized holds the packages already past the cap at the size each may reach, a ratchet: lower an entry as its
 // package shrinks, and drop it once the package fits the cap.
 var oversized = map[string]int{
-	"internal/cli": 8864,
+	"internal/cli": 7414,
 }
 
 // TestPackagesStayUnderTheSizeCap counts each package directory's lines in its non-test .go files.
@@ -32,14 +32,20 @@ func TestPackagesStayUnderTheSizeCap(t *testing.T) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+		if !strings.HasSuffix(name, ".go") {
 			return nil
 		}
 		data, err := os.ReadFile(p)
 		if err != nil {
 			return err
 		}
-		sizes[filepath.ToSlash(filepath.Dir(p))] += bytes.Count(data, []byte("\n"))
+		lines := bytes.Count(data, []byte("\n"))
+		if strings.HasPrefix(filepath.ToSlash(p), "internal/cli/") && lines > 800 {
+			t.Errorf("%s has %d lines, over the command file cap of 800", p, lines)
+		}
+		if !strings.HasSuffix(name, "_test.go") {
+			sizes[filepath.ToSlash(filepath.Dir(p))] += lines
+		}
 		return nil
 	})
 	if err != nil {

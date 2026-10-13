@@ -292,92 +292,11 @@ func stopServices(t *testing.T, state string) {
 // and drift, and pm service restart and pm service install each enable and start it again.
 func TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall(t *testing.T) {
 	for _, kind := range []string{Systemd, Launchd} {
-		t.Run(kind, func(t *testing.T) {
-			m := newMachine(t, kind)
-			if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "is not installed") {
-				t.Fatal("stop of no unit:", err)
-			}
-			m.install()
-			up := true // the stand-in site answers while the supervisor holds the unit
-			probe = func(int) *Served {
-				if up && Loaded(m.main, kind) {
-					return &Served{store(m.main), m.build}
-				}
-				return nil
-			}
-			n := len(m.calls())
-			said, err := Stop(m.main)
-			if err != nil || !strings.HasPrefix(said, "stopped the pm service: "+kind+" "+Label(m.main)) ||
-				!strings.Contains(said, "pm service restart or pm init starts it again") {
-				t.Fatal(said, err)
-			}
-			var acts []string
-			for _, c := range m.calls()[n:] {
-				if !strings.Contains(c, " print") && !strings.Contains(c, "is-") && !strings.Contains(c, "show-env") {
-					acts = append(acts, c)
-				}
-			}
-			want := "systemctl --user disable --now " + Label(m.main) + ".service"
-			if kind == Launchd {
-				gui := "gui/" + strconv.Itoa(os.Getuid()) + "/" + Label(m.main)
-				want = "launchctl disable " + gui + "|launchctl bootout " + gui
-			}
-			if strings.Join(acts, "|") != want {
-				t.Fatalf("stop ran %v", acts)
-			}
-			if !Disabled(m.main, kind) || Loaded(m.main, kind) {
-				t.Fatal("the unit is not disabled and stopped")
-			}
-			if ok, line := Health(m.main); ok || !strings.HasSuffix(line, Stopped) {
-				t.Fatal(line)
-			}
-			if d := Drift(m.main, 8123); len(d) != 1 || !strings.HasSuffix(d[0], Stopped) {
-				t.Fatal(d)
-			}
-			n = len(m.calls())
-			if said, stopped, err := StartIfDown(m.main); said != "" || !stopped || err != nil {
-				t.Fatal(said, stopped, err)
-			}
-			for _, c := range m.calls()[n:] {
-				if strings.Contains(c, " enable") || strings.Contains(c, "restart") || strings.Contains(c, "bootstrap") {
-					t.Fatalf("session start started a stopped service: %q", c)
-				}
-			}
-			saved := waitUp
-			waitUp = func(string, int, string, string) (string, error) { return "up", nil }
-			defer func() { waitUp = saved }()
-			if _, err := Restart(m.main); err != nil || Disabled(m.main, kind) || !Loaded(m.main, kind) {
-				t.Fatal("restart ends the stop:", err)
-			}
-			if _, err := Stop(m.main); err != nil {
-				t.Fatal(err)
-			}
-			exe, _ := Exe()
-			if _, err := Install(m.main, 8123, exe, true); err != nil || Disabled(m.main, kind) || !Loaded(m.main, kind) {
-				t.Fatal("install (pm init) ends the stop:", err)
-			}
-		})
+		t.Run(kind, func(t *testing.T) { checkStopOnSupervisor(t, kind) })
 	}
 
 	// A stop that leaves something answering on the socket fails, naming it.
-	t.Run("StopFailsWhileTheSocketStillAnswers", func(t *testing.T) {
-		m := newMachine(t, Systemd)
-		m.install()
-		probe = func(int) *Served { return nil }
-		saved := RestartWait
-		RestartWait = 300 * time.Millisecond
-		defer func() { RestartWait = saved }()
-		sock := filepath.Join(m.main, ".pm/run/work.sock")
-		os.MkdirAll(filepath.Dir(sock), 0o755)
-		ln, err := net.Listen("unix", sock)
-		if err != nil {
-			t.Skip("socket path too long here:", err)
-		}
-		defer ln.Close()
-		if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "the work store's socket "+sock+" still answer") {
-			t.Fatal(err)
-		}
-	})
+	t.Run("StopFailsWhileTheSocketStillAnswers", checkStopFailsWhileTheSocketStillAnswers)
 }
 
 // A systemctl that cannot reach the user instance exits non-zero for is-enabled too: that is no stop, so session
@@ -388,5 +307,106 @@ func TestASupervisorThatDoesNotAnswerIsNoStop(t *testing.T) {
 	fakeBin(t, map[string]string{"systemctl": `[ "$2" = is-enabled ] && { echo "Failed to connect to bus" >&2; exit 1; }; exit 0`})
 	if Disabled(m.main, Systemd) {
 		t.Fatal("a failed is-enabled reads as a stop")
+	}
+}
+
+func checkStopOnSupervisor(t *testing.T, kind string) {
+	t.Helper()
+	m := newMachine(t, kind)
+	if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "is not installed") {
+		t.Fatal("stop of no unit:", err)
+	}
+	m.install()
+	up := true // the stand-in site answers while the supervisor holds the unit
+	probe = func(int) *Served {
+		if up && Loaded(m.main, kind) {
+			return &Served{store(m.main), m.build}
+		}
+		return nil
+	}
+	n := len(m.calls())
+	said, err := Stop(m.main)
+	if err != nil || !strings.HasPrefix(said, "stopped the pm service: "+kind+" "+Label(m.main)) ||
+		!strings.Contains(said, "pm service restart or pm init starts it again") {
+		t.Fatal(said, err)
+	}
+	var acts []string
+	for _, c := range m.calls()[n:] {
+		if !strings.Contains(c, " print") && !strings.Contains(c, "is-") && !strings.Contains(c, "show-env") {
+			acts = append(acts, c)
+		}
+	}
+	want := "systemctl --user disable --now " + Label(m.main) + ".service"
+	if kind == Launchd {
+		gui := "gui/" + strconv.Itoa(os.Getuid()) + "/" + Label(m.main)
+		want = "launchctl disable " + gui + "|launchctl bootout " + gui
+	}
+	if strings.Join(acts, "|") != want {
+		t.Fatalf("stop ran %v", acts)
+	}
+	checkStoppedService(t, m, kind)
+	saved := waitUp
+	waitUp = func(string, int, string, string) (string, error) { return "up", nil }
+	defer func() { waitUp = saved }()
+	if _, err := Restart(m.main); err != nil || Disabled(m.main, kind) || !Loaded(m.main, kind) {
+		t.Fatal("restart ends the stop:", err)
+	}
+	if _, err := Stop(m.main); err != nil {
+		t.Fatal(err)
+	}
+	exe, err := Exe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Install(m.main, 8123, exe, true); err != nil || Disabled(m.main, kind) || !Loaded(m.main, kind) {
+		t.Fatal("install (pm init) ends the stop:", err)
+	}
+}
+
+func checkStopFailsWhileTheSocketStillAnswers(t *testing.T) {
+	t.Helper()
+	m := newMachine(t, Systemd)
+	m.install()
+	probe = func(int) *Served { return nil }
+	saved := RestartWait
+	RestartWait = 300 * time.Millisecond
+	defer func() { RestartWait = saved }()
+	sock := filepath.Join(m.main, ".pm/run/work.sock")
+	if err := os.MkdirAll(filepath.Dir(sock), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skip("socket path too long here:", err)
+	}
+	defer func() {
+		if err := ln.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	if _, err := Stop(m.main); err == nil || !strings.Contains(err.Error(), "the work store's socket "+sock+" still answer") {
+		t.Fatal(err)
+	}
+}
+
+func checkStoppedService(t *testing.T, m *machine, kind string) {
+	t.Helper()
+	if !Disabled(m.main, kind) || Loaded(m.main, kind) {
+		t.Fatal("the unit is not disabled and stopped")
+	}
+	if ok, line := Health(m.main); ok || !strings.HasSuffix(line, Stopped) {
+		t.Fatal(line)
+	}
+	if d := Drift(m.main, 8123); len(d) != 1 || !strings.HasSuffix(d[0], Stopped) {
+		t.Fatal(d)
+	}
+	n := len(m.calls())
+	if said, stopped, err := StartIfDown(m.main); said != "" || !stopped || err != nil {
+		t.Fatal(said, stopped, err)
+	}
+	for _, c := range m.calls()[n:] {
+		if strings.Contains(c, " enable") || strings.Contains(c, "restart") || strings.Contains(c, "bootstrap") {
+			t.Fatalf("session start started a stopped service: %q", c)
+		}
 	}
 }

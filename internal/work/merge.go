@@ -95,27 +95,54 @@ func needOf(it *Item) needFields {
 // mergeItem resolves one items row both sides changed: base, ours and theirs are the row's three versions (scalar
 // fields only), and the result is the row to write. It reports a claim it dropped.
 func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
-	id := ours.ID
 	b, o, t := &base, &ours, &theirs
 	m := cloneItem(ours)
+	if err := mergeIdentity(b, o, t, &m); err != nil {
+		return Item{}, nil, err
+	}
+	if err := mergeClose(b, o, t, &m); err != nil {
+		return Item{}, nil, err
+	}
+	if err := mergeResolution(b, o, t, &m); err != nil {
+		return Item{}, nil, err
+	}
+	if err := mergeTimes(b, o, t, &m); err != nil {
+		return Item{}, nil, err
+	}
+	if err := mergeScalars(b, o, t, &m); err != nil {
+		return Item{}, nil, err
+	}
+	over, err := mergeHolder(b, o, t, &m)
+	if err != nil {
+		return Item{}, nil, err
+	}
+	return m, over, nil
+}
 
+func mergeIdentity(b, o, t, m *Item) error {
+	id := o.ID
 	// id, type: never changed; unequal values fail.
 	if o.ID != t.ID {
-		return Item{}, nil, conflictError(id, "id", fmt.Sprintf("ours %s, theirs %s", o.ID, t.ID))
+		return conflictError(id, "id", fmt.Sprintf("ours %s, theirs %s", o.ID, t.ID))
 	}
 	if o.Type != t.Type {
-		return Item{}, nil, conflictError(id, "type", fmt.Sprintf("ours %s, theirs %s", o.Type, t.Type))
+		return conflictError(id, "type", fmt.Sprintf("ours %s, theirs %s", o.Type, t.Type))
 	}
 	// number: changed only by pm sprint move, in the compare-and-swap, so by one side at most; both changed fails.
 	if v, ok := three(b.Number, o.Number, t.Number); ok {
 		m.Number = v
 	} else {
-		return Item{}, nil, conflictError(id, "number", fmt.Sprintf("ours %d, theirs %d", o.Number, t.Number))
+		return conflictError(id, "number", fmt.Sprintf("ours %d, theirs %d", o.Number, t.Number))
 	}
 	if (o.Need == nil) != (t.Need == nil) {
-		return Item{}, nil, conflictError(id, "need_kind", "one side has need fields and the other none")
+		return conflictError(id, "need_kind", "one side has need fields and the other none")
 	}
 
+	return nil
+}
+
+func mergeClose(b, o, t, m *Item) error {
+	id := o.ID
 	// status: closed wins.
 	if v, ok := three(b.Status, o.Status, t.Status); ok {
 		m.Status = v
@@ -135,19 +162,24 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 		case oc && tc && t.ClosedAt.Before(o.ClosedAt):
 			from = t
 		case oc && tc:
-			return Item{}, nil, conflictError(id, "closed_at, closed_by, close_reason",
+			return conflictError(id, "closed_at, closed_by, close_reason",
 				fmt.Sprintf("both sides closed it at %s, differently", o.ClosedAt.Format(time.RFC3339)))
 		case oc:
 			from = o
 		case tc:
 			from = t
 		default:
-			return Item{}, nil, conflictError(id, "closed_at, closed_by, close_reason",
+			return conflictError(id, "closed_at, closed_by, close_reason",
 				"both sides changed them on an item neither side closed")
 		}
 		m.ClosedAt, m.ClosedBy, m.CloseReason = from.ClosedAt, from.ClosedBy, from.CloseReason
 	}
 
+	return nil
+}
+
+func mergeResolution(b, o, t, m *Item) error {
+	id := o.ID
 	// resolution: the side's value that is not null; when both set it, the later updated_at wins.
 	if v, ok := three(b.Resolution, o.Resolution, t.Resolution); ok {
 		m.Resolution = v
@@ -160,12 +192,17 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 		default:
 			r, err := later(id, "resolution", o.Resolution, t.Resolution, o, t)
 			if err != nil {
-				return Item{}, nil, err
+				return err
 			}
 			m.Resolution = r
 		}
 	}
 
+	return nil
+}
+
+func mergeTimes(b, o, t, m *Item) error {
+	id := o.ID
 	// started_at: the earliest start. updated_at: the latest.
 	if v, ok := three(b.StartedAt, o.StartedAt, t.StartedAt); ok {
 		m.StartedAt = v
@@ -185,9 +222,14 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 	if v, ok := three(b.CreatedAt, o.CreatedAt, t.CreatedAt); ok {
 		m.CreatedAt = v
 	} else {
-		return Item{}, nil, conflictError(id, "created_at", "both sides changed it")
+		return conflictError(id, "created_at", "both sides changed it")
 	}
 
+	return nil
+}
+
+func mergeScalars(b, o, t, m *Item) error {
+	id := o.ID
 	// other scalars: the later updated_at wins.
 	for _, f := range []struct {
 		name       string
@@ -204,7 +246,7 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 		}
 		v, err := later(id, f.name, f.ov, f.tv, o, t)
 		if err != nil {
-			return Item{}, nil, err
+			return err
 		}
 		*f.dst = v
 	}
@@ -215,11 +257,16 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 	if m.Need != nil {
 		nf, err := mergeNeed(id, b, o, t)
 		if err != nil {
-			return Item{}, nil, err
+			return err
 		}
 		m.Need = nf
 	}
 
+	return nil
+}
+
+func mergeHolder(b, o, t, m *Item) (*Override, error) {
+	id := o.ID
 	// holder: a closed result has none (close beats claim); else a claim beats a release, and between two claims the
 	// later claimed_at wins.
 	var over *Override
@@ -243,7 +290,7 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 		case th.ClaimedAt.After(oh.ClaimedAt):
 			win, lose = th, oh
 		default:
-			return Item{}, nil, conflictError(id, "holder", fmt.Sprintf("sessions %s and %s both claimed it at %s",
+			return nil, conflictError(id, "holder", fmt.Sprintf("sessions %s and %s both claimed it at %s",
 				oh.Session, th.Session, oh.ClaimedAt.Format(time.RFC3339)))
 		}
 		m.Holder = &win
@@ -251,7 +298,7 @@ func mergeItem(base, ours, theirs Item) (Item, *Override, error) {
 			over = &Override{ID: id, Lost: lose, Kept: win}
 		}
 	}
-	return m, over, nil
+	return over, nil
 }
 
 // mergeNeed merges a need's scalar columns: delivered takes the max, the rest the later updated_at.

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"io"
 	"os"
 	"path/filepath"
@@ -54,16 +55,10 @@ func whereGit(dir string, args ...string) string {
 }
 
 // whereIsLink is Path.is_symlink().
-func whereIsLink(p string) bool {
-	st, err := os.Lstat(p)
-	return err == nil && st.Mode()&os.ModeSymlink != 0
-}
+func whereIsLink(p string) bool { return fsutil.IsLink(p) }
 
 // whereExists is Path.exists(): symlinks followed.
-func whereExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
-}
+func whereExists(p string) bool { return fsutil.Exists(p) }
 
 // whereAll is every location an agent or the owner needs, each with its state; it works before setup, to show what
 // is missing. The work store replaces Beads, so its line takes the place of Python's beads line.

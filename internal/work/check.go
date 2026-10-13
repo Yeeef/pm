@@ -120,19 +120,8 @@ func checkItem(it *Item) error {
 			return itemError(id, "is blocked by itself or twice by %s", b)
 		}
 	}
-	for i, c := range it.Comments {
-		if c.ID == "" || slices.ContainsFunc(it.Comments[:i], func(o Comment) bool { return o.ID == c.ID }) {
-			return itemError(id, "has a comment with an empty or repeated id %q", c.ID)
-		}
-		if c.Kind != Reply && c.Kind != Note {
-			return itemError(id, "has comment %s of kind %q, not reply or note", c.ID, c.Kind)
-		}
-		if c.Author == "" {
-			return itemError(id, "has comment %s without an author", c.ID)
-		}
-		if err := checkStamp(id, "comment "+c.ID+" created_at", c.CreatedAt); err != nil {
-			return err
-		}
+	if err := checkComments(it); err != nil {
+		return err
 	}
 	return checkNeed(it)
 }
@@ -220,6 +209,25 @@ func (x *Index) checkTree(it *Item) error {
 	for _, b := range it.BlockedBy {
 		if x.byID[b] == nil {
 			return itemError(id, "is blocked by %s, which is not in the store", b)
+		}
+	}
+	return nil
+}
+
+func checkComments(it *Item) error {
+	id := it.ID
+	for i, c := range it.Comments {
+		if c.ID == "" || slices.ContainsFunc(it.Comments[:i], func(o Comment) bool { return o.ID == c.ID }) {
+			return itemError(id, "has a comment with an empty or repeated id %q", c.ID)
+		}
+		if c.Kind != Reply && c.Kind != Note {
+			return itemError(id, "has comment %s of kind %q, not reply or note", c.ID, c.Kind)
+		}
+		if c.Author == "" {
+			return itemError(id, "has comment %s without an author", c.ID)
+		}
+		if err := checkStamp(id, "comment "+c.ID+" created_at", c.CreatedAt); err != nil {
+			return err
 		}
 	}
 	return nil

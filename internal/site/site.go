@@ -876,75 +876,24 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 	switch rec.Type() {
 	case "project":
 		c.mermaid = true
-		generated, err := progress(rec, recs, items, rec)
+		var err error
+		body, err = projectBody(rec, recs, items)
 		if err != nil {
 			return "", err
 		}
-		var mine []unsprintedItem
-		for _, u := range unsprinted(recs, items) {
-			if u.project == rec {
-				mine = append(mine, u)
-			}
-		}
-		generated += unsprintedTable(mine, rec, "h3")
-		body = replaceFirst(progressRE, body, func(g string) string { return g + "\n" + generated + "\n" })
-		body = withDocs(body, "## Outcome", projectDocs(rec, recs, items, "doc"), projectDocs(rec, recs, items, "postmortem"), rec)
 	case "sprint":
-		b := items.Get(rec.Bead())
-		pre = `<p class="meta">` + pill(State(b, items)) + "<span>" + esc(rec.Bead()) + "</span>" +
-			"<span>opened " + esc(utcDate(b.CreatedAt)) + "</span></p>"
 		c.mermaid = true
-		generated := TaskGraph([]*Item{b}, items)
-		body = replaceFirst(progressRE, body, func(g string) string { return g + "\n" + generated + "\n" })
-		var cards []card
-		for _, it := range OwnerTasks(items, rec.Bead()) {
-			h, err := ownerCard(it, cardWhere(it, proj, items, recs, rec), items, render, recs, rec)
-			if err != nil {
-				return "", err
-			}
-			cards = append(cards, card{it, h})
+		var err error
+		pre, body, err = sprintBody(rec, proj, recs, items, render)
+		if err != nil {
+			return "", err
 		}
-		needs := awaiting(cards, true)
-		body = replaceFirst(decisionsRE, body, func(l string) string { return needs + "\n\n" + l })
-		body = withDocs(body, "## Delivery report", sprintDocs(rec, recs, items), sprintPostmortems(rec, recs), rec)
 	case "day":
-		day := m["date"].Str
-		var cards []card
-		var projects []*Record
-		for _, p := range recs {
-			if p.Type() == "project" {
-				projects = append(projects, p)
-				cs, err := cardsFor(items, p, recs, rec, render)
-				if err != nil {
-					return "", err
-				}
-				cards = append(cards, cs...)
-			}
+		var err error
+		body, err = dayBody(rec, recs, items, render)
+		if err != nil {
+			return "", err
 		}
-		generated := awaiting(cards, true)
-		generated += "\n<h2 id=\"sprints\">Sprints</h2>\n<blockquote><p>Which sprints moved today, and what changed? " +
-			"Generated from the work store: tasks opened, started or closed on this date.</p></blockquote>\n"
-		for _, p := range projects {
-			generated += "<h3>" + esc(p.Title()) + "</h3>" + dayActivity(day, items, p.Bead(), recs, rec)
-		}
-		var docs []*Record
-		for _, r := range recs {
-			if r.Type() == "doc" && r.Meta["date"].Str == day {
-				docs = append(docs, r)
-			}
-		}
-		generated += docList(docs, rec, "h2", "Docs")
-		switch {
-		case rec.Summary != nil: // the generated summary opens Today, above an older day's hand-written paragraph
-			s, err := summaryMD(rec)
-			if err != nil {
-				return "", err
-			}
-			body = replaceFirst(todayRE, body, func(g string) string { return g + "\n" + s + "\n" })
-		case rec.Text == "":
-			body += "\nNo summary has been generated for this day.\n"
-		}
-		body = strings.TrimRight(body, "\n") + "\n\n" + generated + "\n"
 	case "doc":
 		where := ""
 		if rec.Has("bead") {
@@ -973,6 +922,87 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 		nav = toc(doc, source)
 	}
 	return page(rec, rec.Type(), rec.Title(), pre+nav+content.String(), c, crumbs)
+}
+
+func projectBody(rec *Record, recs []*Record, items *Items) (string, error) {
+	body := rec.Body
+	generated, err := progress(rec, recs, items, rec)
+	if err != nil {
+		return "", err
+	}
+	var mine []unsprintedItem
+	for _, u := range unsprinted(recs, items) {
+		if u.project == rec {
+			mine = append(mine, u)
+		}
+	}
+	generated += unsprintedTable(mine, rec, "h3")
+	body = replaceFirst(progressRE, body, func(g string) string { return g + "\n" + generated + "\n" })
+	body = withDocs(body, "## Outcome", projectDocs(rec, recs, items, "doc"), projectDocs(rec, recs, items, "postmortem"), rec)
+	return body, nil
+}
+
+func sprintBody(rec, proj *Record, recs []*Record, items *Items, render func(string) (string, error)) (string, string, error) {
+	body := rec.Body
+	b := items.Get(rec.Bead())
+	pre := `<p class="meta">` + pill(State(b, items)) + "<span>" + esc(rec.Bead()) + "</span>" +
+		"<span>opened " + esc(utcDate(b.CreatedAt)) + "</span></p>"
+	generated := TaskGraph([]*Item{b}, items)
+	body = replaceFirst(progressRE, body, func(g string) string { return g + "\n" + generated + "\n" })
+	var cards []card
+	for _, it := range OwnerTasks(items, rec.Bead()) {
+		h, err := ownerCard(it, cardWhere(it, proj, items, recs, rec), items, render, recs, rec)
+		if err != nil {
+			return "", "", err
+		}
+		cards = append(cards, card{it, h})
+	}
+	needs := awaiting(cards, true)
+	body = replaceFirst(decisionsRE, body, func(l string) string { return needs + "\n\n" + l })
+	body = withDocs(body, "## Delivery report", sprintDocs(rec, recs, items), sprintPostmortems(rec, recs), rec)
+	return pre, body, nil
+}
+
+func dayBody(rec *Record, recs []*Record, items *Items, render func(string) (string, error)) (string, error) {
+	body := rec.Body
+	day := rec.Meta["date"].Str
+	var cards []card
+	var projects []*Record
+	for _, p := range recs {
+		if p.Type() == "project" {
+			projects = append(projects, p)
+			cs, err := cardsFor(items, p, recs, rec, render)
+			if err != nil {
+				return "", err
+			}
+			cards = append(cards, cs...)
+		}
+	}
+	generated := awaiting(cards, true)
+	generated += "\n<h2 id=\"sprints\">Sprints</h2>\n<blockquote><p>Which sprints moved today, and what changed? " +
+		"Generated from the work store: tasks opened, started or closed on this date.</p></blockquote>\n"
+	for _, p := range projects {
+		generated += "<h3>" + esc(p.Title()) + "</h3>" + dayActivity(day, items, p.Bead(), recs, rec)
+	}
+	var docs []*Record
+	for _, r := range recs {
+		if r.Type() == "doc" && r.Meta["date"].Str == day {
+			docs = append(docs, r)
+		}
+	}
+	generated += docList(docs, rec, "h2", "Docs")
+	switch {
+	case rec.Summary != nil: // the generated summary opens Today, above an older day's hand-written paragraph
+		s, err := summaryMD(rec)
+		if err != nil {
+			return "", err
+		}
+		body = replaceFirst(todayRE, body, func(g string) string { return g + "\n" + s + "\n" })
+	case rec.Text == "":
+		body += "\nNo summary has been generated for this day.\n"
+	}
+	body = strings.TrimRight(body, "\n") + "\n\n" + generated + "\n"
+	return body, nil
 }
 
 var numbered = regexp.MustCompile(`^[0-9]+\. `)
@@ -1049,6 +1079,27 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 	}
 	out := []string{awaiting(cards, false)}
 
+	out = append(out, indexDays(recs))
+	out = append(out, unsprintedTable(unsprinted(recs, items), nil, "h2"))
+	var feedback []*Record // the repo's pm feedback doc, which no project lists
+	for _, r := range recs {
+		if records.IsFeedbackDoc(r) {
+			feedback = append(feedback, r)
+		}
+	}
+	out = append(out, docList(feedback, nil, "h2", "Feedback"))
+
+	for _, p := range projects {
+		out = append(out, `<h2><a href="`+p.Out()+`">`+esc(p.Title())+"</a></h2>")
+		out = append(out, indexSprints(p, recs, items))
+		out = append(out, indexDesigns(p, recs, items, dates))
+		out = append(out, docList(projectDocs(p, recs, items, "doc"), nil, "h3", "Docs"))
+		out = append(out, docList(projectDocs(p, recs, items, "postmortem"), nil, "h3", "Postmortems"))
+	}
+	return page(nil, "overview", siteName, strings.Join(out, ""), c, "")
+}
+
+func indexDays(recs []*Record) string {
 	var days []*Record
 	for _, r := range recs {
 		if r.Type() == "day" {
@@ -1068,89 +1119,83 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 			}
 			lis.WriteString(`<li><a href="` + r.Out() + `">` + esc(r.Title()) + `</a><span class="k">` + today + "</span></li>")
 		}
-		out = append(out, `<h2 id="days">Days</h2><ul class="list">`+lis.String()+"</ul>")
+		return `<h2 id="days">Days</h2><ul class="list">` + lis.String() + "</ul>"
 	}
-	out = append(out, unsprintedTable(unsprinted(recs, items), nil, "h2"))
-	var feedback []*Record // the repo's pm feedback doc, which no project lists
-	for _, r := range recs {
-		if records.IsFeedbackDoc(r) {
-			feedback = append(feedback, r)
-		}
-	}
-	out = append(out, docList(feedback, nil, "h2", "Feedback"))
+	return ""
+}
 
-	for _, p := range projects {
-		out = append(out, `<h2><a href="`+p.Out()+`">`+esc(p.Title())+"</a></h2>")
-		sprintRecs := map[string]*Record{}
-		for _, r := range recs {
-			if b, ok := r.ID("bead"); ok && r.Type() == "sprint" {
-				sprintRecs[b] = r
-			}
+func indexSprints(p *Record, recs []*Record, items *Items) string {
+	sprintRecs := map[string]*Record{}
+	for _, r := range recs {
+		if b, ok := r.ID("bead"); ok && r.Type() == "sprint" {
+			sprintRecs[b] = r
 		}
-		sprints := sprintsOf(items, p.Bead())
-		var done []*Item
-		for _, sp := range sprints {
-			if sp.Status == work.Closed {
-				done = append(done, sp)
-			}
-		}
-		sort.SliceStable(done, func(i, j int) bool { return done[i].ClosedAt.After(done[j].ClosedAt) })
-		shown := map[string]bool{}
-		for i, sp := range done {
-			if i < DoneSprintsShown {
-				shown[sp.ID] = true
-			}
-		}
-		var rows []string
-		for _, sp := range sprints {
-			if sp.Status != work.Closed || shown[sp.ID] {
-				n, m := 0, 0
-				for _, t := range items.Children(sp.ID) {
-					switch State(t, items) {
-					case "dropped": // not done, and no longer to do
-					case "done":
-						n, m = n+1, m+1
-					default:
-						m++
-					}
-				}
-				title := esc(sp.Title)
-				if r := sprintRecs[sp.ID]; r != nil {
-					title = `<a href="` + r.Out() + `">` + esc(sp.Title) + "</a>"
-				}
-				rows = append(rows, "<li>"+pill(State(sp, items))+" "+title+
-					fmt.Sprintf(`<span class="k">%d of %d tasks done</span></li>`, n, m))
-			}
-		}
-		if hidden := len(done) - DoneSprintsShown; hidden > 0 {
-			rows = append(rows, fmt.Sprintf(`<li><span class="k">%d older done sprints not shown; `+
-				`<a href="%s">the project page</a> lists every sprint</span></li>`, hidden, p.Out()))
-		}
-		if rows != nil {
-			out = append(out, `<h3>Sprints</h3><ul class="list">`+strings.Join(rows, "")+"</ul>")
-		}
-		var designs []*Record
-		for _, r := range recs {
-			if r.Type() == "design" && records.ProjectOf(r, recs, items) == p {
-				designs = append(designs, r)
-			}
-		}
-		sort.SliceStable(designs, func(i, j int) bool { return designs[i].Title() < designs[j].Title() })
-		if dates != nil {
-			sort.SliceStable(designs, func(i, j int) bool { return dates[designs[i].Rel].Updated > dates[designs[j].Rel].Updated })
-		}
-		if designs != nil {
-			var lis strings.Builder
-			for _, r := range designs {
-				lis.WriteString(`<li><a href="` + r.Out() + `">` + esc(r.Title()) + `</a><span class="k">` +
-					designDatesMeta(r, dates) + "</span></li>")
-			}
-			out = append(out, `<h3>Design pages</h3><ul class="list">`+lis.String()+"</ul>")
-		}
-		out = append(out, docList(projectDocs(p, recs, items, "doc"), nil, "h3", "Docs"))
-		out = append(out, docList(projectDocs(p, recs, items, "postmortem"), nil, "h3", "Postmortems"))
 	}
-	return page(nil, "overview", siteName, strings.Join(out, ""), c, "")
+	sprints := sprintsOf(items, p.Bead())
+	var done []*Item
+	for _, sp := range sprints {
+		if sp.Status == work.Closed {
+			done = append(done, sp)
+		}
+	}
+	sort.SliceStable(done, func(i, j int) bool { return done[i].ClosedAt.After(done[j].ClosedAt) })
+	shown := map[string]bool{}
+	for i, sp := range done {
+		if i < DoneSprintsShown {
+			shown[sp.ID] = true
+		}
+	}
+	var rows []string
+	for _, sp := range sprints {
+		if sp.Status != work.Closed || shown[sp.ID] {
+			n, m := 0, 0
+			for _, t := range items.Children(sp.ID) {
+				switch State(t, items) {
+				case "dropped": // not done, and no longer to do
+				case "done":
+					n, m = n+1, m+1
+				default:
+					m++
+				}
+			}
+			title := esc(sp.Title)
+			if r := sprintRecs[sp.ID]; r != nil {
+				title = `<a href="` + r.Out() + `">` + esc(sp.Title) + "</a>"
+			}
+			rows = append(rows, "<li>"+pill(State(sp, items))+" "+title+
+				fmt.Sprintf(`<span class="k">%d of %d tasks done</span></li>`, n, m))
+		}
+	}
+	if hidden := len(done) - DoneSprintsShown; hidden > 0 {
+		rows = append(rows, fmt.Sprintf(`<li><span class="k">%d older done sprints not shown; `+
+			`<a href="%s">the project page</a> lists every sprint</span></li>`, hidden, p.Out()))
+	}
+	if rows != nil {
+		return `<h3>Sprints</h3><ul class="list">` + strings.Join(rows, "") + "</ul>"
+	}
+	return ""
+}
+
+func indexDesigns(p *Record, recs []*Record, items *Items, dates Dates) string {
+	var designs []*Record
+	for _, r := range recs {
+		if r.Type() == "design" && records.ProjectOf(r, recs, items) == p {
+			designs = append(designs, r)
+		}
+	}
+	sort.SliceStable(designs, func(i, j int) bool { return designs[i].Title() < designs[j].Title() })
+	if dates != nil {
+		sort.SliceStable(designs, func(i, j int) bool { return dates[designs[i].Rel].Updated > dates[designs[j].Rel].Updated })
+	}
+	if designs != nil {
+		var lis strings.Builder
+		for _, r := range designs {
+			lis.WriteString(`<li><a href="` + r.Out() + `">` + esc(r.Title()) + `</a><span class="k">` +
+				designDatesMeta(r, dates) + "</span></li>")
+		}
+		return `<h3>Design pages</h3><ul class="list">` + lis.String() + "</ul>"
+	}
+	return ""
 }
 
 // Cites says whether text names the id as a whole id, not as part of a longer one: Python's

@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 )
@@ -307,9 +306,14 @@ func PushInbox(n *work.Item, text string) string {
 		}
 		return queueCodex(home, rb.Session, text)
 	}
-	msg := &pyjson.Object{Keys: []string{"role", "content"}, Values: map[string]any{"role": "user", "content": text}}
-	line := pyjson.Dumps(&pyjson.Object{Keys: []string{"type", "message"},
-		Values: map[string]any{"type": "user", "message": msg}}, true) + "\n"
+	message := struct {
+		Type    string `json:"type"`
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
+	}{Type: "user"}
+	message.Message.Role, message.Message.Content = "user", text
 	conn, err := net.DialTimeout("unix", rb.Inbox, PushTimeout)
 	if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
 		return "not running: the session is not running"
@@ -319,7 +323,7 @@ func PushInbox(n *work.Item, text string) string {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(PushTimeout))
-	if _, err := conn.Write([]byte(line)); err != nil {
+	if err := json.NewEncoder(conn).Encode(message); err != nil {
 		return "failed: " + err.Error()
 	}
 	return ""

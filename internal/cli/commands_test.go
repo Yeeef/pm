@@ -27,8 +27,8 @@ func leaf(path string) *command {
 	c := tree
 	for _, name := range strings.Fields(path) {
 		var next *command
-		for _, s := range c.subs {
-			if s.name == name {
+		for _, s := range c.Subs {
+			if s.Name == name {
 				next = s
 			}
 		}
@@ -46,21 +46,21 @@ func leaf(path string) *command {
 func TestEveryCommandPmRunsIsListedInHelp(t *testing.T) {
 	var walk func(c *command, path []string)
 	walk = func(c *command, path []string) {
-		if c.subs == nil {
+		if c.Subs == nil {
 			return
 		}
 		text := help(t, path...)
-		for _, s := range c.subs {
-			if !lists(text, s.name) {
-				t.Errorf("pm %s --help does not list %s", strings.Join(path, " "), s.name)
+		for _, s := range c.Subs {
+			if !lists(text, s.Name) {
+				t.Errorf("pm %s --help does not list %s", strings.Join(path, " "), s.Name)
 			}
-			walk(s, append(append([]string{}, path...), s.name))
+			walk(s, append(append([]string{}, path...), s.Name))
 		}
 	}
 	walk(tree, nil)
 	for name, sc := range storeCommands {
 		if c := leaf(name); c != nil {
-			if c.store != sc || c.subs != nil {
+			if c.Store != sc || c.Subs != nil {
 				t.Errorf("pm %s is in the tree but not as its work-store command", name)
 			}
 			continue
@@ -71,12 +71,12 @@ func TestEveryCommandPmRunsIsListedInHelp(t *testing.T) {
 		}
 		words := strings.Fields(name)
 		of := leaf(strings.Join(words[:len(words)-1], " ")) // pm show ID's is pm show, pm task add --parent's pm task add
-		if of == nil || !strings.Contains(collapse(of.helpText()), "pm "+name) {
+		if of == nil || !strings.Contains(strings.Join(strings.Fields(of.HelpText()), " "), "pm "+name) {
 			t.Errorf("the form pm %s is not named in its tree command's --help", name)
 		}
 	}
 	for name := range agentCommands {
-		if c := leaf(name); c == nil || c.subs != nil || c.store != nil {
+		if c := leaf(name); c == nil || c.Subs != nil || c.Store != nil {
 			t.Errorf("agent command pm %s is no leaf of the tree", name)
 		}
 	}

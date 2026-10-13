@@ -123,72 +123,16 @@ func (e *env) summarizeOne(r *repo, runtime ask.Runtime, day, activity string, d
 // so a day's digest changes only when that day's events do. Empty when nothing happened that day.
 func (r *repo) dayActivity(day string) (string, error) {
 	on := func(t time.Time) bool { return site.LocalDay(t) == day }
-	children := func(parent string, keep func(*work.Item) bool) []*work.Item {
-		var out []*work.Item
-		for i := range r.items {
-			if it := &r.items[i]; it.Parent == parent && keep(it) {
-				out = append(out, it)
-			}
-		}
-		sort.SliceStable(out, func(i, j int) bool { return work.CompareIDs(out[i].ID, out[j].ID) < 0 })
-		return out
-	}
 	var out []string
 	for _, p := range r.recs {
 		if p.Type() != "project" {
 			continue
 		}
 		var lines []string
-		for _, sp := range children(p.Bead(), func(it *work.Item) bool { return it.Type == work.Sprint }) {
-			var rows []string
-			if on(sp.ClosedAt) {
-				row := "    sprint finished"
-				for _, rec := range r.recs {
-					if rec.Type() == "sprint" && rec.Bead() == sp.ID {
-						o, err := records.Outcome(rec)
-						if err != nil {
-							return "", err
-						}
-						if o != "" {
-							row += ": " + o
-						}
-						break
-					}
-				}
-				rows = append(rows, row)
-			}
-			if on(sp.CreatedAt) {
-				rows = append(rows, "    sprint opened")
-			}
-			// a dismissed need is a [TEST] or replaced one; a dismissed task is a dropped one, which moved the day
-			for _, t := range children(sp.ID, func(it *work.Item) bool {
-				return it.Resolution != work.Dismissed || it.Type == work.Task
-			}) {
-				request := t.Type == work.Need
-				noun := "task"
-				if request {
-					noun = "request to the owner (" + site.Kind(t) + ")"
-				}
-				if on(t.ClosedAt) {
-					verb := "closed"
-					if t.Resolution == work.Dismissed {
-						verb = "dropped"
-					}
-					row := "    " + noun + " " + verb + ": " + t.Title
-					if t.CloseReason != "" {
-						row += " (" + t.CloseReason + ")"
-					}
-					rows = append(rows, row)
-				} else if on(t.StartedAt) {
-					rows = append(rows, "    "+noun+" started: "+t.Title)
-				}
-				if on(t.CreatedAt) {
-					if request {
-						rows = append(rows, "    "+noun+" raised: "+t.Title)
-					} else {
-						rows = append(rows, "    task opened: "+t.Title)
-					}
-				}
+		for _, sp := range r.dayChildren(p.Bead(), func(it *work.Item) bool { return it.Type == work.Sprint }) {
+			rows, err := r.sprintActivity(sp, on)
+			if err != nil {
+				return "", err
 			}
 			if rows != nil {
 				lines = append(append(lines, "  sprint "+sp.Title), rows...)
@@ -229,4 +173,69 @@ func (r *repo) dayActivity(day string) (string, error) {
 		}
 	}
 	return strings.Join(out, "\n"), nil
+}
+
+func (r *repo) dayChildren(parent string, keep func(*work.Item) bool) []*work.Item {
+	var out []*work.Item
+	for i := range r.items {
+		if it := &r.items[i]; it.Parent == parent && keep(it) {
+			out = append(out, it)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return work.CompareIDs(out[i].ID, out[j].ID) < 0 })
+	return out
+}
+
+func (r *repo) sprintActivity(sp *work.Item, on func(time.Time) bool) ([]string, error) {
+	var rows []string
+	if on(sp.ClosedAt) {
+		row := "    sprint finished"
+		for _, rec := range r.recs {
+			if rec.Type() == "sprint" && rec.Bead() == sp.ID {
+				o, err := records.Outcome(rec)
+				if err != nil {
+					return nil, err
+				}
+				if o != "" {
+					row += ": " + o
+				}
+				break
+			}
+		}
+		rows = append(rows, row)
+	}
+	if on(sp.CreatedAt) {
+		rows = append(rows, "    sprint opened")
+	}
+	// a dismissed need is a [TEST] or replaced one; a dismissed task is a dropped one, which moved the day
+	for _, t := range r.dayChildren(sp.ID, func(it *work.Item) bool {
+		return it.Resolution != work.Dismissed || it.Type == work.Task
+	}) {
+		request := t.Type == work.Need
+		noun := "task"
+		if request {
+			noun = "request to the owner (" + site.Kind(t) + ")"
+		}
+		if on(t.ClosedAt) {
+			verb := "closed"
+			if t.Resolution == work.Dismissed {
+				verb = "dropped"
+			}
+			row := "    " + noun + " " + verb + ": " + t.Title
+			if t.CloseReason != "" {
+				row += " (" + t.CloseReason + ")"
+			}
+			rows = append(rows, row)
+		} else if on(t.StartedAt) {
+			rows = append(rows, "    "+noun+" started: "+t.Title)
+		}
+		if on(t.CreatedAt) {
+			if request {
+				rows = append(rows, "    "+noun+" raised: "+t.Title)
+			} else {
+				rows = append(rows, "    task opened: "+t.Title)
+			}
+		}
+	}
+	return rows, nil
 }

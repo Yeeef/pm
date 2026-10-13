@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"io"
 	"os"
 	"path/filepath"
@@ -241,16 +242,7 @@ func (r *repo) checkPlanned(writes []store.Write, items []work.Item) error {
 }
 
 // resolvedPath is Python's Path.resolve() for a path that may not exist yet.
-func resolvedPath(p string) string {
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return p
-	}
-	if r, err := filepath.EvalSymlinks(abs); err == nil {
-		return r
-	}
-	return filepath.Join(resolvedPath(filepath.Dir(abs)), filepath.Base(abs))
-}
+func resolvedPath(p string) string { return fsutil.Resolved(p) }
 
 // apply writes the records and commits exactly those files, the message prefix + message; it returns message. A
 // failed write or commit restores the files.
@@ -345,7 +337,7 @@ const textForms = "--text or --text-file - <<'EOF'" // the two ways to give a bo
 
 // body is a command's body: --text-file's, read before the store is opened, else --text stripped, else "".
 func (e *env) body(p *Parsed) (string, error) {
-	path, given := p.values["text_file"]
+	path, given := p.Values["text_file"]
 	if !given || len(path) == 0 {
 		return config.PyStrip(p.Get("text")), nil
 	}

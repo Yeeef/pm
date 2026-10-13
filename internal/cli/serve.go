@@ -142,7 +142,7 @@ func summarizeDay(main string) (bool, string) {
 		return false, err.Error()
 	}
 	e := &env{here: main, records: records, stdin: strings.NewReader(""), stdout: io.Discard, stderr: io.Discard}
-	said, err := cmdDaySummarize(e, &Parsed{values: map[string][]string{}})
+	said, err := cmdDaySummarize(e, &Parsed{Values: map[string][]string{}})
 	if err = errors.Join(err, e.release()); err != nil {
 		return false, err.Error()
 	}

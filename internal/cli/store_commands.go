@@ -74,11 +74,11 @@ var storeCommands = func() map[string]*storeCommand {
 	}
 	var walk func(c *command)
 	walk = func(c *command) {
-		if c.store != nil {
-			out[c.path()] = c.store
+		if c.Store != nil {
+			out[c.Path()] = c.Store
 		}
-		for _, s := range c.subs {
-			s.parent = c
+		for _, s := range c.Subs {
+			s.Parent = c
 			walk(s)
 		}
 	}

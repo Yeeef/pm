@@ -500,21 +500,10 @@ func SetupClone(cwd, remote string) (string, error) {
 		out = append(out, fmt.Sprintf("turned off the sparse checkout an earlier pm set in %s", top))
 	}
 	link := filepath.Join(top, "records")
-	switch {
-	case isLink(link) && Resolve(link) == Resolve(records):
-	case exists(link) || isLink(link):
-		if tracks, err := TracksRecords(top); err != nil {
-			return "", err
-		} else if tracks && !isLink(link) {
-			return "", refuse("%s is this branch's tracked copy of records/, not the link to %s; merge the main branch, "+
-				"which tracks none, then run %s again", link, records, setup)
-		}
-		return "", refuse("%s exists and is not a link to %s; move it away and run %s again", link, records, setup)
-	default:
-		if err := os.Symlink(records, link); err != nil {
-			return "", err
-		}
-		out = append(out, fmt.Sprintf("linked %s -> %s", link, records))
+	if said, err := setupRecordsLink(top, records); err != nil {
+		return "", err
+	} else if said != "" {
+		out = append(out, said)
 	}
 	if said, err := SetupClaude(top, records); err != nil {
 		return "", err
@@ -592,25 +581,10 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	if d := service.CodexDrift(main); d != "" {
 		out = append(out, "service: "+d)
 	}
-	if isDir(CodexHome()) && isDir(records) {
-		path := filepath.Join(CodexHome(), "config.toml")
-		_, _, have, err := CodexConfig(path)
-		if err != nil {
-			return nil, err
-		}
-		roots, err := CodexRoots(main)
-		if err != nil {
-			return nil, err
-		}
-		var missing []string
-		for _, r := range roots {
-			if !contains(have, r) {
-				missing = append(missing, r)
-			}
-		}
-		if len(missing) > 0 {
-			out = append(out, fmt.Sprintf("codex: %s lacks writable_roots %s; run pm init", path, strings.Join(missing, ", ")))
-		}
+	if said, err := doctorCodex(main, records); err != nil {
+		return nil, err
+	} else if said != "" {
+		out = append(out, said)
 	}
 	missing, err := ExcludeMissing(main)
 	if err != nil {
@@ -631,4 +605,49 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 		}
 	}
 	return out, nil
+}
+
+func setupRecordsLink(top, records string) (string, error) {
+	link := filepath.Join(top, "records")
+	switch {
+	case isLink(link) && Resolve(link) == Resolve(records):
+	case exists(link) || isLink(link):
+		if tracks, err := TracksRecords(top); err != nil {
+			return "", err
+		} else if tracks && !isLink(link) {
+			return "", refuse("%s is this branch's tracked copy of records/, not the link to %s; merge the main branch, "+
+				"which tracks none, then run %s again", link, records, setup)
+		}
+		return "", refuse("%s exists and is not a link to %s; move it away and run %s again", link, records, setup)
+	default:
+		if err := os.Symlink(records, link); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("linked %s -> %s", link, records), nil
+	}
+	return "", nil
+}
+
+func doctorCodex(main, records string) (string, error) {
+	if isDir(CodexHome()) && isDir(records) {
+		path := filepath.Join(CodexHome(), "config.toml")
+		_, _, have, err := CodexConfig(path)
+		if err != nil {
+			return "", err
+		}
+		roots, err := CodexRoots(main)
+		if err != nil {
+			return "", err
+		}
+		var missing []string
+		for _, r := range roots {
+			if !contains(have, r) {
+				missing = append(missing, r)
+			}
+		}
+		if len(missing) > 0 {
+			return fmt.Sprintf("codex: %s lacks writable_roots %s; run pm init", path, strings.Join(missing, ", ")), nil
+		}
+	}
+	return "", nil
 }
