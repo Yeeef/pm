@@ -86,6 +86,12 @@ This task belongs to sprint 4, which ships 0.8.0 into this repo and closes sprin
   The reviewer made 10 decisions, all allowed, 1.1 to 4.1 s each (median 1.7
   s), about 8.9k input tokens each. No assertion was changed.
 
+- pm 0.8.0 released: notes PR #59 merged as c43ebbb directly on the Codex
+  merge 1cd0fa4, tagged pm-v0.8.0; the release workflow succeeded with
+  install.sh, darwin-arm64 and linux-amd64 tarballs and SHA256SUMS. The
+  design-page gate (#54) merged after the tag, as 31e2730, so it is not in
+  0.8.0 (owner: Codex work only).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
