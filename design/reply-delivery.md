@@ -4,7 +4,10 @@ title: "Reply delivery: getting an owner reply into the session that asked"
 project: pm-harness
 covers:
   - "internal/service/deliver.go"
-  - "internal/service/codexqueue.go"
+  - "internal/service/codexqueue*.go"
+  - "internal/service/mark_test.go"
+  - "internal/hooks/inbox*.go"
+  - "internal/cli/inbox.go"
   - "internal/service/run*.go"
   - "internal/cli/needs.go"
   - "internal/cli/show.go"

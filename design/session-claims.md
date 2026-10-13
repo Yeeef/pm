@@ -11,6 +11,8 @@ covers:
   - "internal/work/dolt.go"
   - "internal/work/ready*.go"
   - "internal/hooks/prime.go"
+  - "internal/session/**"
+  - "internal/cli/session_test.go"
 ---
 
 ## Problem

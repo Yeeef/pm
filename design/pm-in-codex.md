@@ -5,6 +5,7 @@ project: pm-codex
 covers:
   - "internal/install/codex.go"
   - "internal/install/pieces.go"
+  - "internal/session/codex*.go"
 ---
 
 ## Problem

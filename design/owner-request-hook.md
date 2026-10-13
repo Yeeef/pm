@@ -5,7 +5,8 @@ project: pm-harness
 covers:
   - "internal/hooks/ownerrequest.go"
   - "internal/cli/ownerrequest.go"
-  - "internal/ask/ask.go"
+  - "internal/ask/**"
+  - "internal/hooks/asktool*.go"
   - "prompts/owner_request_*.txt"
 ---
 
