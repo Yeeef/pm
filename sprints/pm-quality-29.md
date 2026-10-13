@@ -43,7 +43,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-14}
+The design page sprint-lifecycle stays as it is for this sprint's code changes.
+Its 'Covers hold on main at the close' section already states the rule as 0.8.6 applies it (a covers pattern of the sprint's); PR #76 only brings pm check's printed line to that wording
+:::
 
 ## Findings
 
