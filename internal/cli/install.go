@@ -50,11 +50,6 @@ func codeTop(here, records, what string) (string, error) {
 	return top, nil
 }
 
-func settingsOf(c config.Config) install.Settings {
-	return install.Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL, AccessTeam: c.AccessTeam,
-		AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime, DesignSources: c.DesignSources}
-}
-
 // checkSiteURL refuses a --site-url that is not an http(s) base URL.
 func checkSiteURL(u string) error {
 	p, err := url.Parse(u)
@@ -285,7 +280,7 @@ func cmdInit(p *Parsed, here string, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		s = settingsOf(c)
+		s = install.SettingsOf(c)
 		if siteGiven && config.PyStrip(siteArg) != "" { // "/" is refused here, as no base URL
 			if err := checkSiteURL(siteURLArg(siteArg)); err != nil { // before anything is written
 				return err
@@ -480,7 +475,7 @@ func cmdDoctor(here string, stdout io.Writer) error {
 		return err
 	}
 	fix := "pm upgrade --to " + buildinfo.Version // the pin: a bare pm upgrade runs the launcher's version
-	repo, err := install.Drift(top, settingsOf(c))
+	repo, err := install.Drift(top, install.SettingsOf(c))
 	if err != nil {
 		return err
 	}
@@ -599,7 +594,7 @@ func cmdUpgrade(p *Parsed, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	planned, err := install.Rewrite(top, settingsOf(c))
+	planned, err := install.Rewrite(top, install.SettingsOf(c))
 	if err != nil {
 		return err
 	}
@@ -715,7 +710,7 @@ func cmdUninstall(here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	removals, err := install.Removals(top, settingsOf(c))
+	removals, err := install.Removals(top, install.SettingsOf(c))
 	if err != nil {
 		return err
 	}

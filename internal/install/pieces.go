@@ -33,6 +33,7 @@ import (
 	"syscall"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
 	"github.com/Yeeef/pm/internal/pyjson"
 )
@@ -57,6 +58,13 @@ type Settings struct {
 	SummaryRuntime string
 	// DesignSources is design_sources, set by hand (nil when unset): carried so a config holding it is pm's own
 	DesignSources []string
+}
+
+// SettingsOf is the settings a checked config holds: what pm upgrade rewrites the config with and pm doctor compares it
+// to, so every key the config reads is here.
+func SettingsOf(c config.Config) Settings {
+	return Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL,
+		AccessTeam: c.AccessTeam, AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime, DesignSources: c.DesignSources}
 }
 
 // Piece is one managed piece. A text is nil when the file is absent.

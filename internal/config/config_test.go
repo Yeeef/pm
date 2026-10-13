@@ -1,4 +1,4 @@
-package cli
+package config_test
 
 import (
 	"os"
@@ -12,9 +12,9 @@ import (
 	"github.com/Yeeef/pm/internal/install"
 )
 
-// TestConfigTextKeepsEveryKey: pm upgrade rewrites .pm/config.toml as install.ConfigText(settingsOf(config)) and pm doctor
-// compares the file with it, so a key the config reads and the writer drops is reported as drift and deleted by pm
-// upgrade. A config that sets every key the config accepts reads back the same after one rewrite.
+// TestConfigTextKeepsEveryKey: pm upgrade rewrites .pm/config.toml as install.ConfigText(install.SettingsOf(config))
+// and pm doctor compares the file with it, so a key the config reads and the writer drops is reported as drift and
+// deleted by pm upgrade. A config that sets every key the config accepts reads back the same after one rewrite.
 func TestConfigTextKeepsEveryKey(t *testing.T) {
 	dir := t.TempDir()
 	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
@@ -43,7 +43,7 @@ func TestConfigTextKeepsEveryKey(t *testing.T) {
 		return c
 	}
 	want := read(text)
-	rewritten := install.ConfigText(settingsOf(want))
+	rewritten := install.ConfigText(install.SettingsOf(want))
 	got := read(rewritten)
 	got.Version = want.Version // ConfigText writes the running pm's version, as pm upgrade --to does
 	if !reflect.DeepEqual(got, want) {

@@ -6,7 +6,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,9 +29,6 @@ const (
 var keys = map[string]string{"version": "str", "remote": "str", "main_branch": "str", "port": "int", "site_url": "str",
 	"access_team": "str", "access_aud": "str", "summary_runtime": "str",
 	"design_sources": "list"}
-
-// Keys is every key the config accepts, sorted.
-func Keys() []string { return slices.Sorted(maps.Keys(keys)) }
 
 // SummaryRuntimes are summary_runtime's values: the agent runtime whose CLI pm day summarize asks.
 var SummaryRuntimes = []string{"claude", "codex"}
