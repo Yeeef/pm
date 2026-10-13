@@ -25,6 +25,116 @@ only.
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.8.0] - 2026-10-13
+
+pm works in OpenAI Codex as it does in Claude Code: session identity, hooks, the owner-request judge on Codex's own
+model, owner replies that wake an idle Codex session, and one project worked by both runtimes at once.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.8.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.8.0`. Besides the pin, it rewrites `.claude/settings.json` and
+   `.codex/hooks.json`: `pm hook owner-request --runtime claude` and `--runtime codex` (with a 45 s timeout), a new
+   `pm hook inbox` on UserPromptSubmit, and in Codex SessionStart on `compact` too and a SubagentStop hook. It also
+   writes `.codex/rules/pm.rules`. Commit all of it with the pin move and merge it, as an ordinary PR.
+3. Where Codex works in the repo, run `pm service install` from a shell where codex 0.149.0 or later is on PATH, so
+   owner replies reach Codex sessions. `pm doctor` names a missing or older codex.
+4. Where Codex works in the repo, open Codex in the main checkout, trust the project if it is not yet trusted, then
+   run `/hooks` and trust pm's hooks, the new and the changed ones. Until then Codex skips them. `pm doctor` names any
+   of pm's hooks Codex would skip.
+5. In a repo whose machines have Codex and not Claude Code, set `summary_runtime = "codex"` in `.pm/config.toml` and
+   commit it.
+
+### Added
+
+- `summary_runtime` in `.pm/config.toml`, `claude` (the default) or `codex`: the runtime `pm day summarize`, which the
+  pm service runs every 10 minutes, asks. On `codex` it runs `codex exec` on `gpt-5.6-luna`. It never falls back to
+  the other runtime; any other value fails the config check.
+- `pm doctor` fails when the CLI `summary_runtime` names is not on PATH, since the pm service summarizes with it. It
+  checks no judge's CLI: each judge runs only in its own runtime's sessions.
+- A pm command in a Codex session whose rollout holds no pm session-start context, because Codex skipped pm's hooks
+  (an untrusted hook is skipped silently), prints one warning on stderr, once per session, naming the fix: trust
+  pm's hooks in `/hooks` and start a new session.
+- The request rule names each runtime's ask tool: AskUserQuestion in Claude Code; `request_user_input_async` in Codex
+  (Default mode), `request_user_input` in its Plan mode. The owner-request hook reads the stopping turn's ask tool
+  calls from the session's transcript and gives their questions to the judge as asked, so a question put with the
+  tool, or its repeat in the final reply (Codex's async question can surface there), is not taken for an ask left
+  only in chat; any other chat ask in the same reply still blocks. A block reason names the session's own ask tool.
+- A Codex session's start context opens with one line naming the pm hooks Codex skips (untrusted, changed since
+  trusted, or disabled) and the fix, as after a `pm upgrade` rewrote an entry the user had trusted. pm asks Codex
+  (`codex app-server`, `hooks/list`) only when `.codex/hooks.json` or the trust in the user's Codex config changed
+  since the last answer, which `.pm/run/codex-trust.json` keeps.
+- The pm service delivers an owner reply into a live Codex session as it pushes one into a Claude Code session: with
+  `codex queue` under the CODEX_HOME the session raised the need with, which starts a turn when the session is idle
+  (measured: 6.1 s after the reply in an idle Codex TUI). A Codex session's need records that CODEX_HOME; a session
+  that has ended keeps the reply undelivered, and a codex missing from the service's PATH or older than 0.149.0 is
+  named on the reply's card and by `pm doctor`.
+- `pm reply wait <id> [--timeout DURATION]`: wait within the turn for a new reply from the owner to a need, then
+  print it (and mark it delivered, as `pm reply read` does); a reply delivered before the wait is no new one, so an
+  agent that asks again waits for the next. The output of a raised need names it.
+- `pm hook inbox`, on UserPromptSubmit in Claude Code and Codex: hands a session the owner's replies that did not
+  reach it as context beside its next prompt, and marks them delivered once printed.
+- `pm init` writes `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox: a pm command reaches the pm
+  service through a socket that a network-off sandbox blocks. A command Codex cannot split into plain commands, such
+  as one fed a heredoc, still runs inside it.
+- `pm doctor` asks Codex (`codex app-server`) which of pm's hooks it would skip, untrusted, changed since trusted or
+  disabled, or whether it runs none of the project's, and names them with the fix; a typed `pm init` names them too.
+  pm never writes Codex's trust. Without `codex` on PATH, or without `$CODEX_HOME` (Codex never ran on the machine,
+  and the call would make its state), it says the trust was not checked.
+
+### Changed
+
+- The owner-request Stop hook's judge runs on the session's own runtime, named by each hook entry
+  (`pm hook owner-request --runtime claude|codex`): Claude Haiku through `claude -p` in Claude Code, `gpt-5.6-luna`
+  through `codex exec` in Codex. A Codex session no longer needs `claude`; without it the judge failed, and Codex
+  took the failure as a silent pass. The Codex judge runs from an empty temp dir with Codex's hooks, rules and your
+  `config.toml` off and saves no session, so it cannot run the hook again. An entry without `--runtime` runs the
+  Claude judge, as before.
+- A timed-out judge or summary call now kills its whole process group, not only the `claude` or `codex` launcher, and
+  a hook stopped by its runtime (SIGTERM, SIGINT or SIGHUP, as at the entry's timeout) kills its judge too.
+- The day summary's prompt asks for at least one bullet, so a quiet day gets one on either runtime.
+- A Codex subagent now shares its root thread's session, as a Claude Code subagent shares its session's: pm takes
+  Codex's `$CODEX_SESSION_ID`, the root session's id, and with an earlier Codex that sets only `$CODEX_THREAD_ID`,
+  maps the thread to its root through its rollout under `$CODEX_HOME`. So a subagent may claim, release and answer
+  what its session holds and raised.
+- With both Claude Code's and Codex's session set (Codex started from a Claude Code session inherits
+  `$CLAUDE_CODE_SESSION_ID`), the session is that of the nearest Claude Code or Codex process pm runs under; it was
+  always Claude Code's. With neither among pm's ancestors, pm refuses, naming both ids and which to unset.
+- `pm task claim`'s refusal in the main checkout says its git commands make a worktree in any runtime.
+
+### Fixed
+
+- A Codex run started from a Claude Code session no longer stores that session's inbox
+  (`$CLAUDE_CODE_MESSAGING_SOCKET`, which Codex inherits) on its needs, so its replies are no longer pushed into the
+  Claude Code session; its needs carry its own CODEX_HOME.
+- The pm service pushes a reply `pm reply add` stored as soon as the work store moves; it waited up to a minute for
+  its next sweep.
+- A need closed by `pm decision add --need` or `pm decision close` records the closing session, as other closes do.
+- A Codex session's needs trade the Claude Code inbox an earlier pm stored on them for the session's CODEX_HOME, at
+  its next session start.
+- The site's reply to a need of a live session with no inbox says the reply waits for that session, at its next
+  prompt or through `pm reply wait`; it said the session was not running. "Not running" is kept for a session whose
+  transcript has ended.
+- A typed `pm init` keeps an installed service unit's PATH: run from Codex, which puts its own directory first on
+  every command's PATH, it rewrote the unit and restarted the clone's pm service under every live session (their pm
+  commands failed meanwhile), and a Claude Code session's `pm init` flipped it back. `pm service install` takes the
+  PATH it runs with.
+
+- A compacted Codex session gets pm's rules and state again: Codex's SessionStart hooks ran on startup, resume and
+  clear only.
+- Records a Codex subagent left uncommitted block it at its stop (Codex's SubagentStop), as a Claude Code subagent's
+  block its session's stop; Codex keeps a subagent's prompt from its parent's transcript, so the parent's stop could
+  not tell.
+- `pm hook owner-request` lets a Codex turn that ended without a message through; it failed the check on Codex's
+  null `last_assistant_message`.
+- `pm clean` keeps a worktree a live Codex session works in or names in a tool call; it read only Claude Code's
+  transcripts.
+- `pm reply read` without ids finds a Codex session's requests; it read only `$CLAUDE_CODE_SESSION_ID`.
+- `pm doctor` reports pm's hook entries whose matcher an earlier pm wrote; it compared their commands only.
+- Finding a Codex thread's transcript reads only the date directories the thread can have started on, not every
+  rollout under `$CODEX_HOME/sessions`.
+
 ## [0.7.1] - 2026-10-11
 
 The Cloudflare Access check accepts only an application token; fixes found by the new lint gates.
@@ -489,6 +599,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.8.0]: https://github.com/Yeeef/pm/compare/pm-v0.7.1...pm-v0.8.0
 [0.7.1]: https://github.com/Yeeef/pm/compare/pm-v0.7.0...pm-v0.7.1
 [0.7.0]: https://github.com/Yeeef/pm/compare/pm-v0.6.0...pm-v0.7.0
 [0.6.0]: https://github.com/Yeeef/pm/compare/pm-v0.5.0...pm-v0.6.0
