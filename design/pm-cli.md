@@ -5,11 +5,20 @@ project: pm-harness
 covers:
   - "internal/cli/cli.go"
   - "internal/cli/commands*.go"
-  - "internal/cli/help.go"
+  - "internal/cli/parse/**"
+  - "internal/cli/fsutil/**"
   - "internal/textwrap/**"
   - "internal/cli/agent.go"
   - "internal/cli/agentcmds.go"
   - "internal/cli/writes*.go"
+  - "internal/cli/finding.go"
+  - "internal/cli/feedback.go"
+  - "internal/cli/document.go"
+  - "internal/cli/project.go"
+  - "internal/cli/sprint.go"
+  - "internal/cli/task.go"
+  - "internal/cli/move.go"
+  - "internal/cli/commit.go"
   - "internal/cli/show*.go"
   - "internal/cli/where.go"
   - "internal/cli/check.go"
@@ -141,6 +150,13 @@ The rule: `pm` wraps an operation only when it changes both layers or enforces a
 `pm` only creates files and inserts into a named section: a bullet at the end of Findings, a block at the end of Decisions, replacing the section's "None yet." placeholder on first insert. The insertion point is the section's line range from the parser; the file is otherwise byte-for-byte unchanged. Goal, Scope, Done when, the delivery report and design pages are edited by hand in the store (agents with their editor), then checked and committed by `pm commit -m "…" <path>`. Not chosen: editing or removing blocks by line range, which needs stable block ids and is rare enough to do by hand for now.
 
 ### Code structure
+
+- `cli` owns the command tree, session/config checks, dispatch and work/record context. Bodies live in files named for their noun: project, sprint, task, finding, feedback, decision, request, review and reply; document creation, moves and commits have their own files.
+- `cli/parse` builds Cobra routes and uses pflag to parse options. Explicit stages normalize two-value options and abbreviated flags, collect flag values, assign positionals, then check required arguments and mutually exclusive groups. Help, error strings, accepted argv forms and validation order remain compatible.
+- `cli/setup` owns init, doctor, upgrade, uninstall and git-hook commands. Validation runs before writes; uninstall separates preparation, clone removal, managed-piece removal and reporting. Setup consumes parsed arguments through its `Arguments` interface.
+- `cli/fsutil` shares filesystem predicates and symlink-aware path resolution. No command or setup package imports the other.
+- CI caps every Go file under `internal/cli` at 800 lines. The package-size ratchet is 7,456 non-test lines; every Go function is checked globally for cyclomatic complexity above 30.
+
 
 One parser and one validator serve both commands, so `pm` cannot accept a record the renderer rejects. Each write: take an exclusive lock on the store directory, which every worktree shares, build the new text in memory, validate every record with the new text substituted, write the file atomically (temp file and rename), then commit exactly the files written on the `records` branch before releasing the lock. For commands that also call `bd`, the `bd` step runs first and the record write only after it succeeds; if the record write then fails validation, `pm` prints the `bd` command that undoes it. Not chosen: one large script, which the renderer already strains at 534 lines.
 

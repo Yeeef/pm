@@ -4,6 +4,10 @@ title: Sprint lifecycle
 project: pm-harness
 covers:
   - "internal/cli/writes.go"
+  - "internal/cli/sprint.go"
+  - "internal/cli/project.go"
+  - "internal/cli/move.go"
+  - "internal/cli/review.go"
   - "internal/cli/needs.go"
   - "internal/cli/design.go"
   - "internal/design/**"

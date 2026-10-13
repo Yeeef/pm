@@ -6,6 +6,8 @@ covers:
   - "internal/cli/agent.go"
   - "internal/cli/store_commands*.go"
   - "internal/cli/writes.go"
+  - "internal/cli/task.go"
+  - "internal/cli/move.go"
   - "internal/cli/clean.go"
   - "internal/cli/show.go"
   - "internal/work/dolt.go"

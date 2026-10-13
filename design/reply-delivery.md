@@ -10,6 +10,10 @@ covers:
   - "internal/cli/inbox.go"
   - "internal/service/run*.go"
   - "internal/cli/needs.go"
+  - "internal/cli/request.go"
+  - "internal/cli/reply.go"
+  - "internal/cli/review.go"
+  - "internal/cli/decision.go"
   - "internal/cli/show.go"
 ---
 
@@ -56,6 +60,7 @@ Root cause: the watched set was fixed at raise time, from printed text, and a wa
 
 - **The producer knows the target.** The service stores a site reply on a need, and the need stores the raising session (`raised_by`). So the place where the event happens can address the session.
 - **Claude Code has a per-session inbox.** Since v2.1.224 every session binds a Unix-socket inbox, named in `$CLAUDE_CODE_MESSAGING_SOCKET`, exported to hooks and Bash commands (code.claude.com/docs/en/cross-session-messaging names "a script or hook to post into a session" as a use). An idle session starts a new turn with a message; a busy one reads it between tool calls.
+  - `encoding/json` encodes a typed `type`/`message` object as one newline-terminated JSON message. JSON escaping and whitespace do not carry meaning; the receiver reads the decoded message fields.
   - The message line `{"type":"user","message":{"role":"user","content":"…"}}` is observed (a live test with 2.1.290, and the binary's own log hint), not documented. The socket's path is read from the variable, never built.
   - The socket closes a connection that sends no complete line within 30 s, so a writer connects only once its line is ready.
   - A session in bypassPermissions mode holds a message from an unverified sender until someone approves it, unless `crossSessionInbound: "accept"` is set or the first line is `{"type":"auth","token":$CLAUDE_CODE_MESSAGING_TOKEN}`. The token never goes into the work store, which syncs to the remote.

@@ -4,7 +4,7 @@ title: pm as an installable product
 project: pm-harness
 covers:
   - "internal/install/**"
-  - "internal/cli/install.go"
+  - "internal/cli/setup/**"
   - "internal/cli/service.go"
   - "internal/service/unit*.go"
   - "internal/service/lifecycle*.go"

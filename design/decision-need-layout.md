@@ -4,6 +4,8 @@ title: Decision need layout
 project: pm-harness
 covers:
   - "internal/cli/needs.go"
+  - "internal/cli/request.go"
+  - "internal/cli/decision.go"
   - "internal/records/text.go"
 ---
 

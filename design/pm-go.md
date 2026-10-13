@@ -89,7 +89,7 @@ Reading: opening once per process meets the 300 ms goal about 5 times over, but 
 | Regexes | Go `regexp` is RE2: no lookarounds, no backreferences, and `\w` is ASCII only. The 9 patterns that needed them (section splits, sentence and word splitting, the id match) are scanning code, each with its own table test, not `regexp2` |
 | Character counts | `hooks.CAP` and the sentence and word limits count runes (`utf8.RuneCountInString`), not bytes: `prime.md` has more bytes than characters |
 | YAML | front matter keeps YAML 1.1 typing (`yes`, `on` and dates are typed), so headers quote as they always did; `internal/records/testdata/expected.json` holds the cases |
-| JSON | `internal/pyjson` reads and writes JSON with Python `json`'s default separators, so stored and exported JSON keeps its form |
+| JSON | `internal/pyjson` preserves stored/exported JSON and user-visible repr/error forms. Machine-only Claude inbox messages use `encoding/json`; receivers consume the decoded `type`, `role` and `content` fields |
 | Refusal texts | `prime.md` and the harness cite them word for word |
 
 ## Design
@@ -119,7 +119,10 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | Package | Holds |
 |---|---|
 | `cmd/pm` | `main`: `launch.Maybe()` first, then `cli.Execute()` |
-| `internal/cli` | Command tree, help texts, command bodies, `Refuse` error type and exit codes |
+| `internal/cli` | Command tree, session/config checks, dispatch and command bodies split by noun; shared work/record context |
+| `internal/cli/parse` | pflag argument parsing, explicit positional/group/required checks, two-value option normalization and compatible help/error rendering |
+| `internal/cli/setup` | Init, doctor, upgrade, uninstall and git-hook command stages, using `internal/install` for managed pieces and clone setup |
+| `internal/cli/fsutil` | Filesystem predicates and path resolution shared by commands and setup |
 | `internal/config` | `.pm/config.toml` read, pin check, `PORT` |
 | `internal/launch` | Pins, downloading release binaries, `exec`; a pin below 0.2.0 refused |
 | `internal/work` | The `Item` type and the store interface; Dolt schema and migrations, validation, ids and minting, ready and blocked, merge rules on conflict rows, the host (the engine and its socket server) and the client (one connection per command), `--import-bd`, `export` |
