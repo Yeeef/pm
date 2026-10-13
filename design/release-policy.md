@@ -102,6 +102,7 @@ Reading: the summary is the one edit every release needed; the others come from 
 | Main's CI on that commit failed | No release; the run fails, naming the failed checks |
 | Main moved past the commit before the run starts | No release from this run; the run for the newer commit releases every entry |
 | A pushed `pm-v*` tag that has no GitHub release | The run fails, naming the tag and the re-run that finishes it |
+| `CHANGELOG.md`'s newest section is newer than the last release tag (a major written by hand, its tag not pushed yet) | No release until that tag is pushed |
 
 The decision is one function, `changelog.py plan`, which prints `release X` or `none: <reason>`, so `make test` covers every row.
 
@@ -168,7 +169,7 @@ Reading: the build runs before any tag exists, so a failed build leaves nothing 
 | `tag` | push to main | `contents: write` | `changelog.py release X` at M, commit R as `github-actions[bot]`, assert R differs from M only in `CHANGELOG.md` and `changelog.d/`, `git push --atomic origin R:main pm-vX` |
 | `publish` | after `tag`, or after a tag push's build | `contents: write` | As today's release job: `SHA256SUMS`, `install.sh`, `gh release create pm-vX --verify-tag`, notes from `changelog.py notes X` |
 
-- One workflow file, `pm-release.yml`, with `push: branches: [main]` and `push: tags: [pm-v*]`; `concurrency: pm-release`, never cancelling a run in progress. A tag pushed by the `tag` job starts no second run.
+- One workflow file, `pm-release.yml`, with `push: branches: [main]` and `push: tags: [pm-v*]`; `concurrency: pm-release-<ref>`, never cancelling a run in progress: pushes to main share one group, and each hand-pushed tag has its own, so no merge replaces a tag's pending run. A tag pushed by the `tag` job starts no second run.
 - `GITHUB_TOKEN` suffices: no secret, no App. If `main` gets a ruleset, `github-actions` joins its bypass list.
 - The binary is built from M and the tag names R. R changes only files that ship nothing (`SHIPPED` in `changelog.py`), and `tag` asserts it; the binary's embedded VCS revision is M.
 - `make merge-ready` accepts a head that lacks only release commits of main (by `github-actions[bot]`, touching only `CHANGELOG.md` and deletions in `changelog.d/`) when the PR touches none of their files: a release after every merge does not stale every open PR, and the tree it merges differs from the tested one only in files that ship nothing.
@@ -180,6 +181,7 @@ Reading: the build runs before any tag exists, so a failed build leaves nothing 
 |---|---|---|
 | Build fails | No commit, no tag | Fix on main by a PR; its merge releases everything unreleased |
 | Push of R and the tag rejected | No commit, no tag | None needed: the newer commit's run releases |
+| Push reported failed but landed, or origin unreadable | Judged by what origin holds after the push: R and the tag there count as pushed and publish; an unreadable origin fails the run | Re-run it |
 | Main's CI on M fails | No commit, no tag; the run fails naming the failed workflow | Fix on main; the fix's merge releases everything |
 | Publish fails after the push | R on main, tag `pm-vX`, no GitHub release, no asset ever downloaded | Re-run the failed job (same tag, same build artifacts); `version` refuses every later release until it is done. Not a moved tag: no launcher holds a sha256 for `X` |
 | A published release is broken | Release `X` stands | Fix forward: the fix's merge releases `X+0.0.1`; repos pinned to `X` move |
