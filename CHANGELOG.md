@@ -29,6 +29,29 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.8.6] - 2026-10-13
+
+`pm sprint close` holds a sprint only to the design-page `covers:` patterns it added or changed, so another session's
+pending pattern no longer blocks an unrelated sprint's close. The pm service no longer dies with "panic: close of
+closed channel" when a garbage collection follows another one closely.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.8.6/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.8.6`, then commit what it changes and merge it, as an ordinary PR.
+
+### Fixed
+
+- `pm sprint close` refused any sprint that held a design page with a pending `covers:` pattern, even one another
+  sprint added for a file its open PR adds. It now checks against the remote's main only the patterns the page did
+  not hold at the last records commit before the sprint opened: those the sprint added or changed, and every pattern
+  of a page made during the sprint.
+- A garbage collection of the work store now returns only once its visits to the other open sessions have ended.
+  Dolt's ended a visit after the collection returned, so a collection that began right after another could visit a
+  session whose last visit had not ended, and the pm service died ("panic: close of closed channel", inside Dolt).
+  The service collects once a day, so this hit back-to-back collections, as pm's own tests run them.
+
 ## [0.8.5] - 2026-10-13
 
 `pm check` no longer fails for every session while a design page names a file that only an unmerged branch has; `pm
@@ -724,6 +747,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.8.6]: https://github.com/Yeeef/pm/compare/pm-v0.8.5...pm-v0.8.6
 [0.8.5]: https://github.com/Yeeef/pm/compare/pm-v0.8.4...pm-v0.8.5
 [0.8.4]: https://github.com/Yeeef/pm/compare/pm-v0.8.3...pm-v0.8.4
 [0.8.3]: https://github.com/Yeeef/pm/compare/pm-v0.8.2...pm-v0.8.3
