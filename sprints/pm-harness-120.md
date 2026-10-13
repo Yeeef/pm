@@ -54,6 +54,11 @@ Opening a project, sprint or task for work the owner asked for needs no leave, l
 The owner asked for this rule in chat on 2026-10-13.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+It covers prime.md for the session lifecycle; it states neither the push/PR-without-asking invariant nor the project goal rule, so the new invariant changes nothing it describes
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
