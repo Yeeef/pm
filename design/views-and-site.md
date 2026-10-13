@@ -299,7 +299,11 @@ stateDiagram-v2
   atomically. Between a `pm` write's steps the records and Beads may not
   render together (a need closed before its decision is written), so a read
   that fails is repeated under the store's shared lock, which the write holds
-  exclusively: an error page shows only a real error.
+  exclusively: an error page shows only a real error. A read that the
+  records moved under (a file gone, the stamp after it not the stamp before)
+  or that ran while git held the store worktree's index lock (a checkout or a
+  rebase rewriting its files; a git stalled mid-rewrite hides the file it
+  unlinked from both stamps) is repeated under the lock too.
 - **The page states its age.** Every page carries "Data as of HH:MM:SS (N s
   ago)", filled on each request into a slot the static site leaves empty.
   Its script polls `/version` every 2 s: an unchanged page takes the newer
