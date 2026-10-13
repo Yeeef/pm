@@ -109,6 +109,8 @@ This sprint changes only the pm upgrade and pm doctor help texts in commands.go;
 
 done: `pm upgrade --to X` prints the upgrade guide of every release it crosses before it writes, and prunes the launcher pins no checkout on the machine pins, keeping each one's sha256; merged as 919fbbb and released in pm 0.8.4.
 
+Merged as 919fbbb (PR #65).
+
 - Guides from the release notes pm X embeds (`assets.go` `Notes`, `internal/launch/guide.go`): no network; X's own guide from its section, else its entry files as `release/changelog.py` assembles them; a crossed release without a guide fails before any write.
 - Pruning (`internal/install/pins.go`, `service.Clones`): the clones are this one and each with a pm service unit; every worktree's pin is kept; anything unreadable prunes none. `pm doctor` names prunable pins without failing.
 - `changelog.d/README.md`, tracked and never an entry, keeps the embedded directory from ever being empty; `assets_test.go` builds the package with no entry file.
