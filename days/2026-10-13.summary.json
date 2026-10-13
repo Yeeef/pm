@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T18:22:24+00:00",
- "digest": "8a62ea55c7480025",
+ "generated_at": "2026-10-13T18:52:58+00:00",
+ "digest": "520dcc96cf347cb9",
  "model": "claude-haiku-5-5",
- "text": "- **Codex ask tools:** pm's request rule now names Codex's ask tools. The hook accepts Codex ask-tool calls. The fix is on a pull request, not yet on main or released.\n- **Codex sandbox on the host:** Records now explain why Codex's sandbox cannot run on the owner's host. They also describe the fix. A request to the owner covered the needed host changes."
+ "text": "- **Codex parity with Claude Code:** Codex sessions now get the same pm guarantees as Claude Code, and both run one project at once. A live eval on real sessions passed every case on both runtimes.\n- **Judge and summaries on Codex:** The owner-request judge now runs on Codex, and day summaries use the repo's configured runtime. A pm command in a Codex session now reports when its hooks did not run.\n- **Codex approvals and sandbox:** The owner-request rule now names Codex's ask tools, and the hook accepts their calls. Design notes now explain why Codex's sandbox cannot start on the owner's host, and give a fix.\n- **Release to main:** The owner's review of the Codex work closed, and the work merged. It now sits on main but is not yet in a release."
 }
