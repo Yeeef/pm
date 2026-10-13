@@ -147,3 +147,52 @@ def test_a_check_that_ran_twice_on_the_head_is_judged_by_its_latest_run(clone):
     clone.open_pr(7, "fix", head="0" * 40)
     r = clone.ready(7)
     assert r.returncode == 1 and "its head moved on the remote" in r.stderr
+
+
+def test_a_pr_that_lacks_only_release_commits_of_main_need_not_rebase(clone):
+    """The release workflow commits each release's section and deletes the entries it released: a PR cut before it
+    lacks only that, which ships nothing, so it is ready; any other commit it lacks, or a release commit's file it
+    touches itself, still needs the rebase."""
+    for name in ("CHANGELOG.md", "changelog.d/a.md"):
+        (clone.dir / name).parent.mkdir(exist_ok=True)
+        (clone.dir / name).write_text(name)
+    clone.git("add", "-A")
+    clone.git("commit", "-q", "-m", "an entry")
+    clone.git("push", "-q", "origin", "main")
+    clone.git("checkout", "-q", "-b", "fix")
+    clone.commit("fix")
+    clone.git("checkout", "-q", "-b", "fix-changelog")
+    (clone.dir / "CHANGELOG.md").write_text("edited by the PR")
+    clone.git("commit", "-q", "-am", "the PR edits CHANGELOG.md")
+    clone.git("checkout", "-q", "main")
+
+    def release_commit(author: str, extra: str | None = None) -> str:
+        (clone.dir / "CHANGELOG.md").write_text(f"released by {author}")
+        clone.git("rm", "-q", "changelog.d/a.md")
+        if extra:
+            (clone.dir / extra).write_text(extra)
+        clone.git("add", "-A")
+        clone.git("-c", f"user.email={author}", "commit", "-q", "-m", "Release pm 0.8.1",
+                  f"--author=github-actions[bot] <{author}>")
+        clone.git("push", "-q", "-f", "origin", "main")  # -f: each case replaces the one before
+        return clone.git("rev-parse", "HEAD")
+
+    release_commit(merge_ready.BOT)
+    clone.open_pr(7, "fix")
+    r = clone.ready(7)
+    assert r.returncode == 0, r.stderr
+    assert "lacks only release commits of origin/main" in r.stdout
+    clone.open_pr(8, "fix-changelog")
+    r = clone.ready(8)
+    assert r.returncode == 1 and "does not contain origin/main" in r.stderr
+
+    clone.git("reset", "-q", "--hard", "HEAD^")
+    main = release_commit("someone@example.com")  # not the release workflow's
+    clone.open_pr(7, "fix")
+    r = clone.ready(7)
+    assert r.returncode == 1 and f"does not contain origin/main {main[:7]}" in r.stderr
+
+    clone.git("reset", "-q", "--hard", "HEAD^")
+    release_commit(merge_ready.BOT, extra="internal.go")  # a release commit changes nothing that ships
+    clone.open_pr(7, "fix")
+    assert clone.ready(7).returncode == 1

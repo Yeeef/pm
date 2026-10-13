@@ -1,3 +1,6 @@
+A design page can name the code it covers, and a PR that changes that code waits until its sprint updated the
+page or recorded why it stays as it is.
+
 ### Added
 
 - A design page can name the code it is about in its header: `covers: [internal/records/**, prime.md]`, path

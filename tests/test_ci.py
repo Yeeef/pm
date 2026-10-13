@@ -1,13 +1,19 @@
-"""The CI workflows' own logic: which changes run the release build test, and the Go test job's package list. The
-expected results come from what each job is for, on fake tools built here."""
+"""The CI workflows' own logic: which changes run the release build test, the Go test job's package list, and the
+release on a push to main (its jobs, their tokens, and the scripts of its plan and tag steps, run against a local bare
+origin). The expected results come from what each job is for, on fake tools built here."""
 
 from __future__ import annotations
 
+import importlib.util
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 PM_DIR = Path(__file__).resolve().parents[1]
 
@@ -171,3 +177,192 @@ def test_go_shards_update_rewrites_the_seconds_from_a_run_of_every_test(tmp_path
     res = run_shards(tmp_path, binary, "", "--update")
     assert res.returncode == 0, res.stdout + res.stderr
     assert (tmp_path / "seconds.txt").read_text() == "TestA 0.10\nTestB 0.10\n"
+
+
+RELEASE_YML = PM_DIR / ".github/workflows/pm-release.yml"
+spec = importlib.util.spec_from_file_location("main_ci", PM_DIR / "release" / "main_ci.py")
+main_ci = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(main_ci)
+
+
+def jobs(workflow: Path) -> dict[str, str]:
+    """Each job's text, by its name: the lines under `jobs:` from one two-space-indented name to the next."""
+    text = workflow.read_text().split("\njobs:\n", 1)[1]
+    return dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", text, re.M | re.S))
+
+
+def step_script(workflow: Path, step_id: str) -> str:
+    """The `run: |` script of the step with that id, dedented."""
+    lines = workflow.read_text().splitlines()
+    i = next(n for n, line in enumerate(lines) if line.strip() == f"id: {step_id}")
+    i = next(n for n in range(i, len(lines)) if lines[n].strip() == "run: |") + 1
+    indent = len(lines[i]) - len(lines[i].lstrip())
+    script = []
+    while i < len(lines) and (not lines[i].strip() or len(lines[i]) - len(lines[i].lstrip()) >= indent):
+        script.append(lines[i][indent:])
+        i += 1
+    return "\n".join(script) + "\n"
+
+
+def test_the_release_runs_on_a_push_to_main_one_run_at_a_time_and_only_its_tag_and_publish_jobs_write():
+    """A push to main releases with GITHUB_TOKEN alone: a tag it pushes starts no workflow, so the same run builds,
+    tags and publishes; no run is cut short, so a pushed commit never lacks its tag; only the two jobs that push and
+    publish may write."""
+    text = RELEASE_YML.read_text()
+    assert re.search(r"^on:\n  push:\n    branches: \[main\]\n    tags: \[\"pm-v\*\"\]\n", text, re.M)
+    assert re.search(r"^permissions:\n  contents: read\n", text, re.M)
+    assert re.search(r"^concurrency:\n  group: pm-release\n  cancel-in-progress: false\n", text, re.M)
+    j = jobs(RELEASE_YML)
+    assert list(j) == ["version", "build", "tag", "publish"]
+    assert "needs: version\n" in j["build"] and "needs: [version, build]\n" in j["tag"]
+    assert "needs: [version, build, tag]\n" in j["publish"]
+    for name, body in j.items():
+        writes = re.search(r"permissions:\n(?:      .*\n)*?      contents: write", body) is not None
+        assert writes == (name in ("tag", "publish")), name
+    assert "actions: read" in j["version"]  # main_ci.py reads the runs on the commit
+    assert "release/main_ci.py \"$GITHUB_SHA\"" in j["version"] and "release/changelog.py plan" in j["version"]
+    assert 'git push --atomic origin HEAD:refs/heads/main "refs/tags/pm-v$X"' in j["tag"]
+    assert "github.ref_type == 'branch'" in j["tag"]
+    assert "secrets." not in text
+
+
+def test_main_ci_waits_for_every_push_workflow_and_fails_on_any_that_did_not_pass():
+    assert main_ci.push_workflows(PM_DIR) == {"pm changelog", "pm go", "pm lint", "pm tests"}  # paths: not every push
+    required = {"pm go", "pm tests"}
+    ok = [{"databaseId": 1, "workflowName": "pm go", "status": "completed", "conclusion": "success"},
+          {"databaseId": 2, "workflowName": "pm tests", "status": "completed", "conclusion": "skipped"},
+          {"databaseId": 3, "workflowName": "pm release", "status": "in_progress", "conclusion": ""}]
+    assert main_ci.verdict(ok, required) == ([], [])
+    assert main_ci.verdict(ok[:1], required) == ([], ["pm tests has no run yet"])
+    going = [*ok, {"databaseId": 4, "workflowName": "pm release build", "status": "queued", "conclusion": ""}]
+    assert main_ci.verdict(going, required) == ([], ["pm release build is queued"])
+    failed, _ = main_ci.verdict([*ok, {"databaseId": 5, "workflowName": "pm lint", "status": "completed",
+                                       "conclusion": "cancelled", "url": "u"}], required)
+    assert failed == ["pm lint concluded cancelled (u)"]
+
+
+class Origin:
+    """A clone of pm's release files on a local bare origin, at a release tag, with a fake gh: `gh release view` passes
+    unless the tag is in $UNPUBLISHED, and `gh run list` prints $FAKE_RUNS."""
+
+    def __init__(self, tmp: Path):
+        self.tmp, self.dir = tmp, tmp / "clone"
+        bin_dir = tmp / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "gh").write_text("""#!/bin/sh
+case "$1 $2" in
+  "release view") case " $UNPUBLISHED " in *" $3 "*) echo "release not found" >&2; exit 1 ;; esac ;;
+  "run list") cat "$FAKE_RUNS" ;;
+  *) echo "fake gh: $*" >&2; exit 2 ;;
+esac
+""")
+        (bin_dir / "gh").chmod(0o755)
+        self.runs = tmp / "runs.json"
+        self.env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "FAKE_RUNS": str(self.runs),
+                    "UNPUBLISHED": "", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                    "GIT_COMMITTER_EMAIL": "t@t"}
+        self.dir.mkdir()
+        for path in ("CHANGELOG.md", "install.sh", "release/changelog.py", "release/main_ci.py"):
+            (self.dir / path).parent.mkdir(exist_ok=True)
+            shutil.copy(PM_DIR / path, self.dir / path)
+        shutil.copytree(PM_DIR / ".github", self.dir / ".github")
+        self.git("init", "-q", "-b", "main")
+        self.commit("base")
+        newest = re.search(r"^## \[(\S+)\]", (self.dir / "CHANGELOG.md").read_text(), re.M)[1]
+        self.last = newest
+        self.git("tag", f"pm-v{newest}")
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(tmp / "origin.git")], check=True)
+        self.git("remote", "add", "origin", str(tmp / "origin.git"))
+        self.git("push", "-q", "origin", "main", "--tags")
+        self.passed()
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(["git", *args], cwd=self.dir, env=self.env, check=True, capture_output=True,
+                              text=True).stdout.strip()
+
+    def commit(self, message: str):
+        self.git("add", "-A")
+        self.git("commit", "-q", "--allow-empty", "-m", message)
+
+    def merge(self, files: dict[str, str]) -> str:
+        """A PR merged: files written, committed and pushed to main."""
+        for name, body in files.items():
+            (self.dir / name).parent.mkdir(exist_ok=True)
+            (self.dir / name).write_text(body)
+        self.commit("a merge")
+        self.git("push", "-q", "origin", "HEAD:main")
+        return self.git("rev-parse", "HEAD")
+
+    def passed(self, conclusion: str = "success"):
+        self.runs.write_text(json.dumps([{"databaseId": i, "workflowName": w, "status": "completed",
+                                          "conclusion": conclusion, "url": "u"}
+                                         for i, w in enumerate(sorted(main_ci.push_workflows(PM_DIR)))]))
+
+    def step(self, step_id: str, sha: str, **extra: str) -> tuple[subprocess.CompletedProcess, dict[str, str]]:
+        """Run the release workflow's step as GitHub runs it on a push of sha: bash -e, its outputs read back."""
+        out = self.tmp / "output"
+        out.write_text("")
+        env = {k: v for k, v in self.env.items() if not k.startswith(("GIT_AUTHOR_", "GIT_COMMITTER_"))}  # as a runner
+        r = subprocess.run(["bash", "-e", "-c", step_script(RELEASE_YML, step_id)], cwd=self.dir, capture_output=True,
+                           text=True, check=False, env={**env, "GITHUB_SHA": sha, "GITHUB_OUTPUT": str(out),
+                                                        "GITHUB_STEP_SUMMARY": str(self.tmp / "summary"), **extra})
+        return r, dict(line.split("=", 1) for line in out.read_text().splitlines())
+
+
+ADDED = {"changelog.d/a.md": "Adds A.\n\n### Added\n\n- A.\n"}
+
+
+@pytest.mark.integration  # a bare origin
+def test_a_push_to_main_releases_only_what_the_plan_says_once_main_s_ci_passed(tmp_path):
+    o = Origin(tmp_path)
+    major, minor, patch = (int(p) for p in o.last.split("."))
+    sha = o.merge({"README": "docs only"})
+    r, out = o.step("plan", sha)
+    assert r.returncode == 0 and out == {"release": "false"}, r.stderr
+    sha = o.merge({**ADDED, "release/hold": "Feature F, completed by #9\n"})
+    r, out = o.step("plan", sha)
+    assert r.returncode == 0 and out == {"release": "false"}, r.stderr
+    assert "release/hold holds releases: Feature F" in (tmp_path / "summary").read_text()
+    o.git("rm", "-q", "release/hold")
+    o.commit("the feature is complete")
+    o.git("push", "-q", "origin", "main")
+    sha = o.git("rev-parse", "HEAD")
+    r, out = o.step("plan", sha)
+    x = f"{major}.{minor}.{patch + 1}"  # an Added entry with no upgrade step: a patch
+    assert r.returncode == 0 and out == {"release": "true", "version": x, "prerelease": "false", "tag": f"pm-v{x}"}, (
+        r.stderr)
+
+    o.passed("failure")  # main's CI on the commit failed: no release, and the run fails
+    r, out = o.step("plan", sha)
+    assert r.returncode == 1 and "did not pass, so it does not release" in r.stderr and "release" not in out
+    o.passed()
+    r, _ = o.step("plan", sha, UNPUBLISHED=f"pm-v{o.last}")  # a tag whose publish failed comes first
+    assert r.returncode == 1 and f"tag pm-v{o.last} has no GitHub release" in r.stdout
+    r, out = o.step("plan", o.git("rev-parse", "HEAD^"))  # main moved past the pushed commit
+    assert r.returncode == 0 and out == {"release": "false"}
+
+
+@pytest.mark.integration  # a bare origin
+def test_the_tag_step_pushes_the_release_commit_and_tag_together_or_neither_when_main_moved(tmp_path):
+    o = Origin(tmp_path)
+    sha = o.merge(ADDED)
+    x = "9.9.9"  # the version the plan gave; any version newer than the changelog's
+    r, out = o.step("push", sha, X=x)
+    assert r.returncode == 0 and out == {"pushed": "true"}, r.stderr
+    o.git("fetch", "-q", "origin", "--tags")
+    released = o.git("rev-parse", "origin/main")
+    assert o.git("rev-parse", f"pm-v{x}^{{commit}}") == released and o.git("rev-parse", "origin/main^") == sha
+    assert o.git("diff", "--name-status", sha, released).splitlines() == ["M\tCHANGELOG.md", "D\tchangelog.d/a.md"]
+    assert o.git("log", "-1", "--format=%an <%ae>%n%s", released) == (
+        "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>\nRelease pm 9.9.9")
+    assert f"## [{x}] - " in o.git("show", f"{released}:CHANGELOG.md")
+
+    o.git("reset", "-q", "--hard", released)
+    sha = o.merge({"changelog.d/b.md": "Fixes B.\n\n### Fixed\n\n- B.\n"})
+    o.git("checkout", "-q", "-b", "other")
+    o.merge({"README": "a later merge"})  # main moves on while the run builds
+    o.git("checkout", "-q", "--detach", sha)
+    r, out = o.step("push", sha, X="9.9.10")
+    assert r.returncode == 0 and out == {"pushed": "false"}, r.stderr
+    assert not o.git("ls-remote", "origin", "refs/tags/pm-v9.9.10")
+    assert "main moved past" in (tmp_path / "summary").read_text()

@@ -2,13 +2,17 @@
 """Check CHANGELOG.md and the entry files in changelog.d/, print a release's notes, and write a release's section
 (AGENTS.md, Releasing pm). Standard library only.
 
-  changelog.py check                         the format CHANGELOG.md's preamble states, for CHANGELOG.md and each
-                                             changelog.d/<slug>.md; fails naming the file and line
+  changelog.py check                         the format CHANGELOG.md's preamble states, for CHANGELOG.md, each
+                                             changelog.d/<slug>.md and release/hold; fails naming the file and line
   changelog.py notes X                       the body of release X; for X-rc.N, X's section, else the entry files'
   changelog.py pr BASE                       fails when the changes since BASE touch a shipped path and add or change
-                                             no entry file
-  changelog.py release X --summary TEXT      writes '## [X] - <date>' into CHANGELOG.md from the entry files, with its
-                     [--date YYYY-MM-DD]     link reference, and deletes them
+                                             no entry file, or add more than one
+  changelog.py plan                          what a push to main releases: 'release X' (X from the last release tag
+                                             and the entries' bump), or 'none: <why>' (no entry file, or a hold)
+  changelog.py next                          X alone: the version the entry files would release now
+  changelog.py release X [--summary TEXT]    writes '## [X] - <date>' into CHANGELOG.md from the entry files, with its
+                     [--date YYYY-MM-DD]     link reference, and deletes them; the summary is the entries' own unless
+                                             given
 
 Every command fails hard (exit 1, the reason on stderr) on a changelog or an entry file that does not pass check.
 """
@@ -33,6 +37,15 @@ ENTRY_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*\.md$")
 GUIDE = "Upgrade guide"  # first in every release: the numbered steps from the previous release to this one
 CATEGORIES = [GUIDE, "Breaking changes", "Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
 STEP = re.compile(r"^(\d+)\. \S")
+# An entry's step is renumbered by the release (after the two every release writes), so an entry names no step by its
+# number: "see step 1" would point at the wrong step.
+STEP_REF = re.compile(r"\bsteps? \d", re.IGNORECASE)
+# The bump while pm is 0.x: minor when a repo that moves its pin must act (a step beyond installing the release and
+# pm upgrade, which the release writes) or loses something; else patch, new features included. A major (1.0 and on)
+# is never automatic: the owner pushes its tag by hand.
+MINOR = (GUIDE, "Removed")
+HOLD = "release/hold"  # while it exists, no push to main releases; it names the feature it waits for
+HOLD_WARN_DAYS = 3  # plan warns once a hold is older
 WIDTH = 118  # the changelog's line width, for the summary release writes
 # What a Go release builds or serves: the binary's sources and embedded files, its build and its install script.
 # Go tests and their data ship nothing.
@@ -40,6 +53,7 @@ SHIPPED = ("cmd/", "internal/", "assets.go", "prime.md", "style.css", "prompts/"
            "release/build.sh")
 
 VERSION = r"(\d+)\.(\d+)\.(\d+)"
+RELEASE_TAG = re.compile(rf"^pm-v({VERSION})$")  # a release; a pre-release's tag has a '-' suffix
 RELEASE_HEADING = re.compile(rf"^## \[({VERSION})\] - (\d{{4}}-\d{{2}}-\d{{2}})$")
 LINK_REF = re.compile(r"^\[([^\]]+)\]: (\S+)$")
 
@@ -144,8 +158,8 @@ def parse(text: str) -> Changelog:
 
 
 def read_body(section: Section, summary: bool):
-    """Split the section's lines into its summary (the text before its first category; only a release has one) and
-    its categories, checking each category's form."""
+    """Split the section's lines into its summary (the text before its first category) and its categories, checking
+    each category's form. summary is False for an entry file, whose headings the messages name differently."""
     category: list[tuple[int, str]] | None = None
     category_name = ""
     for n, line in section.lines:
@@ -166,11 +180,7 @@ def read_body(section: Section, summary: bool):
             category_name = name
             continue
         if category is None:
-            if summary:
-                section.summary.append(line)
-            elif line:
-                fail(n, "an entry holds only '### ' categories and their items; its first line is a category "
-                        "heading such as '### Fixed'", section.where)
+            section.summary.append(line)
             continue
         started = any(t for _, t in category)
         if category_name == GUIDE:
@@ -227,14 +237,26 @@ def check_links(sections: list[Section], links: dict[str, tuple[int, str]]):
 
 
 def parse_entry(name: str, text: str) -> Section:
-    """Parse and check one entry file: '### ' categories of a release, nothing else."""
+    """Parse and check one entry file: its summary paragraph, then '### ' categories of a release, nothing else."""
     where = f"{ENTRIES}/{name}"
     if not ENTRY_NAME.match(name):
         fail(1, f"an entry file is named {ENTRIES}/<slug>.md, the slug lowercase letters, digits and '-'", where)
-    entry = Section(where, 1, where=where, lines=[(n, raw.rstrip()) for n, raw in enumerate(text.splitlines(), 1)])
+    lines = [(n, raw.rstrip()) for n, raw in enumerate(text.splitlines(), 1)]
+    entry = Section(where, 1, where=where, lines=lines)
     read_body(entry, summary=False)
+    paragraph = [line for line in entry.summary if line]
+    if not paragraph:
+        fail(1, "an entry opens with its summary paragraph, one to three sentences for pm's users on what the change "
+                "is about, before its first '### ' category: the release's summary is made of its entries'", where)
+    if "" in "\n".join(entry.summary).strip().split("\n") or any(
+            line.startswith("- ") or STEP.match(line) for line in paragraph):
+        fail(1, "an entry's summary is one paragraph of prose, no blank line or list in it", where)
     if not entry.categories:
         fail(1, "an entry holds at least one '### ' category, such as '### Fixed', with its bullets", where)
+    for n, line in lines:
+        if STEP_REF.search(line):
+            fail(n, "an entry names no step by its number: the release renumbers the steps after the two it writes; "
+                    "say what the step does instead", where)
     return entry
 
 
@@ -246,10 +268,16 @@ def read_entries(root: Path) -> list[Section]:
     return [parse_entry(p.name, p.read_text()) for p in sorted(directory.iterdir())]
 
 
+def entries_summary(entries: list[Section]) -> str:
+    """The release's summary from its entries': each entry's paragraph, in name order, joined into one."""
+    return " ".join(" ".join(line.strip() for line in e.summary if line) for e in entries)
+
+
 def assemble(version: str, entries: list[Section], date: str = "", summary: tuple[str, ...] = ()) -> Section:
-    """Release X's section from the entry files: an upgrade guide that opens with installing X and
-    `pm upgrade --to X`, then the entries' own steps, renumbered; then each category's items, entries in name order."""
-    section = Section(version, 0, date=date, summary=list(summary))
+    """Release X's section from the entry files: the summary (the entries' own unless given), an upgrade guide that
+    opens with installing X and `pm upgrade --to X`, then the entries' own steps, renumbered; then each category's
+    items, entries in name order."""
+    section = Section(version, 0, date=date, summary=list(summary or wrap(entries_summary(entries))))
     section.categories[GUIDE] = [(0, line) for line in (
         "1. On each machine, install the release:",
         f"   `curl -fsSL {REPO}/releases/download/pm-v{version}/install.sh | sh`.",
@@ -300,9 +328,9 @@ def wrap(text: str) -> list[str]:
     raise ChangelogError("the summary breaks into a list item or heading at every width; reword it")
 
 
-def release(text: str, entries: list[Section], version: str, date: str, summary: str) -> str:
+def release(text: str, entries: list[Section], version: str, date: str, summary: str = "") -> str:
     """CHANGELOG.md with release X's section, assembled from the entry files, above the newest release, and its link
-    reference above the others."""
+    reference above the others. The summary is the entries' own unless one is given."""
     if not re.fullmatch(VERSION, version):
         raise ChangelogError(f"{version!r} is not a version X.Y.Z; a pre-release takes its notes from the entry files")
     log = parse(text)
@@ -310,9 +338,7 @@ def release(text: str, entries: list[Section], version: str, date: str, summary:
         raise ChangelogError(f"CHANGELOG.md already has [{version}]")
     if not entries:
         raise ChangelogError(f"{ENTRIES}/ holds no entries: release {version} would have nothing to say")
-    if not summary.strip():
-        raise ChangelogError("a release opens with a summary paragraph: give it with --summary")
-    section = assemble(version, entries, date, tuple(wrap(summary)))
+    section = assemble(version, entries, date, tuple(wrap(summary)) if summary.strip() else ())
     newest = log.sections[0].name if log.sections else None
     link = f"[{version}]: " + (f"{REPO}/compare/pm-v{newest}...pm-v{version}" if newest
                                else f"{REPO}/releases/tag/pm-v{version}")
@@ -326,10 +352,57 @@ def release(text: str, entries: list[Section], version: str, date: str, summary:
     return out
 
 
+def bump(entries: list[Section]) -> str:
+    """'minor' when an entry asks a repo that moves its pin to act (an upgrade step of its own) or removes something,
+    else 'patch'."""
+    return "minor" if any(name in e.categories for e in entries for name in MINOR) else "patch"
+
+
+def last_release(tags: list[str]) -> str:
+    """The newest release among the tags: pm-vX.Y.Z, a pre-release's pm-vX.Y.Z-<suffix> left out."""
+    versions = [m[1] for t in tags if (m := RELEASE_TAG.match(t))]
+    if not versions:
+        raise ChangelogError("no release tag pm-vX.Y.Z: the first release is tagged by hand")
+    return max(versions, key=lambda v: tuple(int(p) for p in v.split(".")))
+
+
+def next_version(last: str, entries: list[Section]) -> str:
+    """The release after last that the entries ask for; never a new major."""
+    major, minor, patch = (int(p) for p in last.split("."))
+    return f"{major}.{minor + 1}.0" if bump(entries) == "minor" else f"{major}.{minor}.{patch + 1}"
+
+
+def read_hold(root: Path) -> str | None:
+    """release/hold's reason, or None when there is no hold; an empty hold is refused, since it must say what it
+    waits for."""
+    path = root / HOLD
+    if not path.exists():
+        return None
+    if not (reason := " ".join(path.read_text().split())):
+        fail(1, "a hold names the feature it waits for and the PR that completes it, in one line", HOLD)
+    return reason
+
+
+def plan(entries: list[Section], hold: str | None, tags: list[str]) -> str:
+    """What a push to main releases: 'release X', or 'none: <why>'."""
+    if hold is not None:
+        return f"none: {HOLD} holds releases: {hold}"
+    if not entries:
+        return f"none: {ENTRIES}/ holds no entry, so nothing users would notice is unreleased"
+    return f"release {next_version(last_release(tags), entries)}"
+
+
 def shipped(path: str) -> bool:
     if path.endswith("_test.go") or "/testdata/" in path:
         return False
     return any(path == p or (p.endswith("/") and path.startswith(p)) for p in SHIPPED)
+
+
+def too_many_entries(added: list[str]) -> list[str]:
+    """The entry files a change adds when it adds more than one: one change, one entry, so that no two entries of a
+    release describe one step twice."""
+    entries = [p for p in added if p.startswith(f"{ENTRIES}/")]
+    return entries if len(entries) > 1 else []
 
 
 def needs_entry(paths: list[str], written: list[str]) -> list[str]:
@@ -350,9 +423,11 @@ def main(argv: list[str]) -> int:
     n.add_argument("version")
     r = sub.add_parser("pr", help="fail when the changes since BASE touch a shipped path but add no entry file")
     r.add_argument("base")
+    sub.add_parser("plan", help="print what a push to main releases: 'release X' or 'none: <why>'")
+    sub.add_parser("next", help="print the version the entry files would release now")
     w = sub.add_parser("release", help="write release X's section from the entry files and delete them")
     w.add_argument("version")
-    w.add_argument("--summary", required=True, help="the section's summary paragraph")
+    w.add_argument("--summary", default="", help="the section's summary paragraph (default: the entries' own)")
     w.add_argument("--date", default=datetime.datetime.now(datetime.timezone.utc).date().isoformat(),
                    help="the release's date, YYYY-MM-DD (default: today, UTC)")
     a = p.parse_args(argv)
@@ -360,20 +435,40 @@ def main(argv: list[str]) -> int:
         text = CHANGELOG.read_text()
         log = parse(text)
         entries = read_entries(ROOT)
+        hold = read_hold(ROOT)
         if a.cmd == "check":
-            print(f"CHANGELOG.md: ok, {len(log.sections)} releases; {ENTRIES}/: ok, {len(entries)} entries")
+            print(f"CHANGELOG.md: ok, {len(log.sections)} releases; {ENTRIES}/: ok, {len(entries)} entries"
+                  + (f"; {HOLD}: {hold}" if hold is not None else ""))
         elif a.cmd == "notes":
             print(notes(log, entries, a.version))
+        elif a.cmd in ("plan", "next"):
+            tags = git("tag", "--list", "pm-v*").split()
+            if a.cmd == "next":
+                if not entries:
+                    raise ChangelogError(f"{ENTRIES}/ holds no entries: there is nothing to release")
+                print(next_version(last_release(tags), entries))
+            else:
+                if hold is not None and (since := git("log", "-1", "--diff-filter=A", "--format=%ct", "--", HOLD)
+                                         .strip()):
+                    days = (datetime.datetime.now(datetime.timezone.utc).timestamp() - int(since)) / 86400
+                    if days > HOLD_WARN_DAYS:
+                        print(f"warning: {HOLD} has held every release for {days:.0f} days: finish the feature it "
+                              "waits for, or delete it", file=sys.stderr)
+                print(plan(entries, hold, tags))
         elif a.cmd == "release":
             CHANGELOG.write_text(release(text, entries, a.version, a.date, a.summary))
             for entry in entries:
                 (ROOT / entry.where).unlink()
-            print(f"CHANGELOG.md: [{a.version}] written from {len(entries)} entries, which are deleted; edit its "
-                  "summary and upgrade guide, then commit it with the deletions")
+            print(f"CHANGELOG.md: [{a.version}] written from {len(entries)} entries, which are deleted; commit it "
+                  "with the deletions")
         else:
             base = git("merge-base", a.base, "HEAD").strip()
             paths = git("diff", "--name-only", "--no-renames", f"{base}..HEAD").split()  # a rename: both names
             written = git("diff", "--name-only", "--no-renames", "--diff-filter=AM", f"{base}..HEAD").split()
+            added = git("diff", "--name-only", "--no-renames", "--diff-filter=A", f"{base}..HEAD").split()
+            if extra := too_many_entries(added):
+                raise ChangelogError(f"this change adds {len(extra)} entry files ({', '.join(extra)}): one change has "
+                                     "one entry, so that a release never describes one step twice; merge them")
             if missing := needs_entry(paths, written):
                 raise ChangelogError(
                     "this change touches what a release ships (" + ", ".join(missing[:5]) +
