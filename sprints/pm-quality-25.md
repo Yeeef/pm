@@ -1,6 +1,6 @@
 ---
 type: sprint
-title: Ask for pm feedback at Stop only when pm refused something this session
+title: Ask each session for pm feedback when it ends
 bead: pm-d2k5.25
 ---
 
@@ -54,6 +54,11 @@ None yet.
 ::: decision {source=owner date=2026-10-13}
 Ask for pm feedback at Stop only when this session hit a pm refusal, once per session, never every session
 Asking every session would bury the 31 unprompted entries under made-up feedback, and every Stop block opens a stop_hook_active gap in the owner-request and uncommitted-records checks; gating on refusals keeps the extra turn rare and backed by evidence
+:::
+
+::: decision {source=agent date=2026-10-13}
+Renamed the sprint from "Ask for pm feedback at Stop only when pm refused something this session" to "Ask each session for pm feedback when it ends": The owner meant session end, not turn end: a Stop hook fires at every turn.
+The title now names the session-end design.
 :::
 
 ## Findings
