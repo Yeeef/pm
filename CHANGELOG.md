@@ -28,6 +28,31 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.8.2] - 2026-10-13
+
+A PR review closed before its PR reached main, as a stacked PR's is, can be restamped once the PR's change is on main,
+so its sprint can close; and `pm action need --pr` refuses a stacked PR, whose review could never close.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.8.2/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.8.2`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- `pm action done <review> --reason "merged as <sha>"` restamps a PR review closed without `merged as <sha>`, as when
+  its PR merged into a stacked base: once `<sha>` is on the remote's main branch (pm fetches it first, as
+  `pm sprint close --merged` does), the review's close reason becomes the new one with the old one kept after it, and
+  its sprint can close. Any other closed action is refused as before.
+
+### Changed
+
+- `pm action need --pr` refuses a GitHub PR whose base branch is not the main branch: a stacked PR merges into another
+  PR's branch, so its review could never close as merged on main. The refusal names the fix: raise the review on the
+  PR that reaches main, or retarget this one (`gh pr edit <url> --base main`). pm asks `gh pr view` for the base, so
+  raising a review on a GitHub PR now needs `gh`.
+
 ## [0.8.1] - 2026-10-13
 
 A design page can name the code it covers, and a PR that changes that code waits until its sprint updated the page or
@@ -642,6 +667,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.8.2]: https://github.com/Yeeef/pm/compare/pm-v0.8.1...pm-v0.8.2
 [0.8.1]: https://github.com/Yeeef/pm/compare/pm-v0.8.0...pm-v0.8.1
 [0.8.0]: https://github.com/Yeeef/pm/compare/pm-v0.7.1...pm-v0.8.0
 [0.7.1]: https://github.com/Yeeef/pm/compare/pm-v0.7.0...pm-v0.7.1
