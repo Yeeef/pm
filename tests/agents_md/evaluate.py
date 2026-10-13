@@ -22,8 +22,8 @@ majority agrees with marked outvoted, and writes every call's answer (each findi
 to --out.
 
 In GitHub Actions (ACTIONS_ID_TOKEN_REQUEST_URL set) each call first writes a fresh GitHub OIDC token for the Anthropic
-API to $ANTHROPIC_IDENTITY_TOKEN_FILE, for Claude Code's workload identity federation, and the call runs without any
-other Anthropic credential in its environment; with ANTHROPIC_FEDERATION_RULE_ID set and no such token (a fork's
+API to a file of its own beside $ANTHROPIC_IDENTITY_TOKEN_FILE, for Claude Code's workload identity federation, and the
+call runs with that file and without any other Anthropic credential in its environment; with ANTHROPIC_FEDERATION_RULE_ID set and no such token (a fork's
 PR) the run fails before any call. Elsewhere it runs with the user's own Claude Code login.
 """
 
@@ -39,7 +39,6 @@ import signal
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -215,14 +214,14 @@ def pr_diff(root: Path, base: str) -> tuple[str, list[str]]:
     return git(root, "diff", f"{mb}...HEAD", "--", ".", *DIFF_EXCLUDE), names
 
 
-_token_lock = threading.Lock()
-
-
-def refresh_oidc(env: dict[str, str]) -> None:
-    """In GitHub Actions: write a fresh OIDC token for the Anthropic API to $ANTHROPIC_IDENTITY_TOKEN_FILE."""
+def refresh_oidc(env: dict[str, str]) -> str | None:
+    """In GitHub Actions: write a fresh OIDC token for the Anthropic API to a new file beside
+    $ANTHROPIC_IDENTITY_TOKEN_FILE and return its path, for one call alone: with one file shared by the calls running
+    at once, several exchange one token and the file changes under a running call, and 14 of 52 calls failed the
+    token exchange with 401 (CI, PR #80)."""
     url = env.get("ACTIONS_ID_TOKEN_REQUEST_URL")
     if not url:
-        return
+        return None
     path = env.get("ANTHROPIC_IDENTITY_TOKEN_FILE")
     if not path or not env.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN"):
         raise RuntimeError("ACTIONS_ID_TOKEN_REQUEST_URL is set but ANTHROPIC_IDENTITY_TOKEN_FILE or "
@@ -230,13 +229,12 @@ def refresh_oidc(env: dict[str, str]) -> None:
     sep = "&" if "?" in url else "?"
     req = urllib.request.Request(f"{url}{sep}audience={AUDIENCE}",
                                  headers={"Authorization": f"bearer {env['ACTIONS_ID_TOKEN_REQUEST_TOKEN']}"})
-    with _token_lock:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            token = json.load(resp)["value"]
-        fd, tmp = tempfile.mkstemp(dir=Path(path).parent)
-        with os.fdopen(fd, "w") as f:
-            f.write(token)
-        os.replace(tmp, path)  # whole, so a call starting meanwhile reads the old token or the new one
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        token = json.load(resp)["value"]
+    fd, own = tempfile.mkstemp(dir=Path(path).parent, prefix=Path(path).name + ".")
+    with os.fdopen(fd, "w") as f:
+        f.write(token)
+    return own
 
 
 def require_oidc(env: dict[str, str]) -> None:
@@ -337,10 +335,23 @@ def run_call(call: Call, model: str, root: Path, agents_md: str, timeout: float 
     env = dict(os.environ if env is None else env)
     start = time.monotonic()
     try:
-        refresh_oidc(env)
+        token = refresh_oidc(env)
     except (OSError, RuntimeError, KeyError, ValueError) as e:
         return Result(call, time.monotonic() - start, error=f"OIDC token: {e}")
-    proc = subprocess.Popen(command(model), cwd=root, env=child_env(env), stdin=subprocess.PIPE,
+    child = child_env(env)
+    if token:
+        child["ANTHROPIC_IDENTITY_TOKEN_FILE"] = token
+    try:
+        return claude(call, model, root, agents_md, timeout, child, start)
+    finally:
+        if token:
+            os.unlink(token)
+
+
+def claude(call: Call, model: str, root: Path, agents_md: str, timeout: float, env: dict[str, str],
+           start: float) -> Result:
+    """One claude -p run of the call in env, timed from start."""
+    proc = subprocess.Popen(command(model), cwd=root, env=env, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
     try:
         out, err = proc.communicate(call.prompt, timeout=timeout)

@@ -5,12 +5,14 @@ labelled cases' edits. A fake `claude` stands in for the model; tests/test_agent
 from __future__ import annotations
 
 import http.server
+import io
 import json
 import os
 import signal
 import subprocess
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -148,7 +150,7 @@ def test_a_call_drops_other_anthropic_credentials_only_under_federation():
                                       "ANTHROPIC_FEDERATION_RULE_ID": "fdrl"}
 
 
-def test_each_call_writes_a_fresh_oidc_token_for_the_anthropic_api(tmp_path):
+def test_each_call_writes_a_fresh_oidc_token_for_the_anthropic_api_to_a_file_of_its_own(tmp_path):
     asked = []
 
     class Handler(http.server.BaseHTTPRequestHandler):
@@ -167,15 +169,33 @@ def test_each_call_writes_a_fresh_oidc_token_for_the_anthropic_api(tmp_path):
     try:
         env = {"ACTIONS_ID_TOKEN_REQUEST_URL": f"http://127.0.0.1:{server.server_port}/token?x=1",
                "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "req", "ANTHROPIC_IDENTITY_TOKEN_FILE": str(tmp_path / "oidc")}
-        evaluate.refresh_oidc(env)
-        evaluate.refresh_oidc(env)
+        own = [evaluate.refresh_oidc(env), evaluate.refresh_oidc(env)]
     finally:
         server.shutdown()
     assert asked == [("/token?x=1&audience=https://api.anthropic.com", "bearer req")] * 2
-    assert (tmp_path / "oidc").read_text() == "jwt-2"
+    # each call's token in a file of its own, which no other call reads or replaces
+    assert [Path(p).read_text() for p in own] == ["jwt-1", "jwt-2"]
+    assert all(Path(p).parent == tmp_path and Path(p).name.startswith("oidc.") for p in own)
+    assert not (tmp_path / "oidc").exists()
     evaluate.refresh_oidc({})  # outside Actions: nothing to fetch
     with pytest.raises(RuntimeError, match="ANTHROPIC_IDENTITY_TOKEN_FILE"):
         evaluate.refresh_oidc({"ACTIONS_ID_TOKEN_REQUEST_URL": "u", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "t"})
+
+
+def test_calls_at_once_under_federation_each_read_their_own_token_and_leave_no_file(fake_claude, tmp_path,
+                                                                                    monkeypatch):
+    served = iter(range(1, 100))
+    monkeypatch.setattr(evaluate.urllib.request, "urlopen", lambda req, timeout: io.StringIO(
+        json.dumps({"value": f"jwt-{next(served)}"})))
+    tokens = tmp_path / "tokens"
+    tokens.mkdir()
+    env = {**os.environ, "ACTIONS_ID_TOKEN_REQUEST_URL": "http://oidc", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "req",
+           "ANTHROPIC_IDENTITY_TOKEN_FILE": str(tokens / "oidc"), "ANTHROPIC_FEDERATION_RULE_ID": "fdrl"}
+    rs = evaluate.run_calls([call()] * 4, "haiku", tmp_path, AGENTS_MD, jobs=4, env=env)
+    assert [r.error for r in rs] == [""] * 4
+    read = [json.loads(line)["token"] for line in fake_claude.read_text().splitlines()]
+    assert sorted(read) == ["jwt-1", "jwt-2", "jwt-3", "jwt-4"]
+    assert list(tokens.iterdir()) == []
 
 
 def test_federation_without_an_oidc_token_fails_before_any_call(fake_claude, tmp_path):
@@ -188,7 +208,9 @@ def test_federation_without_an_oidc_token_fails_before_any_call(fake_claude, tmp
 FAKE = """#!{python}
 import json, os, subprocess, sys, time
 prompt = sys.stdin.read()
-open(os.environ["FAKE_LOG"], "a").write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd()}}) + "\\n")
+token = os.environ.get("ANTHROPIC_IDENTITY_TOKEN_FILE")
+token = open(token).read() if token else None
+open(os.environ["FAKE_LOG"], "a").write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd(), "token": token}}) + "\\n")
 if os.environ.get("FAKE_DETACH"):  # a descendant out of the call's process group, holding its stdout
     child = subprocess.Popen(["sleep", "60"], start_new_session=True)
     open(os.environ["FAKE_DETACH"], "w").write(str(child.pid))
