@@ -145,10 +145,16 @@ Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup wa
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: each PR now starts 2 macOS jobs, and a docs-only PR skips the Go matrix and passes merge-ready, but the median wall time is 138 s, not ~90 s. macOS compute is bound by the runner's 3 cores (about 96-98 s however it is arranged, plus 25-35 s of checkout and cache restore), so 2 macOS jobs take about 100-155 s each.
+
+- #71 (merged as 11968ca): two macOS jobs; gofmt, vet, the page renderer and pm-before on Linux alone; `go_changes.py` skips the Go jobs' steps on a PR that no Go job reads, and every check still reports; pm lint restores pm go's current cache; TestPullRacingLocalWriters drops two needless read-dedup waits (15 to 10 s under -race locally); the service's lock-free records read repeats under the records lock while git holds `index.lock`, which fixed a real flake (9 of 40 failures before, 0 of 40 after).
+- #77: AGENTS.md says which PRs skip the Go jobs. #78: pm release build restores pm go's current cache. #79: internal/work's test seconds remeasured.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Median wall time to the last check ≤ ~90 s on 3 PRs: **not met.** It was 138 s, from #71 138 s, #77 88 s and #79 141 s; #71's other heads took 165 s and 107 s, and #79's rebase took 170 s. Before: 115 s idle median (PR 55) and 225 s with overlap. Other sessions' old-layout PRs tonight took 109, 202 and 228 s. The macOS jobs set the floor: build-test 101-160 s and race 82-133 s.
+- At most 2 macOS jobs per PR: **met.** #71, #77 and #79 each started 2, against 3 before (4 with the release build). #78 started 3 because the path-filtered release build ran for its own change.
+- A tests/*.py-only or docs-only PR skips the Go matrix and passes merge-ready: **met.** On #77 (AGENTS.md only), go_changes printed `go=false`, the 5 pm go jobs and lint-go/lint-deadcode finished in 4-11 s, the wall was 88 s, and `release/merge_ready.py 77` passed before the merge.
+- No test or check dropped: **met.** Per OS, from the `go test -v` logs of #70 (main's layout) and #71: macOS 163 results (117 top-level) plus 32 internal/work tests plus 9 race tests and internal/service's 39 results; Linux the same counts. The sorted lists are identical. gofmt, vet and the renderer and pm-before builds run on Linux only; they read the same files on both OSes.
