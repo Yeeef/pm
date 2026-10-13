@@ -63,6 +63,11 @@ The design page records-store stays as it is for this sprint's code changes.
 store.go gains FetchMain, the remote-main fetch sprint close already ran, moved out of the cli; the records store's layout and lock are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page session-claims stays as it is for this sprint's code changes.
+writes.go's change is in pm sprint close's design-page check; task claims and holders are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
