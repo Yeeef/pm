@@ -491,7 +491,8 @@ def test_sprint_close_refuses_a_design_page_naming_a_file_the_remote_main_lacks(
     refused(repo, "sprint", "close", "repo-demo.1",
             match=r'^error: sprint repo-demo.1: its design pages name files origin/main does not have: '
                   r'design/parser.md: covers pattern "src/parser/tables.go"\. Fix each pattern to the file main has '
-                  r"and commit the page with pm commit, or merge the PR that adds the file first; then run pm sprint "
+                  r"and commit the page with pm commit, or merge the PR that adds the file first, which may be another "
+                  r"sprint's; then run pm sprint "
                   r"close repo-demo.1 again\n$")
     push_main(repo, tmp_path, "src/parser/tables.go")
     res = repo.pm("sprint", "close", "repo-demo.1")

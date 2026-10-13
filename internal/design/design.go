@@ -138,8 +138,8 @@ func LiveOnMain(root, remote, branch, id string, pages []*records.Record) error 
 	}
 	if dead := Dead(pages, files); dead != nil {
 		return fmt.Errorf("sprint %s: its design pages name files %s does not have: %s. Fix each pattern to the file "+
-			"main has and commit the page with pm commit, or merge the PR that adds the file first; then run pm sprint "+
-			"close %s again", id, main, strings.Join(dead, ", "), id)
+			"main has and commit the page with pm commit, or merge the PR that adds the file first, which may be "+
+			"another sprint's; then run pm sprint close %s again", id, main, strings.Join(dead, ", "), id)
 	}
 	return nil
 }
