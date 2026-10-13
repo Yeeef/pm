@@ -92,6 +92,13 @@ This sprint changes only the pm upgrade and pm doctor help texts in commands.go;
   release deletes the files, not the dir) fails make go-build until it is
   removed. git never checks out an empty dir, so CI is not affected.
 
+- Empty changelog.d/ fixed at its class before merge: a tracked
+  changelog.d/README.md, which changelog.py (read, count, require) and the Go
+  notes reader skip and a release never deletes, keeps the embedded directory
+  non-empty; assets.go embeds CHANGELOG.md and changelog.d plainly.
+  assets_test.go builds the package from the embedded files with no entry file
+  (fails without the README); test_ci.py checks the release commit keeps it.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
