@@ -69,6 +69,14 @@ Its Garbage row (DOLT_GC on a schedule, online, session-aware safepoints) still 
   makes one Waiter, so only back-to-back collections hit it; the service
   collects every 24 h.
 
+- Reproduced at CI's settings (64 -race processes at once: 8 per 4 pinned
+  cores, GOMAXPROCS=4, as 8 shards on a 4-vCPU runner): the flaky test
+  panicked 1 of 3000 runs before the fix (1/1000, then 0/2000 with 7 other
+  failures, all 'slowest of 10 collections took 5.0s' while make lint and make
+  test-go ran on top), and 0 of 1000 at GOMAXPROCS=2 (4 per 2 cores). An
+  amplifier (32 idle sessions, 60 back-to-back collections) panicked 607 of
+  1000 runs before the fix, and 0 of 200 without oversubscription.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
