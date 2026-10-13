@@ -62,6 +62,11 @@ The design page pm-versioning stays as it is for this sprint's code changes.
 PR 66 only makes pm upgrade keep design_sources; the config row (unknown keys fail hard, the version key must equal the running pm) and the pin and launcher behavior are unchanged
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page decision-need-layout stays as it is for this sprint's code changes.
+PR #61 touched needs.go only for pm action need --pr's check that the PR targets main and the restamp path of pm action done; a decision need's layout did not change
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
