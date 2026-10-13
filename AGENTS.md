@@ -30,8 +30,8 @@ it covers.
 
 pm tracks its own development with the release `.pm/config.toml` pins: its projects' sprints, tasks and needs in the
 work store (the remote's `refs/pm/work`), its records (plans, decisions, design pages) on the `records` branch.
-`pm check` fails unless a design page's `covers:` holds every tracked file that `design_sources` in `.pm/config.toml`
-matches: a new source file is added to the `covers:` of the page about its area, committed with `pm commit`.
+A new file that `design_sources` (`.pm/config.toml`) matches goes into the `covers:` of its area's design page; a
+`covers:` edit naming a file not yet on main fails `pm check` in every other worktree (`go doc ./internal/design`).
 
 ## Commands
 
