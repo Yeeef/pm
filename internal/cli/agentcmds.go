@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/Yeeef/pm/internal/store"
+	"slices"
 )
 
 // agentCommand is the body of a command that runs against the records store: what it prints, or why it refused.
@@ -57,7 +58,7 @@ var writes = map[string]bool{"finding add": true, "feedback add": true, "decisio
 func runAgent(name string, cmd agentCommand, p *Parsed, here string, stdin io.Reader, stdout, stderr io.Writer) (err error) {
 	e := &env{here: here, stdin: stdin, stdout: stdout, stderr: stderr}
 	for _, a := range p.Cmd.Args { // argparse's type=str.strip on --text
-		if contains(a.Flags, "--text") {
+		if slices.Contains(a.Flags, "--text") {
 			for i, v := range p.Values["text"] {
 				p.Values["text"][i] = strip(v)
 			}

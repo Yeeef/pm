@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/records"
@@ -33,7 +34,7 @@ func parseSections(text string, allowed []string) (map[string]string, error) {
 		if i+1 < len(locs) {
 			end = locs[i+1][0]
 		}
-		if !contains(allowed, name) {
+		if !slices.Contains(allowed, name) {
 			return nil, refuse("unknown section '## %s' in --text; allowed: %s; %s", name, strings.Join(allowed, ", "),
 				frameShape)
 		}
@@ -84,7 +85,7 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	path := filepath.Join(r.records, "sprints", fmt.Sprintf("%s-%d.md", project, n))
-	if exists(path) {
+	if fsutil.Exists(path) {
 		return "", refuse("%s already exists", r.rel(path))
 	}
 	full := fmt.Sprintf("Sprint %d: %s", n, title)
@@ -133,7 +134,7 @@ func (r *repo) sprintReviews(sprintID string) []*work.Item {
 	var out []*work.Item
 	for i := range r.items {
 		it := &r.items[i]
-		if it.Need != nil && it.Need.Review != nil && contains(it.Need.Review.Sprints, sprintID) {
+		if it.Need != nil && it.Need.Review != nil && slices.Contains(it.Need.Review.Sprints, sprintID) {
 			out = append(out, it)
 		}
 	}

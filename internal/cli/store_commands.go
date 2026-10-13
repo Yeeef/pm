@@ -14,6 +14,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
+	"slices"
 )
 
 // The work-store commands: task ready, edit and release, dep add and rm, comment add, need dismiss, reply add and sync,
@@ -220,7 +221,7 @@ func taskReady(c *storeCall) error {
 	}
 	ready := []work.Item{}
 	for _, it := range x.ReadyTasks(c.live) {
-		if sprint == "" || contains(x.Ancestors(it.ID), sprint) {
+		if sprint == "" || slices.Contains(x.Ancestors(it.ID), sprint) {
 			ready = append(ready, it)
 		}
 	}

@@ -220,13 +220,13 @@ func (r *repo) checkPlanned(writes []store.Write, items []work.Item) error {
 		}
 		written := map[string]bool{}
 		for _, p := range paths {
-			written[resolvedPath(p)] = true
+			written[fsutil.Resolved(p)] = true
 		}
 		if err := site.CheckNeedsAnswered(recs, x, changed); err != nil {
 			return err
 		}
 		for _, rec := range recs {
-			if written[resolvedPath(rec.Path)] || (rec.Bead() != "" && touched[rec.Bead()]) {
+			if written[fsutil.Resolved(rec.Path)] || (rec.Bead() != "" && touched[rec.Bead()]) {
 				if _, err := site.RenderRecord(rec, recs, x, nil); err != nil {
 					return err
 				}
@@ -240,9 +240,6 @@ func (r *repo) checkPlanned(writes []store.Write, items []work.Item) error {
 	}
 	return err
 }
-
-// resolvedPath is Python's Path.resolve() for a path that may not exist yet.
-func resolvedPath(p string) string { return fsutil.Resolved(p) }
 
 // apply writes the records and commits exactly those files, the message prefix + message; it returns message. A
 // failed write or commit restores the files.

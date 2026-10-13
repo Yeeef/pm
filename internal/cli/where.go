@@ -20,6 +20,7 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
+	"slices"
 )
 
 // cmdWhere is pm where: with records, the store's path alone, for scripts; without, every location with its state.
@@ -54,12 +55,6 @@ func whereGit(dir string, args ...string) string {
 	return config.PyStrip(res.Stdout)
 }
 
-// whereIsLink is Path.is_symlink().
-func whereIsLink(p string) bool { return fsutil.IsLink(p) }
-
-// whereExists is Path.exists(): symlinks followed.
-func whereExists(p string) bool { return fsutil.Exists(p) }
-
 // whereAll is every location an agent or the owner needs, each with its state; it works before setup, to show what
 // is missing. The work store replaces Beads, so its line takes the place of Python's beads line.
 func whereAll(here string) (string, error) {
@@ -74,7 +69,7 @@ func whereAll(here string) (string, error) {
 	}
 
 	out := []string{fmt.Sprintf("pm        %s  %s", buildinfo.Version, launch.How())}
-	if !isDir(storeDir) {
+	if !fsutil.IsDir(storeDir) {
 		out = append(out, fmt.Sprintf("store     %s  missing; run %s", storeDir, whereSetup))
 	} else {
 		branch := whereGit(storeDir, "rev-parse", "--abbrev-ref", "HEAD")
@@ -96,17 +91,17 @@ func whereAll(here string) (string, error) {
 	if top == "" {
 		top = "."
 	}
-	if resolvedPath(top) == resolvedPath(storeDir) {
+	if fsutil.Resolved(top) == fsutil.Resolved(storeDir) {
 		top = main
 	}
 	link := filepath.Join(top, "records")
 	var state string
 	switch {
-	case whereIsLink(link) && resolvedPath(link) == resolvedPath(storeDir):
+	case fsutil.IsLink(link) && fsutil.Resolved(link) == fsutil.Resolved(storeDir):
 		state = "records link set up"
-	case !whereExists(link) && !whereIsLink(link):
+	case !fsutil.Exists(link) && !fsutil.IsLink(link):
 		state = "no records link; run " + whereSetup
-	case !whereIsLink(link) && whereGit(top, "ls-files", "--", "records") != "":
+	case !fsutil.IsLink(link) && whereGit(top, "ls-files", "--", "records") != "":
 		state = "records/ is this branch's tracked copy, not the link; merge the main branch, which tracks none, then run " +
 			whereSetup
 	default:
@@ -126,7 +121,7 @@ func whereAll(here string) (string, error) {
 		if !filepath.IsAbs(hp) {
 			hooks = filepath.Join(main, hp)
 		}
-		hooks = resolvedPath(hooks)
+		hooks = fsutil.Resolved(hooks)
 		var have []string
 		for _, h := range install.GitHooks {
 			st := "missing"
@@ -142,9 +137,9 @@ func whereAll(here string) (string, error) {
 
 	home := codexHome()
 	switch {
-	case !isDir(home):
+	case !fsutil.IsDir(home):
 		out = append(out, fmt.Sprintf("codex     %s  missing, so Codex is not used here", home))
-	case !isDir(storeDir):
+	case !fsutil.IsDir(storeDir):
 		out = append(out, fmt.Sprintf("codex     %s  writable_roots not checked without the store; run %s",
 			filepath.Join(home, "config.toml"), whereSetup))
 	default:
@@ -185,7 +180,7 @@ func whereCodexState(path, main string) (string, error) {
 		}
 		var missing []string
 		for _, r := range roots {
-			if !contains(have, r) {
+			if !slices.Contains(have, r) {
 				missing = append(missing, r)
 			}
 		}

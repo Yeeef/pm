@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
 	"path/filepath"
@@ -69,7 +70,7 @@ func cmdFeedbackAdd(e *env, p *Parsed) (string, error) {
 	var old string
 	if doc := feedbackDoc(r.recs); doc != nil {
 		old = doc.Text
-	} else if exists(path) {
+	} else if fsutil.Exists(path) {
 		return "", refuse("%s exists but is no pm feedback doc (type: doc); move it, then run this again", r.rel(path))
 	} else {
 		old = fmt.Sprintf("---\ntype: doc\ntitle: %s\ndate: %s\n---\n\n"+

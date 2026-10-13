@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -27,7 +28,7 @@ func cmdProjectOpen(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	path := filepath.Join(r.records, "projects", name+".md")
-	taken := exists(path)
+	taken := fsutil.Exists(path)
 	for _, rec := range r.recs {
 		taken = taken || rec.Type() == "project" && rec.Name() == name
 	}

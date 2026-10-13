@@ -142,7 +142,7 @@ func (c *Command[T]) check(a *Arg, v string) (string, error) {
 		}
 		v = strconv.Itoa(n)
 	}
-	if a.Choices != nil && !contains(a.Choices, v) {
+	if a.Choices != nil && !slices.Contains(a.Choices, v) {
 		return "", &UsageError[T]{c, fmt.Sprintf("argument %s: invalid choice: %s (choose from %s)", a.Name(),
 			quote(given), quoteAll(a.Choices))}
 	}
@@ -152,7 +152,7 @@ func (c *Command[T]) check(a *Arg, v string) (string, error) {
 // flagOrder puts help first, followed by declared options in order.
 func (c *Command[T]) flagOrder(flag string) int {
 	for i, a := range c.Args {
-		if contains(a.Flags, flag) {
+		if slices.Contains(a.Flags, flag) {
 			return i
 		}
 	}
@@ -174,15 +174,6 @@ func quoteAll(list []string) string {
 
 func quote(s string) string { return "'" + s + "'" }
 
-func contains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
-
 // Name returns the option strings, metavar or destination used in errors.
 func (a Arg) Name() string {
 	switch {
@@ -196,7 +187,7 @@ func (a Arg) Name() string {
 
 func (c *Command[T]) byFlag(flag string) *Arg {
 	for i := range c.Args {
-		if contains(c.Args[i].Flags, flag) {
+		if slices.Contains(c.Args[i].Flags, flag) {
 			return &c.Args[i]
 		}
 	}

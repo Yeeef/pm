@@ -10,6 +10,7 @@ import (
 
 	"github.com/Yeeef/pm"
 	"github.com/Yeeef/pm/internal/ask"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/records"
@@ -68,7 +69,7 @@ func (e *env) summarizeOne(r *repo, runtime ask.Runtime, day, activity string, d
 	sum := sha256.Sum256([]byte(activity))
 	digest := hex.EncodeToString(sum[:])[:16]
 	path := records.SummaryPath(r.records, day)
-	if exists(path) {
+	if fsutil.Exists(path) {
 		old, err := records.ReadSummary(path)
 		if err != nil {
 			return "", err

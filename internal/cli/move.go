@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -263,7 +264,7 @@ func (r *repo) moveWrites(rec *records.Record, id string, mv work.SprintMove, da
 		return nil, err
 	}
 	path := filepath.Join(r.records, "sprints", sprintName(to.Name(), mv.ToNumber)+".md")
-	if exists(path) {
+	if fsutil.Exists(path) {
 		return nil, refuse("%s already exists; sprint %s cannot take its name", r.rel(path), id)
 	}
 	fromText, err := records.InsertEntry(from.Text, "Decisions", decisionBlockOn("agent", date, fmt.Sprintf(

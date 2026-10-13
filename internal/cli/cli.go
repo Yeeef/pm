@@ -54,8 +54,6 @@ func Nouns() []string {
 	return out
 }
 
-func contains(list []string, s string) bool { return slices.Contains(list, s) }
-
 // refusal is a command's own error: "error: <message>" on stderr, exit 1.
 type refusal struct{ msg string }
 

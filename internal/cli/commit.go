@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
@@ -39,7 +40,7 @@ func cmdCommit(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	root := resolvedPath(e.records)
+	root := fsutil.Resolved(e.records)
 	codeRoot, err := store.CodeRoot(e.here, e.records)
 	if err != nil {
 		return "", err
@@ -57,7 +58,7 @@ func cmdCommit(e *env, p *Parsed) (string, error) {
 		} else {
 			return "", err
 		}
-		if strings.HasSuffix(filepath.Base(path), ".summary.json") && exists(path) {
+		if strings.HasSuffix(filepath.Base(path), ".summary.json") && fsutil.Exists(path) {
 			if _, err := records.ReadSummary(path); err != nil {
 				return "", err
 			}
@@ -111,7 +112,7 @@ func (e *env) commitPaths(names, lines []string) ([]string, error) {
 		parts := strings.Split(l[3:], " -> ")
 		changed[strings.Trim(parts[len(parts)-1], `"`)] = true
 	}
-	root := resolvedPath(e.records)
+	root := fsutil.Resolved(e.records)
 	var paths []string
 	for _, name := range names {
 		g := name
@@ -122,14 +123,14 @@ func (e *env) commitPaths(names, lines []string) ([]string, error) {
 		if !filepath.IsAbs(g) {
 			g = filepath.Join(e.here, g)
 		}
-		path := resolvedPath(g)
+		path := fsutil.Resolved(g)
 		inside, err := filepath.Rel(root, path)
 		outside := err != nil || inside == ".." || strings.HasPrefix(inside, "../")
 		// A path relative to the store, such as sprints/x.md, from anywhere outside it.
 		rel := filepath.ToSlash(filepath.Clean(name))
 		if outside && !filepath.IsAbs(name) && rel != ".." && !strings.HasPrefix(rel, "../") &&
-			(changed[rel] || exists(filepath.Join(e.records, rel))) {
-			path, inside, outside = resolvedPath(filepath.Join(e.records, rel)), rel, false
+			(changed[rel] || fsutil.Exists(filepath.Join(e.records, rel))) {
+			path, inside, outside = fsutil.Resolved(filepath.Join(e.records, rel)), rel, false
 		}
 		if outside {
 			return nil, refuse("%s is not in the records store %s", name, e.records)

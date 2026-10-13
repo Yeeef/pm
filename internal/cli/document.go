@@ -2,13 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
-	"os"
 	"path/filepath"
+	"slices"
 )
-
-func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 // newRecord is the checks every new-record command makes first: the slug's form (badSlug the refusal, with the slug
 // for its %s) and a non-empty title.
@@ -23,7 +22,7 @@ func newRecord(badSlug, slug, title string) error {
 }
 
 func (r *repo) refuseExisting(path string) error {
-	if exists(path) {
+	if fsutil.Exists(path) {
 		return refuse("%s already exists; edit it by hand or choose another slug", r.rel(path))
 	}
 	return nil
@@ -50,7 +49,7 @@ func cmdDocNew(e *env, p *Parsed) (string, error) {
 		inside := false
 		chain := append([]string{bead}, r.x.Ancestors(bead)...)
 		for _, rec := range r.recs {
-			if rec.Type() == "project" && contains(chain, rec.Bead()) {
+			if rec.Type() == "project" && slices.Contains(chain, rec.Bead()) {
 				inside = true
 			}
 		}

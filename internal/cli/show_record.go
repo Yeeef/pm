@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/yuin/goldmark"
@@ -119,7 +120,7 @@ func linkTarget(e *env, recs []*records.Record, target string) (*records.Record,
 	if strings.Contains(target, "/") || strings.HasSuffix(target, ".md") {
 		given := target
 		if filepath.IsAbs(given) {
-			rel, err := filepath.Rel(resolvedPath(store), resolvedPath(given))
+			rel, err := filepath.Rel(fsutil.Resolved(store), fsutil.Resolved(given))
 			if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
 				return nil, refuse("%s is not in the records store %s", target, store)
 			}

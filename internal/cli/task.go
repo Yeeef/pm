@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/session"
@@ -191,7 +192,7 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	gitDir, common, _ := strings.Cut(dirs, "\n")
-	if resolvedPath(gitDir) == resolvedPath(common) { // the main checkout; a linked worktree has its own git dir
+	if fsutil.Resolved(gitDir) == fsutil.Resolved(common) { // the main checkout; a linked worktree has its own git dir
 		cfg, err := config.Load(e.here)
 		if err != nil {
 			return "", err
