@@ -78,6 +78,7 @@ type Host struct {
 	holder string        // the operation in the slot, and since when
 	since  time.Time
 	gcMu   sync.Mutex // one garbage collection at a time; it takes no slot (GC)
+	visits gcVisits   // the sessions a collection visits, to wait for its visits to end (host_gc.go)
 	writes writeLock  // the store's write lock (lock.go)
 	closed bool
 }
@@ -208,6 +209,13 @@ func (h *Host) load() error {
 	if err != nil {
 		mrEnv.Close(ctx)
 		return held(err)
+	}
+	ds, err := se.NewDoltSession(ctx, gmssql.NewBaseSession())
+	if err != nil {
+		return errors.Join(fmt.Errorf("work store: %w", err), se.Close())
+	}
+	if h.visits, err = newGCVisits(ds.GCSafepointController()); err != nil {
+		return errors.Join(err, se.Close())
 	}
 	h.mrEnv, h.se = mrEnv, se
 	return nil
@@ -365,7 +373,9 @@ func (h *Host) Sync(c context.Context) ([]string, error) {
 // on. It deletes no item and squashes no commit. It takes no operation slot: the collection waits for every session
 // in the middle of a statement to end it, and a command in CALL pm_sync() or pm_create() is in the middle of one
 // while it waits for the slot, so a collection that held the slot would wait for it until its timeout. One
-// collection runs at a time (Dolt allows one).
+// collection runs at a time (Dolt allows one), and the next begins only once each session's visit by the last has
+// ended (host_gc.go). A collection whose client gave up at c's bound may still run in the server, past gcMu: the
+// service's next one is GCInterval later.
 func (h *Host) GC(c context.Context) error {
 	h.gcMu.Lock()
 	defer h.gcMu.Unlock()
@@ -374,6 +384,7 @@ func (h *Host) GC(c context.Context) error {
 		return err
 	}
 	_, err = d.conn.ExecContext(c, "CALL DOLT_GC()")
+	h.visits.blockOnVisits()
 	if err != nil {
 		err = fmt.Errorf("work store: gc: %w", d.broken(err))
 	}

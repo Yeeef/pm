@@ -61,3 +61,23 @@ func TestDoltHoldsTheJournalPruneFix(t *testing.T) {
 	}
 	t.Fatal("go.mod does not require github.com/dolthub/dolt/go")
 }
+
+// A collection returns only once each of its visits to the other sessions has ended (host_gc.go): Dolt's ends a
+// visit after the collection's wait, so the next collection could begin a visit of a session whose last one had not
+// ended, and both closed one channel ("panic: close of closed channel"). Idle sessions are what a collection visits.
+func TestACollectionRacingItsOwnVisitsReturnsOnceEachEnds(t *testing.T) {
+	_, o := newStore(t)
+	for range 32 {
+		must(o.dial(t).Mark())
+	}
+	for i := range 30 {
+		if err := o.h.GC(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range o.h.visits.states() {
+			if s.HasOutstandingVisitCall() {
+				t.Fatalf("collection %d returned while a session's visit had not ended", i)
+			}
+		}
+	}
+}
