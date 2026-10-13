@@ -28,6 +28,46 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.8.1] - 2026-10-13
+
+A design page can name the code it covers, and a PR that changes that code waits until its sprint updated the page or
+recorded why it stays as it is. pm releases on every merge to main that carries a changelog entry, with no one cutting
+the release, and the version says whether moving a pin needs action: a minor release asks for a step beyond installing
+it and `pm upgrade`, a patch release asks for none.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.8.1/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.8.1`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- A design page can name the code it is about in its header: `covers: [internal/records/**, prime.md]`, path
+  patterns relative to the repo root (`*` within one path segment, `**` as a whole segment for any depth). `pm check`
+  fails on a pattern that matches no tracked file.
+- `pm action need --pr` and `pm sprint close` refuse a PR that changes a file a design page covers until one of the
+  PR's sprints either updated the page (committed it since the sprint opened and links it in its Design pages) or
+  recorded why it stays as it is with the new `pm design unchanged <slug> --sprint ID --reason "…"`, a sprint
+  decision. They ask GitHub (`gh api`) for the PR's files only when some page has `covers:`, a renamed file's old path included. The review's text links each page
+  covering the changed code.
+- `design_sources` in `.pm/config.toml`, a list of path patterns: `pm check` lists the tracked source files it matches
+  that no design page covers.
+- A design page on the site says when the code it covers changed on the remote's main branch (as the clone last
+  fetched it) after its last edit: how many commits, and the latest one's date. The merge of a sprint that updated
+  or waived the page does not count. A clone that never fetched the remote's main shows "Code changes not checked"
+  instead.
+
+### Changed
+
+- A release is published by CI on every merge to main that leaves an entry in `changelog.d/`, once every check on
+  the merge commit passed. A merge with no entry releases nothing, and a `release/hold` file on main, naming the
+  feature it waits for, holds every release until the PR that completes the feature deletes it.
+- While pm is 0.x, a release is a minor one only when it asks a repo that moves its pin for a step beyond installing
+  the release and `pm upgrade --to X` (its upgrade guide is longer than those two steps) or removes something; every
+  other release, new features included, is a patch. 1.0 and later majors are cut by hand.
+- Each repo still moves its pin when it chooses, by its own PR; `pm doctor` names a newer release.
+
 ## [0.8.0] - 2026-10-13
 
 pm works in OpenAI Codex as it does in Claude Code: session identity, hooks, the owner-request judge on Codex's own
@@ -602,6 +642,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.8.1]: https://github.com/Yeeef/pm/compare/pm-v0.8.0...pm-v0.8.1
 [0.8.0]: https://github.com/Yeeef/pm/compare/pm-v0.7.1...pm-v0.8.0
 [0.7.1]: https://github.com/Yeeef/pm/compare/pm-v0.7.0...pm-v0.7.1
 [0.7.0]: https://github.com/Yeeef/pm/compare/pm-v0.6.0...pm-v0.7.0
