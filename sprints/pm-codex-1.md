@@ -85,6 +85,11 @@ The pm service delivers an owner reply into a live Codex session with codex queu
 codex-rs 0.154: codex queue writes thread/queue/add to the SQLite thread queue, and every app-server, the TUI embedded one included, dispatches it with start_turn_if_idle within 10 s (ext/queue/src/service.rs:88-246); measured live: an idle TUI started the turn 6.4 s after a 0.18 s queue call, on the npm install, with nothing global. Async hooks cannot start a turn (measured). The idle-session wake is this sprint own Done when, so it lands here.
 :::
 
+::: decision {source=agent date=2026-10-13}
+Moved pm-v498.1.5 to pm-v498.3: The service step can run only after a release carries the Codex work and this repo's pin moves; sprint 1's PR is already merged.
+It moves to sprint 3, which takes the release follow-up.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
