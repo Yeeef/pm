@@ -156,6 +156,17 @@ Owner chose it in chat: the defects that matter (stale behaviour claims, narrati
   s); the accurate, complete and diff cases and a clean full run on 4fe6a7e
   not run (budget). Total $3.96.
 
+- After the rebase onto main (0.8.6, #68-#75), make agents-md-check MODE=full
+  on haiku, 4 runs at once: 3/4 passed; the 4th failed non_inferable on an
+  agreed finding (3 of 3 calls): the rebased design_sources rule restated
+  internal/design's package doc. Fixed (AGENTS.md keeps the rule and points to
+  go doc ./internal/design); 4 more runs at once: 4/4 passed, 113-166 s and
+  $0.297-0.335 each, no agreed finding, 1-2 outvoted non_inferable findings
+  per run. Calibration (PM_LIVE_RUNS=1 make test-live-agents-md): 13/13 cases
+  gave their verdict, the 12 planted cases failed their criterion, clean and
+  diff_neutral passed; 142 calls, 211 s, $0.87. Evaluation spend in all about
+  $3.40.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
