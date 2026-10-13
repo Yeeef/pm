@@ -147,6 +147,8 @@ Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup wa
 
 partial: each PR now starts 2 macOS jobs, and a docs-only PR skips the Go matrix and passes merge-ready, but the median wall time is 138 s, not ~90 s. macOS compute is bound by the runner's 3 cores (about 96-98 s however it is arranged, plus 25-35 s of checkout and cache restore), so 2 macOS jobs take about 100-155 s each.
 
+Merged as 11968ca (PR #71).
+
 - #71 (merged as 11968ca): two macOS jobs; gofmt, vet, the page renderer and pm-before on Linux alone; `go_changes.py` skips the Go jobs' steps on a PR that no Go job reads, and every check still reports; pm lint restores pm go's current cache; TestPullRacingLocalWriters drops two needless read-dedup waits (15 to 10 s under -race locally); the service's lock-free records read repeats under the records lock while git holds `index.lock`, which fixed a real flake (9 of 40 failures before, 0 of 40 after).
 - #77: AGENTS.md says which PRs skip the Go jobs. #78: pm release build restores pm go's current cache. #79: internal/work's test seconds remeasured.
 
