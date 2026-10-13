@@ -138,6 +138,24 @@ Owner chose it in chat: the defects that matter (stale behaviour claims, narrati
   reason (5/6 probes), which assets_test.go and the CHANGELOG preamble state.
   non_inferable is not stable at 3 votes. Total $4.14.
 
+- AGENTS.md eval with the agreement vote (a voted part fails only when 2 of
+  its 3 calls quote intersecting AGENTS.md lines; haiku, full mode, 52 calls,
+  $0.29-0.34 and 190-275 s per run, 6 runs at once). Set 1 (AGENTS.md at
+  f6e3832 plus the covers:/README edits): 1/6 pass; agreed findings were real:
+  no_copies 5 parts failed on the changelog.d/README.md rule (the CHANGELOG
+  preamble's), map 2 on the new design_sources wording; non_inferable 8/18
+  calls with findings, 0 agreed (was the false fail). Calls with findings /
+  agreed findings: accurate 0/198 0, non_inferable 8/18 0, map 5/18 5,
+  no_copies 12/18 11, actionable 2/18 0, rest 0. Set 2 (README rule cut,
+  covers: rule cut to a pointer): 5/6 pass; non_inferable 9/18 calls, 2 agreed
+  findings in 1 run (the prime.md noun-list sentence, which restates
+  internal/hooks' doc), map 1/18 0, rest 0. After cutting that sentence
+  (4fe6a7e), non_inferable alone 6/6 pass (6/18 calls with findings, 0 agreed,
+  $0.03/run). Calibration (PM_LIVE_RUNS=1) only on the 6 voted non-accurate
+  planted cases: 6/6 fail on their criterion with an agreed finding ($0.09, 58
+  s); the accurate, complete and diff cases and a clean full run on 4fe6a7e
+  not run (budget). Total $3.96.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
