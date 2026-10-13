@@ -202,26 +202,27 @@ the PR moves this page's covered code into noun files and subpackages, quotes va
 
 ### Outcome
 
-partial: the refactor and its verification are complete in [PR #62](https://github.com/Yeeef/pm/pull/62); owner review and merge remain.
+done: `internal/cli` is split by noun, every function is under cyclomatic complexity 30, and the Python-port leftovers are retired (`internal/pyjson` deleted, the parser's argparse emulation gone), in [PR #62](https://github.com/Yeeef/pm/pull/62).
 
-- Command bodies now live by noun; parser/help and setup commands have their own packages. The shared command package remains above the general 5,000-line limit, with a lower exact allowance of 7,445 lines.
-- The five named long functions and every other function above cyclomatic complexity 30 were split into stages, preserving the existing validation and write order. Test names and assertions remain intact.
-- The parser already used pflag; this sprint separated normalization, flag parsing, positional assignment and explicit required/group checks. Compatibility output is retained where callers depend on it.
-- Machine inbox messages use typed standard JSON. Human-facing repr/errors and stored/exported JSON retain their Python-compatible form.
-- File and complexity limits now fail CI automatically. Development guidance and affected design ownership match the implementation.
+- Command bodies live by noun; the parser and setup have their own packages (`internal/cli/parse`, `internal/cli/setup`, `internal/cli/fsutil`). The `internal/cli` package is 7,433 non-test lines, down from 8,896; that is code moved into subpackages, not removed: everything under `internal/cli` totals 9,320 lines, against 8,853 on main before the merge.
+- `internal/pyjson` (429 lines) is deleted: JSON goes through `encoding/json`, a small ordered object keeps a user's own settings files' keys, values and order on rewrite, messages quote values with Go quoting, and `.pm/config.toml` values go through a tested TOML quoter.
+- The parser keeps pm's CLI grammar and names it in pm's terms; abbreviated flags are refused.
+- The help text the refactor had changed is restored and frozen by a golden of every `--help`; a test holds every doc comment to its function.
+- Each byte change is in `changelog.d/retire-pyjson.md` and `changelog.d/no-abbreviated-flags.md`; no clone needs an upgrade step.
 
 ### Against "Done when"
 
 | Check | Result | Evidence |
 |---|---|---|
-| No cli file over 800 lines | Met | Largest is `commands.go`, 714 lines; `size_test.go` now checks every Go file under cli, tests included |
-| No function above cyclomatic complexity 30 | Met | Global gocyclo: 0 findings; gocyclo moved out of the changed-lines ratchet and gates all functions |
-| Lower cli package allowance | Met | 8,896 → 7,445 non-test lines, down 1,451 (16.3%); the exact allowance is 7,445 |
-| `make lint` | Met | Full gates and changed-lines ratchet: 0 findings; deadcode and ruff pass |
-| `make test` | Met | Final run: 83 passed, 136 skipped, 11.14 s |
-| `make test-go` | Met | All packages, vet and formatting pass; 31 work tests in 8 shards (13.1 s), service race tests pass, 8 work race tests in 8 shards (11.4 s) |
-| CI green | Met | PR #62 checks pass on commit d4acff4, including Linux/macOS Go, work/race tests, harness integration/light, lint and release builds |
+| No `internal/cli` file over 800 lines | Met | Largest is `commands.go`, 715 lines; `size_test.go` caps every Go file under `internal/cli`, tests included |
+| No function above gocyclo 30 | Met | gocyclo gates every function in `make lint` at 30: 0 issues |
+| `internal/cli` package-size allowance dropped | Met | 8,896 to 7,433 (`oversized` in `size_test.go`) |
+| No Go file imports `internal/pyjson`, the package is gone | Met | `git grep -n pyjson -- '*.go'` is empty on the PR head; `internal/pyjson/` deleted |
+| An abbreviated flag is refused, a test holds it | Met | `pm task add --tit x` exits 2, "unrecognized arguments: --tit x"; `TestAnAbbreviatedOptionIsRefused` fails against the old parser |
+| Every `--help` equals origin/main's | Met | All 77 command paths, origin/main build against the branch: 11 differed after the original refactor, 0 after the fix; `internal/cli/testdata/help.golden` freezes them, its only rebase changes main's own `doctor` and `upgrade` lines |
+| Changelog names each byte change, upgrade step if needed | Met | Two entry files; the upgrade check below found no file a clone must rewrite, so no step |
+| A clone of the previous release reports `pm doctor` clean after `pm upgrade` | Met | Scratch origin and clone set up by pm 0.8.2 with user content in all three settings files: after `pm upgrade` and `pm service restart`, `pm doctor` exits 0; every settings file byte-identical; only the pin line and the post-checkout marker changed (Findings) |
+| `make test-live-parity` passes | Partly met | All 6 Claude scenarios pass; Codex with `PM_PARITY_CODEX_SANDBOX=danger-full-access` (this host's bubblewrap cannot start): 6 of 7 pass. The seventh, Codex's ask tool, fails the same way on origin/main: the TUI never opens the pick list. No transcript shows a hook, JSON or parser error (Findings) |
+| `make lint`, `make test`, `make test-go`, CI green | Met | lint 0 issues; `make test` 90 passed, 136 skipped (the live evals); `make -j2 test-go` ok, 31 work tests and 8 race tests in 8 shards; CI on PR #62's rebased head all green |
 
-Additional evidence: focused setup integration 18 passed in 12.69 s; final uninstall integration 3 passed in 4.87 s; final merge/sync Go tests passed in 55.665 s. Site and install golden tests pass without changing their expected output. Fresh review found no correctness issues; a second read verified the bounded cleanup patch preserves the original behavior.
-
-The host had 32 available cores and approximately 51 GiB available memory; harness workers, 8-way work shards and parallel lint/Go stages ran concurrently. Commands and results are recorded above; detailed logs remain under `/tmp/pm-cli-*.log` on this host. The code revision is d4acff4; the worktree is `/tmp/pm-cli-nouns` on `refactor/cli-nouns`.
+Reviews: a fresh review of the original refactor found the help-text change; a fresh review of the retirement found no correctness defect, and its edge case (a raw U+2028 in a settings file is now refused) is in the changelog.
