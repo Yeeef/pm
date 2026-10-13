@@ -151,7 +151,8 @@ after its review was raised; with `--merged SHA` it runs it on `--pr`'s files,
 or without `--pr` on the files a merge commit brought against its first
 parent. A commit with one parent (a squash or rebase merge, a direct commit)
 does not say where its delivery starts, so there it refuses and asks for
-`--pr`. A sprint with no PR,
+`--pr`. Then it holds the covers of the sprint's pages to the remote's main
+(Covers hold on main at the close, below). A sprint with no PR,
 or a voided one, closes without a review or a stamp.
 
 A review closed without "merged as <sha>" (its PR merged into a stacked
@@ -182,9 +183,35 @@ asked. The waiver is a decision in the sprint record, not a work-store field:
 decisions live in records, and the owner reads it on the sprint page next to
 the PR.
 
+### Covers hold on main at the close
+
+A sprint updates its page before its PR merges, and the records store is
+shared across branches, so a page's `covers:` may name a file that only the
+sprint's branch has. `pm check` lists such a pattern as waiting on unmerged
+work and passes ([Record layer](record-layer.md)). The close is where main
+must have the file: `pm sprint close`, in both forms, fetches the remote's
+main (the ref `--merged` checks) and reads its tree, then refuses while a
+page has a covers pattern that matches no file there.
+
+| Pages held | Why |
+|---|---|
+| Each design page the sprint record's Design pages links | The sprint brought it to the new state |
+| Each design page the gate names for the sprint's PRs, updated or waived | The PR changed code it covers |
+
+A page without covers is not held, and with no page held nothing is fetched.
+The refusal names each page and pattern and the two ways out: fix the
+pattern to the file main has and commit the page, or merge the PR that adds
+the file first.
+
 ## Alternatives considered
 
 > What else was considered and not adopted, and why not?
+
+- **`pm check` failing on a covers pattern that matches no tracked file:**
+  every session's check failed while other sessions' branches were in flight
+  (27 patterns on main at once), since the gate makes a
+  page name a file before main has it. The close is the first point where
+  main must have the file.
 
 - **A draft paragraph in the report** (`Draft until its PR merges.`, shown
   as a "Draft — closes when PR #N merges" banner): it duplicated the open

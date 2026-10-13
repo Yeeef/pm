@@ -35,7 +35,9 @@ bead: pm-d2k5.26
 
 > Where is the detail?
 
-None yet.
+- [Sprint lifecycle](../design/sprint-lifecycle.md): Covers hold on main at the close, and the close's refusals.
+- [Record layer](../design/record-layer.md): what `pm check` does with a covers pattern that matches no tracked file.
+- [pm CLI](../design/pm-cli.md): `pm sprint close`'s refusals.
 
 ## Progress
 

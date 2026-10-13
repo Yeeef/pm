@@ -178,9 +178,15 @@ one path segment and `**` as a whole segment for any depth
 (`covers: [internal/records/**, prime.md]`); `covers: []` says the page is
 about no code. The parser refuses a non-list, a non-string, an absolute
 pattern, a `.` or `..` segment and `**` inside a segment, and `covers:` on any
-other record type. `pm check` fails on a pattern that matches no file git
-tracks in the main checkout or the worktree it runs in, and lists the tracked
-files that `design_sources` in `.pm/config.toml` names and no page covers. A
+other record type. `pm check` lists a pattern that matches no file git
+tracks in the main checkout or the worktree it runs in as waiting on unmerged
+work, and passes: the records store is shared across branches, and a sprint
+brings its page to the new state before its PR merges, so a page names a file
+before main has it. `pm sprint close` holds the pattern to the remote's main
+instead ([Sprint lifecycle](sprint-lifecycle.md), Covers hold on main at the
+close). `pm check` also lists the tracked files that `design_sources` in
+`.pm/config.toml` names and no page covers, and fails on a `design_sources`
+pattern that matches none. A
 PR that changes a covered file waits until its sprint updates or waives the
 page ([Sprint lifecycle](sprint-lifecycle.md), Design pages follow the code),
 and the site says when covered code changed after a page's last edit
