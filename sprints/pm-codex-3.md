@@ -64,6 +64,11 @@ Moved pm-v498.1.5 to pm-v498.4: Sprint 3 delivers one PR, the Codex auto mode in
 This task belongs to sprint 4, which ships 0.8.0 into this repo and closes sprint 2.
 :::
 
+::: decision {source=agent date=2026-10-13}
+Moved pm-v498.3.2 to pm-v498.4: Sprint 3 delivers one PR, the Codex auto mode in the live eval (#58); the release follow-up is a separate deliverable.
+This task belongs to sprint 4, which ships 0.8.0 into this repo and closes sprint 2.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
