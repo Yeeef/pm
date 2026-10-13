@@ -108,6 +108,11 @@ The design page records-store stays as it is for this sprint's code changes.
 PR #80 changes only doc comments and AGENTS.md citations in the files this page covers (the AGENTS.md file map moved into package doc comments, release citations now name release/README.md); no behaviour this page describes changed
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page release-policy stays as it is for this sprint's code changes.
+PR #80 changes only doc comments and AGENTS.md citations in the files this page covers (the AGENTS.md file map moved into package doc comments, release citations now name release/README.md); no behaviour this page describes changed
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
