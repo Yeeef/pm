@@ -594,6 +594,11 @@ Quality work (code, architecture, tests, feedback) lives in project pm-quality a
 the owner split pm's work by kind so each project holds one kind of sprint
 :::
 
+::: decision {source=owner date=2026-10-13}
+pm releases on every merge to main that leaves changelog.d entries, with no owner step; a release/hold file or a failed CI on the merge commit pauses it. Version while 0.x: minor only when an entry has upgrade steps beyond installing and pm upgrade, or removes something (the owner must act); every other change, new features included, is a patch; 1.0 and later majors only by owner decision. Pins stay per repo, moved by their own PR.
+Owner, in chat 2026-10-13: releases by policy, not courtesy; every merge; a version number that tells whether a pin move needs action, since releases now come often.
+:::
+
 ## Design pages
 
 > Where is the detail?
