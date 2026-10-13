@@ -59,6 +59,9 @@ Before `pm action need --pr`, the PR's CI run must be green (`gh pr checks <n> -
 `.github/workflows/pm-tests.yml` runs the light set and the integration set as separate jobs on every PR and push to main.
 Do not run the whole integration set locally: CI runs it on every PR, and that run is the check. Push, then watch
 it; to reproduce a CI failure, run only the failing tests with `make test-full ARGS="-k …"`.
+A PR that changes only `AGENTS.md` or Python that no Go file reads (`tests/*.py`, `release/*.py`) skips the Go jobs'
+work (`.github/scripts/go_changes.py`): `pm go`'s jobs, `lint-go` and `lint-deadcode` pass in seconds, while the
+harness and `lint-py` run as on any PR.
 
 Merge a PR only through `make merge-ready PR=<n>` (`release/merge_ready.py`), run right before the merge: it
 refuses, naming why, unless the PR is open, its head contains `origin/main` as the remote has it now, every check
