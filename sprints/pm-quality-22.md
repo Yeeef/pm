@@ -172,6 +172,8 @@ serve.go reads the remote's main for the covered-code line; reply forms, the spo
 
 Done: a design page names the code it covers, and a PR that changes that code waits at `pm action need --pr` and `pm sprint close` until its sprint updates the page or records why it stays as it is.
 
+Merged as 31e2730 (PR #54).
+
 - `covers:` in a design page's header (doublestar globs), parsed and checked by the record layer; `pm check` fails on a pattern that matches no tracked file and on a dead `design_sources` pattern, and lists the tracked source files `design_sources` names that no page covers.
 - The gate in `internal/design`: the PR's files from GitHub's pull request files API (every page, a rename's old path too); a page passes when a sprint of the PR committed it since it opened and links it in Design pages, or waived it with the new `pm design unchanged`, a sprint decision in a fixed form. `pm sprint close` gates each review's PR and `--merged` (`--pr`'s files, else a merge commit's; a one-parent commit is refused without `--pr`). No page with `covers:`, no gate and no `gh` call. The review's text links each covering page.
 - The site: a design page says when commits on the remote's main changed its covered code after its last edit (count and latest date), leaving out merges a sprint that updated or waived it stamped; without the remote's main it says "Code changes not checked" and the site still renders.
