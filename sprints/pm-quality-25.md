@@ -66,6 +66,11 @@ Ask for pm feedback once at session end, through a SessionEnd hook that resumes 
 The owner wants a session-end reflection, not a turn-end one; SessionEnd cannot reach the ending model, so a resumed fork is the only way the agent with its own context answers, and it replaces the earlier gated Stop decision
 :::
 
+::: decision {source=agent date=2026-10-13}
+Moved pm-d2k5.25.6 to pm-d2k5.26: Added to sprint 25 by mistake: the sprint just opened for it is sprint 26.
+It belongs to sprint 26, whose frame it implements.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
