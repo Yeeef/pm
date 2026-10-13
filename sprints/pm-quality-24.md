@@ -77,6 +77,18 @@ Its Garbage row (DOLT_GC on a schedule, online, session-aware safepoints) still 
   amplifier (32 idle sessions, 60 back-to-back collections) panicked 607 of
   1000 runs before the fix, and 0 of 200 without oversubscription.
 
+- Fix in pm: Host.GC, after CALL DOLT_GC() and still under gcMu, waits for
+  each session's last visit to end (internal/work/host_gc.go reads the
+  controller's unexported mu and sessions by reflection; the host's start
+  fails if a Dolt upgrade changes them). After the fix: the flaky test passed
+  2000/2000 (4 cores) + 1000/1000 (2 cores) + 1000/1000 on the final commit;
+  the amplifier 0/1000. The new check,
+  TestACollectionRacingItsOwnVisitsReturnsOnceEachEnds (32 idle sessions, 30
+  collections, no visit outstanding when each returns; in RACE_TESTS), fails
+  410/1000 under contention and 27/200 without it when the wait is removed,
+  and passes 1000/1000 with it. No upstream issue filed; its text is in the
+  delivery report.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
