@@ -40,9 +40,21 @@ from conftest import PM, REAL, fake_env, stop_services
 
 CLAUDE_DIR = Path(REAL["CLAUDE_CONFIG_DIR"] or Path(REAL["HOME"]) / ".claude")
 REAL_CODEX_AUTH = Path(REAL["CODEX_HOME"] or Path(REAL["HOME"]) / ".codex") / "auth.json"
-# The sandbox Codex runs its commands in. workspace-write is what a Codex user runs; on a host where Codex's
-# bubblewrap sandbox cannot start, danger-full-access is the only mode whose commands run.
+# The mode Codex runs its commands in: a sandbox mode with no approvals (read-only, workspace-write,
+# danger-full-access), or approve-for-me, Codex's counterpart of Claude Code's auto mode and what a Codex user is
+# expected to run: the workspace-write sandbox, approval on request, and each request decided by Codex's automatic
+# reviewer. On a host where Codex's bubblewrap sandbox cannot start, every sandboxed command fails.
 CODEX_SANDBOX = os.environ.get("PM_PARITY_CODEX_SANDBOX", "workspace-write")
+assert CODEX_SANDBOX in ("read-only", "workspace-write", "danger-full-access", "approve-for-me"), \
+    f"PM_PARITY_CODEX_SANDBOX: no Codex mode {CODEX_SANDBOX!r}"
+
+
+def codex_mode(interactive: bool) -> list[str]:
+    """Codex's arguments for CODEX_SANDBOX: --approve-for-me, else the sandbox mode, and for the TUI no approvals.
+    `codex exec` takes them before `resume`, which takes no -s."""
+    if CODEX_SANDBOX == "approve-for-me":
+        return ["--approve-for-me"]
+    return ["-s", CODEX_SANDBOX, "-a", "never"] if interactive else ["-c", f'sandbox_mode="{CODEX_SANDBOX}"']
 CLAUDE_MODEL = os.environ.get("PM_PARITY_CLAUDE_MODEL", "haiku")
 CODEX_MODEL = os.environ.get("PM_PARITY_CODEX_MODEL", "")  # "" is Codex's default for the login
 # What the agent's environment must not inherit from the session that runs the tests: a runtime's session and its
@@ -439,9 +451,9 @@ class Clone:
                     *(["--resume", resume] if resume else []),
                     "--setting-sources", "project,local", "--output-format", "stream-json", "--verbose",
                     "--allowedTools", "Bash", "Edit", "Write", "Read", "Glob", "Grep"]
-        else:  # codex exec resume takes no -s or -C: the sandbox goes in as config, and it runs in the checkout
-            argv = [shutil.which("codex", path=REAL_PATH) or "codex", "exec",
-                    *(["resume"] if resume else []), "--json", "-c", f'sandbox_mode="{CODEX_SANDBOX}"', "-c", trust,
+        else:  # codex exec resume takes no -s or -C: the mode goes in at exec's root, and it runs in the checkout
+            argv = [shutil.which("codex", path=REAL_PATH) or "codex", "exec", *codex_mode(interactive=False),
+                    *(["resume"] if resume else []), "--json", "-c", trust,
                     *(["-m", CODEX_MODEL] if CODEX_MODEL else []), *([resume] if resume else []), prompt]
         env = self.agent_env()
         env["PATH"] = os.pathsep.join(d for d in env["PATH"].split(os.pathsep)
@@ -540,8 +552,8 @@ class Tui:
                     "--setting-sources", "project,local", "--allowedTools", "Bash", "Edit", "Write", "Read", "Glob",
                     "Grep"]
         else:
-            argv = [shutil.which("codex", path=REAL_PATH) or "codex", "--no-alt-screen", "-s", CODEX_SANDBOX,
-                    "-a", "never", "-c", trust, *(["-m", CODEX_MODEL] if CODEX_MODEL else []), prompt]
+            argv = [shutil.which("codex", path=REAL_PATH) or "codex", "--no-alt-screen", *codex_mode(interactive=True),
+                    "-c", trust, *(["-m", CODEX_MODEL] if CODEX_MODEL else []), prompt]
         self.log = clone.out / f"{name}.{runtime}.tty"
         self.pid, self.fd = pty.fork()
         if self.pid == 0:  # the child: the TUI, in the checkout, with the agents' environment and a terminal's

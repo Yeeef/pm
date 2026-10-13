@@ -254,8 +254,14 @@ user settings left out; Codex with a temp `CODEX_HOME` holding a copy of the use
 through `codex app-server` as the TUI's review trusts them; an interactive Claude session with a config dir of its own
 holding a copy of the user's `.credentials.json`. Every login copy goes through `agents.login_copy`: mode 600, removed
 when the test ends, a failed one too (`test_login_copies.py` holds the harness to it). `PM_PARITY_CODEX_SANDBOX` sets
-Codex's sandbox (default `workspace-write`); a host where bubblewrap cannot start (`bwrap: loopback: Failed
-RTM_NEWADDR`) needs `danger-full-access`.
+Codex's mode: `approve-for-me`, or a sandbox mode with no approvals (`workspace-write`, the default, `read-only`,
+`danger-full-access`). A Codex user is expected to run `approve-for-me` (`--approve-for-me`, Codex's counterpart of
+Claude Code's auto mode): the `workspace-write` sandbox, approval on request, and each request to run outside the
+sandbox decided by Codex's automatic reviewer (a `codex-auto-review` model call, about 2 s). A host where bubblewrap
+cannot start (`bwrap: loopback: Failed RTM_NEWADDR`) runs no sandboxed command: under `approve-for-me` the session
+asks to run each failed command outside the sandbox and the reviewer allows it, but Codex's file edit tool
+(`apply_patch`) fails there before any review, so the Stop scenario fails; such a host passes the set only with
+`danger-full-access`.
 
 ## Changing prime.md and the hooks
 
