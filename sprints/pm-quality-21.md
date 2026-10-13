@@ -58,6 +58,11 @@ Apply the cyclomatic-complexity threshold to every Go function, including existi
 The Done when says no function exceeds 30; applying it globally gives an exact check and removes ambiguity about the named five.
 :::
 
+::: decision {source=owner date=2026-10-13}
+Rescope: the sprint retires the Python-port leftovers in full, not only where no output depends on them. internal/pyjson goes (JSON through encoding/json, Go quoting in messages and TOML), the parser drops argparse emulation (abbreviated flags, argparse naming); pm keeps its CLI grammar (two-value options, alternative-flag groups, required flags), its help text and its refusal wording apart from how a quoted value is quoted. The resulting byte changes in JSON output, rewritten hook files and quoted values ship with a changelog entry.
+The owner asked in chat on 2026-10-13 to take the sprint over and deliver the retirement: the byte-identical-to-Python guarantee served the migration from Python pm, which is retired (0.1.x), so nothing reads those bytes as Python wrote them; the CLI grammar and refusal wording are pm interface that prime.md and agents rely on, not emulation.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
