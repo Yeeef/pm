@@ -35,6 +35,11 @@ pm-quality PRs merge as soon as make merge-ready passes, with no owner review; t
 Owner, 2026-10-12: quality-improvement PRs need no owner approval; CI and merge-ready are the gate
 :::
 
+::: decision {source=owner date=2026-10-14}
+The Dolt GC double-close bug (wg.Done before EndOutstandingVisitCall in gc_safepoint_controller.go) is not filed upstream; pm keeps its workaround in Host.GC, whose start-up check of Dolt unexported fields forces a re-check at the next Dolt upgrade. The issue text stays in pm-quality sprint 24 report.
+Owner, in chat 2026-10-14: keep the workaround only.
+:::
+
 ## Design pages
 
 > Where is the detail?
