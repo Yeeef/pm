@@ -72,10 +72,16 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm check` lists a covers pattern that matches no tracked file as waiting on unmerged work and passes, and `pm sprint close` holds the sprint's design pages' covers to the remote's main instead.
+
+- `pm check`: dead covers patterns listed as waiting, exit 0; a malformed covers pattern and a dead `design_sources` pattern still fail.
+- `pm sprint close`, both forms: fetches the remote's main and refuses while a page in the sprint's Design pages, or one its gate names, has a covers pattern that matches no file there, naming page, pattern and the fix.
+- `--help` of both commands, `prime.md`'s close line, a changelog entry, and the pages [Sprint lifecycle](../design/sprint-lifecycle.md), [Record layer](../design/record-layer.md) and [pm CLI](../design/pm-cli.md) at the new state.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `pm check` on main exits 0 and lists the dead patterns as waiting: met with this branch's build stamped 0.8.3 on the shared store, `PM_LAUNCHED=0.8.3 pm check`: exit 0, all 209 pages render, 30 covers patterns listed as waiting (27 at framing; 3 more since). The main checkout's run on the released pin is in Findings.
+- A sprint whose page names a file its merged PR does not add is refused at close, naming the pattern, and closes once the pattern is live: met, `test_sprint_close_refuses_a_design_page_naming_a_file_the_remote_main_lacks` (both forms; plain: `design/parser.md: covers pattern "src/parser/tables.go"`, `--merged`: a gate-named waived page), passing locally and in CI on PR #68.
+- Every existing design page whose area changed is at the new state and in Design pages: met for Sprint lifecycle, Record layer and pm CLI; the other pages the gate names for PR #68 (Session claims, Shared records store, Agent lifecycle, pm as an installable product) are waived with `pm design unchanged`, each with its reason.
