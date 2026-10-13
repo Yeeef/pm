@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T19:56:11+00:00",
- "digest": "0a077dd394fce806",
+ "generated_at": "2026-10-13T20:06:40+00:00",
+ "digest": "30a1a31b6113db93",
  "model": "claude-haiku-5-5",
- "text": "- **Codex runtime parity:** Codex sessions now have the same pm guarantees as Claude Code sessions. Both runtimes can work on one project at once, and the judge and day summary run on Codex too.\n- **Release and policy:** The release workflow succeeded and published an install script, archives for two platforms, and checksums. The release policy page now records the owner's decision.\n- **Design page coverage gate:** A design page now names the code it covers. A pull request that changes that code waits until its sprint updates the page or records a reason.\n- **Code structure and checks:** Command code now lives in packages grouped by noun, and size and complexity limits apply across the codebase. CI now uses a rubric and agentic evaluation instead of the older lint, number guard, and duplication checks."
+ "text": "- **Codex runtime parity:** Codex sessions now get the same pm guarantees as Claude Code sessions. The owner-request judge and day summary also run on Codex, and commands report when Codex hooks did not run.\n- **Release shipping:** pm shipped a release with the Codex work, with install scripts and binaries for macOS and Linux. The release policy now records the owner's decision: a minor release means the owner must act.\n- **Design page coverage:** Design pages now name the code they cover. A pull request that changes covered code waits until its design page is updated or waived.\n- **CI checks and setup:** CI checks now use a rubric and an agentic evaluation, replacing the old lint and duplication checks. A PR run confirmed that GitHub Actions reaches the Anthropic API through workload identity federation."
 }
