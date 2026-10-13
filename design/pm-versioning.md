@@ -118,8 +118,32 @@ Reading: the launcher either runs the command itself or replaces itself with the
 | Pin 0.2.0 or later, not this version | `exec` of `pins/<pin>/pm` under `$XDG_DATA_HOME/pm/` (default `~/.local/share`), downloaded once from release `pm-v<pin>`, checked against `SHA256SUMS` and any sha256 kept from an earlier download; 10 s connect, 300 s in all |
 | Pin below 0.2.0 (a retired Python release) | Fails hard, naming `pm upgrade --to <X>` with a release from 0.2.0 on |
 | `PM_LAUNCHED=<pin>` set | Runs in process; the config check fails hard if this build is not the pin; the markers are removed from children's environment |
-| `pm upgrade [--to X]` | Moves the pin up to the running version, or launches X to move it; `--to` a version below 0.2.0 is refused |
+| `pm upgrade [--to X]` | Moves the pin up to the running version, or launches X to move it; `--to` a version below 0.2.0 is refused. Before it writes, it prints the upgrade guide of each release the move crosses (Pin moves); after, it prunes the pins no checkout on the machine pins |
 | Any failure: missing tag or release, checksum mismatch, timeout, no token | Hard error naming the release and the URL; nothing falls back |
+
+### Pin moves
+
+A pin move (`pm upgrade --to X`, run as pm X) crosses every release after the old pin up to X. Two things follow from it.
+
+**Every crossed release's steps are shown.** pm X embeds the release notes it was built with (`assets.go`: `CHANGELOG.md` and `changelog.d/`), which hold every earlier release's section. Before it writes anything, `pm upgrade --to X` prints the `### Upgrade guide` of each crossed release, oldest first, each under its version, as `CHANGELOG.md` has it (a guide's "steps 3 and 4" keep their meaning). X's own guide is X's section when the build has one, else the one its entry files assemble into, as `release/changelog.py` writes it: a release builds before its release commit writes the section. A crossed release whose guide is missing fails the upgrade before any write. No network is read: the notes travel with the binary that does the move.
+
+| Old pin | X | Printed |
+|---|---|---|
+| 0.7.0 | 0.9.0 | 0.7.1, 0.8.0, then 0.9.0 (and any release between) |
+| 0.9.0-rc.1 | 0.9.0 | 0.9.0 |
+| X, or newer than X | X | Nothing |
+| Not a version | X | Every release up to X |
+
+**Pins no checkout uses are pruned.** A checkout on the machine is a worktree of a clone pm knows: the clone the command runs in, and each clone with a pm service unit (`pm init` installs one per clone, whatever pm version set it up; `service.Clones` reads the units' working directories). After it writes, `pm upgrade` removes `pins/<X>/pm` of every pin that none of them pins, other than the running pm's; it keeps `pins/<X>/sha256`, so a later download of a pruned pin is checked against the first one and fails hard if it differs. `pm doctor` names those pins and their size, without failing; `pm upgrade --to <the pin>` prunes them.
+
+| Case | Pruning |
+|---|---|
+| A unit cannot be read or names no working directory | None; the line says why |
+| A clone's worktrees cannot be listed, or a worktree's `.pm/config.toml` exists but does not parse or sets no version | None; the line says why |
+| A unit's clone directory is gone, or a worktree has no `.pm/config.toml` | That checkout pins nothing |
+| A clone with no unit (its service uninstalled) | Not seen: its pin can be pruned, and its next command downloads it again, checked |
+
+Reading: the main checkout moves to X only once the pin-move PR merges and is pulled, so the pin just left is usually still in use when `pm upgrade` runs; the next `pm upgrade` on the machine, or one at the pin, prunes it. Old worktrees keep their branch's pin in use until they are merged or removed (`pm clean`).
 
 ### What the user sees today
 
@@ -128,9 +152,9 @@ Reading: the launcher either runs the command itself or replaces itself with the
 | First install on a machine | `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<X>/install.sh \| sh`, then `pm init` |
 | Joining a repo that already uses pm | Clone, then `pm init` (session start runs it). The first command fetches the repo's pin if the machine lacks it: a 38–42 MB download, 6.0 s measured |
 | A hook or agent running pm | The launcher reads the pin and execs the kept build: no network |
-| Upgrading one repo | Once release X exists, `pm upgrade --to X` in an ordinary PR; each machine fetches X on its next run |
+| Upgrading one repo | Once release X exists, `pm upgrade --to X` in an ordinary PR: it prints every crossed release's upgrade guide first, oldest first; each machine fetches X on its next run |
 | Learning that a release newer than the pin exists | `pm doctor` reads the latest release (`GET <api>/releases/latest`, no token, then a token as the launcher does; `$PM_RELEASE_API` replaces the API URL) and, when it is newer than the pin, prints a line naming it, its notes' URL and `pm upgrade --to X`. When the list cannot be read it says so, never guessing. The line informs; it does not change the exit code, which is about the clone's own pieces |
-| Two repos on different versions on one machine | Works: each repo runs its own pin; each pin keeps its own build (111 MB per Go pin) |
+| Two repos on different versions on one machine | Works: each repo runs its own pin; each pin keeps its own build (111 MB per Go pin) while a checkout on the machine pins it; `pm upgrade` prunes the rest (Pin moves) |
 | A worktree that pins another version than its main checkout (a pin-moving PR) | Its commands that touch work items refuse: they reach the work store only through the clone's pm service, which runs the main checkout's pin, and a command and the service must be one version ([pm in Go](pm-go.md), Store access). Commands without work data run. The pin takes effect once the main checkout has it; the service then restarts on it by itself |
 | A teammate whose machine is behind | Works without action while the machine's launcher knows the pin's kind and release URL; when it does not (first Go pin, a new host or download method), every such machine needs a bridge release or a reinstall |
 | CI | Not used today. A workflow would run `install.sh`, then the launcher downloads the pin |
@@ -149,7 +173,7 @@ Five models, A being today's. Each has the same user-flow rows. The release URL 
 The flows are in Design, "What the user sees today".
 
 - **Guarantees:** every session on a branch runs exactly the pinned build, so records and schema writes come from one version per repo. A stale branch's worktree still runs its old pin against the clone's shared work store, so the schema refusal is needed here too.
-- **Costs:** launcher code; a pins cache (111 MB per Go pin per machine); one first-run download per pin per machine; the release host and asset layout frozen into every installed launcher, so any change to them needs a bridge release first; a pin PR in every repo for every release it wants.
+- **Costs:** launcher code; a pins cache (111 MB per Go pin per machine, for each pin some checkout on it uses); one first-run download per pin per machine; the release host and asset layout frozen into every installed launcher, so any change to them needs a bridge release first; a pin PR in every repo for every release it wants.
 - **Changes in pm:** none.
 
 ### B. Minimum version + schema version, one installed pm, `pm self-update`

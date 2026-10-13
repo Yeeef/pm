@@ -280,7 +280,7 @@ A command never restarts the service: parallel commands would restart it many ti
 |---|---|
 | Machine install | `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v<X>/install.sh \| sh && pm init`. `install.sh` picks the asset for `uname -s`/`-m`, checks it against `SHA256SUMS`, installs to `${PM_BIN_DIR:-$HOME/.local/bin}/pm` |
 | Launcher | the installed binary |
-| A pin's binary | `$XDG_DATA_HOME/pm/pins/<pin>/pm`, downloaded once from release `pm-v<pin>`, checked against `SHA256SUMS`, written atomically; its sha256 is kept in `pins/<pin>/sha256`, and a later download that differs fails hard |
+| A pin's binary | `$XDG_DATA_HOME/pm/pins/<pin>/pm`, downloaded once from release `pm-v<pin>`, checked against `SHA256SUMS`, written atomically; its sha256 is kept in `pins/<pin>/sha256`, and a later download that differs fails hard. `pm upgrade` removes the binary of each pin no checkout on the machine pins and keeps its sha256 ([pm-versioning](pm-versioning.md), Pin moves) |
 | Runtime needs | git; `gh` and `claude` |
 | `pm init` | copies the running binary (`os.Executable()`) into the bin dir when it is not there, replacing a link there (such as the retired pm uv tool's) rather than following it |
 
@@ -292,7 +292,7 @@ A command never restarts the service: parallel commands would restart it many ti
 | Pin ≥ 0.2.0 and not this version | `syscall.Exec` of `pins/<pin>/pm`, downloading it first if missing (10 s connect timeout, 300 s download); a missing release or asset, a checksum mismatch or a timeout is a hard error that names `pm-v<pin>` |
 | Pin < 0.2.0 (a retired Python release) | Fails hard, naming the fix: move the pin to a release from 0.2.0 on with `pm upgrade --to <X>` |
 | `PM_LAUNCHED=<pin>` set | Runs in process, then the config check; removes `PM_LAUNCHED`/`PM_LAUNCHER` from its children's environment |
-| `pm upgrade [--to X]` | Moves the pin up to the running version, or launches X to move it; `--to` a version below 0.2.0 is refused |
+| `pm upgrade [--to X]` | Moves the pin up to the running version, or launches X to move it; `--to` a version below 0.2.0 is refused. First it prints the upgrade guide of each release the move crosses, from the release notes pm X embeds ([pm-versioning](pm-versioning.md), Pin moves) |
 
 **A clone on the pre-package harness.** `pm init` refuses a clone that still holds the pre-package harness's pieces and names the fix: run `pm init` once with the retired Python release that moves them (`uvx --from "git+https://github.com/Yeeef/pm@pm-v<that release>" pm init`, which needs uv), then move the pin to a release from 0.2.0 on and run `pm init`.
 

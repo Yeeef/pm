@@ -46,7 +46,7 @@ covers:
 - Launchers keep each pin's sha256 after the first download and fail hard on a differing one: a tag whose assets were downloaded must never move or be rebuilt.
 - A repo pins one exact version. A pin move is a PR per repo (`pm upgrade --to X`). It rewrites `.pm/config.toml` and `.pm/hooks/post-checkout` always, and the hook entries in `.claude/settings.json` and `.codex/hooks.json` only when the release changed them: the entries carry no version.
 - After a pin move, every worktree whose branch was cut before it is refused work-store commands until it rebases. The pm clone has 21 worktrees today.
-- Each Go pin costs about 113 MB per machine under `~/.local/share/pm/pins/`; nothing prunes old pins.
+- Each Go pin costs about 113 MB per machine under `~/.local/share/pm/pins/`; `pm upgrade` prunes the binaries of the pins no checkout on the machine pins ([pm-versioning](pm-versioning.md), Pin moves).
 
 **History, 0.2.0 to 0.8.0.**
 
@@ -143,7 +143,8 @@ The decision is one function, `changelog.py plan`, which prints `release X` or `
 ### Pin moves
 
 - Each repo moves its pin when it chooses, by its PR (`pm upgrade --to X`), pm's own repo included; nothing moves pins automatically. `pm doctor` already names a newer release.
-- A move crosses every release between the old pin and `X`; its guide is the union of their upgrade guides, read from each release's notes (Open questions). Only a move that crosses a minor has a step beyond the first two. A repo re-trusts Codex hooks once per move that crosses a hook change, whatever the number of releases crossed.
+- A move crosses every release between the old pin and `X`; its guide is their upgrade guides in order, which `pm upgrade --to X` prints before it writes anything, from the release notes pm X embeds (X's own from its entry files, since a release builds before its release commit writes its section). Only a move that crosses a minor has a step beyond the first two.
+- Each move leaves the old pin's binary behind; `pm upgrade` prunes every pin that no checkout on the machine pins, keeping its sha256 ([pm-versioning](pm-versioning.md), Pin moves). A repo re-trusts Codex hooks once per move that crosses a hook change, whatever the number of releases crossed.
 - Recommended cadence: move when a release carries something the repo needs, or about weekly, and after merging or rebasing in-flight branches where possible, since each move strands worktrees cut before it.
 
 ### Automation
@@ -250,7 +251,4 @@ Reading: the build runs before any tag exists, so a failed build leaves nothing 
 
 > What is still unresolved?
 
-| # | Question | Options | Default |
-|---|---|---|---|
-| 1 | How does a pin move that crosses several releases show their steps? | a. `pm upgrade --to X` prints every upgrade-guide step of the releases between the pin and `X`, from their notes; b. the user reads each release's notes | a; not built yet: it is a change to `pm upgrade` (network read of the releases, a test and a release of its own) |
-| 2 | Does an old pin's 113 MB ever go? | a. `pm clean` prunes pins no clone on the machine uses; b. keep all | a, later |
+None yet.

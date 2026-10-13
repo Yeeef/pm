@@ -73,7 +73,7 @@ pm init
 
 | Scope | Piece | Written by |
 |---|---|---|
-| Machine | the `pm` binary in `~/.local/bin` and its pins cache; the pm service per clone (systemd user service or launchd agent); Codex sandbox `writable_roots` per clone | `pm init` |
+| Machine | the `pm` binary in `~/.local/bin` and its pins cache (a pin's binary kept while a checkout on the machine pins it; `pm upgrade` prunes the rest); the pm service per clone (systemd user service or launchd agent); Codex sandbox `writable_roots` per clone | `pm init` |
 | Repo (tracked) | `.pm/` (below); pm's hook entries in `.claude/settings.json` and `.codex/hooks.json`; `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox ([pm in Codex](../design/pm-in-codex.md), Sandbox); pm's lines in `.gitignore`, `/records` among them; pm's marked section in each `.beads/hooks/*` file it needs | `pm init`, `pm upgrade` |
 | Clone | the store checkout at `<main>/.pm/store/records` (git-ignored); Beads database and config; `core.hooksPath` (Beads' `.beads/hooks`); the Beads agent profile | `pm init` |
 | Worktree | the `records/` link to the store | `pm init`, run by the `post-checkout` hook |
@@ -158,7 +158,7 @@ pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPa
 
 - **Download once.** The first launch of a pin on a machine downloads release `pm-v<pin>`'s asset for the platform (10 s connect timeout, 300 s in all), checks it against `SHA256SUMS`, writes it atomically and keeps its sha256; a later download that differs fails hard. A missing release or asset, a checksum mismatch and a timeout are hard errors naming `pm-v<pin>`; nothing falls back to the installed pm's own version. After that a launch needs no network.
 - **A launched pm leaves the bin dir alone.** `pm init` run by a launched pm does not copy itself into the bin dir, since that would replace the launcher. The service's unit runs the bin-dir pm (`<path> service run`), which launches the main checkout's pin, so the service runs the repo's pin.
-- **Moving the pin.** `pm upgrade [--to X]` moves the pin and rewrites every managed piece for the new version in one change for the owner to commit. Once the main checkout's pin moves, the service exits; the supervisor starts the bin-dir pm again, which launches the new pin.
+- **Moving the pin.** `pm upgrade [--to X]` first prints the upgrade guide of every release the move crosses, oldest first, from the release notes pm X embeds; then it moves the pin and rewrites every managed piece for the new version in one change for the owner to commit, and prunes the pins no checkout on the machine pins: no worktree of this clone, nor of any clone with a pm service unit, whose units are the machine's list of clones ([pm-versioning](pm-versioning.md), Pin moves). Once the main checkout's pin moves, the service exits; the supervisor starts the bin-dir pm again, which launches the new pin.
 - `pm where` and `pm doctor` name the version running and why (in process, or launched by the installed pm at version Y).
 
 ### Commands
@@ -166,8 +166,8 @@ pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPa
 | Command | Does |
 |---|---|
 | `pm init` | One idempotent command for every scope, doing only what is missing. Repo, when `.pm/config.toml` is absent: write `.pm/`, the hook entries and the `.gitignore` lines; run `bd init` if the repo has no `.beads/`; create the `records` branch with an empty store if the remote has none; then the clone and worktree steps. Writes files and prints the commit to make; never commits on the code branch. Clone and worktree, always: what `pm setup` does today (Beads bootstrap, store checkout, `records/` link, hooks path, the pm service, Codex roots), reading names from `config.toml`; this half is what the `post-checkout` hook runs. |
-| `pm upgrade` | Move the pin; rewrite the managed pieces. |
-| `pm doctor` | Compare every managed piece with what the pinned version writes, and the clone and worktree setup with what `pm init` makes; report each difference and exit non-zero on any. It also fails while the CLI `summary_runtime` names is not on PATH (the pm service summarizes with it; a judge needs no check, since it runs on its session's own runtime), and names each of pm's hooks Codex would skip, read from Codex itself (`codex app-server`, `hooks/list`); pm never writes Codex's trust. A typed `pm init` reports the Codex skips too. |
+| `pm upgrade` | Print each crossed release's upgrade guide; move the pin; rewrite the managed pieces; prune the pins no checkout uses. |
+| `pm doctor` | Compare every managed piece with what the pinned version writes, and the clone and worktree setup with what `pm init` makes; report each difference and exit non-zero on any. It also fails while the CLI `summary_runtime` names is not on PATH (the pm service summarizes with it; a judge needs no check, since it runs on its session's own runtime), and names each of pm's hooks Codex would skip, read from Codex itself (`codex app-server`, `hooks/list`); pm never writes Codex's trust. It names, without failing, a release newer than the pin and the pins `pm upgrade` would prune. A typed `pm init` reports the Codex skips too. |
 | `pm uninstall` | Remove the managed pieces (hook entries, `.gitignore` lines, pm's sections in `.beads/hooks`, `.pm/`), and the clone and machine setup (the store checkout, the `records/` link in every worktree `git worktree list` shows, the pm service, the Codex roots); keep the `records` branch and Beads. |
 
 ### Where today's pieces end up

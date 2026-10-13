@@ -36,7 +36,10 @@ Releases now come on every merge, so a repo's pin move often crosses several rel
 
 > Where is the detail?
 
-None yet.
+- [How a repo runs the right pm version](../design/pm-versioning.md): Pin moves, the crossed releases' guides and pruning (covers `internal/launch/**`).
+- [pm in Go](../design/pm-go.md): the pins cache and `pm upgrade` rows (covers `internal/launch/**`).
+- [pm as an installable product](../design/pm-product.md): the machine's pins, moving the pin, `pm upgrade` and `pm doctor` (covers `internal/install/**`, `internal/service/unit*.go`).
+- [When and how pm releases](../design/release-policy.md): Pin moves, and its two open questions, now answered.
 
 ## Progress
 
