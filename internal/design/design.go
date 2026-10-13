@@ -86,7 +86,8 @@ func Report(recs []*records.Record, tracked map[string]bool, sources []string, r
 	}
 	if waiting != nil {
 		out += fmt.Sprintf("\n%d covers patterns match no tracked file, waiting on unmerged work; pm sprint close "+
-			"refuses a sprint whose page still names a file the remote's main lacks once its PR merges:\n  %s",
+			"refuses a sprint only on a pattern it added or changed while open that its merged PR leaves missing on "+
+			"the remote's main:\n  %s",
 			len(waiting), strings.Join(waiting, "\n  "))
 	}
 	return out, nil
