@@ -55,6 +55,11 @@ In scope too: pm-lint and pm-release-build restore pm-go.yml's current cache key
 Both are on the PR critical path to ~90 s: lint-deadcode ran 67-92 s, restoring a stale pre-unzipped cache that only stays alive because lint keeps restoring it; its two type-checks run serially on 4 cores (10 s each with 32 cores locally, about 35 s CPU each).
 :::
 
+::: decision {source=agent date=2026-10-13}
+In scope too: the service's lock-free records read (internal/cli serve.go Load) counts a read while git holds the store worktree's index.lock as moved, so it reads again under the records lock.
+TestLoadNeverPassesARecordSetMissingAFileGitRewrote failed in 4 of 4 macOS runs with build, tests and work tests at once (-j3), and once on Linux: a git stalled mid-checkout leaves the same file missing from both stamps, so a read passed without it. Under CPU contention locally: 9 of 40 runs failed before, 0 of 40 after. The -j3 layout is what brings the macOS build-test job from 138 s to about 90 s.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
