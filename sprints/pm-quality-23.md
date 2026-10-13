@@ -42,7 +42,7 @@ AGENTS.md (CLAUDE.md links to it) is a short map of what an agent developing pm 
 
 > Where is the detail?
 
-None yet.
+- [AGENTS.md rubric and its agentic evaluation](../design/agents-md-evaluation.md): the rubric's criteria, the runner's modes and calls, the labelled cases, the model, and the CI workflow.
 
 ## Progress
 
