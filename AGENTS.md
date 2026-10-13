@@ -109,9 +109,8 @@ ran against main as main was then, so two PRs that pass alone can break main tog
   fit the cap can overflow it together.
 - **A hook change edits both `claudeHooks` and `codexHooks`** (`internal/install/pieces.go`);
   `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for.
-- Hooks fail open on their own errors. An owner-request judge that cannot run exits 1 with the cause on stderr,
-  which Claude Code shows and Codex takes as a pass. Keep `pm hook inbox` on UserPromptSubmit alone, never on Stop:
-  a Stop block ends the continuation with `stop_hook_active`, which would let the stop checks through.
+- Hooks fail open, the owner-request judge excepted (`internal/hooks`' package doc). Keep `pm hook inbox` on
+  UserPromptSubmit alone, never on Stop (`internal/hooks/inbox.go` says why).
 
 ## pm init
 

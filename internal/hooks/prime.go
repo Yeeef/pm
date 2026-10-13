@@ -10,8 +10,9 @@
 // puts a title line naming each chunk's place and sections on top (pm prime --rules N); the state runs as its own hook,
 // cut at a line. TestChunksFitTheCapAndAddUpToTheHead fails when a chunk outgrows Cap. Beside prime: stop.go pm hook
 // stop (uncommitted records), ownerrequest.go pm hook owner-request (the judge on the session's runtime, --runtime
-// claude or codex, through internal/ask; a judge that cannot run exits 1 with the cause on stderr), asktool.go the
-// runtimes' ask tools the judge lets through, inbox.go pm hook inbox (UserPromptSubmit).
+// claude or codex, through internal/ask; a judge that cannot run exits 1 with the cause on stderr, which Claude Code
+// shows and Codex takes as a pass), asktool.go the runtimes' ask tools the judge lets through, inbox.go pm hook inbox
+// (UserPromptSubmit, never Stop).
 package hooks
 
 import (
