@@ -17,6 +17,9 @@ Each criterion below is judged pass or fail on its own.
   A claim you checked and could not refute passes. Style preferences, wording you would choose differently and
   improvements that fix no defect are not findings.
 - A criterion with no finding passes.
+- The rules the complete criterion lists belong in AGENTS.md even where the code also states them: a rule of that
+  list, stated in a sentence or two (what triggers it and what to do), is never a non_inferable, map or no_copies
+  defect.
 
 ## accurate
 
@@ -41,7 +44,8 @@ or docstrings, the Makefile and its comments, or a `--help` text already says.
   does step by step; a description of a target's internals that its Makefile comment already gives; a list that copies
   a `--help` text.
 - Pass: commands, rules and conventions that the code does not state, the reasons behind them, and short pointers
-  ("the hook entries are `claudeHooks` and `codexHooks` in `internal/install/pieces.go`").
+  ("the hook entries are `claudeHooks` and `codexHooks` in `internal/install/pieces.go`"). A table of the Make
+  targets an agent runs, each with a line on what it is for and when to run it, passes.
 
 ## map
 
