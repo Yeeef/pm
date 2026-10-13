@@ -18,12 +18,14 @@ bead: pm-d2k5.21
 **In:**
 - Split `internal/cli` by noun.
 - Break up the 5 longest functions: `fromIssue`, `cmdUninstall`, `parse`, `cmdSprintClose`, `mergeItem`.
-- Replace the argparse emulation with pflag plus explicit checks where no user-visible output depends on it.
-- Retire `pyjson` where no output depends on it.
+- Retire the argparse emulation: the parser keeps only pm's CLI grammar that pflag cannot express (two-value options, alternative-flag groups, required flags); abbreviated flags and argparse naming go.
+- Retire `internal/pyjson`: JSON through `encoding/json`, Go quoting in messages and TOML; a user's key order kept only where pm rewrites a file the user owns.
 - Lower the package-size allowance and the ratchet counts to the new state.
+- Fix PR #62's review findings: the help text the field rename changed, and the doc comments the split broke.
 
 **Out:**
-- Behaviour changes.
+- Behaviour changes beyond the JSON bytes, quoted values and abbreviated flags the retirement changes.
+- Changing pm's CLI grammar, help text or refusal wording.
 - Clearing the errcheck backlog outside the touched code.
 
 ## Done when
@@ -33,6 +35,12 @@ bead: pm-d2k5.21
 - No file in `internal/cli` is over 800 lines.
 - No function has gocyclo over 30.
 - `internal/cli`'s package-size allowance has dropped.
+- No Go file imports `internal/pyjson`, and the package is gone.
+- An abbreviated flag is refused, and a test holds it.
+- Every command's `--help` output equals origin/main's.
+- A changelog entry names each byte change, with an upgrade step if a clone's files change.
+- A scratch clone set up by the previous release reports `pm doctor` clean after `pm upgrade` to this build.
+- `make test-live-parity` passes: real Claude Code and Codex sessions read the new hook output.
 - `make lint`, `make test` and `make test-go` pass, and CI is green.
 
 ## Design pages
