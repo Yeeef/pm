@@ -83,6 +83,28 @@ Owner chose it in chat: the defects that matter (stale behaviour claims, narrati
   log. The OIDC token was fetched fresh right before claude -p; how claude
   behaves past the GitHub JWT's 5 min lifetime in a longer run was not tested.
 
+- AGENTS.md evaluation calibrated on its 13 labelled cases (make
+  test-live-agents-md, PM_LIVE_RUNS=3, AGENTS.md at 06ef57c, 11.6 KB, 24 calls
+  at a time, 2026-10-13): haiku 39/39 runs gave the case's verdict, the clean
+  file passing all 8 criteria 3/3 and each of the 12 planted defects failing
+  on its criterion with a finding on the planted text 3/3; 156 calls in 165 s,
+  per call median 15 s, p90 30 s, max 149 s (timeout 240 s); a full-mode run
+  of the clean file is 18 calls, slowest call median 91 s, max 149 s, $0.12;
+  all 156 calls $0.82. sonnet 38/39 (the clean file failed non_inferable in 1
+  run of 3), per call median 13 s, max 37 s, clean run $0.99, all calls $8.17.
+  Default model: haiku, the cheaper one and the only one that held every case.
+  Before the calibration, haiku's first runs on the rewritten AGENTS.md
+  (a0410a4) failed it on real defects, fixed in AGENTS.md, never in a label: 4
+  claims the code refutes (every --help text in commands.go; merge-ready
+  refusing every head without origin/main, ignoring the release-commit
+  exception; every merge releasing, ignoring release/hold; every hook failing
+  open, while the owner-request judge fails hard), passages copying prime.md
+  (design-page rule, records branch, covers rule, style.css) and the CHANGELOG
+  preamble, Make target rows restating the Makefile, and a claim that CI runs
+  the evaluation before agents-md.yml existed. One clean run of three still
+  failed on borderline readings until the rubric asked for clear defects only
+  (a passage that reads either way passes); 4 clean runs then passed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
