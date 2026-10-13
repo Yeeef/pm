@@ -28,7 +28,7 @@ covers:
 - **Several repos on one machine**, each moving to a new pm when it chooses, not when another repo does.
 - **Fast hooks.** No network and no build on the hook path once a machine is set up; hooks run pm several times per session.
 - **One command** installs pm on a machine; joining a repo that already uses pm needs nothing more than `pm init`.
-- **Cheap releases.** A release is a tag; nothing about a release requires a commit in the repos that use pm.
+- **Cheap releases.** A release is a tag; nothing about a release requires a commit in the repos that use pm. When releases happen is [When and how pm releases](release-policy.md).
 
 **Non-goals**
 
@@ -134,7 +134,7 @@ Reading: the launcher either runs the command itself or replaces itself with the
 | A worktree that pins another version than its main checkout (a pin-moving PR) | Its commands that touch work items refuse: they reach the work store only through the clone's pm service, which runs the main checkout's pin, and a command and the service must be one version ([pm in Go](pm-go.md), Store access). Commands without work data run. The pin takes effect once the main checkout has it; the service then restarts on it by itself |
 | A teammate whose machine is behind | Works without action while the machine's launcher knows the pin's kind and release URL; when it does not (first Go pin, a new host or download method), every such machine needs a bridge release or a reinstall |
 | CI | Not used today. A workflow would run `install.sh`, then the launcher downloads the pin |
-| Releasing pm | `git tag pm-v<X> <commit on main> && git push origin pm-v<X>`; the workflow builds and publishes the assets; pin PRs follow per repo |
+| Releasing pm | Nobody cuts a release: every merge to main that carries a changelog entry releases, the release workflow tagging the release commit and publishing the assets; while pm is 0.x a minor release asks a repo that moves its pin to act, a patch release does not ([When and how pm releases](release-policy.md)). Pin PRs follow per repo, when each chooses |
 
 ## Alternatives considered
 

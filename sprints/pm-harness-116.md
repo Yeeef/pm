@@ -40,7 +40,8 @@ pm releases by a written policy, not by courtesy. The policy says when a release
 
 > Where is the detail?
 
-None yet.
+- [When and how pm releases](../design/release-policy.md): the policy, the version rule, the hold, the release workflow and its failure handling
+- [How a repo runs the right pm version](../design/pm-versioning.md): its Releasing pm row, now a release per merge
 
 ## Progress
 

@@ -14,7 +14,7 @@ covers:
 - pm releases when someone remembers to. A release today is a hand-written "Release notes for pm X" PR (`release/changelog.py release X --summary …`, then hand edits), merged, then a tag pushed by hand. Nothing says when that happens.
 - 0.8.0 was cut only when the owner asked, after the Codex work sat on main. The order of merges decided its content: the design-page gate merged 5 minutes after the 0.8.0 tag and is unreleased.
 - So the release decision is implicit, falls to whoever remembers, and produces whatever main holds at that moment.
-- This page sets the policy: what triggers a release, how its version is chosen, what blocks one, how release candidates and pin moves fit, and how CI runs it with no human step. It builds on [How a repo runs the right pm version](pm-versioning.md), which fixes the release form (a tag, never moved) and per-repo exact pins. The work that ships it is [sprint 116](../sprints/pm-harness-116.md).
+- This page holds the policy the owner chose (project decision in [pm-harness](../projects/pm-harness.md), 2026-10-13): what triggers a release, how its version is chosen, what blocks one, how release candidates and pin moves fit, and how CI runs it with no human step. It builds on [How a repo runs the right pm version](pm-versioning.md), which fixes the release form (a tag, never moved) and per-repo exact pins. The work that ships it is [sprint 116](../sprints/pm-harness-116.md).
 
 ## Goals and non-goals
 
@@ -24,7 +24,7 @@ covers:
 
 - **No one has to remember.** A change that users can notice reaches a published release without a human step.
 - **Nothing ships that the policy did not mean to ship.** A release holds exactly what main held at a commit the policy chose, and a half-finished feature can stop releases.
-- **The version follows from the change.** The bump comes from the changelog entry files, by a rule a test holds.
+- **The version tells whether a pin move needs action.** Releases come often, so the bump says whether a repo moving its pin must do anything; it comes from the changelog entry files, by a rule a test holds.
 - **Notes without hand edits.** The release section is assembled from the entry files as merged.
 - **Tags never move.** A failed release leaves no tag, or a tag whose assets were never published.
 
@@ -32,7 +32,7 @@ covers:
 
 - Moving other repos' pins. Each repo still moves its pin by its own PR, when it chooses.
 - Changing the build (`release/build.sh`, the build jobs of the release workflow).
-- 1.0 and major versions: a major is a hand-pushed tag.
+- 1.0 and later majors: only by the owner's decision, as a hand-pushed tag.
 - Conventional commits or any rule on commit messages.
 
 ## Constraints and key facts
@@ -76,6 +76,8 @@ Reading: a release that asks a repo to re-trust Codex hooks is rare (1 in 10); t
 
 Reading: the summary is the one edit every release needed; the others come from batching several entries (overlapping steps) and from renumbering (a step number written in an entry).
 
+- 0.6.0's two `pm service restart` steps were written in its release PR: none of its three entries had an upgrade guide. With no release PR, a step lives in its entry or nowhere.
+
 **GitHub Actions.**
 
 - An event caused by `GITHUB_TOKEN` starts no workflow run, except `workflow_dispatch` and `repository_dispatch`. A tag or a main commit pushed by the release job therefore triggers no other workflow: the build and the publish must run in the same workflow, or be dispatched.
@@ -88,7 +90,7 @@ Reading: the summary is the one edit every release needed; the others come from 
 > What is it, in its final state? Free `###` subsections. Decisions and plans
 > live in the project and sprint records.
 
-**Recommended policy, pending the owner's decision (Open questions, 1): continuous delivery per merge.** Every push to main that leaves unreleased entry files in `changelog.d/` releases at once, unless a hold is in place. Publishing is not adoption: a release reaches a repo only when that repo moves its pin.
+**Policy: continuous delivery per merge** (owner decision, [pm-harness](../projects/pm-harness.md)). Every push to main that leaves unreleased entry files in `changelog.d/` releases at once, unless a hold is in place or main's CI on that commit failed. Publishing is not adoption: a release reaches a repo only when that repo moves its pin.
 
 ### Trigger
 
@@ -105,26 +107,30 @@ The decision is one function, `changelog.py plan`, which prints `release X` or `
 
 ### Version rule
 
-`X` is the last release, the highest `pm-v*` tag without a pre-release suffix, bumped by the highest level any unreleased entry asks:
+**Minor means you must act.** `X` is the last release, the highest `pm-v*` tag without a pre-release suffix, bumped by the highest level any unreleased entry asks:
 
-| Category in an entry | Bump while pm is 0.x |
-|---|---|
-| Breaking changes, Added, Deprecated, Removed | Minor |
-| Changed, Fixed, Security | Patch |
-| Major (1.0 and on) | Never automatic: a hand-pushed tag |
+| An unreleased entry has | Bump while pm is 0.x | Why |
+|---|---|---|
+| `### Upgrade guide` (a step beyond installing the release and `pm upgrade --to X`) | Minor | A repo that moves its pin must act |
+| `### Removed` | Minor | A repo may lose something it used |
+| Anything else: Added, Changed, Fixed, Security, Deprecated, Breaking changes with no step of its own | Patch | Install and `pm upgrade` are the whole move |
+| — | Never a major | 1.0 and later majors only by the owner's decision, as a hand-pushed tag |
 
-The highest level wins across entries, as in changie's `auto` kinds. `changelog.py next` prints `X`; the release job and a release candidate both use it.
+- The highest level wins across entries, as in changie's `auto` kinds. `changelog.py next` prints `X`; the release job and a release candidate both use it.
+- Over the observed span (Constraints) the rule gives 11 releases, 0.5.1 to 0.7.1, of which 2 are minors: the Cloudflare Access keys (0.6.0) and the Codex hooks (0.7.0), the two changes that asked repos to act.
+- A breaking change that needs no step of the user is a patch; one that does carries its step, and so is a minor.
 
 ### What blocks a release
 
 - **Main is releasable after every merge.** A PR merges only when what it ships is complete for users. A feature in several PRs either lands as one PR (as the Codex work did), merges its parts into a feature branch that merges to main once, or lands parts that users cannot reach (no command, flag or hook wired) and that add no entry file.
-- **The hold.** When a feature must land on main in parts that users can reach, its first PR adds `release/hold`, one line naming the feature and the PR that completes it; that PR deletes the file. While the file exists no release runs, fixes included. A fix that cannot wait is the owner's call: delete the hold and ship the partial feature, or wait. A file, not a label: it persists across merges, its removal is reviewed, and git keeps its history.
+- **The hold.** When a feature must land on main in parts that users can reach, its first PR adds `release/hold`, one line naming the feature and the PR that completes it; that PR deletes the file. While the file exists no release runs, fixes included, and each run's `plan` warns once the hold is older than 3 days. `changelog.py check` refuses an empty hold. A fix that cannot wait is the owner's call: delete the hold and ship the partial feature, or wait. A file, not a label: it persists across merges, its removal is reviewed, and git keeps its history.
 - **Main's CI.** The release waits for every check on the merge commit and requires all of them green. A merge through `make merge-ready` already ran CI on the same tree; the wait catches a merge made another way.
 
 ### Notes without a hand edit
 
 - **One entry file per PR.** `changelog.py pr` refuses a PR that adds more than one. With one release per merge, a release holds one PR's entry, so no two entries' steps overlap.
-- **The entry carries the summary.** An entry file opens with a summary paragraph, one to three sentences for users, before its first `###` heading; `changelog.py check` requires it. `changelog.py release X` with no `--summary` uses the entries' summaries, joined in name order.
+- **The entry carries the summary.** An entry file opens with a summary paragraph, one to three sentences for users, before its first `###` heading; `changelog.py check` requires it of every entry. `changelog.py release X` with no `--summary` uses the entries' summaries, joined in name order.
+- **The entry carries its steps.** A step a repo needs for the change (a restart, a config key, a re-trust) is in the entry's `### Upgrade guide`; there is no release PR to add it later.
 - **Steps without numbers in prose.** `check` refuses a "step N" reference in an entry, since the release renumbers its steps after the two it writes (install `X`, `pm upgrade --to X`).
 - The release commit writes `## [X] - <date>` into `CHANGELOG.md` and deletes the entry files, as `changelog.py release X` does today.
 
@@ -135,8 +141,8 @@ The highest level wins across entries, as in changie's `auto` kinds. `changelog.
 
 ### Pin moves
 
-- Each repo moves its pin when it chooses, by its PR (`pm upgrade --to X`); nothing moves pins automatically. `pm doctor` already names a newer release.
-- A move crosses every release between the old pin and `X`; its guide is the union of their upgrade guides. A repo re-trusts Codex hooks once per move that crosses a hook change, whatever the number of releases crossed.
+- Each repo moves its pin when it chooses, by its PR (`pm upgrade --to X`), pm's own repo included; nothing moves pins automatically. `pm doctor` already names a newer release.
+- A move crosses every release between the old pin and `X`; its guide is the union of their upgrade guides, read from each release's notes (Open questions). Only a move that crosses a minor has a step beyond the first two. A repo re-trusts Codex hooks once per move that crosses a hook change, whatever the number of releases crossed.
 - Recommended cadence: move when a release carries something the repo needs, or about weekly, and after merging or rebasing in-flight branches where possible, since each move strands worktrees cut before it.
 
 ### Automation
@@ -157,15 +163,15 @@ Reading: the build runs before any tag exists, so a failed build leaves nothing 
 
 | Job | Runs on | Token | Does |
 |---|---|---|---|
-| `plan` | push to main | read | Fails on an unpublished `pm-v*` tag; stops with no release when main moved, a hold exists or no entry file is left; else waits for M's checks and prints `X` |
-| `build` (existing jobs) | `plan` gave `X`, or a tag push | read | `release/build.sh dist pm-v<X>` at M or the tag; checks `pm version` prints `X` |
+| `version` | push to main, or a tag push | read; `actions: read` | On a push to main: no release when main moved past M; fails while the last release tag has no GitHub release; `changelog.py plan`, warning on a hold older than 3 days; then `release/main_ci.py` waits for every workflow run of the push of M and requires each to pass. On a tag push: `X` from the tag, as before |
+| `build` (existing jobs) | `version` gave `X` | read | `release/build.sh dist pm-v<X>` at M or the tag; checks `pm version` prints `X` |
 | `tag` | push to main | `contents: write` | `changelog.py release X` at M, commit R as `github-actions[bot]`, assert R differs from M only in `CHANGELOG.md` and `changelog.d/`, `git push --atomic origin R:main pm-vX` |
 | `publish` | after `tag`, or after a tag push's build | `contents: write` | As today's release job: `SHA256SUMS`, `install.sh`, `gh release create pm-vX --verify-tag`, notes from `changelog.py notes X` |
 
 - One workflow file, `pm-release.yml`, with `push: branches: [main]` and `push: tags: [pm-v*]`; `concurrency: pm-release`, never cancelling a run in progress. A tag pushed by the `tag` job starts no second run.
 - `GITHUB_TOKEN` suffices: no secret, no App. If `main` gets a ruleset, `github-actions` joins its bypass list.
 - The binary is built from M and the tag names R. R changes only files that ship nothing (`SHIPPED` in `changelog.py`), and `tag` asserts it; the binary's embedded VCS revision is M.
-- `make merge-ready` accepts a head that lacks only release commits of main (by `github-actions[bot]`, touching only `CHANGELOG.md` and deletions in `changelog.d/`), so a PR rebased between a merge and its release commit need not rebase again.
+- `make merge-ready` accepts a head that lacks only release commits of main (by `github-actions[bot]`, touching only `CHANGELOG.md` and deletions in `changelog.d/`) when the PR touches none of their files: a release after every merge does not stale every open PR, and the tree it merges differs from the tested one only in files that ship nothing.
 - `pm-release-notes.yml` stays: a fixed section on main re-renders a published release's notes.
 
 ### Failure handling
@@ -174,7 +180,8 @@ Reading: the build runs before any tag exists, so a failed build leaves nothing 
 |---|---|---|
 | Build fails | No commit, no tag | Fix on main by a PR; its merge releases everything unreleased |
 | Push of R and the tag rejected | No commit, no tag | None needed: the newer commit's run releases |
-| Publish fails after the push | R on main, tag `pm-vX`, no GitHub release, no asset ever downloaded | Re-run the failed job (same tag, same build artifacts); `plan` refuses every later release until it is done. Not a moved tag: no launcher holds a sha256 for `X` |
+| Main's CI on M fails | No commit, no tag; the run fails naming the failed workflow | Fix on main; the fix's merge releases everything |
+| Publish fails after the push | R on main, tag `pm-vX`, no GitHub release, no asset ever downloaded | Re-run the failed job (same tag, same build artifacts); `version` refuses every later release until it is done. Not a moved tag: no launcher holds a sha256 for `X` |
 | A published release is broken | Release `X` stands | Fix forward: the fix's merge releases `X+0.0.1`; repos pinned to `X` move |
 
 ## Alternatives considered
@@ -183,7 +190,7 @@ Reading: the build runs before any tag exists, so a failed build leaves nothing 
 
 | Option | Releases, observed span (0.5.0 tag to now) | Owner step per release | Half-finished feature | Notes by hand | Extra CI need |
 |---|---|---|---|---|---|
-| **A. Per merge (recommended)** | 11 (0.6.0 to 0.11.0 by the version rule) | None | Hold file, or land complete | None (one entry per release) | None |
+| **A. Per merge (chosen)** | 11 (0.5.1 to 0.7.1 by the version rule; 2 minors) | None | Hold file, or land complete | None (one entry per release) | None |
 | B. Bot release PR | Owner-paced; not predictable | Merge the PR | Do not merge the release PR | None to some (batched entries) | App or personal token, so CI runs on the bot's PR |
 | C. Daily train | 3 | None | Hold file | Batches recreate overlapping steps | A cron trigger |
 | D. semantic-release | as A | None | Commit type, no hold | From commit messages | Conventional commits |
@@ -243,8 +250,5 @@ Reading: the build runs before any tag exists, so a failed build leaves nothing 
 
 | # | Question | Options | Default |
 |---|---|---|---|
-| 1 | Per merge, a daily train, or an owner-merged release PR? | a. per merge; b. daily train; c. release PR | a, pending the owner's decision |
-| 2 | How does a pin move that crosses several releases show their steps? | a. `pm upgrade --to X` prints every upgrade-guide step from the pin to `X`, from the releases' notes; b. the user reads each release | a |
-| 3 | Does an old pin's 113 MB ever go? | a. `pm clean` prunes pins no clone on the machine uses; b. keep all | a, later |
-| 4 | Must a hold expire? | a. `plan` warns after 3 days; b. no limit | a |
-| 5 | Should pm's own repo move its pin after each release, to run what it ships? | a. by hand, as other repos; b. a PR per release by the release workflow | a |
+| 1 | How does a pin move that crosses several releases show their steps? | a. `pm upgrade --to X` prints every upgrade-guide step of the releases between the pin and `X`, from their notes; b. the user reads each release's notes | a; not built yet: it is a change to `pm upgrade` (network read of the releases, a test and a release of its own) |
+| 2 | Does an old pin's 113 MB ever go? | a. `pm clean` prunes pins no clone on the machine uses; b. keep all | a, later |
