@@ -137,6 +137,17 @@ codex-rs 0.154: codex queue writes thread/queue/add to the SQLite thread queue, 
   cannot start a turn (measured: no turn within 90 s). make test-live-parity:
   9 passed in 165 s at 7fcf284.
 
+- Codex's sandbox fails on the owner's host because Ubuntu 24.04 restricts
+  unprivileged user namespaces through AppArmor
+  (kernel.apparmor_restrict_unprivileged_userns=1) and no profile exempts
+  /usr/bin/bwrap; 3,191 bwrap transitions into unprivileged_userns in the
+  kernel log; reproduced with plain bwrap and codex sandbox; not Claude Code's
+  sandbox (the Bash tool runs unconfined in the init namespaces). Fix:
+  Ubuntu's bwrap-userns-restrict profile (owner action pm-v498.1.6). A second
+  blocker: ~/.codex/config.toml lists yeeef-agents/.beads, now a file, as a
+  writable root, written by the old harness, and Codex aborts every
+  workspace-write run on it.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
