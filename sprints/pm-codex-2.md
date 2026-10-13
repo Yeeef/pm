@@ -163,6 +163,8 @@ Its config row says unknown keys fail hard and the version key must equal the ru
 
 done: the owner-request judge runs on the session's own runtime and the day summary on the repo's `summary_runtime`, so a machine with only Codex keeps every pm guarantee; delivered in [PR #56](https://github.com/Yeeef/pm/pull/56), stacked on PR #47.
 
+Merged as 1cd0fa4 (PR #56).
+
 - `pm hook owner-request --runtime claude|codex`, named by each hook entry: Claude Haiku through `claude -p` (15 s in a 30 s entry), `gpt-5.6-luna` at medium effort through `codex exec` (40 s in a 45 s entry), run from an empty temp dir with Codex's hooks, rules and user config off and no saved session; the same exit-1 failure on both; a timeout or a stopped hook kills the judge's whole process group.
 - `summary_runtime` in `.pm/config.toml` (`claude` by default, or `codex`) for `pm day summarize`, with no fallback; `pm doctor` fails only when that runtime's CLI is missing.
 - A Codex session is told when Codex skips pm's hooks: a pm command warns once when none ran, and the session-start state names the hooks Codex skips when some did (as after a `pm upgrade` rewrote a trusted entry).
