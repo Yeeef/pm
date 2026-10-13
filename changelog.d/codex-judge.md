@@ -18,6 +18,11 @@
 - A pm command in a Codex session whose rollout holds no pm session-start context, because Codex skipped pm's hooks
   (an untrusted hook is skipped silently), prints one warning on stderr, once per session, naming the fix: trust
   pm's hooks in `/hooks` and start a new session.
+- The request rule names each runtime's ask tool: AskUserQuestion in Claude Code; `request_user_input_async` in Codex
+  (Default mode), `request_user_input` in its Plan mode. The owner-request hook reads the stopping turn's ask tool
+  calls from the session's transcript and gives their questions to the judge as asked, so a question put with the
+  tool, or its repeat in the final reply (Codex's async question can surface there), is not taken for an ask left
+  only in chat; any other chat ask in the same reply still blocks. A block reason names the session's own ask tool.
 - A Codex session's start context opens with one line naming the pm hooks Codex skips (untrusted, changed since
   trusted, or disabled) and the fix, as after a `pm upgrade` rewrote an entry the user had trusted. pm asks Codex
   (`codex app-server`, `hooks/list`) only when `.codex/hooks.json` or the trust in the user's Codex config changed

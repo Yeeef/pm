@@ -512,7 +512,7 @@ class Tui:
     """A runtime's interactive TUI (Claude Code's `claude`, Codex's `codex`) in a pseudo-terminal, as a person runs it,
     on a first prompt given on its command line. A thread reads the screen into a log, answers the terminal's queries
     (cursor position, device attributes, colors) as a terminal does, and accepts Claude Code's folder-trust dialog for
-    the scratch clone should it show; nothing else is ever typed. Claude Code runs on a config dir of the clone's own
+    the scratch clone should it show; nothing else is typed but what a test sends as the owner (keys). Claude Code runs on a config dir of the clone's own
     (claude_config), so its first-run state and its transcripts never touch the user's."""
 
     def __init__(self, clone: Clone, runtime: str, name: str, prompt: str):
@@ -560,6 +560,17 @@ class Tui:
                 if self.runtime == "claude" and not trusted and b"trust the files in this folder" in plain:
                     os.write(self.fd, b"\r")  # "Yes, proceed": the scratch clone is the eval's own
                     trusted = True
+
+    def keys(self, *presses: bytes) -> None:
+        """Type into the TUI as the owner at its keyboard, one key press at a time, as a person types them."""
+        for k in presses:
+            os.write(self.fd, k)
+            time.sleep(0.3)  # noqa: TID251 — a person's pace between key presses, which a TUI's input loop expects
+
+    def text(self) -> str:
+        """The screen's recent output as plain text, the terminal's control sequences left out."""
+        return re.sub(r"\x1b(\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|[()][A-Z0-9]|.)", "",
+                      self.screen.decode("utf-8", "replace"))
 
     def transcript(self) -> Path | None:
         """The session's transcript, the newest one begun since the TUI started: Claude Code's session JSONL for the
