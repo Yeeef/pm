@@ -50,7 +50,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-13}
+Apply the cyclomatic-complexity threshold to every Go function, including existing tests.
+The Done when says no function exceeds 30; applying it globally gives an exact check and removes ambiguity about the named five.
+:::
 
 ## Findings
 
