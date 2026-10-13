@@ -1,3 +1,4 @@
+TestACollectionRacingItsOwnVisitsReturnsOnceEachEnds 0.45
 TestASecondLockOnAConnectionAndAnUnlockWithoutItAreRefused 0.01
 TestAServiceOnAnotherVersionIsRefused 0.29
 TestAWriteLockWaitEndsAtItsBoundOrItsStatement 0.15
