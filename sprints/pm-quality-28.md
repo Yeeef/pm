@@ -58,6 +58,11 @@ The design page session-claims stays as it is for this sprint's code changes.
 writes.go's change is in pm sprint close's covers check; task claims and holders are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+prime.md's sprint close line narrows one refusal; the session lifecycle is unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
