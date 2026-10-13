@@ -207,3 +207,9 @@ About project `pm-quality`.
 Sprint 21: the owner-request Stop hook blocked the final status report saying PR #62 was ready for review and the sprint awaited merge, despite the existing open review need pm-d2k5.21.2. The need was raised by a subagent working under this session; pm show --sprint pm-d2k5.21 displayed it. Rewording the final report to explicitly say that request pm-d2k5.21.2 is open on the site cleared the block. What would have helped: the judge recognizing a status report already covered by an open PR review need across the parent/subagent session, or explaining that the report must cite that existing need rather than implying a new request is missing.
 
 The injected development instructions also describe pm design unchanged, while this clone pins pm 0.7.1, whose command tree does not expose it. The sprint agent reported this mismatch while preparing the design review gate. What would have helped: clearly distinguishing development-HEAD commands from those available through the repo pin, with an explicit supported command for the development workflow.
+
+### 2026-10-13 21:07 UTC, session `03916b9e-dc84-51d8-a46a-76af3ace75fa`
+
+About project `pm-quality`.
+
+pm hook stop blocked this session on every turn for records/design/owner-request-hook.md. The uncommitted change there belongs to live session de498bea (task yeeef-agents-9va.130.1, claimed 20:54 UTC; the file was written 20:55 UTC). This session's tool calls named the file only because it had run git diff on it, and its subagents had edited it earlier in the day. The hook's own text says to leave a file you did not edit, but it blocks anyway, so each turn spends a round on the same non-action. What would have helped: the hook not counting a file as this session's when the uncommitted edit is newer than this session's last write to it, or when a live session holds a task naming it; or saying so once and then letting the stop through.
