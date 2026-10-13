@@ -35,11 +35,11 @@ def test_a_login_copy_is_the_users_alone_and_gone_after_a_failing_body(tmp_path)
 
 
 def test_the_harness_copies_a_login_only_through_login_copy():
-    """A plain copy (shutil.copy, copy2, copyfile, copytree) of anything named for a login leaves it world-readable
-    under umask 002 and behind after the run."""
+    """A plain copy (shutil.copy, copy2, copyfile, copytree) of a login, or of anything from the user's own Codex or
+    Claude Code dir (REAL…, CLAUDE_DIR), leaves it readable under umask 002 and behind after the run."""
     calls = [(path, node) for path in sorted(TESTS.glob("*.py")) for node in ast.walk(ast.parse(path.read_text()))
              if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
              and node.func.attr in ("copy", "copy2", "copyfile", "copytree")]
     found = [f"{path.name}:{node.lineno}: {ast.unparse(node)}" for path, node in calls
-             if re.search(r"auth|cred|login", " ".join(ast.unparse(a) for a in node.args), re.I)]
+             if re.search(r"auth|cred|login|REAL|CLAUDE_DIR", " ".join(ast.unparse(a) for a in node.args), re.I)]
     assert not found, found
