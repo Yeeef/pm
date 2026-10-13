@@ -97,10 +97,27 @@ Its Garbage row (DOLT_GC on a schedule, online, session-aware safepoints) still 
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the race job's "close of closed channel" panic was a Dolt bug that back-to-back collections hit, and pm now waits for each collection's visits to the other sessions to end before the next collection may begin.
+
+- `Host.GC` waits, under `gcMu`, for each session's last visit to end (`internal/work/host_gc.go`). It reads Dolt's GC safepoint controller by reflection, and the host's start fails if a Dolt upgrade changes the controller's fields.
+- New check: TestACollectionRacingItsOwnVisitsReturnsOnceEachEnds, which is in RACE_TESTS.
+- PR [#74](https://github.com/Yeeef/pm/pull/74).
+
+Upstream issue text for dolthub/dolt. pm has not filed it.
+
+> **GCSafepointController: a visit's EndOutstandingVisitCall can close the next collection's channel ("panic: close of closed channel")**
+>
+> In `go/libraries/doltcore/doltdb/gcctx/gc_safepoint_controller.go`, `Waiter`'s visit goroutine runs `ret.wg.Done()` and then `state.EndOutstandingVisitCall()`. That call closes `state.QuiesceCallbackDone.Load()`, the channel the state holds *at that moment*. `GCSafepointWaiter.Wait` returns as soon as the wait group is done. So `dolt_gc` can return, and a following `dolt_gc` can create a new `Waiter`, whose `work()` calls `BeginOutstandingVisitCall()` on the same idle session and stores a new channel, before the first goroutine has run `EndOutstandingVisitCall()`. Both goroutines then close the new channel, and the process panics: `panic: close of closed channel` at `gc_safepoint_controller.go:86`, from `Waiter.func1.1` (line 171). We hit it with an embedded engine that runs `CALL DOLT_GC()` back to back while other connections sit idle. Under the race detector with CPU oversubscription, a loop of 60 collections with 32 idle sessions panics in about 60% of runs.
+>
+> Suggested fix: capture the channel in `BeginOutstandingVisitCall` and close that one (for example, `ch := make(chan struct{}); state.QuiesceCallbackDone.Store(ch)`, and the goroutine closes `ch`). Or call `EndOutstandingVisitCall()` before `wg.Done()`, so that `Wait` returns only once every visit has ended.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **The test passes 200 of 200 runs under -race at CI's settings, with the fix: met.** These runs used the race test binary with 64 processes at once: 8 per 4 pinned cores, `GOMAXPROCS=4`, which is CI's 8 shards on a 4-vCPU runner.
+  - After the fix: 2000/2000, then 1000/1000 on the final commit, plus 1000/1000 at `GOMAXPROCS=2`.
+  - Before the fix: 1 panic in 3000 runs, with the CI stack. An amplifier panicked 607/1000 before the fix and 0/1000 after.
+  - CI on PR #74 is green, including race (linux-amd64).
+- **The cause and the fix are in Findings: met.** No upstream issue was filed; its text is above.
+- **Each design page whose area changed is updated and listed: met.** [pm in Go](../design/pm-go.md) has a new gc bullet under Store access and is listed in Design pages. work-store is recorded as unchanged, because its Garbage row still holds.
