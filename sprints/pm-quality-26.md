@@ -102,6 +102,6 @@ Merged as a6262b6 (PR #68).
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- `pm check` on main exits 0 and lists the dead patterns as waiting: met with this branch's build stamped 0.8.3 on the shared store, `PM_LAUNCHED=0.8.3 pm check`: exit 0, all 209 pages render, 30 covers patterns listed as waiting (27 at framing; 3 more since). The main checkout's run on the released pin is in Findings.
+- `pm check` on main exits 0 and lists the dead patterns as waiting: met with this branch's build stamped 0.8.3 on the shared store, `PM_LAUNCHED=0.8.3 pm check`: exit 0, all 209 pages render, 30 covers patterns listed as waiting (27 at framing; 3 more since). After release 0.8.5 and the pin move (PR #72) with the service restarted, `pm check` in the main checkout: exit 0, the same 30 listed as waiting.
 - A sprint whose page names a file its merged PR does not add is refused at close, naming the pattern, and closes once the pattern is live: met, `test_sprint_close_refuses_a_design_page_naming_a_file_the_remote_main_lacks` (both forms; plain: `design/parser.md: covers pattern "src/parser/tables.go"`, `--merged`: a gate-named waived page), passing locally and in CI on PR #68.
 - Every existing design page whose area changed is at the new state and in Design pages: met for Sprint lifecycle, Record layer and pm CLI; the other pages the gate names for PR #68 (Session claims, Shared records store, Agent lifecycle, pm as an installable product) are waived with `pm design unchanged`, each with its reason.
