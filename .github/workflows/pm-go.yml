@@ -1,8 +1,16 @@
 # pm on every pull request: built on both release targets as the release builds it (cgo, native runners), the gofmt
-# check, go vet and the Go tests (make test-go), split into parallel jobs per target: the build, gofmt, vet and every
-# package's tests but internal/work's; internal/work's tests, the longest, in processes at once (make go-test-work); the
-# race tests. The step summary records the binary's size per target. pm-release-build.yml runs the release build test,
+# check, go vet and the Go tests (make test-go), split into parallel jobs. On Linux: the build (pm, the page renderer
+# and pm-before), gofmt, vet and every package's tests but internal/work's; internal/work's tests, the longest, in
+# processes at once (make go-test-work); the race tests. On macOS, two jobs, since GitHub runs at most 5 macOS jobs at
+# once across all of the repo's runs (Linux takes 20): pm's build beside every package's tests but internal/work's,
+# then internal/work's; the race tests. gofmt and vet read the same files on both targets (no Go file is
+# OS-specific), and the renderer and pm-before serve only the harness, which runs on Linux, so they run there alone.
+# The step summary records the binary's size per target. pm-release-build.yml runs the release build test,
 # pm-tests.yml the harness suite.
+#
+# A pull request whose changed files no Go job reads (.github/scripts/go_changes.py: docs, the harness's and the
+# release tools' Python) skips each job's steps after the check, so every job still reports, as merge_ready.py
+# requires of a workflow that runs on every PR, and passes. A push to main runs everything.
 #
 # The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
 # and go.sum, and a pull request restores main's latest, so a PR compiles only what it changed. A run that finds none
@@ -36,36 +44,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [darwin-arm64, linux-amd64]
-        suite: [build-vet-test, work, race]
         include:
-          - target: darwin-arm64
-            runner: macos-14
-          - target: linux-amd64
-            runner: ubuntu-22.04  # glibc 2.35, the oldest the release links against
-          - suite: build-vet-test
-            cache: build
-            save: true
-            run: make go-build go-fmt go-vet go-test-but-work
-          - suite: work
-            cache: build  # what it compiles is a subset of build-vet-test's, which saves it
-            save: false
-            run: make go-test-work
-          - suite: race
-            cache: race
-            save: true
-            run: make -j2 go-test-race
+          - {target: linux-amd64, runner: ubuntu-22.04, suite: build-vet-test, cache: build, save: true, binary: true,
+             run: make go-build go-fmt go-vet go-test-but-work}
+          # what work compiles is a subset of build-vet-test's, which saves it
+          - {target: linux-amd64, runner: ubuntu-22.04, suite: work, cache: build, save: false, run: make go-test-work}
+          - {target: linux-amd64, runner: ubuntu-22.04, suite: race, cache: race, save: true, run: make -j2 go-test-race}
+          # pm's link waits on I/O more than it computes, so it runs beside the tests; internal/work's after them: all three
+          # at once took as long (96 s against 98 s), the runner's 3 cores being busy either way
+          - {target: darwin-arm64, runner: macos-14, suite: build-test, cache: build, save: true, binary: true,
+             run: make -j2 go-build-pm go-test-but-work && make go-test-work}
+          - {target: darwin-arm64, runner: macos-14, suite: race, cache: race, save: true, run: make -j2 go-test-race}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     env:
       GOFLAGS: -count=1
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # a PR's merge commit and its base, which go_changes.py diffs
+      - name: Whether the changes can affect the Go jobs
+        id: changes
+        run: python3 .github/scripts/go_changes.py
       - name: Go, at go.mod's version
         id: go
+        if: steps.changes.outputs.go == 'true'
         run: python3 .github/scripts/setup_go.py
       - name: The Go cache paths and key
         id: paths
+        if: steps.changes.outputs.go == 'true'
         run: |
           echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
           echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
@@ -73,6 +80,7 @@ jobs:
           echo "sum=${{ hashFiles('go.sum') }}-" >> "$GITHUB_OUTPUT"
       - name: Restore main's latest Go cache
         id: restore
+        if: steps.changes.outputs.go == 'true'
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -90,9 +98,10 @@ jobs:
         run: python3 .github/scripts/go_cache_trim.py age "${{ steps.paths.outputs.build }}"
       - name: ${{ matrix.suite }}
         id: suite
+        if: steps.changes.outputs.go == 'true'
         run: ${{ matrix.run }}
       - name: Record the binary
-        if: matrix.suite == 'build-vet-test'
+        if: matrix.binary && steps.suite.outcome == 'success'
         run: |
           go version -m .go/pm | grep -E 'CGO_ENABLED=1|GOOS|GOARCH'
           size=$(wc -c < .go/pm | tr -d ' ')

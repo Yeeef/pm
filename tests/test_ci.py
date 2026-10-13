@@ -179,6 +179,105 @@ def test_go_shards_update_rewrites_the_seconds_from_a_run_of_every_test(tmp_path
     assert (tmp_path / "seconds.txt").read_text() == "TestA 0.10\nTestB 0.10\n"
 
 
+GO_CHANGES = PM_DIR / ".github/scripts/go_changes.py"
+spec = importlib.util.spec_from_file_location("go_changes", GO_CHANGES)
+go_changes = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(go_changes)
+
+
+def test_go_changes_skips_the_go_jobs_only_for_docs_and_harness_python_that_no_go_file_reads():
+    go_files = {"internal/a/a_test.go": 'x := filepath.Abs("../../tests/fake_x.py")\n'
+                                        'y := filepath.Join("..", "..", "AGENTS.md")\n',
+                "assets_test.go": 'os.ReadFile("website/data.json")\n'}
+    affected = lambda *changed: go_changes.go_affected(list(changed), go_files)[0]  # noqa: E731
+    assert not affected("README.md", "CLAUDE.md", "tests/test_pm.py", "tests/conftest.py", "release/merge_ready.py",
+                        "website/index.html")
+    for read in ("tests/fake_x.py", "AGENTS.md", "website/data.json"):  # up from a package, joined, or from the root
+        assert affected("tests/test_pm.py", read), read
+    for go in ("internal/a/a.go", "go.mod", "Makefile", "prime.md", "CHANGELOG.md", "changelog.d/x.md",
+               "tests/render-pages/main.go", "tests/cases.json", ".github/workflows/pm-go.yml"):
+        assert affected("tests/test_pm.py", go), go
+    assert affected()  # no change found: nothing is skipped
+    real = {f: (PM_DIR / f).read_text() for f in subprocess.run(
+        ["git", "ls-files", "*.go"], cwd=PM_DIR, capture_output=True, text=True, check=True).stdout.split()}
+    assert go_changes.go_affected(["tests/fake_sched.py"], real)[0]  # internal/service's lifecycle test runs it
+    # README.md is in NO_GO, but the root package's assets_test.go names "README.md" (changelog.d's), which reads as the
+    # root's: a README-only PR runs the Go jobs, conservatively
+    assert go_changes.go_affected(["README.md"], real) == (True, "README.md is read by a Go file")
+    assert not go_changes.go_affected(["tests/test_ci.py", "AGENTS.md"], real)[0]
+
+
+def test_go_changes_reads_a_pull_requests_merge_commit_and_runs_every_job_on_a_push(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=repo, check=True,
+                       capture_output=True)
+
+    def run(event):
+        out = tmp_path / "out"
+        out.write_text("")
+        r = subprocess.run([sys.executable, str(GO_CHANGES)], cwd=repo, capture_output=True, text=True, check=False,
+                           env={**os.environ, "GITHUB_EVENT_NAME": event, "GITHUB_OUTPUT": str(out)})
+        return r.returncode, out.read_text(), r.stdout + r.stderr
+
+    git("init", "-q", "-b", "main")
+    (repo / "a.go").write_text("package a\n")
+    git("add", "."), git("commit", "-qm", "base")
+    code, out, log = run("pull_request")
+    assert code != 0 and out == "", log  # no first parent: a checkout too shallow fails, nothing guessed
+    git("checkout", "-qb", "pr")
+    (repo / "tests").mkdir()
+    (repo / "tests/test_x.py").write_text("x = 1\n")
+    git("add", "."), git("commit", "-qm", "pr")
+    code, out, log = run("pull_request")  # the PR's head, one parent: its last commit is not the PR's changes
+    assert code != 0 and out == "" and "merge commit" in log, log
+    git("checkout", "-q", "main"), git("merge", "-q", "--no-ff", "-m", "merge", "pr")  # as refs/pull/N/merge is
+    assert run("pull_request")[:2] == (0, "go=false\n")
+    assert run("push")[:2] == (0, "go=true\n")
+    git("checkout", "-q", "pr")
+    (repo / "a.go").write_text("package a // changed\n")
+    git("commit", "-qam", "go"), git("checkout", "-q", "main"), git("merge", "-q", "--no-ff", "-m", "m2", "pr")
+    assert run("pull_request")[:2] == (0, "go=true\n")
+
+
+def steps(workflow: Path) -> list[str]:
+    """Each step's text in a workflow, in order: the lines from one `      - ` step to the next."""
+    return re.findall(r"^      - .*?(?=^      - |^  \S|\Z)", workflow.read_text(), re.M | re.S)
+
+
+@pytest.mark.parametrize("workflow", ["pm-go.yml", "pm-lint.yml"])
+def test_a_go_job_skips_its_steps_after_the_change_check_and_still_runs_on_every_pr(workflow):
+    """The Go jobs run on every pull request, so merge_ready.py requires their checks; a PR whose changes no Go job
+    reads skips every step after the check: each one carries its output, or needs a step that does to have run."""
+    path = PM_DIR / ".github/workflows" / workflow
+    assert re.search(r"^  pull_request:\n  push:\n", path.read_text(), re.M)  # no paths: every PR runs it
+    go = "steps.changes.outputs.go == 'true'"
+    gated: set[str] = set()
+    for body in steps(path):
+        if "uses: actions/checkout" in body and gated:  # the next job: pm-lint.yml's Python job, which always runs
+            break
+        if "id: changes" in body or "uses: actions/checkout" in body:
+            continue
+        cond = re.search(r"^        if: (.*(?:\n          .*)*)", body, re.M)
+        after = {m[1] for m in re.finditer(r"steps\.(\w+)\.(?:outcome|outputs\.[\w-]+ != '')", cond[1])} if cond else set()
+        assert cond and (go in cond[1] or after & gated), body  # a skipped step's outcome is skipped, its outputs ''
+
+        if sid := re.search(r"^        id: (\S+)", body, re.M):
+            gated.add(sid[1])
+    assert "go" in gated and ("suite" in gated) == (workflow == "pm-go.yml")
+
+
+def test_the_linters_restore_the_go_cache_pm_go_saves():
+    """pm-lint.yml restores the Linux build cache pm-go.yml saves: a key in an old form restores a stale cache, which
+    its own restores keep from expiring, or none."""
+    key = re.compile(r"go-[\w-]*?(?:linux-amd64|darwin-arm64|\$\{\{ matrix\.target \}\})-")
+    go = key.findall((PM_DIR / ".github/workflows/pm-go.yml").read_text())
+    assert go == ["go-unzipped-${{ matrix.target }}-"]
+    assert key.findall((PM_DIR / ".github/workflows/pm-lint.yml").read_text()) == ["go-unzipped-linux-amd64-"]
+
+
 RELEASE_YML = PM_DIR / ".github/workflows/pm-release.yml"
 spec = importlib.util.spec_from_file_location("main_ci", PM_DIR / "release" / "main_ci.py")
 main_ci = importlib.util.module_from_spec(spec)

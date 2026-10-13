@@ -3,7 +3,7 @@ UV ?= uv
 PYRUN := $(UV) run --quiet
 
 .PHONY: test test-full test-live test-live-parity test-go go-build go-fmt go-vet go-test go-test-but-work go-test-work \
-	go-test-race go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py
+	go-build-pm go-test-race go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
 ARGS ?=
@@ -75,10 +75,12 @@ lint-py:
 VERSION := 0.9.0-dev
 VERSION_BEFORE := 0.8.0-dev
 GO_FLAGS = -trimpath -tags gms_pure_go -ldflags "-s -w -X github.com/Yeeef/pm/internal/buildinfo.Version=$(1)"
-go-build:
-	CGO_ENABLED=1 go build $(call GO_FLAGS,$(VERSION)) -o .go/pm ./cmd/pm
+go-build: go-build-pm
 	CGO_ENABLED=1 go build $(call GO_FLAGS,$(VERSION)) -o .go/render-pages ./tests/render-pages
 	CGO_ENABLED=1 go build $(call GO_FLAGS,$(VERSION_BEFORE)) -o .go/pm-before ./cmd/pm
+# pm alone, as go-build builds it: pm-go.yml's macOS job, where no harness runs.
+go-build-pm:
+	CGO_ENABLED=1 go build $(call GO_FLAGS,$(VERSION)) -o .go/pm ./cmd/pm
 
 # The work store's concurrency tests, which make test-go runs again under the race detector (about a minute; the whole
 # internal/work package under -race would take several): the write lock, the slot, gc and merges racing writers.

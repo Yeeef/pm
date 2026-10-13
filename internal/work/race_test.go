@@ -29,7 +29,7 @@ func TestPullRacingLocalWriters(t *testing.T) {
 				must(d.Comment(x.t2.ID, Note, "a", fmt.Sprintf("a-%d-%d", round, i)))
 			}
 		})
-		x.a.sync()
+		x.a.push() // nobody pushed since A's last read: the seed, or its pull that ended the last round
 		mu.Lock()
 		before := len(landed) + len(writeErrs)
 		mu.Unlock()
@@ -72,7 +72,7 @@ func TestPullRacingLocalWriters(t *testing.T) {
 		x.b.synced = time.Now()
 		close(stop)
 		wg.Wait()
-		x.b.sync() // B's writes, and what a starved pull left, with no writer racing
+		x.b.push() // B's writes, and what a starved pull left, with no writer racing; nobody pushed since B's pull
 		x.a.sync()
 	}
 	for _, e := range writeErrs {

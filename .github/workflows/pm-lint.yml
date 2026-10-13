@@ -8,6 +8,9 @@
 # there (it loads with -trimpath, as they compile; see lint-go in the Makefile), so a warm job compiles only what the
 # PR changed, and deadcode finds every module downloaded. golangci-lint-action keeps
 # golangci-lint's own analysis cache.
+#
+# A pull request whose changed files no Go job reads (.github/scripts/go_changes.py) skips the Go jobs' steps after
+# the check, so both still report and pass; lint-py always runs.
 name: pm lint
 
 on:
@@ -34,20 +37,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: ${{ matrix.lint == 'lint-go' && '0' || '1' }}
+          fetch-depth: ${{ matrix.lint == 'lint-go' && '0' || '2' }}
+      - name: Whether the changes can affect the Go jobs
+        id: changes
+        run: python3 .github/scripts/go_changes.py
       - uses: actions/setup-go@v5
         id: go
+        if: steps.changes.outputs.go == 'true'
         with:
           go-version-file: go.mod
           cache: false
       - name: The Go cache paths and pm-go.yml's key
         id: paths
+        if: steps.changes.outputs.go == 'true'
         run: |
           echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
           echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "kind=go-linux-amd64-${{ steps.go.outputs.go-version }}-build-" >> "$GITHUB_OUTPUT"
+          echo "kind=go-unzipped-linux-amd64-${{ steps.go.outputs.go-version }}-build-" >> "$GITHUB_OUTPUT"
           echo "sum=${{ hashFiles('go.sum') }}-" >> "$GITHUB_OUTPUT"
       - name: Restore main's latest Go cache
+        if: steps.changes.outputs.go == 'true'
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -58,12 +67,13 @@ jobs:
             ${{ steps.paths.outputs.kind }}${{ steps.paths.outputs.sum }}
             ${{ steps.paths.outputs.kind }}
       - name: Install golangci-lint
-        if: matrix.lint == 'lint-go'
+        if: steps.changes.outputs.go == 'true' && matrix.lint == 'lint-go'
         uses: golangci/golangci-lint-action@d583c34f0599d37dbac4a198b9c83201be380893 # v9.3.0
         with:
           version: v2.14.0 # GOLANGCI_LINT_VERSION in the Makefile
           install-only: true
       - name: make ${{ matrix.lint }}
+        if: steps.changes.outputs.go == 'true'
         run: make ${{ matrix.lint }}
   ruff:
     name: lint-py
