@@ -83,10 +83,16 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm sprint close` holds a sprint only to the covers patterns it added or changed since it opened, so another session's pending pattern from before then no longer blocks it.
+
+- A pattern is the sprint's when the page did not hold it at the last records commit before the sprint opened; a page made during the sprint is the sprint's whole; with no pattern of the sprint's, nothing is fetched.
+- Accepted limit (sprint decision): a pattern another session adds to the page while the sprint is open counts as the sprint's; the refusal says the PR may be another sprint's.
+- `--help`, `prime.md`'s close line, a changelog entry, and [Sprint lifecycle](../design/sprint-lifecycle.md), [Record layer](../design/record-layer.md) and [pm CLI](../design/pm-cli.md) at the new state.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- A page holds a pending pattern another sprint added, and a sprint touching the page's code closes; refused when it added the pattern itself: met, `test_a_sprint_closes_past_a_pending_pattern_another_sprint_added_but_not_past_its_own` (refused naming only `internal/cli/own.go`, not the pending `internal/cli/sprint.go`; closes once its own pattern is gone), locally and in CI on PR #73.
+- In this repo, a sprint touching pm-cli's code closes while #62's patterns are pending: met by that test, which reproduces the pm CLI page's case, and live by this sprint's own close (its PR changes `internal/cli/writes.go`, which pm CLI covers, while the page holds #62's 13 pending patterns), run on the released pin.
+- Every existing design page whose area changed is at the new state and in Design pages: met for Sprint lifecycle, Record layer and pm CLI; Session claims, Agent lifecycle and pm as an installable product, which the gate names for PR #73, are waived with reasons.

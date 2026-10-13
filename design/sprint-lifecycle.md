@@ -200,8 +200,11 @@ page holds a covers pattern of the sprint's that matches no file there.
 
 Pages are shared, so a held page may carry another sprint's pending
 pattern, for a file that sprint's open PR adds. Only the sprint's own
-patterns hold it: those the page did not hold at the last records commit
-before the sprint's epic was created.
+patterns hold it: those the page did not hold at the newest records commit
+authored before the sprint's epic was created. Author dates, since the push
+rebases the records branch onto the remote and resets committer dates; a
+clock skewed between clones can still move that base. The old page is read
+for its covers only, so a rule a later pm adds cannot fail it.
 
 | Case | Held against the sprint |
 |---|---|
