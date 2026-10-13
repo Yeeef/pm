@@ -85,6 +85,8 @@ None yet.
 
 done: `pm sprint close` holds a sprint only to the covers patterns it added or changed since it opened, so another session's pending pattern from before then no longer blocks it.
 
+Merged as 93a8552 (PR #73).
+
 - A pattern is the sprint's when the page did not hold it at the last records commit before the sprint opened; a page made during the sprint is the sprint's whole; with no pattern of the sprint's, nothing is fetched.
 - Accepted limit (sprint decision): a pattern another session adds to the page while the sprint is open counts as the sprint's; the refusal says the PR may be another sprint's.
 - `--help`, `prime.md`'s close line, a changelog entry, and [Sprint lifecycle](../design/sprint-lifecycle.md), [Record layer](../design/record-layer.md) and [pm CLI](../design/pm-cli.md) at the new state.
