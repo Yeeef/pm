@@ -90,6 +90,11 @@ Moved pm-v498.1.5 to pm-v498.3: The service step can run only after a release ca
 It moves to sprint 3, which takes the release follow-up.
 :::
 
+::: decision {source=agent date=2026-10-13}
+Moved pm-v498.1.3 to pm-v498.3: Codex trusts each hook entry by its text. pm's Codex hook entries change only when this repo moves to a release carrying the pm-codex work, so a trust given now would be voided by that pin move.
+The owner's one-time trust step belongs after the pin move, which sprint 3 takes on.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
