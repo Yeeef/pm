@@ -121,6 +121,23 @@ Owner chose it in chat: the defects that matter (stale behaviour claims, narrati
   PM_LIVE_RUNS=2: 26/26 runs gave the case's verdict ($0.90, 251 s), accurate
   cases again with accurate voted 4/4 ($0.80, 177 s). Total spend $4.73.
 
+- AGENTS.md eval after the map fix and the rubric's must-know exemption
+  (haiku, 3-vote full mode). Batch 1 (6 full runs, after 235dc05+706e6db): 4/6
+  pass, both fails non_inferable; calls with findings: non_inferable 8/18,
+  no_copies 3/18, accurate 1/198, actionable 1/18, consistent 1/18, map 0/18
+  (was flagged every run before), no_history 0/18, complete 0/6; $0.32 and
+  130-200 s per run. The exempt must-know rules were no longer flagged. Batch
+  2 (after d07110a cut the no-sleep and size-cap sentences that the lint and
+  size_test.go messages state): 6/6 pass (2 full, 4 without accurate);
+  non_inferable 3/18, actionable 1/18, accurate 0/66, rest 0; $1.07.
+  Calibration (PM_LIVE_RUNS=1): 12/12 planted cases gave their verdict, the
+  clean case failed non_inferable; 142 calls, 198 s, $0.88. non_inferable-only
+  probes: 3/6 runs fail before f6e3832 (seed bullet, flagged 5/6, cut to a
+  conftest.py pointer) and 3/6 after (calls with findings 10/18 then 9/18);
+  the most-flagged passage left is the changelog.d/README.md rule's go:embed
+  reason (5/6 probes), which assets_test.go and the CHANGELOG preamble state.
+  non_inferable is not stable at 3 votes. Total $4.14.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
