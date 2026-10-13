@@ -92,12 +92,12 @@ The 12 gaps the sprint 1 gap list found, each with where it stands. A gap marked
 | 6 | The SessionStart matcher lacked `compact` | closed | matcher `startup\|resume\|clear\|compact` |
 | 7 | A subagent's records are invisible to the parent's Stop hook (encrypted inputs) | closed | Codex SubagentStop runs `pm hook stop` on `agent_transcript_path` |
 | 8 | The judge needs `claude`; Codex treats its failure as a silent pass | closed (pm-codex sprint 2) | Each session's judge runs on its own runtime, `codex exec` in Codex; `pm day summarize` on the runtime `summary_runtime` names; a null `last_assistant_message` passes |
-| 9 | Codex has no AskUserQuestion, which the rule names | left | A Codex agent asks through a need, the rule's other path |
+| 9 | The rule names only Claude Code's AskUserQuestion; Codex's ask tools differ | open | Codex 0.154 asks with `request_user_input_async` in Default mode (gpt-6 models: non-blocking pick list, the answer arrives as a new user message) and with a blocking `request_user_input` in Plan mode. The rule, the judge and the block reasons do not know either. |
 | 10 | `pm clean` did not see live Codex sessions | closed | it reads Codex rollouts |
 | 11 | A network-off Linux sandbox denies `connect()` to `work.sock` | closed, not run live | `.codex/rules/pm.rules` (see Sandbox). Bubblewrap cannot start on the owner's host. |
 | 12 | Claude-only wording; `live()` walked every rollout | closed | runtime-neutral refusal; rollouts found by the thread id's date |
 
-Gaps 5 and 9 are left by a pm-codex project decision. Each gap not closed is detailed under Gaps not closed.
+Gap 5 is left by a pm-codex project decision; gap 9 was left on a wrong premise (that Codex has no ask tool) and is open. Each gap not closed is detailed under Gaps not closed.
 
 ### Gaps not closed
 
@@ -126,15 +126,15 @@ Four of the 12 gaps are not closed: hook trust (1), `.codex/` from the main chec
 | Until then | Hook changes reach main through a PR, as every pm piece does. The README says Codex reads `.codex/` from the main checkout. `pm doctor` checks the main checkout's `.codex/hooks.json`. |
 | Closes when | Codex reads project config from the session's worktree. |
 
-#### Gap 9: Codex has no ask tool
+#### Gap 9: the rule knows only Claude Code's ask tool
 
 | | |
 |---|---|
-| What happens | The rule allows asking the owner with AskUserQuestion when they are plainly in the chat. Codex 0.154 has no such tool in its default mode: a default-mode ask sits behind the `default_mode_request_user_input` feature, which is under development and off. The owner-request block reason still names AskUserQuestion. |
-| Guarantee degraded | None is lost: a Codex agent asks through a need, the rule's other path. It cannot ask in-chat, though, even with the owner watching, and a block reason points it at a tool it lacks. |
-| Why it is open | Codex behaviour. |
-| Until then | Needs. |
-| Closes when | Codex ships an ask tool in its default mode. The rule then names it; that is a rule change in its three texts (prime.md, the judge prompt, the block reasons), with labelled cases. |
+| What Codex offers (0.154, measured in the TUI) | Default mode: `request_user_input_async`, offered when the model catalog lists it (gpt-6-astra, gpt-6-sol, gpt-6.1-sol, gpt-6-luna; not gpt-5.x). It shows the question inline as a pick list with an Other choice and returns `{"accepted":true}` at once; the turn does not wait, and the answer arrives later as a new user message. Plan mode (Shift+Tab or `/plan`): `request_user_input`, a blocking pick list with no timeout. In Default mode `request_user_input` answers "unavailable in Default mode" unless the under-development flag `default_mode_request_user_input` is on, and even then it is non-blocking and resolves to empty answers after about 2 min. `codex exec` can answer neither. |
+| What pm does today | The rule (prime.md, the judge prompt, the block reasons) names AskUserQuestion only. A block reason sends a Codex agent to a tool it does not have. In `codex exec` the async question surfaced as an agent message; if the TUI does the same, the owner-request judge may read it as an ask left only in chat and block it (not yet tested). |
+| Guarantee at stake | None is lost; a need always works. But a Codex agent cannot use its own ask tool while the owner is in the chat without risking a block. |
+| Closes when | The rule names each runtime's ask tool, and the owner-request hook recognises a `request_user_input` or `request_user_input_async` call as an ask made with the tool. That is a rule change in its three texts plus labelled cases. |
+| Sources | codex-rs rust-v0.154.0 `core/src/tools/handlers/request_user_input.rs`, `request_user_input_async.rs`, `tools/src/tool_config.rs:17-26`, `features/src/lib.rs:1529-1533`; the 0.154.0 release notes; openai/codex issues #37472 and #43759. |
 
 #### Gap 11: the sandboxed path is not run live
 
