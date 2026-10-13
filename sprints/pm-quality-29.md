@@ -48,6 +48,11 @@ The design page sprint-lifecycle stays as it is for this sprint's code changes.
 Its 'Covers hold on main at the close' section already states the rule as 0.8.6 applies it (a covers pattern of the sprint's); PR #76 only brings pm check's printed line to that wording
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page pm-cli stays as it is for this sprint's code changes.
+PR #76 changes one sentence of pm check --help to the rule the page already describes; no command, flag or behaviour changed
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
