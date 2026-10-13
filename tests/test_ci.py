@@ -264,6 +264,15 @@ def test_a_go_job_skips_its_steps_after_the_change_check_and_still_runs_on_every
     assert "go" in gated and ("suite" in gated) == (workflow == "pm-go.yml")
 
 
+def test_the_linters_restore_the_go_cache_pm_go_saves():
+    """pm-lint.yml restores the Linux build cache pm-go.yml saves: a key in an old form restores a stale cache, which
+    its own restores keep from expiring, or none."""
+    key = re.compile(r"go-[\w-]*?(?:linux-amd64|darwin-arm64|\$\{\{ matrix\.target \}\})-")
+    go = key.findall((PM_DIR / ".github/workflows/pm-go.yml").read_text())
+    assert go == ["go-unzipped-${{ matrix.target }}-"]
+    assert key.findall((PM_DIR / ".github/workflows/pm-lint.yml").read_text()) == ["go-unzipped-linux-amd64-"]
+
+
 RELEASE_YML = PM_DIR / ".github/workflows/pm-release.yml"
 spec = importlib.util.spec_from_file_location("main_ci", PM_DIR / "release" / "main_ci.py")
 main_ci = importlib.util.module_from_spec(spec)

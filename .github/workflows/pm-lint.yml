@@ -53,7 +53,7 @@ jobs:
         run: |
           echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
           echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "kind=go-linux-amd64-${{ steps.go.outputs.go-version }}-build-" >> "$GITHUB_OUTPUT"
+          echo "kind=go-unzipped-linux-amd64-${{ steps.go.outputs.go-version }}-build-" >> "$GITHUB_OUTPUT"
           echo "sum=${{ hashFiles('go.sum') }}-" >> "$GITHUB_OUTPUT"
       - name: Restore main's latest Go cache
         if: steps.changes.outputs.go == 'true'
