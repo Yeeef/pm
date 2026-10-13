@@ -8,7 +8,7 @@ bead: pm-d2k5.25
 
 > What should be true when this sprint ends, and why now?
 
-pm learns where it gets in agents' way from evidence rather than from unprompted feedback alone. pm logs every refusal and failure of its own commands, and a Stop hook asks a session for `pm feedback add` once, only when that session hit refusals and has not already added feedback. Why now: 31 feedback entries in 7 days came only from agents that volunteered them; refusals nobody reported are invisible.
+Each agent session that used pm reflects on its pm experience once, when the session ends, and adds `pm feedback add` entries for what got in its way, or writes nothing. The session itself cannot act once it ends (SessionEnd cannot block or reach the model), so a SessionEnd hook resumes a fork of the ended session, which holds the agent's whole context, and asks it. Why now: 31 feedback entries in 7 days came only from agents that volunteered them mid-task; friction they worked around is never reported.
 
 ## Scope
 
@@ -16,23 +16,24 @@ pm learns where it gets in agents' way from evidence rather than from unprompted
 > details go in a design page.
 
 **In:**
-- A refusal log: each pm command that refuses or fails appends its command, error text, session id and time under `.pm/run/`.
-- A Stop hook entry (Claude Code and Codex), last in the Stop chain, that blocks once per session when the log has entries for this session and the session ran no `pm feedback add`; its reason quotes the refused commands and says to add feedback only for a refusal that was pm's fault.
-- Its interaction with `stop_hook_active`: the owner-request and uncommitted-records checks keep their guarantees, or the gap is measured and named.
-- Tests, and a parity live scenario on both runtimes.
+- A SessionEnd hook entry, Claude Code and Codex, that returns at once and starts a detached run: `claude -p --resume <id> --fork-session`, or `codex exec resume <id> --ephemeral`, from the session's cwd, with the feedback prompt (in `prompts/`) and hooks off.
+- Gated: only a session that ran a pm command, only once per session (a marker under `.pm/run/`), never in the forked run itself.
+- The run's output logged under `.pm/run/`; a missing cwd or a failed run logs its cause and writes nothing.
+- Tests against the fake runtimes, and a live check on both runtimes.
 
 **Out:**
-- Asking every session for feedback.
-- Aggregating or rendering the refusal log on the site (a later sprint, once data exists).
+- Turn-end (Stop) asks.
+- A refusal log; the forked run has the session's own context.
 - Changes to `pm feedback add` itself.
+- Sessions that end without SessionEnd firing (killed, crashed).
 
 ## Done when
 
 > What evidence will show the goal is met?
 
-- A harness test: a session with a refused pm command is blocked once at Stop with a reason quoting the refusal; a session with none, one that already added feedback, and the continuation turn are let through.
+- Harness tests: a session that ran pm starts one feedback run with the right resume command, cwd and prompt, and hooks off; a second SessionEnd for the same session, a session with no pm command and the forked run itself start none; the hook returns within its timeout.
 - `TestClaudeAndCodexRunTheSameHooks` passes with the new entry in both runtimes.
-- A parity live run on Claude and Codex: a session that hits a refusal is asked once and either adds one feedback entry or stops; a session with no refusal gets no extra turn.
+- A live check in a scratch clone on Claude and Codex: a session that hit a pm refusal ends, and its forked run adds a feedback entry naming it, or the run log says why not; the original transcript gains no turn.
 - The PR is on main.
 
 ## Design pages
