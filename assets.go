@@ -20,11 +20,10 @@ var Style string
 
 // Notes is CHANGELOG.md and changelog.d/ as this pm was built: every earlier release's notes, and this release's
 // section or, when the build came before it was written (a release builds before its release commit), its entry
-// files. pm upgrade --to X prints the upgrade guide of each release it crosses from them (launch.Guides). One pattern
-// names both, since a pattern that matches nothing fails the build: changelog.d/ is absent from a checkout whose
-// entries were all released.
+// files. pm upgrade --to X prints the upgrade guide of each release it crosses from them (launch.Guides).
+// changelog.d/README.md, tracked and never an entry, keeps the directory from being empty, which go:embed refuses.
 //
-//go:embed [Cc][Hh][Aa][Nn][Gg][Ee][Ll][Oo][Gg]*
+//go:embed CHANGELOG.md changelog.d
 var Notes embed.FS
 
 // The model prompts and hook texts in prompts/, each without its final newline.

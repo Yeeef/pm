@@ -11,7 +11,7 @@ pm is one Go module (`go.mod`); the pytest suite in `tests/` is its black-box ha
 
 | Path | Holds |
 |---|---|
-| `cmd/pm`, `assets.go` | The binary's entry point, which runs the launcher before anything else; `assets.go` embeds `prime.md`, `style.css`, `prompts/` and the release notes, `CHANGELOG.md` and `changelog.d/` as built (`Notes`, for `pm upgrade`'s guides) |
+| `cmd/pm`, `assets.go` | The binary's entry point, which runs the launcher before anything else; `assets.go` embeds `prime.md`, `style.css`, `prompts/` and the release notes, `CHANGELOG.md` and `changelog.d/` as built (`Notes`, for `pm upgrade`'s guides; `changelog.d/README.md`, no entry and never deleted, keeps that directory from being empty, which `go:embed` refuses: `assets_test.go` builds the package with no entry files) |
 | `prime.md` | The rules `pm prime` prints, naming the work store and pm's commands for it |
 | `prompts/` | The model prompts and hook texts: the owner-request judge's system prompt and block reasons, `pm day summarize`'s prompt |
 | `style.css` | The one stylesheet every page of the site gets |

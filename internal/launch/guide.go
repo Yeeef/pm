@@ -137,6 +137,9 @@ func assembled(notes fs.FS, version string) (guide, error) {
 	}
 	step := 2
 	for _, name := range names { // fs.Glob gives them in name order
+		if name == "changelog.d/README.md" { // the directory's own README, never an entry (release/changelog.py)
+			continue
+		}
 		data, err := fs.ReadFile(notes, name)
 		if err != nil {
 			return guide{}, fmt.Errorf("pm %s cannot read its release notes' entry %s: %v", version, name, err)

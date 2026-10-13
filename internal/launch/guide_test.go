@@ -94,3 +94,23 @@ func TestEmbeddedNotesGiveEveryReleaseAGuide(t *testing.T) {
 		}
 	}
 }
+
+// With no entry files, changelog.d/ holds only its README, which is no entry: X's guide is the two steps every
+// release opens with.
+func TestGuidesWithNoEntryFilesGiveTheTwoSteps(t *testing.T) {
+	readme, err := os.ReadFile("testdata/notes/changelog.d/README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes := fstest.MapFS{"CHANGELOG.md": {Data: []byte(testChangelog(t))}, "changelog.d/README.md": {Data: readme}}
+	got, err := Guides(notes, "0.4.0", "0.5.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "pm 0.5.0:\n1. On each machine, install the release:\n" +
+		"   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.5.0/install.sh | sh`.\n" +
+		"2. In the repo, run `pm upgrade --to 0.5.0`, then commit what it changes and merge it, as an ordinary PR.\n\n"
+	if _, body, _ := strings.Cut(got, "\n\n"); body != want {
+		t.Fatalf("Guides =\n%s\nwant\n%s", body, want)
+	}
+}

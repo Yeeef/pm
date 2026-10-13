@@ -9,7 +9,8 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 - What is merged but not released is in `changelog.d/`, one file per change, so that two pull requests never edit
   the same lines: `changelog.d/<slug>.md`, the slug naming the change in lowercase letters, digits and `-`. An entry
   file opens with its summary paragraph, then holds `###` categories and their items, as a release's section does
-  (`### Fixed`, then its bullets). It names no step by its number: the release renumbers them.
+  (`### Fixed`, then its bullets). It names no step by its number: the release renumbers them. `changelog.d/README.md`
+  is no entry: it stays, so the directory pm embeds is never empty.
 - This file holds released sections only, newest first: `## [X.Y.Z] - YYYY-MM-DD` (the release's date). A release
   writes its section from the entry files and deletes them (`release/changelog.py release X`).
 - A release's section opens with a summary paragraph: what the release is about, in one to three sentences; its
