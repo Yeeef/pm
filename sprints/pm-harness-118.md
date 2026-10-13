@@ -49,7 +49,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-13}
+An ask-tool question is answerable both in the session chat and on the site; the first answer wins and the other surface closes.
+Owner chose it in chat over a one-way mirror: an owner away from the terminal must be able to answer from the site without losing the in-chat path.
+:::
 
 ## Findings
 
