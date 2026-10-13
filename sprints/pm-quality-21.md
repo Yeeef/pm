@@ -72,6 +72,16 @@ The Done when says no function exceeds 30; applying it globally gives an exact c
   commands.go at 714 lines. Every Go function is at most cyclomatic complexity
   30, now a global CI gate; every cli Go file is capped at 800 lines.
 
+- Final implementation commit d4acff4 is PR #62. After review restored
+  existing best-effort cleanup semantics, make lint passed with zero global
+  and ratchet findings; uninstall integration passed 3 tests in 4.87 s;
+  focused merge/sync tests passed in 55.665 s. Final light harness passed 83
+  tests, skipped 136, in 11.14 s. Fresh review found no correctness issues,
+  including a second read of the cleanup patch. Human-facing/stored pyjson
+  forms are retained; only machine inbox JSON encoding was replaced. The
+  parser already used pflag before this sprint; its remaining normalization
+  and explicit checks are now staged in the parse package.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
