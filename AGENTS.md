@@ -81,8 +81,8 @@ ran against main as main was then, so two PRs that pass alone can break main tog
 ## Changelog and releases
 
 - **A PR that changes what a release ships** (the `SHIPPED` paths in `release/changelog.py`) **adds one entry file,
-  `changelog.d/<slug>.md`**, in the form `CHANGELOG.md`'s preamble gives, and never edits `CHANGELOG.md`. When users would not notice the change, label the PR `no-changelog` instead. `pm-changelog.yml`
-  checks both on every PR.
+  `changelog.d/<slug>.md`**, in the form `CHANGELOG.md`'s preamble gives, and never edits `CHANGELOG.md`. When users
+  would not notice the change, label the PR `no-changelog` instead. `pm-changelog.yml` checks both on every PR.
 - `release/README.md` holds the release workflow, the version rule, release candidates, notes fixes and a failed
   release's recovery.
 - **Never move or recreate a release tag, and never rebuild a release's assets**: launchers keep each binary's sha256
@@ -98,14 +98,16 @@ ran against main as main was then, so two PRs that pass alone can break main tog
   it only where a procedure runs it.
 - Keep `prime.md` and `--help` in step with the code: a refusal `prime.md` names must exist in `internal/cli` with that
   wording, and a flag named in either must parse. `test_pm.py` asserts refusal texts: grep it before rewording one.
+- A body shown in pm's docs, `--help` texts and hints takes one of the two forms `prime.md`'s Bodies paragraph gives,
+  never `--text "…"`.
 - The rules run as one hook per chunk under a size cap (`internal/hooks`' doc). When a chunk outgrows it, move a
   heading in `hooks.Starts` and in `conftest.py`'s `RULE_STARTS`, or add one plus its hook entries. Two PRs that each
   fit the cap can overflow it together.
 - **A hook change edits both `claudeHooks` and `codexHooks`** (`internal/install/pieces.go`);
   `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for.
-- Hooks fail open on their own errors, but for the owner-request judge, which fails hard. Keep `pm hook inbox` on
-  UserPromptSubmit alone, never on Stop: a Stop block ends the continuation with `stop_hook_active`, which would let
-  the stop checks through.
+- Hooks fail open on their own errors. An owner-request judge that cannot run exits 1 with the cause on stderr,
+  which Claude Code shows and Codex takes as a pass. Keep `pm hook inbox` on UserPromptSubmit alone, never on Stop:
+  a Stop block ends the continuation with `stop_hook_active`, which would let the stop checks through.
 
 ## pm init
 
@@ -128,9 +130,9 @@ it); leave a stale service to a typed `pm init` or `pm service restart`.
 ## The parity live eval
 
 A parity scenario asserts from the work store, the records store and each runtime's transcript, never from the
-agent's prose; `tests/test_agent_parity_live.py`'s docstring lists the scenarios. A new scenario updates the Makefile's `-n` and the docstring's count
-(`tests/test_ci.py` holds both to the scenarios pytest collects). Every copy of a login goes through
-`agents.login_copy` (`test_login_copies.py` holds the harness to it).
+agent's prose; `tests/test_agent_parity_live.py`'s docstring lists the scenarios. A new scenario updates the
+Makefile's `-n` and the docstring's count (`tests/test_ci.py` holds both to the scenarios pytest collects). Every
+copy of a login goes through `agents.login_copy` (`test_login_copies.py` holds the harness to it).
 
 ## The site
 
