@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T17:21:48+00:00",
- "digest": "48c6973e85d17157",
+ "generated_at": "2026-10-13T17:42:09+00:00",
+ "digest": "bfc25adbfc5be3d5",
  "model": "claude-haiku-5-5",
- "text": "- **Codex sandbox on host:** The owner's host cannot run Codex's sandbox. The design record now explains why and gives the fix. A request to the owner covers the host setup.\n- **Ask-the-user tools:** pm's rule knew only one ask tool, AskUserQuestion. The design record now lists the ask tools Codex has for Default and Plan modes.\n- **Fixes awaiting merge:** Fixes for the closed gaps live on pull requests. They are not yet on the main branch or in a release."
+ "text": "- **Codex sandbox on host:** The records now explain why Codex's sandbox cannot run on the owner's host. A new request to the owner asks for host changes so the sandbox can run.\n- **Codex ask tools:** Codex has ask tools that the pm rule did not know. Work started to name them in the rule and accept them in the hook.\n- **Fixes awaiting release:** Fixes for the closed gaps are in pull requests. They are not yet on the main branch or in a release."
 }
