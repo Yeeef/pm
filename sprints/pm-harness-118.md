@@ -54,6 +54,11 @@ An ask-tool question is answerable both in the session chat and on the site; the
 Owner chose it in chat over a one-way mirror: an owner away from the terminal must be able to answer from the site without losing the in-chat path.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The Claude ask hook entry gets a 24 h timeout; the live check confirms Claude Code accepts it, and a smaller value is used if it does not.
+The hook process idles cheaply, and a site answer can reach the dialog only while the hook runs; an owner away for hours must still be able to answer.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
