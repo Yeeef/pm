@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/install"
@@ -51,7 +52,7 @@ func codeTop(here, records, what string) (string, error) {
 
 func settingsOf(c config.Config) install.Settings {
 	return install.Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL, AccessTeam: c.AccessTeam,
-		AccessAud: c.AccessAud}
+		AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime}
 }
 
 // checkSiteURL refuses a --site-url that is not an http(s) base URL.
@@ -334,6 +335,13 @@ func cmdInit(p *Parsed, here string, stdout io.Writer) error {
 			lines = append(lines, l)
 		}
 	}
+	if !sessionStart { // session start runs no Codex: it would cost seconds at every start
+		skips, _, err := install.CodexTrust(main, install.CodexTrustTimeout)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, skips...)
+	}
 	_, err = fmt.Fprintln(stdout, strings.Join(lines, "\n"))
 	return err
 }
@@ -442,7 +450,7 @@ func initSteps(here, top, main string, s install.Settings, fresh, sessionStart b
 	if err != nil {
 		return "", err
 	}
-	said, err = service.Install(main, port, exe)
+	said, err = service.Install(main, port, exe, true) // a PATH of its own never restarts a running service
 	if err != nil {
 		return "", err
 	}
@@ -503,15 +511,31 @@ func cmdDoctor(here string, stdout io.Writer) error {
 	for _, d := range append(found, install.LegacyClone(main)...) {
 		diffs = append(diffs, "legacy: "+d+"; "+install.LegacyFix())
 	}
-	release := releaseLine(c.Version)
+	// Only the summary's runtime must be here: the pm service asks it every 10 minutes. Each owner-request judge runs on
+	// the runtime of the session that stops, which runs only where that runtime is, so neither binary is missing for it.
+	rt := ask.Runtime(c.Summary())
+	if _, err := exec.LookPath(string(rt)); err != nil {
+		diffs = append(diffs, fmt.Sprintf("%s: not on PATH; summary_runtime in %s is %s, so pm day summarize, which "+
+			"the pm service runs every 10 minutes, fails; install %s and log in, or set summary_runtime to the runtime "+
+			"this machine has", rt, config.Rel, rt, map[ask.Runtime]string{ask.Claude: "Claude Code", ask.Codex: "Codex"}[rt]))
+	}
+	skips, note, err := install.CodexTrust(main, install.CodexTrustTimeout)
+	if err != nil {
+		return err
+	}
+	diffs = append(diffs, skips...)
+	notes := releaseLine(c.Version) // lines that inform and leave the exit code alone
+	if note != "" {
+		notes = append([]string{note}, notes...)
+	}
 	if len(diffs) > 0 {
-		fmt.Fprintln(stdout, strings.Join(append(diffs, release...), "\n"))
+		fmt.Fprintln(stdout, strings.Join(append(diffs, notes...), "\n"))
 		return &exitCode{1}
 	}
 	_, err = fmt.Fprintf(stdout, "pm %s (%s): every managed piece and the clone's setup match what pm init makes\n",
 		buildinfo.Version, launch.How())
-	if err == nil && len(release) > 0 {
-		_, err = fmt.Fprintln(stdout, strings.Join(release, "\n"))
+	if err == nil && len(notes) > 0 {
+		_, err = fmt.Fprintln(stdout, strings.Join(notes, "\n"))
 	}
 	return err
 }

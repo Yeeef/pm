@@ -146,6 +146,24 @@ func notAnswering(sock string) error {
 		sock)
 }
 
+// ErrSandboxed is a connect to the socket that the system refused: a sandbox around the command (Codex's network-off
+// sandbox denies connect() by seccomp), not the pm service.
+var ErrSandboxed = errors.New("this process may not connect to the pm service")
+
+// refusedConnect is ErrSandboxed with what to do: in Codex, run pm where its rule (.codex/rules/pm.rules) takes it out
+// of the sandbox, which is only a command Codex can split into plain pm commands.
+func refusedConnect(sock string, err error) error {
+	why := err.Error()
+	if os.Getenv("CODEX_SESSION_ID") != "" || os.Getenv("CODEX_THREAD_ID") != "" {
+		return fmt.Errorf("%w on %s (%s): Codex's sandbox blocks it, and runs pm outside the sandbox only when the "+
+			"whole command is plain pm commands; a heredoc body (--text-file - <<'EOF') keeps it inside, so give the "+
+			"body with --text-file PATH (a file under the worktree) or --text=\"…\", or rerun the command with "+
+			"escalation", ErrSandboxed, sock, why)
+	}
+	return fmt.Errorf("%w on %s (%s): a sandbox around this command blocks the socket; run pm outside it",
+		ErrSandboxed, sock, why)
+}
+
 // dial opens one connection to the socket and holds it.
 func dial(sock string, c dialConfig) (*Dolt, error) {
 	cfg := mysql.NewConfig()
@@ -165,6 +183,9 @@ func dial(sock string, c dialConfig) (*Dolt, error) {
 	cancel()
 	if err != nil {
 		db.Close()
+		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
+			return nil, refusedConnect(sock, err)
+		}
 		return nil, notAnswering(sock)
 	}
 	d := &Dolt{o: Options{Prefix: c.prefix, Now: c.now}, sock: sock, db: db, conn: conn}
@@ -1170,7 +1191,7 @@ func (d *Dolt) Comment(id string, kind CommentKind, author, text string) (Commen
 
 // Answer records the owner's answer to a need: a reply comment, then the close with resolution answered and the
 // reason "Responded", as bd human respond closed it.
-func (d *Dolt) Answer(id, text string) error {
+func (d *Dolt) Answer(id, text, session string) error {
 	return d.update("answer", id, func(it *Item, _ *Index) error {
 		if it.Type != Need {
 			return itemError(id, "is a %s; only a need is answered", it.Type)
@@ -1185,6 +1206,7 @@ func (d *Dolt) Answer(id, text string) error {
 		now := d.now()
 		it.Comments = append(it.Comments, Comment{ID: cid, Kind: Reply, Author: "owner", Text: text, CreatedAt: now})
 		it.Status, it.Resolution, it.CloseReason, it.ClosedAt, it.Holder = Closed, Answered, "Responded", now, nil
+		it.ClosedBy = session
 		return nil
 	})
 }
@@ -1206,8 +1228,8 @@ func (d *Dolt) UpdateNeed(id string, u NeedUpdate) error {
 				it.Need.RaisedBy.Host = *u.RaisedHost
 			}
 		}
-		if u.Delivered != nil {
-			it.Need.Delivered = *u.Delivered
+		if u.Delivered != nil { // never lowered: a deliverer that read fewer replies than another must not undo it
+			it.Need.Delivered = max(it.Need.Delivered, *u.Delivered)
 		}
 		if u.ReviewMerged != nil || u.ReviewMergeReported != nil {
 			if it.Need.Review == nil {

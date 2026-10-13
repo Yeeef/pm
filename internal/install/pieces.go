@@ -53,6 +53,8 @@ type Settings struct {
 	SiteURL    string
 	AccessTeam string // the Cloudflare Access keys, set by hand: carried so a config holding them is pm's own
 	AccessAud  string
+	// SummaryRuntime is summary_runtime, set by hand ("" when unset): carried so a config holding it is pm's own
+	SummaryRuntime string
 }
 
 // Piece is one managed piece. A text is nil when the file is absent.
@@ -73,7 +75,8 @@ func ptr(s string) *string { return &s }
 // ConfigText is .pm/config.toml as pm init writes it.
 func ConfigText(s Settings) string {
 	site := ""
-	for _, kv := range [][2]string{{"site_url", s.SiteURL}, {"access_team", s.AccessTeam}, {"access_aud", s.AccessAud}} {
+	for _, kv := range [][2]string{{"site_url", s.SiteURL}, {"access_team", s.AccessTeam}, {"access_aud", s.AccessAud},
+		{"summary_runtime", s.SummaryRuntime}} {
 		if kv[1] != "" {
 			site += kv[0] + " = " + pyjson.String(kv[1], true) + "\n"
 		}
@@ -104,6 +107,14 @@ const README = "# pm\n" +
 
 // PMGitignore is .pm/.gitignore.
 const PMGitignore = "store/\nrun/\n"
+
+// CodexRules is .codex/rules/pm.rules, a Codex project rule that runs pm outside Codex's sandbox: a pm command
+// reaches the pm service's socket, which a network-off sandbox blocks (on Linux, seccomp denies connect()), and Codex
+// runs a command whose every part a rule allows unsandboxed (codex-rs 0.154 core/src/exec_policy.rs, the
+// bypass_sandbox of an allowed command). It allows pm alone. A shell script Codex cannot split into plain commands,
+// a heredoc's among them, matches no rule and stays in the sandbox.
+const CodexRules = "# pm reaches the pm service's socket, which Codex's sandbox blocks: run pm outside it (pm init writes this)\n" +
+	"prefix_rule(pattern=[\"pm\"], decision=\"allow\")\n"
 
 func whole(rel, content string) Piece {
 	return Piece{
@@ -162,7 +173,7 @@ func claudeHooks() entries {
 		return out
 	}
 	return entries{
-		events: []string{"SessionStart", "SubagentStart", "Stop"},
+		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "Stop"},
 		groups: map[string]func() *pyjson.Object{
 			"SessionStart": func() *pyjson.Object {
 				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", 30)), "matcher", "")
@@ -170,14 +181,20 @@ func claudeHooks() entries {
 			"SubagentStart": func() *pyjson.Object {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", 15)), "matcher", "")
 			},
+			"UserPromptSubmit": func() *pyjson.Object {
+				return obj("hooks", []any{h("pm hook inbox || exit 1", 10)})
+			},
 			"Stop": func() *pyjson.Object {
-				return obj("hooks", []any{h("pm hook owner-request || exit 1", 30), h("pm hook stop || exit 1", 10)})
+				return obj("hooks", []any{h("pm hook owner-request --runtime claude || exit 1", 30), h("pm hook stop || exit 1", 10)})
 			},
 		},
 	}
 }
 
-// codexHooks is pm's entries in .codex/hooks.json. Codex's SessionStart has no compact event.
+// codexHooks is pm's entries in .codex/hooks.json. Codex's SessionStart matcher is a pattern over its sources, which
+// name each one: startup, resume, clear and compact. Its SubagentStop runs pm hook stop on the subagent's own rollout:
+// Codex keeps a subagent's prompt from its parent's rollout (encrypted), so the parent's Stop cannot see what the
+// subagent was asked to write, as Claude Code's parent transcript shows it.
 func codexHooks() entries {
 	h := func(command, status string, timeout int) any {
 		return obj("command", command, "statusMessage", status, "type", "command", "timeout", timeout)
@@ -191,18 +208,24 @@ func codexHooks() entries {
 		return out
 	}
 	return entries{
-		events: []string{"SessionStart", "SubagentStart", "Stop"},
+		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "Stop", "SubagentStop"},
 		groups: map[string]func() *pyjson.Object{
 			"SessionStart": func() *pyjson.Object {
 				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", "Loading pm init, pm where and pm show", 30)),
-					"matcher", "startup|resume|clear")
+					"matcher", "startup|resume|clear|compact")
 			},
 			"SubagentStart": func() *pyjson.Object {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Loading pm's git rule for agents", 15)))
 			},
+			"UserPromptSubmit": func() *pyjson.Object {
+				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10)})
+			},
 			"Stop": func() *pyjson.Object {
-				return obj("hooks", []any{h("pm hook owner-request || exit 1", "Checking for owner requests asked only in chat", 30),
+				return obj("hooks", []any{h("pm hook owner-request --runtime codex || exit 1", "Checking for owner requests asked only in chat", 45),
 					h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
+			},
+			"SubagentStop": func() *pyjson.Object {
+				return obj("hooks", []any{h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
 			},
 		},
 	}
@@ -352,8 +375,8 @@ func hooksApply(rel string, want entries) func(*string) (string, error) {
 	}
 }
 
-// hooksPart is pm's hooks by event, in order, each as written, with object keys sorted so that it compares as the
-// Python dicts do.
+// hooksPart is pm's hooks by event, in order, each as written and with the matcher of its group, with object keys
+// sorted so that it compares as the Python dicts do.
 func hooksPart(rel string) func(*string) (string, bool, error) {
 	return func(text *string) (string, bool, error) {
 		if text == nil {
@@ -368,9 +391,13 @@ func hooksPart(rel string) func(*string) (string, bool, error) {
 			for _, e := range f.events.Keys {
 				var hs []any
 				for _, g := range f.events.Get(e).([]any) {
+					var matcher any
+					if o, ok := g.(*pyjson.Object); ok { // loadHooks checked it is
+						matcher = o.Get("matcher")
+					}
 					for _, h := range groupHooks(g) {
 						if isPMHook(h) {
-							hs = append(hs, h)
+							hs = append(hs, []any{matcher, h})
 						}
 					}
 				}
@@ -709,6 +736,7 @@ func Pieces(s Settings) []Piece {
 		whole(".pm/.gitignore", PMGitignore),
 		hooksPiece(".claude/settings.json", claudeHooks()),
 		hooksPiece(".codex/hooks.json", codexHooks()),
+		whole(".codex/rules/pm.rules", CodexRules),
 	}
 	for _, name := range GitHooks {
 		out = append(out, gitHookPiece(name))

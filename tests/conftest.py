@@ -42,6 +42,7 @@ FAKE_GH = Path(__file__).resolve().parent / "fake_gh.py"
 FAKE_SCHED = Path(__file__).resolve().parent / "fake_sched.py"
 NO_RELEASE_API = "http://127.0.0.1:9/no-release-api"
 FAKE_CLAUDE = Path(__file__).resolve().parent / "fake_claude.py"
+FAKE_CODEX = Path(__file__).resolve().parent / "fake_codex.py"
 
 # What pm prime prints, written out from the design (the pm rules' hook chunks), not taken from pm's code: prime.md and
 # the noun list, cut at RULE_STARTS into chunks of at most CAP characters (Claude Code passes a hook's
@@ -111,6 +112,16 @@ def write_config(root: Path, **settings) -> Path:
     (path.parent / ".gitignore").write_text("store/\nrun/\n")
     path.write_text("".join(f"{k} = {v if isinstance(v, int) else json.dumps(v)}\n" for k, v in values.items()))
     return path
+
+
+HOOK_PAYLOADS = json.loads((Path(__file__).parent / "hook_payloads.json").read_text())
+
+
+def hook_payload(runtime: str, event: str, **values) -> dict:
+    """The hook input `runtime` (claude or codex) sends for `event`, from hook_payloads.json, with each placeholder
+    value "{name}" replaced by values[name] (None sends null); a placeholder without a value fails."""
+    return {k: values[v[1:-1]] if isinstance(v, str) and re.fullmatch(r"\{\w+\}", v) else v
+            for k, v in HOOK_PAYLOADS[runtime][event].items()}
 
 
 def uv_dir(*args: str) -> str:
@@ -314,7 +325,9 @@ def real_home_untouched():
 
 def fake_env(tmp: Path, base) -> dict[str, str]:
     """`base` with the fakes first on PATH: gh serving PRs from tmp/gh.json (none at first), claude logging to
-    tmp/claude.log, and launchctl, systemctl and crontab logging to tmp/sched.log, so no test installs a real service;
+    tmp/claude.log, codex answering whether it trusts pm's hooks (yes, unless $FAKE_CODEX_TRUST says otherwise) and
+    logging each `codex exec` to tmp/codex.log, and
+    launchctl, systemctl and crontab logging to tmp/sched.log, so no test installs a real service;
     made on first use in `tmp`, so later calls keep their state and log. HOME is tmp/home, whose .local/bin/pm, second
     on PATH, links the pm under test, as install.sh and pm init put it. CODEX_HOME is tmp/codex, absent until a test
     makes it, so no test reads or edits the user's Codex config."""
@@ -322,8 +335,8 @@ def fake_env(tmp: Path, base) -> dict[str, str]:
     if not bindir.exists():
         bindir.mkdir()
         # each runs with this interpreter, whatever python3 the PATH a unit gets holds
-        for tool, script in (("gh", FAKE_GH), ("claude", FAKE_CLAUDE), ("launchctl", FAKE_SCHED),
-                             ("systemctl", FAKE_SCHED), ("crontab", FAKE_SCHED)):
+        for tool, script in (("gh", FAKE_GH), ("claude", FAKE_CLAUDE), ("codex", FAKE_CODEX),
+                             ("launchctl", FAKE_SCHED), ("systemctl", FAKE_SCHED), ("crontab", FAKE_SCHED)):
             (bindir / tool).write_text(f'#!/bin/sh\nFAKE_TOOL={tool} exec "{sys.executable}" "{script}" "$@"\n')
             (bindir / tool).chmod(0o755)
         (tmp / "home/.local/bin").mkdir(parents=True)
@@ -332,14 +345,14 @@ def fake_env(tmp: Path, base) -> dict[str, str]:
         (tmp / "issues.json").write_text(json.dumps(ISSUES))
     # a test names its session itself, and its transcripts live under tmp/claude, not the user's
     base = {k: v for k, v in base.items() if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID",
-                                                         "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
+                                                         "CODEX_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
                                                          "GH_TOKEN")}
     return dict(base, PATH=f"{bindir}{os.pathsep}{tmp / 'home/.local/bin'}{os.pathsep}{base['PATH']}",
                 FAKE_GH_STATE=str(tmp / "gh.json"), CODEX_HOME=str(tmp / "codex"),
                 CLAUDE_CONFIG_DIR=str(tmp / "claude"), HOME=str(tmp / "home"), XDG_CONFIG_HOME=str(tmp / "home/.config"),
                 XDG_DATA_HOME=str(tmp / "home/.local/share"),
                 FAKE_SCHED_LOG=str(tmp / "sched.log"), FAKE_SCHED_STATE=str(tmp / "sched.json"),
-                FAKE_CLAUDE_LOG=str(tmp / "claude.log"),
+                FAKE_CLAUDE_LOG=str(tmp / "claude.log"), FAKE_CODEX_LOG=str(tmp / "codex.log"), FAKE_CODEX_APP_LOG=str(tmp / "codex-app.log"),
                 # pm doctor reads the latest release from GitHub's API: no test reaches it (port 9 refuses at once)
                 PM_RELEASE_API=NO_RELEASE_API, **UV_DIRS)
 

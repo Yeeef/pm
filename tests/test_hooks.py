@@ -8,11 +8,12 @@ import re
 import shutil
 import socket
 import subprocess
+from pathlib import Path
 
 import pytest
 
-from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, nouns, rules, \
-    stop_services, write_config
+from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, hook_payload, nouns, \
+    rules, stop_services, write_config, VERSION
 
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
@@ -319,3 +320,246 @@ def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tm
     t.write_text(t.read_text() + (tmp_path / "other.jsonl").read_text())
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(t)}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == ""
+
+# ---------------------------------------------------------------- Claude Code and Codex alike
+
+ME = "sess-me"
+ROOT, CHILD = "01a12bee-db2f-7050-ba39-116b615a19b8", "01a12bef-027d-7c33-8fb3-8fd52363eaf7"  # a Codex thread and its subagent
+
+
+def codex_rollout(path, thread, root, *commands, cwd):
+    """A Codex 0.154 rollout of `thread`, a subagent of `root` when they differ: its session_meta, then a turn that runs
+    each of `commands` through the exec tool in `cwd`, as Codex writes them."""
+    meta = {"id": thread, "session_id": root, "cwd": str(cwd), "originator": "codex_exec", "cli_version": "0.154.0"}
+    if thread != root:
+        meta.update(parent_thread_id=root, forked_from_id=root, thread_source="subagent")
+    at = "2026-10-11T17:07:23.155Z"
+    lines = [{"timestamp": at, "type": "session_meta", "payload": meta},
+             {"timestamp": at, "type": "turn_context", "payload": {"turn_id": "t1", "cwd": str(cwd)}}]
+    lines += [{"timestamp": at, "type": "response_item", "payload": {
+        "type": "custom_tool_call", "status": "completed", "call_id": f"call_{n}", "name": "exec",
+        "input": f"text(await tools.exec_command({{cmd:{json.dumps(c)},workdir:{json.dumps(str(cwd))}}}));\n"}}
+        for n, c in enumerate(commands)]
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    return str(path)
+
+
+def test_prime_answers_claude_codes_and_codexs_input_alike(repo, tmp_path):
+    """Each rules chunk and the subagent line, from Claude Code's and Codex's real SessionStart and SubagentStart
+    input: the same envelope."""
+    for event, cmds in (("SessionStart", [rules_cmd(n) for n in range(1, len(RULE_STARTS) + 1)]),
+                        ("SubagentStart", [rules_cmd(n) for n in range(1, len(RULE_STARTS) + 1)] + [SUBAGENT])):
+        got = {}
+        for runtime in ("claude", "codex"):
+            payload = hook_payload(runtime, event, session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t.jsonl"))
+            got[runtime] = [context_of(run(cmd, payload, repo.env, repo.root), event) for cmd in cmds]
+        assert got["claude"] == got["codex"], event
+        assert got["codex"][:len(RULE_STARTS)] == chunks()
+
+
+@pytest.mark.integration
+def test_session_start_state_answers_claude_codes_and_codexs_input_alike(repo, tmp_path):
+    init_ready(repo)
+    got = {}
+    for runtime in ("claude", "codex"):
+        payload = hook_payload(runtime, "SessionStart", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"))
+        text = context_of(run(STATE, payload, repo.env, repo.root))
+        got[runtime] = re.sub(r"at session start, [^:]*:\d\d(:\d\d)? UTC", "at session start, <time> UTC", text)
+    assert got["claude"] == got["codex"]
+    assert "Locations from `pm where` at session start" in got["codex"]
+
+
+@pytest.mark.parametrize("dirty", [True, False], ids=["uncommitted", "committed"])
+def test_stop_decides_alike_on_claude_codes_and_codexs_input(repo, tmp_path, dirty):
+    """A record this session edited, left uncommitted or not, in each runtime's Stop input and transcript: the same
+    verdict."""
+    if dirty:
+        edit_sprint(repo)
+    path = str(repo.records / "sprints/demo-1.md")
+    transcripts = {"claude": claude_transcript(tmp_path / "claude.jsonl", {"file_path": path}),
+                   "codex": codex_rollout(tmp_path / "codex.jsonl", ROOT, ROOT, f"sed -i s/it./it_soon./ {path}",
+                                          cwd=repo.root)}
+    got = {}
+    for runtime, t in transcripts.items():
+        res = run(STOP, hook_payload(runtime, "Stop", session=ME, cwd=str(repo.root), transcript=t, reply="Done."),
+                  repo.env, repo.root)
+        assert res.returncode == 0, res.stderr
+        got[runtime] = res.stdout
+    assert got["claude"] == got["codex"]
+    if dirty:
+        assert json.loads(got["codex"])["decision"] == "block" and "- records/sprints/demo-1.md" in got["codex"]
+    else:
+        assert got["codex"] == ""
+
+
+def test_a_subagents_uncommitted_record_blocks_alike_in_claude_code_and_codex(repo, tmp_path):
+    """A subagent edited a record and left it uncommitted. Claude Code's parent transcript holds the subagent's prompt,
+    which names the record, so the parent's Stop blocks once the subagent returned. Codex encrypts the prompt in the
+    parent's rollout, so the subagent's own SubagentStop blocks, on its rollout (agent_transcript_path), with the same
+    reason."""
+    edit_sprint(repo)
+    path = str(repo.records / "sprints/demo-1.md")
+    claude_t = tmp_path / "claude.jsonl"
+    claude_t.write_text("\n".join(subagent_lines(tmp_path, f"Write the frame in {path}.", True)) + "\n")
+    parent = codex_rollout(tmp_path / "parent.jsonl", ROOT, ROOT, "git status", cwd=repo.root)
+    child = codex_rollout(tmp_path / "child.jsonl", CHILD, ROOT, f"sed -i s/it./it_soon./ {path}", cwd=repo.root)
+    claude = run(STOP, hook_payload("claude", "Stop", session=ME, cwd=str(repo.root), transcript=str(claude_t),
+                                    reply="Done."), repo.env, repo.root)
+    codex = run(STOP, hook_payload("codex", "SubagentStop", session=ROOT, cwd=str(repo.root), transcript=parent,
+                                   agent_transcript=child, reply="Done."), repo.env, repo.root)
+    assert claude.returncode == codex.returncode == 0, (claude.stderr, codex.stderr)
+    assert json.loads(codex.stdout)["decision"] == "block" and codex.stdout == claude.stdout
+    # the parent's own Stop sees no call that names the record
+    parent_stop = run(STOP, hook_payload("codex", "Stop", session=ROOT, cwd=str(repo.root), transcript=parent,
+                                         reply="Done."), repo.env, repo.root)
+    assert parent_stop.returncode == 0 and parent_stop.stdout == "", parent_stop.stderr
+
+
+INBOX = [*PM, "hook", "inbox"]
+
+
+def need_with_reply(repo, nid: str, session: str) -> None:
+    """An open decision need `session` raised, holding a site reply not delivered yet."""
+    at = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    reply = {"id": f"6f1c0e2a-1b2c-4d3e-8f40-5a6b7c8d9e0{nid[-1]}", "issue_id": nid, "author": "owner (site reply)",
+             "text": f"Small, until tables.\n\n<!-- pm-reply 0b6c7c1e-2d3f-4a5b-9c6d-7e8f9a0b1c2{nid[-1]} -->",
+             "created_at": "2026-10-03T12:00:00Z"}
+    repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task", "parent": "repo-demo.1",
+                    "labels": ["human"], "metadata": {"session": session}, "comments": [reply], **at})
+
+
+def test_inbox_hands_a_reply_over_alike_in_claude_code_and_codex(repo, tmp_path):
+    """A reply to a need of this session that no push delivered (Codex has none) goes in as context beside the next
+    prompt, the same from either runtime's input, and is marked delivered, so it goes in once."""
+    need_with_reply(repo, "repo-demo.1.3", "sess-claude")
+    need_with_reply(repo, "repo-demo.1.4", "sess-codex")
+    got = {}
+    for runtime, session, nid in (("claude", "sess-claude", "repo-demo.1.3"), ("codex", "sess-codex", "repo-demo.1.4")):
+        payload = hook_payload(runtime, "UserPromptSubmit", session=session, cwd=str(repo.root),
+                               transcript=str(tmp_path / "t"), prompt="go on")
+        res = run(INBOX, payload, repo.env, repo.root)
+        assert res.returncode == 0 and res.stderr == "", res.stderr
+        got[runtime] = res.stdout.replace(nid, "<id>")
+        assert repo.items()[nid]["need"]["delivered"] == 1
+        again = run(INBOX, payload, repo.env, repo.root)
+        assert again.returncode == 0 and again.stdout == "", again.stdout
+    assert got["claude"] == got["codex"]
+    text = json.loads(got["codex"])["hookSpecificOutput"]["additionalContext"]
+    assert text.startswith("The owner replied to requests this session raised:\n\n"
+                           "pm: owner reply to decision <id> (Parser?), relayed from the site:")
+    assert "Small, until tables." in text
+
+
+def test_inbox_hands_nothing_over_at_a_stop(repo, tmp_path):
+    """A block at a stop would end the turn that acts on the reply with stop_hook_active, which lets the stop checks
+    through; at a stop the hook does nothing, and the reply stays undelivered."""
+    need_with_reply(repo, "repo-demo.1.3", ME)
+    for runtime in ("claude", "codex"):
+        payload = hook_payload(runtime, "Stop", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"),
+                               reply="Done.")
+        res = run(INBOX, payload, repo.env, repo.root)
+        assert res.returncode == 0 and res.stdout == "", res.stderr
+    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 0
+
+
+@pytest.mark.integration
+def test_session_start_of_a_codex_session_started_from_claude_code_takes_no_claude_inbox(repo, tmp_path):
+    """Codex's hooks get no CODEX_* variables and inherit the Claude Code session's that started Codex: session start
+    runs pm show as the Codex session, so its needs trade the Claude Code socket an earlier pm stored on them for the
+    session's CODEX_HOME, which the pm service queues the reply under."""
+    repo.add_issue({"id": "repo-demo.1.3", "title": "Parser?", "status": "open", "issue_type": "task",
+                    "parent": "repo-demo.1", "labels": ["human"], "created_at": "2026-10-01T12:00:00Z",
+                    "updated_at": "2026-10-01T12:00:00Z",
+                    "metadata": {"session": ROOT, "inbox": "/run/claude.sock", "inbox_host": socket.gethostname()}})
+    init_ready(repo)
+    env = dict(repo.env, CLAUDE_CODE_SESSION_ID="claude-parent", CLAUDE_CODE_MESSAGING_SOCKET="/run/claude.sock")
+    payload = hook_payload("codex", "SessionStart", session=ROOT, cwd=str(repo.root), transcript=str(tmp_path / "t"))
+    context_of(run(STATE, payload, env, repo.root))
+    assert repo.items()["repo-demo.1.3"]["need"]["raised_by"]["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}"
+
+
+def test_a_codex_session_whose_hooks_did_not_run_is_told_once(repo):
+    """Codex skips a hook the user has not trusted, silently: a pm command in a Codex session whose rollout holds no pm
+    session-start context before its first prompt warns once on stderr, naming the fix; a session whose rollout holds
+    it, pm's hooks themselves, and a session whose first prompt is not written yet get no warning. The command itself
+    runs as ever."""
+    def rollout(thread: str, *messages: tuple[str, str]) -> None:
+        """A Codex 0.154 rollout's opening: session_meta, Codex's own context, turn_context, then `messages`."""
+        lines = [{"type": "session_meta", "payload": {"id": thread, "cwd": str(repo.root), "originator": "codex_exec"}},
+                 {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [
+                     {"type": "input_text", "text": "# AGENTS.md instructions\n\n<INSTRUCTIONS>…"}]}},
+                 {"type": "turn_context", "payload": {"cwd": str(repo.root)}}]
+        lines += [{"type": "response_item", "payload": {"type": "message", "role": role,
+                                                        "content": [{"type": "input_text", "text": text}]}}
+                  for role, text in messages]
+        p = Path(repo.env["CODEX_HOME"]) / "sessions/2026/10/11" / f"rollout-2026-10-11T19-07-16-{thread}.jsonl"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("".join(json.dumps(line) + "\n" for line in lines))
+
+    skipped, hooked, unwritten = ("01a12bee-db2f-7050-ba39-116b615a19b8", "01a12bef-027d-7c33-8fb3-8fd52363eaf7",
+                                  "01a12bef-1111-7c33-8fb3-8fd52363eaf7")
+    rollout(skipped, ("user", "Run pm show."))
+    rollout(hooked, ("developer", chunks()[0]), ("user", "Run pm show."))
+    rollout(unwritten)
+
+    def show(thread: str, *args: str):
+        res = subprocess.run([*PM, *(args or ("show",))], cwd=repo.root, input="{}", capture_output=True, text=True,
+                             env=dict(repo.env, CODEX_SESSION_ID=thread, CODEX_THREAD_ID=thread), check=False)
+        return res
+
+    first = show(skipped)
+    assert first.returncode == 0 and "projects:" in first.stdout, first.stderr
+    assert first.stderr.count("warning: Codex ran none of pm's hooks in this session") == 1, first.stderr
+    assert f"open Codex in {repo.root}, trust pm's hooks in /hooks" in first.stderr
+    again = show(skipped)
+    assert again.returncode == 0 and "warning" not in again.stderr, "once per session"
+    for thread in (hooked, unwritten):
+        res = show(thread)
+        assert res.returncode == 0 and "warning" not in res.stderr, (thread, res.stderr)
+    rollout(unwritten, ("user", "Run pm show."))  # its first prompt is written now: told then
+    assert "warning: Codex ran none" in show(unwritten).stderr
+    for args in (("prime", "--subagent"), ("hook", "stop")):  # the hooks themselves never warn
+        (repo.root / f".pm/run/codex-hooks/{skipped}").unlink(missing_ok=True)
+        assert "warning" not in show(skipped, *args).stderr, args
+
+
+@pytest.mark.integration
+def test_a_codex_sessions_start_names_the_pm_hooks_codex_skips(repo, tmp_path):
+    """A pm upgrade that rewrites one Codex hook entry leaves Codex's trust in it stale: Codex skips that hook and runs
+    the unchanged ones. The state hook of a Codex session (pm runs under a codex process) asks Codex (here the fake
+    app-server) which of pm's hooks it skips and opens the state with one line naming them and the fix; it asks again
+    only when .codex/hooks.json or the Codex config changed. A Claude Code session asks nothing."""
+    init_ready(repo)
+    upgraded = repo.pm("upgrade", "--to", VERSION)  # pm's pieces as this pm writes them, .codex/hooks.json included
+    assert (repo.root / ".codex/hooks.json").exists(), upgraded.stdout + upgraded.stderr
+    codex_home = Path(repo.env["CODEX_HOME"])
+    codex_home.mkdir(exist_ok=True)
+    (codex_home / "config.toml").write_text("# trust as the user left it\n")
+    trust = tmp_path / "trust.json"
+    trust.write_text(json.dumps({"stop:0:0": "modified"}))  # the judge's entry changed since the user trusted it
+    env = dict(repo.env, FAKE_CODEX_TRUST=str(trust))
+    app_log = Path(repo.env["FAKE_CODEX_APP_LOG"])
+    payload = hook_payload("codex", "SessionStart", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"))
+
+    def start(under: str) -> str:
+        """The state hook, run as Codex runs it: under a process named `under`."""
+        res = subprocess.run([under, "-c", '"$0" "$@"; :', *STATE], executable="/bin/sh", input=json.dumps(payload),
+                             env=env, cwd=repo.root, capture_output=True, text=True, timeout=60, check=False)
+        return context_of(res)
+
+    def calls() -> int:
+        return len(app_log.read_text().splitlines()) if app_log.exists() else 0
+
+    before = calls()
+    first = start("codex")
+    line = first.split("\n\n", 1)[0]
+    assert line.startswith("warning: this Codex session runs only the pm hooks Codex trusts."), first[:400]
+    assert "which changed since you trusted them: stop `pm hook owner-request --runtime codex || exit 1`" in line
+    assert f"open Codex in {repo.root} and trust pm's hooks in /hooks" in line
+    assert calls() == before + 1
+    assert start("codex").split("\n\n", 1)[0] == line and calls() == before + 1, "unchanged files: no second ask"
+    # the user trusts it in /hooks, which writes Codex's config: asked again, and nothing to say
+    trust.write_text("{}")
+    (codex_home / "config.toml").write_text("# trust as the user left it\n[hooks.state]\n")
+    assert not start("codex").startswith("warning: this Codex session") and calls() == before + 2
+    assert not start("claude").startswith("warning: this Codex session") and calls() == before + 2

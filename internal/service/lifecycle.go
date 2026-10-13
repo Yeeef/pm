@@ -239,27 +239,33 @@ func LockInstall(main string) (func(), error) {
 }
 
 // Install installs this clone's service to run exe, or brings an installed one up to date, starts it and waits until
-// the site answers for this clone's store; "" when it is installed, current and held by the supervisor. Refused
-// unless the Tools resolve on the PATH it runs with; failed when the site does not come up (another clone's service
-// on the port, say). One install per clone runs at a time.
-func Install(main string, port int, exe string) (string, error) {
+// the site answers for this clone's store; "" when it is installed, current and held by the supervisor. The unit runs
+// with this process's PATH, except with keepPath (pm init) when a unit is installed: then it keeps the unit's, since
+// every agent runtime runs pm with a PATH of its own (Codex puts its own directory first), and taking each one's
+// would rewrite and restart the service, under every live session, at each session's pm init. pm service install
+// takes this process's. Refused unless the Tools resolve on the PATH the unit runs with; failed when the site does not
+// come up (another clone's service on the port, say). One install per clone runs at a time.
+func Install(main string, port int, exe string, keepPath bool) (string, error) {
 	unlock, err := LockInstall(main)
 	if err != nil {
 		return "", err
 	}
 	defer unlock()
-	return installLocked(main, port, exe)
+	return installLocked(main, port, exe, keepPath)
 }
 
 // waitUp is a variable so the in-process tests can stand in for a site that comes up at once.
 var waitUp = WaitUp
 
-func installLocked(main string, port int, exe string) (string, error) {
+func installLocked(main string, port int, exe string, keepPath bool) (string, error) {
 	kind, err := Supervisor()
 	if err != nil {
 		return "", err
 	}
 	path := os.Getenv("PATH")
+	if kept, ok := UnitPath(main, kind); keepPath && ok {
+		path = kept
+	}
 	var missing []string
 	for _, t := range Tools {
 		if !onPath(t, path) {

@@ -17,6 +17,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -1077,9 +1078,10 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 			return "", err
 		}
 		return "", refuse("not claiming %s here: %s is the main checkout; agents change code only in a worktree of their "+
-			"own. Make one and work there: `git -C %s fetch %s %s && git -C %s worktree add -b <branch> %s/<name> %s/%s`, "+
-			"then `cd %s/%s/<name>` (in Claude Code, the EnterWorktree tool does the same); pm's post-checkout hook and "+
-			"session start link its records/ (else run `pm init` there). A subagent works in its parent's worktree.",
+			"own. Make one with git, in any runtime, and work there: `git -C %s fetch %s %s && git -C %s worktree add -b "+
+			"<branch> %s/<name> %s/%s`, then `cd %s/%s/<name>` (in Claude Code, the EnterWorktree tool does the same); "+
+			"pm's post-checkout hook and session start link its records/ (else run `pm init` there). A subagent works "+
+			"in its parent's worktree.",
 			id, root, root, cfg.Remote, cfg.MainBranch, root, worktreesDir, cfg.Remote, cfg.MainBranch, root, worktreesDir)
 	}
 	r, err := e.load(false)
@@ -1099,7 +1101,7 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	// Python pm records no host; the host comes with liveness across hosts (work-store page, Open questions).
-	if err := ws.Claim(id, work.Holder{Session: sid}, live); err != nil {
+	if err := ws.Claim(id, work.Holder{Session: sid}, session.Live); err != nil {
 		return "", err
 	}
 	claimed, err := ws.Get(id) // the claim time the store stamped

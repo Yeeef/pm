@@ -5,7 +5,8 @@ package hooks
 // session's tool calls name (Claude Code tool_use inputs; Codex function_call arguments, custom_tool_call inputs and
 // local_shell_call actions), the hook blocks the stop once with a reason naming them. A path that only the prompt of a
 // subagent call still running names is left out: the subagent may be writing it. On stop_hook_active it always
-// lets the stop through, so it never loops. Prints {"decision": "block", "reason": ...} to block, nothing otherwise.
+// lets the stop through, so it never loops. Prints {"decision": "block", "reason": ...} to block, nothing otherwise. At a
+// Codex SubagentStop it reads the subagent's own rollout, agent_transcript_path, instead of its parent's.
 
 import (
 	"bufio"
@@ -316,8 +317,12 @@ func StopReason(event *pyjson.Object, stderr io.Writer) (string, error) {
 	}
 	var mine []string
 	readable := false
-	if pyjson.Truthy(event.Get("transcript_path")) {
-		transcript, err := eventString(event, "transcript_path")
+	key := "transcript_path"
+	if pyjson.Truthy(event.Get("agent_transcript_path")) { // a subagent's stop: its own transcript
+		key = "agent_transcript_path"
+	}
+	if pyjson.Truthy(event.Get(key)) {
+		transcript, err := eventString(event, key)
 		if err != nil {
 			return "", err
 		}

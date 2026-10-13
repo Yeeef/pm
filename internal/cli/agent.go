@@ -14,6 +14,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -263,10 +264,9 @@ func (r *repo) apply(writes []store.Write, message, prefix string) (string, erro
 // ---------------------------------------------------------------- sessions and holders
 
 const (
-	sessionEnv      = "CLAUDE_CODE_SESSION_ID" // Claude Code exports it to every command a session runs
-	codexSessionEnv = "CODEX_THREAD_ID"        // Codex exports it to every command a thread runs
-	inboxEnv        = "CLAUDE_CODE_MESSAGING_SOCKET"
-	liveWindow      = int(LiveWindow / time.Second) // seconds, as refusals name it
+	sessionEnv      = session.ClaudeEnv
+	codexSessionEnv = session.CodexThreadEnv
+	liveWindow      = int(session.LiveWindow / time.Second) // seconds, as refusals name it
 )
 
 func homeDir() string {
@@ -296,7 +296,7 @@ func holderOf(it *work.Item) *holder {
 	if it.Holder == nil {
 		return nil
 	}
-	return &holder{Session: it.Holder.Session, ClaimedAt: it.Holder.ClaimedAt, Live: live(it.Holder.Session)}
+	return &holder{Session: it.Holder.Session, ClaimedAt: it.Holder.ClaimedAt, Live: session.Live(it.Holder.Session)}
 }
 
 // age is '12m', '3h' or '2d' since t; '?' for the zero time.

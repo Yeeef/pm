@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/Yeeef/pm/internal/ask"
 )
 
 var nouns = []string{"show", "prime", "task", "hook", "push", "commit"}
@@ -91,17 +93,20 @@ func TestFailuresNameOneLine(t *testing.T) {
 	t.Run("AFailedCheckExitsOneWithItsCause", func(t *testing.T) {
 		read := func(dir, session string) ([]Request, error) { return nil, errors.New("work store: none at /x") }
 		for in, want := range map[string]string{
-			`[1]`:                 "the hook input is not a JSON object",
-			`{}`:                  "the hook input has no session_id",
-			`{"session_id": "s"}`: "the hook input has no last_assistant_message",
+			`[1]`: "the hook input is not a JSON object",
+			`{}`:  "the hook input has no session_id",
+			`{"session_id": "s", "last_assistant_message": 7}`: "the hook input's last_assistant_message is a int, " +
+				"not a string", // null or missing is no reply, which asks nothing
 			`{"session_id": "s", "last_assistant_message": "Ask?"}`: "reading this session's open needs failed: " +
 				"work store: none at /x",
 		} {
-			var out, errb bytes.Buffer
-			code, err := HookOwnerRequest(t.TempDir(), read, strings.NewReader(in), &out, &errb)
-			if code != 1 || err != nil || out.Len() != 0 ||
-				errb.String() != "pm hook owner-request: "+want+"; the owner-request check did not run\n" {
-				t.Errorf("%s: code %d, err %v, stdout %q, stderr %q", in, code, err, out.String(), errb.String())
+			for _, runtime := range []ask.Runtime{ask.Claude, ask.Codex} { // the same failure on either runtime
+				var out, errb bytes.Buffer
+				code, err := HookOwnerRequest(t.TempDir(), runtime, read, strings.NewReader(in), &out, &errb)
+				if code != 1 || err != nil || out.Len() != 0 ||
+					errb.String() != "pm hook owner-request: "+want+"; the owner-request check did not run\n" {
+					t.Errorf("%s %s: code %d, err %v, stdout %q, stderr %q", runtime, in, code, err, out.String(), errb.String())
+				}
 			}
 		}
 	})

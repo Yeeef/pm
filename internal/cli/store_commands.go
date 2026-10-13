@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -133,7 +132,7 @@ func runStoreCommand(name string, args []string, open func() (*work.Dolt, error)
 	if err != nil {
 		return err
 	}
-	c := &storeCall{fs: fs, args: fs.Args(), d: d, session: currentSession(), live: live, stdin: stdin,
+	c := &storeCall{fs: fs, args: fs.Args(), d: d, session: currentSession(), live: session.Live, stdin: stdin,
 		stdout: stdout}
 	return errors.Join(sc.run(c), d.Shutdown())
 }
@@ -536,55 +535,26 @@ func syncNow(c *storeCall) error {
 
 // ---------------------------------------------------------------- sessions
 
-// LiveWindow is how recently a session's transcript must have changed for it to be live.
-const LiveWindow = 30 * time.Minute
-
-var sessionID = regexp.MustCompile(`^[\w-]+$`)
-
-// currentSession is this command's agent session: Claude Code's session id, else Codex's thread id, else "".
+// currentSession is this command's agent session (agentSession): Claude Code's session id or Codex's root session id,
+// or "". Execute refuses a command whose session is ambiguous before it runs; one that reaches here is a bug.
 func currentSession() string {
-	for _, name := range []string{"CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID"} {
-		if s := strings.TrimSpace(os.Getenv(name)); s != "" {
-			return s
-		}
+	s, _, err := agentSession()
+	if err != nil {
+		panic(fmt.Sprintf("a command ran with an ambiguous session, which Execute refuses: %v", err))
+	}
+	return s
+}
+
+// innermost is the runtime of pm's nearest Claude Code or Codex ancestor; a variable so a test can set the ancestry.
+var innermost = session.Innermost
+
+// agentSession is this command's agent session and its runtime (session.Current).
+func agentSession() (id, runtime string, err error) { return session.Current(innermost) }
+
+// sessionInbox is the inbox the pm service pushes this session's replies into (session.Inbox).
+func sessionInbox() string {
+	if _, runtime, err := agentSession(); err == nil {
+		return session.Inbox(runtime)
 	}
 	return ""
-}
-
-// claudeConfigDir is Claude Code's config dir, which holds its transcripts under projects/.
-func claudeConfigDir() string {
-	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
-		return d
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude")
-}
-
-// live is whether one of the session's transcripts changed within LiveWindow: Claude Code's
-// <config>/projects/<project dir>/<id>.jsonl (any project dir, since each worktree has its own), or Codex's
-// $CODEX_HOME/sessions/<date>/rollout-<time>-<id>.jsonl.
-func live(session string) bool {
-	if !sessionID.MatchString(session) {
-		return false
-	}
-	home, _ := os.UserHomeDir()
-	claude := claudeConfigDir()
-	codex := os.Getenv("CODEX_HOME")
-	if codex == "" {
-		codex = filepath.Join(home, ".codex")
-	}
-	paths, _ := filepath.Glob(filepath.Join(claude, "projects", "*", session+".jsonl"))
-	_ = filepath.WalkDir(filepath.Join(codex, "sessions"), func(p string, e os.DirEntry, err error) error {
-		if err == nil && !e.IsDir() && strings.HasPrefix(e.Name(), "rollout-") &&
-			strings.HasSuffix(e.Name(), "-"+session+".jsonl") {
-			paths = append(paths, p)
-		}
-		return nil
-	})
-	for _, p := range paths {
-		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < LiveWindow {
-			return true
-		}
-	}
-	return false
 }

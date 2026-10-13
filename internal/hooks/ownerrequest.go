@@ -2,41 +2,45 @@ package hooks
 
 // pm hook owner-request, the Stop hook wired in Claude Code and Codex: an agent may not end its turn asking the owner
 // for something only in chat. Every such request in the final reply must match an open need that
-// this session raised. It reads this session's open needs from the work store, then asks Claude Haiku through
-// `claude -p` to list the owner requests in the reply and the open need each one matches; a request that matches none,
-// or a needless ask for leave to take an authorized step, blocks the stop once. On stop_hook_active, or a blank reply,
-// it lets the stop through without reading anything. It fails hard, never silently: when the input is unusable, or the
-// work store or claude fails, it exits 1 with the cause on stderr.
+// this session raised. It reads this session's open needs from the work store, then asks a small model on the session's
+// own runtime (--runtime, which each runtime's hook entry names: Claude Haiku through `claude -p`, or a small Codex model
+// through `codex exec`; internal/ask) to list the owner requests in the reply and the open need each one matches; a
+// request that matches none, or a needless ask for leave to take an authorized step, blocks the stop once. On
+// stop_hook_active, or a blank, null or missing reply, it lets the stop through without reading anything. It fails
+// hard, never silently, the same on either runtime: when the input is unusable, or the work store or the model call
+// fails, it exits 1 with the cause on stderr.
 
 import (
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Yeeef/pm"
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 const (
-	judgeModel   = "claude-haiku-5-5"
-	judgeTimeout = 15           // seconds; the judge takes about 2 s, which keeps the hook under its 30 s timeout
-	authorized   = "authorized" // a needless ask: blocks even when an open request matches
+	authorized    = "authorized"                          // a needless ask: blocks even when an open request matches
+	askedWithTool = "(asked with the ask tool this turn)" // how the judge sees a question asked with the ask tool
 )
 
-// judgeArgs is the judge's claude call: no settings (so none of the repo's hooks run in the child), no MCP servers,
-// no tools, no saved session.
-var judgeArgs = []string{"claude", "-p", "--model", judgeModel, "--setting-sources", "", "--strict-mcp-config",
-	"--tools", "", "--no-session-persistence", "--output-format", "text"}
+// askTool is how a block reason names the runtime's ask tool.
+var askTool = map[ask.Runtime]string{ask.Claude: "the AskUserQuestion tool",
+	ask.Codex: "your ask tool (request_user_input_async; request_user_input in Plan mode)"}
 
-// judgeEnv turns extended thinking off (with it, a verdict took 5 to 36 s instead of about 2 s) and skips
-// nonessential traffic.
-var judgeEnv = [][2]string{{"MAX_THINKING_TOKENS", "0"}, {"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"}}
+// judgeTimeout is how long the judge may take on each runtime, inside its hook entry's timeout (Claude Code's 30 s,
+// Codex's 45 s). Measured by the live eval, 8 calls at a time: Claude's verdict median 2 s, max 12 s; Codex's median
+// 5.5 s, p90 14 s, max 20 s (codex exec starts slower, and its model reasons at medium effort).
+var judgeTimeout = map[ask.Runtime]time.Duration{ask.Claude: 15 * time.Second, ask.Codex: 40 * time.Second}
 
 var asks = map[string]bool{"decision": true, "review": true, "action": true, "clarification": true} // kinds that block unless one matches
 
@@ -54,8 +58,9 @@ func (e *hookError) Error() string { return e.msg }
 func hookErrorf(format string, a ...any) error { return &hookError{fmt.Sprintf(format, a...)} }
 
 // HookOwnerRequest is pm hook owner-request: the hook input JSON on stdin; a block verdict on stdout, or nothing. It
-// returns the exit code: 1 when the check did not run, with the cause on stderr. here is the process's directory.
-func HookOwnerRequest(here string, requests Requests, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
+// returns the exit code: 1 when the check did not run, with the cause on stderr. here is the process's directory;
+// runtime is the session's, which the judge runs on.
+func HookOwnerRequest(here string, runtime ask.Runtime, requests Requests, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
 	event, err := ReadEvent(stdin)
 	if err != nil {
 		return 0, err
@@ -64,7 +69,7 @@ func HookOwnerRequest(here string, requests Requests, stdin io.Reader, stdout, s
 		fmt.Fprintln(stderr, "pm hook owner-request: the hook input is not a JSON object; the owner-request check did not run")
 		return 1, nil
 	}
-	reason, err := decide(event, here, requests)
+	reason, err := decide(event, here, runtime, requests)
 	var he *hookError
 	if errors.As(err, &he) {
 		fmt.Fprintf(stderr, "pm hook owner-request: %s; the owner-request check did not run\n", he.msg)
@@ -82,7 +87,7 @@ func HookOwnerRequest(here string, requests Requests, stdin io.Reader, stdout, s
 }
 
 // decide is the block reason for this stop, or "" to let it through.
-func decide(event *pyjson.Object, here string, requests Requests) (string, error) {
+func decide(event *pyjson.Object, here string, runtime ask.Runtime, requests Requests) (string, error) {
 	if pyjson.Truthy(event.Get("stop_hook_active")) {
 		return "", nil
 	}
@@ -90,9 +95,13 @@ func decide(event *pyjson.Object, here string, requests Requests) (string, error
 	if !ok || session == "" {
 		return "", hookErrorf("the hook input has no session_id")
 	}
-	reply, ok := event.Get("last_assistant_message").(string)
-	if !ok {
-		return "", hookErrorf("the hook input has no last_assistant_message")
+	var reply string // Codex sends null for a turn that ended without a message, as missing is: nothing was asked
+	switch m := event.Get("last_assistant_message").(type) {
+	case nil:
+	case string:
+		reply = m
+	default:
+		return "", hookErrorf("the hook input's last_assistant_message is a %s, not a string", pyjson.TypeName(m))
 	}
 	if config.PyStrip(reply) == "" {
 		return "", nil
@@ -105,7 +114,12 @@ func decide(event *pyjson.Object, here string, requests Requests) (string, error
 	if err != nil {
 		return "", hookErrorf("reading this session's open needs failed: %s", strings.Join(strings.Fields(err.Error()), " "))
 	}
-	items, err := judge(reply, open)
+	if path, ok := event.Get("transcript_path").(string); ok && path != "" { // what the owner sees asked by the tool
+		for i, q := range ToolAsks(path) {
+			open = append(open, Request{ID: fmt.Sprintf("ask-tool-%d", i+1), Title: q + " " + askedWithTool})
+		}
+	}
+	items, err := judge(runtime, reply, open)
 	if err != nil {
 		return "", err
 	}
@@ -127,7 +141,8 @@ func decide(event *pyjson.Object, here string, requests Requests) (string, error
 		reasons = append(reasons, strings.ReplaceAll(pm.OwnerRequestNeedless, "{asks}", quoted(needless)))
 	}
 	if unmatched != nil {
-		reasons = append(reasons, strings.ReplaceAll(pm.OwnerRequestReason, "{asks}", quoted(unmatched)))
+		reasons = append(reasons, strings.NewReplacer("{asks}", quoted(unmatched), "{ask_tool}", askTool[runtime]).
+			Replace(pm.OwnerRequestReason))
 	}
 	return strings.Join(reasons, "\n\n"), nil
 }
@@ -174,45 +189,46 @@ type judged struct {
 	match       *string
 }
 
-// judge asks the model which sentences of reply address the owner, and the open request each matches.
-func judge(reply string, open []Request) ([]judged, error) {
-	cwd, err := os.MkdirTemp("", "pm-judge-") // no project CLAUDE.md or settings apply
+// judge asks the model on runtime which sentences of reply address the owner, and the open request each matches.
+func judge(runtime ask.Runtime, reply string, open []Request) ([]judged, error) {
+	stop := stopJudgeOnSignal()
+	defer stop()
+	out, err := ask.Ask(runtime, ask.Call{System: pm.OwnerRequestSystem, Prompt: judgePrompt(reply, open),
+		Timeout: judgeTimeout[runtime]})
+	var ae *ask.Error
+	if errors.As(err, &ae) {
+		return nil, hookErrorf("%s", ae.Error())
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(cwd)
-	env := os.Environ()
-	for _, kv := range judgeEnv {
-		env = setEnv(env, kv[0], kv[1])
-	}
-	res, err := proc.Run(append(append([]string{}, judgeArgs...), "--system-prompt", pm.OwnerRequestSystem),
-		proc.Options{Cwd: &cwd, Env: env, Stdin: judgePrompt(reply, open), Timeout: judgeTimeout * time.Second,
-			TimeoutText: fmt.Sprint(judgeTimeout)})
-	var pe *proc.Error
-	switch {
-	case errors.As(err, &pe) && pe.Type == "FileNotFoundError":
-		return nil, hookErrorf("claude is not installed or not on PATH")
-	case errors.As(err, &pe) && pe.Type == "TimeoutExpired":
-		return nil, hookErrorf("claude -p timed out after %ds", judgeTimeout)
-	case err != nil:
-		return nil, err
-	}
-	if res.Code != 0 {
-		said := res.Stderr
-		if said == "" {
-			said = res.Stdout
-		}
-		said = head(words(said), 300)
-		if said == "" {
-			said = "no output"
-		}
-		return nil, hookErrorf("claude -p failed (exit %d): %s", res.Code, said)
-	}
-	items, ok := parseJudged(res.Stdout)
+	items, ok := parseJudged(out)
 	if !ok {
-		return nil, hookErrorf("claude -p answered out of shape: %s", pyjson.StrRepr(head(res.Stdout, 300)))
+		return nil, hookErrorf("%s answered out of shape: %s", runtime.Command(), pyjson.StrRepr(head(out, 300)))
 	}
 	return items, nil
+}
+
+// stopJudgeOnSignal makes a SIGTERM, SIGINT or SIGHUP to the hook (the runtime killing it at its entry's timeout) kill
+// the judge's process group too, which runs in a group of its own and would outlive the hook, then exit 1 as a check
+// that did not run. The func it returns stops the handling.
+func stopJudgeOnSignal() func() {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case sig := <-sigs:
+			proc.KillGroups()
+			fmt.Fprintf(os.Stderr, "pm hook owner-request: stopped by %s; the owner-request check did not run\n", sig)
+			os.Exit(1)
+		case <-done:
+		}
+	}()
+	return func() {
+		signal.Stop(sigs)
+		close(done)
+	}
 }
 
 var jsonSpan = regexp.MustCompile(`(?s)\{.*\}`) // the first { to the last }, as Python's re.search(r"\{.*\}", re.S)
@@ -258,15 +274,4 @@ func parseJudged(out string) ([]judged, bool) {
 		items = append(items, judged{quote, kind, match})
 	}
 	return items, true
-}
-
-// setEnv is env with key set to value, as {**os.environ, key: value}.
-func setEnv(env []string, key, value string) []string {
-	out := make([]string, 0, len(env)+1)
-	for _, kv := range env {
-		if !strings.HasPrefix(kv, key+"=") {
-			out = append(out, kv)
-		}
-	}
-	return append(out, key+"="+value)
 }

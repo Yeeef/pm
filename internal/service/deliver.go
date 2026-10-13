@@ -9,11 +9,13 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -165,23 +167,145 @@ func (t Texts) Undelivered(n *work.Item) (string, *work.NeedUpdate) {
 	return strings.Join(parts, "\n"), &u
 }
 
+// Since is a need's site replies stamped at or after since, as Undelivered words them, delivered or not; "" when it
+// has none. The store stamps to the second, so since counts from its second.
+func (t Texts) Since(n *work.Item, since time.Time) string {
+	var replies []work.Comment
+	for _, c := range siteReplies(n) {
+		if !c.CreatedAt.Before(since.Truncate(time.Second)) {
+			replies = append(replies, c)
+		}
+	}
+	if len(replies) == 0 {
+		return ""
+	}
+	return t.replyText(n, replies)
+}
+
+// ReplyPoll is how often WaitReply reads the need.
+var ReplyPoll = 2 * time.Second
+
+// WaitReply is pm reply wait: block until need id has a new reply, from start for at most timeout, then hand it over:
+// what has not reached a session (a reply, or its review's merge), marked delivered, as pm reply read does, else the
+// replies stamped since the wait began, which a push or pm hook inbox delivered meanwhile. A reply delivered before
+// the wait is no new reply: an agent that asks again after "not yet" waits for the next one. It refuses an id that is
+// no need, at the timeout, and for a need closed with no new reply.
+func (t Texts) WaitReply(st work.Store, id string, timeout time.Duration, start time.Time) (string, error) {
+	if all, err := st.Items(); err != nil { // once: an unknown id is a refusal, not a store error
+		return "", err
+	} else if !slices.ContainsFunc(all, func(it work.Item) bool { return it.ID == id && it.Type == work.Need }) {
+		return "", fmt.Errorf("%s is not a request to the owner (a need in the work store)", id)
+	}
+	deadline := start.Add(timeout)
+	for {
+		got, err := st.Get(id)
+		if err != nil {
+			return "", err
+		}
+		need := &got[0]
+		if text, mark := t.Undelivered(need); text != "" {
+			return text, st.UpdateNeed(id, *mark)
+		}
+		if text := t.Since(need, start); text != "" { // delivered while it waited: a push, or pm hook inbox
+			return text, nil
+		}
+		if need.Status == work.Closed {
+			return "", fmt.Errorf("%s is closed (%s), so no reply will come", id, need.Resolution)
+		}
+		left := time.Until(deadline)
+		if left <= 0 {
+			return "", fmt.Errorf("no reply to %s within %s; it is still open: wait again with pm reply wait %s, or "+
+				"the reply reaches this session at its next prompt", id, timeout, id)
+		}
+		time.Sleep(min(ReplyPoll, left))
+	}
+}
+
+// Mark is the mark that delivers one need's replies.
+type Mark struct {
+	ID     string
+	Update work.NeedUpdate
+}
+
+// SessionUndelivered is what of the session's open needs has not reached it, each as the push writes it, and the
+// marks that deliver it: pm hook inbox's read.
+func (t Texts) SessionUndelivered(st work.Store, session string) ([]string, []Mark, error) {
+	needs, err := st.Needs(session)
+	if err != nil {
+		return nil, nil, err
+	}
+	var texts []string
+	var marks []Mark
+	for i := range needs {
+		if needs[i].Status == work.Closed {
+			continue
+		}
+		if text, u := t.Undelivered(&needs[i]); text != "" {
+			texts = append(texts, text)
+			marks = append(marks, Mark{needs[i].ID, *u})
+		}
+	}
+	return texts, marks, nil
+}
+
+// MarkWithin makes the marks, one write per need (the store has no batch write), all within budget: lockWait gets
+// what is left before each write, as the most it may wait for the write lock. What is not marked by the budget's end
+// stays undelivered, and the error says how many.
+func MarkWithin(st work.Store, marks []Mark, budget time.Duration, now func() time.Time,
+	lockWait func(time.Duration)) error {
+	deadline := now().Add(budget)
+	var errs []error
+	for i, m := range marks {
+		left := deadline.Sub(now())
+		if left <= 0 {
+			return errors.Join(append(errs, fmt.Errorf("%d of %d left undelivered past %s", len(marks)-i, len(marks),
+				budget))...)
+		}
+		lockWait(left)
+		errs = append(errs, st.UpdateNeed(m.ID, m.Update))
+	}
+	return errors.Join(errs...)
+}
+
 // Hostname is this machine's name, as a need stores its inbox's host; a variable so tests can move a need elsewhere.
 var Hostname = os.Hostname
 
-// PushInbox writes text as one user message into the inbox socket of the session that raised the need, connecting
-// only once the line is ready, and only on the machine that stored it. "" once the line is written; else why not:
-// "not running: …" (no inbox stored, another machine, the socket gone or refusing) or "failed: …".
+// SessionLive is whether a session's transcript changed within the live window, and CodexLive whether a Codex
+// session's rollout under the CODEX_HOME its need stores did; variables so tests can end one.
+var (
+	SessionLive = session.Live
+	CodexLive   = session.CodexLive
+)
+
+// PushInbox hands text, as one user message, to the session that raised the need, only on the machine that stored its
+// inbox: written into a Claude Code session's inbox socket, connecting only once the line is ready, or queued into a
+// live Codex session with codex queue (queueCodex). "" once handed over; else why not: "no push: …" (a live session
+// that stores no inbox: the reply waits for it), "no codex: …" (codex is not on the service's PATH), "not running: …"
+// (no session, or one whose transcript has ended, another machine, the socket gone or refusing) or "failed: …".
 func PushInbox(n *work.Item, text string) string {
-	if n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Inbox == "" {
-		return "not running: the request stores no session inbox"
+	if n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Session == "" {
+		return "not running: the request names no session"
 	}
 	rb := n.Need.RaisedBy
+	if rb.Inbox == "" {
+		if !SessionLive(rb.Session) {
+			return "not running: the session that asked has ended"
+		}
+		return "no push: the session that asked gets no push; it sees the reply at its next prompt, or now if it " +
+			"waits with pm reply wait"
+	}
 	if host, _ := Hostname(); rb.Host != host {
 		where := rb.Host
 		if where == "" {
 			where = "an unknown host"
 		}
 		return "not running: the session's inbox is on " + where + ", not this machine"
+	}
+	if home, codex := session.CodexHomeOf(rb.Inbox); codex {
+		if !CodexLive(home, rb.Session) {
+			return "not running: the session that asked has ended"
+		}
+		return queueCodex(home, rb.Session, text)
 	}
 	msg := &pyjson.Object{Keys: []string{"role", "content"}, Values: map[string]any{"role": "user", "content": text}}
 	line := pyjson.Dumps(&pyjson.Object{Keys: []string{"type", "message"},

@@ -81,7 +81,7 @@ func serviceInstall(cfg config.Config, main string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	said, err := service.Install(main, port, exe)
+	said, err := service.Install(main, port, exe, false)
 	if err != nil || said != "" {
 		return said, err
 	}

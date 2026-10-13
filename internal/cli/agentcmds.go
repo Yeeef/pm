@@ -39,6 +39,7 @@ var agentCommands = map[string]agentCommand{
 	"action need":    cmdActionNeed,
 	"action done":    cmdActionDone,
 	"reply read":     cmdReplyRead,
+	"reply wait":     cmdReplyWait,
 }
 
 // writes is the commands that write records: each runs under the records store's lock, the only lock a command that

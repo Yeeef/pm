@@ -1,14 +1,21 @@
 """The Stop hook that blocks a turn ending with an owner request asked only in chat, run as the runtimes run it (JSON
-on stdin) in a temp repo whose seeds hold this session's needs and others, against a fake `claude` judge: how it turns
-the judge's answer into a verdict, and that it fails hard. The judge's own accuracy is the live eval's job
+on stdin) in a temp repo whose seeds hold this session's needs and others, against a fake `claude` judge and a fake
+`codex` one (--runtime codex): how it turns the judge's answer into a verdict, that it fails hard the same way on
+either runtime, and that the Codex judge cannot run the hook again. The judge's own accuracy is the live eval's job
 (test_owner_request_prompt_live.py)."""
 
 from __future__ import annotations
 
 import json
+import os
+import signal
+import subprocess
+import time
 from pathlib import Path
 
 import pytest
+
+from conftest import CHECKOUT, PM, hook_payload
 
 ME, OTHER = "sess-me", "sess-other"
 AT = "2026-10-01T12:00:00Z"
@@ -38,21 +45,28 @@ def answer(*items):
     return json.dumps({"items": [{"quote": q, "kind": k, "match": m} for q, k, m in items]})
 
 
-def run(repo, reply="Should we rename X?", judged=None, fail=None, **event):
-    env = repo.env
-    repo.env = dict(env, **({"FAKE_CLAUDE_OUTPUT": judged} if judged is not None else {}),
-                    **({"FAKE_CLAUDE_FAIL": fail} if fail else {}))
+def run(repo, reply="Should we rename X?", judged=None, fail=None, runtime=None, env=None, **event):
+    """The hook on `reply`, its judge on `runtime` (None: the flag left out), the fake judge answering `judged` or
+    failing with `fail`."""
+    fake = "CODEX" if runtime == "codex" else "CLAUDE"
+    saved = repo.env
+    repo.env = dict(env or saved, **({f"FAKE_{fake}_OUTPUT": judged} if judged is not None else {}),
+                    **({f"FAKE_{fake}_FAIL": fail} if fail else {}))
     event = {"session_id": ME, "hook_event_name": "Stop", "stop_hook_active": False,
              "last_assistant_message": reply, **event}
     try:
-        return repo.pm("hook", "owner-request", stdin=json.dumps(event))
+        return repo.pm("hook", "owner-request", *(["--runtime", runtime] if runtime else []), stdin=json.dumps(event))
     finally:
-        repo.env = env
+        repo.env = saved
+
+
+def calls(repo, runtime):
+    log = Path(repo.env[f"FAKE_{runtime.upper()}_LOG"])
+    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
 
 def claude_calls(repo):
-    log = Path(repo.env["FAKE_CLAUDE_LOG"])
-    return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    return calls(repo, "claude")
 
 
 def test_blocks_a_needless_ask_even_when_an_open_need_matches(needs):
@@ -103,10 +117,162 @@ def failed(res, said):
 
 def test_fails_when_claude_fails(needs):
     # folded: test_passes_without_reading_anything
-    # After one block (stop_hook_active) it never loops, and an empty reply asks nothing.
-    for event in ({"stop_hook_active": True}, {"last_assistant_message": "  \n"}):
+    # After one block (stop_hook_active) it never loops, and an empty reply asks nothing: blank, null (Codex's turn
+    # that ended without a message) or missing.
+    for event in ({"stop_hook_active": True}, {"last_assistant_message": "  \n"}, {"last_assistant_message": None}):
         res = run(needs, **event)
         assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
         assert claude_calls(needs) == []
+    res = needs.pm("hook", "owner-request", stdin=json.dumps({"session_id": ME, "hook_event_name": "Stop"}))
+    assert res.returncode == 0 and res.stdout == "" and res.stderr == "" and claude_calls(needs) == []
 
     failed(run(needs, fail="Not logged in"), "claude -p failed (exit 1): Not logged in")
+
+
+@pytest.mark.parametrize("asked", [True, False], ids=["asked-only-in-chat", "asked-as-a-need"])
+def test_claude_codes_and_codexs_stop_input_get_the_same_verdict(needs, asked):
+    """The same reply, asking what an open need of this session holds or what none does, in Claude Code's and Codex's
+    real Stop input: the same verdict."""
+    reply = "Should we rename X?"
+    judged = answer((reply, "decision", None if asked else MINE["id"]))
+    got = {}
+    for runtime in ("claude", "codex"):
+        event = hook_payload(runtime, "Stop", session=ME, cwd=str(needs.root), transcript=str(needs.root / "t.jsonl"),
+                             reply=reply)
+        res = run(needs, judged=judged, **event)
+        got[runtime] = (res.returncode, res.stdout)
+    assert got["claude"] == got["codex"]
+    assert got["codex"][0] == 0
+    assert json.loads(got["codex"][1])["decision"] == "block" if asked else got["codex"][1] == ""
+
+
+def test_passes_codexs_stop_without_a_message(needs):
+    """Codex sends last_assistant_message null for a turn that ended without one: nothing was asked."""
+    res = run(needs, **hook_payload("codex", "Stop", session=ME, cwd=str(needs.root),
+                                    transcript=str(needs.root / "t.jsonl"), reply=None))
+    assert res.returncode == 0 and res.stdout == "" and res.stderr == ""
+    assert claude_calls(needs) == []
+
+
+@pytest.mark.parametrize("runtime", ["claude", "codex"])
+def test_the_judge_runs_on_the_runtime_the_hook_names(needs, runtime):
+    """Each runtime's hook entry names its judge: the same reply, open needs and answer give the same verdict and the
+    same prompt on either runtime, and only that runtime's CLI runs."""
+    reply = "Should I merge the PR now or wait for review?"
+    res = run(needs, reply=reply, judged=answer((reply, "decision", None)), runtime=runtime)
+    assert res.returncode == 0 and json.loads(res.stdout)["decision"] == "block", res.stderr
+    other = "claude" if runtime == "codex" else "codex"
+    (call,) = calls(needs, runtime)
+    assert calls(needs, other) == []
+    assert call["stdin"] == ("OPEN REQUESTS:\n- repo-demo.1.4: Rename X?\n  Options: X, Y. Default: X.\n\n"
+                             f"REPLY:\n<<<\n{reply}\n>>>")
+    system = (CHECKOUT / "prompts/owner_request_system.txt").read_text().strip()  # as pm embeds it
+    assert (call["instructions"] if runtime == "codex" else call["args"][call["args"].index("--system-prompt") + 1]) \
+        == system
+
+
+def test_the_codex_judge_cannot_run_the_hook_again(needs):
+    """The judge runs inside Codex's Stop hook: a child Codex that ran hooks would run the judge again. It runs with
+    hooks, rules and the user's config off, no saved session, from an empty temp dir outside the repo, on the session's
+    own CODEX_HOME (its login)."""
+    res = run(needs, judged=answer(), runtime="codex")
+    assert res.returncode == 0 and res.stdout == "", res.stderr
+    (call,) = calls(needs, "codex")
+    args = call["args"]
+    for flag in ("--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check"):
+        assert flag in args, args
+    assert args[args.index("hooks") - 1:args.index("hooks") + 1] == ["--disable", "hooks"]
+    assert args[args.index("--sandbox") + 1] == "read-only" and args[-1] == "-"
+    assert call["files"] == ["instructions.md"], "the judge's dir holds only its instructions"
+    cwd = Path(call["cwd"])
+    assert not cwd.exists(), "the judge's temp dir outlives the call"
+    assert needs.root not in cwd.parents and Path(os.path.commonpath([cwd, needs.root])) != needs.root
+    assert call["codex_home"] == needs.env["CODEX_HOME"]
+
+
+@pytest.mark.parametrize("runtime", ["claude", "codex"])
+def test_a_judge_that_cannot_run_fails_the_same_on_either_runtime(needs, runtime, tmp_path):
+    """Exit 1, the cause on stderr, no verdict: Claude Code shows it, Codex lets the stop through, on either judge."""
+    command = "codex exec" if runtime == "codex" else "claude -p"
+    failed(run(needs, fail="Not logged in", runtime=runtime), f"{command} failed (exit 1): Not logged in")
+    # its CLI missing: a PATH with every other fake and none of the dirs that hold it
+    bare = tmp_path / "bin-without"
+    bare.mkdir()
+    for tool in (Path(needs.env["PATH"].split(os.pathsep)[0])).iterdir():
+        if tool.name != runtime:
+            (bare / tool.name).symlink_to(tool)
+    path = os.pathsep.join([str(bare), *(d for d in needs.env["PATH"].split(os.pathsep)[1:]
+                                         if not (Path(d) / runtime).exists())])
+    failed(run(needs, runtime=runtime, env=dict(needs.env, PATH=path)), f"{runtime} is not installed or not on PATH")
+
+
+def test_an_entry_without_runtime_runs_the_claude_judge(needs):
+    """An entry written before --runtime existed kept its meaning: the claude judge."""
+    run(needs, judged=answer())
+    assert len(claude_calls(needs)) == 1 and calls(needs, "codex") == []
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP], ids=lambda s: s.name)
+def test_a_hook_stopped_mid_judge_takes_its_judge_with_it(needs, sig):
+    """The judge runs in a process group of its own, so a runtime that kills the hook at its entry's timeout would leave
+    it running: the hook kills the judge's group when it is stopped, and exits 1 as a check that did not run."""
+    env = dict(needs.env, FAKE_CODEX_SLEEP="30", FAKE_CODEX_OUTPUT=answer())
+    event = {"session_id": ME, "hook_event_name": "Stop", "stop_hook_active": False, "last_assistant_message": "Ask?"}
+    hook = subprocess.Popen([*PM, "hook", "owner-request", "--runtime", "codex"], cwd=needs.root, env=env,
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    hook.stdin.write(json.dumps(event))
+    hook.stdin.close()
+    log = Path(needs.env["FAKE_CODEX_LOG"])
+    deadline = time.monotonic() + 20
+    while not (log.exists() and log.read_text().strip()) and time.monotonic() < deadline:
+        time.sleep(0.05)  # noqa: TID251 — polling for the judge to start, under its deadline
+    (call,) = calls(needs, "codex")
+    hook.send_signal(sig)
+    assert hook.wait(timeout=10) == 1
+    assert "stopped by" in hook.stderr.read() and hook.stdout.read() == ""
+    gone = time.monotonic() + 5
+    while time.monotonic() < gone:
+        try:
+            os.kill(call["pid"], 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.05)  # noqa: TID251 — polling for the kill to land, under its deadline
+    else:
+        pytest.fail(f"the judge {call['pid']} outlived its hook")
+
+
+ASK_CALLS = {  # an ask tool call in each runtime's transcript, as each records it (Codex's measured live)
+    "claude": [{"type": "user", "message": {"role": "user", "content": "Pick the doc's color."}},
+               {"type": "assistant", "message": {"role": "assistant", "content": [
+                   {"type": "tool_use", "id": "t1", "name": "AskUserQuestion", "input": {"questions": [
+                       {"question": "Which color should the doc use?", "header": "Color",
+                        "options": [{"label": "Red"}, {"label": "Blue"}], "multiSelect": False}]}}]}}],
+    "codex": [{"type": "turn_context", "payload": {"cwd": "/r"}},
+              {"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input_async",
+                                                    "call_id": "c1", "arguments": json.dumps({"questions": [
+                                                        {"title": "Which color should the doc use?",
+                                                         "options": ["Red", "Blue"]}]})}}],
+}
+
+
+@pytest.mark.parametrize("runtime", ["claude", "codex"])
+def test_a_question_asked_with_the_ask_tool_is_not_an_ask_left_in_chat(needs, runtime, tmp_path):
+    """A question the session put to the owner with its runtime's ask tool this turn reaches the judge as asked (the
+    owner sees it), so its repeat in the reply matches it; another ask left only in chat in the same reply still blocks,
+    and the block reason names the runtime's own ask tool."""
+    path = tmp_path / f"{runtime}.jsonl"
+    path.write_text("".join(json.dumps(line) + "\n" for line in ASK_CALLS[runtime]))
+    asked, other = "Which color should the doc use?\n- Red\n- Blue", "Should I merge PR #12 now?"
+    judged = answer(("Which color should the doc use?", "decision", "ask-tool-1"), (other, "decision", None))
+    res = run(needs, reply=f"{asked}\n\n{other}", judged=judged, runtime=runtime, transcript_path=str(path))
+    out = json.loads(res.stdout)
+    assert out["decision"] == "block" and f'"{other}"' in out["reason"] and "Which color" not in out["reason"]
+    tool = "the AskUserQuestion tool" if runtime == "claude" else "your ask tool (request_user_input_async; " \
+                                                                  "request_user_input in Plan mode)"
+    assert f"ask with {tool}, never as a question in plain text" in out["reason"]
+    (call,) = calls(needs, runtime)
+    assert "- ask-tool-1: Which color should the doc use? (asked with the ask tool this turn)" in call["stdin"]
+    # the tool's question alone passes
+    res = run(needs, reply=asked, judged=answer(("Which color should the doc use?", "decision", "ask-tool-1")),
+              runtime=runtime, transcript_path=str(path))
+    assert res.returncode == 0 and res.stdout == "", res.stderr

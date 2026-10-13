@@ -587,9 +587,15 @@ func cardWhere(it *Item, proj *Record, items *Items, recs []*Record, frm *Record
 	return strings.Join(parts, " · ")
 }
 
-// NotDelivered is a site reply's state before it reaches the asking session.
-const NotDelivered = "not delivered yet: the session that asked is not running, or the push failed and the pm service " +
-	"tries again; the next session sees it"
+// NotDelivered is a site reply's state before it reaches the asking session; NotPushed for a session that stores no
+// inbox, which the pm service cannot push into (a Claude Code session has its messaging socket, a Codex session its
+// CODEX_HOME to queue the reply under).
+const (
+	NotDelivered = "not delivered yet: the session that asked is not running, or the push failed and the pm service " +
+		"tries again; the next session sees it"
+	NotPushed = "not delivered yet: the session that asked has no inbox pm can push to; it sees the reply at its " +
+		"next prompt, or now if it waits with pm reply wait"
+)
 
 var replyMark = regexp.MustCompile(`[\t\n\v\f\r \x1c-\x1f\x85\p{Z}]*<!-- pm-reply [A-Za-z0-9-]+ -->[\t\n\v\f\r \x1c-\x1f\x85\p{Z}]*$`)
 
@@ -615,9 +621,12 @@ func thread(it *Item) string {
 		status := ""
 		if c.Kind == work.Reply {
 			author = "you, on the site"
-			if n < seen {
+			switch need := it.Need; {
+			case n < seen:
 				status = ` · <span class="picked">delivered to the agent&#x27;s session</span>`
-			} else {
+			case need != nil && need.RaisedBy != nil && need.RaisedBy.Session != "" && need.RaisedBy.Inbox == "":
+				status = ` · <span class="replied">` + NotPushed + "</span>"
+			default:
 				status = ` · <span class="replied">` + NotDelivered + "</span>"
 			}
 			n++

@@ -26,6 +26,7 @@ BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# be
               "# --- END BEADS INTEGRATION v1.3.1 ---\n")
 HOOKS = ".pm/hooks"  # pm's own git hook files, which core.hooksPath names
 PM_FILES = [".pm/config.toml", ".pm/README.md", ".pm/.gitignore", ".claude/settings.json", ".codex/hooks.json",
+            ".codex/rules/pm.rules",
             f"{HOOKS}/post-checkout", ".gitignore"]
 GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n"
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
@@ -33,7 +34,10 @@ GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to 
 RULES = [f"pm prime --rules {n} --hook-json" for n in range(1, len(RULE_STARTS) + 1)]  # one hook per rules chunk
 CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
              "SubagentStart": [*RULES, "pm prime --subagent --hook-json"],
-             "Stop": ["pm hook owner-request || exit 1", "pm hook stop || exit 1"]}
+             "UserPromptSubmit": ["pm hook inbox || exit 1"],
+             "Stop": ["pm hook owner-request --runtime claude || exit 1", "pm hook stop || exit 1"]}
+# Codex's are Claude Code's, but for the judge, which runs on each session's own runtime
+CODEX_PM = dict(CLAUDE_PM, Stop=["pm hook owner-request --runtime codex || exit 1", "pm hook stop || exit 1"])
 
 
 def section(name: str) -> str:
@@ -131,7 +135,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     claude = json.loads((new_repo / ".claude/settings.json").read_text())
     assert all(commands(claude, e) == c for e, c in CLAUDE_PM.items())
     codex = json.loads((new_repo / ".codex/hooks.json").read_text())
-    assert all(commands(codex, e) == c for e, c in CLAUDE_PM.items())
+    assert all(commands(codex, e) == c for e, c in CODEX_PM.items())
     status = [h["statusMessage"] for g in codex["hooks"]["SessionStart"] for h in g["hooks"] if h["command"] in RULES]
     assert status == [f"Loading pm rules ({n} of {len(RULES)})" for n in range(1, len(RULES) + 1)]
     assert (new_repo / ".gitignore").read_text() == GITIGNORE_BLOCK

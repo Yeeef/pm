@@ -64,7 +64,14 @@ func quick(t *testing.T) {
 // serve starts Run; opts change its Deps first.
 func serve(t *testing.T, w *fakeWork, main string, opts ...func(*Deps)) *served {
 	t.Helper()
+	return serveEvery(t, w, main, 100*time.Millisecond, opts...)
+}
+
+// serveEvery is serve with MergePoll, the time between the ticker's looks and sweeps, at mergePoll.
+func serveEvery(t *testing.T, w *fakeWork, main string, mergePoll time.Duration, opts ...func(*Deps)) *served {
+	t.Helper()
 	quick(t)
+	MergePoll = mergePoll
 	if main == "" {
 		main = t.TempDir()
 		fakeBin(t, map[string]string{"gh": fakeGH})
@@ -629,6 +636,22 @@ func TestTheSweepDeliversWhatAFailedPushLeftAndSkipsAGoneSession(t *testing.T) {
 	}
 }
 
+// TestAReplyAnyCommandStoresIsPushedOnceTheStoreMoves: a reply pm reply add stores (not the site's form) is pushed
+// when the service sees the work store move, not at the next sweep a MergePoll later.
+func TestAReplyAnyCommandStoresIsPushedOnceTheStoreMoves(t *testing.T) {
+	path, lines := inbox(t)
+	w := newFakeWork(need("p-1.2.1", work.Decision, path))
+	s := serveEvery(t, w, "", time.Hour) // the start's sweep, then none for an hour
+	eventually(t, "the first snapshot", func() bool { return strings.Contains(s.log.String(), "refresh total=") })
+	n := w.item("p-1.2.1")
+	n.Comments = []work.Comment{{ID: "c1", Kind: work.Reply, Author: "owner", Text: "Yes.", CreatedAt: at}}
+	w.set(n)
+	if got := receive(t, lines); !strings.HasPrefix(got, "pm: owner reply to decision p-1.2.1 (Pick a port)") {
+		t.Fatalf("pushed %q", got)
+	}
+	eventually(t, "marked delivered", func() bool { return w.item("p-1.2.1").Need.Delivered == 1 })
+}
+
 func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {
 	t.Run("AMergeNotOnMainYetIsNotReported", func(t *testing.T) {
 		fakeBin(t, map[string]string{"gh": `echo '{"state":"MERGED","mergeCommit":{"oid":"0123456789abcdef0123456789abcdef01234567"}}'`})
@@ -762,5 +785,68 @@ func TestGCRunsWhenDueAndRecordsTheSizes(t *testing.T) {
 	}
 	if due, _ := gcDue(main, time.Now().Add(GCInterval)); !due {
 		t.Fatal("not due GCInterval after the last collection")
+	}
+}
+
+// TestSweepsCoalesceAndNeverTakeAReplysPlace: however many ask for a sweep (each store change does), one is due, and
+// a reply's job still finds its place in the queue at once.
+func TestSweepsCoalesceAndNeverTakeAReplysPlace(t *testing.T) {
+	s := &server{queue: make(chan job, 2), sweepDue: make(chan struct{}, 1), done: make(chan struct{})}
+	for range 100 {
+		s.put(job{sweep: true})
+	}
+	if len(s.sweepDue) != 1 || len(s.queue) != 0 {
+		t.Fatalf("%d sweeps due, %d jobs queued", len(s.sweepDue), len(s.queue))
+	}
+	put := make(chan struct{})
+	go func() { s.put(job{id: "p-1.2.1"}); close(put) }()
+	select {
+	case <-put:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a reply's job waited behind sweeps")
+	}
+}
+
+// TestSinceIsTheRepliesFromTheWaitsSecond: pm reply wait's new replies are those stamped in or after the second the
+// wait began (the store stamps to the second), delivered or not; an earlier one ("not yet") is none.
+func TestSinceIsTheRepliesFromTheWaitsSecond(t *testing.T) {
+	n := need("p-1.2.1", work.Decision, "")
+	n.Comments = []work.Comment{
+		{ID: "c1", Kind: work.Reply, Author: ReplyAuthor, Text: "not yet", CreatedAt: at},
+		{ID: "c2", Kind: work.Reply, Author: ReplyAuthor, Text: "go ahead", CreatedAt: at.Add(time.Minute)}}
+	n.Need.Delivered = 2
+	var texts Texts
+	for since, want := range map[time.Time]string{
+		at.Add(time.Hour):                          "",
+		at.Add(30 * time.Second):                   "go ahead",
+		at.Add(time.Minute + 400*time.Millisecond): "go ahead", // stamped in the wait's second
+	} {
+		got := texts.Since(&n, since)
+		if (want == "") != (got == "") || !strings.Contains(got, want) || strings.Contains(got, "not yet") {
+			t.Errorf("since %s: %q", since.Format(time.RFC3339Nano), got)
+		}
+	}
+}
+
+// TestAPushToASessionWithNoInboxWaitsForItWhileItLives: a need whose session stores no inbox (a Codex session's) gets
+// no push; while the session's transcript is live the reply waits for it ("no push"), once it has ended, or when no
+// session asked, the next session sees it ("not running").
+func TestAPushToASessionWithNoInboxWaitsForItWhileItLives(t *testing.T) {
+	saved := SessionLive
+	t.Cleanup(func() { SessionLive = saved })
+	n := need("p-1.2.1", work.Decision, "")
+	n.Need.RaisedBy = &work.RaisedBy{Session: "cx"}
+	for live, want := range map[bool]string{
+		true: "no push: the session that asked gets no push; it sees the reply at its next prompt, or now if it " +
+			"waits with pm reply wait",
+		false: "not running: the session that asked has ended"} {
+		SessionLive = func(s string) bool { return s == "cx" && live }
+		if got := PushInbox(&n, "a reply"); got != want {
+			t.Errorf("live %v: %q", live, got)
+		}
+	}
+	if got := PushInbox(&work.Item{ID: "p-1.2.2", Type: work.Need, Need: &work.NeedInfo{Kind: work.Decision}},
+		"a reply"); got != "not running: the request names no session" {
+		t.Errorf("no session: %q", got)
 	}
 }

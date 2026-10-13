@@ -42,8 +42,9 @@ type Store interface {
 
 	// Comment adds a comment and returns it.
 	Comment(id string, kind CommentKind, author, text string) (Comment, error)
-	// Answer records the owner's answer to a need: a reply comment, then the close with resolution answered.
-	Answer(id, text string) error
+	// Answer records the owner's answer to a need: a reply comment, then the close with resolution answered, by
+	// session, the one that recorded it ("" outside a session).
+	Answer(id, text, session string) error
 	// UpdateNeed sets a need's delivery and review-merge fields; nil leaves one as it is.
 	UpdateNeed(id string, u NeedUpdate) error
 

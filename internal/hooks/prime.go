@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -143,10 +144,10 @@ func failure(res proc.Result) []string {
 
 func exitText(code int) string { return fmt.Sprintf("exit %d", code) }
 
-func envWithout(key string) []string {
+func envWithout(keys ...string) []string {
 	var env []string
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, key+"=") {
+		if !slices.ContainsFunc(keys, func(key string) bool { return strings.HasPrefix(kv, key+"=") }) {
 			env = append(env, kv)
 		}
 	}
@@ -214,15 +215,23 @@ func Where(cwd *string) (string, error) {
 }
 
 // Context is pm show under a header, cut at a line to capacity characters, or one line when it fails. It runs as the
-// starting session, with --refresh-inbox.
+// starting session, with --refresh-inbox. A Claude Code hook's environment is its session's ($CLAUDE_CODE_SESSION_ID
+// is the input's session_id), messaging socket included. Any other is Codex's, whose hooks get no CODEX_* variables
+// and may inherit a Claude Code session's (Codex started from one): it runs as $CODEX_SESSION_ID, without the Claude
+// Code session's variables, so its needs never point at that session's inbox.
 func Context(cwd *string, session string, capacity int, wait time.Duration, waitText string, now func() time.Time) (string, error) {
 	argv, err := self("show", "--refresh-inbox")
 	if err != nil {
 		return "", err
 	}
 	var env []string
-	if session != "" {
-		env = append(envWithout("CLAUDE_CODE_SESSION_ID"), "CLAUDE_CODE_SESSION_ID="+session)
+	switch {
+	case session == "":
+	case os.Getenv("CLAUDE_CODE_SESSION_ID") == session:
+		env = os.Environ()
+	default:
+		env = append(envWithout("CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
+			"CODEX_SESSION_ID", "CODEX_THREAD_ID"), "CODEX_SESSION_ID="+session)
 	}
 	res, err := proc.Run(argv, proc.Options{Cwd: cwd, Env: env, Timeout: wait, TimeoutText: waitText})
 	if e := (*proc.Error)(nil); errors.As(err, &e) {
@@ -266,9 +275,15 @@ func rfindNewline(text []rune, end int) int {
 }
 
 // State is pm prime --state: what pm init did and pm where, then pm show, all within Cap, so pm show gets what the
-// init and where lines leave and loses its last part first.
-func State(cwd *string, session string) (string, error) {
+// init and where lines leave and loses its last part first. trust, when set, gives a line to open it with.
+func State(cwd *string, session string, trust func(cwd string) string) (string, error) {
 	start := time.Now()
+	said := make(chan string, 1) // trust's line, asked beside init and where, which take seconds of their own
+	if trust != nil && cwd != nil {
+		go func() { said <- trust(*cwd) }()
+	} else {
+		said <- ""
+	}
 	in, err := Init(cwd)
 	if err != nil {
 		return "", err
@@ -278,6 +293,9 @@ func State(cwd *string, session string) (string, error) {
 		return "", err
 	}
 	first := in + wh
+	if line := <-said; line != "" { // bounded by trust itself, well inside the budget
+		first = line + "\n\n" + first
+	}
 	// pm show gets what init and where left: min(TIMEOUT, max(1.0, BUDGET - elapsed)), an int when it is TIMEOUT
 	left, leftText := float64(timeout), fmt.Sprint(timeout)
 	if rest := budget - time.Since(start).Seconds(); rest < timeout {
@@ -334,6 +352,9 @@ type Part struct {
 	Chunk    int // 1.. for --rules N; 0 otherwise
 	State    bool
 	Subagent bool
+	// Trust is the line the state opens with when the runtime skips some of pm's hooks (a Codex session's check of
+	// Codex's trust); nil asks nothing.
+	Trust func(cwd string) string
 }
 
 // CmdPrime is pm prime: the rules, the commands and the state, or one part of them; with hookJSON it reads the hook
@@ -372,7 +393,7 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 				}
 				session = *s
 			}
-			if text, err = State(cwd, session); err != nil {
+			if text, err = State(cwd, session, part.Trust); err != nil {
 				return err
 			}
 			if !part.State {

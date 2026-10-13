@@ -23,9 +23,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/install"
+	"github.com/Yeeef/pm/internal/session"
 )
 
 type kind int
@@ -455,6 +458,19 @@ func (r *refusal) Error() string { return r.msg }
 
 // Execute runs pm with argv (without the program name) and returns the exit code.
 func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	// every command that may act as a session, the self-parsing ones included, refuses an ambiguous one first; a hook
+	// reads its session from its input (and fails open), and help and version act as none
+	if len(argv) > 0 && argv[0] != "hook" && argv[0] != "prime" && argv[0] != "version" &&
+		!slices.Contains(argv, "-h") && !slices.Contains(argv, "--help") {
+		id, runtime, err := agentSession()
+		if err != nil {
+			fmt.Fprintf(stderr, "error: %s\n", err)
+			return 1
+		}
+		if here, err := cwd(); err == nil && runtime == "codex" {
+			session.WarnCodexHooksSkipped(here, id, stderr)
+		}
+	}
 	if name, args, ok := storeFormOf(argv); ok {
 		if err := runStoreCommand(name, args, openStore, stdin, stdout); err != nil {
 			fmt.Fprintf(stderr, "error: %s\n", err)
@@ -524,11 +540,20 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		default:
 			part.Chunk, _ = strconv.Atoi(v) // parse checked it is one of the chunk numbers
 		}
+		if session.Innermost() == "codex" { // the state hook of a Codex session: whether Codex skips any of pm's hooks
+			part.Trust = install.SessionTrust
+		}
 		return hooks.CmdPrime(part, p.Get("hook_json") == "true", Nouns(), stdin, stdout)
 	case "hook stop":
 		return hooks.HookStop(stdin, stdout, stderr)
+	case "hook inbox":
+		return hooks.HookInbox(here, pendingReplies, stdin, stdout, stderr)
 	case "hook owner-request":
-		if code, err := hooks.HookOwnerRequest(here, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
+		runtime := ask.Runtime(p.Get("runtime")) // parse checked it is one of ask.Runtimes
+		if runtime == "" {
+			runtime = ask.Claude // an entry written before --runtime existed ran the claude judge
+		}
+		if code, err := hooks.HookOwnerRequest(here, runtime, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
 			return err
 		} else {
 			return &exitCode{code}

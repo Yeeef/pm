@@ -62,13 +62,19 @@ def loaded(tmp: Path) -> list[str]:
     return json.loads(path.read_text())["loaded"] if path.exists() else []
 
 
+def notes(lines: list[str]) -> list[str]:
+    """lines without the note that Codex's trust was not checked: CODEX_HOME (tmp/codex) is absent in these tests."""
+    return [line for line in lines if not (line.startswith("codex: ") and line.endswith("was not checked"))]
+
+
 def doctor(repo: Path) -> tuple[int, list[str]]:
-    """pm doctor's exit code and its lines on the clone, without its line on the latest release, which no test here
-    can read (conftest's NO_RELEASE_API)."""
+    """pm doctor's exit code and its lines on the clone, without its notes, which leave the exit code alone: its line
+    on the latest release, which no test here can read (conftest's NO_RELEASE_API), and that Codex's trust was not
+    checked."""
     res = pm(repo, "doctor")
     lines = res.stdout.splitlines()
     assert lines[-1].startswith("release: cannot read pm's latest release"), res.stdout
-    return res.returncode, lines[:-1]
+    return res.returncode, notes(lines[:-1])
 
 
 def write(path: Path, text: str) -> None:
@@ -543,3 +549,99 @@ def test_uninstall_waits_for_a_session_start_that_holds_the_install_lock(new_rep
     out, err = proc.communicate(timeout=60)
     assert proc.returncode == 0, err
     assert "removed the pm service" in out and sched_units(tmp_path) == [] and not (new_repo / ".pm").exists()
+
+
+def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path: Path):
+    """pm doctor asks Codex (here the fake codex app-server) which of pm's hooks it would skip, and names each with
+    the fix, failing; pm init (not at session start) names them too. Without codex on PATH, doctor says the trust was
+    not checked and does not fail on it. It fails on a missing CLI only for summary_runtime's runtime, which the pm
+    service summarizes with: a machine with Codex alone passes once the repo summarizes on codex."""
+    (tmp_path / "codex").mkdir()  # Codex ran on this machine: its home exists, so doctor asks it
+    assert pm(new_repo, "init").returncode == 0
+    git(new_repo, "add", "-A")
+    git(new_repo, "commit", "-qm", "Install pm")
+    hooks = new_repo / ".codex/hooks.json"
+    fix = f"; open Codex in {new_repo} and trust pm's hooks in /hooks"
+    trust = tmp_path / "trust.json"
+
+    def run(*args, **extra):
+        return subprocess.run([*PM, *args], cwd=new_repo, env=dict(env(tmp_path), **extra), capture_output=True,
+                              text=True, check=False)
+
+    trust.write_text(json.dumps({"stop:0:1": "untrusted", "user_prompt_submit:0:0": "modified"}))
+    res = run("doctor", FAKE_CODEX_TRUST=str(trust))
+    assert res.returncode == 1, res.stdout + res.stderr
+    lines = res.stdout.splitlines()
+    assert lines[:2] == [
+        f"codex: Codex skips 1 of pm's 12 hooks in {hooks}, which you have not trusted: stop `pm hook stop || exit 1`"
+        + fix,
+        f"codex: Codex skips 1 of pm's 12 hooks in {hooks}, which changed since you trusted them: userPromptSubmit "
+        f"`pm hook inbox || exit 1`" + fix], res.stdout
+    assert lines[-1].startswith("release: cannot read pm's latest release"), res.stdout
+    res = run("init", FAKE_CODEX_TRUST=str(trust))
+    assert res.returncode == 0 and res.stdout.splitlines()[-2:] == lines[:2], res.stdout
+    trust.write_text(json.dumps({"project": "untrusted"}))
+    res = run("doctor", FAKE_CODEX_TRUST=str(trust))
+    assert res.returncode == 1 and res.stdout.splitlines()[0] == (
+        f"codex: Codex runs none of pm's hooks in {hooks}: it lists none of them, as it does until you trust the "
+        f"project; open Codex in {new_repo}, trust the project, then trust pm's hooks in /hooks"), res.stdout
+    assert run("doctor").returncode == 0  # the fake trusts every hook
+    # neither codex nor claude on PATH: the other fakes in a bin dir of their own, no dir that holds either
+    fakes = tmp_path / "fakes-but-agents"
+    fakes.mkdir()
+    for tool in (tmp_path / "bin").iterdir():
+        if tool.name not in ("codex", "claude"):
+            (fakes / tool.name).symlink_to(tool)
+    path = os.pathsep.join([str(fakes)] + [d for d in env(tmp_path)["PATH"].split(os.pathsep)
+                                           if not (Path(d) / "codex").exists() and not (Path(d) / "claude").exists()])
+    res = run("doctor", PATH=path)
+    lines = res.stdout.splitlines()
+    assert res.returncode == 1 and lines[0] == (
+        "claude: not on PATH; summary_runtime in .pm/config.toml is claude, so pm day summarize, which the pm service "
+        "runs every 10 minutes, fails; install Claude Code and log in, or set summary_runtime to the runtime this "
+        "machine has"), res.stdout
+    assert lines[1] == "codex: codex is not on PATH, so whether Codex runs pm's hooks was not checked", res.stdout
+    assert len(lines) == 3 and lines[2].startswith("release: "), res.stdout
+    # the repo summarizes on codex: a machine without claude passes, one without codex fails naming it
+    config = new_repo / ".pm/config.toml"
+    config.write_text(config.read_text() + 'summary_runtime = "codex"\n')
+    codex_only = tmp_path / "codex-only"
+    codex_only.mkdir()
+    (codex_only / "codex").symlink_to(tmp_path / "bin/codex")
+    res = run("doctor", PATH=os.pathsep.join([str(codex_only), path]))
+    assert res.returncode == 0, res.stdout
+    res = run("doctor", PATH=path)
+    assert res.returncode == 1 and res.stdout.splitlines()[0].startswith(
+        "codex: not on PATH; summary_runtime in .pm/config.toml is codex, so pm day summarize"), res.stdout
+    # a pm service installed from that shell has no codex to queue owner replies into Codex sessions with
+    assert run("service", "install", PATH=path).returncode == 0
+    res = run("doctor")
+    assert res.returncode == 1 and ("service: codex is not on the pm service's PATH, so owner replies cannot be "
+                                    "queued into Codex sessions (they wait for their next prompt); install codex "
+                                    "0.149.0 or later and run pm service install from a shell where it is on PATH"
+                                    ) in res.stdout.splitlines(), res.stdout
+
+
+def test_init_with_a_path_of_its_own_leaves_the_running_service_alone(new_repo: Path, tmp_path: Path):
+    """Codex runs every command with its own directory first on PATH: a typed pm init from there must not rewrite the
+    unit or restart the service under every live session. A real difference (the port) still restarts it, and
+    pm service install takes the PATH it runs with."""
+    assert pm(new_repo, "init").returncode == 0
+    units = sched_units(tmp_path)
+    before = {u: u.read_bytes() for u in units}
+    log = tmp_path / "sched.log"
+    calls = len(log.read_text().splitlines())
+    codex = tmp_path / "codex-path"
+    codex.mkdir()
+    base = env(tmp_path)
+    res = subprocess.run([*PM, "init"], cwd=new_repo, env=dict(base, PATH=f"{codex}{os.pathsep}{base['PATH']}"),
+                         capture_output=True, text=True, check=False)
+    assert res.returncode == 0, res.stderr
+    new = [json.loads(line) for line in log.read_text().splitlines()[calls:]]
+    assert not [c for c in new if set(c) & {"restart", "daemon-reload", "bootstrap", "bootout", "kickstart"}], new
+    assert {u: u.read_bytes() for u in units} == before
+    res = subprocess.run([*PM, "service", "install"], cwd=new_repo,
+                         env=dict(base, PATH=f"{codex}{os.pathsep}{base['PATH']}"), capture_output=True, text=True,
+                         check=False)
+    assert res.returncode == 0 and res.stdout.startswith("updated the pm service"), res.stdout + res.stderr
+    assert str(codex).encode() in b"".join(u.read_bytes() for u in units)

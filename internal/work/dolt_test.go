@@ -83,6 +83,21 @@ func get(t *testing.T, d *Dolt, id string) Item {
 	return must(d.Get(id))[0]
 }
 
+// TestDeliveredIsNeverLowered: two deliverers (the service's push, pm reply wait, pm hook inbox) that read different
+// reply counts mark in either order; the count keeps the higher.
+func TestDeliveredIsNeverLowered(t *testing.T) {
+	d, _ := newStore(t)
+	_, _, _, need := seed(t, d)
+	for _, n := range []int{2, 1} {
+		if err := d.UpdateNeed(need.ID, NeedUpdate{Delivered: ptr(n)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := get(t, d, need.ID).Need.Delivered; got != 2 {
+		t.Errorf("delivered %d after marking 2 then 1", got)
+	}
+}
+
 func TestClaimIsACompareAndSet(t *testing.T) {
 	d, o := newStore(t)
 	t.Run("ImportGoesIntoAnEmptyStoreOnly", func(t *testing.T) {
@@ -238,7 +253,7 @@ func TestClaimIsACompareAndSet(t *testing.T) {
 			func() error { return d.DepAdd(task.ID, s.ID) },
 			func() error { return d.DepRemove(task.ID, s.ID) },
 			func() error { return d.UpdateNeed(need.ID, NeedUpdate{Delivered: ptr(2), ReviewMerged: ptr("abc")}) },
-			func() error { return d.Answer(need.ID, "yes") },
+			func() error { return d.Answer(need.ID, "yes", "s2") },
 		}
 		for i, f := range steps {
 			if err := f(); err != nil {
@@ -257,7 +272,7 @@ func TestClaimIsACompareAndSet(t *testing.T) {
 		if a.Status != Closed || a.Resolution != Answered || a.CloseReason != "Responded" || len(a.Comments) != 1 ||
 			a.Comments[0].Kind != Reply || a.Comments[0].Author != "owner" || a.Comments[0].Text != "yes" ||
 			a.Need.Delivered != 2 || a.Need.Review.Merged != "abc" || a.Need.Review.Sprints[0] != s.ID ||
-			a.Need.RaisedBy.Inbox != "/tmp/s1.sock" {
+			a.Need.RaisedBy.Inbox != "/tmp/s1.sock" || a.ClosedBy != "s2" {
 			t.Errorf("%+v %+v", a, a.Need)
 		}
 		if needs := must(d.Needs("s1")); len(needs) != 1 || needs[0].ID != need.ID || len(must(d.Needs("s2"))) != 0 {
@@ -335,7 +350,7 @@ func TestCommentsKeepTheirOrderWithinASecond(t *testing.T) {
 		t.Fatalf("comments came back as %v, written as %v", got, want)
 	}
 	must(d.Comment(need.ID, Note, "s1", "first"))
-	if err := d.Answer(need.ID, "second"); err != nil {
+	if err := d.Answer(need.ID, "second", ""); err != nil {
 		t.Fatal(err)
 	}
 	if cs := get(t, d, need.ID).Comments; cs[0].Text != "first" || cs[1].Text != "second" {
@@ -386,7 +401,7 @@ func TestCommentsKeepTheirOrderWithinASecond(t *testing.T) {
 			d.DepRemove(task.ID, "demo-none"),                      // no such link
 			d.Close(task.ID, "r", "finished", "s1"),                // no such resolution
 			d.UpdateNeed(task.ID, NeedUpdate{Delivered: new(int)}), // a task
-			d.Answer(task.ID, "yes"),                               // a task
+			d.Answer(task.ID, "yes", "s1"),                         // a task
 			func() error { _, err := d.Create(New{Type: Task, Title: "orphan"}); return err }(),
 			func() error { _, err := d.Create(New{Type: Sprint, Parent: task.ID, Title: "S"}); return err }(),
 			func() error { _, err := d.Create(New{Type: Need, Parent: task.ID, Title: "N"}); return err }(),

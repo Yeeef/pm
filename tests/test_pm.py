@@ -313,6 +313,24 @@ SITE_URL = ("--question", "Where does pm keep the public site URL?",
             "--default", "a", "All clones then give the same link.")
 
 
+def test_a_codex_session_never_takes_the_claude_code_inbox_it_inherits(repo):
+    """A Codex run started from a Claude Code session inherits CLAUDE_CODE_MESSAGING_SOCKET: its need stores its own
+    route instead, the CODEX_HOME the pm service queues the reply under (a push to the socket would land in the Claude
+    Code session), and it is told the reply is queued into it."""
+    repo.env = dict(repo.env, CODEX_SESSION_ID="cx-root", CLAUDE_CODE_MESSAGING_SOCKET="/run/claude-parent.sock")
+    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    assert res.returncode == 0, res.stderr
+    assert "the pm service queues the owner's reply into this Codex session (codex queue)" in res.stdout, res.stdout
+    raised = repo.items()["repo-demo.1.3"]["need"]["raised_by"]
+    assert raised["session"] == "cx-root" and raised["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}", raised
+    # the Claude Code session itself stores its inbox, and is told how to wait within its turn too
+    repo.env = dict(repo.env, CODEX_SESSION_ID="", CLAUDE_CODE_SESSION_ID="cl-1")
+    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    assert ("the pm service pushes the owner's reply into this session; to wait for it within this turn, run pm reply "
+            "wait repo-demo.1.4;") in res.stdout, res.stdout + res.stderr
+    assert repo.items()["repo-demo.1.4"]["need"]["raised_by"]["inbox"] == "/run/claude-parent.sock"
+
+
 def without(flags: tuple, *drop: tuple[str, str]) -> tuple:
     """flags without each named (flag, first value), e.g. without(SITE_URL, ("--option", "b")) drops --option b."""
     out, i = [], 0
@@ -546,7 +564,12 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
         assert repo.unchanged() and "repo-demo.1.3" not in repo.items()
 
     assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
-    assert repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL).returncode == 0
+    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    assert res.returncode == 0, res.stderr
+    # a session pm has no inbox for gets no push: it is told how to wait for the reply
+    assert ("this session gets no push of the owner's reply (no inbox pm can push to): wait for it within this "
+            "turn with pm reply wait repo-demo.1.4 (in the background where the runtime allows), else it reaches the "
+            "session at its next prompt, and pm reply read repo-demo.1.4 prints it") in res.stdout
     assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.2", "--focus", "F").returncode == 0
     action, decision, review = "repo-demo.1.3", "repo-demo.1.4", "repo-demo.2.1"
     assert {repo.items()[i]["need"]["kind"] for i in (action, decision, review)} == {"action", "decision", "review"}
@@ -1368,12 +1391,103 @@ def test_reply_read_prints_each_undelivered_reply_and_merge_once(repo):
     repo.mark()
     refused(repo, "reply", "read", "repo-demo.1.1", match=r"repo-demo.1.1 is not a request to the owner")
     repo.env.pop("CLAUDE_CODE_SESSION_ID")
+    # a Codex thread finds its session's requests as a Claude Code session does: a subagent's thread by its root
+    # session's id (Codex 0.154), a thread without it by its own (an earlier Codex, with no rollout to map it by)
+    for env in ({"CODEX_SESSION_ID": "sess-1", "CODEX_THREAD_ID": "sess-sub"}, {"CODEX_THREAD_ID": "sess-1"}):
+        repo.env.update(env)
+        res = repo.pm("reply", "read")
+        assert res.stdout == "nothing undelivered on repo-demo.1.3, repo-demo.1.4\n", (env, res.stderr)
+        for k in env:
+            repo.env.pop(k)
     refused(repo, "reply", "read", match=r"name the requests to read")
     res = repo.pm(*ADD, "--need", "repo-demo.1.3", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
     assert repo.items()["repo-demo.1.3"]["status"] == "closed"
     # the answer the close recorded is no reply of the owner's to deliver
     assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
+
+
+def test_reply_wait_blocks_until_the_owners_reply_then_prints_it_once(repo):
+    """A session the service cannot push into (Codex) waits on its need: pm reply wait returns once the owner's reply
+    exists, printing it as pm reply read does and marking it delivered; it refuses at its timeout, on an id that is no
+    need and on a closed need."""
+    stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    repo.add_issue({"id": "repo-demo.1.3", "title": "Parser?", "status": "open", "issue_type": "task",
+                    "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": "sess-1"}, **stamps})
+    repo.add_issue({"id": "repo-demo.1.4", "title": "Old?", "status": "closed", "issue_type": "task",
+                    "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": "sess-1"},
+                    "closed_at": "2026-10-02T12:00:00Z", **stamps})
+    repo.mark()
+    refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "1s",
+            match=r"no reply to repo-demo.1.3 within 1s; it is still open: wait again with pm reply wait "
+                  r"repo-demo.1.3, or the reply reaches this session at its next prompt")
+    refused(repo, "reply", "wait", "repo-demo.1.1", match=r"repo-demo.1.1 is not a request to the owner")
+    refused(repo, "reply", "wait", "repo-demo.1.4", match=r"repo-demo.1.4 is closed")
+    refused(repo, "reply", "wait", "repo-demo.1.3", "--timeout", "soon", match=r"--timeout soon is not a duration")
+    waiting = subprocess.Popen([*PM, "reply", "wait", "repo-demo.1.3", "--timeout", "60s"], cwd=repo.root,
+                               env=repo.env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               text=True)
+    try:
+        time.sleep(1)  # noqa: TID251 — the wait must have begun, which nothing outside its process shows
+        assert waiting.poll() is None, waiting.communicate()
+        assert repo.pm("reply", "add", "repo-demo.1.3", text="Small, until tables.").returncode == 0
+        out, err = waiting.communicate(timeout=30)
+    finally:
+        waiting.kill()
+    assert waiting.returncode == 0, err
+    assert out.startswith("pm: owner reply to decision repo-demo.1.3 (Parser?)") and "Small, until tables." in out
+    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 1
+    assert repo.pm("reply", "read", "repo-demo.1.3").stdout == "nothing undelivered on repo-demo.1.3\n"
+    # asked again after that reply (say it was "not yet"), the session waits for the next one, not that one
+    again = repo.pm("reply", "wait", "repo-demo.1.3", "--timeout", "1s")
+    assert again.returncode == 1 and "no reply to repo-demo.1.3 within 1s" in again.stderr, again.stdout
+    # a reply that reaches the session another way while it waits (a push, pm hook inbox; here pm reply read) ends it
+    waiting = subprocess.Popen([*PM, "reply", "wait", "repo-demo.1.3", "--timeout", "60s"], cwd=repo.root,
+                               env=repo.env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               text=True)
+    try:
+        time.sleep(1)  # noqa: TID251 — the wait must have begun, which nothing outside its process shows
+        assert repo.pm("reply", "add", "repo-demo.1.3", text="Now: go ahead.").returncode == 0
+        repo.pm("reply", "read", "repo-demo.1.3")
+        out, err = waiting.communicate(timeout=30)
+    finally:
+        waiting.kill()
+    assert waiting.returncode == 0 and "Now: go ahead." in out and "Small, until tables." not in out, (out, err)
+    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 2
+
+
+def test_show_refresh_inbox_points_a_sessions_needs_at_its_own_inbox(repo):
+    """A Claude Code session's open needs follow its socket; a Codex session's trade the Claude Code socket an earlier
+    pm stored on them (inherited from the Claude Code session that started Codex) for its CODEX_HOME, which the pm
+    service queues the reply under, so no reply is pushed into the Claude Code session."""
+    stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    for nid, session in (("repo-demo.1.3", "sess-cl"), ("repo-demo.1.4", "sess-cx")):
+        repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task", "parent": "repo-demo.1",
+                        "labels": ["human"], "metadata": {"session": session, "inbox": "/run/old.sock",
+                                                          "inbox_host": socket.gethostname()}, **stamps})
+    base = repo.env
+    repo.env = dict(base, CLAUDE_CODE_SESSION_ID="sess-cl", CLAUDE_CODE_MESSAGING_SOCKET="/run/new.sock")
+    assert repo.pm("show", "--refresh-inbox").returncode == 0
+    repo.env = dict(base, CODEX_SESSION_ID="sess-cx", CLAUDE_CODE_MESSAGING_SOCKET="/run/new.sock")
+    assert repo.pm("show", "--refresh-inbox").returncode == 0
+    items = repo.items()
+    assert items["repo-demo.1.3"]["need"]["raised_by"]["inbox"] == "/run/new.sock"
+    assert items["repo-demo.1.4"]["need"]["raised_by"]["inbox"] == f"codex-queue:{base['CODEX_HOME']}"
+
+
+def test_a_need_closed_by_its_decision_or_its_no_decision_close_records_the_session(repo):
+    """pm decision add --need and pm decision close close the need as task close does: closed_by is the session."""
+    stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
+    for nid in ("repo-demo.1.3", "repo-demo.1.4"):
+        repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task",
+                        "parent": "repo-demo.1", "labels": ["human"], "metadata": {"session": "sess-1"}, **stamps})
+    repo.env = dict(repo.env, CODEX_SESSION_ID="sess-cx")
+    res = repo.pm(*ADD, "--need", "repo-demo.1.3", "--decision", DECISION, "--reason", REASON)
+    assert res.returncode == 0, res.stderr
+    res = repo.pm("decision", "close", "repo-demo.1.4", "--reason", "It sets no rule.", text="Small, until tables.")
+    assert res.returncode == 0, res.stderr
+    items = repo.items()
+    assert items["repo-demo.1.3"]["closed_by"] == items["repo-demo.1.4"]["closed_by"] == "sess-cx"
 
 
 def review_with_origin(repo) -> str:
@@ -1426,8 +1540,8 @@ def test_task_claim_refuses_in_the_main_checkout_and_says_how_to_make_a_worktree
         main = repo.root.resolve()
         assert f"not claiming repo-demo.1.2 here: {main} is the main checkout; agents change code only in a worktree of " \
                f"their own" in res.stderr
-        assert f"git -C {main} fetch origin main && git -C {main} worktree add -b <branch> .claude/worktrees/<name> " \
-               f"origin/main" in res.stderr
+        assert f"Make one with git, in any runtime, and work there: `git -C {main} fetch origin main && git -C {main} " \
+               f"worktree add -b <branch> .claude/worktrees/<name> origin/main`" in res.stderr
     assert repo.unchanged()
     wt = repo.worktree("feature")
     assert claim(repo, "repo-demo.1.2", "sess-a", cwd=wt).returncode == 0
@@ -1575,3 +1689,43 @@ def test_every_store_command_fails_hard_with_the_service_stopped(repo):
     assert repo.snapshot() == before, "a command wrote with the service stopped"
     repo.start_service()
     assert repo.unchanged()
+
+
+def test_day_summarize_asks_the_runtime_summary_runtime_names(repo):
+    """pm day summarize asks claude unless summary_runtime in .pm/config.toml says codex, and never the other one: on
+    codex it runs codex exec with hooks, rules and the user's config off, from a temp dir, and writes the answer with
+    codex's model; a failing codex writes nothing and does not fall back to claude; any other value fails the config."""
+    config = repo.root / ".pm/config.toml"
+    base = config.read_text()
+    log = {rt: Path(repo.env[f"FAKE_{rt.upper()}_LOG"]) for rt in ("claude", "codex")}
+
+    def calls(rt):
+        return [json.loads(line) for line in log[rt].read_text().splitlines()] if log[rt].exists() else []
+
+    res = repo.pm("day", "summarize", "--dry-run")
+    assert res.returncode == 0 and '"model": "claude-haiku-5-5"' in res.stdout, res.stdout + res.stderr
+    assert len(calls("claude")) >= 1 and calls("codex") == []
+    asked = len(calls("claude"))
+
+    config.write_text(base + 'summary_runtime = "codex"\n')
+    repo.env = dict(repo.env, FAKE_CODEX_FAIL="ERROR: usage limit")
+    res = repo.pm("day", "summarize")
+    assert res.returncode != 0 and "codex exec failed (exit 1): ERROR: usage limit; no summary written" in res.stdout + res.stderr
+    assert len(calls("claude")) == asked, "no fallback to claude"
+    assert not list((repo.store / "days").glob("*.summary.json"))
+    del repo.env["FAKE_CODEX_FAIL"]
+    res = repo.pm("day", "summarize")
+    assert res.returncode == 0, res.stdout + res.stderr
+    (summary,) = [json.loads(p.read_text()) for p in (repo.store / "days").glob("*.summary.json")][-1:]
+    assert summary["model"] == "gpt-5.6-luna" and summary["text"].startswith("Summary "), summary
+    call = calls("codex")[-1]
+    args = call["args"]
+    assert {"--ephemeral", "--ignore-user-config", "--ignore-rules"} <= set(args) and "hooks" in args
+    assert args[args.index("hooks") - 1] == "--disable" and call["instructions"] is None
+    assert repo.root not in Path(call["cwd"]).parents and "{activity}" not in call["stdin"]
+    assert len(calls("claude")) == asked
+
+    config.write_text(base + 'summary_runtime = "gpt"\n')
+    res = repo.pm("day", "summarize")
+    assert res.returncode != 0 and 'summary_runtime is "gpt"; set it to one of claude, codex' in res.stdout + res.stderr
+    config.write_text(base)

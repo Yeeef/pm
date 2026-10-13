@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -92,11 +93,55 @@ func (m *machine) calls() []string {
 func (m *machine) install() string {
 	m.t.Helper()
 	exe, _ := Exe()
-	said, err := Install(m.main, 8123, exe)
+	said, err := Install(m.main, 8123, exe, false)
 	if err != nil {
 		m.t.Fatal(err)
 	}
 	return said
+}
+
+// TestPmInitKeepsTheUnitsPATH: an agent runtime runs pm init with a PATH of its own (Codex puts its directory first).
+// pm init (keepPath) leaves a running service whose unit differs from its env only in PATH unwritten and unrestarted;
+// a real difference (the port) still rewrites and restarts it, keeping the unit's PATH; pm service install takes the
+// PATH it runs with.
+func TestPmInitKeepsTheUnitsPATH(t *testing.T) {
+	for _, kind := range []string{Systemd, Launchd} {
+		m := newMachine(t, kind)
+		m.install()
+		unit := UnitFile(m.main, kind)
+		before, err := os.ReadFile(unit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		was := os.Getenv("PATH")
+		calls := len(m.calls())
+		t.Setenv("PATH", "/opt/codex/vendor/x86_64-unknown-linux-musl/codex-path"+string(os.PathListSeparator)+was)
+		exe, err := Exe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if said, err := Install(m.main, 8123, exe, true); said != "" || err != nil {
+			t.Fatalf("%s: a PATH-only difference: %q %v", kind, said, err)
+		}
+		restarted := slices.ContainsFunc(m.calls()[calls:], func(c string) bool {
+			return regexp.MustCompile(`restart|daemon-reload|enable --now|bootstrap|bootout`).MatchString(c)
+		})
+		if after, err := os.ReadFile(unit); err != nil || string(after) != string(before) || restarted {
+			t.Fatalf("%s: the unit was rewritten or the service restarted: %v", kind, m.calls()[calls:])
+		}
+		if said, err := Install(m.main, 9000, exe, true); err != nil || !strings.HasPrefix(said, "updated the pm service") {
+			t.Fatalf("%s: a new port: %q %v", kind, said, err)
+		}
+		if path, ok := UnitPath(m.main, kind); !ok || path != was {
+			t.Fatalf("%s: pm init took its own PATH %q", kind, path)
+		}
+		if said, err := Install(m.main, 9000, exe, false); err != nil || !strings.HasPrefix(said, "updated the pm service") {
+			t.Fatalf("%s: pm service install: %q", kind, said)
+		}
+		if path, _ := UnitPath(m.main, kind); path != os.Getenv("PATH") {
+			t.Fatalf("%s: pm service install kept %q", kind, path)
+		}
+	}
 }
 
 func TestUninstallStopsAndRemovesTheUnit(t *testing.T) {
@@ -198,7 +243,7 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 	}
 	port := FreePort()
 	exe, _ := Exe()
-	said, err := Install(main, port, exe)
+	said, err := Install(main, port, exe, false)
 	if err != nil || !strings.HasPrefix(said, "installed the pm service: ") ||
 		!strings.Contains(said, "serving http://localhost:"+strconv.Itoa(port)) {
 		t.Fatal(said, err)
@@ -218,7 +263,7 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 	if !regexp.MustCompile(`(?m)^Serving http://localhost:` + strconv.Itoa(port) + `; .*pushing every 10 min$`).MatchString(logs) {
 		t.Fatal(logs)
 	}
-	if said, err := Install(main, port, exe); said != "" || err != nil {
+	if said, err := Install(main, port, exe, false); said != "" || err != nil {
 		t.Fatal("installed and current:", said, err)
 	}
 	stopServices(t, filepath.Join(tmp, "sched.json")) // the process dies; nothing restarts it here
@@ -308,7 +353,7 @@ func TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall(t *testing.T) {
 				t.Fatal(err)
 			}
 			exe, _ := Exe()
-			if _, err := Install(m.main, 8123, exe); err != nil || Disabled(m.main, kind) || !Loaded(m.main, kind) {
+			if _, err := Install(m.main, 8123, exe, true); err != nil || Disabled(m.main, kind) || !Loaded(m.main, kind) {
 				t.Fatal("install (pm init) ends the stop:", err)
 			}
 		})

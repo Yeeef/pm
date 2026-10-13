@@ -30,6 +30,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/pyjson"
+	"github.com/Yeeef/pm/internal/session"
 	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
 )
@@ -155,6 +156,7 @@ type server struct {
 	merges                map[string]bool
 	swept                 map[string]sweepState
 	queue                 chan job
+	sweepDue              chan struct{} // 1-buffered: a sweep is due; however many ask, the writer sweeps once
 	wake                  chan struct{}
 	stopped               chan string
 	stop                  context.CancelFunc // Run stopping: done closes and every loop ends
@@ -239,7 +241,7 @@ func Run(d Deps) error {
 	}
 	s := &server{d: d, texts: Texts{d.Main, d.Remote, d.MainBranch}, token: base64.RawURLEncoding.EncodeToString(tok),
 		replies: map[string]Reply{}, merges: map[string]bool{}, swept: map[string]sweepState{},
-		queue: make(chan job, 1024), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
+		queue: make(chan job, 1024), sweepDue: make(chan struct{}, 1), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
 		serveCheck: ServeCheck, mergePoll: MergePoll}
 	ctx, stop := context.WithCancel(context.Background())
 	s.stop, s.done = stop, ctx.Done()
@@ -290,13 +292,14 @@ func Run(d Deps) error {
 	}
 }
 
-// put queues a job for the writer; it never blocks a request (the queue holds 1,024, and a full one drops a sweep),
-// nor outlasts Run (a job put once Run stopped is dropped; a reply stays in the spool for the next start).
+// put queues a job for the writer; it never blocks a request (the queue holds 1,024), nor outlasts Run (a job put
+// once Run stopped is dropped; a reply stays in the spool for the next start). A sweep takes no queue place: it marks
+// one due, and asks made while one is due add nothing.
 func (s *server) put(j job) {
 	if j.sweep {
 		select {
-		case s.queue <- j:
-		default:
+		case s.sweepDue <- struct{}{}:
+		default: // one is due already
 		}
 		return
 	}
@@ -339,7 +342,14 @@ func (s *server) refresher(srv *http.Server) {
 			_ = srv.Shutdown(context.Background())
 			return
 		}
-		s.snap.Store(s.refresh(s.snap.Load()))
+		old := s.snap.Load()
+		next := s.refresh(old)
+		s.snap.Store(next)
+		// a reply any command stored (pm reply add, not the site's form, which pushes its own) is pushed once the
+		// store moves, not at the ticker's next sweep a MergePoll later
+		if old != nil && !next.readFailed && next.fp != old.fp {
+			s.put(job{sweep: true})
+		}
 	}
 }
 
@@ -762,6 +772,8 @@ func (s *server) writer() {
 		}
 		select {
 		case j = <-s.queue:
+		case <-s.sweepDue:
+			j = job{sweep: true}
 		case <-s.done:
 			return
 		}
@@ -829,16 +841,10 @@ func (s *server) sweep() {
 		if !ReplyWaiting(n) && MergeWaiting(n) == "" {
 			continue
 		}
-		path := n.Need.RaisedBy.Inbox
-		st, err := os.Stat(path)
-		if err != nil {
+		key, ok := inboxKey(n.Need.RaisedBy)
+		if !ok {
 			continue // no socket: the session is not running
 		}
-		var ino uint64
-		if sys, ok := st.Sys().(*syscall.Stat_t); ok {
-			ino = sys.Ino
-		}
-		key := fmt.Sprintf("%s\x00%d\x00%d", path, ino, st.ModTime().UnixNano())
 		s.mu.Lock()
 		last := s.swept[n.ID]
 		s.mu.Unlock()
@@ -860,6 +866,31 @@ func (s *server) sweep() {
 		s.swept[n.ID] = next
 		s.mu.Unlock()
 	}
+}
+
+// inboxKey is what the sweep compares to skip a session found not running until it may be back: a socket's path,
+// inode and mtime; for a Codex route, its session's newest rollout's path and mtime, which change when it runs again.
+// ok is false for a socket that is gone.
+func inboxKey(rb *work.RaisedBy) (key string, ok bool) {
+	path := rb.Inbox
+	if home, codex := session.CodexHomeOf(path); codex {
+		key = path
+		for _, p := range session.RolloutsIn(home, rb.Session) {
+			if st, err := os.Stat(p); err == nil {
+				key += fmt.Sprintf("\x00%s\x00%d", p, st.ModTime().UnixNano())
+			}
+		}
+		return key, true
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		return "", false
+	}
+	var ino uint64
+	if sys, ok := st.Sys().(*syscall.Stat_t); ok {
+		ino = sys.Ino
+	}
+	return fmt.Sprintf("%s\x00%d\x00%d", path, ino, st.ModTime().UnixNano()), true
 }
 
 // ticker, at start and every MergePoll: look at each open review's PR without a seen merge (with gh), and hand one

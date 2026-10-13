@@ -2,8 +2,8 @@ UV ?= uv
 # The harness (tests/, pytest) runs in the environment uv keeps at .venv, from pyproject.toml's dev group.
 PYRUN := $(UV) run --quiet
 
-.PHONY: test test-full test-live test-go go-build go-fmt go-vet go-test go-test-but-work go-test-work go-test-race \
-	go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py
+.PHONY: test test-full test-live test-live-parity test-go go-build go-fmt go-vet go-test go-test-but-work go-test-work \
+	go-test-race go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
 ARGS ?=
@@ -23,10 +23,19 @@ test-full: go-build
 	  exit 2; fi
 	$(PYRUN) python tests/run.py -n auto $(ARGS)
 
-# Check the owner-request Stop hook's Haiku judge on its labelled cases with live model calls; run after editing
-# its prompt. PM_LIVE_RUNS sets the runs per case (default 3).
+# Check the owner-request Stop hook's judge on its labelled cases with live model calls, on each runtime (Claude Haiku
+# through claude -p, a small Codex model through codex exec); run after editing its prompt. PM_LIVE_RUNS sets the runs
+# per case (default 3); PM_LIVE_RUNTIMES=codex runs one runtime.
 test-live: go-build
 	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -s -k owner_request_prompt_live
+
+# Check that a real Claude Code session and a real Codex session get the same pm guarantees, and work one sprint
+# together, in scratch clones (tests/test_agent_parity_live.py); needs claude and codex on PATH, both logged in. Its
+# scenarios run at once, one worker each; -rA prints each one's latencies and transcript paths.
+# PM_PARITY_CODEX_SANDBOX sets Codex's sandbox (default workspace-write; danger-full-access where bubblewrap cannot
+# start).
+test-live-parity: go-build
+	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 12 -rA -k agent_parity_live $(ARGS)
 
 # Check that PR N may be merged: its head contains origin's base branch and every check on that head passed, so its
 # CI tested what the merge lands (release/merge_ready.py). Run it right before merging: make merge-ready PR=N

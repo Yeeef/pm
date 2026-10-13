@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/hooks"
 )
 
@@ -47,8 +48,8 @@ var tree = &command{
 			subs: []*command{
 				{
 					name:        "summarize",
-					help:        "generate today's Today summary with claude -p; the pm service runs it",
-					description: "Summarize today's activity (what the day page shows, plus the records committed today) with claude -p --model claude-haiku-5-5 into records/days/<today>.summary.json, committed on the records branch; the day page shows it as Today, labelled with the time it was generated. Skips when nothing happened today or the activity's digest is unchanged since the last summary. Fails, writing nothing, when claude is missing or fails. The pm service runs it every 10 minutes.",
+					help:        "generate today's Today summary with claude -p or codex exec (summary_runtime); the pm service runs it",
+					description: "Summarize today's activity (what the day page shows, plus the records committed today) into records/days/<today>.summary.json, committed on the records branch; the day page shows it as Today, labelled with the time it was generated. It asks the runtime that summary_runtime in .pm/config.toml names: claude (the default) runs claude -p --model claude-haiku-5-5, codex runs codex exec --model gpt-5.6-luna; each runs from an empty temp directory with no hooks, no project instructions and no saved session, for at most 180s. Set summary_runtime = \"codex\" in a repo whose machines have Codex and not Claude Code. Skips when nothing happened today or the activity's digest is unchanged since the last summary. Fails, writing nothing, when the runtime's CLI is missing, fails or times out; it never falls back to the other runtime. The pm service runs it every 10 minutes.",
 					args: []arg{
 						{flags: []string{"--dry-run"}, dest: "dry_run", kind: flagTrue, help: "print the summary it would write; write nothing"},
 					},
@@ -217,9 +218,18 @@ var tree = &command{
 				{
 					name:        "read",
 					help:        "print the owner's replies and reviews' merges that did not reach your session",
-					description: "Print the requests' site replies not yet delivered and their reviews' PR merges not yet reported, with what to do next, and mark them delivered; it does not wait. The pm service pushes each reply and merge into the inbox of the session that raised the request when it can; what it could not deliver (the session had ended, or has no inbox) waits here and is flagged by pm show. Without ids, this session's open requests ($CLAUDE_CODE_SESSION_ID); with ids, those, closed ones too.",
+					description: "Print the requests' site replies not yet delivered and their reviews' PR merges not yet reported, with what to do next, and mark them delivered; it does not wait. The pm service pushes each reply and merge into the inbox of the session that raised the request when it can; what it could not deliver (the session had ended, or has no inbox) waits here and is flagged by pm show. Without ids, this session's open requests ($CLAUDE_CODE_SESSION_ID or $CODEX_SESSION_ID, as pm task claim takes it); with ids, those, closed ones too.",
 					args: []arg{
 						{dest: "ids", metavar: []string{"ID"}, nargs: "*", kind: value, help: "a decision need, action or review (default: this session's)"},
+					},
+				},
+				{
+					name:        "wait",
+					help:        "wait for the owner's reply to a need, then print it as pm reply read does",
+					description: "Block until the open need has a site reply (or its review a merged PR) that has not reached a session, then print it with what to do next and mark it delivered, as pm reply read does. For a session the pm service cannot push replies into (Codex, or no inbox): run it after raising the need, in the background where the runtime allows. Refuses an id that is not a need, a need that closes without a reply, and, at --timeout, says the need is still open.",
+					args: []arg{
+						{dest: "id", required: true, kind: value, help: "a decision need, action or review"},
+						{flags: []string{"--timeout"}, dest: "timeout", metavar: []string{"DURATION"}, kind: value, def: "30m", help: "how long to wait, as 30m, 90s or 2h (default 30m)"},
 					},
 				},
 				{
@@ -401,7 +411,7 @@ var tree = &command{
 				{
 					name:        "claim",
 					help:        "claim a task for this agent session",
-					description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one.",
+					description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one.",
 					args: []arg{
 						{dest: "task_id", required: true, kind: value, help: "the task's id"},
 						{flags: []string{"--session"}, dest: "session", metavar: []string{"ID"}, kind: value, help: "the session to record; default: this session's id from the environment"},
@@ -451,7 +461,7 @@ var tree = &command{
 					help: "clear the holder of a task this session holds",
 					store: &storeCommand{
 						usage: "task release ID",
-						about: "Clear the holder of a task this session ($CLAUDE_CODE_SESSION_ID, else $CODEX_THREAD_ID) holds.",
+						about: "Clear the holder of a task this session ($CLAUDE_CODE_SESSION_ID, $CODEX_SESSION_ID or $CODEX_THREAD_ID, as pm task claim takes it) holds.",
 						args:  1,
 						run:   taskRelease,
 					},
@@ -578,7 +588,7 @@ var tree = &command{
 		},
 		{
 			name: "doctor",
-			help: "compare every managed piece with what this pm writes, and the clone and worktree with what pm init makes; report each difference, exit 1 on any (in a checkout whose pin is not the version the clone's pm service runs, the work store cannot be checked: its line names the mismatch and the fix); and name a pm release newer than the pin, with its notes (or say the release list cannot be read), which leaves the exit code alone",
+			help: "compare every managed piece with what this pm writes, and the clone and worktree with what pm init makes; report each difference, exit 1 on any (in a checkout whose pin is not the version the clone's pm service runs, the work store cannot be checked: its line names the mismatch and the fix); fail when the CLI that summary_runtime in .pm/config.toml names (claude or codex) is not on PATH, since the pm service summarizes with it, and never for the other runtime, whose sessions, and so whose owner-request judge, run only where it is installed; and name a pm release newer than the pin, with its notes (or say the release list cannot be read), which leaves the exit code alone",
 		},
 		{
 			name: "upgrade",
@@ -594,7 +604,7 @@ var tree = &command{
 		{
 			name:        "init",
 			help:        "install pm: the repo's files on first install (--site-url sets the public site link), then this clone, this worktree and the pm service (PORT=<n> sets its port, and on a first install the config's; PORT=<n> pm service install moves only the service's); session start runs it; never commits on the code branch",
-			description: "Install pm, doing only what is missing. Repo, on first install only (no .pm/config.toml yet): write .pm/ (config.toml, README.md, .gitignore), pm's hook entries in .claude/settings.json and .codex/hooks.json, pm's git hook .pm/hooks/post-checkout and pm's .gitignore lines; create the records branch with an empty store and push it when the remote has none; print the commit to make. After that pm init leaves the repo's files alone: pm doctor reports a changed or missing piece and pm upgrade rewrites it. Clone and worktree, every run: copy this pm into the bin dir when another is there, take out Beads' hook entries, CLAUDE.md block and hooks path, install the git hooks (core.hooksPath .pm/hooks), list .pm/store/ and .pm/run/ in .git/info/exclude, check out the records store at <main checkout>/.pm/store/records if missing, link this worktree's records/ to it and turn off the sparse checkout an earlier pm set once HEAD and the index track no records/, add the clone's .git and the stores to the writable roots of $CODEX_HOME/config.toml and the store to this worktree's .claude/settings.local.json, then install the pm service (pm service install) and have it attach the work store, which only the service opens (cloned from the remote's refs/pm/work, or created and pushed). Session start runs it in every worktree, and starts an installed service that does not answer; once all is set up it prints 'already set up'. Refuses a core.hooksPath other than .pm/hooks or Beads' .beads/hooks. Site port: a new repo's config gets $PORT, else the first free port from 8000 up that no pm service unit on this machine names; a clone's service serves on $PORT, else its unit's port, else the config's. Refuses, writing nothing, when another server holds that port, and names a free one: PORT=<n> pm init. .pm/config.toml, tracked: version (the pm every session must run; pm upgrade moves it), remote and main_branch (origin and its default branch), port (the site port) and site_url (--site-url); with site_url set, access_team (the Cloudflare Access team domain, <team>.cloudflareaccess.com) and access_aud (the Access application's AUD tag), set by hand: the site serves a request to site_url's host, or any request Cloudflare's edge forwarded (Cf-Connecting-IP), only when its Cf-Access-Jwt-Assertion verifies against them (RS256 by the team's keys, aud, iss, unexpired), and refuses every such request while either is missing; pm doctor names a missing one, and the service reads them when it starts.",
+			description: "Install pm, doing only what is missing. Repo, on first install only (no .pm/config.toml yet): write .pm/ (config.toml, README.md, .gitignore), pm's hook entries in .claude/settings.json and .codex/hooks.json, the Codex rule .codex/rules/pm.rules (pm runs outside Codex's sandbox), pm's git hook .pm/hooks/post-checkout and pm's .gitignore lines; create the records branch with an empty store and push it when the remote has none; print the commit to make. After that pm init leaves the repo's files alone: pm doctor reports a changed or missing piece and pm upgrade rewrites it. Clone and worktree, every run: copy this pm into the bin dir when another is there, take out Beads' hook entries, CLAUDE.md block and hooks path, install the git hooks (core.hooksPath .pm/hooks), list .pm/store/ and .pm/run/ in .git/info/exclude, check out the records store at <main checkout>/.pm/store/records if missing, link this worktree's records/ to it and turn off the sparse checkout an earlier pm set once HEAD and the index track no records/, add the clone's .git and the stores to the writable roots of $CODEX_HOME/config.toml and the store to this worktree's .claude/settings.local.json, then install the pm service (pm service install) and have it attach the work store, which only the service opens (cloned from the remote's refs/pm/work, or created and pushed). Session start runs it in every worktree, and starts an installed service that does not answer; once all is set up it prints 'already set up'. Refuses a core.hooksPath other than .pm/hooks or Beads' .beads/hooks. Site port: a new repo's config gets $PORT, else the first free port from 8000 up that no pm service unit on this machine names; a clone's service serves on $PORT, else its unit's port, else the config's. Refuses, writing nothing, when another server holds that port, and names a free one: PORT=<n> pm init. .pm/config.toml, tracked: version (the pm every session must run; pm upgrade moves it), remote and main_branch (origin and its default branch), port (the site port) and site_url (--site-url); with site_url set, access_team (the Cloudflare Access team domain, <team>.cloudflareaccess.com) and access_aud (the Access application's AUD tag), set by hand: the site serves a request to site_url's host, or any request Cloudflare's edge forwarded (Cf-Connecting-IP), only when its Cf-Access-Jwt-Assertion verifies against them (RS256 by the team's keys, aud, iss, unexpired), and refuses every such request while either is missing; pm doctor names a missing one, and the service reads them when it starts.",
 			groups:      []bool{false},
 			args: []arg{
 				{flags: []string{"--session-start"}, dest: "session_start", kind: flagTrue, help: "what session start runs, without $PORT: install the pm service when it is missing and start an installed one that does not answer, so a session in a clone brings its service up; one pm service stop stopped is left stopped and reported (pm service restart starts it); a running one, a stale one included, is left as it is and reported (pm service restart restarts it)"},
@@ -618,7 +628,7 @@ var tree = &command{
 		{
 			name:        "clean",
 			help:        "list each worktree with keep or remove and the reason; --apply removes the agent worktrees (.claude/worktrees/) that no live session owns and whose work is saved",
-			description: "List every worktree of this clone with keep or remove and the reason; a dry run unless --apply. Only an agent worktree, under <main checkout>/.claude/worktrees/, is ever removed; never the main checkout, the records store (.pm/store/records) or the worktree pm clean runs in. Owned, so kept: a worktree Claude Code locked for a live process (`claude <kind> <name> (pid N start T)` in .git/worktrees/<name>/locked; the lock is stale when pid N is gone or, on Linux, started at another time than T; on macOS a live pid owns it), a worktree someone else locked, and one a live session used: an entry of a Claude Code transcript (<config dir>/projects/) written in the last 30 minutes whose directory is in the worktree or whose tool call names the worktree's path (a subagent runs in its parent's directory). Removed, when clean (no change, no untracked file; its ignored files go with it, as git worktree remove deletes them) and holding no other worktree: one whose commits are on <remote>/<main branch> (its branch deleted too), one whose branch a PR merged into <main branch> took at its tip (a squash merge, asked of gh; kept when gh is missing or fails; its branch deleted too), and one whose branch has nothing beyond where it was pushed: its upstream, unless that is the main branch, else <remote>/<branch> (its branch kept, as it is not merged). Everything else is kept: uncommitted changes, commits never pushed. The branches compare with <remote>/<main branch> as last fetched: run git fetch first. --apply takes a stale lock off, runs git worktree remove (never --force, so git refuses a worktree that changed meanwhile; for a worktree whose directory is gone it drops git's entry), and deletes a merged branch at the tip it judged. It refuses, removing nothing, when a recent transcript cannot be read. Exits 1 when a removal failed, naming why on its line.",
+			description: "List every worktree of this clone with keep or remove and the reason; a dry run unless --apply. Only an agent worktree, under <main checkout>/.claude/worktrees/, is ever removed; never the main checkout, the records store (.pm/store/records) or the worktree pm clean runs in. Owned, so kept: a worktree Claude Code locked for a live process (`claude <kind> <name> (pid N start T)` in .git/worktrees/<name>/locked; the lock is stale when pid N is gone or, on Linux, started at another time than T; on macOS a live pid owns it), a worktree someone else locked, and one a live session used: an entry of a Claude Code transcript (<config dir>/projects/) or a Codex rollout ($CODEX_HOME/sessions/) written in the last 30 minutes whose directory is in the worktree or whose tool call names the worktree's path (a subagent runs in its parent's directory). Removed, when clean (no change, no untracked file; its ignored files go with it, as git worktree remove deletes them) and holding no other worktree: one whose commits are on <remote>/<main branch> (its branch deleted too), one whose branch a PR merged into <main branch> took at its tip (a squash merge, asked of gh; kept when gh is missing or fails; its branch deleted too), and one whose branch has nothing beyond where it was pushed: its upstream, unless that is the main branch, else <remote>/<branch> (its branch kept, as it is not merged). Everything else is kept: uncommitted changes, commits never pushed. The branches compare with <remote>/<main branch> as last fetched: run git fetch first. --apply takes a stale lock off, runs git worktree remove (never --force, so git refuses a worktree that changed meanwhile; for a worktree whose directory is gone it drops git's entry), and deletes a merged branch at the tip it judged. It refuses, removing nothing, when a recent transcript cannot be read. Exits 1 when a removal failed, naming why on its line.",
 			args: []arg{
 				{flags: []string{"--apply"}, dest: "apply", kind: flagTrue, help: "remove the worktrees the dry run lists as remove; without it pm clean changes nothing"},
 			},
@@ -641,7 +651,7 @@ var tree = &command{
 			groups: []bool{false},
 			args: []arg{
 				{flags: []string{"--rules"}, dest: "part", metavar: []string{"N"}, choices: chunkNumbers(), kind: value, isInt: true, group: 1, help: "only chunk N of the rules and the command list, under a title naming its sections: one hook each on SessionStart and SubagentStart, since Claude Code passes a hook's text inline only up to 10,000 characters"},
-				{flags: []string{"--state"}, dest: "part", kind: flagConst, constant: "state", group: 1, help: "only pm init, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook"},
+				{flags: []string{"--state"}, dest: "part", kind: flagConst, constant: "state", group: 1, help: "only pm init, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook; in a Codex session it opens with a line naming the pm hooks Codex skips, untrusted or changed since trusted (codex app-server, asked again only when .codex/hooks.json or your Codex trust changed)"},
 				{flags: []string{"--subagent"}, dest: "part", kind: flagConst, constant: "subagent", group: 1, help: "only pm's git rule for agents, one line: the last SubagentStart hook, beside the rules chunks"},
 				{flags: []string{"--hook-json"}, dest: "hook_json", kind: flagTrue, help: "read the SessionStart or SubagentStart input on stdin and print the hook's JSON envelope, as Claude Code and Codex read it"},
 			},
@@ -656,8 +666,16 @@ var tree = &command{
 					help: "Stop: block once while records this session's tool calls name are uncommitted in the store, leaving out a record that only a still-running subagent's prompt names",
 				},
 				{
-					name: "owner-request",
-					help: "Stop: block once while the reply asks the owner for something no open need or action of this session covers",
+					name:        "owner-request",
+					help:        "Stop: block once while the reply asks the owner for something no open need or action of this session covers",
+					description: "Stop: block once while the reply asks the owner for something no open need or action of this session covers. A small model on the session's own runtime judges the reply: Claude Haiku through claude -p for Claude Code, gpt-5.6-luna through codex exec for Codex, each run from an empty temp directory with no hooks, no project instructions and no saved session. Each runtime's hook entry names its runtime; pm never guesses it. When the check cannot run (the runtime's CLI is missing, fails or times out), it exits 1 with the cause on stderr: Claude Code shows it, Codex lets the stop through.",
+					args: []arg{
+						{flags: []string{"--runtime"}, dest: "runtime", choices: ask.Runtimes, kind: value, help: "the session's runtime, which the judge runs on; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json (default: claude, as an entry written before this flag)"},
+					},
+				},
+				{
+					name: "inbox",
+					help: "UserPromptSubmit: hand this session the owner's replies that did not reach it (Codex has no push) as context beside the prompt, then mark them delivered",
 				},
 				{
 					name: "git-post-checkout",

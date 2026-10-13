@@ -110,6 +110,14 @@ func (w *fakeWork) item(id string) work.Item {
 	return deep(w.items[id])
 }
 
+// set stores it as a write through the store would, moving the change mark.
+func (w *fakeWork) set(it work.Item) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.items[it.ID] = &it
+	w.fp++
+}
+
 // deep is a copy of it that shares nothing with it (its Need, Holder, Comments and the rest), read under the fake's
 // lock: a caller reads it after the lock is gone while the service's goroutines write the fake's own.
 func deep(it *work.Item) work.Item {
@@ -217,7 +225,7 @@ func (s *fakeStore) Claim(string, work.Holder, func(string) bool) error { return
 func (s *fakeStore) Release(string, string) error                       { return errUnused }
 func (s *fakeStore) DepAdd(string, string) error                        { return errUnused }
 func (s *fakeStore) DepRemove(string, string) error                     { return errUnused }
-func (s *fakeStore) Answer(string, string) error                        { return errUnused }
+func (s *fakeStore) Answer(string, string, string) error                { return errUnused }
 
 // fakeSite renders one page per item (items/<id>.html) and an index with a nav, a reply slot per open need and the
 // status slot; FillReplies and FillStatus write what they were given, so a test reads it back.

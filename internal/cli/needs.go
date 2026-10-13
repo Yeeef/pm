@@ -2,16 +2,17 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -318,14 +319,23 @@ func needMarkdown(p *Parsed) (string, error) {
 }
 
 // deliveryHint is how the raising agent hears the answer: the pm service pushes it into the session's inbox when there
-// is one.
+// is one (Claude Code's); else pm hook inbox hands it over at the session's next prompt. Either way pm reply wait
+// waits for it within the turn.
 func deliveryHint(id string) string {
-	if strip(os.Getenv(inboxEnv)) != "" {
-		return fmt.Sprintf("the pm service pushes the owner's reply into this session; if the session has ended by then, "+
-			"pm show flags it for the next one, which reads it with pm reply read %s", id)
+	inbox := sessionInbox()
+	if _, codex := session.CodexHomeOf(inbox); codex {
+		return fmt.Sprintf("the pm service queues the owner's reply into this Codex session (codex queue), which "+
+			"starts a turn with it when idle; to wait for it within this turn, run pm reply wait %s; if the session has "+
+			"ended by then, pm show flags it for the next one, which reads it with pm reply read %s", id, id)
 	}
-	return fmt.Sprintf("this session has no inbox ($%s unset), so no reply is pushed to it; pm show flags a reply, "+
-		"and pm reply read %s prints it", inboxEnv, id)
+	if inbox != "" {
+		return fmt.Sprintf("the pm service pushes the owner's reply into this session; to wait for it within this turn, "+
+			"run pm reply wait %s; if the session has ended by then, pm show flags it for the next one, which reads it "+
+			"with pm reply read %s", id, id)
+	}
+	return fmt.Sprintf("this session gets no push of the owner's reply (no inbox pm can push to): wait for it within "+
+		"this turn with pm reply wait %s (in the background where the runtime allows), else it reaches the session at "+
+		"its next prompt, and pm reply read %s prints it", id, id)
 }
 
 // raisedBy is the session that raises a need and its inbox, or nil outside a known session. Never the inbox's token:
@@ -336,7 +346,7 @@ func raisedBy() (*work.RaisedBy, error) {
 		return nil, nil
 	}
 	rb := &work.RaisedBy{Session: sid}
-	if inbox := strip(os.Getenv(inboxEnv)); inbox != "" {
+	if inbox := sessionInbox(); inbox != "" {
 		host, err := service.Hostname()
 		if err != nil {
 			return nil, err
@@ -806,7 +816,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := ws.Answer(needID, body); err != nil {
+	if err := ws.Answer(needID, body, currentSession()); err != nil {
 		return "", err
 	}
 	out, err := r.apply(w, fmt.Sprintf("closed need %s and %s", needID, done), "pm: ")
@@ -876,7 +886,7 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 		done = fmt.Sprintf("marked need %s, already answered, as setting no rule: %s", id, why)
 		failed = fmt.Sprintf("the reason is on %s as a comment; %s (it does not add the note twice)", id, retry)
 	} else {
-		if err := ws.Answer(id, answer+"\n\n"+note); err != nil {
+		if err := ws.Answer(id, answer+"\n\n"+note, currentSession()); err != nil {
 			return "", err
 		}
 		done = fmt.Sprintf("closed need %s with the owner's answer and no decision record: %s", id, why)
@@ -963,10 +973,10 @@ func cmdReplyRead(e *env, p *Parsed) (string, error) {
 			needs = append(needs, it)
 		}
 	} else {
-		sid := strip(os.Getenv(sessionEnv))
+		sid := currentSession()
 		if sid == "" {
-			return "", refuse("name the requests to read: pm reply read <id>…; without %s pm cannot tell which "+
-				"requests this session raised", sessionEnv)
+			return "", refuse("name the requests to read: pm reply read <id>…; without %s or %s pm cannot tell "+
+				"which requests this session raised", sessionEnv, codexSessionEnv)
 		}
 		mine, err := ws.Needs(sid)
 		if err != nil {
@@ -1000,4 +1010,35 @@ func cmdReplyRead(e *env, p *Parsed) (string, error) {
 		return "nothing undelivered on " + what, nil
 	}
 	return strings.Join(out, "\n"), nil
+}
+
+// ---------------------------------------------------------------- pm reply wait
+
+// cmdReplyWait is pm reply wait: block until the need has a new reply, then print it: what has not reached a session
+// (a reply, or its review's merge) marked delivered, as pm reply read does, else the replies stamped since the wait
+// began, which a push or pm hook inbox delivered meanwhile. A reply delivered before the wait is no new reply: an
+// agent that asks again after "not yet" waits for the next one. It refuses at the timeout, and for a need closed with
+// no new reply.
+func cmdReplyWait(e *env, p *Parsed) (string, error) {
+	id, given := p.Get("id"), p.Get("timeout")
+	if given == "" {
+		given = "30m"
+	}
+	timeout, err := time.ParseDuration(given)
+	if err != nil || timeout <= 0 {
+		return "", refuse("--timeout %s is not a duration such as 30m or 90s", given)
+	}
+	if _, err := store.CodeRoot(e.here, e.records); err != nil {
+		return "", err
+	}
+	cfg, err := config.Load(e.here)
+	if err != nil {
+		return "", err
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	texts := service.Texts{Main: store.MainOf(e.records), Remote: cfg.Remote, MainBranch: cfg.MainBranch}
+	return texts.WaitReply(ws, id, timeout, time.Now())
 }
