@@ -60,10 +60,13 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm check`'s waiting-pattern line and `pm check --help` now state the close rule as pm 0.8.6 applies it: only the patterns a sprint added or changed while open.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Done when | Met | Evidence |
+|---|---|---|
+| `pm check` prints the new wording; the harness test asserts it | met | PR #76; `test_check_lists_covers_patterns_that_match_nothing_as_waiting_and_lists_uncovered_sources` passes on the new text |
+| Design pages of changed areas updated and listed | met | none changed: the rule's pages (Sprint lifecycle, pm CLI) already state it since sprint 28; only the printed wording changed, waived where the gate asks |
