@@ -70,6 +70,11 @@ The design page site-replies stays as it is for this sprint's code changes.
 Only the records read's index-lock check in serve.go changed; views-and-site holds that.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page work-store stays as it is for this sprint's code changes.
+Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup waits before pushes that need no fresh fetch.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
