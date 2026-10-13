@@ -201,6 +201,9 @@ def test_go_changes_skips_the_go_jobs_only_for_docs_and_harness_python_that_no_g
     real = {f: (PM_DIR / f).read_text() for f in subprocess.run(
         ["git", "ls-files", "*.go"], cwd=PM_DIR, capture_output=True, text=True, check=True).stdout.split()}
     assert go_changes.go_affected(["tests/fake_sched.py"], real)[0]  # internal/service's lifecycle test runs it
+    # README.md is in NO_GO, but the root package's assets_test.go names "README.md" (changelog.d's), which reads as the
+    # root's: a README-only PR runs the Go jobs, conservatively
+    assert go_changes.go_affected(["README.md"], real) == (True, "README.md is read by a Go file")
     assert not go_changes.go_affected(["tests/test_ci.py", "AGENTS.md"], real)[0]
 
 
@@ -228,6 +231,8 @@ def test_go_changes_reads_a_pull_requests_merge_commit_and_runs_every_job_on_a_p
     (repo / "tests").mkdir()
     (repo / "tests/test_x.py").write_text("x = 1\n")
     git("add", "."), git("commit", "-qm", "pr")
+    code, out, log = run("pull_request")  # the PR's head, one parent: its last commit is not the PR's changes
+    assert code != 0 and out == "" and "merge commit" in log, log
     git("checkout", "-q", "main"), git("merge", "-q", "--no-ff", "-m", "merge", "pr")  # as refs/pull/N/merge is
     assert run("pull_request")[:2] == (0, "go=false\n")
     assert run("push")[:2] == (0, "go=true\n")
