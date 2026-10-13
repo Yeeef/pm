@@ -24,7 +24,7 @@ covers:
 Goals:
 
 - An agent cannot end its turn with a request to the owner left only in chat. Each request is raised as a need first: a decision, an action or a PR review, under the sprint or task it belongs to; with none, the agent opens one first.
-- When the agent has a clear reason not to raise a need, such as the owner plainly being in the chat and wanting to answer there, it asks with AskUserQuestion, never as a question in plain text.
+- When the agent has a clear reason not to raise a need, such as the owner plainly being in the chat and wanting to answer there, it asks with the runtime's ask tool (AskUserQuestion in Claude Code; `request_user_input_async` in Codex, `request_user_input` in its Plan mode), never as a question in plain text.
 - The agent does what it can itself first, and asks the owner only for what only the owner can do.
 - One rule in three texts: prime.md's request rules, the judge prompt and the reprompt allow and block the same cases.
 - Few false alarms: a reply that quotes, reports or describes a request without asking it, and an offer nothing waits on, pass.
@@ -32,7 +32,7 @@ Goals:
 
 Non-goals:
 
-- A per-session mode that turns the hook off while the owner is in the chat: AskUserQuestion covers that case (Alternatives considered).
+- A per-session mode that turns the hook off while the owner is in the chat: the runtime's ask tool covers that case (Alternatives considered).
 - Checking subagent reports: they end with SubagentStop and go to the main agent, not the owner.
 - Proving a matched need is the right one: a semantic match to an open need of this session is enough.
 
@@ -42,7 +42,8 @@ Non-goals:
 > still hold; sprint records keep the findings as they happened.
 
 - A Stop hook sees the final reply (`last_assistant_message`), `session_id` and `cwd`, and can block once; on `stop_hook_active` the next stop must pass, so the hook can never loop.
-- AskUserQuestion runs mid-turn and waits for the answer, so its question is never in `last_assistant_message` and the hook never judges it. In a session nobody watches it waits forever, and the question is not on the site.
+- AskUserQuestion runs mid-turn and waits for the answer, so its question is never in `last_assistant_message`. Codex's `request_user_input_async` (Default mode, gpt-6 models) returns `{"accepted":true}` at once and the answer arrives later as a new user message, so the turn ends with the question open, and its text can be in the final message (in `codex exec` it was). `request_user_input` (Plan mode) blocks, with no timeout. In a session nobody watches, a blocking ask waits forever, and no ask tool's question is on the site.
+- The transcript records each ask: Claude Code's AskUserQuestion `tool_use` (input `questions[].question`), Codex's `function_call` named `request_user_input_async` (arguments `{"questions":[{"title":…,"options":[…]}]}`, measured live) or `request_user_input` (`questions[].question`).
 - The Claude judge, `claude -p --model claude-haiku-5-5` with thinking off and no settings, tools or MCP, takes about 2 s; with thinking on a verdict took 5 to 36 s. Its timeout is 15 s, inside the hook's 30 s.
 - Each judge runs in a process group of its own, killed whole at its timeout (both CLIs are launcher scripts), and killed by the hook when the runtime stops the hook (SIGTERM, SIGINT, SIGHUP) at its entry's timeout.
 - The Codex judge, `codex exec --model gpt-5.6-luna` at medium reasoning effort, takes about 5.5 s (p90 14 s, 8 calls at a time); at low effort it missed 3 or 4 of 189 labelled runs. Its timeout is 40 s, inside the Codex entry's 45 s.
@@ -73,7 +74,7 @@ flowchart TD
   B -- yes --> K[block with the reprompt]
 ```
 
-Reading: every reply is judged; a question asked with AskUserQuestion never reaches the judge, because it is not in the final reply.
+Reading: every reply is judged; a question asked with the ask tool this turn reaches the judge as an open request the owner sees, so neither it nor its repeat in the reply blocks.
 
 ### One rule
 
@@ -81,12 +82,12 @@ The rule, as all three texts state it:
 
 1. Do what you can yourself first. Ask the owner only for what only the owner can do: a choice, a credential, a review or merge, a step outside the agent's reach.
 2. Raise each such request as a need under the task or sprint it belongs to. If no sprint or task holds it, open one first (`pm task add`, or `pm sprint open` for work no open sprint fits).
-3. When there is a clear reason not to raise a need, such as the owner plainly being in the chat and wanting to answer there, ask with AskUserQuestion, never as a question in plain text.
+3. When there is a clear reason not to raise a need, such as the owner plainly being in the chat and wanting to answer there, ask with the runtime's ask tool (AskUserQuestion in Claude Code; `request_user_input_async` in Codex, `request_user_input` in its Plan mode), never as a question in plain text.
 4. Do not ask leave for a step you are authorized to take: working a sprint's tasks, committing, pushing its branch, opening its PR.
 
 | Text | Where | States the rule as |
 |---|---|---|
-| prime.md | the "Never leave a request only in chat" invariant | the rule in one line: ask only for what you cannot do yourself, as a need under its task or sprint (opened if none holds it), or with AskUserQuestion; item 4 is the invariant that agents push and open PRs without asking. The detail is left to the reprompt, which the agent gets whenever it matters, to keep every session's context small |
+| prime.md | the "Never leave a request only in chat" invariant | the rule in one line: ask only for what you cannot do yourself, as a need under its task or sprint (opened if none holds it), or with the runtime's ask tool, named per runtime in one clause; item 4 is the invariant that agents push and open PRs without asking. The detail is left to the reprompt, which the agent gets whenever it matters, to keep every session's context small |
 | Judge prompt | `owner_request_system.txt` | what to block: an unmatched decision, review, action or clarification, and a needless ask (items 2 and 4); what passes: offers nothing waits on, and quotes, reports and plans |
 | Reprompt | `owner_request_reason.txt`, `owner_request_needless.txt` | how to get past a block: items 1, 2 and 3 in that order; item 4 for a needless ask |
 
@@ -99,6 +100,7 @@ The rule, as all three texts state it:
 - Kinds that block when no open need matches: `decision`, `review`, `action`, `clarification`. A sentence that makes the agent's next step depend on something the owner must first provide or do is an `action`, worded as a condition ("If you paste the log, I'll find the cause") or a statement ("Without the log I can't tell which"). A clarification asked in plain text is lost when nobody reads the chat; asked with AskUserQuestion it is not in the reply.
 - Kinds that pass: `offer` and `suggestion` that nothing waits on, and `not asked` (quotes, reports, examples, the agent's own plan, text in code blocks). An offer the work cannot finish without is a request, however politely put.
 - `authorized` (a needless ask) blocks even when a need matches.
+- The questions the session asked with its ask tool in the stopping turn (read from `transcript_path`: after the user's last prompt in Claude Code, after the last `turn_context` in Codex) join the open requests as entries marked "(asked with the ask tool this turn)", so a sentence asking the same thing matches one. The judge still runs for the turn: another ask in the same reply, left only in chat, blocks.
 
 ### The reprompt
 
@@ -107,7 +109,7 @@ The block reason the agent sees (`owner_request_reason.txt`), in this order:
 1. The quoted sentences that blocked.
 2. Do it yourself first: read the file, run the command, find the transcript, take the step the rules authorize. Only what only the owner can do is a request.
 3. For each request left, raise it, with the `pm decision need`, `pm action need` and `pm action need --pr` forms; the parent is the task or sprint it belongs to. If there is no such sprint or task, create one first (`pm task add`, or `pm sprint open` for work no open sprint fits).
-4. If there is a clear reason not to raise a need (for example, the owner is plainly in the chat and wants to answer there), ask with the AskUserQuestion tool, never as a question in plain text.
+4. If there is a clear reason not to raise a need (for example, the owner is plainly in the chat and wants to answer there), ask with the session's ask tool, never as a question in plain text: the reason names AskUserQuestion for a Claude Code session and `request_user_input_async` (or `request_user_input` in Plan mode) for a Codex one, from the hook's `--runtime`.
 5. Then end the reply, with no plain-text question to the owner left in it.
 
 The needless-ask reason (`owner_request_needless.txt`): take the authorized step instead of asking; it lists the same authorized steps as item 4 of the rule, committing included.
@@ -121,7 +123,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | Reply | `last_assistant_message`, a string | the same key, nullable: null passes |
 | Judge | `claude -p`, Haiku, 15 s | `codex exec`, `gpt-5.6-luna`, 40 s, from an empty temp dir with hooks, rules and the user's config off and no saved session (`--ephemeral`); needs no `claude` |
 | A check that cannot run | exit 1 with the cause on stderr; the stop goes through | exit 1; Codex passes the stop silently |
-| AskUserQuestion (rule item 3) | the tool | none: a Codex agent's only ask is a need |
+| Ask tool (rule item 3) | AskUserQuestion | `request_user_input_async` (Default mode), `request_user_input` (Plan mode) |
 
 - Each entry names its runtime; pm never guesses it. An entry without `--runtime` runs the Claude judge, as every entry did before the flag.
 - One judge prompt serves both runtimes, and every labelled case must pass on each.
@@ -132,10 +134,11 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 ### How it is checked
 
 - Review: prime.md, the judge prompt and the reprompt read side by side; no case is allowed by one and blocked by another.
-- `make test-live` on `tests/owner_request_cases.json`, on each runtime's judge, each case 3 runs by default (`PM_LIVE_RUNS`), all with the case's verdict (2026-10-12, 63 cases: Claude 189/189, median 2.0 s; Codex 189/189, median 5.5 s, p90 14.1 s); after a prompt change, run 10, since a case at 4 in 10 can pass 3 of 3 by chance. Cases include the three replies blocked on 2026-10-10, labelled by the rule (a chat request with no sprint blocks), and a reply whose only question went through AskUserQuestion (passes).
+- `make test-live` on `tests/owner_request_cases.json`, on each runtime's judge, each case 3 runs by default (`PM_LIVE_RUNS`), all with the case's verdict (2026-10-13, 68 cases: Claude 204/204, median 2.35 s, p90 4.08 s; Codex 204/204, median 5.77 s, p90 14.74 s, max 33.79 s); after a prompt change, run 10, since a case at 4 in 10 can pass 3 of 3 by chance. Cases include the three replies blocked on 2026-10-10, labelled by the rule (a chat request with no sprint blocks), and a reply whose only question went through AskUserQuestion (passes).
 - No recursion: the harness's fake `codex` logs the judge's argv and directory; live, a user Stop hook in `$CODEX_HOME/hooks.json` ran under a plain `codex exec` and did not under the judge's.
 - The parity live eval: a Codex session with no `claude` on its PATH that asks the owner only in chat is blocked, then raises a need.
-- A live session: a reply that asks the owner for a file only in chat is blocked and the reprompt names doing it yourself first; it passes once a need is raised under a sprint or task, or once the question moves to AskUserQuestion.
+- A live session: a reply that asks the owner for a file only in chat is blocked and the reprompt names doing it yourself first; it passes once a need is raised under a sprint or task, or once the question moves to the ask tool.
+- The parity live eval's ask tool scenario: an interactive session (Claude Code's and Codex's TUI) asks a multiple-choice question with its ask tool, the test picks an option at the keyboard, and the Stop hook does not block nor a need get raised.
 
 ## Alternatives considered
 
@@ -151,6 +154,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | **Phrase patterns** (sprint 13) | A phrase list plus a cited-id check | Missed requests worded differently; blocked a reply that cited its needs |
 | **Rule only** | The agent remembers | Four of six requests were asked only in chat |
 | **`claude -p` for every runtime** (sprint 1) | Codex sessions call the Claude judge | A Codex-only machine has no `claude`; the judge fails at every stop and Codex passes each silently (owner decision 2026-10-12) |
+| **Skip the judge for a turn with an ask tool call** | Any ask tool call in the turn lets the stop through | Another ask left only in chat in the same reply would pass; giving the tool's questions to the judge as asked keeps it judged |
 | **Fall back to the other runtime's CLI** | Try codex when claude is missing, or the reverse | Hides a missing runtime and changes which model judges; the entry names the runtime instead |
 
 ## Prior art
@@ -163,4 +167,4 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 
 > What is still unresolved?
 
-1. **Unattended AskUserQuestion:** the agent's judgement of a "clear reason" is the only guard against a question that waits forever in a session nobody watches. If agents misjudge it, the rule narrows item 3.
+1. **An unattended ask tool:** the agent's judgement of a "clear reason" is the only guard against a question that waits forever in a session nobody watches. If agents misjudge it, the rule narrows item 3.

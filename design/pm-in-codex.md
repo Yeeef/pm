@@ -80,7 +80,7 @@ The state hook takes the runtime from the process ancestry, not from a flag on i
 
 ### Gaps against Claude Code
 
-The 12 gaps the sprint 1 gap list found, each with where it stands. A gap marked closed is closed on the open PRs: [#47](https://github.com/Yeeef/pm/pull/47) (pm-codex sprint 1) and, for gap 8, [#56](https://github.com/Yeeef/pm/pull/56) (pm-codex sprint 2). Neither is on main or in a release yet; the released pm (0.7.1) has every gap open.
+The 12 gaps the sprint 1 gap list found, each with where it stands. A gap marked closed is closed on the open PRs: [#47](https://github.com/Yeeef/pm/pull/47) (pm-codex sprint 1) and, for gaps 8 and 9, [#56](https://github.com/Yeeef/pm/pull/56) (pm-codex sprint 2). Neither is on main or in a release yet; the released pm (0.7.1) has every gap open.
 
 | # | Gap | Status | How |
 |---|---|---|---|
@@ -92,16 +92,16 @@ The 12 gaps the sprint 1 gap list found, each with where it stands. A gap marked
 | 6 | The SessionStart matcher lacked `compact` | closed | matcher `startup\|resume\|clear\|compact` |
 | 7 | A subagent's records are invisible to the parent's Stop hook (encrypted inputs) | closed | Codex SubagentStop runs `pm hook stop` on `agent_transcript_path` |
 | 8 | The judge needs `claude`; Codex treats its failure as a silent pass | closed (pm-codex sprint 2) | Each session's judge runs on its own runtime, `codex exec` in Codex; `pm day summarize` on the runtime `summary_runtime` names; a null `last_assistant_message` passes |
-| 9 | The rule names only Claude Code's AskUserQuestion; Codex's ask tools differ | open | Codex 0.154 asks with `request_user_input_async` in Default mode (gpt-6 models: non-blocking pick list, the answer arrives as a new user message) and with a blocking `request_user_input` in Plan mode. The rule, the judge and the block reasons do not know either. |
+| 9 | The rule named only Claude Code's AskUserQuestion; Codex's ask tools differ | closed (#56) | The rule's three texts name each runtime's ask tool: AskUserQuestion; Codex's `request_user_input_async` in Default mode (gpt-6 models: a non-blocking pick list, the answer arrives as a new user message) and the blocking `request_user_input` in Plan mode. The owner-request hook reads the stopping turn's ask tool calls from the transcript and gives their questions to the judge as asked ([Owner-request Stop hook](../design/owner-request-hook.md)). |
 | 10 | `pm clean` did not see live Codex sessions | closed | it reads Codex rollouts |
 | 11 | A network-off Linux sandbox denies `connect()` to `work.sock` | closed, not run live | `.codex/rules/pm.rules` (see Sandbox). Bubblewrap cannot start on the owner's host. |
 | 12 | Claude-only wording; `live()` walked every rollout | closed | runtime-neutral refusal; rollouts found by the thread id's date |
 
-Gap 5 is left by a pm-codex project decision; gap 9 was left on a wrong premise (that Codex has no ask tool) and is open. Each gap not closed is detailed under Gaps not closed.
+Gap 5 is left by a pm-codex project decision. Each gap not closed is detailed under Gaps not closed.
 
 ### Gaps not closed
 
-Four of the 12 gaps are not closed: hook trust (1), `.codex/` from the main checkout (5), no ask tool (9), and the sandbox not run live (11).
+Three of the 12 gaps are not closed: hook trust (1), `.codex/` from the main checkout (5), and the sandbox not run live (11).
 
 #### Gap 1: Codex runs no pm hook until the user trusts it
 
@@ -126,16 +126,6 @@ Four of the 12 gaps are not closed: hook trust (1), `.codex/` from the main chec
 | Until then | Hook changes reach main through a PR, as every pm piece does. The README says Codex reads `.codex/` from the main checkout. `pm doctor` checks the main checkout's `.codex/hooks.json`. |
 | Closes when | Codex reads project config from the session's worktree. |
 
-#### Gap 9: the rule knows only Claude Code's ask tool
-
-| | |
-|---|---|
-| What Codex offers (0.154, measured in the TUI) | Default mode: `request_user_input_async`, offered when the model catalog lists it (gpt-6-astra, gpt-6-sol, gpt-6.1-sol, gpt-6-luna; not gpt-5.x). It shows the question inline as a pick list with an Other choice and returns `{"accepted":true}` at once; the turn does not wait, and the answer arrives later as a new user message. Plan mode (Shift+Tab or `/plan`): `request_user_input`, a blocking pick list with no timeout. In Default mode `request_user_input` answers "unavailable in Default mode" unless the under-development flag `default_mode_request_user_input` is on, and even then it is non-blocking and resolves to empty answers after about 2 min. `codex exec` can answer neither. |
-| What pm does today | The rule (prime.md, the judge prompt, the block reasons) names AskUserQuestion only. A block reason sends a Codex agent to a tool it does not have. In `codex exec` the async question surfaced as an agent message; if the TUI does the same, the owner-request judge may read it as an ask left only in chat and block it (not yet tested). |
-| Guarantee at stake | None is lost; a need always works. But a Codex agent cannot use its own ask tool while the owner is in the chat without risking a block. |
-| Closes when | The rule names each runtime's ask tool, and the owner-request hook recognises a `request_user_input` or `request_user_input_async` call as an ask made with the tool. That is a rule change in its three texts plus labelled cases. |
-| Sources | codex-rs rust-v0.154.0 `core/src/tools/handlers/request_user_input.rs`, `request_user_input_async.rs`, `tools/src/tool_config.rs:17-26`, `features/src/lib.rs:1529-1533`; the 0.154.0 release notes; openai/codex issues #37472 and #43759. |
-
 #### Gap 11: the sandboxed path is not run live
 
 | | |
@@ -151,6 +141,7 @@ Four of the 12 gaps are not closed: hook trust (1), `.codex/` from the main chec
 
 - CI: `TestClaudeAndCodexRunTheSameHooks`; the harness tests that drive each hook with both runtimes' real payloads (`tests/hook_payloads.json`) and assert the same output.
 - Live: `make test-live-parity`, real `claude -p` and `codex exec` sessions on a scratch clone, identical assertions per runtime: the solo scenario (context, claim, finding, need, reply, decision, record, task close), the Stop hook, the reply at the next prompt, an idle interactive session (each runtime's TUI in a pty) woken by the owner's reply with nothing typed, and both runtimes on one project at once with claims refused across runtimes; and a Codex session with no `claude` on PATH, asking only in chat, blocked by the judge on `codex exec`.
+- Live: the parity eval's ask tool scenario, in each runtime's TUI: a multiple-choice question asked with AskUserQuestion or `request_user_input_async`, answered at the keyboard, is not blocked and raises no need.
 - Live: `make test-live` runs the owner-request judge's labelled cases on both runtimes ([Owner-request Stop hook](../design/owner-request-hook.md)).
 
 ## Alternatives considered
@@ -175,4 +166,4 @@ The alternatives for delivering replies into a Codex session (`codex exec resume
 
 > What is still unresolved?
 
-- Gaps 1, 5, 9 and 11: see Gaps not closed, each with what would close it.
+- Gaps 1, 5 and 11: see Gaps not closed, each with what would close it.

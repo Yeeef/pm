@@ -42,9 +42,9 @@ The owner-request Stop judge runs on the session's own runtime, Haiku for Claude
 
 > Where is the detail?
 
-- [Owner-request Stop hook](../design/owner-request-hook.md): the judge on each session's runtime, the `codex exec` call, its no-recursion and timeouts, the live eval on both runtimes.
+- [Owner-request Stop hook](../design/owner-request-hook.md): the judge on each session's runtime, the `codex exec` call, its no-recursion and timeouts, the live eval on both runtimes; the rule naming each runtime's ask tool, and a question asked with it given to the judge as asked.
 - [Views and the site](../design/views-and-site.md): the Today summary on the runtime `summary_runtime` names.
-- [pm in Codex](../design/pm-in-codex.md): gap 8 closed; gap 1's warning to a session whose hooks did not run.
+- [pm in Codex](../design/pm-in-codex.md): gaps 8 and 9 closed; gap 1's warning to a session whose hooks did not run, and the start line naming the hooks Codex skips.
 - [pm as an installable product](../design/pm-product.md): `summary_runtime` in `.pm/config.toml`, `pm doctor`'s runtime check, the Stop entries' `--runtime`.
 - [pm CLI](../design/pm-cli.md): `pm day summarize`'s row.
 
@@ -149,6 +149,7 @@ done: the owner-request judge runs on the session's own runtime and the day summ
 - `pm hook owner-request --runtime claude|codex`, named by each hook entry: Claude Haiku through `claude -p` (15 s in a 30 s entry), `gpt-5.6-luna` at medium effort through `codex exec` (40 s in a 45 s entry), run from an empty temp dir with Codex's hooks, rules and user config off and no saved session; the same exit-1 failure on both; a timeout or a stopped hook kills the judge's whole process group.
 - `summary_runtime` in `.pm/config.toml` (`claude` by default, or `codex`) for `pm day summarize`, with no fallback; `pm doctor` fails only when that runtime's CLI is missing.
 - A Codex session is told when Codex skips pm's hooks: a pm command warns once when none ran, and the session-start state names the hooks Codex skips when some did (as after a `pm upgrade` rewrote a trusted entry).
+- The request rule names each runtime's ask tool (AskUserQuestion; Codex's `request_user_input_async`, `request_user_input` in Plan mode), and the hook gives a question asked with it this turn to the judge as asked, so it is not blocked while any other chat ask still is (gap 9).
 - One judge prompt for both runtimes, with two wording fixes; the live eval and the parity eval cover both runtimes.
 
 ### Against "Done when"
@@ -157,8 +158,8 @@ done: the owner-request judge runs on the session's own runtime and the day summ
 
 | Done when | Met | Evidence |
 |---|---|---|
-| `make test-live` passes every labelled case on both backends, `PM_LIVE_RUNS` times each, latency per backend | met | 63 cases x 3 runs, 8 at a time: Claude 189/189, median 2.01 s, p90 3.59 s, max 11.64 s; Codex 189/189, median 5.48 s, p90 14.10 s, max 19.69 s (Findings) |
-| The parity eval gains a Codex-without-`claude` chat-ask scenario that the judge blocks | met | `make test-live-parity` (`danger-full-access`): 8 of 8 passed in 96.5 s, before the merge with PR #47's new scenarios; the new scenario 27.0 s, one Stop block quoting the ask, then a need raised |
+| `make test-live` passes every labelled case on both backends, `PM_LIVE_RUNS` times each, latency per backend | met | After the ask-tool rule change, 68 cases x 3 runs, 8 at a time: Claude 204/204, median 2.35 s, p90 4.08 s, max 13.68 s; Codex 204/204, median 5.77 s, p90 14.74 s, max 33.79 s. Before it, 63 cases: Claude 189/189, Codex 189/189 (Findings) |
+| The parity eval gains a Codex-without-`claude` chat-ask scenario that the judge blocks | met | `make test-live-parity` (`danger-full-access`), 2026-10-13: 12 of 12 passed in 112.7 s. The chat-ask scenario: 39.7 s, one Stop block, then a need; it runs with the clone's SessionStart hooks untrusted, since with pm's rules a gpt-6 agent raised the need (or used its ask tool) before it stopped. The ask tool scenario: Claude 17.9 s, Codex 26.9 s, one ask tool call each, no owner-request block, no need |
 | `pm day summarize` on codex writes a summary in a scratch clone | met | Scratch clone, no `claude` on PATH: `days/2026-10-12.summary.json` written in 6.5 s, model `gpt-5.6-luna`, no rollout left in `CODEX_HOME` |
 | `pm doctor` names the configured runtime's missing binary | met | `test_doctor_and_init_name_the_pm_hooks_codex_skips`: with neither CLI, it fails naming `claude` (the default); with `summary_runtime = "codex"` it passes with only `codex`, and fails naming `codex` without it |
-| Every design page this sprint changes is brought to the new state and listed | met | Design pages above: Owner-request Stop hook, Views and the site, pm in Codex (gap 8 closed, gap 1 updated), pm as an installable product, pm CLI |
+| Every design page this sprint changes is brought to the new state and listed | met | Design pages above: Owner-request Stop hook, Views and the site, pm in Codex (gaps 8 and 9 closed, gap 1 updated), pm as an installable product, pm CLI |
