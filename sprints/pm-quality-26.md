@@ -55,7 +55,14 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- On the shared store at 2026-10-13, 30 covers patterns match no tracked file
+  (27 when the sprint was framed): agents-md-evaluation 4,
+  decision-need-layout 2, pm-cli 13, pm-product 1, reply-delivery 4,
+  session-claims 2, sprint-lifecycle 4. This branch's pm check exits 0 and
+  lists all 30 as waiting. Since sprint close holds every page its gate names,
+  a sprint whose PR touches code that pm-cli or sprint-lifecycle covers cannot
+  close under the new rule until PR #62's CLI split merges or its patterns are
+  fixed: sprints now wait on other sessions' merges through a shared page.
 
 ## Delivery report
 
