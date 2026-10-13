@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-13T22:47:25+00:00",
- "digest": "acf3ba3630014ec9",
+ "generated_at": "2026-10-13T23:27:33+00:00",
+ "digest": "f1e1345cb8e8bed3",
  "model": "claude-haiku-5-5",
- "text": "- **CI run speed:** Each pull request now starts at most two macOS jobs, and a docs-only change skips the Go checks. The median run time is still above the target.\n- **Sprint close rule:** A sprint now closes only on the coverage patterns it added or changed while open. Pending patterns from other sessions no longer block it.\n- **Agent evaluation voting:** The vote now applies to passages. A passage fails only when a majority of its calls agree on a finding.\n- **Design page review:** The pm-cli and sprint-lifecycle design pages were recorded as staying as they are."
+ "text": "- **Agent guidance map:** AGENTS.md is now a short map under 20 KiB, with a size test and an automated evaluation that runs on every pull request.\n- **Build speed for macOS:** Docs-only changes now skip the Go matrix and pass merge-ready. Each pull request starts at most two macOS jobs. The median run still takes about 138 seconds, not the target of about 90.\n- **Close rule for sprints:** A sprint closes only on the cover patterns it added or changed while open. Another session's older pending pattern no longer blocks it.\n- **Check command wording:** The waiting-pattern line in `pm check` and its help text now state the close rule as version 0.8.6 applies it."
 }
