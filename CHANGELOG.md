@@ -28,6 +28,21 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.8.3] - 2026-10-13
+
+`pm upgrade` and `pm doctor` keep `design_sources` in `.pm/config.toml`, so a repo can set it.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.8.3/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.8.3`, then commit what it changes and merge it, as an ordinary PR.
+
+### Fixed
+
+- `pm upgrade` keeps `design_sources` in `.pm/config.toml`, and `pm doctor` no longer reports a config that sets it as
+  drift. Before, pm's config writer dropped the key, so the next `pm upgrade` deleted it.
+
 ## [0.8.2] - 2026-10-13
 
 A PR review closed before its PR reached main, as a stacked PR's is, can be restamped once the PR's change is on main,
@@ -667,6 +682,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.8.3]: https://github.com/Yeeef/pm/compare/pm-v0.8.2...pm-v0.8.3
 [0.8.2]: https://github.com/Yeeef/pm/compare/pm-v0.8.1...pm-v0.8.2
 [0.8.1]: https://github.com/Yeeef/pm/compare/pm-v0.8.0...pm-v0.8.1
 [0.8.0]: https://github.com/Yeeef/pm/compare/pm-v0.7.1...pm-v0.8.0
