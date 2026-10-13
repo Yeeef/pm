@@ -176,6 +176,8 @@ The owner's one-time trust step belongs after the pin move, which sprint 3 takes
 
 done: a Codex session gets the same pm guarantees as a Claude Code session, and both work one project at once, held by a CI parity test and a live eval on real sessions.
 
+Merged as 1cd0fa4 (PR #47).
+
 - Session identity: `CODEX_SESSION_ID` (root, shared with subagents), with the innermost runtime deciding when both runtimes' ids are set; a Codex session never takes a Claude Code inbox.
 - Codex hooks: SessionStart on compact, SubagentStop running `pm hook stop`, and the same commands as Claude Code's per event.
 - `.codex/rules/pm.rules` runs pm outside Codex's sandbox.
