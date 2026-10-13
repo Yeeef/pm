@@ -79,6 +79,11 @@ A request to the owner has a kind (decision, action, review) and a timing: sync 
 The owner framed it in chat: what sets a question apart is that the session waits for it now, not what the owner gives. Kind and timing are independent (a sync action exists too), so timing is a property, not a fourth kind.
 :::
 
+::: decision {source=agent date=2026-10-13}
+Supersedes this sprint's two decisions that made an ask-tool question a decision need: a question is its own kind of request. It asks the owner to steer one session (what to do next, confirm a scope, clarify intent); its answer is an instruction to that session, not a ruling, and lives as long as the session. A decision need asks for a ruling on a project's or sprint's outcome and becomes a recorded decision. A question whose answer turns out to rule the work is recorded by the agent as a decision with --confirmed.
+Owner in chat: a decision is for a project or sprint outcome, not a session-wide instruction, e.g. "Do you want me to open a sprint for it?". Scope, not timing, sets them apart; timing follows from scope.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
