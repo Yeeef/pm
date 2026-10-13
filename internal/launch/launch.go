@@ -19,7 +19,8 @@
 // that fails, through the GitHub API with a token from $GH_TOKEN or gh auth token ($PM_RELEASE_API replaces the API
 // URL); the binary is checked against SHA256SUMS and the sha256 kept beside it, so a release's assets must never be
 // rebuilt. How is pm where's line; latest.go reads the latest release (<api>/releases/latest) for pm doctor's line on a
-// newer one.
+// newer one; guide.go gives the upgrade guide of each release a pin move crosses, which pm upgrade --to X prints first,
+// from the notes pm X embeds.
 package launch
 
 import (
