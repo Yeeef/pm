@@ -80,3 +80,19 @@ func Newer(a, b string) bool {
 	}
 	return !Less(ka, kb) && strings.Contains(b, "-") && !strings.Contains(a, "-")
 }
+
+// ReleaseLine is pm doctor's line on a release newer than the pin, or on why it cannot tell; none when the pin is
+// the latest release. It informs, and leaves the exit code to the clone's own pieces.
+func ReleaseLine(pin string) []string {
+	r, err := Latest()
+	if err != nil {
+		return []string{fmt.Sprintf("release: cannot read pm's latest release, so whether one is newer than the pin "+
+			"%s is not known: %v", pin, err)}
+	}
+	if !Newer(r.Version, pin) {
+		return nil
+	}
+	return []string{fmt.Sprintf("release: pm %s is out, newer than this repo's pin %s; what changed: %s. To move: "+
+		"install it (curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v%s/install.sh | sh), then "+
+		"pm upgrade --to %s in a PR", r.Version, pin, r.Notes, r.Version, r.Version)}
+}

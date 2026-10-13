@@ -8,11 +8,13 @@ from __future__ import annotations
 import gzip
 import hashlib
 import http.server
+import importlib.util
 import io
 import json
 import os
 import platform
 import shutil
+import subprocess
 import sys
 import tarfile
 import threading
@@ -352,3 +354,101 @@ def test_a_go_pin_that_fails_with_no_token_and_has_none_fails_hard_naming_that_d
         f"{release.url}/pm-v0.2.0/{tar.name} has sha256 {sha}, but {kept} keeps {'2' * 64}; a release is never "
         "rebuilt, so check where it came from before you delete that file\n")
     assert [p.name for p in kept.parent.iterdir()] == ["sha256"] and kept.read_text() == "2" * 64 + "\n"
+
+
+PM_DIR = Path(__file__).resolve().parents[1]
+
+
+def guides_expected(old: str, new: str) -> list[tuple[str, list[str]]]:
+    """Each release a move from `old` to `new` crosses, oldest first, with its upgrade guide's lines, as
+    release/changelog.py reads this checkout's notes: a released section's guide, and `new`'s own as its section or,
+    when it has none, as its entry files assemble into."""
+    spec = importlib.util.spec_from_file_location("changelog", PM_DIR / "release" / "changelog.py")
+    changelog = sys.modules["changelog"] = importlib.util.module_from_spec(spec)  # dataclasses look it up
+    spec.loader.exec_module(changelog)
+    log = changelog.parse((PM_DIR / "CHANGELOG.md").read_text())
+    base = tuple(int(p) for p in new.split("-")[0].split("."))
+    old_key = tuple(int(p) for p in old.split("."))
+    crossed = sorted((s for s in log.sections if old_key < s.key < base), key=lambda s: s.key)
+    own = log.release(new.split("-")[0]) or changelog.assemble(new, changelog.read_entries(PM_DIR))
+    out = []
+    for s in [*crossed, own]:
+        lines = "\n".join(line for _, line in s.categories[changelog.GUIDE]).strip("\n").split("\n")
+        out.append((s.name, lines))
+    return out
+
+
+@pytest.mark.integration  # pm upgrade is integration_only's, though this one reaches no remote
+def test_upgrade_prints_the_upgrade_guide_of_every_release_it_crosses_before_it_writes(fakes):
+    """A pin move from 0.7.0 crosses 0.7.1, 0.8.0 and this pm's release (and any released between): pm upgrade
+    prints each one's upgrade guide, oldest first, from the notes the pm it runs was built with, then moves the pin."""
+    write_config(fakes.root, version="0.7.0")
+    res = fakes.pm("upgrade", "--to", VERSION)
+    assert res.returncode == 0, res.stderr
+    want = guides_expected("0.7.0", VERSION)
+    assert [v for v, _ in want][:2] == ["0.7.1", "0.8.0"] and len(want) >= 3
+    head, rest = res.stdout.split("\n\n", 1)
+    assert head.startswith(f"pm 0.7.0 to {VERSION} crosses {len(want)} releases; each one's upgrade guide follows, "
+                           f"oldest first, from pm {VERSION}'s release notes."), head
+    body = "\n\n".join(f"pm {v}:\n" + "\n".join(lines) for v, lines in want) + "\n\n"
+    assert rest.startswith(body), rest
+    assert rest[len(body):].startswith(f"moved the pin from 0.7.0 to {VERSION}\n"), rest[len(body):]
+
+    # the pin moved: pm upgrade at it crosses no release and prints no guide
+    res = fakes.pm("upgrade", "--to", VERSION)
+    assert res.returncode == 0 and res.stdout.startswith(f"pm {VERSION}: every managed piece is current"), res.stdout
+
+
+def unit_for(fakes, clone: Path):
+    """A pm service unit for `clone`, as pm service install writes one on this platform: the clones on the machine
+    that pruning keeps the pins of."""
+    if sys.platform == "darwin":
+        path = Path(fakes.env["HOME"]) / f"Library/LaunchAgents/local.pm.{clone.name}.0.plist"
+        text = f"<plist><dict><key>WorkingDirectory</key>\n\t<string>{clone}</string></dict></plist>\n"
+    else:
+        path = Path(fakes.env["XDG_CONFIG_HOME"]) / f"systemd/user/local.pm.{clone.name}.0.service"
+        text = f"[Service]\nWorkingDirectory={clone}\nExecStart=pm service run\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+@pytest.mark.integration  # pm upgrade is integration_only's, though this one reaches no remote
+def test_upgrade_prunes_the_pins_no_checkout_pins_and_a_pruned_pin_downloads_checked(fakes, release, tmp_path):
+    """The repo moves its pin off 0.2.0, which no other checkout pins: pm upgrade prunes its binary and keeps its
+    sha256, and keeps 0.3.0, which another clone with a pm service unit pins. A later download of 0.2.0 that differs
+    from the first fails hard; the same release downloads again."""
+    publish(release, "0.2.0")
+    publish(release, "0.3.0")
+    write_config(fakes.root, version="0.2.0")
+    assert fakes.pm("show").returncode == 0 and (go_pin(fakes, "0.2.0") / "pm").exists()
+    other = tmp_path / "other"
+    subprocess.run(["git", "init", "-q", str(other)], check=True)
+    write_config(other, version="0.3.0")
+    unit_for(fakes, other)
+    assert fakes.pm("show", cwd=other).returncode == 0 and (go_pin(fakes, "0.3.0") / "pm").exists()
+    first = (go_pin(fakes, "0.2.0") / "sha256").read_text()
+
+    res = fakes.pm("upgrade", "--to", VERSION)
+    assert res.returncode == 0, res.stderr
+    assert (f"pins: pruned pm 0.2.0 under {go_pin(fakes, '0.2.0').parent} (0 MB), which no checkout on this "
+            "machine pins; each keeps its sha256, so a later download of it is checked against it") in res.stdout, \
+        res.stdout
+    assert sorted(p.name for p in go_pin(fakes, "0.2.0").iterdir()) == ["sha256"]
+    assert (go_pin(fakes, "0.2.0") / "sha256").read_text() == first
+    assert (go_pin(fakes, "0.3.0") / "pm").exists()
+
+    # the other clone moves to 0.2.0: a release that differs from the first download fails, and keeps nothing new
+    shutil.rmtree(release.root / "pm-v0.2.0")
+    tar, sha = publish(release, "0.2.0", code=3)
+    write_config(other, version="0.2.0")
+    res = fakes.pm("show", cwd=other)
+    kept = go_pin(fakes, "0.2.0") / "sha256"
+    assert (res.returncode, res.stderr) == (1, (
+        f"error: this repo pins pm 0.2.0, but release pm-v0.2.0 changed since this machine first downloaded it: "
+        f"{release.url}/pm-v0.2.0/{tar.name} has sha256 {sha}, but {kept} keeps {first.strip()}; a release is never "
+        "rebuilt, so check where it came from before you delete that file\n")), res.stderr
+    assert sorted(p.name for p in go_pin(fakes, "0.2.0").iterdir()) == ["sha256"]
+    # the release as first downloaded passes the check and is kept again
+    shutil.rmtree(release.root / "pm-v0.2.0")
+    publish(release, "0.2.0")
+    assert fakes.pm("show", cwd=other).returncode == 0 and (go_pin(fakes, "0.2.0") / "pm").exists()

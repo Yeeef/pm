@@ -8,7 +8,9 @@ package service
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -336,4 +338,49 @@ func FreePort() int {
 		port++
 	}
 	return port
+}
+
+var (
+	plistDir = regexp.MustCompile(`(?s)<key>WorkingDirectory</key>\s*<string>(.*?)</string>`)
+	unitDir  = regexp.MustCompile(`(?m)^WorkingDirectory=(.*)$`)
+)
+
+// Clones is the main checkout of every clone on this machine with a pm service unit installed (the one per clone pm
+// init installs), from the units in this platform's unit dir; none when that dir does not exist. A unit that cannot
+// be read, or names no working directory, fails it: what it would add is not known.
+func Clones() ([]string, error) {
+	kind := PlatformKind()
+	suffix := map[string]string{Launchd: ".plist", Systemd: ".service"}[kind]
+	entries, err := os.ReadDir(UnitDir(kind))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var mains []string
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), "local.pm.") || !strings.HasSuffix(e.Name(), suffix) {
+			continue
+		}
+		path := filepath.Join(UnitDir(kind), e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		if kind == Launchd {
+			found := plistDir.FindSubmatch(data)
+			if found == nil {
+				return nil, fmt.Errorf("%s names no WorkingDirectory", path)
+			}
+			mains = append(mains, strings.NewReplacer("&lt;", "<", "&gt;", ">", "&amp;", "&").Replace(string(found[1])))
+			continue
+		}
+		found := unitDir.FindSubmatch(data)
+		if found == nil {
+			return nil, fmt.Errorf("%s names no WorkingDirectory", path)
+		}
+		mains = append(mains, strings.ReplaceAll(string(found[1]), "%%", "%"))
+	}
+	return mains, nil
 }
