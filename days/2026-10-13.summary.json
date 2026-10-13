@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T17:42:09+00:00",
- "digest": "bfc25adbfc5be3d5",
+ "generated_at": "2026-10-13T18:22:24+00:00",
+ "digest": "8a62ea55c7480025",
  "model": "claude-haiku-5-5",
- "text": "- **Codex sandbox on host:** The records now explain why Codex's sandbox cannot run on the owner's host. A new request to the owner asks for host changes so the sandbox can run.\n- **Codex ask tools:** Codex has ask tools that the pm rule did not know. Work started to name them in the rule and accept them in the hook.\n- **Fixes awaiting release:** Fixes for the closed gaps are in pull requests. They are not yet on the main branch or in a release."
+ "text": "- **Codex ask tools:** pm's request rule now names Codex's ask tools. The hook accepts Codex ask-tool calls. The fix is on a pull request, not yet on main or released.\n- **Codex sandbox on the host:** Records now explain why Codex's sandbox cannot run on the owner's host. They also describe the fix. A request to the owner covered the needed host changes."
 }
