@@ -51,6 +51,11 @@ Gap 9 is closed, not left: pm rule names each runtime ask tool (Claude Code AskU
 Owner, in chat 2026-10-13, after research refuted the premise that Codex has no ask tool: Codex 0.154 offers request_user_input_async to gpt-6 models in Default mode and a blocking request_user_input in Plan mode, both measured in the TUI.
 :::
 
+::: decision {source=owner date=2026-10-13}
+Gap 11 is left: pm does not get Codex sandbox running on hosts where AppArmor restricts unprivileged user namespaces (Ubuntu 24.04 without the bwrap-userns-restrict profile); there the sandboxed path stays unverified live, and the design page names the cause and the fix a user may apply.
+Owner, 2026-10-13, answering action pm-v498.1.6 (install the profile): skip it and document the gap as left.
+:::
+
 ## Design pages
 
 > Where is the detail?
