@@ -74,6 +74,11 @@ An ask-tool question is a decision need tied to a live session (the session wait
 Decision and action say what the owner gives; a question differs only in how the answer travels (to one waiting session, at once), so a new kind would duplicate the decision need on the site and in the rules.
 :::
 
+::: decision {source=agent date=2026-10-13}
+A request to the owner has a kind (decision, action, review) and a timing: sync (a session waits on it now: light form, tied to that session, closed by the first answer in chat or on the site) or async (today's need). An ask-tool question is a sync request; the site marks a sync request as a session waiting now.
+The owner framed it in chat: what sets a question apart is that the session waits for it now, not what the owner gives. Kind and timing are independent (a sync action exists too), so timing is a property, not a fourth kind.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
