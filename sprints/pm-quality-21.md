@@ -106,6 +106,11 @@ The design page site-replies stays as it is for this sprint's code changes.
 the PR moves this page's covered code into noun files and subpackages, quotes values with Go quoting and writes its JSON with encoding/json; the page names no file layout, quoting or JSON byte form, so what it says stays true
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page views-and-site stays as it is for this sprint's code changes.
+the PR moves this page's covered code into noun files and subpackages, quotes values with Go quoting and writes its JSON with encoding/json; the page names no file layout, quoting or JSON byte form, so what it says stays true
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
