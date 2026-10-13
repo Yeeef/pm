@@ -1,3 +1,6 @@
+A PR review closed before its PR reached main, as a stacked PR's is, can be restamped once the PR's change is
+on main, so its sprint can close; and `pm action need --pr` refuses a stacked PR, whose review could never close.
+
 ### Added
 
 - `pm action done <review> --reason "merged as <sha>"` restamps a PR review closed without `merged as <sha>`, as when
