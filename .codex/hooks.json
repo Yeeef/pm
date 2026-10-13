@@ -28,7 +28,7 @@
             "timeout": 30
           }
         ],
-        "matcher": "startup|resume|clear"
+        "matcher": "startup|resume|clear|compact"
       }
     ],
     "SubagentStart": [
@@ -65,11 +65,35 @@
       {
         "hooks": [
           {
-            "command": "pm hook owner-request || exit 1",
+            "command": "pm hook owner-request --runtime codex || exit 1",
             "statusMessage": "Checking for owner requests asked only in chat",
             "type": "command",
-            "timeout": 30
+            "timeout": 45
           },
+          {
+            "command": "pm hook stop || exit 1",
+            "statusMessage": "Checking for uncommitted records",
+            "type": "command",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook inbox || exit 1",
+            "statusMessage": "Checking for the owner's replies",
+            "type": "command",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
           {
             "command": "pm hook stop || exit 1",
             "statusMessage": "Checking for uncommitted records",
