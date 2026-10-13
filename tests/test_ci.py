@@ -269,13 +269,14 @@ def test_a_go_job_skips_its_steps_after_the_change_check_and_still_runs_on_every
     assert "go" in gated and ("suite" in gated) == (workflow == "pm-go.yml")
 
 
-def test_the_linters_restore_the_go_cache_pm_go_saves():
-    """pm-lint.yml restores the Linux build cache pm-go.yml saves: a key in an old form restores a stale cache, which
-    its own restores keep from expiring, or none."""
+def test_every_restore_of_pm_go_s_caches_names_the_key_pm_go_saves():
+    """pm-lint.yml and pm-release-build.yml restore the caches pm-go.yml saves: a key in an old form restores a stale
+    cache, which its own restores keep from expiring, or none."""
     key = re.compile(r"go-[\w-]*?(?:linux-amd64|darwin-arm64|\$\{\{ matrix\.target \}\})-")
-    go = key.findall((PM_DIR / ".github/workflows/pm-go.yml").read_text())
-    assert go == ["go-unzipped-${{ matrix.target }}-"]
-    assert key.findall((PM_DIR / ".github/workflows/pm-lint.yml").read_text()) == ["go-unzipped-linux-amd64-"]
+    keys = {f.name: set(key.findall(f.read_text())) for f in (PM_DIR / ".github/workflows").glob("*.yml")}
+    keys = {name: ks for name, ks in keys.items() if ks}
+    assert keys == {"pm-go.yml": {"go-unzipped-${{ matrix.target }}-"}, "pm-lint.yml": {"go-unzipped-linux-amd64-"},
+                    "pm-release-build.yml": {"go-unzipped-${{ matrix.target }}-"}}
 
 
 RELEASE_YML = PM_DIR / ".github/workflows/pm-release.yml"
