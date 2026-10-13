@@ -72,6 +72,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 PR #61's needs.go change is the PR-base check on raising a review and the review restamp; how a reply reaches a session did not change
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page session-claims stays as it is for this sprint's code changes.
+PR #61's writes.go and dolt.go changes restamp a closed PR review's reason (SetCloseReason); holders, claims and liveness did not change; the restamp is on the Sprint lifecycle and Work store pages
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
