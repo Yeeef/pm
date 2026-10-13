@@ -94,10 +94,15 @@ root, the prompt on stdin, in a process group of its own killed whole at the tim
 
 All calls of a run go at once (`--jobs`, 16). The answer schema is `{"findings": [{"quote", "problem", "evidence"}]}`.
 
-The vote: the calls on one part (a criterion on one section, on the whole file, or on one diff chunk) vote, and the
-part fails when a majority of them report a finding: 2 of 3 for every full-mode criterion but `complete`, which,
-like each diff-mode call, is one call that fails on any finding. A criterion fails when one of its parts fails. The
-table prints every call's findings, the outvoted ones too, and the count of calls with findings.
+The vote is on passages. A finding's lines are the lines of the graded AGENTS.md its quote is on: each part between
+ellipses, compared without Markdown marks and spacing, at every place it occurs. The calls on one part (a criterion
+on one section, on the whole file, or on one diff chunk) vote: a finding is agreed when a majority of the part's
+calls (2 of 3) each report a finding whose lines intersect its lines, its own call counted, and the part fails on an
+agreed finding. So two calls that each flag a different passage do not fail the part; two that flag one passage do.
+This holds for every full-mode criterion but `complete`, which, like each diff-mode call, is one call that fails on
+any finding. A criterion fails when one of its parts fails. The table prints every call's findings with their lines,
+a finding no majority agrees with marked `outvoted`, and per criterion the count of calls with findings and of
+agreed findings; `--out` keeps each finding's lines.
 
 An answer is malformed, and the run fails, when it is not JSON, has no structured output, has a finding without
 quote or evidence, or quotes text that is not in AGENTS.md (compared without Markdown marks and spacing, ellipses
@@ -130,8 +135,8 @@ the checkout's tracked files, committed, then its edits committed on top, so a d
 | `diff_renamed_target` | Diff mode: the Makefile's `merge-ready` renamed | accurate |
 | `diff_neutral` | Diff mode: a docstring reworded | nothing |
 
-A planted run counts as failing only when its criterion fails on a finding that names the marker or quotes a line the
-case added; only that criterion runs. Labels come from the rubric, never from the answers: a miss is a rubric or
+A planted run counts as failing only when its criterion fails on an agreed finding that names the marker or quotes a
+line the case added; only that criterion runs. Labels come from the rubric, never from the answers: a miss is a rubric or
 prompt change, or a fix to AGENTS.md when the clean case fails on a real defect.
 
 `make test-live-agents-md` (`tests/test_agents_md_live.py`, `PM_LIVE_TESTS=1`) runs every case `PM_LIVE_RUNS` times
