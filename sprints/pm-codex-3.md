@@ -102,7 +102,7 @@ This task belongs to sprint 4, which ships 0.8.0 into this repo and closes sprin
 
 done: the live parity eval can run Codex in its auto mode, `--approve-for-me`, which AGENTS.md names as the mode a Codex user is expected to run, and pm 0.8.0 is released with the pm-codex work.
 
-- `PM_PARITY_CODEX_SANDBOX=approve-for-me` (PR #58), with what the mode does and how it meets `pm.rules` on the pm-in-codex page.
+- `PM_PARITY_CODEX_SANDBOX=approve-for-me` (PR #58, merged as e60890f; its merge released nothing, as `changelog.py plan` said), with what the mode does and how it meets `pm.rules` on the pm-in-codex page.
 - pm 0.8.0: tag pm-v0.8.0 on c43ebbb, release workflow green.
 - The post-release steps (pin move, service install, Codex trust, closing sprint 2) moved to pm-codex sprint 4.
 

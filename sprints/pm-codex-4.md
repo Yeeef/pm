@@ -68,10 +68,10 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: the pin move to 0.8.0 (PR #60) and the review restamp (PR #61) are ready. Restarting the service with codex, the Codex trust, and closing sprint 2 follow their merges.
+partial: the pin moved to 0.8.2, the newest release, which carries the review restamp (PR #61, released as pm 0.8.2), and the service runs with codex; the owner's Codex trust step and sprint 2's design-page gate remain.
 
-- PR #60: `pm upgrade --to 0.8.0`: the pin, the hook entries for both runtimes, `.codex/rules/pm.rules`, and the post-checkout marker.
-- PR #61: `pm action done` restamps a closed PR review that lacks "merged as <sha>"; `pm action need --pr` refuses a PR whose base is not main.
+- PR #60 (merged as 21dcf17): `pm upgrade --to 0.8.2`, redone from 0.8.0 once 0.8.1 and 0.8.2 were out: the pin, the hook entries for both runtimes, `.codex/rules/pm.rules`, and the post-checkout marker.
+- PR #61 (merged as 83e1787, released as pm-v0.8.2): `pm action done` restamps a closed PR review that lacks "merged as <sha>"; `pm action need --pr` refuses a PR whose base is not main.
 
 ### Against "Done when"
 
@@ -79,7 +79,7 @@ partial: the pin move to 0.8.0 (PR #60) and the review restamp (PR #61) are read
 
 | Done when | Met | Evidence |
 |---|---|---|
-| `.pm/config.toml` on main pins 0.8.0; `pm version` in the main checkout prints 0.8.0 | not yet | PR #60, CI 12/12; in its worktree `pm version` prints 0.8.0 |
-| `pm doctor` prints no codex service line and no "Codex skips" line | not yet | after #60 merges: `pm service install` from a shell with codex 0.154.0, then the owner's trust step |
-| `pm sprint close pm-v498.2` succeeds | not yet | needs #61 in a release pinned here; under the release-on-merge policy its merge releases it |
+| `.pm/config.toml` on main pins 0.8.0; `pm version` in the main checkout prints 0.8.0 | met, at 0.8.2 | PR #60 merged as 21dcf17, CI 12/12; main pins 0.8.2, the newest release; after `git pull --ff-only` the main checkout's `pm version` prints 0.8.2 |
+| `pm doctor` prints no codex service line and no "Codex skips" line | partly | `pm service install` from a shell with codex-cli 0.162.1 on PATH: no codex service line. `pm doctor` still prints two "Codex skips" lines (2 of 12 hooks untrusted, 5 of 12 changed since trusted), which the owner's trust step (action pm-v498.1.3) clears |
+| `pm sprint close pm-v498.2` succeeds | not yet | Review pm-v498.2.4 restamped as merged as 1cd0fa4 with pm 0.8.2. The close is now refused by the design-page gate (pm 0.8.1): PR #56 changes code that agent-lifecycle, pm-go, pm-versioning and session-claims cover, and sprint 2 neither updated nor waived them |
 | Design pages of changed areas updated and listed | met | Sprint lifecycle, pm CLI, Work store (records ad9b8e2, 6f2cdc4) |

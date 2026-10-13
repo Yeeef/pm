@@ -69,7 +69,7 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: the policy is decided and written, and its automation is ready in PR #63. The live check, pm 0.8.1 published by the merge with no manual step, follows the merge.
+done: the policy is decided and written, and its automation (PR #63, merged as 2bc10f2) released pm 0.8.1 on its own merge and pm 0.8.2 on the next releasing merge, with no manual step.
 
 - Policy: a release on every merge to main that leaves changelog.d entries. Minor only when an entry asks the owner to act (its own upgrade steps, or something removed); otherwise a patch; majors only by hand. `release/hold` pauses it.
 - PR #63: `changelog.py plan` and `next`; entry rules (an own summary paragraph, no step numbers, one entry per PR); `release/main_ci.py`; pm-release.yml on a push to main (CI wait, build, atomic push of the release commit and tag, publish); `merge_ready.py` tolerating the bot's release commits.
@@ -81,7 +81,7 @@ partial: the policy is decided and written, and its automation is ready in PR #6
 | Done when | Met | Evidence |
 |---|---|---|
 | The policy page exists and the owner's decision is recorded | met | [Release policy](../design/release-policy.md); pm-harness project decision 2026-10-13 |
-| A releasing merge publishes a release with notes from changelog.d and no manual step, shown once live | not yet | The merge of PR #63 is that check; `changelog.py plan` on the branch: `release 0.8.1` |
+| A releasing merge publishes a release with notes from changelog.d and no manual step, shown once live | met | PR #63's merge: pm-release.yml run 38459218647 waited for main's CI (2 m 51 s), built both tarballs (3 m 15 s, 3 m 48 s), pushed the bot's release commit 8c67095 with tag pm-v0.8.1 on it, and published install.sh, both tarballs and SHA256SUMS; 7 m 17 s in all. PR #61's merge did the same for pm-v0.8.2 (run 38461395422, 5 m 31 s, release commit 5c7622a). PR #58 (no entry): run 38462628499 skipped tag, build and publish |
 | A non-releasing merge produces none, shown in a test | met | test_changelog.py (no entry, hold, hand section); test_ci.py runs the decide and tag scripts on a bare origin |
 | `make test` covers version selection and trigger rules | met | make test 87 passed; the touched files 26 passed |
 | Design pages of changed areas updated and listed | met | release-policy, pm-versioning (records 8490c7c, 5f6910e) |
