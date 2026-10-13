@@ -193,3 +193,9 @@ internal/cli/cli.go on main is not gofmt-clean (found by pm-quality sprint 16 on
 About project `pm-harness`.
 
 pm task close without --reason closed a task as done (default reason Done) when I ran it only to read its refusal, and there is no pm task reopen to undo it; a reopen, or requiring --reason, would have helped. Also pm task claim accepted a task still blocked by an open dependency (123.1 on 122.2); if that is intended, its --help could say so.
+
+### 2026-10-13 18:49 UTC, session `03916b9e-dc84-51d8-a46a-76af3ace75fa`
+
+About project `pm-codex`.
+
+A stacked PR (#56, base codex-parity) was merged by the owner into its base branch, not main. I closed its review need pm-v498.2.4 right away with a reason naming the branch merge, not "merged as <sha>". When the work reached main inside PR #47 (1cd0fa4), sprint 2 could no longer close: pm sprint close refuses a review not closed as "merged as <sha>"; `--merged <sha> --pr URL` refuses while the sprint holds a review; `pm action done` refuses an already closed action; and nothing restamps a closed review. What would have helped: either pm action done on a closed PR review accepting a corrected "merged as <sha>" when the old reason had none; or pm action need --pr refusing (or warning) when the PR's base is not the main branch, which is where this started.
