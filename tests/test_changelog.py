@@ -283,6 +283,9 @@ def test_plan_releases_entries_with_the_bump_a_pin_move_s_action_asks():
     assert changelog.plan([fixed, added, breaking], None, TAGS) == "release 0.8.1"
     assert changelog.plan([fixed, step], None, TAGS) == "release 0.9.0"
     assert changelog.plan([removed], None, TAGS) == "release 0.9.0"
+    assert changelog.plan([added], None, TAGS, newest="0.8.0") == "release 0.8.1"
+    assert changelog.plan([added], None, TAGS, newest="1.0.0") == (  # a major written by hand, its tag not pushed
+        "none: CHANGELOG.md holds [1.0.0], written by hand and not tagged yet: push pm-v1.0.0 first")
     assert changelog.next_version("0.9.4", [added]) == "0.9.5"
     assert changelog.next_version("0.99.3", [removed]) == "0.100.0"  # 1.0 only by a hand-pushed tag
     assert changelog.last_release(["pm-v0.9.0", "pm-v0.10.0", "pm-v0.2.0"]) == "0.10.0"

@@ -138,13 +138,13 @@ decision, pm-harness; the policy page is the `release-policy` design page). A re
 commit and its GitHub release; no code file holds `X`: `release/build.sh` stamps it into the binary
 (`-ldflags -X …/buildinfo.Version=<X>`), and an untagged build reports `dev`, which no repo pins.
 `.github/workflows/pm-release.yml`, on each push to main (one run at a time, none cut short; a pending run is replaced
-by a newer one, which releases every entry):
+by a newer one, which releases every entry; a hand-pushed tag's run is in a group of its own):
 
 | Job | Does |
 |---|---|
-| `version` | `release/changelog.py plan`: `release X`, or `none: <why>` (no entry file; a `release/hold`). No release either when main moved past the commit (the newer commit's run releases). It fails while the last release tag has no GitHub release (a failed publish, finished first). Then `release/main_ci.py` waits for every workflow run of that push to main and requires each to pass, each workflow that runs on every push to main included |
+| `version` | `release/changelog.py plan`: `release X`, or `none: <why>` (no entry file; a `release/hold`; a `CHANGELOG.md` section written by hand whose tag is not pushed yet). No release either when main moved past the commit (the newer commit's run releases). It fails while the last release tag has no GitHub release (a failed publish, finished first). Then `release/main_ci.py` waits for every workflow run of that push to main and requires each to pass, each workflow that runs on every push to main included |
 | `build` | `release/build.sh dist pm-v<X>` at the merge commit, natively on `macos-14` (darwin-arm64) and `ubuntu-22.04` (linux-amd64), cgo needing native runners; checks the tarball holds one `pm` whose `pm version` prints `X` |
-| `tag` | `changelog.py release X` at the merge commit (`X`'s section from the entry files, which it deletes), committed by `github-actions[bot]` and checked to change only `CHANGELOG.md` and entry files, then `git push --atomic` of that commit to main and the tag `pm-v<X>`, with `GITHUB_TOKEN` (`contents: write`). Rejected because main moved: no release from this run |
+| `tag` | `changelog.py release X` at the merge commit (`X`'s section from the entry files, which it deletes), committed by `github-actions[bot]` and checked to change only `CHANGELOG.md` and entry files, then `git push --atomic` of that commit to main and the tag `pm-v<X>`, with `GITHUB_TOKEN` (`contents: write`), judged by what origin then holds. Main moved: no release from this run |
 | `publish` | `SHA256SUMS` of both tarballs and `install.sh` with `X` filled in; `gh release create pm-v<X> --verify-tag` with the four assets and notes `changelog.py notes X`: `X`'s section, its upgrade guide first |
 
 A tag pushed with `GITHUB_TOKEN` starts no workflow, so one run builds, tags and publishes; no secret is needed. A

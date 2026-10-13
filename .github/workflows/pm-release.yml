@@ -24,10 +24,11 @@ on:
 permissions:
   contents: read
 
-# One run at a time, and never one cut short: a later push waits, and a pending run is replaced by a newer one, which
-# releases every entry the replaced one would have.
+# Pushes to main release one run at a time, and none is cut short: a later push waits, and a pending run is replaced
+# by a newer one, which releases every entry the replaced one would have. Each hand-pushed tag has its own group, so
+# no push to main replaces its run.
 concurrency:
-  group: pm-release
+  group: pm-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -81,12 +82,16 @@ jobs:
         run: |
           set -eu
           none() { echo "no release: $1" | tee -a "$GITHUB_STEP_SUMMARY"; echo "release=false" >> "$GITHUB_OUTPUT"; }
-          moved() { [ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$GITHUB_SHA" ]; }
+          moved() {
+            tip=$(git ls-remote origin refs/heads/main | cut -f1)
+            [ -n "$tip" ] || { echo "::error::cannot read origin's main"; exit 1; }
+            [ "$tip" != "$GITHUB_SHA" ]
+          }
           if moved; then none "main moved past $GITHUB_SHA; the run for the newer commit releases"; exit 0; fi
           # a release whose tag was pushed but whose publish failed is finished before any later one
           last=$(git tag --list 'pm-v*' | grep -E '^pm-v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
           gh release view "$last" --json tagName > /dev/null || {
-            echo "::error::tag $last has no GitHub release: re-run the failed publish job of the run that pushed it (gh run rerun <run id> --failed); no later release runs until then"
+            echo "::error::tag $last has no GitHub release: re-run the publish job of the run that pushed it (gh run rerun <run id> --job <publish job id>); no later release runs until then"
             exit 1; }
           err=$(mktemp)
           plan=$(python3 release/changelog.py plan 2> "$err") || { cat "$err" >&2; exit 1; }
@@ -99,6 +104,7 @@ jobs:
             if moved; then none "main's CI on $GITHUB_SHA did not pass, and main moved past it"; exit 0; fi
             exit 1
           fi
+          if moved; then none "main moved past $GITHUB_SHA while its CI ran; the run for the newer commit releases"; exit 0; fi
           { echo "release=true"; echo "version=$x"; echo "prerelease=false"; echo "tag=pm-v$x"; } >> "$GITHUB_OUTPUT"
           echo "releases pm $x from $GITHUB_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -168,10 +174,15 @@ jobs:
           other=$(git diff --name-status --no-renames HEAD^ HEAD | grep -Ev '^(M.CHANGELOG\.md|D.changelog\.d/[^/]+\.md)$' || true)
           [ -z "$other" ] || { echo "::error::the release commit changes more than CHANGELOG.md and entry files: $other"; exit 1; }
           git tag "pm-v$X"
-          if git push --atomic origin HEAD:refs/heads/main "refs/tags/pm-v$X"; then
+          released=$(git rev-parse HEAD)
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/pm-v$X" || true
+          # judged by what origin holds, not by the push's exit: a push that landed but reported a failure published
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          [ -n "$tip" ] || { echo "::error::cannot read origin's main after the push"; exit 1; }
+          if [ "$tip" = "$released" ] && [ "$(git ls-remote origin "refs/tags/pm-v$X" | cut -f1)" = "$released" ]; then
             echo "pushed=true" >> "$GITHUB_OUTPUT"
             echo "pushed release commit $(git rev-parse --short HEAD) to main, tagged pm-v$X" | tee -a "$GITHUB_STEP_SUMMARY"
-          elif [ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$GITHUB_SHA" ]; then
+          elif [ "$tip" != "$GITHUB_SHA" ] && [ "$tip" != "$released" ]; then
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             echo "no release: main moved past $GITHUB_SHA while this ran; the run for the newer commit releases" |
               tee -a "$GITHUB_STEP_SUMMARY"

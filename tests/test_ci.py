@@ -211,7 +211,9 @@ def test_the_release_runs_on_a_push_to_main_one_run_at_a_time_and_only_its_tag_a
     text = RELEASE_YML.read_text()
     assert re.search(r"^on:\n  push:\n    branches: \[main\]\n    tags: \[\"pm-v\*\"\]\n", text, re.M)
     assert re.search(r"^permissions:\n  contents: read\n", text, re.M)
-    assert re.search(r"^concurrency:\n  group: pm-release\n  cancel-in-progress: false\n", text, re.M)
+    # main's pushes share one group; each hand-pushed tag has its own, so no merge replaces its pending run
+    assert re.search(r"^concurrency:\n  group: pm-release-\$\{\{ github.ref \}\}\n  cancel-in-progress: false\n",
+                     text, re.M)
     j = jobs(RELEASE_YML)
     assert list(j) == ["version", "build", "tag", "publish"]
     assert "needs: version\n" in j["build"] and "needs: [version, build]\n" in j["tag"]

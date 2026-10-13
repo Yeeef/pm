@@ -383,8 +383,12 @@ def read_hold(root: Path) -> str | None:
     return reason
 
 
-def plan(entries: list[Section], hold: str | None, tags: list[str]) -> str:
-    """What a push to main releases: 'release X', or 'none: <why>'."""
+def plan(entries: list[Section], hold: str | None, tags: list[str], newest: str | None = None) -> str:
+    """What a push to main releases: 'release X', or 'none: <why>'. newest is CHANGELOG.md's newest section: one newer
+    than the last release tag is a release written by hand whose tag is not pushed yet, which comes first."""
+    if newest is not None and tuple(int(p) for p in newest.split(".")) > tuple(
+            int(p) for p in last_release(tags).split(".")):
+        return f"none: CHANGELOG.md holds [{newest}], written by hand and not tagged yet: push pm-v{newest} first"
     if hold is not None:
         return f"none: {HOLD} holds releases: {hold}"
     if not entries:
@@ -454,7 +458,7 @@ def main(argv: list[str]) -> int:
                     if days > HOLD_WARN_DAYS:
                         print(f"warning: {HOLD} has held every release for {days:.0f} days: finish the feature it "
                               "waits for, or delete it", file=sys.stderr)
-                print(plan(entries, hold, tags))
+                print(plan(entries, hold, tags, log.sections[0].name if log.sections else None))
         elif a.cmd == "release":
             CHANGELOG.write_text(release(text, entries, a.version, a.date, a.summary))
             for entry in entries:
