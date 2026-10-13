@@ -99,6 +99,8 @@ Its Garbage row (DOLT_GC on a schedule, online, session-aware safepoints) still 
 
 done: the race job's "close of closed channel" panic was a Dolt bug that back-to-back collections hit, and pm now waits for each collection's visits to the other sessions to end before the next collection may begin.
 
+Merged as 185c7e0 (PR #74).
+
 - `Host.GC` waits, under `gcMu`, for each session's last visit to end (`internal/work/host_gc.go`). It reads Dolt's GC safepoint controller by reflection, and the host's start fails if a Dolt upgrade changes the controller's fields.
 - New check: TestACollectionRacingItsOwnVisitsReturnsOnceEachEnds, which is in RACE_TESTS.
 - PR [#74](https://github.com/Yeeef/pm/pull/74).
