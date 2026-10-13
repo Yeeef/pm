@@ -56,6 +56,11 @@ Interactive mode turns off only the owner-request judge; pm hook stop (uncommitt
 An uncommitted hand edit is a mistake whether or not the owner is watching; only the chat-ask rule depends on the owner being present.
 :::
 
+::: decision {source=owner date=2026-10-13}
+The mode is set per session by pm interactive and pm autopilot, stored local to the clone, and defaults to autopilot.
+Hooks are configured per project, so the hook itself must read a per-session flag; a missing or stale flag must fall back to the strict default.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
