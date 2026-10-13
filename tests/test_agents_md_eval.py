@@ -7,6 +7,7 @@ from __future__ import annotations
 import http.server
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -51,10 +52,20 @@ def test_diff_mode_checks_accurate_and_complete_on_each_chunk_cut_at_file_bounda
     files = [f"diff --git a/f{i} b/f{i}\n" + "+x\n" * 40 for i in range(5)]
     cut = evaluate.chunks("".join(files), size=len(files[0]) * 2)
     assert cut == ["".join(files[0:2]), "".join(files[2:4]), files[4]]
-    assert evaluate.chunks(files[0], size=10) == [files[0]]  # a file over the size is a chunk alone
+    assert evaluate.chunks(files[0], size=10) == [files[0]]  # a file over the size, no hunk to cut at: whole
     calls = evaluate.diff_calls(AGENTS_MD, "".join(files))
     assert [(c.criterion, c.part) for c in calls] == [("accurate", "diff 1/1"), ("complete", "diff 1/1")]
     assert "<diff>\n" in calls[0].prompt and "make a claim in AGENTS.md false" in calls[0].prompt
+
+
+def test_a_file_over_the_chunk_size_is_cut_at_its_hunks_each_under_its_header():
+    header = "diff --git a/big b/big\nindex 1..2 100644\n--- a/big\n+++ b/big\n"
+    hunk = [f"@@ -{i},2 +{i},2 @@\n" + "+y\n" * 30 for i in range(4)]
+    small = "diff --git a/s b/s\n+z\n"
+    size = len(header) + 2 * len(hunk[0])
+    cut = evaluate.chunks(header + "".join(hunk) + small, size=size)
+    assert cut == [header + hunk[0] + hunk[1], header + hunk[2] + hunk[3], small]
+    assert evaluate.chunks(header + hunk[0], size=10) == [header + hunk[0]]  # one hunk over the size: whole
 
 
 def test_auto_mode_is_full_when_the_diff_changes_agents_md_and_diff_otherwise(tmp_path):
@@ -135,10 +146,21 @@ def test_each_call_writes_a_fresh_oidc_token_for_the_anthropic_api(tmp_path):
         evaluate.refresh_oidc({"ACTIONS_ID_TOKEN_REQUEST_URL": "u", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "t"})
 
 
+def test_federation_without_an_oidc_token_fails_before_any_call(fake_claude, tmp_path):
+    with pytest.raises(SystemExit, match="no GitHub OIDC token.*a fork's PR gets none.*push the branch to Yeeef/pm"):
+        evaluate.run_calls([call()], "haiku", tmp_path, AGENTS_MD,
+                           env={**os.environ, "ANTHROPIC_FEDERATION_RULE_ID": "fdrl"})
+    assert not fake_claude.exists()
+
+
 FAKE = """#!{python}
 import json, os, subprocess, sys, time
 prompt = sys.stdin.read()
 open(os.environ["FAKE_LOG"], "a").write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd()}}) + "\\n")
+if os.environ.get("FAKE_DETACH"):  # a descendant out of the call's process group, holding its stdout
+    child = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    open(os.environ["FAKE_DETACH"], "w").write(str(child.pid))
+    time.sleep(60)
 if os.environ.get("FAKE_HANG"):
     child = subprocess.Popen(["sleep", "60"])
     open(os.environ["FAKE_HANG"], "w").write(str(child.pid))
@@ -185,6 +207,16 @@ def test_a_call_past_its_timeout_fails_and_its_process_group_is_killed(fake_clau
         threading.Event().wait(0.05)
     else:
         pytest.fail(f"the fake's child {pid} outlived the timeout: {state}")
+
+
+def test_a_timed_out_call_does_not_wait_on_a_descendant_that_holds_its_pipes(fake_claude, tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKE_DETACH", str(tmp_path / "child"))
+    monkeypatch.setattr(evaluate, "REAP", 1)
+    try:
+        r = evaluate.run_call(call(), "haiku", tmp_path, AGENTS_MD, timeout=2)
+        assert r.error == "timed out after 2s" and r.seconds < 10
+    finally:
+        os.kill(int((tmp_path / "child").read_text()), signal.SIGKILL)
 
 
 def test_main_exits_1_on_a_finding_and_writes_every_call_to_out(fake_claude, tmp_path, monkeypatch, capsys):

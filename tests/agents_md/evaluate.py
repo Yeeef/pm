@@ -16,12 +16,14 @@ It prints a table, and writes every call's answer, seconds and cost to --out.
 
 In GitHub Actions (ACTIONS_ID_TOKEN_REQUEST_URL set) each call first writes a fresh GitHub OIDC token for the Anthropic
 API to $ANTHROPIC_IDENTITY_TOKEN_FILE, for Claude Code's workload identity federation, and the call runs without any
-other Anthropic credential in its environment. Elsewhere it runs with the user's own Claude Code login.
+other Anthropic credential in its environment; with ANTHROPIC_FEDERATION_RULE_ID set and no such token (a fork's
+PR) the run fails before any call. Elsewhere it runs with the user's own Claude Code login.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -42,6 +44,7 @@ CRITERIA = ("accurate", "non_inferable", "map", "no_copies", "actionable", "no_h
 DIFF_CRITERIA = ("accurate", "complete")
 MODEL = "haiku"
 TIMEOUT = 240  # seconds per call; a call past it fails the run
+REAP = 10  # seconds to drain a killed call's pipes
 JOBS = 16
 CHUNK = 60_000  # characters of diff per diff-mode call
 # Diff paths no AGENTS.md claim rests on: generated expectations and lock files.
@@ -137,15 +140,32 @@ def full_calls(agents_md: str, root: Path, criteria: tuple[str, ...]) -> list[Ca
 
 
 def chunks(diff: str, size: int = CHUNK) -> list[str]:
-    """The diff cut at its file boundaries into chunks of about `size` characters; a larger file is a chunk alone."""
+    """The diff cut at its file boundaries into chunks of about `size` characters. A larger file is cut at its `@@`
+    hunks, each piece under the file's own header (`diff --git` to `+++`); a single hunk over `size` goes whole."""
     files = re.split(r"(?=^diff --git )", diff, flags=re.M)
     out: list[str] = []
     for f in (f for f in files if f.strip()):
-        if out and len(out[-1]) + len(f) <= size:
-            out[-1] += f
-        else:
-            out.append(f)
+        for piece in hunks(f, size):
+            if out and len(out[-1]) + len(piece) <= size:
+                out[-1] += piece
+            else:
+                out.append(piece)
     return out
+
+
+def hunks(file_diff: str, size: int) -> list[str]:
+    """One file's diff as pieces of about `size` characters, cut at its hunks, each under the file's header."""
+    if len(file_diff) <= size:
+        return [file_diff]
+    parts = re.split(r"(?=^@@ )", file_diff, flags=re.M)
+    header, body = parts[0], parts[1:]
+    out: list[str] = []
+    for h in body:
+        if out and len(out[-1]) + len(h) <= size:
+            out[-1] += h
+        else:
+            out.append(header + h)
+    return out or [file_diff]
 
 
 DIFF_TASK = {
@@ -206,6 +226,14 @@ def refresh_oidc(env: dict[str, str]) -> None:
         with os.fdopen(fd, "w") as f:
             f.write(token)
         os.replace(tmp, path)  # whole, so a call starting meanwhile reads the old token or the new one
+
+
+def require_oidc(env: dict[str, str]) -> None:
+    """Under federation, fail before any call when the run has no GitHub OIDC token to give it."""
+    if env.get("ANTHROPIC_FEDERATION_RULE_ID") and not env.get("ACTIONS_ID_TOKEN_REQUEST_URL"):
+        raise SystemExit("evaluate.py: ANTHROPIC_FEDERATION_RULE_ID is set but this run has no GitHub OIDC token "
+                         "(ACTIONS_ID_TOKEN_REQUEST_URL is unset; a fork's PR gets none): push the branch to "
+                         "Yeeef/pm and re-run")
 
 
 def child_env(env: dict[str, str]) -> dict[str, str]:
@@ -270,8 +298,11 @@ def run_call(call: Call, model: str, root: Path, agents_md: str, timeout: float 
     try:
         out, err = proc.communicate(call.prompt, timeout=timeout)
     except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.communicate()
+        with contextlib.suppress(ProcessLookupError):  # the group may have exited at the timeout itself
+            os.killpg(proc.pid, signal.SIGKILL)
+        # A descendant that left the group may still hold the pipes: wait for them only briefly.
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            proc.communicate(timeout=REAP)
         return Result(call, time.monotonic() - start, error=f"timed out after {timeout:.0f}s")
     took = time.monotonic() - start
     if proc.returncode != 0 and not out.strip():
@@ -284,6 +315,7 @@ def run_call(call: Call, model: str, root: Path, agents_md: str, timeout: float 
 
 def run_calls(calls: list[Call], model: str, root: Path, agents_md: str, jobs: int = JOBS,
               timeout: float = TIMEOUT, env: dict[str, str] | None = None) -> list[Result]:
+    require_oidc(dict(os.environ if env is None else env))
     with ThreadPoolExecutor(max(1, min(jobs, len(calls)))) as pool:
         return list(pool.map(lambda c: run_call(c, model, root, agents_md, timeout, env), calls))
 
