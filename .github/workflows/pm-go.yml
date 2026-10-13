@@ -1,7 +1,11 @@
 # pm on every pull request: built on both release targets as the release builds it (cgo, native runners), the gofmt
-# check, go vet and the Go tests (make test-go), split into parallel jobs per target: the build, gofmt, vet and every
-# package's tests but internal/work's; internal/work's tests, the longest, in processes at once (make go-test-work); the
-# race tests. The step summary records the binary's size per target. pm-release-build.yml runs the release build test,
+# check, go vet and the Go tests (make test-go), split into parallel jobs. On Linux: the build (pm, the page renderer
+# and pm-before), gofmt, vet and every package's tests but internal/work's; internal/work's tests, the longest, in
+# processes at once (make go-test-work); the race tests. On macOS, two jobs, since GitHub runs at most 5 macOS jobs at
+# once across all of the repo's runs (Linux takes 20): pm's build, every package's tests but internal/work's, and
+# internal/work's, at once; the race tests. gofmt and vet read the same files on both targets (no Go file is
+# OS-specific), and the renderer and pm-before serve only the harness, which runs on Linux, so they run there alone.
+# The step summary records the binary's size per target. pm-release-build.yml runs the release build test,
 # pm-tests.yml the harness suite.
 #
 # The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
@@ -36,25 +40,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [darwin-arm64, linux-amd64]
-        suite: [build-vet-test, work, race]
         include:
-          - target: darwin-arm64
-            runner: macos-14
-          - target: linux-amd64
-            runner: ubuntu-22.04  # glibc 2.35, the oldest the release links against
-          - suite: build-vet-test
-            cache: build
-            save: true
-            run: make go-build go-fmt go-vet go-test-but-work
-          - suite: work
-            cache: build  # what it compiles is a subset of build-vet-test's, which saves it
-            save: false
-            run: make go-test-work
-          - suite: race
-            cache: race
-            save: true
-            run: make -j2 go-test-race
+          - {target: linux-amd64, runner: ubuntu-22.04, suite: build-vet-test, cache: build, save: true, binary: true,
+             run: make go-build go-fmt go-vet go-test-but-work}
+          # what work compiles is a subset of build-vet-test's, which saves it
+          - {target: linux-amd64, runner: ubuntu-22.04, suite: work, cache: build, save: false, run: make go-test-work}
+          - {target: linux-amd64, runner: ubuntu-22.04, suite: race, cache: race, save: true, run: make -j2 go-test-race}
+          # at once: pm's link waits on I/O more than it computes, and the tests on git and Dolt
+          - {target: darwin-arm64, runner: macos-14, suite: build-test, cache: build, save: true, binary: true,
+             run: make -j3 go-build-pm go-test-but-work go-test-work}
+          - {target: darwin-arm64, runner: macos-14, suite: race, cache: race, save: true, run: make -j2 go-test-race}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     env:
@@ -92,7 +87,7 @@ jobs:
         id: suite
         run: ${{ matrix.run }}
       - name: Record the binary
-        if: matrix.suite == 'build-vet-test'
+        if: matrix.binary
         run: |
           go version -m .go/pm | grep -E 'CGO_ENABLED=1|GOOS|GOARCH'
           size=$(wc -c < .go/pm | tr -d ' ')
