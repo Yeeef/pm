@@ -91,12 +91,26 @@ The Done when says no function exceeds 30; applying it globally gives an exact c
 
 ### Outcome
 
-> Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
+partial: the refactor and its verification are complete in [PR #62](https://github.com/Yeeef/pm/pull/62); owner review and merge remain.
 
-Not closed yet.
+- Command bodies now live by noun; parser/help and setup commands have their own packages. The shared command package remains above the general 5,000-line limit, with a lower exact allowance of 7,445 lines.
+- The five named long functions and every other function above cyclomatic complexity 30 were split into stages, preserving the existing validation and write order. Test names and assertions remain intact.
+- The parser already used pflag; this sprint separated normalization, flag parsing, positional assignment and explicit required/group checks. Compatibility output is retained where callers depend on it.
+- Machine inbox messages use typed standard JSON. Human-facing repr/errors and stored/exported JSON retain their Python-compatible form.
+- File and complexity limits now fail CI automatically. Development guidance and affected design ownership match the implementation.
 
 ### Against "Done when"
 
-> Each item, met or not, with its evidence (a page, a command, a number).
+| Check | Result | Evidence |
+|---|---|---|
+| No cli file over 800 lines | Met | Largest is `commands.go`, 714 lines; `size_test.go` now checks every Go file under cli, tests included |
+| No function above cyclomatic complexity 30 | Met | Global gocyclo: 0 findings; gocyclo moved out of the changed-lines ratchet and gates all functions |
+| Lower cli package allowance | Met | 8,896 → 7,445 non-test lines, down 1,451 (16.3%); the exact allowance is 7,445 |
+| `make lint` | Met | Full gates and changed-lines ratchet: 0 findings; deadcode and ruff pass |
+| `make test` | Met | Final run: 83 passed, 136 skipped, 11.14 s |
+| `make test-go` | Met | All packages, vet and formatting pass; 31 work tests in 8 shards (13.1 s), service race tests pass, 8 work race tests in 8 shards (11.4 s) |
+| CI green | Met | PR #62 checks pass on commit d4acff4, including Linux/macOS Go, work/race tests, harness integration/light, lint and release builds |
 
-Not closed yet.
+Additional evidence: focused setup integration 18 passed in 12.69 s; final uninstall integration 3 passed in 4.87 s; final merge/sync Go tests passed in 55.665 s. Site and install golden tests pass without changing their expected output. Fresh review found no correctness issues; a second read verified the bounded cleanup patch preserves the original behavior.
+
+The host had 32 available cores and approximately 51 GiB available memory; harness workers, 8-way work shards and parallel lint/Go stages ran concurrently. Commands and results are recorded above; detailed logs remain under `/tmp/pm-cli-*.log` on this host. The code revision is d4acff4; the worktree is `/tmp/pm-cli-nouns` on `refactor/cli-nouns`.
