@@ -17,5 +17,5 @@ Go way; the files pm writes in a repo stay byte for byte the same when their tex
   written as it is. With a non-ASCII value, `pm doctor` names the file as differing until `pm upgrade` rewrites it.
 - `.claude/settings.json`, `.codex/hooks.json` and `.claude/settings.local.json` keep a number as the file writes it
   (`1.50` stays `1.50`) where pm rewrote it the way Python writes numbers, and `pm init` no longer refuses a file
-  only for such a number. A string holding U+2028 or U+2029
-  is now written with that character escaped.
+  only for such a number. A string holding U+2028 or U+2029 is now written with that character escaped, so `pm init`
+  refuses a file that holds either one raw as not laid out as pm writes JSON.
