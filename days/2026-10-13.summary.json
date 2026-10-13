@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T20:49:55+00:00",
- "digest": "d3440f709ebe681f",
+ "generated_at": "2026-10-13T21:00:19+00:00",
+ "digest": "415f689673ad0076",
  "model": "claude-haiku-5-5",
- "text": "- **Codex sessions:** A Codex session now gets the same pm guarantees as a Claude Code session. The owner-request judge and the day summary now run on Codex too.\n- **Code structure and gates:** The command code now splits by noun, and the old Python-port parser code is removed. A pull request that changes covered code waits until its design page is updated or waived.\n- **Releases ship on merge:** CI now publishes a pm release when a change merges, with no manual step.\n- **Pin upgrades:** `pm upgrade` now prints the steps of every release it crosses. It also prunes launcher pins that no repo on the machine uses, and keeps their checksums."
+ "text": "- **Codex runtime support:** A Codex session now gets the same pm guarantees as a Claude Code session. The owner-request judge and the day summary now run on each session's own runtime.\n- **Release automation:** Releases now follow a written policy and run in CI without a manual step. Upgrades now show every crossed release's steps and remove unused launcher pins.\n- **Design and code checks:** A design page now names the code it covers. A pull request that changes that code waits until its sprint updates the page or records why not.\n- **CI sign-in for Claude:** GitHub Actions now reaches the Anthropic API through workload identity federation. A test run in a pull request confirmed the token exchange and a Claude call."
 }
