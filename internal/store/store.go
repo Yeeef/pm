@@ -16,6 +16,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -205,8 +206,17 @@ func Committed(store string, changes map[string]*string) ([]*records.Record, err
 	return records.ParseAll(root, texts)
 }
 
-// Dates is a design page's created and last-updated dates.
-type Dates struct{ Created, Updated string }
+// Dates is a design page's created and last-updated dates, its last commit's time, and what changed in its covered code
+// since that commit (CodeChanges).
+type Dates struct {
+	Created, Updated string
+	Edited           int64        // the unix time of its last records commit; 0 while it has uncommitted changes
+	Code             []CodeCommit // the commits on the remote's main branch that changed its covered code after Edited
+	Unchecked        string       // why its covered code was not checked, for a page with covers; "" when it was
+}
+
+// CodeCommit is a commit on the main branch: its sha and its date.
+type CodeCommit struct{ SHA, Day string }
 
 // DesignDates is the dates of each design record in recs, by its rel: those of its first and last commits on the
 // records branch, following renames within its directory as git log --follow does. A page with uncommitted changes
@@ -230,15 +240,20 @@ func DesignDates(store string, recs []*records.Record, today string) (map[string
 		dirs = append(dirs, d)
 	}
 	sort.Strings(dirs)
-	log, err := Git(store, append([]string{"log", "-M", "--name-status", "--format=%x00%cs", "--"}, dirs...)...)
+	log, err := Git(store, append([]string{"log", "-M", "--name-status", "--format=%x00%cs %ct", "--"}, dirs...)...)
 	if err != nil {
 		return nil, err
 	}
 	created, updated, renamed := map[string]string{}, map[string]string{}, map[string]string{}
+	edited := map[string]int64{}
 	chunks := strings.Split(log, "\x00")
 	for _, chunk := range chunks[1:] { // newest commit first
 		lines := strings.Split(strings.Trim(chunk, "\n"), "\n")
-		day := lines[0]
+		day, unix, _ := strings.Cut(lines[0], " ")
+		at, err := strconv.ParseInt(unix, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("git log over %s printed %q, not a date and a unix time", strings.Join(dirs, ", "), lines[0])
+		}
 		for _, line := range lines[1:] {
 			if line == "" {
 				continue
@@ -251,7 +266,7 @@ func DesignDates(store string, recs []*records.Record, today string) (map[string
 				name = last
 			}
 			if _, ok := updated[name]; !ok {
-				updated[name] = day
+				updated[name], edited[name] = day, at
 			}
 			created[name] = day
 			if strings.HasPrefix(status, "R") {
@@ -279,15 +294,59 @@ func DesignDates(store string, recs []*records.Record, today string) (map[string
 			if !ok {
 				c = today
 			}
-			out[rel] = Dates{c, today}
+			out[rel] = Dates{Created: c, Updated: today}
 		case updated[p] != "":
-			out[rel] = Dates{created[p], updated[p]}
+			out[rel] = Dates{Created: created[p], Updated: updated[p], Edited: edited[p]}
 		default:
 			return nil, errorf("%s: committed and unchanged, yet git log over %s never names it", rel,
 				strings.Join(dirs, ", "))
 		}
 	}
 	return out, nil
+}
+
+// CodeChanges sets the Code of each design page in dates that has covers and no uncommitted changes: the commits on
+// main, the remote's main branch as this clone last fetched it (refs/remotes/<main>, as pm sprint close --merged
+// names it), that change a file its covers match and are newer than its last records commit, newest first. It follows
+// the first parent, so a merge counts as the one commit that brought its branch, at its own date. The records store
+// shares the code's repository, so it runs in store: one git log per such page. A clone without that ref gets each such
+// page's Unchecked set, naming it, and no git log.
+func CodeChanges(store, main string, recs []*records.Record, dates map[string]Dates) error {
+	ref := "refs/remotes/" + main
+	known, err := Git(store, "for-each-ref", "--format=%(refname)", ref)
+	if err != nil {
+		return err
+	}
+	for _, r := range recs {
+		d, ok := dates[r.Rel]
+		covers := r.Covers()
+		if r.Type() != "design" || !ok || d.Edited == 0 || len(covers) == 0 {
+			continue
+		}
+		if known != ref {
+			d.Unchecked = "no " + main
+			dates[r.Rel] = d
+			continue
+		}
+		args := []string{"log", "--first-parent", "--format=%H %cs",
+			"--since=" + time.Unix(d.Edited+1, 0).UTC().Format(time.RFC3339), ref, "--"}
+		for _, c := range covers {
+			args = append(args, ":(glob)"+c)
+		}
+		out, err := Git(store, args...)
+		if err != nil {
+			return err
+		}
+		if out == "" {
+			continue
+		}
+		for _, line := range strings.Split(out, "\n") {
+			sha, day, _ := strings.Cut(line, " ")
+			d.Code = append(d.Code, CodeCommit{SHA: sha, Day: day})
+		}
+		dates[r.Rel] = d
+	}
+	return nil
 }
 
 // Uncommitted is those of paths that differ from HEAD in the store (modified, staged, removed or untracked), as store

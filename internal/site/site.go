@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	pm "github.com/Yeeef/pm"
+	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -484,15 +486,11 @@ func PRLabel(url string) string {
 	return "PR"
 }
 
-var designLink = regexp.MustCompile(`\(\.\./design/([a-z0-9-]+)\.md[)#]`)
-
 func reviewDesigns(review *work.ReviewInfo, recs []*Record) []*Record {
 	slugs := append([]string{}, review.Designs...)
 	for _, r := range recs {
 		if b, ok := r.ID("bead"); ok && r.Type() == "sprint" && contains(review.Sprints, b) {
-			for _, m := range designLink.FindAllStringSubmatch(records.SectionText(r.Body, "Design pages"), -1) {
-				slugs = append(slugs, m[1])
-			}
+			slugs = append(slugs, records.DesignLinks(r)...)
 		}
 	}
 	bySlug := map[string]*Record{}
@@ -805,6 +803,48 @@ func designDatesMeta(rec *Record, dates Dates) string {
 	return "<span>created " + esc(d.Created) + "</span><span>updated " + esc(d.Updated) + "</span>"
 }
 
+var mergedStamp = regexp.MustCompile(`Merged as ([0-9a-f]{7,40})\b`)
+
+// codeChanged is the line a design page shows when the code its covers name changed after its last edit, or why that
+// was not checked; "" when it was and nothing changed.
+// A commit is left out when a sprint that updated the page (links it in Design pages) or waived it (pm design
+// unchanged) stamped it as its merge: that sprint's page edit or waiver already answers for it, though the merge
+// lands after the edit.
+func codeChanged(page *Record, recs []*Record, d store.Dates) string {
+	if d.Unchecked != "" {
+		return `<p class="note draft">Code changes not checked: ` + esc(d.Unchecked) + ".</p>"
+	}
+	commits := d.Code
+	var merges []string
+	for _, r := range recs {
+		if _, waived := design.Waivers(r)[page.Name()]; r.Type() == "sprint" &&
+			(waived || contains(records.DesignLinks(r), page.Name())) {
+			for _, m := range mergedStamp.FindAllStringSubmatch(r.Body, -1) {
+				merges = append(merges, m[1])
+			}
+		}
+	}
+	var left []store.CodeCommit
+	for _, c := range commits {
+		if !slices.ContainsFunc(merges, func(m string) bool { return strings.HasPrefix(c.SHA, m) }) {
+			left = append(left, c)
+		}
+	}
+	if left == nil {
+		return ""
+	}
+	latest := left[0].Day
+	for _, c := range left {
+		latest = max(latest, c.Day)
+	}
+	n := "1 commit"
+	if len(left) != 1 {
+		n = fmt.Sprintf("%d commits", len(left))
+	}
+	return `<p class="note draft">The code this page covers changed after its last edit: ` + n +
+		" on the main branch, the latest on " + esc(latest) + ".</p>"
+}
+
 var (
 	progressRE  = regexp.MustCompile(`(## Progress\n(?:\n?>.*\n)*)`)
 	todayRE     = regexp.MustCompile(`(## Today\n(?:\n?>.*\n)*)`)
@@ -915,7 +955,7 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 		pre = `<p class="meta"><span>` + esc(m["date"].Str) + "</span>" + where + "</p>"
 	case "design":
 		if dates != nil {
-			pre = `<p class="meta">` + designDatesMeta(rec, dates) + "</p>"
+			pre = `<p class="meta">` + designDatesMeta(rec, dates) + "</p>" + codeChanged(rec, recs, dates[rec.Rel])
 		}
 	}
 	source := []byte(skipFrontMatter(body))

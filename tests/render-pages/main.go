@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
@@ -55,6 +56,13 @@ func run() error {
 	}
 	dates, err := store.DesignDates(dir, recs, store.Today())
 	if err != nil {
+		return err
+	}
+	cfg, err := config.Load(here)
+	if err != nil {
+		return err
+	}
+	if err := store.CodeChanges(dir, cfg.Remote+"/"+cfg.MainBranch, recs, dates); err != nil {
 		return err
 	}
 	pages, err := site.RenderPages(recs, records.NewItems(items), filepath.Base(root), dates, summaries)

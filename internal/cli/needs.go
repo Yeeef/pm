@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/session"
@@ -77,106 +78,6 @@ func anyAtWordStart(re *regexp.Regexp, s string) bool {
 func asksReview(text string) bool {
 	named := prLink.MatchString(text) || anyAtWordStart(prNumbered, text)
 	return named && anyAtWordStart(reviewAsked, text)
-}
-
-// ---------------------------------------------------------------- sentences and words
-
-const tick = '\x60' // the backtick that opens and closes a code span
-
-// codeSpanAt is the end of the code span Python's pattern for one (a backtick run, at least one character, the same
-// run) matches at rune i of t, or -1: the longest backtick run first, then the nearest closing run, with no line break
-// inside.
-func codeSpanAt(t []rune, i int) int {
-	k := 0
-	for i+k < len(t) && t[i+k] == tick {
-		k++
-	}
-	for g := k; g >= 1; g-- {
-		for j := i + g + 1; j+g <= len(t); j++ {
-			if t[j-1] == '\n' {
-				break
-			}
-			if string(t[j:j+g]) == strings.Repeat(string(tick), g) {
-				return j + g
-			}
-		}
-	}
-	return -1
-}
-
-// sentences splits text at . ! or ? followed by white space; a code span is one unit, so a period in it ends no
-// sentence. Python source: sentences.
-func sentences(text string) []string {
-	t := []rune(text)
-	var out []string
-	start := 0
-	for i := 0; i < len(t); {
-		if t[i] == tick {
-			if end := codeSpanAt(t, i); end >= 0 {
-				i = end
-				continue
-			}
-		}
-		if (t[i] == '.' || t[i] == '!' || t[i] == '?') && i+1 < len(t) && config.IsPySpace(t[i+1]) {
-			out = append(out, strip(string(t[start:i+1])))
-			start = i + 1
-		}
-		i++
-	}
-	if rest := strip(string(t[start:])); rest != "" {
-		out = append(out, rest)
-	}
-	return out
-}
-
-// words is the runs between white space that hold a letter or digit; a code span is one word. Python source: words.
-func words(sentence string) []string {
-	t := []rune(sentence)
-	var out []string
-	for i := 0; i < len(t); {
-		if config.IsPySpace(t[i]) {
-			i++
-			continue
-		}
-		start := i
-		for i < len(t) {
-			if t[i] == tick {
-				if end := codeSpanAt(t, i); end >= 0 {
-					i = end
-					continue
-				}
-				i++
-				continue
-			}
-			if config.IsPySpace(t[i]) {
-				break
-			}
-			i++
-		}
-		w := t[start:i]
-		if slices.Contains(w, tick) || slices.ContainsFunc(w, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsNumber(r) }) {
-			out = append(out, string(w))
-		}
-	}
-	return out
-}
-
-// plain escapes a leading block marker (heading, quote, list item), so a fact stays one plain list item.
-func plain(text string) string {
-	t := []rune(text)
-	after := func(i int) bool { return i >= len(t) || config.IsPySpace(t[i]) }
-	if len(t) > 0 && (t[0] == '#' || t[0] == '>' || ((t[0] == '-' || t[0] == '+' || t[0] == '*') && after(1))) {
-		text = `\` + text
-		t = []rune(text)
-	}
-	n := 0
-	for n < len(t) && n < 10 && unicode.IsDigit(t[n]) {
-		n++
-	}
-	if n >= 1 && n <= 9 && n < len(t) && (t[n] == '.' || t[n] == ')') && after(n+1) {
-		text = string(t[:n]) + `\` + string(t[n:])
-	}
-	return text
 }
 
 // ---------------------------------------------------------------- decision need and action need
@@ -291,8 +192,8 @@ func needMarkdown(p *Parsed) (string, error) {
 	}
 	parts = append(parts, part{"the default", rest})
 	for _, pt := range parts {
-		for _, s := range sentences(pt.text) {
-			if found := words(s); len(found) > sentenceLimit {
+		for _, s := range records.Sentences(pt.text) {
+			if found := records.Words(s); len(found) > sentenceLimit {
 				return "", refuse("the sentence \"%s …\" in %s has %d words; the limit is %d (ASD-STE100); split it",
 					strings.Join(found[:6], " "), pt.name, len(found), sentenceLimit)
 			}
@@ -301,12 +202,12 @@ func needMarkdown(p *Parsed) (string, error) {
 	var b strings.Builder
 	b.WriteString("**Question:** " + question + "\n\n**Facts:**\n\n")
 	for _, f := range facts {
-		b.WriteString("- " + plain(f) + "\n")
+		b.WriteString("- " + records.PlainItem(f) + "\n")
 	}
 	b.WriteString("\n**Options:**\n\n")
 	for _, opt := range labels {
 		text := options[opt]
-		first := sentences(text)[0]
+		first := records.Sentences(text)[0]
 		more := strip(text[len(first):])
 		b.WriteString("- **(" + opt + ") " + first + "** ")
 		if more != "" {
@@ -520,13 +421,7 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 	}
 	parent := sprints[0]
 	designs := dedupe(p.values["design"])
-	var known []string
-	for _, rec := range r.recs {
-		if rec.Type() == "design" && !slices.Contains(known, rec.Name()) {
-			known = append(known, rec.Name())
-		}
-	}
-	sort.Strings(known)
+	known := r.designSlugs()
 	for _, slug := range designs {
 		if !slices.Contains(known, slug) {
 			list := strings.Join(known, ", ")
@@ -535,6 +430,10 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 			}
 			return "", refuse("--design %s has no design page; known: %s", slug, list)
 		}
+	}
+	verdicts, err := r.designGate(pr, sprints, design.PRFiles(r.root, pr))
+	if err != nil {
+		return "", err
 	}
 	title := strip(p.Get("title"))
 	if title == "" {
@@ -546,6 +445,13 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 	desc := fmt.Sprintf("Review %s, which delivers %s.\n\nFocus: %s", pr, strings.Join(sprints, ", "), focus)
 	if designs != nil {
 		desc += "\n\nDesign pages: " + strings.Join(designs, ", ")
+	}
+	if verdicts != nil {
+		site, err := showSiteURL(e.here, store.MainOf(r.records))
+		if err != nil {
+			return "", err
+		}
+		desc += "\n\n" + design.Covering(site, verdicts)
 	}
 	if extra != "" {
 		desc += "\n\n" + extra

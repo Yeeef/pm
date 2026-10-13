@@ -27,7 +27,8 @@ const (
 
 // keys are the config's keys and the Python type each must have, in KEYS order.
 var keys = map[string]string{"version": "str", "remote": "str", "main_branch": "str", "port": "int", "site_url": "str",
-	"access_team": "str", "access_aud": "str", "summary_runtime": "str"}
+	"access_team": "str", "access_aud": "str", "summary_runtime": "str",
+	"design_sources": "list"}
 
 // SummaryRuntimes are summary_runtime's values: the agent runtime whose CLI pm day summarize asks.
 var SummaryRuntimes = []string{"claude", "codex"}
@@ -49,6 +50,9 @@ type Config struct {
 	AccessTeam     string // the Cloudflare Access team domain, <team>.cloudflareaccess.com; "" when unset
 	AccessAud      string // the Access application's AUD tag; "" when unset
 	SummaryRuntime string // summary_runtime, claude or codex; "" when unset
+	// DesignSources is the path patterns of the source files a design page should cover (records.Match), which pm check
+	// reports when none does; nil when unset.
+	DesignSources []string
 }
 
 // Summary is the runtime pm day summarize asks: summary_runtime, else claude, which every repo summarized on before the
@@ -192,19 +196,35 @@ func Read(cwd string) (Config, error) {
 	site, _ := data["site_url"].(string)
 	team, _ := data["access_team"].(string)
 	aud, _ := data["access_aud"].(string)
+	var sources []string // pyType checked it is a list of strings
+	if list, ok := data["design_sources"].([]any); ok {
+		for _, v := range list {
+			if s, ok := v.(string); ok {
+				sources = append(sources, s)
+			}
+		}
+	}
 	return Config{Path: path, Version: data["version"].(string), Remote: data["remote"].(string),
 		MainBranch: data["main_branch"].(string), Port: data["port"].(int64),
 		SiteURL: strings.TrimRight(PyStrip(site), "/"), AccessTeam: PyStrip(team), AccessAud: PyStrip(aud),
-		SummaryRuntime: summary}, nil
+		SummaryRuntime: summary, DesignSources: sources}, nil
 }
 
-// pyType is the name of the Python type tomllib gives a TOML value, for the two types the config checks.
+// pyType is the name of the Python type tomllib gives a TOML value, for the types the config checks: "list" only for
+// a list of strings.
 func pyType(v any) string {
-	switch v.(type) {
+	switch v := v.(type) {
 	case string:
 		return "str"
 	case int64:
 		return "int"
+	case []any:
+		for _, x := range v {
+			if _, ok := x.(string); !ok {
+				return "other"
+			}
+		}
+		return "list"
 	}
 	return "other"
 }

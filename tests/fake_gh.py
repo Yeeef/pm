@@ -2,7 +2,9 @@
 """A stand-in for `gh` in tests: `gh pr view <url> --json …` prints the PR's entry in $FAKE_GH_STATE (a JSON object
 keyed by URL) and fails as gh does for a PR it does not know; `gh pr list --head <branch> [--base B] [--state S] --json
 …` lists the entries with that headRefName, baseRefName and state; `gh api <path>` prints the entry keyed by that
-path, as `repos/OWNER/REPO/commits/SHA`, and fails as gh does for one it does not know; `gh auth token` prints
+path, as `repos/OWNER/REPO/commits/SHA`, and fails as gh does for one it does not know; `gh api --paginate
+repos/OWNER/REPO/pulls/N/files --jq …` prints each file's filename and previous_filename, one per line, from the list
+keyed by that path, as pm's jq expression does; `gh auth token` prints
 $FAKE_GH_TOKEN, and without it fails as gh does when not logged in."""
 
 import json
@@ -29,6 +31,14 @@ elif args[:2] == ["pr", "list"] and "--head" in args and "--json" in args:  # th
     print(json.dumps([{f: pr.get(f) for f in fields} for pr in prs.values()
                       if pr.get("headRefName") == head and pr.get("state") == state
                       and base in (None, pr.get("baseRefName"))]))
+elif args[:2] == ["api", "--paginate"] and args[3:4] == ["--jq"]:  # a PR's files, as pm's jq prints them
+    if args[2] not in prs:
+        print("gh: Not Found (HTTP 404)", file=sys.stderr)
+        sys.exit(1)
+    for f in prs[args[2]]:
+        print(f["filename"])
+        if f.get("previous_filename"):
+            print(f["previous_filename"])
 elif args[:1] == ["api"] and len(args) == 2:
     if args[1] not in prs:
         print(f"gh: No commit found for SHA: {args[1].rsplit('/', 1)[-1]} (HTTP 422)", file=sys.stderr)

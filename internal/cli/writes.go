@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/session"
@@ -539,29 +539,6 @@ func (r *repo) requireCommitted(path string) (string, error) {
 	return store.Git(r.records, "rev-parse", "--short", "HEAD")
 }
 
-// mergeStamp is a sprint record's text with stamp as a paragraph after the Outcome's verdict paragraph.
-func mergeStamp(text, stamp string) string {
-	rng, _ := records.SectionRange(text, "Delivery report")
-	lines := strings.Split(text, "\n")
-	n := rng.Start
-	for n < rng.End && lines[n] != "### Outcome" {
-		n++
-	}
-	n++
-	for n < rng.End && (strip(lines[n]) == "" || strings.HasPrefix(lines[n], ">")) {
-		n++
-	}
-	for n < rng.End && strip(lines[n]) != "" && !strings.HasPrefix(lines[n], "#") {
-		n++
-	}
-	add := []string{"", stamp}
-	if n < rng.End && strings.HasPrefix(lines[n], "#") {
-		add = append(add, "")
-	}
-	out := append(append(append([]string{}, lines[:n]...), add...), lines[n:]...)
-	return strings.Join(out, "\n")
-}
-
 // sprintReviews is each PR review naming the sprint, open or closed, by id.
 func (r *repo) sprintReviews(sprintID string) []*work.Item {
 	var out []*work.Item
@@ -657,6 +634,9 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		if rv.Resolution == work.Dismissed { // a replaced PR's review, or a [TEST] one: it delivers nothing
 			continue
 		}
+		if _, err := r.designGate(rv.Need.Review.PR, rv.Need.Review.Sprints, design.PRFiles(r.root, rv.Need.Review.PR)); err != nil {
+			return "", err
+		}
 		if agentMerge {
 			return "", refuse("sprint %s holds PR review %s (%s), whose close stamps the merge; close it with pm action "+
 				"done %s --reason \"merged as <sha>\" if it is not closed yet, then run pm sprint close %s without --merged",
@@ -679,6 +659,13 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		merges = append(merges, merge{m[1][:7], pr})
 	}
 	if agentMerge {
+		named, files := "commit "+mergedSHA[:7], design.MergeFiles(r.root, mergedSHA)
+		if prGiven {
+			named, files = pr, design.PRFiles(r.root, pr)
+		}
+		if _, err := r.designGate(named, []string{id}, files); err != nil {
+			return "", err
+		}
 		label := ""
 		if prGiven {
 			label = pr
@@ -704,7 +691,7 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	stamp := strings.Join(stamps, " ")
 	var w []store.Write
 	if merges != nil && !strings.Contains(text, stamp) {
-		w = []store.Write{{Path: rec.Path, Text: mergeStamp(text, stamp)}}
+		w = []store.Write{{Path: rec.Path, Text: records.MergeStamp(text, stamp)}}
 	}
 	proj := records.ProjectOf(rec, r.recs, r.x)
 	number := rec.Name()
@@ -987,9 +974,6 @@ var (
 	pullURL         = regexp.MustCompile(`^https://github\.com/([\w.-]+/[\w.-]+)/pull/[0-9]+$`)
 )
 
-// ghTimeout bounds one gh call of pm task close.
-const ghTimeout = 60 * time.Second
-
 // closeCommit is how a close names the work --commit ref gives: "commit <short>" for a commit of this repo,
 // "commit OWNER/REPO@<short>" for OWNER/REPO@SHA and "PR <url>" (with its merge commit once merged) for a PR URL, the
 // last two resolved on GitHub with gh. A ref that does not resolve is refused.
@@ -1001,7 +985,7 @@ func closeCommit(root, ref string) (string, error) {
 		var c struct {
 			SHA string `json:"sha"`
 		}
-		if err := ghJSON(root, &c, "api", "repos/"+m[1]+"/commits/"+m[2]); err != nil {
+		if err := proc.GHJSON(root, &c, "api", "repos/"+m[1]+"/commits/"+m[2]); err != nil {
 			return "", refuse("--commit %s is not a commit of %s on GitHub: %v", ref, m[1], err)
 		}
 		if len(c.SHA) < 7 {
@@ -1017,7 +1001,7 @@ func closeCommit(root, ref string) (string, error) {
 				OID string `json:"oid"`
 			} `json:"mergeCommit"`
 		}
-		if err := ghJSON(root, &pr, "pr", "view", ref, "--json", "state,mergeCommit"); err != nil {
+		if err := proc.GHJSON(root, &pr, "pr", "view", ref, "--json", "state,mergeCommit"); err != nil {
 			return "", refuse("--commit %s is not a pull request on GitHub: %v", ref, err)
 		}
 		switch {
@@ -1030,28 +1014,6 @@ func closeCommit(root, ref string) (string, error) {
 		return "PR " + ref, nil
 	}
 	return "", refuse("--commit %s is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL", ref)
-}
-
-// ghJSON runs gh in dir and decodes the JSON it prints into v; a gh that fails, runs past ghTimeout or prints no
-// JSON is an error naming why.
-func ghJSON(dir string, v any, args ...string) error {
-	cmd := "gh " + strings.Join(args, " ")
-	res, err := proc.Run(append([]string{"gh"}, args...), proc.Options{Cwd: &dir, Timeout: ghTimeout,
-		TimeoutText: strconv.Itoa(int(ghTimeout.Seconds()))})
-	switch {
-	case err != nil:
-		return fmt.Errorf("%s did not run: %v", cmd, err)
-	case res.Code != 0:
-		why := strings.TrimSpace(res.Stderr)
-		if why == "" {
-			why = fmt.Sprintf("exit %d", res.Code)
-		}
-		return fmt.Errorf("%s failed: %s", cmd, why)
-	}
-	if err := json.Unmarshal([]byte(res.Stdout), v); err != nil {
-		return fmt.Errorf("%s printed no JSON: %v", cmd, err)
-	}
-	return nil
 }
 
 func cmdTaskClaim(e *env, p *Parsed) (string, error) {

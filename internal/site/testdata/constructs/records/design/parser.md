@@ -2,6 +2,7 @@
 type: design
 title: The parser
 project: demo
+covers: [src/parser/**, docs/grammar.md]
 ---
 
 ## Problem

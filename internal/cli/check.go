@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
+	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
@@ -17,7 +20,8 @@ import (
 // fake (worktest).
 var OpenWork = func(main string) (work.Store, error) { return work.Dial(main) }
 
-// cmdCheck is pm check: every record renders with the work store's items, writing nothing.
+// cmdCheck is pm check: every record renders with the work store's items, and every design page's covers match a
+// tracked file, writing nothing; it lists the tracked source files no page covers.
 func cmdCheck(here string, stdout io.Writer) error {
 	recordsDir, err := store.Find(here)
 	if err != nil {
@@ -47,6 +51,26 @@ func cmdCheck(here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "checked the records in %s: all %d pages render\n", recordsDir, n)
+	cfg, err := config.Read(here) // its pin is checked before any command runs
+	if err != nil {
+		return err
+	}
+	tracked, err := design.Tracked(store.MainOf(recordsDir), root)
+	if err != nil {
+		return err
+	}
+	uncovered, err := design.Check(recs, tracked, cfg.DesignSources)
+	if err != nil {
+		return err
+	}
+	out := fmt.Sprintf("checked the records in %s: all %d pages render", recordsDir, n)
+	switch {
+	case uncovered != nil:
+		out += fmt.Sprintf("; %d tracked source files (design_sources in %s) no design page covers; add each to the "+
+			"covers: of the page about its area:\n  %s", len(uncovered), config.Rel, strings.Join(uncovered, "\n  "))
+	case cfg.DesignSources != nil:
+		out += "; a design page covers every tracked source file"
+	}
+	_, err = fmt.Fprintln(stdout, out)
 	return err
 }

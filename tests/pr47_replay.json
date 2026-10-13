@@ -1,0 +1,326 @@
+{
+ "_about": "PR #47 (pm-codex sprint 1) as `gh pr view 47 --json files,changedFiles` listed it on 2026-10-12 at head bbe28d2ee279e1ad78fdad438d3cde91c70d74b1 (64 files, no renames), each path as the pull request files API's filename, and the covers: of this repo's design pages as pm-quality sprint 22 set them; test_pm.py replays the design-page gate on them.",
+ "files": [
+  {
+   "filename": ".github/scripts/work-test-seconds.txt"
+  },
+  {
+   "filename": "AGENTS.md"
+  },
+  {
+   "filename": "Makefile"
+  },
+  {
+   "filename": "README.md"
+  },
+  {
+   "filename": "changelog.d/codex-parity.md"
+  },
+  {
+   "filename": "internal/cli/agent.go"
+  },
+  {
+   "filename": "internal/cli/agentcmds.go"
+  },
+  {
+   "filename": "internal/cli/clean.go"
+  },
+  {
+   "filename": "internal/cli/cli.go"
+  },
+  {
+   "filename": "internal/cli/commands.go"
+  },
+  {
+   "filename": "internal/cli/inbox.go"
+  },
+  {
+   "filename": "internal/cli/install.go"
+  },
+  {
+   "filename": "internal/cli/needs.go"
+  },
+  {
+   "filename": "internal/cli/serve.go"
+  },
+  {
+   "filename": "internal/cli/session_test.go"
+  },
+  {
+   "filename": "internal/cli/show.go"
+  },
+  {
+   "filename": "internal/cli/store_commands.go"
+  },
+  {
+   "filename": "internal/cli/store_commands_test.go"
+  },
+  {
+   "filename": "internal/cli/writes.go"
+  },
+  {
+   "filename": "internal/hooks/inbox.go"
+  },
+  {
+   "filename": "internal/hooks/inbox_test.go"
+  },
+  {
+   "filename": "internal/hooks/ownerrequest.go"
+  },
+  {
+   "filename": "internal/hooks/prime.go"
+  },
+  {
+   "filename": "internal/hooks/prime_test.go"
+  },
+  {
+   "filename": "internal/hooks/stop.go"
+  },
+  {
+   "filename": "internal/install/codextrust.go"
+  },
+  {
+   "filename": "internal/install/codextrust_test.go"
+  },
+  {
+   "filename": "internal/install/hooks_test.go"
+  },
+  {
+   "filename": "internal/install/pieces.go"
+  },
+  {
+   "filename": "internal/install/rules_test.go"
+  },
+  {
+   "filename": "internal/install/testdata/codex-hooks-0.6.json"
+  },
+  {
+   "filename": "internal/install/testdata/codex-hooks-list.json"
+  },
+  {
+   "filename": "internal/install/testdata/pieces.json"
+  },
+  {
+   "filename": "internal/service/deliver.go"
+  },
+  {
+   "filename": "internal/service/fake_test.go"
+  },
+  {
+   "filename": "internal/service/lifecycle.go"
+  },
+  {
+   "filename": "internal/service/lifecycle_test.go"
+  },
+  {
+   "filename": "internal/service/mark_test.go"
+  },
+  {
+   "filename": "internal/service/run.go"
+  },
+  {
+   "filename": "internal/service/run_test.go"
+  },
+  {
+   "filename": "internal/service/unit.go"
+  },
+  {
+   "filename": "internal/session/codex.go"
+  },
+  {
+   "filename": "internal/session/codex_test.go"
+  },
+  {
+   "filename": "internal/session/live.go"
+  },
+  {
+   "filename": "internal/session/runtime.go"
+  },
+  {
+   "filename": "internal/session/runtime_test.go"
+  },
+  {
+   "filename": "internal/session/uses.go"
+  },
+  {
+   "filename": "internal/work/dial_test.go"
+  },
+  {
+   "filename": "internal/work/dolt.go"
+  },
+  {
+   "filename": "internal/work/dolt_test.go"
+  },
+  {
+   "filename": "internal/work/store.go"
+  },
+  {
+   "filename": "internal/work/worktest/worktest.go"
+  },
+  {
+   "filename": "prime.md"
+  },
+  {
+   "filename": "tests/agents.py"
+  },
+  {
+   "filename": "tests/conftest.py"
+  },
+  {
+   "filename": "tests/fake_codex.py"
+  },
+  {
+   "filename": "tests/hook_payloads.json"
+  },
+  {
+   "filename": "tests/test_agent_parity_live.py"
+  },
+  {
+   "filename": "tests/test_clean.py"
+  },
+  {
+   "filename": "tests/test_hooks.py"
+  },
+  {
+   "filename": "tests/test_init.py"
+  },
+  {
+   "filename": "tests/test_lifecycle.py"
+  },
+  {
+   "filename": "tests/test_owner_request_hook.py"
+  },
+  {
+   "filename": "tests/test_pm.py"
+  }
+ ],
+ "covers": {
+  "agent-lifecycle": [
+   "prime.md",
+   "internal/hooks/prime*.go",
+   "internal/hooks/stop*.go"
+  ],
+  "agent-sync": [
+   "internal/sync/**",
+   "internal/cli/push.go"
+  ],
+  "decision-need-layout": [
+   "internal/cli/needs.go",
+   "internal/records/text.go"
+  ],
+  "owner-request-hook": [
+   "internal/hooks/ownerrequest.go",
+   "internal/cli/ownerrequest.go",
+   "prompts/owner_request_*.txt"
+  ],
+  "pm-cli": [
+   "internal/cli/cli.go",
+   "internal/cli/commands*.go",
+   "internal/cli/help.go",
+   "internal/cli/textwrap.go",
+   "internal/cli/agent.go",
+   "internal/cli/agentcmds.go",
+   "internal/cli/writes*.go",
+   "internal/cli/show*.go",
+   "internal/cli/where.go",
+   "internal/cli/check.go"
+  ],
+  "pm-go": [
+   "cmd/**",
+   "internal/launch/**",
+   "internal/buildinfo/**",
+   "internal/config/**",
+   "internal/proc/**",
+   "internal/pyjson/**",
+   "internal/cli/serve*.go",
+   "internal/cli/service.go",
+   "internal/service/run*.go",
+   "internal/service/gc.go",
+   "internal/service/fake_test.go",
+   "internal/work/host*.go",
+   "internal/work/dolt*.go",
+   "internal/work/lock*.go",
+   "internal/work/service*.go",
+   "internal/work/access_test.go",
+   "internal/work/worktest/**"
+  ],
+  "pm-harness": [],
+  "pm-in-codex": [
+   "internal/install/codex.go",
+   "internal/install/pieces.go"
+  ],
+  "pm-product": [
+   "internal/install/**",
+   "internal/cli/install.go",
+   "internal/cli/service.go",
+   "internal/service/unit*.go",
+   "internal/service/lifecycle*.go",
+   "internal/service/testdata/**",
+   "internal/config/**",
+   "internal/hooks/prime*.go",
+   "prime.md"
+  ],
+  "pm-versioning": [
+   "internal/launch/**",
+   "internal/config/**",
+   "internal/buildinfo/**"
+  ],
+  "record-layer": [
+   "internal/records/**"
+  ],
+  "records-store": [
+   "internal/store/**",
+   "internal/install/clone.go",
+   "internal/cli/where.go",
+   "internal/cli/push.go",
+   "internal/sync/**"
+  ],
+  "reply-delivery": [
+   "internal/service/deliver.go",
+   "internal/service/run*.go",
+   "internal/cli/needs.go",
+   "internal/cli/show.go"
+  ],
+  "session-claims": [
+   "internal/cli/agent.go",
+   "internal/cli/store_commands*.go",
+   "internal/cli/writes.go",
+   "internal/cli/clean.go",
+   "internal/cli/show.go",
+   "internal/work/dolt.go",
+   "internal/work/ready*.go",
+   "internal/hooks/prime.go"
+  ],
+  "site-replies": [
+   "internal/site/serve*.go",
+   "internal/service/run*.go",
+   "internal/service/spool.go",
+   "internal/service/access*.go",
+   "internal/service/deliver.go",
+   "internal/cli/serve*.go"
+  ],
+  "sprint-lifecycle": [
+   "internal/cli/writes.go",
+   "internal/cli/needs.go",
+   "internal/cli/design.go",
+   "internal/design/**"
+  ],
+  "views-and-site": [
+   "internal/site/**",
+   "style.css",
+   "internal/cli/day*.go",
+   "prompts/day_summary.txt",
+   "internal/cli/serve*.go",
+   "internal/service/run*.go"
+  ],
+  "work-layer": [],
+  "work-layer-bd-boundary": [],
+  "work-store": [
+   "internal/work/**",
+   "internal/cli/store_commands*.go",
+   "internal/cli/work.go",
+   "internal/install/workstore.go",
+   "internal/service/gc.go"
+  ]
+ }
+}

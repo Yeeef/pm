@@ -153,7 +153,7 @@ var tree = &command{
 				{
 					name:        "need",
 					help:        "ask the owner to do something under a sprint or task, or to review a PR (--pr); description with --text",
-					description: "Raise an action under a sprint or task. The description (--text) says what to do and why. With --pr it is a PR review instead: every sprint named must be open with its delivery report written (Outcome and 'Against \"Done when\"') and committed; the review goes under the first and blocks its close until the PR merges and you close the review with pm action done <id> --reason \"merged as <sha>\"; the site's card links the PR, each sprint's record and delivery report, and the design pages named with --design plus those the sprints' records list, and shows the focus; --text then holds optional extra context. Close it with pm action done once you see it done.",
+					description: "Raise an action under a sprint or task. The description (--text) says what to do and why. With --pr it is a PR review instead: every sprint named must be open with its delivery report written (Outcome and 'Against \"Done when\"') and committed; the review goes under the first and blocks its close until the PR merges and you close the review with pm action done <id> --reason \"merged as <sha>\"; the site's card links the PR, each sprint's record and delivery report, and the design pages named with --design plus those the sprints' records list, and shows the focus; --text then holds optional extra context. When a design page's covers: match a file the PR changes (GitHub's pull request files API, through gh; a renamed file's old path counts too), it refuses until one of the sprints updated the page and links it in its Design pages, or waived it with pm design unchanged; the review's text then links each covering page. Close it with pm action done once you see it done.",
 					groups:      []bool{false},
 					args: []arg{
 						{flags: []string{"--title"}, dest: "title", kind: value, help: "required without --pr; with --pr, default: Review PR #<n>"},
@@ -267,17 +267,27 @@ var tree = &command{
 		},
 		{
 			name:    "design",
-			help:    "design pages",
+			help:    "design pages: create one, or record why one stays as it is",
 			subDest: "sub",
 			subs: []*command{
 				{
 					name:        "new",
 					help:        "create records/design/<slug>.md with every template section",
-					description: "Create a design page with every section of the template, each with its prompt line and \"None yet.\"; then edit it by hand. A page covers one area and holds its final state; decisions and plans go in the project or sprint record. Put no date in the slug. When a page grows to cover several areas, split it into sub pages and keep a short summary per area linking them.",
+					description: "Create a design page with every section of the template, each with its prompt line and \"None yet.\"; then edit it by hand. A page covers one area and holds its final state; decisions and plans go in the project or sprint record. Put no date in the slug. When a page grows to cover several areas, split it into sub pages and keep a short summary per area linking them. Name the code the page is about in its header, covers: [internal/records/**, prime.md]: path patterns relative to the repo root (doublestar globs: * within one path segment, ** as a whole segment for any depth). pm check fails on a pattern that matches no tracked file; pm action need --pr and pm sprint close refuse a PR that changes a covered file until the sprint updates the page or runs pm design unchanged.",
 					args: []arg{
 						{dest: "slug", required: true, kind: value, help: "what the design is, lowercase words joined by '-'"},
 						{flags: []string{"--title"}, dest: "title", required: true, kind: value},
 						{flags: []string{"--project"}, dest: "project", metavar: []string{"NAME"}, required: true, kind: value, help: "the project the design belongs to"},
+					},
+				},
+				{
+					name:        "unchanged",
+					help:        "record why a design page stays as it is although the sprint's PR changes code it covers",
+					description: "Record, as a sprint decision of source agent, that the design page stays as it is for the sprint's code changes, and why. pm action need --pr and pm sprint close refuse a PR that changes a file a design page covers (its covers: header) until one of the PR's sprints either updated the page (a pm commit of it since the sprint opened, and a link to it in the sprint record's Design pages section) or recorded this. Use it when the change leaves what the page says true; when it does not, edit the page to the new state instead.",
+					args: []arg{
+						{dest: "slug", required: true, kind: value, help: "the design page's slug (records/design/<slug>.md)"},
+						{flags: []string{"--sprint"}, dest: "sprint", metavar: []string{"ID"}, required: true, kind: value, help: "the open sprint whose PR changes the covered code"},
+						{flags: []string{"--reason"}, dest: "reason", required: true, kind: value, help: "why the page stays true, in one line"},
 					},
 				},
 			},
@@ -347,7 +357,7 @@ var tree = &command{
 				{
 					name:        "close",
 					help:        "close a sprint epic once its report is written, every task is closed and each PR review is closed as merged",
-					description: "Close a sprint epic at the committed records. Refuses until the Delivery report is written and every task is closed, and each PR review naming the sprint is closed with pm action done <id> --reason \"merged as <sha>\" once its PR is on main; it does not ask GitHub. With reviews, it stamps 'Merged as <sha> (PR #N).' into the Outcome after the verdict and commits it on the records branch; the close reason names the records commit. A PR an agent merged has no review: --merged SHA [--pr URL] gives its merge commit, which must be on the remote's main branch (pm fetches it first), and stamps the same line ('Merged as <sha>.' without --pr); it refuses a sprint that holds a PR review, whose close stamps the merge instead. Only the Outcome's first paragraph becomes the close reason.",
+					description: "Close a sprint epic at the committed records. Refuses until the Delivery report is written and every task is closed, and each PR review naming the sprint is closed with pm action done <id> --reason \"merged as <sha>\" once its PR is on main; it asks GitHub only for the files each PR changes, and refuses, as pm action need --pr does, while a design page covering one is neither updated nor waived with pm design unchanged (with --merged and no --pr, the files a merge commit brought against its first parent; a commit with one parent, a squash or rebase merge, is refused there, as its delivery cannot be told, so give --pr). With reviews, it stamps 'Merged as <sha> (PR #N).' into the Outcome after the verdict and commits it on the records branch; the close reason names the records commit. A PR an agent merged has no review: --merged SHA [--pr URL] gives its merge commit, which must be on the remote's main branch (pm fetches it first), and stamps the same line ('Merged as <sha>.' without --pr); it refuses a sprint that holds a PR review, whose close stamps the merge instead. Only the Outcome's first paragraph becomes the close reason.",
 					args: []arg{
 						{dest: "sprint_id", required: true, kind: value, help: "the sprint's id"},
 						{flags: []string{"--merged"}, dest: "merged", metavar: []string{"SHA"}, kind: value, help: "the merge commit of the sprint's PR, merged with no PR review: a commit on the remote's main branch"},
@@ -532,8 +542,9 @@ var tree = &command{
 			},
 		},
 		{
-			name: "check",
-			help: "check that every record renders with the work store, writing nothing; the check before a commit, and the one pm commit runs",
+			name:        "check",
+			help:        "check that every record renders with the work store, writing nothing; the check before a commit, and the one pm commit runs",
+			description: "Check that every record renders with the work store, writing nothing; pm commit runs the same check. It also fails on a design page's covers: pattern that matches no file git tracks in the main checkout or this worktree, and lists the tracked source files no design page covers: those the path patterns of design_sources in .pm/config.toml match (e.g. design_sources = [\"internal/**\", \"prime.md\"]; unset, no list).",
 		},
 		{
 			name: "sync",
