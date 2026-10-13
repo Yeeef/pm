@@ -331,7 +331,8 @@ def test_action_done_restamps_a_review_closed_before_its_pr_reached_main(repo, t
     assert repo.pm("action", "done", action, "--reason", "restarted").returncode == 0
     repo.mark()
     refused(repo, "sprint", "close", "repo-demo.1", match=rf"PR review {review} \({PR}\) is closed as '{first}', not "
-                                                         r"'merged as <sha>'")
+                                                         rf"'merged as <sha>'; .* restamp it: pm action done {review} "
+                                                         r"--reason \"merged as <sha>\"")
     refused(repo, "action", "done", review, "--reason", "it landed",
             match=rf"review {review} is closed as '{first}', without 'merged as <sha>'; once its work is on main, "
                   rf"restamp it with pm action done {review} --reason \"merged as <sha>\"")

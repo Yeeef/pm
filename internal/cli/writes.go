@@ -650,8 +650,8 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 				why = rv.CloseReason
 			}
 			return "", refuse("PR review %s (%s) is closed as %s, not 'merged as <sha>'; a sprint closes only once each PR "+
-				"delivering it is on main, so the close stamps its merge commit into the Outcome", rv.ID,
-				rv.Need.Review.PR, pyRepr(why))
+				"delivering it is on main, so the close stamps its merge commit into the Outcome; once its work is on main, "+
+				"restamp it: pm action done %s --reason \"merged as <sha>\"", rv.ID, rv.Need.Review.PR, pyRepr(why), rv.ID)
 		}
 		pr := rv.Need.Review.PR
 		if strings.Contains(pr, "/pull/") {
