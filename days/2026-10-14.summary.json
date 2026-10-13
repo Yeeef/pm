@@ -1,0 +1,7 @@
+{
+ "date": "2026-10-14",
+ "generated_at": "2026-10-13T22:16:39+00:00",
+ "digest": "e41370f45fe40bce",
+ "model": "claude-haiku-5-5",
+ "text": "- **CI runs faster on pull requests:** A pull request's checks now finish in about a minute and a half. Vet and golden checks run only on Linux, and macOS jobs are capped per pull request.\n- **Sprint close rule narrowed:** `pm sprint close` now checks only the covers patterns that a sprint added or changed. Another session's older pending pattern no longer blocks a close.\n- **Evaluation and design records:** The AGENTS.md evaluation vote now applies to passages. A part fails only when a majority of its calls agree on a finding.\n- **Check message and review:** Work started on the `pm check` waiting line, which now states the close rule. A pull request review was requested from the owner."
+}
