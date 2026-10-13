@@ -59,6 +59,11 @@ The Claude ask hook entry gets a 24 h timeout; the live check confirms Claude Co
 The hook process idles cheaply, and a site answer can reach the dialog only while the hook runs; an owner away for hours must still be able to answer.
 :::
 
+::: decision {source=agent date=2026-10-13}
+Codex first-wins is a rollout check right before codex queue; the window between check and queue is accepted, not locked.
+The window is about a second, and a double answer costs one extra user turn the agent can see; closing it would need control of Codex we do not have.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
