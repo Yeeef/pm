@@ -33,12 +33,12 @@ var tree = &command{
 			Help:        "compact status of open projects for agents, level by level",
 			Description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).",
 			Args: []arg{
-				{Flags: []string{"--json"}, Dest: "json", Kind: flagTrue, Help: "every level's data as one JSON object"},
+				{Flags: []string{"--json"}, Dest: "json", Kind: switchOn, Help: "every level's data as one JSON object"},
 				{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "one open project (its name or id): its goal, owner requests in full, the repo's pm feedback doc, open sprints with their tasks, and last decisions"},
 				{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "one sprint's frame, findings and tasks"},
 				{Flags: []string{"--record"}, Dest: "record", Metavar: []string{"PATH"}, Kind: value, Help: "with --section: the record to read (a path, sprint id, project name or design slug)"},
 				{Flags: []string{"--section"}, Dest: "section", Metavar: []string{"NAME"}, Kind: value, Help: "with --record: print that one section, heading included"},
-				{Flags: []string{"--refresh-inbox"}, Dest: "refresh_inbox", Kind: flagTrue, Help: "first point this session's open requests at its current inbox ($CLAUDE_CODE_MESSAGING_SOCKET); the session-start hook passes it, since a resumed session binds a new one"},
+				{Flags: []string{"--refresh-inbox"}, Dest: "refresh_inbox", Kind: switchOn, Help: "first point this session's open requests at its current inbox ($CLAUDE_CODE_MESSAGING_SOCKET); the session-start hook passes it, since a resumed session binds a new one"},
 			},
 		},
 		{
@@ -51,7 +51,7 @@ var tree = &command{
 					Help:        "generate today's Today summary with claude -p or codex exec (summary_runtime); the pm service runs it",
 					Description: "Summarize today's activity (what the day page shows, plus the records committed today) into records/days/<today>.summary.json, committed on the records branch; the day page shows it as Today, labelled with the time it was generated. It asks the runtime that summary_runtime in .pm/config.toml names: claude (the default) runs claude -p --model claude-haiku-5-5, codex runs codex exec --model gpt-5.6-luna; each runs from an empty temp directory with no hooks, no project instructions and no saved session, for at most 180s. Set summary_runtime = \"codex\" in a repo whose machines have Codex and not Claude Code. Skips when nothing happened today or the activity's digest is unchanged since the last summary. Fails, writing nothing, when the runtime's CLI is missing, fails or times out; it never falls back to the other runtime. The pm service runs it every 10 minutes.",
 					Args: []arg{
-						{Flags: []string{"--dry-run"}, Dest: "dry_run", Kind: flagTrue, Help: "print the summary it would write; write nothing"},
+						{Flags: []string{"--dry-run"}, Dest: "dry_run", Kind: switchOn, Help: "print the summary it would write; write nothing"},
 					},
 				},
 			},
@@ -68,7 +68,7 @@ var tree = &command{
 					Groups:      []bool{false},
 					Args: []arg{
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Required: true, Kind: value, Help: "the sprint's id"},
-						{Dest: "words", Metavar: []string{"TEXT"}, Nargs: "*", Kind: value, Help: "the finding, as one quoted argument (words given apart are joined by spaces)"},
+						{Dest: "words", Metavar: []string{"TEXT"}, Arity: many, Kind: value, Help: "the finding, as one quoted argument (words given apart are joined by spaces)"},
 						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "the finding instead, read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the finding instead, inline, for one plain line only; backticks, $ or quotes go in --text-file"},
 					},
@@ -114,7 +114,7 @@ var tree = &command{
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "the sprint's id (with --level sprint)"},
 						{Flags: []string{"--until"}, Dest: "until", Kind: value, Help: "a known condition to revisit the decision"},
 						{Flags: []string{"--need"}, Dest: "need", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "source=owner: the decision answers this decision need, and closes it if it is open"},
-						{Flags: []string{"--confirmed"}, Dest: "confirmed", Kind: flagTrue, Group: 1, Help: "source=owner: the owner confirmed it"},
+						{Flags: []string{"--confirmed"}, Dest: "confirmed", Kind: switchOn, Group: 1, Help: "source=owner: the owner confirmed it"},
 					},
 				},
 				{
@@ -122,11 +122,11 @@ var tree = &command{
 					Help:        "ask the owner for a decision under a sprint or task; its parts as flags",
 					Description: "Raise a decision need under a sprint or task. Its parts are flags, one line each, and stdin is not read: one --question, one or more --fact, two or more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON that names the option taken if the owner does not answer. Put each value in single quotes: in double quotes the shell runs a `code span` as a command. pm writes the description in one Markdown layout and refuses fewer than two options, a repeated label, an option without exactly one cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with pm decision add --need, or close a small answer with pm decision close.",
 					Args: []arg{
-						{Flags: []string{"--question"}, Dest: "question", Metavar: []string{"TEXT"}, Required: true, Kind: appendValue, Help: "what the owner decides, as one question"},
-						{Flags: []string{"--fact"}, Dest: "fact", Metavar: []string{"TEXT"}, Required: true, Kind: appendValue, Help: "a fact the owner needs to decide; repeat it for each fact"},
-						{Flags: []string{"--option"}, Dest: "option", Metavar: []string{"LABEL", "TEXT"}, Nargs: "2", Required: true, Kind: appendValue, Help: "a choice: its label (letters and digits) and what it does; repeat it for each option, two or more"},
-						{Flags: []string{"--cost"}, Dest: "cost", Metavar: []string{"LABEL", "TEXT"}, Nargs: "2", Required: true, Kind: appendValue, Help: "what the option with this label costs; one for each option"},
-						{Flags: []string{"--default"}, Dest: "default", Metavar: []string{"LABEL", "REASON"}, Nargs: "2", Required: true, Kind: appendValue, Help: "the option taken if the owner does not answer, and why"},
+						{Flags: []string{"--question"}, Dest: "question", Metavar: []string{"TEXT"}, Required: true, Kind: repeated, Help: "what the owner decides, as one question"},
+						{Flags: []string{"--fact"}, Dest: "fact", Metavar: []string{"TEXT"}, Required: true, Kind: repeated, Help: "a fact the owner needs to decide; repeat it for each fact"},
+						{Flags: []string{"--option"}, Dest: "option", Metavar: []string{"LABEL", "TEXT"}, Arity: two, Required: true, Kind: repeated, Help: "a choice: its label (letters and digits) and what it does; repeat it for each option, two or more"},
+						{Flags: []string{"--cost"}, Dest: "cost", Metavar: []string{"LABEL", "TEXT"}, Arity: two, Required: true, Kind: repeated, Help: "what the option with this label costs; one for each option"},
+						{Flags: []string{"--default"}, Dest: "default", Metavar: []string{"LABEL", "REASON"}, Arity: two, Required: true, Kind: repeated, Help: "the option taken if the owner does not answer, and why"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
 						{Flags: []string{"--parent"}, Dest: "parent", Metavar: []string{"ID"}, Required: true, Kind: value, Help: "the sprint or task the decision belongs to"},
 					},
@@ -159,9 +159,9 @@ var tree = &command{
 						{Flags: []string{"--title"}, Dest: "title", Kind: value, Help: "required without --pr; with --pr, default: Review PR #<n>"},
 						{Flags: []string{"--parent"}, Dest: "parent", Metavar: []string{"ID"}, Kind: value, Help: "the sprint or task the action belongs to (required without --pr; not allowed with it)"},
 						{Flags: []string{"--pr"}, Dest: "pr", Metavar: []string{"URL"}, Kind: value, Help: "the pull request to review; requires --sprint and --focus"},
-						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: appendValue, Help: "with --pr: an open sprint the PR delivers, its report written (repeatable)"},
+						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: repeated, Help: "with --pr: an open sprint the PR delivers, its report written (repeatable)"},
 						{Flags: []string{"--focus"}, Dest: "focus", Kind: value, Help: "with --pr: what to look at first: risky changes, open choices"},
-						{Flags: []string{"--design"}, Dest: "design", Metavar: []string{"SLUG"}, Kind: appendValue, Help: "with --pr: a design page behind the PR (repeatable, optional)"},
+						{Flags: []string{"--design"}, Dest: "design", Metavar: []string{"SLUG"}, Kind: repeated, Help: "with --pr: a design page behind the PR (repeatable, optional)"},
 						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "without --pr, required: what the owner should do and why; with --pr, optional extra context; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
@@ -191,11 +191,11 @@ var tree = &command{
 						{Dest: "need_id", Required: true, Kind: value, Help: "the open need's id"},
 						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "an action's new description: what the owner should do and why; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
-						{Flags: []string{"--question"}, Dest: "question", Metavar: []string{"TEXT"}, Kind: appendValue, Help: "a decision need's question"},
-						{Flags: []string{"--fact"}, Dest: "fact", Metavar: []string{"TEXT"}, Kind: appendValue, Help: "a decision need's fact; repeat it for each fact"},
-						{Flags: []string{"--option"}, Dest: "option", Metavar: []string{"LABEL", "TEXT"}, Nargs: "2", Kind: appendValue, Help: "a decision need's choice; two or more"},
-						{Flags: []string{"--cost"}, Dest: "cost", Metavar: []string{"LABEL", "TEXT"}, Nargs: "2", Kind: appendValue, Help: "what the option with this label costs; one for each option"},
-						{Flags: []string{"--default"}, Dest: "default", Metavar: []string{"LABEL", "REASON"}, Nargs: "2", Kind: appendValue, Help: "the option taken if the owner does not answer, and why"},
+						{Flags: []string{"--question"}, Dest: "question", Metavar: []string{"TEXT"}, Kind: repeated, Help: "a decision need's question"},
+						{Flags: []string{"--fact"}, Dest: "fact", Metavar: []string{"TEXT"}, Kind: repeated, Help: "a decision need's fact; repeat it for each fact"},
+						{Flags: []string{"--option"}, Dest: "option", Metavar: []string{"LABEL", "TEXT"}, Arity: two, Kind: repeated, Help: "a decision need's choice; two or more"},
+						{Flags: []string{"--cost"}, Dest: "cost", Metavar: []string{"LABEL", "TEXT"}, Arity: two, Kind: repeated, Help: "what the option with this label costs; one for each option"},
+						{Flags: []string{"--default"}, Dest: "default", Metavar: []string{"LABEL", "REASON"}, Arity: two, Kind: repeated, Help: "the option taken if the owner does not answer, and why"},
 					},
 				},
 				{
@@ -221,7 +221,7 @@ var tree = &command{
 					Help:        "print the owner's replies and reviews' merges that did not reach your session",
 					Description: "Print the requests' site replies not yet delivered and their reviews' PR merges not yet reported, with what to do next, and mark them delivered; it does not wait. The pm service pushes each reply and merge into the inbox of the session that raised the request when it can; what it could not deliver (the session had ended, or has no inbox) waits here and is flagged by pm show. Without ids, this session's open requests ($CLAUDE_CODE_SESSION_ID or $CODEX_SESSION_ID, as pm task claim takes it); with ids, those, closed ones too.",
 					Args: []arg{
-						{Dest: "ids", Metavar: []string{"ID"}, Nargs: "*", Kind: value, Help: "a decision need, action or review (default: this session's)"},
+						{Dest: "ids", Metavar: []string{"ID"}, Arity: many, Kind: value, Help: "a decision need, action or review (default: this session's)"},
 					},
 				},
 				{
@@ -416,7 +416,7 @@ var tree = &command{
 						{Dest: "task_id", Required: true, Kind: value, Help: "the task's id"},
 						{Flags: []string{"--reason"}, Dest: "reason", Kind: value, Help: "what was done (default: Done); with --dropped, required: why it is not done"},
 						{Flags: []string{"--commit"}, Dest: "commit", Metavar: []string{"REF"}, Kind: value, Help: "what holds the work: a commit of this repo, OWNER/REPO@SHA or a PR URL (default: HEAD, if newer than the task)"},
-						{Flags: []string{"--dropped"}, Dest: "dropped", Kind: flagTrue, Help: "close it as not done: no commit, a reason required"},
+						{Flags: []string{"--dropped"}, Dest: "dropped", Kind: switchOn, Help: "close it as not done: no commit, a reason required"},
 					},
 				},
 				{
@@ -537,7 +537,7 @@ var tree = &command{
 					Description: "Print the URL of a record's page on the site the pm service serves on localhost:$PORT (default: the installed service's port, else the port in .pm/config.toml), printed with the repo's site_url instead when .pm/config.toml sets one; --local prints the localhost URL even then, for a check on this machine that the public site's login would stop (a headless browser). The pm service's pages follow the records within 10 s and state their data's age, so no render step is needed. Fails with the command that fixes it when nothing serves there, or when what answers is not the pm service for this store.",
 					Args: []arg{
 						{Dest: "target", Required: true, Kind: value, Help: "a sprint or project id, a project name, a design slug, or a record path (records/<…>.md; records/ and .md optional)"},
-						{Flags: []string{"--local"}, Dest: "local", Kind: flagTrue, Help: "print http://127.0.0.1:<port>/…, the URL the service answers on here, even when site_url is set"},
+						{Flags: []string{"--local"}, Dest: "local", Kind: switchOn, Help: "print http://127.0.0.1:<port>/…, the URL the service answers on here, even when site_url is set"},
 					},
 				},
 			},
@@ -619,7 +619,7 @@ var tree = &command{
 			Description: "Install pm, doing only what is missing. Repo, on first install only (no .pm/config.toml yet): write .pm/ (config.toml, README.md, .gitignore), pm's hook entries in .claude/settings.json and .codex/hooks.json, the Codex rule .codex/rules/pm.rules (pm runs outside Codex's sandbox), pm's git hook .pm/hooks/post-checkout and pm's .gitignore lines; create the records branch with an empty store and push it when the remote has none; print the commit to make. After that pm init leaves the repo's files alone: pm doctor reports a changed or missing piece and pm upgrade rewrites it. Clone and worktree, every run: copy this pm into the bin dir when another is there, take out Beads' hook entries, CLAUDE.md block and hooks path, install the git hooks (core.hooksPath .pm/hooks), list .pm/store/ and .pm/run/ in .git/info/exclude, check out the records store at <main checkout>/.pm/store/records if missing, link this worktree's records/ to it and turn off the sparse checkout an earlier pm set once HEAD and the index track no records/, add the clone's .git and the stores to the writable roots of $CODEX_HOME/config.toml and the store to this worktree's .claude/settings.local.json, then install the pm service (pm service install) and have it attach the work store, which only the service opens (cloned from the remote's refs/pm/work, or created and pushed). Session start runs it in every worktree, and starts an installed service that does not answer; once all is set up it prints 'already set up'. Refuses a core.hooksPath other than .pm/hooks or Beads' .beads/hooks. Site port: a new repo's config gets $PORT, else the first free port from 8000 up that no pm service unit on this machine names; a clone's service serves on $PORT, else its unit's port, else the config's. Refuses, writing nothing, when another server holds that port, and names a free one: PORT=<n> pm init. .pm/config.toml, tracked: version (the pm every session must run; pm upgrade moves it), remote and main_branch (origin and its default branch), port (the site port) and site_url (--site-url); with site_url set, access_team (the Cloudflare Access team domain, <team>.cloudflareaccess.com) and access_aud (the Access application's AUD tag), set by hand: the site serves a request to site_url's host, or any request Cloudflare's edge forwarded (Cf-Connecting-IP), only when its Cf-Access-Jwt-Assertion verifies against them (RS256 by the team's keys, aud, iss, unexpired), and refuses every such request while either is missing; pm doctor names a missing one, and the service reads them when it starts.",
 			Groups:      []bool{false},
 			Args: []arg{
-				{Flags: []string{"--session-start"}, Dest: "session_start", Kind: flagTrue, Help: "what session start runs, without $PORT: install the pm service when it is missing and start an installed one that does not answer, so a session in a clone brings its service up; one pm service stop stopped is left stopped and reported (pm service restart starts it); a running one, a stale one included, is left as it is and reported (pm service restart restarts it)"},
+				{Flags: []string{"--session-start"}, Dest: "session_start", Kind: switchOn, Help: "what session start runs, without $PORT: install the pm service when it is missing and start an installed one that does not answer, so a session in a clone brings its service up; one pm service stop stopped is left stopped and reported (pm service restart starts it); a running one, a stale one included, is left as it is and reported (pm service restart restarts it)"},
 				{Flags: []string{"--site-url"}, Dest: "site_url", Metavar: []string{"URL"}, Kind: value, Help: "the site's public base URL (a tunnel to the pm service), written to site_url in .pm/config.toml for you to commit: every link pm prints (pm record link, pm show, pm where) uses it instead of http://localhost:<port>, and the site serves its host besides localhost, behind Cloudflare Access (access_team, access_aud); '' clears it"},
 				{Flags: []string{"--import-bd"}, Dest: "import_bd", Metavar: []string{"FILE"}, Kind: value, Group: 1, Help: "only import the bd export in FILE into this clone's work store, through the pm service, as one commit; refuses a store that holds any item, and an export it cannot map; nothing else runs"},
 				{Flags: []string{"--import"}, Dest: "import", Metavar: []string{"FILE"}, Kind: value, Group: 1, Help: "only import the pm export in FILE (what pm export printed in another clone) into this clone's work store, ids kept, as --import-bd does"},
@@ -634,7 +634,7 @@ var tree = &command{
 			Name: "where",
 			Help: "list every location with its state: the store, this checkout, the work store (in a checkout whose pin is not the version the clone's pm service runs, the mismatch and the fix: merge or rebase onto main's pin move, or pm service restart), the hooks, the Codex sandbox roots, the pm service, the last push, and the site; 'pm where records' prints only the store's path",
 			Args: []arg{
-				{Dest: "what", Nargs: "?", Choices: []string{"records"}, Kind: value, Help: "print only this location's path"},
+				{Dest: "what", Arity: optional, Choices: []string{"records"}, Kind: value, Help: "print only this location's path"},
 			},
 		},
 		{
@@ -642,7 +642,7 @@ var tree = &command{
 			Help:        "list each worktree with keep or remove and the reason; --apply removes the agent worktrees (.claude/worktrees/) that no live session owns and whose work is saved",
 			Description: "List every worktree of this clone with keep or remove and the reason; a dry run unless --apply. Only an agent worktree, under <main checkout>/.claude/worktrees/, is ever removed; never the main checkout, the records store (.pm/store/records) or the worktree pm clean runs in. Owned, so kept: a worktree Claude Code locked for a live process (`claude <kind> <name> (pid N start T)` in .git/worktrees/<name>/locked; the lock is stale when pid N is gone or, on Linux, started at another time than T; on macOS a live pid owns it), a worktree someone else locked, and one a live session used: an entry of a Claude Code transcript (<config dir>/projects/) or a Codex rollout ($CODEX_HOME/sessions/) written in the last 30 minutes whose directory is in the worktree or whose tool call names the worktree's path (a subagent runs in its parent's directory). Removed, when clean (no change, no untracked file; its ignored files go with it, as git worktree remove deletes them) and holding no other worktree: one whose commits are on <remote>/<main branch> (its branch deleted too), one whose branch a PR merged into <main branch> took at its tip (a squash merge, asked of gh; kept when gh is missing or fails; its branch deleted too), and one whose branch has nothing beyond where it was pushed: its upstream, unless that is the main branch, else <remote>/<branch> (its branch kept, as it is not merged). Everything else is kept: uncommitted changes, commits never pushed. The branches compare with <remote>/<main branch> as last fetched: run git fetch first. --apply takes a stale lock off, runs git worktree remove (never --force, so git refuses a worktree that changed meanwhile; for a worktree whose directory is gone it drops git's entry), and deletes a merged branch at the tip it judged. It refuses, removing nothing, when a recent transcript cannot be read. Exits 1 when a removal failed, naming why on its line.",
 			Args: []arg{
-				{Flags: []string{"--apply"}, Dest: "apply", Kind: flagTrue, Help: "remove the worktrees the dry run lists as remove; without it pm clean changes nothing"},
+				{Flags: []string{"--apply"}, Dest: "apply", Kind: switchOn, Help: "remove the worktrees the dry run lists as remove; without it pm clean changes nothing"},
 			},
 		},
 		{
@@ -663,9 +663,9 @@ var tree = &command{
 			Groups: []bool{false},
 			Args: []arg{
 				{Flags: []string{"--rules"}, Dest: "part", Metavar: []string{"N"}, Choices: chunkNumbers(), Kind: value, IsInt: true, Group: 1, Help: "only chunk N of the rules and the command list, under a title naming its sections: one hook each on SessionStart and SubagentStart, since Claude Code passes a hook's text inline only up to 10,000 characters"},
-				{Flags: []string{"--state"}, Dest: "part", Kind: flagConst, Constant: "state", Group: 1, Help: "only pm init, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook; in a Codex session it opens with a line naming the pm hooks Codex skips, untrusted or changed since trusted (codex app-server, asked again only when .codex/hooks.json or your Codex trust changed)"},
-				{Flags: []string{"--subagent"}, Dest: "part", Kind: flagConst, Constant: "subagent", Group: 1, Help: "only pm's git rule for agents, one line: the last SubagentStart hook, beside the rules chunks"},
-				{Flags: []string{"--hook-json"}, Dest: "hook_json", Kind: flagTrue, Help: "read the SessionStart or SubagentStart input on stdin and print the hook's JSON envelope, as Claude Code and Codex read it"},
+				{Flags: []string{"--state"}, Dest: "part", Kind: switchTo, Constant: "state", Group: 1, Help: "only pm init, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook; in a Codex session it opens with a line naming the pm hooks Codex skips, untrusted or changed since trusted (codex app-server, asked again only when .codex/hooks.json or your Codex trust changed)"},
+				{Flags: []string{"--subagent"}, Dest: "part", Kind: switchTo, Constant: "subagent", Group: 1, Help: "only pm's git rule for agents, one line: the last SubagentStart hook, beside the rules chunks"},
+				{Flags: []string{"--hook-json"}, Dest: "hook_json", Kind: switchOn, Help: "read the SessionStart or SubagentStart input on stdin and print the hook's JSON envelope, as Claude Code and Codex read it"},
 			},
 		},
 		{
@@ -693,7 +693,7 @@ var tree = &command{
 					Name: "git-post-checkout",
 					Help: "git post-checkout (.pm/hooks/post-checkout): in a new worktree, run pm init's clone and worktree half, all but the pm service",
 					Args: []arg{
-						{Dest: "git_args", Nargs: "*", Kind: value, Help: "the hook's arguments: previous HEAD, new HEAD, branch flag"},
+						{Dest: "git_args", Arity: many, Kind: value, Help: "the hook's arguments: previous HEAD, new HEAD, branch flag"},
 					},
 				},
 				{
@@ -708,7 +708,7 @@ var tree = &command{
 			Description: "Commit only the named records, so other sessions' uncommitted edits in the shared store are left alone. With no path, it lists what is uncommitted and commits nothing. A record uses only these fenced blocks: ::: decision, ::: result and ```mermaid; put a one-line reading under each diagram or large table. An image file (.svg, .png, .jpg, .webp) beside a record is named and committed like one; the site serves it next to the record's page.",
 			Args: []arg{
 				{Flags: []string{"-m", "--message"}, Dest: "message", Required: true, Kind: value, Help: "what the hand edit changed"},
-				{Dest: "paths", Metavar: []string{"PATH"}, Nargs: "*", Kind: value, Help: "a record you edited: records/<…>.md, a path in the store, relative to it from inside it, or relative to the store from anywhere (sprints/<…>.md)"},
+				{Dest: "paths", Metavar: []string{"PATH"}, Arity: many, Kind: value, Help: "a record you edited: records/<…>.md, a path in the store, relative to it from inside it, or relative to the store from anywhere (sprints/<…>.md)"},
 			},
 		},
 	},

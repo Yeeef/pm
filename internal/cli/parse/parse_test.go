@@ -34,9 +34,9 @@ func TestArgumentChecks(t *testing.T) {
 			c := &Command[bool]{Name: "pm", Groups: []bool{true}, Args: []Arg{
 				{Flags: []string{"--number"}, Dest: "number", IsInt: true},
 				{Flags: []string{"--pick"}, Dest: "pick", Choices: []string{"left", "right"}, Group: 1},
-				{Flags: []string{"--other"}, Dest: "other", Kind: FlagTrue, Group: 1},
-				{Flags: []string{"--pair"}, Dest: "pair", Nargs: "2", Kind: AppendValue},
-				{Dest: "first"}, {Dest: "rest", Nargs: "*"},
+				{Flags: []string{"--other"}, Dest: "other", Kind: SwitchOn, Group: 1},
+				{Flags: []string{"--pair"}, Dest: "pair", Arity: Two, Kind: Repeated},
+				{Dest: "first"}, {Dest: "rest", Arity: Many},
 			}}
 			var parsed *Parsed[bool]
 			root := Build(c, func(p *Parsed[bool]) error { parsed = p; return nil }, nil, io.Discard)

@@ -41,7 +41,7 @@ func isEpic(it *work.Item) bool { return it.Type == work.Project || it.Type == w
 
 func strip(s string) string { return config.PyStrip(s) }
 
-// given is the dest's value and whether the command line gave it (argparse's None when not).
+// given is the dest's value and whether the command line gave it.
 func given(p *Parsed, dest string) (string, bool) {
 	v := p.Values[dest]
 	if len(v) == 0 {

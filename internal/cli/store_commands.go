@@ -95,7 +95,7 @@ func textFlags(fs *pflag.FlagSet, what string) {
 }
 
 // storeFormOf is the form argv names, if any, and its arguments after the name: pm show with an id first, and pm task
-// add with --parent. Any other pm show or pm task add is the argparse tree's.
+// add with --parent. Any other pm show or pm task add is the command tree's.
 func storeFormOf(argv []string) (string, []string, bool) {
 	if len(argv) >= 2 && argv[0] == "show" && !strings.HasPrefix(argv[1], "-") {
 		return "show ID", argv[1:], true

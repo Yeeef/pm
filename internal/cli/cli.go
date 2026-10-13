@@ -38,11 +38,9 @@ type Parsed = parse.Parsed[*storeCommand]
 type usageError = parse.UsageError[*storeCommand]
 
 const (
-	value       = parse.Value
-	flagTrue    = parse.FlagTrue
-	flagConst   = parse.FlagConst
-	appendValue = parse.AppendValue
-	pairSep     = parse.PairSep
+	value, switchOn, switchTo, repeated = parse.Value, parse.SwitchOn, parse.SwitchTo, parse.Repeated
+	optional, many, two                 = parse.Optional, parse.Many, parse.Two
+	pairSep                             = parse.PairSep
 )
 
 // Nouns lists the commands in their help order.

@@ -57,7 +57,7 @@ var writes = map[string]bool{"finding add": true, "feedback add": true, "decisio
 // write takes the records lock as it connects (env.work). It prints what the command returns.
 func runAgent(name string, cmd agentCommand, p *Parsed, here string, stdin io.Reader, stdout, stderr io.Writer) (err error) {
 	e := &env{here: here, stdin: stdin, stdout: stdout, stderr: stderr}
-	for _, a := range p.Cmd.Args { // argparse's type=str.strip on --text
+	for _, a := range p.Cmd.Args { // --text is taken without its surrounding whitespace
 		if slices.Contains(a.Flags, "--text") {
 			for i, v := range p.Values["text"] {
 				p.Values["text"][i] = strip(v)

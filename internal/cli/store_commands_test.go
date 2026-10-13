@@ -320,7 +320,7 @@ func TestShowIDPrintsTheItemItsHolderBlockersChildrenNeedsAndComments(t *testing
 	}
 	f.refuses("no item demo-nope in the work store", "show", "demo-nope")
 	if _, _, ok := storeFormOf([]string{"show", "--sprint", f.s1.ID}); ok {
-		t.Error("pm show --sprint is the argparse tree's")
+		t.Error("pm show --sprint is the command tree's")
 	}
 }
 
@@ -338,6 +338,6 @@ func TestTaskAddParentAddsASubTaskUnderAnOpenTask(t *testing.T) {
 	f.refuses("task "+f.closed.ID+" is closed", "task", "add", "--parent", f.closed.ID, "--title", "x")
 	f.refuses("--title is required", "task", "add", "--parent", f.t1.ID)
 	if _, _, ok := storeFormOf([]string{"task", "add", "--sprint", f.s1.ID, "--title", "x"}); ok {
-		t.Error("pm task add --sprint is the argparse tree's")
+		t.Error("pm task add --sprint is the command tree's")
 	}
 }

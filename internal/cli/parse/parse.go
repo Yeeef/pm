@@ -14,13 +14,24 @@ import (
 	"strings"
 )
 
+// Kind is what an option does with what follows it on the command line.
 type Kind int
 
 const (
-	Value       Kind = iota // --flag VALUE, or a positional
-	FlagTrue                // store_true
-	FlagConst               // store_const: sets dest to constant
-	AppendValue             // append: repeatable --flag VALUE
+	Value    Kind = iota // --flag VALUE, or a positional: the last one given is the value
+	SwitchOn             // --flag alone: its dest is "true"
+	SwitchTo             // --flag alone: its dest is the Arg's Constant, so several switches can name one choice
+	Repeated             // --flag VALUE, repeatable: every value given, in order
+)
+
+// Arity is how many values one positional or option takes.
+type Arity int
+
+const (
+	One      Arity = iota // exactly one
+	Optional              // a positional that may be left out
+	Many                  // a positional that takes every value left, none included
+	Two                   // an option followed by two values, such as --option LABEL TEXT
 )
 
 // Arg defines one positional or option and its validation.
@@ -28,11 +39,11 @@ type Arg struct {
 	Flags    []string // option strings; none for a positional
 	Dest     string
 	Metavar  []string // nil: generated from choices or destination
-	Nargs    string   // "", "?", "*", "+" or "2"
+	Arity    Arity
 	Choices  []string
 	Required bool
 	Kind     Kind
-	Constant string
+	Constant string // the value a SwitchTo option sets
 	IsInt    bool
 	Def      string
 	Group    int // 1-based index into Command.Groups, 0 for none
@@ -159,7 +170,7 @@ func (c *Command[T]) flagOrder(flag string) int {
 	return -1
 }
 
-// notOption protects negative numbers and text with spaces from option parsing.
+// notOption marks a word that starts with '-' but is a value, not an option: a negative number, or text with a space.
 const notOption = "\x01"
 
 var negativeNumber = regexp.MustCompile(`^-\d+$|^-\d*\.\d+$`)
@@ -253,7 +264,7 @@ func Build[T comparable](c *Command[T], run func(*Parsed[T]) error, runStore fun
 				short = f[1:]
 			}
 		}
-		if a.Kind == FlagTrue || a.Kind == FlagConst {
+		if a.Kind == SwitchOn || a.Kind == SwitchTo {
 			fs.BoolP(long, short, false, a.Help)
 		} else {
 			fs.StringArrayP(long, short, nil, a.Help)
@@ -285,7 +296,7 @@ func (c *Command[T]) normalize(args []string) ([]string, []string, error) {
 	for _, a := range c.Args {
 		for _, f := range a.Flags {
 			known[f] = true
-			if a.Nargs == "2" {
+			if a.Arity == Two {
 				pairs[f] = true
 			}
 		}
@@ -342,11 +353,11 @@ func (c *Command[T]) parseFlags(joined []string, fs *pflag.FlagSet) (*Parsed[T],
 			seen[a.Group] = a
 		}
 		switch a.Kind {
-		case FlagTrue:
+		case SwitchOn:
 			p.Values[a.Dest] = []string{"true"}
-		case FlagConst:
+		case SwitchTo:
 			p.Values[a.Dest] = []string{a.Constant}
-		case AppendValue:
+		case Repeated:
 			v, err := c.check(a, v)
 			if err != nil {
 				return err
@@ -365,7 +376,7 @@ func (c *Command[T]) parseFlags(joined []string, fs *pflag.FlagSet) (*Parsed[T],
 }
 
 func (c *Command[T]) parsePositionals(p *Parsed[T], args []string) ([]string, []string, error) {
-	// positionals, in order: each takes what its nargs allows, the ones after it keeping what they need
+	// positionals, in order: each takes what its arity allows, the ones after it keeping what they need
 	var rest []string
 	for _, v := range args {
 		rest = append(rest, strings.TrimPrefix(v, notOption))
@@ -380,20 +391,22 @@ func (c *Command[T]) parsePositionals(p *Parsed[T], args []string) ([]string, []
 	for i, a := range positionals {
 		need := 0
 		for _, later := range positionals[i+1:] {
-			if later.Nargs == "" || later.Nargs == "+" {
+			if later.Arity == One {
 				need++
 			}
 		}
-		take := 0
-		switch a.Nargs {
-		case "":
+		var take int
+		switch a.Arity {
+		case One:
 			take = min(1, len(rest))
-		case "?":
+		case Optional:
 			take = min(1, max(0, len(rest)-need))
-		case "*", "+":
+		case Many:
 			take = max(0, len(rest)-need)
+		default:
+			panic(fmt.Sprintf("pm %s: positional %s cannot take arity %d", c.Path(), a.Dest, a.Arity))
 		}
-		if (a.Nargs == "" || a.Nargs == "+") && take == 0 {
+		if a.Arity == One && take == 0 {
 			missing = append(missing, a.Name())
 			continue
 		}

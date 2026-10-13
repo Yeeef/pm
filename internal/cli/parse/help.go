@@ -10,18 +10,17 @@ import (
 	"golang.org/x/term"
 )
 
-// The --help text, laid out as Python 3.13's argparse lays it out: the usage line wrapped to the terminal's width as
-// argparse wraps it, then the sections and alignment, with no wrapping of the help texts. Python pm wraps those to the
-// terminal too; whitespace aside, the two are identical.
+// The --help text: the usage line, wrapped to the terminal's width, then the description, the positional arguments and
+// the options, each item's help aligned at one column, then the epilog. Help texts are not wrapped.
 
-const helpPosition = 24 // argparse's max_help_position
+const helpPosition = 24 // the help column's widest position; a wider invocation puts its help on the next line
 
 var asciiSpace = regexp.MustCompile(`[ \t\n\r\f\v]+`)
 
-// collapse is argparse's whitespace handling of a help or description text: runs of ASCII whitespace become one space.
+// collapse is a help or description text as --help prints it: runs of ASCII whitespace become one space.
 func collapse(s string) string { return strings.TrimSpace(asciiSpace.ReplaceAllString(s, " ")) }
 
-// formatArgs is argparse's _format_args: the metavar part of an argument in usage and help.
+// formatArgs is the metavar part of an argument in usage and help, as its arity shows it.
 func formatArgs(a Arg, def string) string {
 	m := a.Metavar
 	if m == nil {
@@ -31,33 +30,31 @@ func formatArgs(a Arg, def string) string {
 			m = []string{def}
 		}
 	}
-	switch a.Nargs {
-	case "":
+	switch a.Arity {
+	case One:
 		return m[0]
-	case "?":
+	case Optional:
 		return "[" + m[0] + "]"
-	case "*":
+	case Many:
 		return "[" + m[0] + " ...]"
-	case "+":
-		return m[0] + " [" + m[0] + " ...]"
-	case "2":
+	case Two:
 		if len(m) == 1 {
 			m = []string{m[0], m[0]}
 		}
 		return strings.Join(m, " ")
 	}
-	panic(fmt.Sprintf("pm: nargs %q of %s has no usage form", a.Nargs, a.Dest))
+	panic(fmt.Sprintf("pm: arity %d of %s has no usage form", a.Arity, a.Dest))
 }
 
 // usagePart is one optional's part of the usage line, without the brackets of an optional or a group.
 func usagePart(a Arg) string {
-	if a.Kind == FlagTrue || a.Kind == FlagConst {
+	if a.Kind == SwitchOn || a.Kind == SwitchTo {
 		return a.Flags[0]
 	}
 	return a.Flags[0] + " " + formatArgs(a, strings.ToUpper(a.Dest))
 }
 
-// choicesText is a subcommand list as argparse shows it: {a,b,c}.
+// choicesText is a subcommand list as usage and help show it: {a,b,c}.
 func (c *Command[T]) choicesText() string {
 	names := make([]string, len(c.Subs))
 	for i, s := range c.Subs {
@@ -66,7 +63,7 @@ func (c *Command[T]) choicesText() string {
 	return "{" + strings.Join(names, ",") + "}"
 }
 
-// usageParts is the usage line's parts after the prog, as Python 3.13's argparse cuts them for wrapping: [-h], each
+// usageParts is the usage line's parts after the prog, the units it wraps at: [-h], each
 // optional (a mutually exclusive group's members each a part, all but the last ending in " |", the first opening the
 // group's bracket and the last closing it), then the positionals and the subcommands; nOpt is the optionals' count.
 func (c *Command[T]) usageParts() (parts []string, nOpt int) {
@@ -115,9 +112,9 @@ func (c *Command[T]) usageParts() (parts []string, nOpt int) {
 	return parts, nOpt
 }
 
-// Usage is the usage line after "usage: ", wrapped as argparse wraps it to the terminal's width (HelpFormatter: the
-// width shutil.get_terminal_size gives, less 2): when "usage: " and the line are longer, the parts go on lines indented
-// under the first part after the prog, the positionals starting a line of their own.
+// Usage is the usage line after "usage: ", wrapped to the terminal's width less 2: when "usage: " and the line are
+// longer, the parts go on lines indented under the first part after the prog, the positionals starting a line of their
+// own; a prog wider than three quarters of the width puts every part on the lines under it.
 func (c *Command[T]) Usage() string {
 	prog := c.Prog()
 	parts, nOpt := c.usageParts()
@@ -173,8 +170,8 @@ func (c *Command[T]) Usage() string {
 	return strings.Join(lines, "\n")
 }
 
-// terminalColumns is shutil.get_terminal_size().columns: $COLUMNS when a positive number, else the width of the
-// terminal on stdout, else 80.
+// terminalColumns is the terminal's width: $COLUMNS when a positive number, else the width of the terminal on stdout,
+// else 80.
 func terminalColumns() int {
 	if n, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && n > 0 {
 		return n
@@ -191,7 +188,7 @@ type helpItem struct {
 	Help       string
 }
 
-// section lays out items as argparse does: each invocation, then its help at the help column, or on the next line
+// section lays out items: each invocation, then its help at the help column, or on the next line
 // when the invocation is too wide for it.
 func section(title string, items []helpItem, column int) string {
 	var b strings.Builder
@@ -237,12 +234,12 @@ func (c *Command[T]) HelpText() string {
 			continue
 		}
 		inv := strings.Join(a.Flags, ", ")
-		if a.Kind != FlagTrue && a.Kind != FlagConst {
+		if a.Kind != SwitchOn && a.Kind != SwitchTo {
 			inv += " " + formatArgs(a, strings.ToUpper(a.Dest))
 		}
 		options = append(options, helpItem{2, inv, collapse(a.Help)})
 	}
-	longest := 0 // argparse measures a subcommand at its section's indent, not its own
+	longest := 0 // a subcommand is measured at its section's indent, not its own
 	for _, it := range append(append([]helpItem{}, positionals...), options...) {
 		longest = max(longest, 2+len(it.invocation))
 	}
