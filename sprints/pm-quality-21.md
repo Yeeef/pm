@@ -39,7 +39,10 @@ bead: pm-d2k5.21
 
 > Where is the detail?
 
-None yet.
+- [pm CLI](../design/pm-cli.md): command packages, parser stages and permanent limits.
+- [pm in Go](../design/pm-go.md): module boundaries and JSON compatibility.
+- [pm as an installable product](../design/pm-product.md): setup coverage.
+- [Decision need layout](../design/decision-need-layout.md), [Sprint lifecycle](../design/sprint-lifecycle.md), [Session claims](../design/session-claims.md), [Reply delivery](../design/reply-delivery.md): new command-file ownership.
 
 ## Progress
 
