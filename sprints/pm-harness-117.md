@@ -52,6 +52,11 @@ pm upgrade --to X takes the crossed releases upgrade guides from the release not
 pm upgrade --to X always runs pm X, which carries every earlier release notes, so no download, token or new release asset is needed and nothing can be unreachable; under the release-on-merge flow the build precedes the release commit, so X section can only come from its entries.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The machine registry of clones is the pm service units (one per clone, written by pm init) plus the clone the command runs in; each clone worktrees are read for their pins. No new registry file.
+Every clone set up by any pm since 0.2.0 already has a unit, so clones on old pins are seen too; a registry that only new pm versions write would miss them and prune pins they still use.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
