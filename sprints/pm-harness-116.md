@@ -71,6 +71,8 @@ None yet.
 
 done: the policy is decided and written, and its automation (PR #63, merged as 2bc10f2) released pm 0.8.1 on its own merge and pm 0.8.2 on the next releasing merge, with no manual step.
 
+Merged as 2bc10f2 (PR #63).
+
 - Policy: a release on every merge to main that leaves changelog.d entries. Minor only when an entry asks the owner to act (its own upgrade steps, or something removed); otherwise a patch; majors only by hand. `release/hold` pauses it.
 - PR #63: `changelog.py plan` and `next`; entry rules (an own summary paragraph, no step numbers, one entry per PR); `release/main_ci.py`; pm-release.yml on a push to main (CI wait, build, atomic push of the release commit and tag, publish); `merge_ready.py` tolerating the bot's release commits.
 
