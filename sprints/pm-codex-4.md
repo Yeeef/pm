@@ -57,6 +57,11 @@ The design page pm-go stays as it is for this sprint's code changes.
 PR 66 adds a test-only config.Keys and moves settingsOf into install as SettingsOf; the package table and dependency diagram (install imports config) stay true
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page pm-versioning stays as it is for this sprint's code changes.
+PR 66 only makes pm upgrade keep design_sources; the config row (unknown keys fail hard, the version key must equal the running pm) and the pin and launcher behavior are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
