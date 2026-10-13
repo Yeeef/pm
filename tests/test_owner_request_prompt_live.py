@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import shutil
 import statistics
 import subprocess
@@ -73,11 +74,32 @@ def clone(n: int, case: dict, tmp: Path) -> Repo:
     return make_repo(tmp / str(n), issues(case))
 
 
+def tool_transcript(case: dict, runtime: str, root: Path) -> str:
+    """A transcript of the stopping turn in `runtime`'s own format, holding the case's ask tool calls: Claude Code's
+    AskUserQuestion tool_use, Codex's request_user_input_async function_call (as Codex 0.154 records it)."""
+    if runtime == "claude":
+        lines = [{"type": "user", "message": {"role": "user", "content": "Go on with the doc."}},
+                 *({"type": "assistant", "message": {"role": "assistant", "content": [
+                     {"type": "tool_use", "id": f"t{i}", "name": "AskUserQuestion", "input": {"questions": [
+                         {"question": q, "header": "Choice", "options": [{"label": "A"}, {"label": "B"}],
+                          "multiSelect": False}]}}]}} for i, q in enumerate(case["tool_asks"]))]
+    else:
+        lines = [{"type": "turn_context", "payload": {"cwd": str(root)}},
+                 *({"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input_async",
+                                                         "call_id": f"c{i}", "arguments": json.dumps(
+                                                             {"questions": [{"title": q, "options": ["A", "B"]}]})}}
+                   for i, q in enumerate(case["tool_asks"]))]
+    path = root.parent / f"transcript-{runtime}-{secrets.token_hex(4)}.jsonl"  # one per run: the runs go at once
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    return str(path)
+
+
 def run_case(case: dict, root: Path, runtime: str, env: dict) -> tuple[str, float]:
     """The hook's verdict on `case` (pass, block, needless or needless+block) with its judge on `runtime`, and the
     call's seconds; "error: <stderr>" when the check did not run."""
     event = {"session_id": SESSIONS["me"], "hook_event_name": "Stop", "stop_hook_active": False,
-             "last_assistant_message": case["reply"]}
+             "last_assistant_message": case["reply"],
+             **({"transcript_path": tool_transcript(case, runtime, root)} if case.get("tool_asks") else {})}
     start = time.monotonic()
     res = subprocess.run([*HOOK, "--runtime", runtime], input=json.dumps(event), cwd=root, env=env,
                          capture_output=True, text=True, timeout=60, check=False)

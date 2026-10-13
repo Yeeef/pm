@@ -28,7 +28,14 @@ import (
 	"github.com/Yeeef/pm/internal/pyjson"
 )
 
-const authorized = "authorized" // a needless ask: blocks even when an open request matches
+const (
+	authorized    = "authorized"                          // a needless ask: blocks even when an open request matches
+	askedWithTool = "(asked with the ask tool this turn)" // how the judge sees a question asked with the ask tool
+)
+
+// askTool is how a block reason names the runtime's ask tool.
+var askTool = map[ask.Runtime]string{ask.Claude: "the AskUserQuestion tool",
+	ask.Codex: "your ask tool (request_user_input_async; request_user_input in Plan mode)"}
 
 // judgeTimeout is how long the judge may take on each runtime, inside its hook entry's timeout (Claude Code's 30 s,
 // Codex's 45 s). Measured by the live eval, 8 calls at a time: Claude's verdict median 2 s, max 12 s; Codex's median
@@ -107,6 +114,11 @@ func decide(event *pyjson.Object, here string, runtime ask.Runtime, requests Req
 	if err != nil {
 		return "", hookErrorf("reading this session's open needs failed: %s", strings.Join(strings.Fields(err.Error()), " "))
 	}
+	if path, ok := event.Get("transcript_path").(string); ok && path != "" { // what the owner sees asked by the tool
+		for i, q := range ToolAsks(path) {
+			open = append(open, Request{ID: fmt.Sprintf("ask-tool-%d", i+1), Title: q + " " + askedWithTool})
+		}
+	}
 	items, err := judge(runtime, reply, open)
 	if err != nil {
 		return "", err
@@ -129,7 +141,8 @@ func decide(event *pyjson.Object, here string, runtime ask.Runtime, requests Req
 		reasons = append(reasons, strings.ReplaceAll(pm.OwnerRequestNeedless, "{asks}", quoted(needless)))
 	}
 	if unmatched != nil {
-		reasons = append(reasons, strings.ReplaceAll(pm.OwnerRequestReason, "{asks}", quoted(unmatched)))
+		reasons = append(reasons, strings.NewReplacer("{asks}", quoted(unmatched), "{ask_tool}", askTool[runtime]).
+			Replace(pm.OwnerRequestReason))
 	}
 	return strings.Join(reasons, "\n\n"), nil
 }

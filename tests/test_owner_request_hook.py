@@ -239,3 +239,40 @@ def test_a_hook_stopped_mid_judge_takes_its_judge_with_it(needs, sig):
         time.sleep(0.05)  # noqa: TID251 — polling for the kill to land, under its deadline
     else:
         pytest.fail(f"the judge {call['pid']} outlived its hook")
+
+
+ASK_CALLS = {  # an ask tool call in each runtime's transcript, as each records it (Codex's measured live)
+    "claude": [{"type": "user", "message": {"role": "user", "content": "Pick the doc's color."}},
+               {"type": "assistant", "message": {"role": "assistant", "content": [
+                   {"type": "tool_use", "id": "t1", "name": "AskUserQuestion", "input": {"questions": [
+                       {"question": "Which color should the doc use?", "header": "Color",
+                        "options": [{"label": "Red"}, {"label": "Blue"}], "multiSelect": False}]}}]}}],
+    "codex": [{"type": "turn_context", "payload": {"cwd": "/r"}},
+              {"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input_async",
+                                                    "call_id": "c1", "arguments": json.dumps({"questions": [
+                                                        {"title": "Which color should the doc use?",
+                                                         "options": ["Red", "Blue"]}]})}}],
+}
+
+
+@pytest.mark.parametrize("runtime", ["claude", "codex"])
+def test_a_question_asked_with_the_ask_tool_is_not_an_ask_left_in_chat(needs, runtime, tmp_path):
+    """A question the session put to the owner with its runtime's ask tool this turn reaches the judge as asked (the
+    owner sees it), so its repeat in the reply matches it; another ask left only in chat in the same reply still blocks,
+    and the block reason names the runtime's own ask tool."""
+    path = tmp_path / f"{runtime}.jsonl"
+    path.write_text("".join(json.dumps(line) + "\n" for line in ASK_CALLS[runtime]))
+    asked, other = "Which color should the doc use?\n- Red\n- Blue", "Should I merge PR #12 now?"
+    judged = answer(("Which color should the doc use?", "decision", "ask-tool-1"), (other, "decision", None))
+    res = run(needs, reply=f"{asked}\n\n{other}", judged=judged, runtime=runtime, transcript_path=str(path))
+    out = json.loads(res.stdout)
+    assert out["decision"] == "block" and f'"{other}"' in out["reason"] and "Which color" not in out["reason"]
+    tool = "the AskUserQuestion tool" if runtime == "claude" else "your ask tool (request_user_input_async; " \
+                                                                  "request_user_input in Plan mode)"
+    assert f"ask with {tool}, never as a question in plain text" in out["reason"]
+    (call,) = calls(needs, runtime)
+    assert "- ask-tool-1: Which color should the doc use? (asked with the ask tool this turn)" in call["stdin"]
+    # the tool's question alone passes
+    res = run(needs, reply=asked, judged=answer(("Which color should the doc use?", "decision", "ask-tool-1")),
+              runtime=runtime, transcript_path=str(path))
+    assert res.returncode == 0 and res.stdout == "", res.stderr
