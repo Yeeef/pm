@@ -67,6 +67,12 @@ The owner asked for this rule in chat on 2026-10-13.
   listed need has another id), a PR review cited by id with no open requests
   read as pending 2/16.
 
+- After two judge prompt fixes (Step 3: a match needs no id; the review kind
+  defers to the citation rule), the probe gives 16/16 and 24/24 on those
+  cases, and make test-live, 74 cases x 3 runs: Claude 222/222, median 2.32 s,
+  p90 4.02 s, max 11.82 s; Codex 222/222, median 5.62 s, p90 13.78 s, max
+  18.76 s. The six new cases passed 3/3 on both runtimes in both runs.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
