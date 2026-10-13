@@ -87,6 +87,11 @@ The Codex judge keeps the user own CODEX_HOME AGENTS.md as context; pm does not 
 Codex loads that file with no flag to turn it off, and a temp home would need the user auth.json copied or linked, which a token refresh could break; the judge instructions replace Codex base prompt and the live eval ran with the file and passed.
 :::
 
+::: decision {source=owner date=2026-10-13}
+Scope gains gap 9: the request rule in its three texts names each runtime ask tool, the owner-request hook does not block an ask made with request_user_input_async or request_user_input, with labelled cases and both judge backends passing them.
+Owner chose to land it with the judge work, 2026-10-13.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
