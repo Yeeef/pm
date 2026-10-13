@@ -67,6 +67,13 @@ Owner chose it in chat over a one-way mirror: an owner away from the terminal mu
   first (Blue), the hook was not killed and its late answer was ignored, so
   pm's hook must exit by itself. answers is keyed by question text.
 
+- Codex 0.162.1, Default mode: request_user_input_async does not block; it
+  writes an AgentMessage {delivery: async, questions: [...]} to the rollout
+  and the turn ends; the answer is the next user message. codex queue --thread
+  <id> --message Red got 'chose Red' in 3.4 s and 8.2 s (2 runs). Nothing
+  enforces first-wins: pm must check the rollout for a user message after the
+  question before queueing.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
