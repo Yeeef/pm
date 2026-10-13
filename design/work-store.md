@@ -203,7 +203,7 @@ Across clones, two copies can change the same item before they sync. The merge i
 | `comments` | union by comment id: rows, merged by Dolt |
 | `labels`, `blocked_by` | per entry, three-way: an entry is kept unless a side removed it from the base and the other side left it as in the base; an add on either side is kept. Rows, merged by Dolt |
 | `status` | `closed` wins |
-| `closed_at`, `closed_by`, `close_reason` | from the earlier close when both closed; else from the side that closed |
+| `closed_at`, `closed_by`, `close_reason` | from the earlier close when both closed; else from the side that closed. As one group, three-way: a restamp (`pm action done` on a closed review) changes only `close_reason` on one side, and that side's group is kept |
 | `resolution` | the side's value that is not null; when both set it, the later `updated_at` wins. So a resolution set after the close (`pm decision close` marks a closed need `no-decision`) is kept |
 | `holder` (the three `holder_*` columns as one) | a closed result has holder null (close beats claim). Else: a claim beats a release (one side null); between two claims, the later `claimed_at` wins, and `pm show` warns that a claim was overridden |
 | `started_at` | min (the earliest start) |
@@ -328,6 +328,7 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 | Holder | `update --claim --set-metadata claimed_by=… claimed_at=…` | `work.Claim(id, session)`: compare-and-set in one write transaction |
 | Move | `update --parent=` | `work.Move(id, parent)`; the id stays |
 | Labels | `update --add-label=no-decision` | `work.SetResolution(id, "no-decision")` |
+| Close reason | none: new in pm | `work.SetCloseReason(id, reason)` on a closed item, called by `pm action done` to restamp a PR review closed without `merged as <sha>` |
 | Metadata | `update --set-metadata` (`picked_up`, `merged`, `merge_reported`) | `work.UpdateNeed(id, …)`: `delivered`, `review_merged`, `review_merge_reported` |
 | Owner answer | `human respond <id> --response=` | `work.Answer(id, text)`, called by `pm decision add --need` and `pm decision close`: a `reply` comment, then close with `resolution=answered`; a reply from the site only adds the comment |
 | Location | `context --json` | `pm where` reads the store's own path and sync state |

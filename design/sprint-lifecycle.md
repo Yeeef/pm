@@ -49,9 +49,14 @@ end-to-end flow; the sprint record's sections are under
 - A sprint closes only once its PR is on main; a PR merged into a stacked
   base does not count.
 - `pm` never asks GitHub whether a PR merged: the review action's close
-  reason ("merged as <sha>") is the merge evidence. It asks `gh` only for the
-  files a PR changes, and only while some design page has `covers:` (Design
-  pages follow the code).
+  reason ("merged as <sha>") is the merge evidence. It asks `gh` for two
+  things only: a GitHub PR's base branch when a review is raised, and the
+  files a PR changes while some design page has `covers:` (Design pages
+  follow the code).
+- A stacked PR (its base another PR's branch) merges into that branch, not
+  main, so a review raised on it could never close as merged; one closed
+  anyway before its work reached main held its sprint's close (pm-codex
+  sprint 2).
 - A rule in prose does not keep design pages current: pm-codex sprint 1
   changed reply delivery, session claims and the owner-request hook without
   editing their pages, although `prime.md` said to.
@@ -116,7 +121,10 @@ action is what says the sprint is not closed.
 
 The agent opens the PR and raises the review with
 `pm action need --pr URL --sprint ID --focus …`, which refuses a sprint
-whose report is not written, or a PR the design-page gate holds (below).
+whose report is not written, a GitHub PR whose base is not the main branch
+(raise the review on the PR that reaches main, or retarget this one with
+`gh pr edit <url> --base main`), or a PR the design-page gate holds (below).
+A URL that is not a GitHub pull request skips the base check.
 The review's text links each design page covering the changed code. The review is an action under the sprint and
 blocks its close. The sprint page renders the sprint's own open needs in the
 generated "Decisions await you" and "Actions await you" sections; the review
@@ -141,6 +149,14 @@ parent. A commit with one parent (a squash or rebase merge, a direct commit)
 does not say where its delivery starts, so there it refuses and asks for
 `--pr`. A sprint with no PR,
 or a voided one, closes without a review or a stamp.
+
+A review closed without "merged as <sha>" (its PR merged into a stacked
+base, which later reached main inside another merge) is restamped with the
+same command, `pm action done <review> --reason "merged as <sha>"`: the sha
+must be on the remote's main, checked as `--merged` checks it, and the old
+reason stays after the new one ("…; first closed as: <old>"). A review
+already closed as merged, a dismissed one and any other closed action are
+refused.
 
 ### Design pages follow the code
 
@@ -175,7 +191,13 @@ the PR.
   that does not start with done, partial or voided.
 - **`pm` checking GitHub at close:** adds a `gh` dependency to every close;
   the review's close reason already carries the evidence. The design-page
-  gate asks `gh` for a PR's files only, and only where pages have `covers:`.
+  gate asks `gh` for a PR's files only, and only where pages have `covers:`;
+  raising a review asks it for the PR's base.
+- **Reopening a review closed too early, then closing it again:** the work
+  store has no reopen, and a reopened review would block the sprint again
+  for no new evidence; a restamp changes only the reason.
+- **Warning on a stacked PR instead of refusing:** the review would still
+  close before its work reached main, the case the restamp repairs.
 - **The design-page rule in prose only** (`prime.md`: edit the page to the
   new state): broken in pm-codex sprint 1; the gate makes it structural.
 - **The waiver in the work store:** a decision with its reason is what the
