@@ -92,7 +92,7 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: the pin moved to 0.8.3, the newest release, which carries the review restamp (PR #61, pm 0.8.2) and keeps `design_sources` (PR #66, pm 0.8.3); the service runs with codex, `design_sources` is set, and sprint 2 is closed; the owner's Codex trust step remains.
+done: the pin moved to 0.8.3, the newest release, which carries the review restamp (PR #61, pm 0.8.2) and keeps `design_sources` (PR #66, pm 0.8.3); the service runs with codex, `design_sources` is set, and sprint 2 is closed, and the owner trusted pm's Codex hooks: `pm doctor` reports no skipped hook (action pm-v498.1.3).
 
 Merged as 21dcf17 (PR #60). Merged as 83e1787 (PR #61).
 
