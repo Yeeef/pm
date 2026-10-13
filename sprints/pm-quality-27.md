@@ -117,6 +117,15 @@ Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup wa
   gofmt, go vet and the renderer and pm-before builds left macOS: they read
   the same files (no Go file is OS-specific) and serve the Linux-only harness.
 
+- pm lint restored a stale cache: its key lacked pm-go.yml's 'unzipped' form
+  since sprint 18, so it matched go-linux-amd64-...-fe05966, kept alive only
+  by these restores. And TestLoadNeverPassesARecordSetMissingAFileGitRewrote
+  was a real race: a git stalled mid-checkout leaves the same unlinked record
+  missing from the read and both stamps, so the service's lock-free read
+  passed without it. It failed 4 of 4 macOS runs with three makes at once and
+  once on Linux; under 2 cores with 6 busy loops locally, 9 of 40 runs failed
+  before the index.lock check and 0 of 40 after.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
