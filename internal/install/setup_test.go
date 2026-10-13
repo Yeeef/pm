@@ -247,7 +247,7 @@ func TestExcludeRoundTrip(t *testing.T) {
 // pieceAt is the piece at rel.
 func pieceAt(t *testing.T, rel string) Piece {
 	t.Helper()
-	for _, p := range Pieces(Settings{"origin", "main", 8000, "", "", "", ""}) {
+	for _, p := range Pieces(Settings{"origin", "main", 8000, "", "", "", "", nil}) {
 		if p.Rel == rel {
 			return p
 		}
@@ -282,7 +282,7 @@ func writeTree(t *testing.T, top string, files map[string]string) {
 // pieces out, keeps pm's entries and everything else byte for byte, writes pm's own hook files, and leaves .beads/
 // alone; then pm doctor's drift is empty and a second rewrite plans nothing.
 func TestRewriteTakesOutBeadsPieces(t *testing.T) {
-	s := Settings{"origin", "main", 8000, "", "", "", ""}
+	s := Settings{"origin", "main", 8000, "", "", "", "", nil}
 	top := t.TempDir()
 	// an event Beads' removal empties keeps its place where pm writes its own group
 	userClaude := "{\n  \"hooks\": {\n    \"SessionStart\": [],\n    \"PreToolUse\": [\n      {\n        \"hooks\": [\n          {\n" +
@@ -456,7 +456,7 @@ func TestHooksPathMovesOffBeads(t *testing.T) {
 // a repo without .beads/: the legacy check, pm doctor's drift and pm upgrade's rewrite read past it. Any other error
 // reading under .beads/ still fails.
 func TestABeadsFileIsNoBeads(t *testing.T) {
-	s := Settings{"origin", "main", 8000, "", "", "", ""}
+	s := Settings{"origin", "main", 8000, "", "", "", "", nil}
 	top := t.TempDir()
 	if err := os.WriteFile(filepath.Join(top, ".beads"), []byte("Beads is retired here.\n"), 0o644); err != nil {
 		t.Fatal(err)

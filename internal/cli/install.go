@@ -52,7 +52,7 @@ func codeTop(here, records, what string) (string, error) {
 
 func settingsOf(c config.Config) install.Settings {
 	return install.Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL, AccessTeam: c.AccessTeam,
-		AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime}
+		AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime, DesignSources: c.DesignSources}
 }
 
 // checkSiteURL refuses a --site-url that is not an http(s) base URL.
