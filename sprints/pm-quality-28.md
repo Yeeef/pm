@@ -48,7 +48,10 @@ A sprint closes on the strength of its own work. Since pm 0.8.5, `pm sprint clos
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-13}
+A covers pattern is the sprint's when the page did not hold it at the last records commit before the sprint opened: added or edited patterns, and every pattern of a page made during the sprint; a pattern another session adds while the sprint is open counts as the sprint's.
+Exact and needs no new input: records commits name no sprint or session, a subagent shares its parent session (one session runs several sprints), and the owner commits with none, so per-commit attribution would need a required sprint on every pm commit; the window rule clears the case that occurs (patterns from before the sprint, as the CLI split's) and fails closed on concurrent edits to one page, whose refusal names the pattern.
+:::
 
 ## Findings
 
