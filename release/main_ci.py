@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wait for main's CI on a commit, for the release workflow (AGENTS.md, Releasing pm). Standard library only.
+"""Wait for main's CI on a commit, for the release workflow (release/README.md). Standard library only.
 
   main_ci.py SHA    exit 0 once every workflow run that a push of SHA started (gh run list --commit SHA --event push),
                     the release workflow's own left out, completed and passed, and every workflow that runs on each

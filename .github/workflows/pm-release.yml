@@ -1,4 +1,4 @@
-# pm's release (AGENTS.md, Releasing pm). A release is a tag pm-v<X> on a main commit with one GitHub release: both
+# pm's release (release/README.md). A release is a tag pm-v<X> on a main commit with one GitHub release: both
 # tarballs, built natively (cgo needs it) by release/build.sh, which stamps X into the binary, SHA256SUMS and
 # install.sh with X filled in. Its notes are X's section of CHANGELOG.md at the tagged commit, which opens with its
 # upgrade guide (release/changelog.py notes). X is in no source file. Two ways in:

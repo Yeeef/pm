@@ -1,4 +1,4 @@
-# Re-render an existing Go release's notes from main's CHANGELOG.md (AGENTS.md, Releasing pm): how a backfilled or
+# Re-render an existing Go release's notes from main's CHANGELOG.md (release/README.md): how a backfilled or
 # corrected section reaches a published release. It edits the release's notes alone; the tag and the assets stay as
 # they are, as they always must. Run it with: gh workflow run pm-release-notes.yml -f version=<X>
 name: pm release notes
