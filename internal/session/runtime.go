@@ -1,6 +1,12 @@
 // Package session is which agent session runs pm and which sessions are live: the session's id from the environment
 // (Claude Code's, or Codex's root thread's) and the runtime that runs pm, read from its ancestry; a session's
 // transcripts (Claude Code's under its config dir, Codex's rollouts under $CODEX_HOME) and what they say it did.
+//
+// The files: runtime.go the session from the environment (CLAUDE_CODE_SESSION_ID, Codex's CODEX_SESSION_ID, else
+// CODEX_THREAD_ID mapped to its root thread through its rollout) and the innermost runtime from the process ancestry
+// when both are set; codex.go Codex's rollouts and whether pm's session-start hooks ran in a Codex session
+// (CodexHooksRan); codexhooks.go the warning a pm command gives once per session when they did not; live.go a session's
+// liveness; uses.go the worktrees live sessions used, for pm clean.
 package session
 
 import (

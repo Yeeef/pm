@@ -5,6 +5,18 @@
 // Cobra routes to the command; each command then parses its own arguments with pflag (cobra's flag parsing is off on
 // leaves) so that the checks and the messages follow argparse: required arguments, mutually exclusive groups, choices,
 // positional counts, and options that take two values (--option LABEL TEXT), which pflag cannot express.
+//
+// The files: commands.go holds the command tree and every help text; cli.go the parser and Execute; agentcmds.go the
+// agent commands, their bodies in writes.go, needs.go, day.go, show*.go and where.go, their shared context and checks
+// in agent.go; install.go pm init, doctor, upgrade, uninstall and the git hooks; design.go pm design unchanged and the
+// design-page gate's wiring into pm action need --pr and pm sprint close; check.go pm check; serve.go pm service run
+// (the work store hosted with work.NewHost and reached through its own socket); service.go the other pm service
+// commands; clean.go pm clean; push.go pm push; inbox.go pm hook inbox's read; ownerrequest.go the owner-request hook's
+// work-store read; work.go pm export and pm init --import-bd FILE / --import FILE; store_commands.go the work-store
+// commands' bodies: the tree's leaves that parse their own flags (task ready/edit/release, dep add/rm, comment add,
+// need dismiss, reply add, sync), and the forms show ID and task add --parent TASK, the one argv Execute routes before
+// the tree (storeFormOf); help.go and textwrap.go lay --help out as argparse does. Every command pm runs is in the
+// tree, so in pm --help: commands_test.go fails otherwise.
 package cli
 
 import (

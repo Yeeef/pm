@@ -1,6 +1,9 @@
 // Package records parses and validates records: Markdown files with a YAML header under records/. A record's type
 // decides its required header fields and sections; fenced-div blocks are limited to the names in Blocks; sections carry
 // line ranges so a command can insert into a named section and leave the rest of the file untouched.
+//
+// covers.go holds a design page's covers: and its doublestar matcher. testdata/expected.json holds the scanning
+// functions and YAML 1.1 typing; it is edited by hand.
 package records
 
 import (

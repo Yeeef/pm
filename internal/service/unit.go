@@ -3,6 +3,12 @@
 // PRs' merges into the sessions that raised them, and syncs the stores. This file holds its unit under the machine's
 // supervisor: a launchd agent with KeepAlive on macOS, a systemd user service on Linux, byte for byte the files in
 // testdata/units for the same inputs.
+//
+// The rest of the package: run.go Run, against the work store's client and a Site interface, with its change mark and
+// the records store's images (ImageTypes); access.go the check every request passes first (Host, and on a public one
+// the Cloudflare Access token); deliver.go, spool.go and codexqueue.go the replies' delivery (a Claude Code session's
+// socket, a Codex session's codex queue); gc.go the store's garbage collection; lifecycle.go install, restart and the
+// probe of a unit that runs the pm at config.BinPath(). internal/cli/serve.go wires it to the clone.
 package service
 
 import (

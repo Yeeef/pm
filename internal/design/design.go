@@ -3,6 +3,8 @@
 // changes. A page whose covers match a changed file passes when one of the PR's sprints updated it (a records commit
 // to the page since the sprint opened, and a link to it in the sprint record's Design pages) or waived it (a sprint
 // decision pm design unchanged records).
+//
+// The gate reads a PR's changed files with gh api --paginate repos/<o>/<r>/pulls/<n>/files, a rename's old path too.
 package design
 
 import (
