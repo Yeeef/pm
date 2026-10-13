@@ -99,6 +99,16 @@ Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup wa
   (-j3) took 96 s against 98 s one after the other: the cores are the bound,
   so 2 macOS jobs cost about 125 s and 105-110 s.
 
+- Rejected by measurement: tests' temp files on a RAM disk (TMPDIR on an APFS
+  ram:// volume on macOS, /dev/shm on Linux) made macOS slower (race shards
+  37.1 s against 30.5 s on disk; internal/work's 50.9 s against 33.5 s) and
+  Linux no faster (work job 42 s against 38 s), so macOS is not fsync-bound;
+  restoring both the build and race caches in one macOS job cost 42 s of
+  restores (26 + 16 s); running deadcode's two analyses at once took 74 s
+  against 61 s serial (240 s of CPU against 169 s on 4 cores); moving the
+  golden-page tests off macOS saves under 1 s, so they stay and every OS keeps
+  every test.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
