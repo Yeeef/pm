@@ -1,7 +1,7 @@
 {
  "date": "2026-10-13",
- "generated_at": "2026-10-13T18:52:58+00:00",
- "digest": "520dcc96cf347cb9",
+ "generated_at": "2026-10-13T19:03:23+00:00",
+ "digest": "c4081837b80841b0",
  "model": "claude-haiku-5-5",
- "text": "- **Codex parity with Claude Code:** Codex sessions now get the same pm guarantees as Claude Code, and both run one project at once. A live eval on real sessions passed every case on both runtimes.\n- **Judge and summaries on Codex:** The owner-request judge now runs on Codex, and day summaries use the repo's configured runtime. A pm command in a Codex session now reports when its hooks did not run.\n- **Codex approvals and sandbox:** The owner-request rule now names Codex's ask tools, and the hook accepts their calls. Design notes now explain why Codex's sandbox cannot start on the owner's host, and give a fix.\n- **Release to main:** The owner's review of the Codex work closed, and the work merged. It now sits on main but is not yet in a release."
+ "text": "- **Codex runtime parity:** A Codex session now gets the same pm guarantees as a Claude Code session. Both runtimes can now work on one project at once.\n- **Judge and day summary on Codex:** The owner-request judge and the day summary now run on Codex too. A pm command in a Codex session now reports when its hooks did not run.\n- **Merge to main:** The Codex parity work merged to the main branch. Work started on the next pm release, which ships it.\n- **Codex sandbox limit:** Codex's sandbox cannot start on the owner's host. The owner chose to leave this gap open, and the design records the measured behavior."
 }
