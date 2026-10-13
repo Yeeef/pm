@@ -1,3 +1,6 @@
+A pin move that crosses several releases now shows the upgrade guide of each one before it writes anything, and
+moving pins no longer leaves every old pm binary on the machine.
+
 ### Added
 
 - `pm upgrade --to X` first prints the upgrade guide of every release the move crosses, after the repo's pin up to
