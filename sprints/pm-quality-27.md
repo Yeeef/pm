@@ -109,6 +109,14 @@ Only internal/work tests changed: TestPullRacingLocalWriters skips read-dedup wa
   golden-page tests off macOS saves under 1 s, so they stay and every OS keeps
   every test.
 
+- No test lost, from go test -v job logs of main's layout (PR 70 at 185c7e0)
+  and this one (PR 71): macOS every package but internal/work 163 results (117
+  top-level; 160 pass, 3 skip), internal/work 32 tests, race 9 work tests plus
+  internal/service's 39 results; Linux 163 (161 pass, 2 skip), 32, 9 plus 39.
+  The sorted per-test lists of each OS are identical before and after. Only
+  gofmt, go vet and the renderer and pm-before builds left macOS: they read
+  the same files (no Go file is OS-specific) and serve the Linux-only harness.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
