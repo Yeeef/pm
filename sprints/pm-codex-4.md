@@ -94,6 +94,8 @@ None yet.
 
 partial: the pin moved to 0.8.3, the newest release, which carries the review restamp (PR #61, pm 0.8.2) and keeps `design_sources` (PR #66, pm 0.8.3); the service runs with codex, `design_sources` is set, and sprint 2 is closed; the owner's Codex trust step remains.
 
+Merged as 21dcf17 (PR #60). Merged as 83e1787 (PR #61).
+
 - PR #60 (merged as 21dcf17): `pm upgrade --to 0.8.2`, redone from 0.8.0 once 0.8.1 and 0.8.2 were out: the pin, the hook entries for both runtimes, `.codex/rules/pm.rules`, and the post-checkout marker.
 - PR #61 (merged as 83e1787, released as pm-v0.8.2): `pm action done` restamps a closed PR review that lacks "merged as <sha>"; `pm action need --pr` refuses a PR whose base is not main.
 - PR #66 (merged as 1036382, released by CI as pm-v0.8.3): `pm upgrade` and `pm doctor` keep `design_sources`. 0.8.2's config writer dropped the key, so setting it read as drift in `pm doctor`, and the next `pm upgrade` would have deleted it. `TestConfigTextKeepsEveryKey` rewrites a config that sets every accepted key and reads it back equal.
