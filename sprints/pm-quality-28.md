@@ -53,6 +53,11 @@ A covers pattern is the sprint's when the page did not hold it at the last recor
 Exact and needs no new input: records commits name no sprint or session, a subagent shares its parent session (one session runs several sprints), and the owner commits with none, so per-commit attribution would need a required sprint on every pm commit; the window rule clears the case that occurs (patterns from before the sprint, as the CLI split's) and fails closed on concurrent edits to one page, whose refusal names the pattern.
 :::
 
+::: decision {source=agent date=2026-10-13}
+The design page session-claims stays as it is for this sprint's code changes.
+writes.go's change is in pm sprint close's covers check; task claims and holders are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
