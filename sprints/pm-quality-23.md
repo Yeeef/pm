@@ -19,7 +19,7 @@ AGENTS.md (CLAUDE.md links to it) is a short map of what an agent developing pm 
 - Fix the 6 stale claims (rule chunk sizes, judge case count, "every target runs go-build", the chunks' source, the projects named, `-j2`).
 - Move the Layout map and the test narration next to their code (package doc comments, test module docstrings, a release doc), with AGENTS.md linking to them.
 - Cut what copies `prime.md`, `--help` texts and the CHANGELOG preamble.
-- Checks in CI: a size cap (16 KiB, leaving room for a user's own `~/.codex/AGENTS.md` under 32 KiB); a reference lint (every backticked path, Make target, test name, flag and env var in AGENTS.md exists); no hand-kept numbers the code holds unless a test checks them; no sentence shared with `prime.md` or the CHANGELOG preamble.
+- Checks in CI: a size cap (16 KiB: about the 200 lines Claude Code's docs advise, and half of Codex's 32 KiB `project_doc_max_bytes`, which the AGENTS.md files from the repo root down to the working directory share; a user's `~/.codex/AGENTS.md` is outside it); a reference lint (every backticked path, Make target, test name, flag and env var in AGENTS.md exists); no hand-kept numbers the code holds unless a test checks them; no sentence shared with `prime.md` or the CHANGELOG preamble.
 
 **Out:**
 - A recurring doc-gardening agent.
