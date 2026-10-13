@@ -1,0 +1,94 @@
+# Throwaway check (pm-quality sprint 23): Anthropic workload identity federation
+# from a pull_request run. The federation rule matches only pull_request events
+# of Yeeef/pm. The ids below are not secrets.
+name: anthropic-wif-check
+
+on: pull_request
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ANTHROPIC_FEDERATION_RULE_ID: fdrl_01FPgmhV9MXPPY18z4vYRWUd
+  ANTHROPIC_ORGANIZATION_ID: 16513404-406e-458a-92bb-0720e7d32b6a
+  ANTHROPIC_SERVICE_ACCOUNT_ID: svac_019ad6gM9VcxVkWWU71SXEp7
+  ANTHROPIC_WORKSPACE_ID: wrkspc_01RCWcFPuwwkSKicviSZBree
+
+jobs:
+  anthropic-wif-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Fetch the GitHub OIDC token
+        run: |
+          set -euo pipefail
+          token=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" | jq -r .value)
+          test -n "$token" && test "$token" != null
+          echo "::add-mask::$token"
+          printf '%s' "$token" > "$RUNNER_TEMP/oidc-token"
+          # The claims carry no secret: print the ones the rule matches.
+          cut -d. -f2 "$RUNNER_TEMP/oidc-token" | tr '_-' '/+' | base64 -d 2>/dev/null \
+            | jq -c '{sub, aud, iss, event_name, exp, iat}' || true
+
+      - name: Exchange it for an Anthropic token
+        run: |
+          set -euo pipefail
+          body=$(jq -n --rawfile assertion "$RUNNER_TEMP/oidc-token" '{
+            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            assertion: $assertion,
+            federation_rule_id: env.ANTHROPIC_FEDERATION_RULE_ID,
+            organization_id: env.ANTHROPIC_ORGANIZATION_ID,
+            service_account_id: env.ANTHROPIC_SERVICE_ACCOUNT_ID,
+            workspace_id: env.ANTHROPIC_WORKSPACE_ID}')
+          status=$(curl -sS -o "$RUNNER_TEMP/exchange.json" -w '%{http_code}' \
+            -X POST https://api.anthropic.com/v1/oauth/token \
+            -H 'content-type: application/json' --data "$body")
+          echo "exchange HTTP status: $status"
+          resp="$RUNNER_TEMP/exchange.json"
+          if jq -e . "$resp" >/dev/null 2>&1; then
+            for t in $(jq -r '.. | objects | to_entries[] | select(.key | test("token$")) | .value | strings' "$resp"); do
+              echo "::add-mask::$t"
+            done
+            jq 'walk(if type == "object" then with_entries(if (.key | test("token$")) then .value = "<redacted>" else . end) else . end)' "$resp"
+            jq -c '{expires_in, scope}' "$resp"
+          elif [ "$status" != 200 ]; then
+            head -c 2000 "$resp"; echo
+          else
+            echo "200 with a body that is not JSON; not printed"
+          fi
+          rm -f "$resp"
+          test "$status" = 200
+
+      - name: Install Claude Code
+        run: |
+          set -euo pipefail
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/claude" --version
+
+      - name: Refresh the GitHub OIDC token
+        run: |
+          set -euo pipefail
+          token=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" | jq -r .value)
+          test -n "$token" && test "$token" != null
+          echo "::add-mask::$token"
+          printf '%s' "$token" > "$RUNNER_TEMP/oidc-token"
+
+      - name: claude -p under federation
+        env:
+          ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/oidc-token
+        run: |
+          set -euo pipefail
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+          claude --version
+          set +e
+          out=$(timeout 300 claude -p 'Reply with exactly: WIF OK' --model haiku 2>&1)
+          rc=$?
+          set -e
+          echo "claude exit: $rc"
+          echo "claude output: $out"
+          test "$rc" = 0
+          grep -q 'WIF OK' <<<"$out"
