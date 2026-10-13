@@ -147,19 +147,19 @@ func TestMergeFilesReadsAMergeCommitAndRefusesASingleParentOne(t *testing.T) {
 }
 
 func TestOwnIsThePatternsTheSprintAddedOrChangedSinceItOpened(t *testing.T) {
-	dir := t.TempDir()
-	commit := func(day, covers string) {
+	dir, committer := t.TempDir(), ""
+	commit := func(day, covers string) { // authored on day; committed on the day in committer, when set
 		t.Helper()
 		if err := os.MkdirAll(filepath.Join(dir, "design"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		text := "---\ntype: design\ntitle: T\nproject: demo\ncovers: " + covers + "\n---\n\nx\n"
+		text := "---\ntype: design\nproject: demo\ncovers: " + covers + "\n---\n\nx\n" // no title: Parse refuses it
 		if err := os.WriteFile(filepath.Join(dir, "design/p.md"), []byte(text), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		for _, args := range [][]string{{"add", "-A"}, {"commit", "-qm", day}} {
 			cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
-			cmd.Env = append(os.Environ(), "GIT_AUTHOR_DATE="+day+"T12:00:00Z", "GIT_COMMITTER_DATE="+day+"T12:00:00Z")
+			cmd.Env = append(os.Environ(), "GIT_AUTHOR_DATE="+day+"T12:00:00Z", "GIT_COMMITTER_DATE="+committer+"T12:00:00Z")
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("git %v: %v\n%s", args, err, out)
 			}
@@ -169,12 +169,15 @@ func TestOwnIsThePatternsTheSprintAddedOrChangedSinceItOpened(t *testing.T) {
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
 	opened := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	committer = "2026-10-01" // authored before the sprint opened, rebased onto the remote's records after it
 	commit("2026-09-20", "[a/**, pending/x.go, old.go]")
+	committer = "2026-10-02"
 	commit("2026-10-02", "[a/**, pending/x.go, new.go, a/y.go]") // in the sprint: old.go edited to new.go, a/y.go added
 	now := page(t, "design/p", "covers: [a/**, pending/x.go, new.go, a/y.go]\n")
 	got, err := Own(dir, now, opened)
 	if err != nil || !reflect.DeepEqual(got, []string{"new.go", "a/y.go"}) {
-		t.Errorf("Own = %v, %v; want the edited and the added pattern, not the ones the page held before", got, err)
+		t.Errorf("Own = %v, %v; want the edited and the added pattern, not the ones the page held before (read from "+
+			"a header Parse refuses, in a commit whose author date predates the sprint)", got, err)
 	}
 	if got, err := Own(dir, now, time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)); err != nil || len(got) != 4 {
 		t.Errorf("Own of a sprint opened before any commit = %v, %v; want every pattern", got, err)

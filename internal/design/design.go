@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -106,13 +107,25 @@ func Dead(pages []*records.Record, files map[string]bool, covers func(*records.R
 }
 
 // Own is the covers patterns of the committed page that the sprint opened at opened added or changed: those its covers
-// did not hold at the last records commit (dir is the store) before the sprint opened. With no commit before then, or
-// no page in it, every pattern is the sprint's. A records commit names no sprint, so another session's commit to the
-// page while the sprint is open counts as the sprint's.
+// did not hold at the newest records commit (dir is the store) authored before the sprint opened. Author dates, as a
+// rebase of the records branch onto the remote keeps them; a clock skewed between clones can move the base. With no
+// commit before then, or no page in it, every pattern is the sprint's. A records commit names no sprint, so another
+// session's commit to the page while the sprint is open counts as the sprint's. The old page is read for its covers
+// only, as a later pm's rules may refuse it.
 func Own(dir string, page *records.Record, opened time.Time) ([]string, error) {
-	base, err := store.Git(dir, "rev-list", "-1", "--before="+opened.Add(-time.Second).UTC().Format(time.RFC3339), "HEAD")
+	log, err := store.Git(dir, "log", "--format=%H %at", "HEAD")
 	if err != nil {
 		return nil, err
+	}
+	base := ""
+	for _, l := range lines(log) {
+		sha, at, _ := strings.Cut(l, " ")
+		if n, err := strconv.ParseInt(at, 10, 64); err != nil {
+			return nil, fmt.Errorf("git log gave %q, not a sha and an author time", l)
+		} else if n < opened.Unix() {
+			base = sha
+			break
+		}
 	}
 	var before []string
 	if base != "" {
@@ -123,11 +136,9 @@ func Own(dir string, page *records.Record, opened time.Time) ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			old, err := records.Parse(page.Path, page.Rel, text+"\n")
-			if err != nil {
+			if before, err = records.CoversOf(text+"\n", page.Rel); err != nil {
 				return nil, fmt.Errorf("the page as it was before the sprint opened (records commit %s): %w", base[:7], err)
 			}
-			before = old.Covers()
 		}
 	}
 	return slices.DeleteFunc(page.Covers(), func(p string) bool { return slices.Contains(before, p) }), nil

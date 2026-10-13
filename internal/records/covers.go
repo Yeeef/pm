@@ -20,6 +20,24 @@ func (r *Record) Covers() []string {
 	return out
 }
 
+// CoversOf is the covers patterns in the header of a page's text, read but not checked: a past version of a page,
+// which a later pm's rules may refuse.
+func CoversOf(text, rel string) ([]string, error) {
+	head, _, ok := header(text)
+	if !ok {
+		return nil, errorf("%s: missing YAML header", rel)
+	}
+	meta, err := parseHeader(head, rel)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, v := range meta["covers"].List {
+		out = append(out, v.Str)
+	}
+	return out, nil
+}
+
 // checkCovers fails on a covers field outside a design page, or one that is not a list of patterns.
 func checkCovers(meta Meta, rel string) error {
 	v, ok := meta["covers"]
