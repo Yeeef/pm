@@ -203,7 +203,7 @@ Across clones, two copies can change the same item before they sync. The merge i
 | `comments` | union by comment id: rows, merged by Dolt |
 | `labels`, `blocked_by` | per entry, three-way: an entry is kept unless a side removed it from the base and the other side left it as in the base; an add on either side is kept. Rows, merged by Dolt |
 | `status` | `closed` wins |
-| `closed_at`, `closed_by`, `close_reason` | from the earlier close when both closed; else from the side that closed. As one group, three-way: a restamp (`pm action done` on a closed review) changes only `close_reason` on one side, and that side's group is kept |
+| `closed_at`, `closed_by`, `close_reason` | from the earlier close when both closed; else from the side that closed. As one group, three-way: a restamp (`pm action done` on a closed review) changes only `close_reason` on one side, and that side's group is kept; two clones that restamp the same item differently before a sync fail the merge (same `closed_at`, different groups) |
 | `resolution` | the side's value that is not null; when both set it, the later `updated_at` wins. So a resolution set after the close (`pm decision close` marks a closed need `no-decision`) is kept |
 | `holder` (the three `holder_*` columns as one) | a closed result has holder null (close beats claim). Else: a claim beats a release (one side null); between two claims, the later `claimed_at` wins, and `pm show` warns that a claim was overridden |
 | `started_at` | min (the earliest start) |
