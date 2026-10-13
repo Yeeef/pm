@@ -232,10 +232,12 @@ def test_codex_without_claude_is_blocked_asking_only_in_chat(clone):
     raises the request as a need."""
     ids = clone.seed(1)
     sprint = ids["sprint"]
-    run = clone.run("codex", "chat-ask-codex", f"""This run checks pm's owner-request Stop hook. Do not use pm or any \
-tool now: end your turn at once with this question to the owner as your whole reply, word for word: "Should the parity \
-doc name the color red or blue?" When a hook then tells you what is left to do, do it, under sprint {sprint}, and \
-end with one line: asked.""", TIMEOUT, without=("claude",))
+    # without pm's session-start rules (their hooks left untrusted), so the agent asks in chat as told: with them, a
+    # rule-abiding agent raises the need before it ever stops, and the Stop hook has nothing to judge
+    assert clone.distrust("session_start") > 0
+    run = clone.run("codex", "chat-ask-codex", f"""This run checks a Stop hook. Do not use any tool now: end your turn at \
+once with this question to the owner as your whole reply, word for word: "Should the parity doc name the color red or \
+blue?" When a hook then tells you what is left to do, do it, under sprint {sprint}, and end with one line: asked.""", TIMEOUT, without=("claude",))
     items = clone.items()
     check = Checks(clone, run)
     blocks = run.stop_blocks()

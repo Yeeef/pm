@@ -220,8 +220,9 @@ UserPromptSubmit hook and records the decision. Stop, per runtime: a hand edit l
 blocks. Idle wake, per runtime: an interactive session (the TUI, in a pty) raises a need and ends its turn; once it
 is idle, the owner replies and, with nothing typed into it, the session starts a turn on the reply the service
 delivered (Claude Code: pushed into its socket; Codex: `codex queue`) and records the decision; it prints the wake
-latency. Chat ask, Codex only: a Codex session with no `claude` on its PATH ends its turn asking the owner only in
-chat; the owner-request judge, on `codex exec`, blocks it, and the session raises a need. Ask tool, per runtime: an
+latency. Chat ask, Codex only: a Codex session with no `claude` on its PATH, its session-start hooks left untrusted
+(`Clone.distrust`: with pm's rules in context a gpt-6 agent raises the need before it stops, so the Stop hook has
+nothing to judge), ends its turn asking the owner only in chat; the owner-request judge, on `codex exec`, blocks it, and the session raises a need. Ask tool, per runtime: an
 interactive session with the owner in its chat asks a multiple-choice question with its ask tool (AskUserQuestion;
 Codex's `request_user_input_async`), the test picks an option at the TUI's keyboard (`Tui.keys`; Codex's pick list
 opens with Shift+Left), and the Stop hook must not block nor a need be raised. Mixed: a Claude and a Codex

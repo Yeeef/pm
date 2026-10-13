@@ -408,6 +408,20 @@ class Clone:
         assert wrote and wrote <= listed.keys(), f"Codex does not list pm's hooks {sorted(wrote - listed.keys())}"
         assert all(listed[c] == "trusted" for c in wrote), f"pm's hooks are not all trusted in Codex: {listed}"
 
+    def distrust(self, event: str) -> int:
+        """Leave Codex's trust in each of pm's hooks of `event` (its label: session_start, stop, ...) stale, as after a
+        pm upgrade rewrote the entry: Codex then skips those hooks and runs the others. The number made stale."""
+        config = self.codex_home / "config.toml"
+        out, stale, inside = [], 0, False
+        for line in config.read_text().splitlines():
+            if line.startswith("["):
+                inside = f":{event}:" in line
+            if inside and line.startswith("trusted_hash"):
+                line, stale = 'trusted_hash = "sha256:' + "0" * 64 + '"', stale + 1
+            out.append(line)
+        config.write_text("\n".join(out) + "\n")
+        return stale
+
     def agent_env(self) -> dict[str, str]:
         """What either runtime runs with: the clone's environment (the fakes' supervisor and gh, the pm under test on
         PATH, the scratch HOME and CODEX_HOME), and the user's Claude config dir, where Claude Code's login and the
