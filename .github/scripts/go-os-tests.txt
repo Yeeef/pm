@@ -3,7 +3,7 @@
 # main runs every test there, and Linux runs every test on both. A package row ("*") covers each of its tests;
 # a package whose tests differ has one row per test. go_os_tests.py check fails on a test in no row or in two.
 # Columns: package dir, test or *, os or any, the evidence.
-.                  *                                                                                  any assets_test.go:TestAssetsBuildWithNoEntryFiles runs `go build` on copied embed files and size_test.go:TestPackagesStayUnderTheSizeCap counts lines; neither touches an OS-specific API
+.                  *                                                                                  any assets_test.go:TestAssetsBuildWithNoEntryFiles runs `go build` on copied embed files and size_test.go:TestPackagesStayUnderTheSizeCap counts lines and access_test.go:TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt parses every module file; none touches an OS-specific API
 internal/ask       *                                                                                  os  every Ask call goes through proc.Run with Group:true (Setpgid plus kill(-pgid)) on /bin/sh fakes; TestATimeoutKillsTheWholeCall checks the group kill with syscall.Kill(pid,0)
 internal/cli/parse *                                                                                  any parse_test.go:TestArgumentChecks only parses argv in memory
 internal/config    *                                                                                  any config_test.go:TestConfigTextKeepsEveryKey round-trips TOML text and compares the two reads; the git init only makes the temp dir a repo
@@ -119,7 +119,6 @@ internal/site      TestAQuestionsSlotBecomesTheFormItsInputsPost                
 internal/sync      TestARunRecordsEachStepAndFlagsAFailure                                            os  the push lock is syscall.Flock LOCK_NB; the ASecondRunSkipsWhileOneHoldsTheLock subtest depends on it
 internal/sync      TestANeverSuccessfulPushIsOverdueFromTheInstall                                    any JSON state file and an injected clock
 internal/sync      TestPushRecordsPushesRebasesAndReports                                             os  git clone/push/rebase under a store flock, with process-group kill in Run
-internal/work      TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt                              any AST scan of the module and a file walk
 internal/work      TestBenchLoad                                                                      os  Dolt store host (skipped without PM_BENCH_STORE)
 internal/work      TestBenchWriters                                                                   os  Dolt store host with concurrent writers (skipped without PM_BENCH_STORE)
 internal/work      TestCheckRefusesEachImpossibleState                                                any FromBD plus invariant checks in memory

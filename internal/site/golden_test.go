@@ -50,7 +50,10 @@ func constructsStore(t *testing.T, edits map[string]string) string {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		rel, _ := filepath.Rel(src, p)
+		rel, err := filepath.Rel(src, p)
+		if err != nil {
+			return err
+		}
 		b, err := os.ReadFile(p)
 		if err != nil {
 			return err
@@ -173,8 +176,11 @@ func TestPagesEqualTheGoldenPages(t *testing.T) {
 		if err != nil || d.IsDir() {
 			return err
 		}
+		rel, err := filepath.Rel(golden, p)
+		if err != nil {
+			return err
+		}
 		b, err := os.ReadFile(p)
-		rel, _ := filepath.Rel(golden, p)
 		want[filepath.ToSlash(rel)] = string(b)
 		return err
 	})

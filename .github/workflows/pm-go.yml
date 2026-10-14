@@ -14,6 +14,12 @@
 # A pull request whose changed files no Go job reads (.github/scripts/go_changes.py: docs, the harness's and the
 # release tools' Python) skips each job's steps after the check, so every job still reports, as merge_ready.py
 # requires of a workflow that runs on every PR, and passes. A push to main runs everything.
+# A pull request that the Go jobs read runs only the test packages its changes can affect: go_changes.py select reads
+# the import graph from go list -deps -test and each package's non-Go inputs (embeds, testdata, files its Go code
+# names), writes the packages to .go/selected, and the suite's make targets take that file as SELECTED; a changed file
+# it cannot place selects every package. A target with no package selected (internal/work's, when the PR changes
+# nothing its tests link or read) says so and passes. On macOS the selection is intersected with the os tests. The
+# build, gofmt, vet and go-os-check run whole.
 #
 # The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
 # and go.sum, and a pull request restores main's latest, so a PR compiles only what it changed. A run that finds none
@@ -101,9 +107,15 @@ jobs:
           matrix.save && steps.restore.outputs.cache-matched-key != '' && (github.ref == 'refs/heads/main' ||
           !startsWith(steps.restore.outputs.cache-matched-key, format('{0}{1}', steps.paths.outputs.kind, steps.paths.outputs.sum)))
         run: python3 .github/scripts/go_cache_trim.py age "${{ steps.paths.outputs.build }}"
+      - name: The test packages the changes can affect
+        id: select
+        if: steps.changes.outputs.go == 'true' && github.event_name == 'pull_request'
+        run: python3 .github/scripts/go_changes.py select .go/selected
       - name: ${{ matrix.suite }}
         id: suite
         if: steps.changes.outputs.go == 'true'
+        env:
+          SELECTED: ${{ github.event_name == 'pull_request' && '.go/selected' || '' }}
         run: ${{ github.event_name == 'pull_request' && matrix.pr_run || matrix.run }}
       - name: Record the binary
         if: matrix.binary && steps.suite.outcome == 'success'

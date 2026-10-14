@@ -391,7 +391,7 @@ options:
 usage: pm project open [-h] --title TITLE [--text-file PATH | --text TEXT]
                        name
 
-Create a project epic and its record, with the Goal from --text. The owner confirms the goal in their own words before you open the project.
+Create a project epic and its record, with the Goal from --text. The owner confirms the goal in their own words before you open the project; a request from the owner that states the goal confirms it.
 
 positional arguments:
   name

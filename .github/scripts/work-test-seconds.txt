@@ -20,7 +20,6 @@ TestFromExportRefusesALineThatIsNotAnItem 0.79
 TestImportFailsHardOnWhatItCannotMap 0.01
 TestMergeOtherScalarsTheLaterUpdatedAt 0.00
 TestMigratingAV3StoreKeepsItsItemsAndTakesQuestions 0.36
-TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt 0.02
 TestPmLockThroughTheHost 1.31
 TestPullRacingLocalWriters 5.81
 TestRoundTripOfARealExport 0.00

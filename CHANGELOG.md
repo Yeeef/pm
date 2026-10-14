@@ -29,6 +29,32 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.9.1] - 2026-10-14
+
+Agents open the project, sprint or task for work the owner asked for without asking leave, as they already commit,
+push and open PRs.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.9.1/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.9.1`, then commit what it changes and merge it, as an ordinary PR.
+
+### Changed
+
+- `pm prime`'s rules add the invariant that agents open the project, sprint or task for work the owner asked for
+  without asking: the request is the leave, and a request that states the goal confirms it. When the goal is unclear,
+  asking what it is is still a fair question; asking leave to open is not.
+- The owner-request Stop hook blocks a reply that asks leave to open a project, sprint or task for work the owner
+  asked for ("Shall I open a sprint for this?") as a needless ask, and tells the agent to open it. Asking whether to
+  open one for work the owner did not ask for, or asking what the goal is, still has to be raised as a need.
+
+### Fixed
+
+- The owner-request judge on Codex matches a reply's request to the open need that asks the same thing when the reply
+  writes another id for it, and passes a PR review the reply cites by id as open on the site, which it blocked now
+  and then.
+
 ## [0.9.0] - 2026-10-14
 
 pm reads and writes JSON with Go's own encoder now that Python pm is retired, and quotes a value in its messages the
@@ -818,6 +844,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.9.1]: https://github.com/Yeeef/pm/compare/pm-v0.9.0...pm-v0.9.1
 [0.9.0]: https://github.com/Yeeef/pm/compare/pm-v0.8.8...pm-v0.9.0
 [0.8.8]: https://github.com/Yeeef/pm/compare/pm-v0.8.7...pm-v0.8.8
 [0.8.7]: https://github.com/Yeeef/pm/compare/pm-v0.8.6...pm-v0.8.7

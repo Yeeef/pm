@@ -2,17 +2,20 @@
 """Name the Go tests whose behaviour can differ by OS, from go-os-tests.txt, for the Go jobs that run only them.
 
     go_os_tests.py check
-    go_os_tests.py packages [--os] [--but DIR]
-    go_os_tests.py names [--os] [--package DIR | --but DIR] [--only REGEX] [--skip REGEX] [--anchored]
+    go_os_tests.py packages [--os] [--but DIR] [--in FILE]
+    go_os_tests.py names [--os] [--package DIR | --but DIR] [--only REGEX] [--skip REGEX] [--anchored] [--in FILE]
 
 The tests are the top-level `func TestX(t *testing.T)` of every *_test.go in the module (none builds only on some
 systems, which every command refuses). check fails, naming each, on a test in no row of go-os-tests.txt or in two, and on a
 row that names no test or package. packages prints the package dirs, as go test takes them, that hold a test of the
 set; names prints the set's test names joined by `|`, as go_shards.py's --run takes them (or `^(…)$` with --anchored,
 as go test's -run takes them). --os keeps the os tests (else every test); --package keeps one package's, --but leaves
-one out; --only and --skip keep or drop the names a regexp finds. Each fails rather than print a set its reader
-would widen: unanchored names must select only themselves within their package as a substring match does, and
-anchored names must not name a test of another listed package outside the set.
+one out; --only and --skip keep or drop the names a regexp finds; --in keeps the packages a file names, one per line
+as go test takes them (., ./internal/site: what go_changes.py select writes), each of which must hold tests. packages
+prints nothing for an empty set given --in (none of a pull request's selected packages is in it); otherwise an empty
+set fails. Each fails rather than print a set its reader would widen: unanchored names must select only themselves
+within their package as a substring match does, and anchored names must not name a test of another listed package
+outside the set.
 """
 
 from __future__ import annotations
@@ -90,6 +93,7 @@ def main() -> int:
         p = sub.add_parser(name)
         p.add_argument("--os", action="store_true")
         p.add_argument("--but")
+        p.add_argument("--in", dest="within", type=Path)
         if name == "names":
             p.add_argument("--package")
             p.add_argument("--only")
@@ -104,10 +108,19 @@ def main() -> int:
         return 1
     if a.cmd == "check":
         return 0
+    within = None
+    if a.within:
+        within = {line.removeprefix("./") for line in a.within.read_text().split()}
+        if unknown := sorted(within - {p for p, _ in classes}):
+            print(f"go_os_tests: {a.within} names {' '.join(unknown)}, no package with tests", file=sys.stderr)
+            return 1
     chosen = sorted(k for k, cls in classes.items() if (cls == "os" or not a.os) and k[0] != a.but
+                    and (within is None or k[0] in within)
                     and (a.cmd == "packages" or not a.package or k[0] == a.package)
                     and (a.cmd == "packages" or not a.only or re.search(a.only, k[1]))
                     and (a.cmd == "packages" or not a.skip or not re.search(a.skip, k[1])))
+    if not chosen and a.cmd == "packages" and within is not None:
+        return 0
     if not chosen:
         print("go_os_tests: the set is empty", file=sys.stderr)
         return 1

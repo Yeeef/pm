@@ -8,11 +8,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	defer func(d time.Duration) { ProbeTimeout = d }(ProbeTimeout)
+	ProbeTimeout = 100 * time.Millisecond // each probe below waits it out: nothing on the port ever answers
 	main := t.TempDir()
 	held, err := net.Listen("tcp", "127.0.0.1:0") // holds the port, answers no HTTP
 	if err != nil {
