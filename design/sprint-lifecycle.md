@@ -109,7 +109,8 @@ decision, not a renamed task or rewritten description.
 `pm task claim` records the claiming session and refuses a task another live
 session holds. Code goes on a branch off main. Findings go in with
 `pm finding add`, decisions with `pm decision add`. Owner input is raised as
-a need (`pm decision need` or `pm action need`), and work continues on other
+a need (`pm decision need` or `pm action need`), or asked with the runtime's ask
+tool, which pm raises as a question need, and work continues on other
 ready tasks meanwhile. `pm task close` stamps the commit in its reason; a task
 that will not be done closes with `pm task close --dropped` and its reason.
 
@@ -131,7 +132,8 @@ whose report is not written, a GitHub PR whose base is not the main branch
 A URL that is not a GitHub pull request skips the base check.
 The review's text links each design page covering the changed code. The review is an action under the sprint and
 blocks its close. The sprint page renders the sprint's own open needs in the
-generated "Decisions await you" and "Actions await you" sections; the review
+generated "Sessions ask you", "Decisions await you" and "Actions await you"
+sections; the review
 card (PR link, focus, reply box) is what shows the sprint awaits a merge. In
 Claude Code a PostToolUse hook runs `pm reply wait` in the background and
 wakes the agent on an owner reply or when the PR merges to main; the wake for
