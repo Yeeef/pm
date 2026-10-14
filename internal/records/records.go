@@ -357,8 +357,14 @@ func LinkToNothing(root, p string) error {
 	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
-	rel, _ := filepath.Rel(root, p)
-	target, _ := os.Readlink(p)
+	rel, err := filepath.Rel(root, p)
+	if err != nil {
+		return err
+	}
+	target, err := os.Readlink(p)
+	if err != nil {
+		return err
+	}
 	return errorf("%s: a link to %s, which does not exist; remove the link or restore its file", rel, target)
 }
 
