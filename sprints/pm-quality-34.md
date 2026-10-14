@@ -37,7 +37,10 @@ An owner's reply reaches the session that asked by one route: the service's push
 
 > Where is the detail?
 
-None yet.
+- [Reply delivery](../design/reply-delivery.md): push as the only route, with the `pm show` flag and `pm reply read` as the safety net; the `pm reply wait` and `pm hook inbox` sections gone; Alternatives gives why both were dropped; `covers:` loses the removed files.
+- [Replies on the site](../design/site-replies.md): the "no push" card names the `pm show` flag and `pm reply read`.
+- [Agent lifecycle](../design/agent-lifecycle.md): the hook tables per runtime without UserPromptSubmit; a Codex question answered in chat closes by the service's check and sweep.
+- [Views and the site](../design/views-and-site.md), [Sprint lifecycle](../design/sprint-lifecycle.md), [pm in Codex](../design/pm-in-codex.md), [Owner-request Stop hook](../design/owner-request-hook.md), [pm CLI](../design/pm-cli.md), [pm in Go](../design/pm-go.md), [Project management harness](../design/pm-harness.md), [pm as an installable product](../design/pm-product.md): mentions of the two removed routes replaced by the push.
 
 ## Progress
 
@@ -58,7 +61,9 @@ Owner in chat, 2026-10-14: neither delivered a real reply in the transcripts on 
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Usage before removal, from the transcripts on the owner's machine (about 180 Claude Code sessions in this repo, about 1,760 Codex sessions): `pm hook inbox` handed over 0 real replies on either runtime (all 11 Claude Code matches were agents reading `inbox.go` or its tests); `pm reply wait <id>` ran once outside its own development, with `--timeout 10`; no raise printed the no-inbox route.
+- `pm init`'s hook presence check counted a hooks file that held every current hook plus a stale pm hook as present, so init never took out a hook an earlier pm wrote; only `pm upgrade` did. Now a pm hook this version does not write at that event makes the piece not present. `test_init_takes_out_an_earlier_pms_inbox_hook` fails on the old check (1 failed) and passes on the new one.
+- PR #89 (pm-harness sprint 118) extends `pm hook inbox` to close a Codex question answered in chat; `git merge-tree` against this branch conflicts in 9 files. Its service check before queueing and its sweep close that question too, so whichever PR merges second drops the inbox code and regenerates the goldens.
 
 ## Delivery report
 
