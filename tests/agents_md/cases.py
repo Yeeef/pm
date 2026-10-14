@@ -83,17 +83,28 @@ schema, `check.go` the invariant checks on every write and load, `ids.go` the id
 through the git remote, `move.go` a sprint move, `host.go` the host, `dolt.go` the client, `lock.go` the write lock,
 and `service.go` the operations that run in the service."""
 
+# The host's internals at its package doc's depth, every procedure with its arguments and bound, where AGENTS.md's Map
+# gives the work store one row: unmistakably map's defect.
 DETAIL = """### The work store's host
 
-The host is the Dolt engine held open by `pm service run` and served on `<main>/.pm/run/work.sock`. It registers the
-stored procedures `pm_version()`, which answers the version handshake `work.Dial` makes before any query;
-`pm_sync()`, which fetches `refs/pm/work`, merges it with the rules in `merge.go` and pushes the result; `pm_create(?)`,
-which takes the next child id with a compare-and-swap on the scratch branch `pm-cas`; `pm_move_sprint(?)`, which runs
-a sprint move under that same compare-and-swap; `pm_setup()`; and `pm_lock()` and `pm_unlock()`, the store's fair write
-lock from `lock.go`, which every write a command makes takes first. A client holds one connection to the socket for
-the command's life and closes it at exit; the service's own loops (sync, gc, the change mark) reach the host through
-the same socket, as any command does. `access_test.go` holds that only `host.go` loads an engine and only
-`pm service run` starts a host."""
+The host (`internal/work/host.go`) is the Dolt engine that `pm service run` holds open and serves on
+`<main>/.pm/run/work.sock`: at start it removes a socket a crash left, listens with mode 0600, and registers the stored
+procedures below. Every command's client (`work.Dial` in `dolt.go`) holds one connection to the socket for the
+command's life and closes it at exit; the service's own loops (sync, gc, the change mark) dial the same socket.
+
+| Procedure | Arguments | Bound | Does |
+|---|---|---|---|
+| `pm_version()` | none | none | Returns the service's build, for the version handshake `work.Dial` makes before any query; answers only once the schema is current |
+| `pm_lock(ms, pid, what)` | the wait in milliseconds, the client's pid, the write it makes | `ms` | Takes the store's fair write lock (`lock.go`) for the calling connection; every write a command makes takes it first |
+| `pm_unlock()` | none | none | Releases the connection's write lock |
+| `pm_sync()` | none | `SyncTimeout`, 120 s | Fetches `refs/pm/work`, merges it with the rules in `merge.go` and pushes the result |
+| `pm_create(?)` | the new item's spec | `CreateTimeout`, 180 s | Takes the next child id with a compare-and-swap on the scratch branch `pm-cas`, up to `casAttempts` (3) times |
+| `pm_move_sprint(?)` | the move's spec | `CreateTimeout`, 180 s | Runs a sprint move under that same compare-and-swap |
+| `pm_setup()` | none | `SetupTimeout`, 300 s | `pm init`'s clone of the remote's store |
+
+The sync, create, move and setup operations share one slot, the wait for it inside their bound: a hung fetch ends at
+its bound and frees the slot, and a caller behind it fails at its own, naming what holds the slot. `access_test.go`
+holds that only `host.go` loads an engine and only `pm service run` starts a host."""
 
 CASES = {c.name: c for c in [
     Case("clean", "full", None),
@@ -101,10 +112,10 @@ CASES = {c.name: c for c in [
          {"AGENTS.md": after_heading("Test", "Run `make test-smoke` before `make test`: it builds pm and runs the ten "
                                              "light tests of the command parser, in under ten seconds.")},
          marker="make test-smoke"),
-    Case("accurate_wrong_behaviour", "full", "accurate",
-         {"AGENTS.md": after_heading("Test", "`make lint` runs `make go-build` first, so a lint run also rebuilds "
-                                             "`.go/pm`.")},
-         marker="runs make go-build first"),
+    Case("accurate_wrong_behaviour", "full", "accurate",  # the Makefile's `lint: lint-go lint-deadcode lint-py`
+         {"AGENTS.md": after_heading("Test", "`make lint` runs only `ruff check` on `tests/` and `release/`: the Go "
+                                             "linters (golangci-lint, deadcode) run in CI alone, never locally.")},
+         marker="runs only ruff check"),
     Case("non_inferable_tour", "full", "non_inferable", {"AGENTS.md": after_heading("", TOUR)},
          marker="file by file"),
     Case("map_detail", "full", "map", {"AGENTS.md": after_heading("", DETAIL)}, marker="pm_version()"),
