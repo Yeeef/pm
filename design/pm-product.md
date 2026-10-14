@@ -74,11 +74,11 @@ pm init
 | Scope | Piece | Written by |
 |---|---|---|
 | Machine | the `pm` binary in `~/.local/bin` and its pins cache (a pin's binary kept while a checkout on the machine pins it; `pm upgrade` prunes the rest); the pm service per clone (systemd user service or launchd agent); Codex sandbox `writable_roots` per clone | `pm init` |
-| Repo (tracked) | `.pm/` (below); pm's hook entries in `.claude/settings.json` and `.codex/hooks.json`; `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox ([pm in Codex](../design/pm-in-codex.md), Sandbox); pm's lines in `.gitignore`, `/records` among them; pm's marked section in each `.beads/hooks/*` file it needs | `pm init`, `pm upgrade` |
-| Clone | the store checkout at `<main>/.pm/store/records` (git-ignored); Beads database and config; `core.hooksPath` (Beads' `.beads/hooks`); the Beads agent profile | `pm init` |
-| Worktree | the `records/` link to the store | `pm init`, run by the `post-checkout` hook |
+| Repo (tracked) | `.pm/` (below); pm's hook entries in `.claude/settings.json` and `.codex/hooks.json`; `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox ([pm in Codex](../design/pm-in-codex.md), Sandbox); pm's lines in `.gitignore`, `/records` among them | `pm init`, `pm upgrade` |
+| Clone | the store checkout at `<main>/.pm/store/records` (git-ignored); Beads database and config; the Beads agent profile | `pm init` |
+| Worktree | the `records/` link to the store | `pm init`, run by the session-start hook |
 
-pm writes nothing into `AGENTS.md` or `CLAUDE.md`, and inside Beads' git hook files only its own marked section.
+pm writes nothing into `AGENTS.md` or `CLAUDE.md`, and installs no git hook.
 
 ### The `.pm/` directory
 
@@ -140,11 +140,9 @@ One supervised background process per clone serves the site and pushes Beads dat
 
 ### Git hooks
 
-pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPath` stays `.beads/hooks`, and pm adds a section between `# --- BEGIN PM v<X> ---` and `# --- END PM ---` markers to the hooks it needs, after Beads' section. The section is one line, `pm hook git-<name> "$@"`, so the logic ships in the binary. Beads preserves content outside its markers, and pm rewrites only inside its own:
+pm installs no git hook and leaves `core.hooksPath` to the repo (owner decision, 2026-10-14). The session-start hook runs `pm init --session-start` in every worktree an agent works in, so a new worktree is set up there; a worktree used without an agent session needs `pm init` by hand.
 
-- `post-checkout`: in a new worktree or clone, `pm init`.
-
-`pm init` refuses a repo whose `core.hooksPath` points anywhere other than `.beads/hooks`.
+An earlier pm kept a `post-checkout` hook in `.pm/hooks`, a one-line section between `# --- BEGIN PM v<X> ---` and `# --- END PM ---` markers running `pm hook git-post-checkout "$@"`, and pointed `core.hooksPath` there. It is a retired piece: `pm init`, `pm upgrade` and `pm uninstall` remove the section (the file and `.pm/hooks` when nothing else is left) and unset `core.hooksPath` when it names `.pm/hooks`; `pm doctor` names a leftover. `pm hook git-post-checkout` does nothing, for the hook files older pins still run.
 
 ### Version pin
 
@@ -167,10 +165,10 @@ pm uses Beads' hook files rather than a hook directory of its own: `core.hooksPa
 
 | Command | Does |
 |---|---|
-| `pm init` | One idempotent command for every scope, doing only what is missing. Repo, when `.pm/config.toml` is absent: write `.pm/`, the hook entries and the `.gitignore` lines; run `bd init` if the repo has no `.beads/`; create the `records` branch with an empty store if the remote has none; then the clone and worktree steps. Writes files and prints the commit to make; never commits on the code branch. Clone and worktree, always: what `pm setup` does today (Beads bootstrap, store checkout, `records/` link, hooks path, the pm service, Codex roots), reading names from `config.toml`; this half is what the `post-checkout` hook runs. |
+| `pm init` | One idempotent command for every scope, doing only what is missing. Repo, when `.pm/config.toml` is absent: write `.pm/`, the hook entries and the `.gitignore` lines; run `bd init` if the repo has no `.beads/`; create the `records` branch with an empty store if the remote has none; then the clone and worktree steps. Writes files and prints the commit to make; never commits on the code branch. Clone and worktree, always: what `pm setup` does today (Beads bootstrap, store checkout, `records/` link, the pm service, Codex roots), reading names from `config.toml`; the session-start hook runs it in every worktree. |
 | `pm upgrade` | Print each crossed release's upgrade guide; move the pin; rewrite the managed pieces; prune the pins no checkout uses. |
 | `pm doctor` | Compare every managed piece with what the pinned version writes, and the clone and worktree setup with what `pm init` makes; report each difference and exit non-zero on any. It also fails while the CLI `summary_runtime` names is not on PATH (the pm service summarizes with it; a judge needs no check, since it runs on its session's own runtime), and names each of pm's hooks Codex would skip, read from Codex itself (`codex app-server`, `hooks/list`); pm never writes Codex's trust. It names, without failing, a release newer than the pin and the pins `pm upgrade` would prune. A typed `pm init` reports the Codex skips too. |
-| `pm uninstall` | Remove the managed pieces (hook entries, `.gitignore` lines, pm's sections in `.beads/hooks`, `.pm/`), and the clone and machine setup (the store checkout, the `records/` link in every worktree `git worktree list` shows, the pm service, the Codex roots); keep the `records` branch and Beads. |
+| `pm uninstall` | Remove the managed pieces (hook entries, `.gitignore` lines, `.pm/`), and the clone and machine setup (the store checkout, the `records/` link in every worktree `git worktree list` shows, the pm service, the Codex roots); keep the `records` branch and Beads. |
 
 ### Where today's pieces end up
 
@@ -211,7 +209,7 @@ With no `records` branch on the remote, `pm init` creates it as an orphan branch
 - **A copy of pm in each repo, as today.** Upgrades mean copying files, and copies drift.
 - **pm's rules in `AGENTS.md`**, in full or as a pointer section beside the hook (Beads' approach). Beads needs the file for hosts without hooks; pm targets only hosts with hooks, the file text goes stale on upgrade and costs tokens on every request, and `.pm/README.md` already signals that pm is in use.
 - **pm as the only entry point over Beads**, wrapping `bd prime` and pinning Beads' block to its minimal profile. pm's context does not conflict with Beads', and changing what Beads says belongs to sprint 36.
-- **pm's own hook directory (`.pm/hooks`) chaining to Beads' hooks.** It would change `core.hooksPath` away from what Beads installs and checks; Beads already preserves other tools' marked sections, so a section in its files is simpler.
+- **A git `post-checkout` hook that sets a new worktree up**, in pm's own `.pm/hooks` with `core.hooksPath` pointing there. pm shipped it and retired it: session start already sets up every worktree an agent works in, git runs the hook only for a worktree made with a checkout (not Claude Code's), and the hook cost pm the clone's `core.hooksPath`, which no other hook manager could then share, plus a hook file rewritten on every pin move.
 - **One installed version and a hard failure on any other pin.** It was the first design. It made the owner reinstall pm on every switch between repos on different pins, and repos cannot all move pins at once.
 - **`uvx` with the release tag.** uv fetches the remote to resolve a tag on every run (6 s), too slow for hooks; the launcher resolves the tag once and runs the commit.
 - **A persistent environment per pin, managed by pm.** It starts faster than `uv tool run` (no resolution), but it is a second install mechanism beside uv's cache; `uv tool run` with a commit costs 0.2 s.

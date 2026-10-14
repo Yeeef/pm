@@ -133,7 +133,7 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | `internal/site` | Page templates, the Markdown renderer, `style.css` (embedded) |
 | `internal/service` | `service run` (the work store held open and served on its socket, the operations commands ask for, HTTP, snapshot, reply spool, merge poll, inbox push, a question's answer (none pushed to a Claude Code session, whose `pm hook ask` takes it; queued to a Codex one unless answered in its chat first), sync and gc loops), unit files |
 | `internal/sync` | Records push and work-store sync, run by the service and `pm sync` |
-| `internal/hooks` | `prime` (`prime.md` from `assets.go`, chunks), `hook stop`, `hook owner-request`, `hook ask`, the hooks' reads and writes of the work store, git hooks |
+| `internal/hooks` | `prime` (`prime.md` from `assets.go`, chunks), `hook stop`, `hook owner-request`, `hook ask`, the hooks' reads and writes of the work store |
 | `internal/session` | Which agent session runs pm (Claude Code's id, or Codex's root session's) and its runtime, from the environment and the process ancestry; liveness from Claude Code transcripts and Codex rollouts; the sessions that used a worktree, for `pm clean`; whether Codex ran pm's session-start hooks in a session, read from its rollout, for the once-per-session warning when it ran none; the answer typed into a Codex session after its ask-tool call, read from its rollout |
 | `internal/ask` | One prompt through an agent runtime's CLI on a small model: `claude -p` (Haiku) or `codex exec`, from an empty temp directory, with no hooks, project instructions or saved session, bounded in time; the owner-request judge and `pm day summarize` use it, with no fallback from one runtime to the other |
 | `internal/install` | Managed pieces, `init`, `doctor`, `upgrade`, `uninstall`, `where` |
@@ -235,7 +235,7 @@ A command never restarts the service: parallel commands would restart it many ti
 
 | Who | Does |
 |---|---|
-| `pm init` | sets the clone and worktree up (records store, link, hooks), installs and starts the service (`service.Install`, waiting until its site answers), then asks it to attach the store (`CALL pm_setup()`). The service starts on a missing store: the engine runs on the empty directory, the socket answers, and the site serves the error "this clone has no work store yet: run pm init". The post-checkout hook sets a worktree up and leaves the store alone |
+| `pm init` | sets the clone and worktree up (records store, link, hooks), installs and starts the service (`service.Install`, waiting until its site answers), then asks it to attach the store (`CALL pm_setup()`). The service starts on a missing store: the engine runs on the empty directory, the socket answers, and the site serves the error "this clone has no work store yet: run pm init". Session start runs it (`--session-start`) in every worktree, which sets a new worktree up; pm installs no git hook |
 | `pm init --import-bd FILE` | through the service: on a clone with no store, makes an empty one first (`CREATE DATABASE` and the schema, on a connection with no database), then imports into it as one write |
 | Session start (`pm init --session-start`) | when the service is installed, enabled and not answering, starts it (`service.Restart`, under the clone's install lock, so parallel session starts start it once); a running service, a stale one included, is left as it is and reported with `pm service restart`; a stopped one (below) is left stopped and reported with `pm service restart`. A service that answers on this version is then asked to attach the store (`CALL pm_setup()`). A start waits at most `RestartWait` (15 s) of the hook's 18 s |
 | `pm service restart`, `install` | as today; the unit runs the bin-dir pm, which runs the main checkout's pin. Both enable a stopped unit first, so a typed `pm init` or `pm service restart` ends a stop |
@@ -315,7 +315,7 @@ A command never restarts the service: parallel commands would restart it many ti
 | Scope | Piece |
 |---|---|
 | Machine | `pm` in the bin dir; the `pins/` cache; the service unit running `<abs path of the bin-dir pm> service run`; Codex `writable_roots` including `.pm/store/work` |
-| Repo (tracked) | `.pm/config.toml`, `README.md`, `.gitignore`; pm's hook entries; `.codex/rules/pm.rules`; `.gitignore` block; pm's git hooks in `.pm/hooks`, which `core.hooksPath` points at |
+| Repo (tracked) | `.pm/config.toml`, `README.md`, `.gitignore`; pm's hook entries; `.codex/rules/pm.rules`; `.gitignore` block. pm installs no git hook: `pm init` and `pm upgrade` remove an earlier pm's `.pm/hooks/post-checkout` section and unset a `core.hooksPath` naming `.pm/hooks` |
 | Clone | `records` store; the work store at `<main>/.pm/store/work`, cloned from the remote, or created and pushed when the remote has none; the `records/` link |
 
 `pm init` keeps its shape: a repo half on first install, and a clone and worktree half on every run, including `--session-start`.

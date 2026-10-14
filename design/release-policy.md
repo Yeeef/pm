@@ -44,7 +44,7 @@ covers:
 
 - A release is a tag `pm-v<X>` on a main commit; `X` is in no source file. The workflow builds both targets natively (cgo), checks `pm version`, and publishes two tarballs, `SHA256SUMS` and `install.sh`.
 - Launchers keep each pin's sha256 after the first download and fail hard on a differing one: a tag whose assets were downloaded must never move or be rebuilt.
-- A repo pins one exact version. A pin move is a PR per repo (`pm upgrade --to X`). It rewrites `.pm/config.toml` and `.pm/hooks/post-checkout` always, and the hook entries in `.claude/settings.json` and `.codex/hooks.json` only when the release changed them: the entries carry no version.
+- A repo pins one exact version. A pin move is a PR per repo (`pm upgrade --to X`). It rewrites `.pm/config.toml` always, and the hook entries in `.claude/settings.json` and `.codex/hooks.json` only when the release changed them: the entries carry no version.
 - After a pin move, every worktree whose branch was cut before it is refused work-store commands until it rebases. The pm clone has 21 worktrees today.
 - Each Go pin costs about 113 MB per machine under `~/.local/share/pm/pins/`; `pm upgrade` prunes the binaries of the pins no checkout on the machine pins ([pm-versioning](pm-versioning.md), Pin moves).
 

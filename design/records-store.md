@@ -124,7 +124,7 @@ main checkout, and uses its `.pm/store/records`. It fails when the store is miss
 `records` branch; nothing falls back to a local `records/`.
 `pm where records` prints the path; bare `pm where` lists every location
 setup touches (pm's pin, the store and its ahead/behind against `origin/records`, this
-checkout and its link, the work store, the git hooks, Codex's writable roots,
+checkout and its link, the work store, Codex's writable roots,
 the pm service, each push step's last outcome, the site) with its state.
 
 ### Reading
@@ -180,21 +180,22 @@ left out.
 
 ### Retired pieces
 
-`pm doctor` reports these where a repo still has them; `pm upgrade` (and
-`pm uninstall`) removes the tracked files, and `pm init` the sparse checkout:
+`pm doctor` reports these where a repo still has them; `pm init`, `pm upgrade` and
+`pm uninstall` remove the tracked files (and `.pm/hooks` once empty) and unset the hooks path, and `pm init` turns
+the sparse checkout off:
 
 | Piece | What it did |
 |---|---|
 | `.github/workflows/pm-records-copy.yml` | `git subtree merge --prefix=records` of the store into `main` on each push to `main` |
 | `.github/workflows/pm-records-guard.yml` | Failed a pull request that edited `records/` |
 | pm's section in `.pm/hooks/pre-commit` (`.beads/hooks/pre-commit` under Python pm) | Refused a code-branch commit that staged `records/`; `pm hook git-pre-commit`, which it runs, does nothing now, so a worktree on the new pin commits until the upgrade reaches the main checkout's hook file |
+| pm's section in `.pm/hooks/post-checkout`, and the clone's `core.hooksPath` pointing at `.pm/hooks` | Ran the clone half of `pm init` in a new worktree on `git worktree add`; session start does it (below). A hooks path naming another directory is not pm's and stays. `pm hook git-post-checkout` does nothing now, for the hook files older pins still run |
 | Per-worktree sparse checkout `/*` `!/records/` | Kept `main`'s tracked copy from replacing the link; `pm init` turns it off once the worktree tracks no `records/` |
 | `records/` tracked on a branch | The copy itself; `pm doctor` names it, and the commit `pm upgrade` prints untracks it (`git rm -r -q --cached --sparse --ignore-unmatch records`), leaving the link |
 
 ### Setup and sync
 
-A clone runs one command, `pm init`. Its clone half points `core.hooksPath`
-at the main checkout's `.pm/hooks`, adds `/.pm/store/`, `/.pm/run/` and
+A clone runs one command, `pm init`. Its clone half adds `/.pm/store/`, `/.pm/run/` and
 `/records` to `.git/info/exclude`, creates the local `records` branch from
 `origin/records`, checks it out at `.pm/store/records`, and makes the link; the
 rest of `pm init` sets up the work store and the pm service
@@ -219,15 +220,12 @@ the repo, and it refuses a file it cannot parse.
 
 The session-start hook runs `pm init --session-start` at every session start,
 so every worktree an agent works in is set up whatever tool created it; that
-run never restarts a running pm service. Git's `post-checkout` hook
-(`pm hook git-post-checkout`, in `.pm/hooks`) also runs the clone half, all but
-the service, in a new worktree (previous `HEAD` all zeros); git runs it only
-for a checkout, so a worktree created without one and then reset (as Claude
-Code makes its worktrees) is set up at session start instead. A worktree used
-without an agent session and created without a checkout needs `pm init` by
-hand. Setup makes every check itself and changes nothing in a set-up worktree
-(about 1 s), so the hook runs it unconditionally rather than guessing from the
-link whether it is needed; it gets 18 s, within the 28 s the state hook leaves
+run never restarts a running pm service. pm installs no git hook: a `post-checkout` hook that ran the clone half
+in each new worktree was retired (owner decision, 2026-10-14), as it covered only a worktree made with a checkout
+and used without an agent session, at the cost of owning the clone's `core.hooksPath` and a hook file rewritten on
+every pin move. A worktree used without an agent session needs `pm init` there by hand. Setup makes every check
+itself and changes nothing in a set-up worktree (about 1 s), so the hook runs it unconditionally rather than
+guessing from the link whether it is needed; it gets 18 s, within the 28 s the state hook leaves
 for init, `pm where` and `pm show` under the runtimes' 30 s hook limit. A git
 `post-index-change` hook was tried and dropped: it fires on every index write, so it needed a
 once-per-worktree marker and a time limit (owner decision, superseding the answer to need

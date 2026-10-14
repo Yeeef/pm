@@ -60,7 +60,7 @@ This page works out two candidate models, A (shadow records branches) and B (des
 - `session.Uses` maps each worktree under `.claude/worktrees` to its latest live session; only `pm clean` uses it today.
 - One session changes code only in its own worktree; `pm task claim` refuses the main checkout.
 - The service pushes every 600 s. Records are not pulled when only behind. When ahead and behind, the store rebases onto the remote under the store lock, skipped while tracked records have uncommitted edits. The service fetches main only after it sees a review's PR merge.
-- The git `post-checkout` hook sets up every new worktree as a code worktree and skips only the store's own checkout. A second worktree of `records` fails it ("this repo has no .pm/config.toml", reproduced while measuring below).
+- pm installs no git hook: session start's `pm init --session-start` sets up every worktree an agent works in as a code worktree. In a second worktree of `records` it fails ("this repo has no .pm/config.toml").
 
 **Design pages and the code**
 
@@ -214,7 +214,7 @@ Agents write `<worktree>/records/…` with file tools, inside their own worktree
 
 **Sync across machines.** The service pushes `records` as today, and each draft commit to `refs/pm/drafts/<clone>/<name>`, where `<clone>` is an id `pm init` generates once per clone: each clone is the only writer of its namespace. The draft commit is rewritten at every follow, so the push is forced with `--force-with-lease` against the sha this clone last pushed; a lease failure is flagged. The remote ref is deleted after the publish. Other clones fetch `refs/pm/drafts/*` and list them as committed drafts with no session.
 
-**Setup.** `pm init` replaces a worktree's link with `git -c core.hooksPath=/dev/null worktree add <worktree>/records drafts/<name>`; the `post-checkout` hook skips `drafts/` branches as it skips the store. Claude Code then writes inside its own worktree. Codex writes the files there too, but committing needs the workspace's git dir as one more writable root per worktree, unless pm runs outside the sandbox (`.codex/rules/pm.rules`).
+**Setup.** `pm init` replaces a worktree's link with `git worktree add <worktree>/records drafts/<name>`; no git hook of pm's runs there, and session start skips a `drafts/` checkout as it skips the store. Claude Code then writes inside its own worktree. Codex writes the files there too, but committing needs the workspace's git dir as one more writable root per worktree, unless pm runs outside the sandbox (`.codex/rules/pm.rules`).
 
 **Failure modes.** A code worktree removed by `git worktree remove`, by Claude Code at session end or by `git clean -ffdx` loses its uncommitted record edits; the draft commit survives on its branch and remote ref. `pm clean` refuses a worktree whose workspace has uncommitted edits, and `pm where` lists orphaned draft branches. A draft never published, or a publish conflict, is flagged and holds the sprint's close.
 

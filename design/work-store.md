@@ -341,7 +341,7 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 | Owner answer | `human respond <id> --response=` | `work.Answer(id, text)`, called by `pm decision add --need` and `pm decision close`: a `reply` comment, then close with `resolution=answered`; a reply from the site only adds the comment |
 | Location | `context --json` | `pm where` reads the store's own path and sync state |
 | Config | `config get/set agent.profile` | gone: pm has no agent profile (constraint 6) |
-| Setup | `bootstrap --dry-run --json`, `bootstrap --yes`, `hooks install --beads`, `init --non-interactive` | `pm init`: clone the remote's work store (`DOLT_CLONE`), or create one with the schema when the remote has none; install pm's own git hooks |
+| Setup | `bootstrap --dry-run --json`, `bootstrap --yes`, `hooks install --beads`, `init --non-interactive` | `pm init`: clone the remote's work store (`DOLT_CLONE`), or create one with the schema when the remote has none; pm installs no git hook |
 | Sync | `dolt push`, every 600 s | the pm service pulls, resolves conflicts by the rules under Data model, then pushes, every 600 s (Storage, Sync) |
 | Outside pm | `bd prime --hook-json` in `.claude/settings.json`; 4 `bd codex-hook` entries in `.codex/hooks.json` | removed by `pm upgrade`; `pm prime` is the only context hook |
 
@@ -438,7 +438,7 @@ One row per row of "Where bd constrains pm".
 | 5 | No ahead/behind in embedded mode | pm owns sync, so `pm where` reports ahead/behind of the store against the remote, counted from `dolt_log` |
 | 6 | bd's `conservative` profile tells agents never to push | no profile; `prime.md` states pm's git rules once |
 | 7 | Context arrives three times | `pm prime` only; `bd prime` hook and the Beads block in `CLAUDE.md` removed |
-| 8 | bd owns the git hook files | pm owns its hook directory: `pm init` points `core.hooksPath` at pm's hooks; no section after `END BEADS INTEGRATION`. The work store itself needs no git hook: it syncs through Dolt |
+| 8 | bd owns the git hook files | pm installs no git hook and leaves `core.hooksPath` alone, unsetting it only where an earlier pm pointed it at `.pm/hooks`; no section after `END BEADS INTEGRATION`. The work store itself needs no git hook: it syncs through Dolt |
 | 9 | CLI edge cases: `-` text as a flag, `list` hides closed, orphan dolt child processes | calls are SQL on the service's socket: no argv for text, `work.Items()` returns every item, and there is no child process to time out |
 | 10 | Breaking changes upstream; an older binary refuses a newer schema | the store's `schema_version` table records the schema version; pm ships its SQL migrations and is pinned per repo in `.pm/config.toml`. An older pm refuses a newer schema with "run pm upgrade". The cadence is pm's own |
 

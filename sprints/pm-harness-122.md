@@ -36,7 +36,13 @@ pm installs no git hook and no longer sets `core.hooksPath`: a new worktree is s
 
 > Where is the detail?
 
-None yet.
+- [Shared records store](../design/records-store.md): Retired pieces (the post-checkout section and `core.hooksPath`), Setup and sync without a git hook.
+- [pm as an installable product](../design/pm-product.md): Where pm's pieces live, Git hooks, Commands, and the git hook as an alternative not kept.
+- [pm in Go](../design/pm-go.md): the package map, `pm init` and the repo's tracked pieces.
+- [pm CLI](../design/pm-cli.md): `pm where` without a hooks line.
+- [When and how pm releases](../design/release-policy.md): what a pin move rewrites.
+- [Record drafts and publishing](../design/record-drafts.md): its setup facts without the git hook.
+- [Work store](../design/work-store.md): the setup row and constraint row 8 (pm owns no hook directory).
 
 ## Progress
 
