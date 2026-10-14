@@ -119,6 +119,8 @@ The access-path test left internal/work for the root package; the work-store pag
 
 done: a PR runs only the Go test packages its changed files can affect, and on three non-store PRs internal/work's tests did not run and pm go's compute fell 43-50% against main's latest full run.
 
+Merged as fedc348 (PR #85).
+
 - `go_changes.py select` (PR #85): the import graph from `go list -deps -test`, embeds, testdata and paths a package's Go files name, the source-reading tests (SOURCE_READERS, checked), and every package for go.mod, go.sum or a file it cannot place.
 - pm-go.yml's five jobs take the selection as `SELECTED`; macOS intersects it with the os tests; a target with nothing selected says so and passes; a push to main runs everything.
 - The access-path test moved to the module root package.
