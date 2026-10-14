@@ -69,6 +69,14 @@ Owner chose this in chat over tuning concurrency: both jobs take 190-300 s on a 
   219-230 s, setup-go 15-22 s, install 10-11 s. The model calls set both jobs'
   time; setup is at most 35 s.
 
+- Full mode (90 calls, 5 votes): per call median 15-17 s, p90 38-45 s; the
+  consistent criterion median 73-131 s, max 102-154 s (one local call: 95 s,
+  24 sequential tool turns). A 16-slot replay of 4 runs' call times matches
+  the grading step within 1 s (184/184, 225/226, 204/204, 164/164): consistent
+  starts late. Its slowest call is the floor, so full mode on a PR stays at
+  about 120-175 s with setup even with ideal ordering. Cost with 5 votes:
+  check $0.41-0.46 (the $0.27 baseline was 3-vote), cases $0.66-0.73.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
