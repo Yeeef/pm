@@ -99,6 +99,11 @@ A Claude question's site answer reaches the session only through its PermissionR
 The hook is what closes the open dialog with the answer; a socket push would land as a separate user turn after the dialog is answered some other way. Codex has no dialog to close, so the rollout check is the first-wins guard.
 :::
 
+::: decision {source=agent date=2026-10-14}
+A Codex question is never dismissed for idleness: it closes when answered on the site, or by the first user message after it in the rollout (the chat answer).
+An idle Codex TUI waiting on the owner looks the same as an ended session, and codex queue delivers to a thread when it next loads, so a late site answer still reaches the session; a stale question costs one card the owner can dismiss.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
