@@ -48,6 +48,8 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 - [Agent lifecycle](../design/agent-lifecycle.md): the hooks table's SessionStart (`pm prime --request-rule`, the rule per mode), UserPromptSubmit and SessionEnd rows, and the Stop check off in interactive mode (covers `prime.md`, `internal/hooks/prime*.go`, `internal/hooks/stop*.go`).
 - [pm CLI](../design/pm-cli.md): the same in its hooks table, SessionEnd included (covers `internal/cli/commands.go`, its help golden).
 - [pm as an installable product](../design/pm-product.md): the request rule of the session's mode, a SessionStart hook of its own (covers `prime.md`, `internal/hooks/prime*.go`); it replaces the earlier waiver of this page.
+- [pm in Codex](../design/pm-in-codex.md): Hook trust keyed by position and pm appending new entries (measured with codex-cli 0.162.1 `hooks/list`), the Setup row's request-rule and SessionEnd entries, the owner-request guarantee per mode (covers `internal/install/pieces.go`).
+- [pm in Go](../design/pm-go.md): the `internal/hooks` row gains `--request-rule` (its texts embedded from `prompts/`) and `hook session-end` (covers `assets.go`).
 - [Session claims](../design/session-claims.md): `pm clean` removing the mode file of a session idle for a day (covers `internal/cli/clean.go`, `internal/session/**`).
 
 ## Progress
