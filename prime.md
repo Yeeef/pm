@@ -80,6 +80,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A sprint's frame exists before anything runs. A scope change is a sprint decision, never a task renamed or rewritten.
 - A sprint that changes code is done when its PR is on main. A sprint with no code change has no PR; it is done when its report is written. A sprint that a finding voided is voided, not failed.
 - Agents push a sprint's branch and open its PR without asking. Only the PR review and the merge wait on the owner, raised with `pm action need --pr`.
+- Agents open the project, sprint or task for work the owner asked for without asking: the request is the leave. A request that states the goal confirms it. When the goal is unclear, ask what it is; never ask leave to open.
 - A decision has a source, a date and a reason. Without the reason, nobody can tell later if it still holds.
 - A decision lives where it governs. Project level when later sprints must follow it; sprint level when it ends with the sprint. `until` names only a known condition to revisit it.
 - A choice that is cheap to reverse, and that nobody will ask about, needs no record. The commit message is enough.
