@@ -127,6 +127,23 @@ None yet.
   (package, test, result) lists are identical but for the added
   TestTheItemReadersLinkNoDolt, on both OSes.
 
+- Done-when samples, from the jobs API (macOS = the build-test and race steps
+  summed; wall = first job created to last check done). #81 at 280dfb8: 178 +
+  70 = 248 s, wall 249 s (last check the agents-md cases job, run because
+  AGENTS.md changed; every macOS test ran 1.3-1.6x slower than in other runs
+  that hour). #82 at 7595b37: 108 + 58 = 166 s, wall 164 s; it restored main's
+  cache from before #81, so it compiled #81's packages. #82's Go jobs rerun on
+  main's new cache: 102 + 58 = 160 s, pm-go wall 145 s. Before: 148-181 s over
+  13 runs, median 163 s. So macOS Go compute did not measurably fall in CI,
+  against 51-55 s targeted. In those suites internal/work's shards took 37.4
+  and 41.5 s against 49.7 s before, as the profile predicted. Every package's
+  tests but internal/work's took 51-60 s, though, against 26 s when the same
+  command ran again right after. The first go command after the cache restore
+  pays for reading the restored packages, so the link work cut there is not
+  what sets that phase. Two PRs and one rerun were sampled, not three PRs: no
+  other session opened a PR, and the one candidate follow-up (moving config's
+  test to install) was dropped.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
