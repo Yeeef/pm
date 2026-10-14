@@ -53,6 +53,11 @@ Sprint 30 (CI time) runs after sprint 33 (stable verdicts).
 Both change tests/agents_md/evaluate.py and agents-md.yml, and 33 fixes (vote in diff mode, cases off unrelated PRs, no clean-case repeat of check) also cut the time 30 measures; 30 then measures what remains.
 :::
 
+::: decision {source=owner date=2026-10-15}
+The model-calling grading leaves PR CI: PRs run the AGENTS.md check in diff mode only; full-mode grading and the labelled cases run in a daily scheduled CI job on main, only when AGENTS.md or the grader changed since its last successful run.
+Owner chose this in chat over tuning concurrency: both jobs take 190-300 s on a grader or AGENTS.md change, mostly model calls, and a regression found the day after merge is acceptable.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
