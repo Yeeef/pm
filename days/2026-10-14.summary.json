@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T12:33:44+00:00",
- "digest": "6f29473fbc773c39",
+ "generated_at": "2026-10-14T12:44:07+00:00",
+ "digest": "757fb36458f934e2",
  "model": "claude-haiku-5-5",
- "text": "- **Pull request test speed:** A code change now runs only the Go test packages it can affect. Main still runs the full macOS suite. Documentation-only changes skip the Go tests. MacOS compute per pull request fell, but not to the target.\n- **Agent instruction file:** AGENTS.md is now a short map that each supported agent runtime reads in full. Every pull request now runs an evaluation of that file. The evaluation signs in through workload identity federation, with no stored API key.\n- **Agent sprint and leave rules:** Agents now open a project, sprint or task for owner-requested work without asking leave. The owner-request check blocks that leave as a needless ask. A sprint close now checks only the patterns it added or changed. Work in progress: agent questions can be answered on the site as well as in chat, and the first answer wins.\n- **Command-line code layout:** The command-line code is split by noun, and each function is under the complexity limit. Python-port leftovers are removed, including the parser's argparse emulation."
+ "text": "- **Test speed and CI:** A pull request now runs only the Go test packages its changed files affect. On three non-store pull requests, Go compute fell by about half.\n- **Site-answered agent questions:** Agent questions from the ask tool can now be answered on the site as well as in chat. The first answer wins, and the site shows each question with its options and a free-text field.\n- **Agent rules and checks:** Agents now open a project, sprint or task for owner-requested work without asking leave. Sprint close checks only the waiting patterns that the sprint added or changed.\n- **Instructions and code layout:** The agent instruction file is now a short map that agents read in full, checked on every pull request. Internal command code is split by noun, and old Python-port leftovers are removed."
 }
