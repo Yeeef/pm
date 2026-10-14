@@ -191,7 +191,7 @@ func Touched(transcript string, paths []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // read only: closing it loses nothing
 	t := &touches{paths: paths, own: map[string]bool{}, byAgent: map[string][]string{}, returned: map[string]bool{}}
 	r := bufio.NewReader(f)
 	for {

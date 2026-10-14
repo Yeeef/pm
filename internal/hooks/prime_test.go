@@ -77,16 +77,25 @@ func TestContextCutsAtALineToTheCapacity(t *testing.T) {
 
 func TestFailuresNameOneLine(t *testing.T) {
 	fakeSelf(t, `echo "warning: first" >&2; echo "error: the reason" >&2; echo "last" >&2; exit 3`)
-	in, _ := Init(nil)
+	in, err := Init(nil)
+	if err != nil {
+		t.Fatal(err) // a failed run is its line, never an error
+	}
 	if want := "pm init failed at session start (error: the reason); run `pm init` by hand.\n\n"; in != want {
 		t.Errorf("init: got %q, want %q", in, want)
 	}
-	wh, _ := Where(nil)
+	wh, err := Where(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := "pm where failed at session start (last); run `pm where` by hand.\n\n"; wh != want {
 		t.Errorf("where: got %q, want %q", wh, want)
 	}
 	fakeSelf(t, `exit 4`)
-	show, _ := Context(nil, "", Cap, 5*time.Second, "5", time.Now)
+	show, err := Context(nil, "", Cap, 5*time.Second, "5", time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := "pm show failed at session start (exit 4); run `pm show` by hand."; show != want {
 		t.Errorf("show: got %q, want %q", show, want)
 	}
