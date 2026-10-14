@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Yeeef/pm/internal/work"
+	"github.com/Yeeef/pm/internal/item"
 )
 
 // testdata/serve/filled.html is the page below with its reply slots and status filled, frozen, in
@@ -53,9 +53,9 @@ func TestAReplyToASessionWithNoInboxWaitsForIt(t *testing.T) {
 	at := time.Date(2026, 10, 3, 10, 0, 0, 0, time.UTC)
 	for inbox, want := range map[string]string{"": NotPushed, "/run/claude.sock": NotDelivered,
 		"codex-queue:/home/u/.codex": NotDelivered} {
-		it := &Item{ID: "x-1", Type: work.Need, Status: work.Open, Need: &work.NeedInfo{Kind: work.Decision,
-			RaisedBy: &work.RaisedBy{Session: "cx", Inbox: inbox}},
-			Comments: []work.Comment{{ID: "c1", Kind: work.Reply, Author: "owner", Text: "Ok.", CreatedAt: at}}}
+		it := &Item{ID: "x-1", Type: item.Need, Status: item.Open, Need: &item.NeedInfo{Kind: item.Decision,
+			RaisedBy: &item.RaisedBy{Session: "cx", Inbox: inbox}},
+			Comments: []item.Comment{{ID: "c1", Kind: item.Reply, Author: "owner", Text: "Ok.", CreatedAt: at}}}
 		if got := thread(it); !strings.Contains(got, `<span class="replied">`+want+"</span>") {
 			t.Errorf("inbox %q: %s", inbox, got)
 		}

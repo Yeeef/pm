@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Yeeef/pm/internal/item"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
-	"github.com/Yeeef/pm/internal/work"
 )
 
 // The site on testdata/constructs, a fixture for each construct a page renders: its records, committed on a fixed
@@ -115,12 +115,12 @@ func constructsItems(t *testing.T, extra ...string) *records.Items {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var items []work.Item
+	var items []item.Item
 	if err := json.Unmarshal(b, &items); err != nil {
 		t.Fatal(err)
 	}
 	for _, e := range extra {
-		var it work.Item
+		var it item.Item
 		if err := json.Unmarshal([]byte(e), &it); err != nil {
 			t.Fatal(err)
 		}

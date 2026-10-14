@@ -3,55 +3,12 @@ package work
 import (
 	"fmt"
 	"iter"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
 // Moving a sprint, as the work-store page's Ids section gives it (Moving a sprint): the id stays, the parent becomes
 // the new project, the number is the new project's next, and a move note on the sprint keeps where it was, so the old
 // name points at it and the old project never mints that number again.
-
-// MoveAuthor is the author of a move note: pm itself, which is no session id and not the owner.
-const MoveAuthor = "pm"
-
-var moveLine = regexp.MustCompile(`^pm sprint move: from (\S+) sprint ([0-9]+) to (\S+) sprint ([0-9]+)$`)
-
-// SprintMove is one move of a sprint, as its move note records it: from a project and its number there, to a project
-// and its number there, and why.
-type SprintMove struct {
-	From       string
-	FromNumber int
-	To         string
-	ToNumber   int
-	Reason     string
-}
-
-// note is the move note's text: the move on its first line, then the reason.
-func (m SprintMove) note() string {
-	return fmt.Sprintf("pm sprint move: from %s sprint %d to %s sprint %d\n%s", m.From, m.FromNumber, m.To, m.ToNumber,
-		m.Reason)
-}
-
-// SprintMoves is the sprint's moves, in the order its comments hold them: each comment of kind note by MoveAuthor
-// whose first line is a move.
-func SprintMoves(it *Item) []SprintMove {
-	var out []SprintMove
-	for _, c := range it.Comments {
-		if c.Kind != Note || c.Author != MoveAuthor {
-			continue
-		}
-		first, reason, _ := strings.Cut(c.Text, "\n")
-		m := moveLine.FindStringSubmatch(first)
-		if m == nil {
-			continue
-		}
-		from, _ := strconv.Atoi(m[2])
-		to, _ := strconv.Atoi(m[4])
-		out = append(out, SprintMove{From: m[1], FromNumber: from, To: m[3], ToNumber: to, Reason: reason})
-	}
-	return out
-}
 
 // LastSprintNumber is the highest sprint number the project has used: its sprints' numbers and the numbers its move
 // notes say were moved away from it. A sprint opened or moved into the project takes the next.
@@ -124,7 +81,7 @@ func (d *Dolt) moveSprintLocal(id, to, reason string) (Item, error) {
 			it.Title = sprintTitle.ReplaceAllLiteralString(it.Title, fmt.Sprintf("Sprint %d: ", m.ToNumber))
 		}
 		it.Parent, it.Number, it.UpdatedAt = to, m.ToNumber, now
-		it.Comments = append(it.Comments, Comment{ID: cid, Kind: Note, Author: MoveAuthor, Text: m.note(), CreatedAt: now})
+		it.Comments = append(it.Comments, Comment{ID: cid, Kind: Note, Author: MoveAuthor, Text: m.Text(), CreatedAt: now})
 		moved = it
 		return []Item{it}, nil
 	})

@@ -17,7 +17,7 @@ it covers.
 | `prime.md`, `prompts/`, `style.css` | What `pm prime` prints; the model prompts and hook texts; the site's one stylesheet |
 | `internal/cli` | Every command; `commands.go` holds the command tree |
 | `internal/hooks`, `internal/ask` | What the runtimes' hooks run (`pm prime`, `pm hook …`); one prompt through `claude -p` or `codex exec` |
-| `internal/work` | The work store on embedded Dolt, its host (only `pm service run` starts one), client, sync and merge |
+| `internal/work`, `internal/item` | The work store on embedded Dolt, its host (only `pm service run` starts one), client, sync and merge; the item model, which links no Dolt (work aliases it) |
 | `internal/records`, `internal/store`, `internal/design` | Record parsing and checks; the records store; design pages' hold on the code they cover |
 | `internal/site`, `internal/service` | The pages; the pm service, its units and its access check |
 | `internal/install`, `internal/launch` | `pm init`, `doctor`, `upgrade`, `uninstall`; the launcher that runs a repo's pinned release |

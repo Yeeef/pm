@@ -1,7 +1,6 @@
-// Package work is pm's work store: the items that replace Beads issues, and the store that holds them. This file and
-// store.go fix the Item type and the Store interface that the records, site and service code builds against, on
-// embedded Dolt. The model is the Data model section of the work-store design page: a fixed set of typed fields, no
-// free metadata bag.
+// Package work is pm's work store: the items that replace Beads issues, and the store that holds them, on embedded
+// Dolt. The item model is package item, which links no Dolt; this file aliases its names, so work's code and its
+// callers name them as work's. store.go fixes the Store interface that the service code builds against.
 //
 // The files: schema.go the schema; check.go the invariant checks; ids.go the ids; ready.go ready and blocked;
 // importbd.go the bd import; export.go pm export and its import (pm init --import); sync.go the sync through the git
@@ -19,125 +18,53 @@
 // test doubles.
 package work
 
-import "time"
+// imported as model: work's tests have a helper named item
+import model "github.com/Yeeef/pm/internal/item"
 
-// Type is what an item is. It replaces bd's issue_type plus the human and action labels.
-type Type string
-
-const (
-	Project Type = "project" // a standing goal; no parent
-	Sprint  Type = "sprint"  // one step toward a project's goal; parent a project
-	Task    Type = "task"    // one unit of work; parent a sprint, a task or a project
-	Need    Type = "need"    // what waits on the owner; parent any item
+type (
+	Type        = model.Type
+	Status      = model.Status
+	Resolution  = model.Resolution
+	NeedKind    = model.NeedKind
+	CommentKind = model.CommentKind
+	Item        = model.Item
+	Holder      = model.Holder
+	NeedInfo    = model.NeedInfo
+	RaisedBy    = model.RaisedBy
+	ReviewInfo  = model.ReviewInfo
+	Comment     = model.Comment
+	SprintMove  = model.SprintMove
 )
 
-// Status is open or closed; "in progress" is an open item with a holder, and blocked is computed.
-type Status string
-
 const (
-	Open   Status = "open"
-	Closed Status = "closed"
+	Project = model.Project
+	Sprint  = model.Sprint
+	Task    = model.Task
+	Need    = model.Need
+
+	Open   = model.Open
+	Closed = model.Closed
+
+	Done       = model.Done
+	Answered   = model.Answered
+	NoDecision = model.NoDecision
+	Dismissed  = model.Dismissed
+
+	Decision = model.Decision
+	Action   = model.Action
+	Review   = model.Review
+
+	Reply = model.Reply
+	Note  = model.Note
+
+	MoveAuthor = model.MoveAuthor
 )
 
-// Resolution is how a closed item ended; empty while the item is open.
-type Resolution string
+// HasReply is item.HasReply.
+func HasReply(it *Item) bool { return model.HasReply(it) }
 
-const (
-	Done       Resolution = "done"
-	Answered   Resolution = "answered"
-	NoDecision Resolution = "no-decision"
-	Dismissed  Resolution = "dismissed"
-)
+// CompareIDs is item.CompareIDs.
+func CompareIDs(a, b string) int { return model.CompareIDs(a, b) }
 
-// NeedKind is what a need asks of the owner.
-type NeedKind string
-
-const (
-	Decision NeedKind = "decision"
-	Action   NeedKind = "action"
-	Review   NeedKind = "review"
-)
-
-// CommentKind is reply (the owner's answer, counted against Need.Delivered) or note (anything else).
-type CommentKind string
-
-const (
-	Reply CommentKind = "reply"
-	Note  CommentKind = "note"
-)
-
-// Item is one unit in the work store. Timestamps are UTC and whole seconds (YYYY-MM-DDTHH:MM:SSZ). A field that does
-// not apply is zero: Number on all but sprints, Need on all but needs, Holder on an item nobody holds, the close
-// fields on an open item; pm export writes each as null (export.go).
-type Item struct {
-	ID          string     `json:"id"` // minted at create, never changes; <prefix>-<root>(.<n>)*
-	Type        Type       `json:"type"`
-	Parent      string     `json:"parent,omitempty"` // "" only for a project; the id does not follow a move
-	Title       string     `json:"title"`
-	Description string     `json:"description,omitempty"` // Markdown
-	Status      Status     `json:"status"`
-	Resolution  Resolution `json:"resolution,omitempty"`
-	CloseReason string     `json:"close_reason,omitempty"` // a review keeps "merged as <sha>"
-	Number      int        `json:"number,omitempty"`       // a sprint's number in its record name; sprints only
-	BlockedBy   []string   `json:"blocked_by,omitempty"`   // ids of the items that must close first
-	Labels      []string   `json:"labels,omitempty"`       // free tags; pm's logic reads none
-	Holder      *Holder    `json:"holder,omitempty"`       // nil on every closed item
-	StartedAt   time.Time  `json:"started_at,omitzero"`    // the first claim
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	ClosedAt    time.Time  `json:"closed_at,omitzero"`
-	ClosedBy    string     `json:"closed_by,omitempty"` // the session that closed it
-	Comments    []Comment  `json:"comments,omitempty"`
-	Need        *NeedInfo  `json:"need,omitempty"` // needs only
-}
-
-// HasReply is whether the item holds an owner's reply: a need the owner answered.
-func HasReply(it *Item) bool {
-	for _, c := range it.Comments {
-		if c.Kind == Reply {
-			return true
-		}
-	}
-	return false
-}
-
-// Holder is the session that holds an item it works on. It replaces bd's assignee and claimed_by metadata.
-type Holder struct {
-	Session   string    `json:"session"`
-	Host      string    `json:"host"`
-	ClaimedAt time.Time `json:"claimed_at"`
-}
-
-// NeedInfo is what only a need carries.
-type NeedInfo struct {
-	Kind      NeedKind    `json:"kind"`
-	RaisedBy  *RaisedBy   `json:"raised_by,omitempty"` // nil when no session raised it
-	Delivered int         `json:"delivered"`           // owner replies that reached RaisedBy.Session
-	Review    *ReviewInfo `json:"review,omitempty"`    // kind review only
-}
-
-// RaisedBy is the session that raised a need and where its owner replies are delivered.
-type RaisedBy struct {
-	Session string `json:"session"`
-	Inbox   string `json:"inbox,omitempty"`
-	Host    string `json:"host,omitempty"`
-}
-
-// ReviewInfo is a PR review: the PR, what it delivers, and its merge as the pm service saw and reported it.
-type ReviewInfo struct {
-	PR            string   `json:"pr"`
-	Sprints       []string `json:"sprints"`
-	Designs       []string `json:"designs,omitempty"`
-	Focus         string   `json:"focus"`
-	Merged        string   `json:"merged,omitempty"`         // the merge commit on main the service saw
-	MergeReported string   `json:"merge_reported,omitempty"` // the merge commit that reached the raising session
-}
-
-// Comment is one comment on an item.
-type Comment struct {
-	ID        string      `json:"id"` // a UUID; bd's comment ids are kept
-	Kind      CommentKind `json:"kind"`
-	Author    string      `json:"author"` // "owner", or the writing session's id
-	Text      string      `json:"text"`
-	CreatedAt time.Time   `json:"created_at"`
-}
+// SprintMoves is item.SprintMoves.
+func SprintMoves(it *Item) []SprintMove { return model.SprintMoves(it) }

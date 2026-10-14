@@ -24,9 +24,9 @@ import (
 
 	pm "github.com/Yeeef/pm"
 	"github.com/Yeeef/pm/internal/design"
+	"github.com/Yeeef/pm/internal/item"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
-	"github.com/Yeeef/pm/internal/work"
 )
 
 // Style is the one stylesheet every page gets.
@@ -35,7 +35,7 @@ var Style = pm.Style
 type (
 	Record = records.Record
 	Items  = records.Items
-	Item   = work.Item
+	Item   = item.Item
 )
 
 // Dates is the design pages' dates by rel; nil for a render that only validates, whose pages show none.
@@ -53,29 +53,29 @@ func pill(st string) string {
 
 // ---------------------------------------------------------------- item status
 
-func isEpic(it *Item) bool { return it.Type == work.Project || it.Type == work.Sprint }
+func isEpic(it *Item) bool { return it.Type == item.Project || it.Type == item.Sprint }
 
 // State is one of done, dropped, running, blocked and ready: done once closed, dropped for a task closed as dismissed
 // (pm task close --dropped: not done), running while held or, for a project or sprint, once any child has started or
 // finished; blocked while a blocker is not closed.
 func State(it *Item, items *Items) string {
 	switch {
-	case it.Status == work.Closed && it.Type == work.Task && it.Resolution == work.Dismissed:
+	case it.Status == item.Closed && it.Type == item.Task && it.Resolution == item.Dismissed:
 		return "dropped"
-	case it.Status == work.Closed:
+	case it.Status == item.Closed:
 		return "done"
 	case it.Holder != nil:
 		return "running"
 	}
 	if isEpic(it) {
 		for _, k := range items.All() {
-			if k.Parent == it.ID && (k.Holder != nil || k.Status == work.Closed) {
+			if k.Parent == it.ID && (k.Holder != nil || k.Status == item.Closed) {
 				return "running"
 			}
 		}
 	}
 	for _, b := range it.BlockedBy {
-		if x := items.Get(b); x == nil || x.Status != work.Closed {
+		if x := items.Get(b); x == nil || x.Status != item.Closed {
 			return "blocked"
 		}
 	}
@@ -84,7 +84,7 @@ func State(it *Item, items *Items) string {
 
 // Kind is what a need waits for: an action by the owner (a PR review is one), else a decision.
 func Kind(it *Item) string {
-	if it.Need != nil && (it.Need.Kind == work.Action || it.Need.Kind == work.Review) {
+	if it.Need != nil && (it.Need.Kind == item.Action || it.Need.Kind == item.Review) {
 		return "action"
 	}
 	return "decision"
@@ -94,7 +94,7 @@ func Kind(it *Item) string {
 func OwnerTasks(items *Items, under string) []*Item {
 	var out []*Item
 	for _, it := range items.All() {
-		if it.Status != work.Closed && it.Type == work.Need && contains(items.Ancestors(it.ID), under) {
+		if it.Status != item.Closed && it.Type == item.Need && contains(items.Ancestors(it.ID), under) {
 			out = append(out, it)
 		}
 	}
@@ -118,7 +118,7 @@ func childrenWhere(items *Items, parent string, keep func(*Item) bool) []*Item {
 }
 
 func sprintsOf(items *Items, project string) []*Item {
-	return childrenWhere(items, project, func(it *Item) bool { return it.Type == work.Sprint })
+	return childrenWhere(items, project, func(it *Item) bool { return it.Type == item.Sprint })
 }
 
 func utcDate(t time.Time) string { return t.UTC().Format("2006-01-02") }
@@ -150,7 +150,7 @@ func TaskGraph(sprints []*Item, items *Items) string {
 	nid := func(id string) string { return nonWord.ReplaceAllString(id, "_") }
 	label := func(s string) string { return strings.ReplaceAll(s, `"`, "#quot;") }
 	sorted := append([]*Item{}, sprints...)
-	sort.SliceStable(sorted, func(i, j int) bool { return work.CompareIDs(sorted[i].ID, sorted[j].ID) < 0 })
+	sort.SliceStable(sorted, func(i, j int) bool { return item.CompareIDs(sorted[i].ID, sorted[j].ID) < 0 })
 	lines, edges := []string{"flowchart LR"}, []string{}
 	for _, sp := range sorted {
 		lines = append(lines, fmt.Sprintf(`  subgraph %s["%s"]`, nid(sp.ID), label(sp.Title)), "    direction TB")
@@ -193,7 +193,7 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 			sprints = append(sprints, r)
 		}
 	}
-	sort.SliceStable(sprints, func(i, j int) bool { return work.CompareIDs(sprints[i].Bead(), sprints[j].Bead()) < 0 })
+	sort.SliceStable(sprints, func(i, j int) bool { return item.CompareIDs(sprints[i].Bead(), sprints[j].Bead()) < 0 })
 	var rows []string
 	for _, r := range sprints {
 		b := items.Get(r.Bead())
@@ -237,14 +237,14 @@ func unsprinted(recs []*Record, items *Items) []unsprintedItem {
 	}
 	var out []unsprintedItem
 	for _, it := range items.All() {
-		if it.Status == work.Closed || isEpic(it) {
+		if it.Status == item.Closed || isEpic(it) {
 			continue
 		}
-		if p := projects[it.Parent]; it.Parent == "" || (p != nil && it.Type != work.Need) {
+		if p := projects[it.Parent]; it.Parent == "" || (p != nil && it.Type != item.Need) {
 			out = append(out, unsprintedItem{it, p})
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return work.CompareIDs(out[i].it.ID, out[j].it.ID) < 0 })
+	sort.SliceStable(out, func(i, j int) bool { return item.CompareIDs(out[i].it.ID, out[j].it.ID) < 0 })
 	return out
 }
 
@@ -490,7 +490,7 @@ func PRLabel(url string) string {
 	return "PR"
 }
 
-func reviewDesigns(review *work.ReviewInfo, recs []*Record) []*Record {
+func reviewDesigns(review *item.ReviewInfo, recs []*Record) []*Record {
 	slugs := append([]string{}, review.Designs...)
 	for _, r := range recs {
 		if b, ok := r.ID("bead"); ok && r.Type() == "sprint" && contains(review.Sprints, b) {
@@ -514,7 +514,7 @@ func reviewDesigns(review *work.ReviewInfo, recs []*Record) []*Record {
 	return out
 }
 
-func reviewContext(review *work.ReviewInfo, items *Items, recs []*Record, frm *Record, md func(string) (string, error)) (string, error) {
+func reviewContext(review *item.ReviewInfo, items *Items, recs []*Record, frm *Record, md func(string) (string, error)) (string, error) {
 	pr := esc(review.PR)
 	var titles []string
 	for _, s := range review.Sprints {
@@ -621,7 +621,7 @@ func thread(it *Item) string {
 			author = "unknown"
 		}
 		status := ""
-		if c.Kind == work.Reply {
+		if c.Kind == item.Reply {
 			author = "you, on the site"
 			switch need := it.Need; {
 			case n < seen:
@@ -1134,7 +1134,7 @@ func indexSprints(p *Record, recs []*Record, items *Items) string {
 	sprints := sprintsOf(items, p.Bead())
 	var done []*Item
 	for _, sp := range sprints {
-		if sp.Status == work.Closed {
+		if sp.Status == item.Closed {
 			done = append(done, sp)
 		}
 	}
@@ -1147,7 +1147,7 @@ func indexSprints(p *Record, recs []*Record, items *Items) string {
 	}
 	var rows []string
 	for _, sp := range sprints {
-		if sp.Status != work.Closed || shown[sp.ID] {
+		if sp.Status != item.Closed || shown[sp.ID] {
 			n, m := 0, 0
 			for _, t := range items.Children(sp.ID) {
 				switch State(t, items) {
@@ -1248,13 +1248,13 @@ func CheckNeedsAnswered(recs []*Record, items *Items, ids map[string]bool) error
 		}
 	}
 	all := append([]*Item{}, items.All()...)
-	sort.SliceStable(all, func(i, j int) bool { return work.CompareIDs(all[i].ID, all[j].ID) < 0 })
+	sort.SliceStable(all, func(i, j int) bool { return item.CompareIDs(all[i].ID, all[j].ID) < 0 })
 	for _, it := range all {
 		if ids != nil && !ids[it.ID] {
 			continue
 		}
-		if it.Status != work.Closed || it.Type != work.Need || Kind(it) != "decision" ||
-			it.Resolution == work.NoDecision || it.Resolution == work.Dismissed {
+		if it.Status != item.Closed || it.Type != item.Need || Kind(it) != "decision" ||
+			it.Resolution == item.NoDecision || it.Resolution == item.Dismissed {
 			continue
 		}
 		inside := false

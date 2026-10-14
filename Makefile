@@ -100,10 +100,13 @@ go-build-pm:
 # The work store's concurrency tests, which make test-go runs again under the race detector (about a minute; the whole
 # internal/work package under -race would take several): the write lock, the slot, gc and merges racing writers.
 RACE_TESTS := Racing|Migrating|OutsideTheLock|Outlasting|WriteLock|PmLock|ASecondLock
-# Build, then the gofmt check, go vet and the Go tests (with the same tag: the embedded Dolt needs it), then the pm
-# service and the work store's concurrency tests (RACE_TESTS) again under -race. pm-go.yml runs the parts as parallel
-# jobs: go-build, go-fmt, go-vet and go-test-but-work; go-test-work; go-test-race.
-test-go: go-build go-fmt go-vet go-test-but-work go-test-work go-test-race
+# Build, the gofmt check, go vet and the Go tests (with the same tag: the embedded Dolt needs it), and the pm service
+# and the work store's concurrency tests (RACE_TESTS) again under -race, all at once: no part reads another's output,
+# and one after another they left most cores waiting (35 s against 20 s on 32 cores). pm-go.yml runs the parts as
+# parallel jobs: go-build, go-fmt, go-vet and go-test-but-work; go-test-work; go-test-race. Measure WORK_SECONDS with
+# make go-test-work UPDATE=1 alone, not through test-go, whose other parts would slow the tests it times.
+test-go:
+	$(MAKE) -j go-build go-fmt go-vet go-test-but-work go-test-work go-test-race
 
 # Fail when gofmt would change a Go file of the module, naming each one. The files are those of go list's packages,
 # every build tag's and the tests' included, so the module's own: no testdata, vendor or other worktree under .claude/
