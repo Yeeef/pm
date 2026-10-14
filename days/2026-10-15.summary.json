@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-14T22:20:53+00:00",
- "digest": "d7c03bff297eb14f",
+ "generated_at": "2026-10-14T22:31:11+00:00",
+ "digest": "5e3006bde8685e99",
  "model": "claude-haiku-5-5",
- "text": "- **Owner question answers:** Owner questions can now be answered on the site as well as in chat. The first answer counts, and every ending reaches the harness through a hook event.\n- **Subagent owner requests:** A subagent's question now goes to its parent agent. Interactive mode uses a request rule with its own SessionStart hook.\n- **Agent evaluation runs:** The evaluation vote now counts per line, and advice gives both lines. CI timeouts now fit the length of each wave."
+ "text": "- **Ask-tool question closing:** A question can now be answered on the site or in chat. The first answer wins. Questions now close from hook events, not from transcript or rollout reads.\n- **Git hook retirement:** pm installs no git hook and no longer sets the hooks path. Session start prepares each new worktree instead.\n- **AGENTS.md check stability:** The AGENTS.md check now gives the same verdict on every rerun. Every known-good input passed, and every known-bad input failed, on each rerun.\n- **Subagent question ownership:** A question from a subagent now belongs to its parent agent. The owner-request rule now has its own session-start hook."
 }
