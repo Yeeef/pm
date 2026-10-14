@@ -60,7 +60,23 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Selector design, from evidence in the code: go list -deps -test gives each
+  test binary's linked module packages (test-only imports included) in 0.3 s
+  locally and 2-5 s as a CI step. Three packages' tests read Go source beyond
+  their build and run on any .go change under what they read (SOURCE_READERS,
+  checked against their test files' go/ast, go/parser, go/build, go/doc,
+  go/types, exec go and ".go" marks): the root package (size_test.go,
+  assets_test.go), internal/item (go list -deps of the item readers) and
+  internal/cli (its own and subpackages' func docs). internal/work's
+  access-path test parsed every module file, so it would have selected
+  internal/work for any Go change; it moved to the root package. Non-Go
+  inputs: only the root package embeds (prime.md, style.css, prompts,
+  CHANGELOG.md, changelog.d), propagated like a .go change to the 7 test
+  binaries linking it; testdata maps to its package; paths named from a
+  package (../../tests/fake_sched.py from internal/service) to that package.
+  internal/work's test binary links buildinfo, config, item, launch, proc and
+  worktest besides itself, so a change to site, records, store, design, hooks,
+  install, service, cli, ask, session or sync never runs it.
 
 ## Delivery report
 
