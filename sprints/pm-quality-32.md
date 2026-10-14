@@ -114,10 +114,20 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a PR runs only the Go test packages its changed files can affect, and on three non-store PRs internal/work's tests did not run and pm go's compute fell 43-50% against main's latest full run.
+
+- `go_changes.py select` (PR #85): the import graph from `go list -deps -test`, embeds, testdata and paths a package's Go files name, the source-reading tests (SOURCE_READERS, checked), and every package for go.mod, go.sum or a file it cannot place.
+- pm-go.yml's five jobs take the selection as `SELECTED`; macOS intersects it with the os tests; a target with nothing selected says so and passes; a push to main runs everything.
+- The access-path test moved to the module root package.
+- Three measured follow-ups clearing errcheck backlog: #86 (internal/records), #87 (internal/hooks), #88 (internal/site tests).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- 3 non-store PRs, internal/work not run, compute and wall reported: met. #86, #87, #88 selected 9, 6 and 3 of 17 packages; the work and race jobs logged "internal/work is not selected" on both OSes. pm go compute 210, 218 and 190 s against 380 s on main's latest full run (8ad2720); wall 80, 103 and 74 s against 139 s (Findings).
+- A PR that changes internal/work runs the full set: met. #85 changed internal/work and the CI files: 17 of 17 selected, internal/work's 8 shards and the race tests ran. A change to internal/work alone selects internal/work whole and every test package linking it (cli, config, install, service), held by `test_go_changes_select_on_this_repo_follows_its_import_graph_and_its_readers`.
+- A testdata or embedded-file change selects its reader: met. `test_go_changes_select_runs_the_test_packages_a_change_can_affect_and_everything_for_one_it_cannot_place` (testdata, test embed, embed, a named path) and the real-repo test (prime.md selects internal/hooks; internal/site/testdata selects internal/site).
+- An unplaceable file runs everything: met. The same tests: Makefile, a workflow, an unembedded new file, a .go file in no package, go.mod and go.sum select every package; end to end in `test_go_changes_select_writes_a_pull_requests_packages_and_every_package_on_a_push`.
+- merge_ready.py's per-PR workflow rule holds: met. Every pm go job reported and passed on #86-#88 with nothing to test; `release/merge_ready.py` accepted each and its exact command merged it.
+- One main-push full run is green: met. pm go at fedc348 (run 38563081331), 5b48d14, d318ee3 and 8ad2720 ran every test and passed.
