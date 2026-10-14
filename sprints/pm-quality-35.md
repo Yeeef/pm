@@ -105,6 +105,13 @@ None yet.
   30 or gocognit 40: 35 -> 10 (non-test 21 -> 4). //nolint directives 20 ->
   49, 25 of them errcheck. make lint exits 0.
 
+- Size: non-test Go code lines 22,532 -> 25,677 (+14%), Go test lines 8,007 ->
+  10,468, harness 4,347 -> 8,148 lines in 28 files; Go packages 18 -> 25.
+  Non-test functions over 100 code lines 17 -> 2, the longest 204 -> 102. Over
+  the trend, gocyclo > 30 went 17 non-test / 8 test -> 0 / 0 between the
+  merges of #80 and #81, the span that holds only #62 (internal/cli split by
+  noun).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
