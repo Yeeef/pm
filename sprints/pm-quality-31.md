@@ -153,6 +153,25 @@ The pm-quality project decision of 2026-10-14 (owner) revises macOS on every PR:
   other session opened a PR, and the one candidate follow-up (moving config's
   test to install) was dropped.
 
+- Classification (table below; .github/scripts/go-os-tests.txt on main holds
+  it with the same reasons): of 155 top-level Go tests, 85 can behave
+  differently by OS and 70 cannot. Evidence for os: process groups (Setpgid,
+  kill(-pgid)); flock; unix sockets and the 104-byte sun_path limit; symlinks
+  and realpath (EvalSymlinks, os.Root); file modes and Chmod 0; service units
+  (PlatformKind, launchctl, systemctl); XDG data dirs; /proc against ps; exec
+  of downloaded binaries; and the embedded Dolt engine writing a store on
+  disk. Every package is all os (ask, store), all any (root, cli/parse,
+  config, design, hooks, item) or mixed per test (cli, install, launch,
+  records, service, session, site, sync, work). Checked: the test set read
+  from source equals go test -list's (155 = 155). Each mode's selection equals
+  its intended set, run locally with -v: Linux and main-push macOS run all
+  155; macOS runs internal/work's 9 RACE_TESTS only under -race; a PR's macOS
+  jobs run exactly the 85 os tests (59 outside internal/work, 19 in it, and 7
+  race tests under -race; internal/service's os tests also run under -race).
+  Main's push run on #83 (ad5659f) ran the full macOS suite and passed: every
+  package, 23 internal/work tests, and the 9 race tests plus internal/service
+  under -race (build-test 81 s, race 49 s).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
