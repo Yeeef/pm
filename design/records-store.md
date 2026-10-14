@@ -188,7 +188,7 @@ left out.
 | `.github/workflows/pm-records-copy.yml` | `git subtree merge --prefix=records` of the store into `main` on each push to `main` |
 | `.github/workflows/pm-records-guard.yml` | Failed a pull request that edited `records/` |
 | pm's section in `.pm/hooks/pre-commit` (`.beads/hooks/pre-commit` under Python pm) | Refused a code-branch commit that staged `records/`; `pm hook git-pre-commit`, which it runs, does nothing now, so a worktree on the new pin commits until the upgrade reaches the main checkout's hook file |
-| pm's section in `.pm/hooks/post-checkout`, and the clone's `core.hooksPath` pointing at `.pm/hooks` | Ran the clone half of `pm init` in a new worktree on `git worktree add`; session start does it (below). A hooks path naming another directory is not pm's and stays. `pm hook git-post-checkout` does nothing now, for the hook files older pins still run |
+| pm's section in `.pm/hooks/post-checkout`, and the clone's `core.hooksPath` pointing at `.pm/hooks` | Ran the clone half of `pm init` in a new worktree on `git worktree add`; session start does it (below). A hooks path naming another directory, or a `.pm/hooks` holding hooks of the user's, is not pm's and stays. `pm hook git-post-checkout` does nothing now, for the hook files older pins still run |
 | Per-worktree sparse checkout `/*` `!/records/` | Kept `main`'s tracked copy from replacing the link; `pm init` turns it off once the worktree tracks no `records/` |
 | `records/` tracked on a branch | The copy itself; `pm doctor` names it, and the commit `pm upgrade` prints untracks it (`git rm -r -q --cached --sparse --ignore-unmatch records`), leaving the link |
 
