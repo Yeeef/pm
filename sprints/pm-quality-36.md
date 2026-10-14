@@ -61,6 +61,20 @@ None yet.
   at 8ad2720 here (load 6.0 to 16.4 at the starts): the clash needs both
   copies inside the same ~0.1 s window, which make -j hits only sometimes.
 
+- Root cause: TestServiceInstallStatusRestartAndLogsEndToEnd took its site
+  port from service.FreePort, the first free port from 8000 that no pm unit in
+  HOME names. Each copy fakes its own HOME, so copies running at once see none
+  of each other's units and, with 8000 and 8001 held by this machine's real
+  services, all take :8002 in the window between FreePort and the service's
+  bind; the second service finds the first's store there. make test-go runs
+  internal/service twice at once (go-test-but-work plain, go-test-race-service
+  under -race), and other worktrees run it too. Fix: the test takes a
+  kernel-picked port (listen on 127.0.0.1:0); the root package's
+  TestNoTestTakesFreePortsSitePort parses every Go file and fails on a
+  FreePort call in a _test.go file (it fails on 8ad2720's
+  lifecycle_test.go:244). After the fix the 8-copy reproduction passed 24 of
+  24 at ea50cfd.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
