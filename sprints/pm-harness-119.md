@@ -70,6 +70,11 @@ Only the owner sets the mode: a prompt that is exactly pm interactive or pm auto
 A shell command would let a blocked agent switch the judge off itself; only the owner can submit a prompt, so the UserPromptSubmit hook cannot be triggered by an agent.
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page pm-product stays as it is for this sprint's code changes.
+prime.md gains one sentence on interactive mode and prime.go only its file map; the page's install and hook model stay true
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
