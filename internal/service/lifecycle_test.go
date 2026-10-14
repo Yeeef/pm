@@ -241,7 +241,20 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 	if err != nil || code != 1 || !strings.Contains(out, "not installed; run pm service install") {
 		t.Fatal(code, out, err)
 	}
-	port := FreePort()
+	// The site port is one the kernel hands out, not FreePort's: FreePort takes the first free port from 8000 that no
+	// unit in this HOME names, and each copy of this test has a HOME of its own, so two copies running at once (make
+	// test-go runs this package twice, plain and under -race, and other worktrees run it too) took the same port, and
+	// the copy whose service bound second found the other's store on it. The root package's
+	// TestNoTestTakesFreePortsSitePort fails any test that calls FreePort.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if err := l.Close(); err != nil || !ok {
+		t.Fatal(l.Addr(), err)
+	}
+	port := addr.Port
 	exe, _ := Exe()
 	said, err := Install(main, port, exe, false)
 	if err != nil || !strings.HasPrefix(said, "installed the pm service: ") ||

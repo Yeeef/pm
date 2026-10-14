@@ -23,7 +23,7 @@ func TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt(t *testing.T) {
 		"github.com/dolthub/dolt/go/cmd/dolt/commands/engine": true}
 	got := map[string][]string{} // call -> the files that make it
 	root := "."
-	files, err := moduleGoFiles(root)
+	files, err := moduleGoFiles(root, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,26 +100,32 @@ func TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		files, err := moduleGoFiles(root)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var got []string
-		for _, f := range files {
-			rel, _ := filepath.Rel(root, f)
-			got = append(got, filepath.ToSlash(rel))
-		}
-		sort.Strings(got)
-		if want := []string{".claude/settings.go", "a.go", "sub/b.go"}; strings.Join(got, " ") != strings.Join(want, " ") {
-			t.Errorf("module files %v, want %v", got, want)
+		for tests, want := range map[bool][]string{false: {".claude/settings.go", "a.go", "sub/b.go"},
+			true: {".claude/settings.go", "a.go", "a_test.go", "sub/b.go"}} {
+			files, err := moduleGoFiles(root, tests)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, f := range files {
+				rel, err := filepath.Rel(root, f)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got = append(got, filepath.ToSlash(rel))
+			}
+			sort.Strings(got)
+			if strings.Join(got, " ") != strings.Join(want, " ") {
+				t.Errorf("module files with tests %v: %v, want %v", tests, got, want)
+			}
 		}
 	})
 }
 
-// moduleGoFiles is every non-test Go file of the module at root, as the go command counts it: a directory with a
-// go.mod of its own (another module, or a worktree of this repo under .claude/worktrees) is not in it, nor is .git,
-// testdata, .go (the build output) or .venv.
-func moduleGoFiles(root string) ([]string, error) {
+// moduleGoFiles is every non-test Go file of the module at root, the _test.go files too when tests is set, as the go
+// command counts them: a directory with a go.mod of its own (another module, or a worktree of this repo under
+// .claude/worktrees) is not in it, nor is .git, testdata, .go (the build output) or .venv.
+func moduleGoFiles(root string, tests bool) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
 		if err != nil {
@@ -134,7 +140,7 @@ func moduleGoFiles(root string) ([]string, error) {
 			}
 			return nil
 		}
-		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+		if strings.HasSuffix(path, ".go") && (tests || !strings.HasSuffix(path, "_test.go")) {
 			files = append(files, path)
 		}
 		return nil

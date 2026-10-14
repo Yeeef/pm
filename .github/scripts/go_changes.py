@@ -52,7 +52,7 @@ NO_GO = ("README.md", "AGENTS.md", "CLAUDE.md", "website/*", "tests/*.py", "rele
 # read and the evidence: a .go file changed under it selects the package, whatever the import graph says.
 SOURCE_READERS = {
     ".": (".", "size_test.go counts every package's lines; access_test.go parses every non-test file's calls; "
-               "assets_test.go runs go build"),
+               "ports_test.go parses every file's calls; assets_test.go runs go build"),
     "internal/item": (".", "item_test.go runs go list -deps on the item readers, whose imports can reach any package"),
     "internal/cli": ("internal/cli", "doc_test.go parses the func docs of internal/cli and its subpackages"),
 }
