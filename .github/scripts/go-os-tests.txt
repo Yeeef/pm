@@ -81,6 +81,7 @@ internal/service   TestServesPagesStyleAndVersionWithTheStoreAndVersionHeaders  
 internal/service   TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt                         os  serve() plus os.Symlink escapes refused by os.Root
 internal/service   TestAReplyIsSpooledStoredOnceAndPushedIntoTheSessionsInbox                         os  flocked spool plus a unix-socket inbox in /tmp
 internal/service   TestAReplyIsRefusedWithItsReason                                                   os  serve(): service.Run with flock and TCP
+internal/service   TestAQuestionsAnswerIsComposedFromItsFieldsAndAnUnansweredOneIsRefused             os  serve(): service.Run with flock and TCP
 internal/service   TestAPartialReadIsRepeatedUnderTheLockAndServedThere                               os  records flock (LOCK_SH) inside service.Run
 internal/service   TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused               os  serve() plus a flocked spool
 internal/service   TestAPendingSpoolIsStoredAtStartOnce                                               os  flocked spool at start

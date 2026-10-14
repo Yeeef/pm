@@ -265,7 +265,7 @@ func (f *fakeSite) FillStatus(page string, asOf time.Time, digest string, now ti
 	return strings.Replace(page, StatusSlot, "[status "+digest+"]", 1)
 }
 
-var slot = regexp.MustCompile(`<!--pm-reply (\S+) (decision|action)-->`)
+var slot = regexp.MustCompile(`<!--pm-reply (\S+) (decision|action|question)-->`)
 
 type fakePages []work.Item
 
