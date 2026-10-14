@@ -84,6 +84,11 @@ Supersedes this sprint's two decisions that made an ask-tool question a decision
 Owner in chat: a decision is for a project or sprint outcome, not a session-wide instruction, e.g. "Do you want me to open a sprint for it?". Scope, not timing, sets them apart; timing follows from scope.
 :::
 
+::: decision {source=agent date=2026-10-14}
+A question is a fourth need kind in the work store (question), with its call id and its questions and options in tables like review_targets: schema version 4.
+The need_kind CHECK admits only decision, action and review, so the new kind changes the schema whatever else is stored; with the version moving anyway, tables keep the questions structured for the site's options and the no-JSON-cell rule. Cost: every clone upgrades before it syncs again, stated in the upgrade guide.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
