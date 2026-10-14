@@ -180,13 +180,14 @@ Review of dbf3f41: the state hook prints nothing when init, where or show fail o
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: `pm interactive` and `pm autopilot` set a session's mode, and the owner-request judge lets an interactive session's asks in chat through (PR #91, pending merge).
+done: `pm interactive` and `pm autopilot` set a per-session mode that turns the owner-request judge off, and session start gives the agent the rule for asking the owner that fits the mode (PR #91, head f09419d, pending merge).
 
-- `pm interactive` / `pm autopilot`: create and remove `<main checkout>/.pm/run/sessions/<session-id>`, with the session id from the environment; both refuse without a session.
+- `pm interactive` / `pm autopilot`: create and remove `<main checkout>/.pm/run/sessions/<session-id>`, using the session id from the environment, then print the new mode's rule. Both refuse without a session. Nothing stops an agent from running them (owner decision).
 - `pm hook owner-request`: skips the judge while the session's mode file exists. `pm hook stop` is unchanged.
-- `pm hook inbox`: adds one context line to each prompt while the session is interactive.
-- `pm clean`: lists mode files; `--apply` removes those of sessions that are not live.
-- `prime.md`: one sentence saying an agent runs `pm interactive` when the owner asks. Nothing enforces that, as the owner decided.
+- The request rule has left `prime.md`. It now lives in `prompts/request_rule_autopilot.txt` (sprint 118's rule) and `prompts/request_rule_interactive.txt`, and the SessionStart entry `pm prime --request-rule` prints the one for the session's mode on startup, resume, clear and compact. It comes after pm's existing entries, so Codex keeps their trust.
+- `pm hook session-end` on SessionEnd (Claude Code and Codex) removes the session's mode file. A resumed session starts in autopilot.
+- `pm clean`: as a backstop for crashed sessions, it removes a mode file only after its session has been idle for 24 h.
+- `TestNewHookEntriesFollowTheReleasedOnes`: fails when a new hook entry shifts an entry pm already released.
 
 ### Against "Done when"
 
@@ -194,9 +195,10 @@ done: `pm interactive` and `pm autopilot` set a session's mode, and the owner-re
 
 | Item | Met | Evidence |
 |---|---|---|
-| `test_owner_request_hook.py` | met | CI `integration` and `light` pass on PR #91; the test counts judge calls: 0 when interactive; another session, autopilot and after `pm autopilot` are blocked |
-| `test_pm.py` | met | Same CI run: the commands write and remove the file, and refuse with no session id |
-| `test_hooks.py` | met | Same CI run: the inbox line appears only while interactive, on Claude Code and Codex input |
-| `test_clean.py` | met | Same CI run: a dead session's mode file is removed, live Claude Code and Codex sessions' files are kept |
-| Live check | met | Scratch clone, real `claude -p` Haiku, 1 passed in 59.65 s: blocked in autopilot, 0 blocks after `pm interactive`, blocked again after `pm autopilot`; a TUI `!pm interactive` set the TUI session's own file (Findings) |
-| PR on main | not yet | PR #91, CI green, awaiting review |
+| `test_owner_request_hook.py` | met | CI on f09419d passes; the test counts judge calls: 0 when interactive; another session, autopilot and after `pm autopilot` are blocked |
+| `test_pm.py` | met | Same CI run: the commands write and remove the file, print their rule, and refuse with no session id |
+| `test_hooks.py` | met | Same CI run: the request-rule hook prints each mode's rule on both runtimes' input; session-end removes the file |
+| `test_clean.py` | met | Same CI run: a session idle for 25 h loses its mode file and one idle for 2 h keeps it, for Claude Code and Codex |
+| Live check: `claude -p` interactive vs autopilot | met | a13a7d2, scratch clone, Haiku: 4 passed in 111.79 s. After `pm interactive`: not blocked. After `pm autopilot`: blocked. The rule came as its own hook output (Findings). f09419d only reorders the SessionStart entries and fixes texts; the Codex trust order was checked with `hooks/list` (main's 13 hooks trusted, only the 2 new ones untrusted). The live check was not rerun on it |
+| Live check: ending a session removes the file | met | Same run: `claude -p` end, TUI `/exit` and `codex exec` end each removed the file; after `/compact` the TUI got the interactive rule |
+| PR on main | not yet | PR #91 at f09419d: CI green, `make merge-ready PR=91` ready, awaiting the owner's review |
