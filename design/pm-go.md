@@ -18,7 +18,7 @@ covers:
   - "internal/work/dolt*.go"
   - "internal/work/lock*.go"
   - "internal/work/service*.go"
-  - "internal/work/access_test.go"
+  - "access_test.go"
   - "internal/work/worktest/**"
 ---
 
@@ -263,7 +263,7 @@ A command never restarts the service: parallel commands would restart it many ti
 - Go: `worktest.Serve(t testing.TB) (*work.Host, *work.Dolt)` makes a clone directory with `os.MkdirTemp("", "pm")` (short enough for the socket on macOS, where `t.TempDir()` paths may not be), starts `work.NewHost` on it, makes an empty store, dials one client, and stops both in `t.Cleanup`. Sync and compare-and-swap tests run two hosts against a bare remote: one clone creates through `CALL pm_create`, the other runs the compare-and-swap in process so the test can hold its push; a sync that must see the other clone's last push waits out Dolt's 1 s read dedup. A version test hosts `pm_version()` returning another version and checks both refusals.
 - The concurrency test: 8 connections × 20 writes, 160 of 160 correct, invariants checked after; two opposite `pm dep add` at once: exactly one lands, the other refuses the cycle; a long write behind 3 tight-loop writers gets the lock in its turn; a write racing one outside the lock fails hard. The race tests (a pull and `pm_create` racing tight-loop local writers, zero failures asserted; gc racing `pm_sync` and `pm_create`) also run under `-race` in `make test-go`. The benchmarks (`bench_test.go`, with `PM_BENCH_STORE` naming a copy of a store) run 10 fresh-process loads and 8 processes × 20 writes.
 - pytest: the `repo` fixture starts `pm service run` for the clone (a free port, its socket under a short `--basetemp`), waits for the socket, seeds through it (a re-import restarts it on a removed store), and stops it at teardown. This per-test service does not make a test `integration`; `integration_only` keeps naming the service lifecycle tests. A test that runs the clone's own `pm service run` stops it first and starts it after, and the fake supervisor stops it when it starts the clone's installed service.
-- The access-path test: with the service stopped, every store command fails with the message naming `pm service restart` and writes nothing (pytest, 39 commands); and only `host.go` calls into `dolthub/driver` or Dolt's engine package (`LoadMultiEnvFromDir`, `NewSqlEngine`), and only `pm service run` and `worktest` call `work.NewHost`: a Go test over every non-test file's calls, resolved by import path with `go/parser`, so a new direct open fails CI.
+- The access-path test: with the service stopped, every store command fails with the message naming `pm service restart` and writes nothing (pytest, 39 commands); and only `host.go` calls into `dolthub/driver` or Dolt's engine package (`LoadMultiEnvFromDir`, `NewSqlEngine`), and only `pm service run` and `worktest` call `work.NewHost`: a Go test over every non-test file's calls, resolved by import path with `go/parser`, so a new direct open fails CI. It is the module root package's (`access_test.go`), whose tests read every package's files, so a pull request that changes any package runs it without internal/work's tests.
 
 ### Site
 

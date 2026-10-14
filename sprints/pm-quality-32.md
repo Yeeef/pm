@@ -42,7 +42,7 @@ A PR runs only the Go test packages that its changed files can affect, and the f
 
 > Where is the detail?
 
-None yet.
+- [pm-go](../design/pm-go.md): the access-path test moved to the module root package (covers `access_test.go`).
 
 ## Progress
 
