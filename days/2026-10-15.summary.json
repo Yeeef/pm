@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-14T22:41:31+00:00",
- "digest": "d0e2afff9c0998fb",
+ "generated_at": "2026-10-14T22:51:47+00:00",
+ "digest": "49c909c3aa80c7bf",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions on site:** Ask-tool questions now accept answers on the site as well as in chat. The first answer wins, and a hook event closes each question.\n- **Stable AGENTS.md verdicts:** The check now gives the same verdict on every rerun. Known-good inputs always passed, and known-bad inputs always failed.\n- **Agent and hook setup:** This repo turns off Claude Code's auto memory. Pm no longer installs a git hook or sets `core.hooksPath`; new worktrees get set up at session start.\n- **Go test reliability:** `make test-go` now passes on every run. The service end-to-end test gets a free port from the kernel, not a shared one."
+ "text": "- **Owner question replies:** Ask-tool questions can now be answered on the site or in chat; the first answer wins. Owner replies reach a session by push alone.\n- **Check and test reliability:** The AGENTS.md check now gives the same verdict on every rerun, and its CI jobs run faster. The Go end-to-end test now passes on every run.\n- **Session hooks and settings:** pm no longer installs a git hook or owns the git hooks path. Claude Code auto memory is now off in this repo."
 }
