@@ -29,6 +29,62 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.10.0] - 2026-10-14
+
+A question an agent asks with its runtime's ask tool shows on the owner's site too, where the owner can answer it as
+well as in the session's chat; the first answer reaches the session. pm installs no git hook and no longer sets
+`core.hooksPath`: session start's `pm init --session-start` sets each new worktree up, as it already did.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.10.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.10.0`, then commit what it changes and merge it, as an ordinary PR.
+3. Move every clone of the repo to this release together. The work store's schema moves to version 4 the first time
+   this release opens it, and the store syncs through the remote, so a clone still on an older pm fails its sync with
+   "the remote's schema is version 4, newer than this pm's 3: run pm upgrade" until its main checkout has the new pin.
+4. Where Codex works in the repo, open Codex in the main checkout and trust pm's hooks again in `/hooks`: `pm upgrade`
+   adds a PostToolUse entry and a UserPromptSubmit entry to `.codex/hooks.json`, and Codex skips a new hook until it
+   is trusted. `pm doctor` names any of pm's hooks Codex would skip.
+
+### Added
+
+- A question an agent asks with AskUserQuestion (Claude Code) or `request_user_input_async` (Codex) is raised as a
+  new kind of need, a question, under the newest open task the session holds, or under none when it holds none. The
+  site shows it in a "Sessions ask you" section above the decisions, with each question's options to pick and an
+  "Other" field for the owner's own answer; `pm show` lists it too.
+- The owner answers a question on the site or in the session's chat, and the first answer wins. In Claude Code a
+  site answer closes the open question dialog with that answer; in Codex the pm service queues it into the session
+  with `codex queue`, unless the owner already answered in the chat. A question answered in the chat closes on the
+  site at once; Esc on Claude Code's dialog dismisses it.
+- `pm hook ask --runtime claude|codex`, which raises and closes the questions. `pm upgrade` writes it into
+  `.claude/settings.json` as a PermissionRequest hook on AskUserQuestion (timeout one day, so the owner can answer
+  from the site for that long) and a PostToolUse hook on AskUserQuestion, and into `.codex/hooks.json` as a
+  PostToolUse hook on `request_user_input_async` and a UserPromptSubmit hook.
+- A question's answer steers the session that asked and records no decision: `pm decision add --need`,
+  `pm decision close`, `pm action done` and `pm need edit` refuse a question and name `pm need dismiss`, which closes a
+  stale one.
+
+### Changed
+
+- pm's rules choose how an agent asks the owner by what it asks, not by whether the owner is in the chat: a question
+  that steers the session (what to do next, confirm a plan, clarify what the owner meant) goes through the runtime's
+  ask tool, or as a decision need where there is none (`claude -p`, a subagent); a decision on a project's or sprint's
+  outcome is a decision need; a step only the owner can do is an action need. The owner-request hook's block reason
+  says the same.
+
+### Removed
+
+- pm's git post-checkout hook, which linked a new worktree's `records/` on `git worktree add`, is retired with the
+  clone's `core.hooksPath` setting that ran it. `pm upgrade` removes pm's section from `.pm/hooks/post-checkout` (the
+  file goes when nothing else is left in it, and `.pm/hooks` when it is empty); `pm init`, at every session start too,
+  `pm upgrade` and `pm uninstall` unset `core.hooksPath` when it names `.pm/hooks` and nothing but pm's sections is
+  there. A hooks path naming another directory, or a `.pm/hooks` holding hooks of your own, is left alone, and
+  `pm init` no longer refuses one. Until every checkout of a clone pins this release, a session on an older pin sets
+  `core.hooksPath` back to `.pm/hooks`, and one on this release unsets it again. `pm doctor` names a leftover file or hooks path. A worktree
+  made without an agent session gets its `records/` link from `pm init` there. `pm where` drops its hooks line, and
+  `pm hook git-post-checkout` does nothing, for the hook files older pins still run.
+
 ## [0.9.1] - 2026-10-14
 
 Agents open the project, sprint or task for work the owner asked for without asking leave, as they already commit,
@@ -844,6 +900,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.10.0]: https://github.com/Yeeef/pm/compare/pm-v0.9.1...pm-v0.10.0
 [0.9.1]: https://github.com/Yeeef/pm/compare/pm-v0.9.0...pm-v0.9.1
 [0.9.0]: https://github.com/Yeeef/pm/compare/pm-v0.8.8...pm-v0.9.0
 [0.8.8]: https://github.com/Yeeef/pm/compare/pm-v0.8.7...pm-v0.8.8
