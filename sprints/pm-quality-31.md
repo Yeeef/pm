@@ -118,6 +118,15 @@ None yet.
   another: 35.5-35.8 s at main, 33.9-34.8 s with (2) and (3), 19.6-19.8 s with
   its parts run at once (3 runs each).
 
+- No test lost: go test -v at origin/main (e3ebec5) and at the PR's head, both
+  in one CI run per job (run 38530785456). macOS: every package but
+  internal/work's 183 results at main (122 top-level, 3 skip), 184 at head
+  (123 top-level); internal/work 92 results (32 top-level, 3 skip) both; race
+  service 39 (31 top-level, 1 skip) and race work 16 (9 top-level) both.
+  Linux: 183 against 184 (2 skip), 92 and 92, 39 and 39, 16 and 16. The sorted
+  (package, test, result) lists are identical but for the added
+  TestTheItemReadersLinkNoDolt, on both OSes.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
