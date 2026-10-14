@@ -61,6 +61,14 @@ None yet.
   one session on both runtimes; its paper reports 31.4% timeouts, 7.6%
   premature stops and compaction correlated with failure.
 
+- Shortlist: 1 SWE-Marathon, 2 SlopCodeBench (93 checkpoints, each a fresh
+  container; a full Opus 4.6 run cost 323 USD; a plan-first prompt did not
+  move its pass rate), 3 Long-Horizon-Terminal-Bench (46 tasks, about 85 min
+  and 10 USD each, partial credit, single session). Estimated SWE-Marathon
+  comparison: 300 trials (20 tasks x 5 trials x 3 arms), 1.5k-6k USD API
+  spend, an estimate from the paper's token counts, sandbox hours not priced;
+  it detects about an 18-point difference.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
