@@ -159,9 +159,9 @@ func (s *server) deliverQuestion(n *work.Item) (string, error) {
 }
 
 // settleQuestion closes an open question the service sees settled away from the site: a Codex session's owner
-// answered in its chat, or the session that asked has ended (a Codex rollout idle past the live window, a Claude Code
-// session's messaging socket gone), unless a site answer waits for a Codex session's next prompt. A question raised on another machine, or by a
-// Claude Code session with no socket, is left to its hook. What it did, "" for nothing.
+// answered in its chat, or a Claude Code session's messaging socket is gone. A Codex question is never dismissed for
+// idleness: it waits for that chat answer or the site's. A question raised on another machine, or by a Claude Code
+// session with no socket, is left to its hook. What it did, "" for nothing.
 func (s *server) settleQuestion(n *work.Item) (string, error) {
 	rb := n.Need.RaisedBy
 	if rb == nil || rb.Session == "" {
@@ -170,22 +170,18 @@ func (s *server) settleQuestion(n *work.Item) (string, error) {
 	if host, _ := Hostname(); rb.Host != "" && rb.Host != host { //nolint:errcheck // no name: no host matches
 		return "", nil
 	}
-	home, codex := session.CodexHomeOf(rb.Inbox)
-	var live bool
-	switch {
-	case codex:
+	if _, codex := session.CodexHomeOf(rb.Inbox); codex {
 		if chat, ok := ChatAnswer(n, s.sessionNeeds(n)); ok {
 			return s.closeQuestion(n, "answered in chat", func(st work.Store) error {
 				return AnswerInChat(st, n, chat, "")
 			})
 		}
-		live = CodexLive(home, rb.Session)
-	case rb.Inbox != "":
-		_, live = inboxKey(rb)
-	default:
 		return "", nil
 	}
-	if live || codex && ReplyWaiting(n) { // a Codex session gets the answer at its next prompt (pm hook inbox)
+	if rb.Inbox == "" {
+		return "", nil
+	}
+	if _, live := inboxKey(rb); live {
 		return "", nil
 	}
 	return s.closeQuestion(n, "dismissed: "+SessionEnded, func(st work.Store) error {

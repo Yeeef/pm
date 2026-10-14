@@ -23,8 +23,8 @@ func question(thread, inbox string) work.Item {
 	return n
 }
 
-// rollout writes thread's rollout under home: the ask call, then each message the user typed.
-func rollout(t *testing.T, home, thread string, typed ...string) {
+// rollout writes rootThread's rollout under home: the ask call, then each message the user typed.
+func rollout(t *testing.T, home string, typed ...string) {
 	t.Helper()
 	dir := filepath.Join(home, "sessions", "2026", "10", "12")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -37,7 +37,7 @@ func rollout(t *testing.T, home, thread string, typed ...string) {
 		lines = append(lines, `{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"UserMessage",`+
 			`"content":[{"type":"text","text":"`+m+`"}]}}}`)
 	}
-	p := filepath.Join(dir, "rollout-2026-10-12T10-00-00-"+thread+".jsonl")
+	p := filepath.Join(dir, "rollout-2026-10-12T10-00-00-"+rootThread+".jsonl")
 	if err := os.WriteFile(p, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestACodexQuestionGetsTheSitesAnswerQueuedUnlessTheChatAnsweredFirst(t *tes
 	t.Cleanup(func() { CodexLive = saved })
 	CodexLive = func(string, string) bool { return true }
 	home := codexHome(t)
-	rollout(t, home, rootThread)
+	rollout(t, home)
 	w := newFakeWork(question(rootThread, session.CodexInbox(home)))
 	log := fakeCodex(t, "0.154.0", rootThread)
 	if got, err := bareServer(w).pushUndelivered("p-1.2.9"); got != "delivered" || err != nil {
@@ -67,7 +67,7 @@ func TestACodexQuestionGetsTheSitesAnswerQueuedUnlessTheChatAnsweredFirst(t *tes
 		t.Fatalf("queued %q (%v); need %+v", b, err, n)
 	}
 
-	rollout(t, home, rootThread, "Red, thanks")
+	rollout(t, home, "Red, thanks")
 	w = newFakeWork(question(rootThread, session.CodexInbox(home)))
 	log = fakeCodex(t, "0.154.0", rootThread)
 	if got, err := bareServer(w).pushUndelivered("p-1.2.9"); got != "answered in chat first" || err != nil {
@@ -85,7 +85,7 @@ func TestACodexQuestionGetsTheSitesAnswerQueuedUnlessTheChatAnsweredFirst(t *tes
 
 // TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession: its hook takes the answer, so the push leaves its inbox alone;
 // the sweep dismisses it once its messaging socket is gone, and leaves one with no socket to its hook. A Codex
-// question whose session ended is dismissed unless a site answer waits for its next prompt.
+// question is never dismissed for idleness: with its rollout idle and nothing answered, it stays open.
 func TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession(t *testing.T) {
 	sock := filepath.Join(codexHome(t), "s.sock")
 	ln, err := net.Listen("unix", sock)
@@ -117,17 +117,19 @@ func TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession(t *testing.T) {
 
 	saved := CodexLive
 	t.Cleanup(func() { CodexLive = saved })
-	CodexLive = func(string, string) bool { return false }
+	CodexLive = func(string, string) bool { return false } // idle past the live window
 	home := codexHome(t)
+	rollout(t, home)
 	codex := question(rootThread, session.CodexInbox(home))
-	w = newFakeWork(codex)
-	if did, err := bareServer(w).settleQuestion(&codex); did != "" || err != nil {
-		t.Errorf("a Codex question with a site answer waiting: %q %v", did, err)
-	}
 	codex.Comments = nil
 	w = newFakeWork(codex)
-	if did, err := bareServer(w).settleQuestion(&codex); did != "dismissed: "+SessionEnded || err != nil {
-		t.Errorf("a Codex question with nothing waiting: %q %v", did, err)
+	if did, err := bareServer(w).settleQuestion(&codex); did != "" || err != nil || w.item("p-1.2.9").Status != work.Open {
+		t.Errorf("an idle Codex question with nothing answered: %q %v", did, err)
+	}
+	rollout(t, home, "Red, thanks")
+	if did, err := bareServer(w).settleQuestion(&codex); did != "answered in chat" || err != nil ||
+		w.item("p-1.2.9").Resolution != work.Answered {
+		t.Errorf("an idle Codex question answered in its chat: %q %v", did, err)
 	}
 }
 
@@ -147,7 +149,7 @@ func TestWhatTheServiceQueuedIsNoChatAnswer(t *testing.T) {
 			t.Errorf("%q: relayed %v", text, got)
 		}
 	}
-	rollout(t, home, rootThread, "Red or blue?: Blue", "Blue, thanks")
+	rollout(t, home, "Red or blue?: Blue", "Blue, thanks")
 	if got, ok := ChatAnswer(&open, needs); !ok || got != "Blue, thanks" {
 		t.Errorf("the answer typed after a queued one: %q %v", got, ok)
 	}
