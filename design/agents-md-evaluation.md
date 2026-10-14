@@ -96,24 +96,32 @@ root, the prompt on stdin, in a process group of its own killed whole at the tim
 
 All calls of a run go at once (`--jobs`, 16). The answer schema is `{"findings": [{"quote", "problem", "evidence"}]}`.
 
-The vote is on passages. A finding's lines are the lines of the graded AGENTS.md its quote is on: each part between
+The vote is per line. A finding's lines are the lines of the graded AGENTS.md its quote is on: each part between
 ellipses, compared without Markdown marks and spacing, at every place it occurs. The calls on one part (a criterion
-on one section, on the whole file, or on one diff chunk) vote: a finding is agreed when a majority of the part's
-calls (3 of 5) each report a finding whose lines intersect its lines, its own call counted, and the part fails on an
-agreed finding. So calls that each flag a different passage do not fail the part; three that flag one passage do.
-A `complete` finding names a missing rule and quotes nothing, so it has no lines; two such findings agree, so
-`complete` fails a part when a majority of its calls each report a missing rule. A criterion fails when one of its
-parts fails. The table prints every call's findings with their lines, a finding no majority agrees with marked
-`outvoted`, and per criterion the count of calls with findings and of agreed findings; `--out` keeps each finding's
-lines. Under the table, a run that failed on agreed findings prints one line naming the criteria and what to do: fix
-AGENTS.md as the findings say (cut text that restates what the code, a test or a lint already says; correct a false
-claim; add a missing rule), since a rerun will not change agreed findings. A run that failed on an error or a timeout
-prints that a rerun may help.
+on one section, on the whole file, or on one diff chunk) vote line by line:
+
+- A line is agreed when a majority of the part's calls (3 of 5) each report a finding on it; a call's several
+  findings on one line are one vote.
+- A finding stands (is agreed) when one of its lines is agreed, and the part fails on a standing finding.
+- So calls that each flag a different line do not fail the part; three that flag one line do. A broad quote (`make
+  test`, on many lines) is one vote on each of its lines: it cannot carry two other calls' findings on two different
+  lines.
+- A `complete` finding names a missing rule and quotes nothing, so it has no lines; such findings stand when a
+  majority of the part's calls each report one.
+
+A criterion fails when one of its parts fails. The table prints every call's findings with their lines, a finding
+that does not stand marked `outvoted`, and per criterion the count of calls with findings and of agreed findings;
+`--out` keeps each finding's lines. Under the table, one line names the criteria with an agreed finding and what to
+do: fix AGENTS.md as the findings say (cut text that restates what the code, a test or a lint already says; correct
+a false claim; add a missing rule), since a rerun will not change agreed findings. Another names the criteria where
+a call gave no answer (an error or a timeout): a rerun may help. A criterion with both, whose verdict is error, gets
+both lines.
 
 An answer is malformed, and the run fails, when it is not JSON, has no structured output, has a finding without
 quote or evidence, or quotes text that is not in AGENTS.md (compared without Markdown marks and spacing, ellipses
-splitting a quote; ellipses alone quote nothing); a complete finding has an empty quote. A timed-out, failed or malformed call is no vote: it fails
-the run. Never a retry: the number of calls is fixed before the run, so a verdict means the same thing every time. The run prints a table of criteria, findings and errors,
+splitting a quote; a quote of dots, ellipses and spacing alone quotes nothing); a complete finding has an empty
+quote. A timed-out, failed or malformed call is no vote: it fails the run, and the table prints its error, not its
+findings, which `--out` keeps. Never a retry: the number of calls is fixed before the run, so a verdict means the same thing every time. The run prints a table of criteria, findings and errors,
 writes every call's answer, seconds and cost to `--out`, and exits 1 on anything but every criterion passing.
 `--agents-md PATH` grades another file against the same checkout; `--criteria` narrows full mode.
 
@@ -162,11 +170,13 @@ numbers are in sprint 23's Findings.
 
 - `check`: checkout with full history, Claude Code from its native installer, `make agents-md-check
   BASE=origin/<base>` (auto mode: full on a change to AGENTS.md or the grader), the answers uploaded as an artifact.
-  45 min job timeout: 90 calls on an AGENTS.md of 11 sections, 16 at a time, each killed at 420 s, end within
-  6 × 420 s = 42 min.
-- `cases`: when the PR changes the grader (its grep names `GRADER`'s paths, which `tests/test_agents_md_eval.py`
-  holds equal), the planted and diff cases once each (`PM_LIVE_RUNS=1`, `PM_AGENTS_MD_SKIP=clean`); otherwise a step
-  says so and the job passes. The harness files the live test runs under (`conftest.py`, `run.py`, the Makefile) do
+  50 min job timeout: a call takes at most 460 s (an OIDC token fetch of up to 30 s, the call killed at 420 s, 10 s
+  to reap it), and 90 calls on an AGENTS.md of 11 sections, 16 at a time, are 6 waves: 6 × 460 s = 46 min, plus
+  setup.
+- `cases`: when the PR changes the grader (its grep names `GRADER`'s paths, each directory with what is under it and each file exactly,
+  as `evaluate.grader` matches them; `tests/test_agents_md_eval.py` derives the grep from `GRADER`), the planted and diff cases once each (`PM_LIVE_RUNS=1`, `PM_AGENTS_MD_SKIP=clean`); otherwise a step
+  says so and the job passes. 95 min job timeout: about 170 calls, 16 at a time, are 11 waves of 460 s, 85 min at
+  worst, plus setup; a run typically takes about 4 min. The harness files the live test runs under (`conftest.py`, `run.py`, the Makefile) do
   not run it: the light suite covers them. The clean case is left out because `check` grades the same commit's
   AGENTS.md in full mode on every grader change, so it would only repeat that verdict; a local
   `make test-live-agents-md` keeps it.
@@ -185,6 +195,7 @@ numbers are in sprint 23's Findings.
 | One call grading every criterion | Long, unfocused calls; one per criterion keeps each call under the timeout and its answer about one thing |
 | Retrying a failed or malformed call | A retry changes what a verdict means; a flaky grader shows in the labelled cases instead |
 | One call per part, failing on any finding | Measured on the clean file: half the full runs false-failed (map, non_inferable, accurate); in diff mode one call's finding in 1 of 5 chunks failed a PR |
+| A finding agreed when a majority of calls each report a finding whose lines intersect its lines | One call's broad quote, on many lines, intersects two other calls' findings on two different lines, so unrelated findings carry each other to a fail. The 32 saved full runs of the clean file (sprint 33) give the same verdicts under both rules |
 | A majority of 3 calls (2 agreeing) | Scattered noise at a rate p per call on a passage stands at about 3p² there, against 10p³ for 3 of 5: on the clean file 1 of 10 full runs and 1 of 5 clean cases false-failed when 2 of 3 non_inferable calls flagged one line (sprint 33 Findings) |
 | `complete` left single-call | It did not false-fail in its measurement (0 of 14 runs), but one rule for every part is simpler, and its vote costs 4 calls of 90 |
 | `complete` findings agreeing only on the same rule | Telling two wordings of one missing rule apart is a semantic match no line test gives; complete did not false-fail on a single call, so any-rule agreement is enough |
