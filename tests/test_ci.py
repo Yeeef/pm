@@ -408,9 +408,10 @@ def test_go_changes_select_on_this_repo_follows_its_import_graph_and_its_readers
     def chosen(*changed):
         return go_changes.select(list(changed), pkgs)[0]
 
-    store = chosen("internal/work/sync.go")  # internal/cli, config, install and service import internal/work
-    assert {"internal/work", "internal/cli", "internal/config", "internal/install", "internal/service"} <= store
-    assert not store & {"internal/site", "internal/records", "internal/hooks", "internal/design"}, store
+    store = chosen("internal/work/sync.go")  # internal/cli, config, hooks, install and service import internal/work
+    assert {"internal/work", "internal/cli", "internal/config", "internal/hooks", "internal/install",
+            "internal/service"} <= store
+    assert not store & {"internal/site", "internal/records", "internal/design"}, store
     for path in ("internal/site/site.go", "internal/records/records.go", "internal/hooks/prime.go",
                  "internal/install/pieces.go", "internal/site/testdata/serve/filled.html"):
         assert "internal/work" not in chosen(path), path  # TestTheItemReadersLinkNoDolt holds site's and records'
