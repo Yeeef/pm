@@ -90,6 +90,28 @@ None yet.
   mode on ask-tool-on-site head de575a9, the 5-chunk diff run 38567955117
   failed on, pass (30 calls, 51 s, $0.24).
 
+- Baseline stability before any fix (main 8ad2720's evaluate.py, haiku, claude
+  2.1.299, local login, 2026-10-14). Expected verdicts: G1 full mode on main's
+  AGENTS.md 9/10 pass (52 calls/run, median $0.34, 196 s); G2 diff of PR #85
+  fedc34803^1..fedc34803 10/10 pass (1 chunk, 2 calls, $0.004, 18 s); G3 diff
+  of PR #83 ad5659f55^1..ad5659f55 9/10 pass (1 chunk, 2 calls, $0.005, 17 s);
+  B1 full mode with cases.py accurate_wrong_behaviour planted (accurate only,
+  33 calls, $0.20, 60 s) 10/10 fail naming the planted line (29/30 calls on
+  its section found it); B2 diff_renamed_target 10/10 fail (10/10 accurate
+  calls found it). Per criterion on G1 (calls with findings / calls, agreed,
+  failed runs): non_inferable 13/30, 2 agreed, run 8 (two calls on line 76,
+  the `//nolint`/`# noqa` sentence, as restating .golangci.yml); accurate
+  2/330, map 2/30, consistent 2/30, all outvoted; no_copies, actionable,
+  no_history, complete 0. non_inferable's findings scatter over lines 19-20,
+  45, 73-76, 111, 135-156, so with 43% of calls finding something a two-call
+  collision on one line fails about 1 run in 10. G3's failure: diff mode's
+  single unvoted complete call, run 8, "Missing rule: reclassify an existing
+  Go test when a change makes its behaviour OS-dependent" (1/10, noise).
+  Labelled cases, PM_LIVE_RUNS=5 (710 calls, 913 s, $3.96): 64/65; every
+  planted case and diff_neutral 5/5; clean 4/5 (one run failed non_inferable).
+  Clean full mode over G1 and cases together: 13/15 pass, both misses
+  non_inferable. Spend $9.54.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
