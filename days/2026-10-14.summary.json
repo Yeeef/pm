@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T13:46:14+00:00",
- "digest": "10f61456d6f7db00",
+ "generated_at": "2026-10-14T18:17:07+00:00",
+ "digest": "119186bb08424c89",
  "model": "claude-haiku-5-5",
- "text": "- **Site replies to questions:** Agent ask-tool questions now appear on the site, with their options and a free-text field. The first reply, from the site or from chat, wins for Claude and Codex.\n- **Agent guidance and rules:** Agents now open owner-requested projects, sprints and tasks without asking leave first. AGENTS.md is now a short map that every runtime reads in full, and CI grades it on every PR.\n- **macOS CI test speed:** A PR now runs only the Go test packages its changed files can affect. On three non-store PRs, macOS Go compute fell by almost half, but overall PR wall time still missed its target.\n- **Code structure cleanup:** The command-line code is split by noun, and every function is under the complexity limit. Python-port leftovers, including the argparse emulation and an internal JSON package, are removed."
+ "text": "- **Site answers to agent questions:** Claude and Codex agents now raise questions on the site, as well as in chat. The first answer wins, and the site shows each question with its options and a free-text field.\n- **Faster CI and Go tests:** Each pull request starts at most two macOS jobs and runs only the Go tests its changes can affect. macOS test compute fell by about a fifth. Wall time stayed above the targets.\n- **Agent guide and code cleanup:** The agent guide is now a short map that every runtime reads in full. A check grades it on each pull request, and the old Python-port code is gone.\n- **Agent work without leave:** Agents open a project, sprint or task for an owner request without asking leave first."
 }
