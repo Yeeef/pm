@@ -339,6 +339,8 @@ os: its behaviour can differ by OS, so a PR runs it on macOS; any: Linux on each
 
 partial: macOS Go compute per PR fell 20% (median 163 to 130 s) and a code PR's wall fell 16% (138 to 116 s), short of the 55 s and 100 s targets; the Go tests do less work, and a PR runs on macOS only the tests whose behaviour can differ by OS.
 
+Merged as ad5659f (PR #83).
+
 - #81: the item model moved to internal/item, which links no Dolt, so 4 test binaries stopped linking Dolt; newPair seeds locally (241 to about 70 git calls); make test-go runs its parts at once.
 - #82: internal/work's test seconds remeasured.
 - #83: go-os-tests.txt classifies all 155 Go tests (85 os). A PR's macOS jobs run the darwin build and the os tests; a push to main runs every test on macOS; macOS runs RACE_TESTS only under -race (owner decisions). go-os-check holds every test to one row.
