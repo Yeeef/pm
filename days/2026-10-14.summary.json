@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T07:18:52+00:00",
- "digest": "83b4b0002d387189",
+ "generated_at": "2026-10-14T07:39:15+00:00",
+ "digest": "8bc67b90ae18baa2",
  "model": "claude-haiku-5-5",
- "text": "- **Agent guidance map:** AGENTS.md is now a short map that stays under its size cap, held by a test. Every PR now runs the AGENTS.md evaluation in CI.\n- **macOS CI speed:** Each PR now starts at most two macOS jobs, and docs-only PRs skip the Go matrix. The median CI wall time still missed its target, so the sprint closed as partial.\n- **Sprint close checks:** `pm sprint close` now holds a sprint only to the covers patterns it added or changed while open. Another session's older pending pattern no longer blocks a close.\n- **Records store reads:** The service's lock-free records read no longer stalls while git rewrites the store worktree."
+ "text": "- **CLI structure and cleanup:** The internal CLI package is split by noun, and every function is under a set complexity limit. Python-port leftovers are gone, including the internal pyjson package and the argparse emulation.\n- **Agent guidance file:** AGENTS.md is now a short map that every runtime reads in full. A size test and an agentic evaluation in CI hold it to that shape on every PR.\n- **PR check speed:** Docs-only PRs skip the Go test matrix and pass merge-ready. Each PR starts fewer macOS jobs, but median run time stays above target.\n- **Sprint close rules:** A sprint's close now checks only the covers patterns it added or changed while open. Another session's older pending pattern no longer blocks a sprint's close, and the pm check waiting line and help state this rule."
 }
