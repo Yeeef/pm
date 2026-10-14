@@ -6,7 +6,7 @@
     evaluate.py --mode auto --base origin/main     full when that diff changes AGENTS.md or the grader, else diff
 
 Each check is one `claude -p` call from the checkout root, with the read-only tools alone (Read, Grep, Glob), no
-settings, hooks, CLAUDE.md or MCP servers, and a JSON schema for its answer. Each part is graded by VOTES (3) calls:
+settings, hooks, CLAUDE.md or MCP servers, and a JSON schema for its answer. Each part is graded by VOTES (5) calls:
 full mode's parts are each criterion on the whole file, accurate's on each `## ` section of AGENTS.md; diff mode's are
 accurate and complete on each chunk of the diff. The calls run at once (--jobs), each killed with its process group at
 --timeout seconds, which fails the run.
@@ -14,7 +14,7 @@ accurate and complete on each chunk of the diff. The calls run at once (--jobs),
 Each finding quotes AGENTS.md, and a quote that is not in it makes the answer malformed; a quote's lines are the
 lines of AGENTS.md its text (each part between ellipses, at each place it occurs) is on. The calls on one part (a
 criterion on a section, a diff chunk or the whole file) vote on passages: a finding is agreed when a majority of the
-part's calls (2 of 3) each report a finding whose lines intersect its lines, its own call counted, and the part fails
+part's calls (3 of 5) each report a finding whose lines intersect its lines, its own call counted, and the part fails
 on an agreed finding. A complete finding names a missing rule and quotes nothing, so it has no lines: two such
 findings agree, and complete fails a part when a majority of its calls each report a missing rule. A criterion fails
 when one of its parts fails. A malformed answer, a failed or a timed-out call is no vote: it fails the run. The run
@@ -49,7 +49,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 RUBRIC = HERE / "rubric.md"
 CRITERIA = ("accurate", "non_inferable", "map", "no_copies", "actionable", "no_history", "consistent", "complete")
-VOTES = 3  # calls on each part; a finding stands when a majority of them agree on its passage
+VOTES = 5  # calls on each part; a finding stands when a majority (3) agree on its passage. A real defect draws
+# nearly every call; a passage flagged by noise at a rate p per call stands at about 10p^3, against 3p^2 for 2 of 3
 DIFF_CRITERIA = ("accurate", "complete")
 MODEL = "haiku"
 TIMEOUT = 240  # seconds per call; a call past it fails the run

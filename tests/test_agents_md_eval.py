@@ -40,25 +40,25 @@ def test_the_rubric_has_every_criterion_in_order():
         evaluate.rubric("# r\n\n## accurate\n\nx\n")
 
 
-def test_full_mode_makes_three_calls_per_criterion_and_section():
+def test_full_mode_makes_five_calls_per_criterion_and_section():
     text = "# T\n\nintro\n\n## A\n\na `x`\n\n## B\n\nb\n"
     assert evaluate.sections(text) == [("A", "# T\n\nintro\n\n## A\n\na `x`\n\n"), ("B", "## B\n\nb\n")]
     calls = evaluate.full_calls(text, CHECKOUT, evaluate.CRITERIA)
-    assert [(c.criterion, c.part) for c in calls] == [*[("accurate", "A")] * 3, *[("accurate", "B")] * 3, *(
-        (c, "the whole file") for c in evaluate.CRITERIA[1:] for _ in range(3))]
+    assert [(c.criterion, c.part) for c in calls] == [*[("accurate", "A")] * 5, *[("accurate", "B")] * 5, *(
+        (c, "the whole file") for c in evaluate.CRITERIA[1:] for _ in range(5))]
     by = {c.criterion: c.prompt for c in calls}
     assert "<prime_md>" in by["no_copies"] and "<changelog_preamble>" in by["no_copies"]
     assert "<prime_md>" in by["consistent"] and "<prime_md>" not in by["map"]
     assert all("<agents_md>\n" + text.rstrip() + "\n</agents_md>" in c.prompt for c in calls)
 
 
-def test_diff_mode_checks_accurate_and_complete_three_times_on_each_chunk_cut_at_file_boundaries():
+def test_diff_mode_checks_accurate_and_complete_five_times_on_each_chunk_cut_at_file_boundaries():
     files = [f"diff --git a/f{i} b/f{i}\n" + "+x\n" * 40 for i in range(5)]
     cut = evaluate.chunks("".join(files), size=len(files[0]) * 2)
     assert cut == ["".join(files[0:2]), "".join(files[2:4]), files[4]]
     assert evaluate.chunks(files[0], size=10) == [files[0]]  # a file over the size, no hunk to cut at: whole
     calls = evaluate.diff_calls(AGENTS_MD, "".join(files))
-    assert [(c.criterion, c.part) for c in calls] == [("accurate", "diff 1/1")] * 3 + [("complete", "diff 1/1")] * 3
+    assert [(c.criterion, c.part) for c in calls] == [("accurate", "diff 1/1")] * 5 + [("complete", "diff 1/1")] * 5
     assert "<diff>\n" in calls[0].prompt and "make a claim in AGENTS.md false" in calls[0].prompt
 
 
@@ -76,7 +76,7 @@ def test_auto_mode_is_full_when_the_diff_changes_agents_md_or_the_grader_and_dif
     case = cases.CASES["diff_neutral"]
     base = cases.materialize(case, CHECKOUT, tmp_path)
     mode, _, calls = evaluate.plan("auto", tmp_path, tmp_path / "AGENTS.md", base, evaluate.CRITERIA)
-    assert mode == "diff" and len(calls) == 6 and "go_cache_trim.py" in calls[0].prompt
+    assert mode == "diff" and len(calls) == 10 and "go_cache_trim.py" in calls[0].prompt
     (tmp_path / "AGENTS.md").write_text(AGENTS_MD + "\nmore\n")
     cases.git(tmp_path, "commit", "-qam", "agents")
     mode, _, calls = evaluate.plan("auto", tmp_path, tmp_path / "AGENTS.md", base, evaluate.CRITERIA)
@@ -142,30 +142,35 @@ def res(criterion, part, *lines, error=""):
 
 
 def test_a_part_fails_only_on_a_passage_a_majority_of_its_calls_agree_on_and_errors_on_any_bad_call():
+    def five(criterion, *found, error=""):
+        """A part's five calls: one with each of `found`'s lines, the rest with no finding; the last errs if asked."""
+        rs = [res(criterion, "f", *ls) for ls in found] + [res(criterion, "f") for _ in range(5 - len(found))]
+        rs[-1].error = error
+        return rs
+
     r = [res("accurate", "A"), res("accurate", "B", [3]),  # one call on a part: its finding fails it
-         res("map", "f", [4, 5]), res("map", "f"), res("map", "f"),  # 1 of 3: passes
-         res("actionable", "f", [4, 5]), res("actionable", "f"), res("actionable", "f", [5, 6]),  # 2 of 3 overlap
-         res("no_copies", "f", [4, 5]), res("no_copies", "f", [9]), res("no_copies", "f"),  # 2 of 3, disjoint
-         res("no_history", "f"), res("no_history", "f"), res("no_history", "f", error="timed out after 240s"),
+         *five("map", [[4, 5]], [[5]]),  # 2 of 5 overlap: passes
+         *five("actionable", [[4, 5]], [[5, 6]], [[3, 4]]),  # 3 of 5 overlap
+         *five("no_copies", [[4, 5]], [[9]], [[12]]),  # 3 of 5, disjoint
+         *five("no_history", error="timed out after 240s"),
          res("complete", "f")]
     assert evaluate.verdicts(r) == {"accurate": "fail", "map": "pass", "actionable": "fail", "no_copies": "pass",
                                     "no_history": "error", "complete": "pass"}
     # one call's two findings on one passage are one vote
-    assert evaluate.verdicts([res("map", "f", [4], [4]), res("map", "f"), res("map", "f")]) == {"map": "pass"}
-    # complete's findings quote nothing, so have no lines: any two agree, and a passage-quoting one agrees with neither
-    assert evaluate.verdicts([res("complete", "f", []), res("complete", "f", []), res("complete", "f")]) == \
-        {"complete": "fail"}
-    assert evaluate.verdicts([res("complete", "f", []), res("complete", "f"), res("complete", "f")]) == \
-        {"complete": "pass"}
-    assert evaluate.verdicts([res("map", "f", []), res("map", "f", [4]), res("map", "f")]) == {"map": "pass"}
+    assert evaluate.verdicts(five("map", [[4], [4]], [[4]])) == {"map": "pass"}
+    # complete's findings quote nothing, so have no lines: any agree, and a passage-quoting one agrees with neither
+    assert evaluate.verdicts(five("complete", [[]], [[]], [[]])) == {"complete": "fail"}
+    assert evaluate.verdicts(five("complete", [[]], [[]])) == {"complete": "pass"}
+    assert evaluate.verdicts(five("map", [[]], [[]], [[4]])) == {"map": "pass"}
 
 
-def test_three_calls_where_only_two_agree_fail_on_those_two_findings_and_print_the_third_outvoted():
-    rs = [res("map", "f", [10, 11]), res("map", "f", [11, 12]), res("map", "f", [30])]
-    assert evaluate.agreed(rs) == [rs[0].findings[0], rs[1].findings[0]]
+def test_five_calls_where_only_three_agree_fail_on_those_three_findings_and_print_the_others_outvoted():
+    rs = [res("map", "f", [10, 11]), res("map", "f", [11, 12]), res("map", "f", [30]), res("map", "f", [11]),
+          res("map", "f")]
+    assert evaluate.agreed(rs) == [rs[0].findings[0], rs[1].findings[0], rs[3].findings[0]]
     assert evaluate.verdicts(rs) == {"map": "fail"}
     table = evaluate.report(rs)
-    assert "map            fail    3 call(s), 3 with findings, 2 agreed" in table
+    assert "map            fail    5 call(s), 4 with findings, 3 agreed" in table
     assert "[f] 'q[10, 11]' (lines 10-11)" in table and "[f] outvoted: 'q[30]' (line 30)" in table
 
 
@@ -310,7 +315,7 @@ def test_main_exits_1_on_a_finding_and_writes_every_call_to_out(fake_claude, tmp
     monkeypatch.setenv("FAKE_ANSWER", answer([{"quote": line, "problem": "vague", "evidence": "Makefile:1"}]))
     assert evaluate.main(argv) == 1
     got = json.loads(out.read_text())
-    assert got["verdicts"] == {"map": "fail", "actionable": "fail"} and len(got["calls"]) == 6
+    assert got["verdicts"] == {"map": "fail", "actionable": "fail"} and len(got["calls"]) == 10
     out = capsys.readouterr().out
     assert "map            fail" in out and "map, actionable failed on findings a majority of calls agreed on" in out
     assert "A rerun will not change agreed findings." in out and "A rerun may help" not in out
@@ -320,8 +325,8 @@ def test_main_exits_1_on_a_finding_and_writes_every_call_to_out(fake_claude, tmp
         evaluate.main(["--mode", "diff"])
 
 
-def test_a_judgement_criterion_fails_when_two_of_its_three_calls_quote_overlapping_lines(fake_claude, monkeypatch,
-                                                                                         capsys):
+def test_a_judgement_criterion_fails_when_three_of_its_five_calls_quote_overlapping_lines(fake_claude, monkeypatch,
+                                                                                          capsys):
     lines = [x for x in AGENTS_MD.splitlines() if len(x) > 40]
     head, here, there = lines[0], lines[0][5:35], lines[-1]  # `here` lies within `head`'s line, `there` far from it
 
@@ -336,18 +341,22 @@ def test_a_judgement_criterion_fails_when_two_of_its_three_calls_quote_overlappi
         monkeypatch.setenv("FAKE_ANSWERS", json.dumps(list(answers)))
         return evaluate.main(argv), capsys.readouterr().out
 
-    code, out = run(found(head), answer([]), answer([]))
-    assert code == 0 and "map            pass    3 call(s), 1 with findings, 0 agreed" in out and "outvoted:" in out
-    code, out = run(found(head), answer([]), found(here))  # 2 of 3 on overlapping lines
-    assert code == 1 and "map            fail    3 call(s), 2 with findings, 2 agreed" in out
-    assert out.count("too deep") == 2 and "outvoted:" not in out
-    code, out = run(found(head), answer([]), found(there))  # 2 of 3 on disjoint lines
-    assert code == 0 and "map            pass    3 call(s), 2 with findings, 0 agreed" in out
+    empty = answer([])
+    code, out = run(found(head), empty, empty, empty, empty)
+    assert code == 0 and "map            pass    5 call(s), 1 with findings, 0 agreed" in out and "outvoted:" in out
+    code, out = run(found(head), empty, found(here), empty, empty)  # 2 of 5 on overlapping lines
+    assert code == 0 and "map            pass    5 call(s), 2 with findings, 0 agreed" in out
     assert out.count("outvoted:") == 2
-    code, out = run(found(there), found(head), found(here))  # 3 of 3, only 2 overlap
-    assert code == 1 and "map            fail    3 call(s), 3 with findings, 2 agreed" in out
+    code, out = run(found(head), empty, found(here), empty, found(head))  # 3 of 5 on overlapping lines
+    assert code == 1 and "map            fail    5 call(s), 3 with findings, 3 agreed" in out
+    assert out.count("too deep") == 3 and "outvoted:" not in out
+    code, out = run(found(head), found(there), found(there), empty, found(here))  # 4 of 5, 2 and 2 overlap
+    assert code == 0 and "map            pass    5 call(s), 4 with findings, 0 agreed" in out
+    assert out.count("outvoted:") == 4
+    code, out = run(found(there), found(head), found(here), found(head), empty)  # 4 of 5, only 3 overlap
+    assert code == 1 and "map            fail    5 call(s), 4 with findings, 3 agreed" in out
     assert out.count("outvoted:") == 1 and f"outvoted: {there!r}" in out
-    code, out = run(answer([]), answer([]), "oops")  # a malformed answer is no vote
+    code, out = run(empty, empty, empty, empty, "oops")  # a malformed answer is no vote
     assert code == 1 and "error: not JSON" in out
     assert "agents-md: map: a call gave no answer" in out and "A rerun may help." in out
     assert "A rerun will not change" not in out
@@ -363,20 +372,21 @@ def test_diff_mode_fails_only_on_a_passage_a_majority_of_a_chunks_calls_agree_on
     missing = answer([{"quote": "", "problem": "a new rule", "evidence": "x.py:1"}])
     argv = ["--root", str(root), "--mode", "diff", "--base", base, "--jobs", "1"]  # the n-th call, the n-th answer
 
-    def run(*answers):  # the chunk's three accurate calls, then its three complete calls
+    def run(*answers):  # the chunk's five accurate calls, then its five complete calls
         if fake_claude.exists():
             fake_claude.unlink()
         monkeypatch.setenv("FAKE_ANSWERS", json.dumps(list(answers)))
         return evaluate.main(argv), capsys.readouterr().out
 
     empty = answer([])
-    code, out = run(found, empty, empty, missing, empty, empty)
-    assert code == 0 and "accurate       pass    3 call(s), 1 with findings, 0 agreed" in out
-    assert "complete       pass    3 call(s), 1 with findings, 0 agreed" in out and out.count("outvoted:") == 2
-    code, out = run(found, empty, found, empty, empty, empty)
-    assert code == 1 and "accurate       fail    3 call(s), 2 with findings, 2 agreed" in out
-    code, out = run(empty, empty, empty, missing, missing, empty)
-    assert code == 1 and "complete       fail    3 call(s), 2 with findings, 2 agreed" in out
+    none = [empty] * 5
+    code, out = run(found, empty, found, empty, empty, missing, empty, missing, empty, empty)  # 2 of 5 each
+    assert code == 0 and "accurate       pass    5 call(s), 2 with findings, 0 agreed" in out
+    assert "complete       pass    5 call(s), 2 with findings, 0 agreed" in out and out.count("outvoted:") == 4
+    code, out = run(found, empty, found, empty, found, *none)
+    assert code == 1 and "accurate       fail    5 call(s), 3 with findings, 3 agreed" in out
+    code, out = run(*none, missing, missing, empty, missing, empty)
+    assert code == 1 and "complete       fail    5 call(s), 3 with findings, 3 agreed" in out
 
 
 @pytest.mark.parametrize("name", cases.CASES)
@@ -405,17 +415,17 @@ def test_a_planted_case_counts_only_an_agreed_fail_that_names_its_defect():
     case = cases.CASES["no_history_dated"]
 
     def run(*fs, outvoted=()):
-        """Three calls: two each with the findings `fs` (on line 7), one with the findings `outvoted` (on line 40)."""
+        """Five calls: three each with the findings `fs` (on line 7), two with the findings `outvoted` (on line 40)."""
         def r(found, line):
             return evaluate.Result(evaluate.Call("no_history", "f", ""), 1.0,
                                    [{"problem": "", "evidence": "", "lines": [line], **f} for f in found])
-        return [r(fs, 7), r(fs, 7), r(outvoted, 40)]
+        return [r(fs, 7), r(fs, 7), r(fs, 7), r(outvoted, 40), r(outvoted, 40)]
 
     assert cases.outcome(case, run()) == "pass"
     assert cases.outcome(case, run({"quote": "Claude 189/189, median"})) == "fail"
-    assert cases.outcome(case, run({"quote": "other", "problem": "x"})) == "fail elsewhere: other; other"
+    assert cases.outcome(case, run({"quote": "other", "problem": "x"})) == "fail elsewhere: other; other; other"
     assert cases.outcome(case, run({"quote": "other"}, outvoted=[{"quote": "Claude 189/189"}])) == \
-        "fail elsewhere: other; other"  # the outvoted finding that names the defect does not count
+        "fail elsewhere: other; other; other"  # the outvoted finding that names the defect does not count
     assert cases.outcome(case, run({"quote": "The judge's live eval"}),
                          added="The judge's live eval on 2026-10-12") == "fail"
     clean = cases.CASES["clean"]
