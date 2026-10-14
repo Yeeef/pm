@@ -47,6 +47,7 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 - [Owner-request Stop hook](../design/owner-request-hook.md): Interactive mode, its commands, mode file, SessionEnd (measured on both runtimes) and checks; The rule per mode; the prompt keyword and the mode read from the transcript as alternatives not chosen (covers `internal/session/mode*.go`, `internal/cli/mode.go`, `internal/hooks/requestrule.go`, `internal/hooks/sessionend*.go`, `prompts/request_rule_*.txt`).
 - [Agent lifecycle](../design/agent-lifecycle.md): the hooks table's SessionStart (the rule per mode), UserPromptSubmit and SessionEnd rows, and the Stop check off in interactive mode (covers `prime.md`, `internal/hooks/prime*.go`, `internal/hooks/stop*.go`).
 - [pm CLI](../design/pm-cli.md): the same in its hooks table, SessionEnd included (covers `internal/cli/commands.go`, its help golden).
+- [pm as an installable product](../design/pm-product.md): the state opening with the request rule of the session's mode (covers `prime.md`, `internal/hooks/prime*.go`); it replaces the earlier waiver of this page.
 - [Session claims](../design/session-claims.md): `pm clean` removing the mode file of a session idle for a day (covers `internal/cli/clean.go`, `internal/session/**`).
 
 ## Progress
