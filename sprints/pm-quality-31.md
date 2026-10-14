@@ -57,6 +57,11 @@ They are 47% of internal/work macOS CPU, about 20 s per PR; a non-race-only macO
 Answers `pm-d2k5.31.4`.
 :::
 
+::: decision {source=agent date=2026-10-14}
+Running OS-independent tests on Linux only moves from Out to In: a PR runs on macOS the darwin build plus the OS-dependent tests; every push to main runs the full macOS suite.
+The pm-quality project decision of 2026-10-14 (owner) revises macOS on every PR: most tests generalize across OSes, and a post-merge full macOS run catches what the subset misses.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
