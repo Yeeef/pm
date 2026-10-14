@@ -604,6 +604,11 @@ Owner requests keep three kinds: a question (steers one session; its answer is a
 Owner in chat, 2026-10-14: a decision is for a project or sprint outcome, not a session-wide instruction, so a question is not a decision; timing is worth keeping in mind but does not replace the kinds.
 :::
 
+::: decision {source=owner date=2026-10-14}
+pm reads a session's transcript (Claude Code JSONL, Codex rollout) only when no hook event, hook input field or runtime command gives the fact, checked in a live session; where it does read one, the code says why no event serves. AGENTS.md carries the rule.
+Owner in chat, 2026-10-14: designs keep reaching for transcript reads that turn out unneeded (sprint 118: the Codex ask hook first read the rollout at Stop until PostToolUse proved to fire for the ask tool; the Claude ask hook tails the transcript for a dialog answer that PostToolUse may give as an event). A transcript is an undocumented format read by polling.
+:::
+
 ## Design pages
 
 > Where is the detail?
