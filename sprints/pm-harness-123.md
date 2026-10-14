@@ -8,7 +8,7 @@ bead: yeeef-agents-9va.133
 
 > What should be true when this sprint ends, and why now?
 
-This repo runs pm 0.10.0, the first release with ask-tool questions on the site (sprint 118), so pm's own sessions use what pm-harness built. Its pin is 0.8.6, four releases behind.
+This repo runs pm 0.11.0, which includes 0.10.0's ask-tool questions on the site (sprint 118), so pm's own sessions use what pm-harness built. Its pin is 0.8.6, five releases behind.
 
 ## Scope
 
@@ -17,7 +17,7 @@ This repo runs pm 0.10.0, the first release with ask-tool questions on the site 
 
 **In:**
 
-- `pm upgrade --to 0.10.0` in a worktree, with every crossed release's upgrade steps followed or named.
+- `pm upgrade --to 0.11.0` in a worktree, with every crossed release's upgrade steps followed or named.
 - The pin-move PR.
 
 **Out:**
@@ -28,7 +28,7 @@ This repo runs pm 0.10.0, the first release with ask-tool questions on the site 
 
 > What evidence will show the goal is met?
 
-- The PR's CI is green and `make merge-ready` passes; on the branch `pm version` reports 0.10.0 and `pm doctor` names nothing but the steps only the owner can do.
+- The PR's CI is green and `make merge-ready` passes; on the branch `pm version` reports 0.11.0 and `pm doctor` names nothing but the steps only the owner can do.
 
 ## Design pages
 
