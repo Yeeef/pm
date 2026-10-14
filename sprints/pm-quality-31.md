@@ -172,6 +172,17 @@ The pm-quality project decision of 2026-10-14 (owner) revises macOS on every PR:
   package, 23 internal/work tests, and the 9 race tests plus internal/service
   under -race (build-test 81 s, race 49 s).
 
+- Done-when samples on the new layout. Code PRs whose CI ran with #83 (macOS =
+  the build-test and race steps summed; wall = first job created to last check
+  done): #83 63 + 67 = 130 s, wall 269 s (the agents-md cases job was last,
+  4m25s, run because AGENTS.md changed); #84 63 + 59 = 122 s, wall 109 s; #69
+  (another session's) 70 + 62 = 132 s, wall 116 s. Medians: macOS 130 s
+  against 163 s before (-20%), wall 116 s against 138 s. Targets ≤55 s and
+  ≤100 s not met. The race job is now as long as build-test: it links the race
+  build of internal/work (about 30 s) and runs 7 Dolt racing tests under -race
+  (19-28 s). #84 also cut TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers
+  from 3.0 to 0.3 s by waiting out 0.1 s probes.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
