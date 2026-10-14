@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T20:36:43+00:00",
- "digest": "93a85151837ea5ab",
+ "generated_at": "2026-10-14T20:47:05+00:00",
+ "digest": "8358cb50f0b37c44",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions and replies:** Ask-tool questions now get answers on the site or in chat, and the first answer wins. Replies reach a session by push, and the reply wait command and inbox hook are gone.\n- **Faster pull request checks:** A pull request now runs only the Go tests its changed files can affect. Go test compute on macOS fell by almost half on three pull requests, but overall check time still misses its target.\n- **Agent rules and checks:** Agents now open owner-requested projects, sprints and tasks without asking leave first. The agent guide stays under its size cap, and an evaluation checks it on every pull request.\n- **Public benchmark proof:** A survey of long-horizon agent benchmarks now gives a shortlist for measuring pm. The choice of the first benchmark was raised to the owner."
+ "text": "- **Agent questions on the site:** The owner can answer an agent's ask-tool question on the site or in chat. The first answer wins, and the question card shows the options.\n- **Owner requests and replies:** Agents now open work the owner asked for without asking permission first. Owner replies now reach a session by push alone.\n- **Go test speed in CI:** A pull request now runs only the Go tests its changed files can affect. Compute for macOS Go tests fell by close to half on sampled pull requests.\n- **Code and checks:** Internal command code is split by noun, and old Python-port code is removed. AGENTS.md is now a short map that a check reviews on every pull request."
 }
