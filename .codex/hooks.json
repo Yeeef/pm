@@ -83,8 +83,8 @@
       {
         "hooks": [
           {
-            "command": "pm hook inbox || exit 1",
-            "statusMessage": "Checking for the owner's replies",
+            "command": "pm hook ask --runtime codex || exit 1",
+            "statusMessage": "Closing the questions this prompt answers",
             "type": "command",
             "timeout": 10
           }
@@ -101,6 +101,19 @@
             "timeout": 10
           }
         ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook ask --runtime codex || exit 1",
+            "statusMessage": "Raising the question for the site",
+            "type": "command",
+            "timeout": 30
+          }
+        ],
+        "matcher": "request_user_input_async"
       }
     ]
   }
