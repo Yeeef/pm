@@ -15,7 +15,7 @@ it covers.
 |---|---|
 | `cmd/pm`, `assets.go` | The entry point (the launcher runs first); the embedded files, the release notes among them |
 | `prime.md`, `prompts/`, `style.css` | What `pm prime` prints; the model prompts and hook texts; the site's one stylesheet |
-| `internal/cli` | Every command, a file per noun; `commands.go` holds the command tree, `parse/` builds and parses it, `setup/` holds `pm init`, `doctor`, `upgrade`, `uninstall`, `fsutil/` their path helpers |
+| `internal/cli` | Every command; `commands.go` holds the command tree |
 | `internal/hooks`, `internal/ask` | What the runtimes' hooks run (`pm prime`, `pm hook …`); one prompt through `claude -p` or `codex exec` |
 | `internal/work` | The work store on embedded Dolt, its host (only `pm service run` starts one), client, sync and merge |
 | `internal/records`, `internal/store`, `internal/design` | Record parsing and checks; the records store; design pages' hold on the code they cover |
@@ -70,10 +70,8 @@ hold it).
   PR; never hand-edit one to make a test pass.
 - **After adding or renaming an `internal/work` test, run `make go-test-work UPDATE=1`**: it measures and rewrites
   `.github/scripts/work-test-seconds.txt`, which must name every test and no other, or `go-test-work` fails.
-- A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python). gocyclo
-  gates every function at 30; `size_test.go` caps a package at 5000 non-test Go lines (`internal/cli` on a ratchet
-  allowance) and a file under `internal/cli` at 800; one past a cap is split along a seam.
-- A func's doc comment under `internal/cli` starts with the func's name (`doc_test.go`): move it with its func.
+- A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python). A function
+  or file past a cap (`.golangci.yml`, `size_test.go`) is split along a seam.
 
 ## Merging
 

@@ -1,3 +1,5 @@
+// Package setup runs pm's setup commands on a clone: pm init (init.go), pm doctor (doctor.go), pm upgrade
+// (upgrade.go), pm uninstall (uninstall.go) and the git hooks pm installs (hooks.go), on install's pieces.
 package setup
 
 import (
