@@ -48,7 +48,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-14}
+Remove both pm reply wait and pm hook inbox; push plus the pm show flag and pm reply read are the only reply routes
+Owner in chat, 2026-10-14: neither delivered a real reply in the transcripts on the owner machine; both predate Codex push and complicate the design
+:::
 
 ## Findings
 
