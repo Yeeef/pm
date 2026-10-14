@@ -43,7 +43,7 @@ The pm-records design page states the record layer's target model, so that the b
 
 > Where is the detail?
 
-None yet.
+- [Record drafts and publishing](../design/record-drafts.md): two candidate models for drafts and publishing, shadow records branches (A) and design pages in the code tree (B), with their comparison and increments
 
 ## Progress
 
