@@ -97,6 +97,14 @@ dolt_test.go changes one comment naming the deliverers; the work store is unchan
   flagged different unchanged lines (24-25, 23, 73-75): evidence for sprint 33
   that the full-mode verdict is not stable.
 
+- pm sprint close refused after the merge (08b6022): owner-request-hook's
+  covers patterns internal/session/mode*.go, internal/hooks/requestrule.go,
+  internal/hooks/sessionend*.go and prompts/request_rule_*.txt name files main
+  lacks. pm-harness sprint 119 added them (records dbc7fc7, 0d59275) for its
+  open PR #91; this sprint is held because it also edited that page while
+  open. The close waits on #91: another instance of design pages running ahead
+  of their code (pm-records project).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
