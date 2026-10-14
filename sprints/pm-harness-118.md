@@ -89,6 +89,11 @@ A question is a fourth need kind in the work store (question), with its call id 
 The need_kind CHECK admits only decision, action and review, so the new kind changes the schema whatever else is stored; with the version moving anyway, tables keep the questions structured for the site's options and the no-JSON-cell rule. Cost: every clone upgrades before it syncs again, stated in the upgrade guide.
 :::
 
+::: decision {source=agent date=2026-10-14}
+An open question's parent is the newest open task its session holds, else none; only a question may be an open need without a parent.
+A question steers one session, which may hold no task (a chat with no sprint, as when the ask tool was first allowed); forcing a parent would bring back the sprint-or-task overhead the ask tool exists to avoid.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
