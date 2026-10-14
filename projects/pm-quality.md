@@ -40,6 +40,11 @@ The Dolt GC double-close bug (wg.Done before EndOutstandingVisitCall in gc_safep
 Owner, in chat 2026-10-14: keep the workaround only.
 :::
 
+::: decision {source=owner date=2026-10-14}
+A PR runs on macOS only the tests whose behaviour can differ by OS, plus the darwin build; the full Go suite runs on macOS on every push to main
+Owner, 2026-10-14: most tests generalize across OSes; the macOS runner (3 cores, 5 concurrent jobs) is the PR critical path; a post-merge full run still catches what the subset misses. Revises the 2026-10-11 keep-macOS-on-every-PR decision
+:::
+
 ## Design pages
 
 > Where is the detail?
