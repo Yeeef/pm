@@ -42,7 +42,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-14}
+The design page pm-go stays as it is for this sprint's code changes.
+access_test.go only lets moduleGoFiles take test files for the new port guard; the store access-path rule the page describes is unchanged
+:::
 
 ## Findings
 
