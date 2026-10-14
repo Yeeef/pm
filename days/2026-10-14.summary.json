@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T20:57:38+00:00",
- "digest": "014eb9f5b8acfc92",
+ "generated_at": "2026-10-14T21:08:07+00:00",
+ "digest": "704d110256e103ef",
  "model": "claude-haiku-5-5",
- "text": "- **Owner replies to agents:** Agent questions show their options on the site, and the first answer wins. Replies now reach agents by push, and `pm reply wait` and `pm hook inbox` are removed.\n- **CI and test speed:** Pull requests now run only the Go tests that their changed files can affect. MacOS Go compute fell by about a fifth, which missed the set target.\n- **Agent guidance checks:** AGENTS.md is now a short map that every supported agent runtime reads in full. An agent grades it against a rubric on every pull request, with no stored API key.\n- **Benchmark study for pm:** A new survey shortlists long-horizon agent benchmarks for a with-pm and without-pm comparison. The first-benchmark choice was raised to the owner."
+ "text": "- **Owner questions and replies:** Ask-tool questions now appear on the site, and the first answer from the site or chat is used. A change removes the reply wait and inbox commands; owner replies reach a session by push alone.\n- **Pull request CI:** Pull requests run only the Go tests their changed files can affect, and macOS runs only the OS-dependent ones. MacOS compute fell on several pull requests, but the run time is still above target.\n- **Agent behavior:** Agents no longer ask permission before opening a project, sprint or task the owner requested. Claude Code's auto memory is now off in this repo.\n- **Agent guidance checks:** AGENTS.md is now a short map that every runtime reads in full. A check grades it on every pull request; work on repeatable verdicts is in progress."
 }
