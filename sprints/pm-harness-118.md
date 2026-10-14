@@ -129,6 +129,11 @@ The design page session-claims stays as it is for this sprint's code changes.
 the branch adds question needs (their store rows, a pm show line for parentless questions, the read of a Codex chat answer after an ask-tool call); session resolution, claims, liveness and the holder display are unchanged
 :::
 
+::: decision {source=agent date=2026-10-14}
+The Claude hook's window between its last transcript check and its store close is accepted: if the dialog is answered inside it, the need records the site answer while the session took the chat one.
+The window is one store write (tens to hundreds of ms); closing it would need the hook to retract an answer already printed, which Claude Code offers no way to do. The session's own transcript stays the truth of what it was told.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
