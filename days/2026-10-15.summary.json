@@ -1,0 +1,7 @@
+{
+ "date": "2026-10-15",
+ "generated_at": "2026-10-14T22:10:38+00:00",
+ "digest": "19ad5e7b0b1eb1e3",
+ "model": "claude-haiku-5-5",
+ "text": "- **Agent evaluation timing:** The AGENTS.md evaluation now has a new timeout for each call. The check job now has a new run length."
+}
