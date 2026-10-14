@@ -98,6 +98,26 @@ None yet.
   the other sleeps are wall, not CPU: with the 3 cores saturated they do not
   set macOS time.
 
+- Levers ranked by measured saving on macos-14 (warm cache, each phase alone,
+  PR 81 before and after; before/after CPU in s): (1) the 9 RACE_TESTS run
+  twice on macOS: 58.9 s of internal/work's 125.4 s CPU; out of scope, raised
+  as a decision need. (2) 4 fewer Dolt links: the item model moved to
+  internal/item, which links no Dolt, and records, store, design and site
+  import it; their test binaries stop linking Dolt (6 Dolt-linking test
+  binaries left: cli, config, install, service, work, and pm). Every package's
+  tests but internal/work's: 31.0 s wall, 63.3 CPU before; 26.2 s, 48.0 CPU
+  after. TestTheItemReadersLinkNoDolt holds it. (3) newPair seeds its 5 items
+  locally and pushes them in one sync, as reseed does: 241 to about 70 git
+  calls per pair, 10 tests. internal/work's git calls 7599 to 5803 on macOS
+  (8148 to 6446 locally); its 8 shards 50.0 s wall, 101.6 CPU before; 37.6 s,
+  74.1 CPU after. The race shards 38.1 to 35.5 s. Rejected: test binaries
+  linked with -linkmode=internal or -s save 1-2 s CPU of a 7-9 s Dolt link;
+  moving config's test to install would drop one more link but needs
+  config.Keys exported for a test; a git call's cost does not depend on the
+  parent's heap. Locally (32 cores), make test-go ran its parts one after
+  another: 35.5-35.8 s at main, 33.9-34.8 s with (2) and (3), 19.6-19.8 s with
+  its parts run at once (3 runs each).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
