@@ -154,6 +154,15 @@ Review of dbf3f41: the state hook prints nothing when init, where or show fail o
   sprint in the clone still ended with an ask in chat, which the second stop
   let through (stop_hook_active, existing behaviour).
 
+- Review of a13a7d2, checked with real codex-cli 0.162.1 hooks/list: Codex
+  keys hook trust by position (<path>:session_start:<group>:<index> plus a
+  hash). Putting --request-rule before --state made the trusted state hook
+  read as modified and moved it to an untrusted index. An upgraded Codex clone
+  would then run no request rule and no init/where/show, with no warning,
+  because the trust line is in the skipped hook and CodexHooksRan checks only
+  the rules chunks. Fix: new entries go after existing ones, with a test that
+  main's entries stay a prefix of each group.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
