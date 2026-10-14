@@ -9,7 +9,6 @@ covers:
   - "internal/item/answer*.go"
   - "internal/service/question*.go"
   - "internal/service/wait*.go"
-  - "internal/session/codexchat*.go"
   - "internal/cli/question_test.go"
 ---
 
@@ -47,20 +46,22 @@ Non-goals:
 
 Measured with Claude Code 2.1.296 and Codex 0.162.1, TUIs under a pty (sprint pm-harness-118, Findings). Other versions: not recorded.
 
-::: result {title="Claude Code 2.1.296: AskUserQuestion and its PermissionRequest hook"}
+::: result {title="Claude Code 2.1.296: AskUserQuestion and its hooks"}
 | Fact | Measured |
 |---|---|
 | A PermissionRequest hook with matcher `AskUserQuestion` runs unawaited beside the open dialog | hook and dialog start within 1 ms; a hook sleeping 20 s does not delay the dialog |
-| The hook's `allow` with `updatedInput.answers` (keyed by question text) closes the dialog | the dialog closed "Allowed by PermissionRequest hook", `toolUseResult.answers` held the hook's answer; 3 s after the dialog showed (first run), 1.0 s after the owner's POST (parity eval) |
-| Answered in the dialog first, the hook is not killed, and its late answer is ignored | so pm's hook must notice and exit by itself |
-| The hook's input has no tool-use id | it carries `session_id`, `transcript_path`, `prompt_id`, `permission_mode`, `tool_name`, `tool_input` |
-| Once the dialog closes, the call's `tool_use` and `tool_result` lines reach the transcript together | about 5 ms after; `toolUseResult.answers` on an answer, `is_error` with `toolDenialKind` `user-rejected` on Esc |
+| The hook's `allow` with `updatedInput.answers` (keyed by question text) closes the dialog | the dialog closed "Allowed by PermissionRequest hook", `toolUseResult.answers` held the hook's answer; 3 s after the dialog showed (first run), 0.5 s after the owner's POST (parity eval) |
+| PermissionRequest's input has no tool-use id | it carries `session_id`, `transcript_path`, `prompt_id`, `permission_mode`, `tool_name`, `tool_input` |
+| PostToolUse of AskUserQuestion fires once the dialog is answered | 17 to 24 ms after a chosen answer, and after the hook's own answer too (2 runs per case); its input adds `tool_use_id` and `tool_response`, and `tool_input` and `tool_response` are one object: the questions, `answers` by question text, and `annotations` (left out when the hook answered) |
+| On Esc no hook fires, but the waiting PermissionRequest hook gets SIGTERM | 79 to 81 ms after the dialog closed, then SIGKILL about 1.2 s later; not Stop, and PermissionDenied fires only on an auto-mode classifier's denial |
+| A session stopped with the dialog open sends the hook SIGTERM | 21 ms after; no hook process outlives the session |
+| A chosen answer sends the hook no signal | the hook runs on until it exits itself, so pm's hook must notice the close and exit |
 | A hook timeout of 86,400 s is accepted | the settings schema sets no maximum |
 | A hook that fails or prints nothing leaves the dialog usable | |
 | A subagent cannot call AskUserQuestion | 3 cases: background, foreground, `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`; ToolSearch found no such tool |
 :::
 
-Reading: the hook can race the dialog for as long as a day and answer it, but nothing kills it when the dialog wins, and it never learns the call's id.
+Reading: every ending of the dialog reaches pm through an event: a chosen answer through PostToolUse with the answers, Esc and a stopped session through the waiting hook's SIGTERM. The hook can race the dialog for as long as a day and answer it, but it never learns the call's id before PostToolUse.
 
 ::: result {title="Codex 0.162.1: request_user_input_async and its tool hooks"}
 | Fact | Measured |
@@ -69,17 +70,19 @@ Reading: the hook can race the dialog for as long as a day and answer it, but no
 | PreToolUse and PostToolUse fire for `request_user_input_async` and `request_user_input`; PermissionRequest fires for neither | the hook input carries `tool_use_id` (the rollout's `call_id`), `turn_id`, `transcript_path`, `tool_input` |
 | PostToolUse's `tool_response` | `{accepted: true}` for the async tool; `{answers: {<id>: {answers: […]}}}` for the blocking one |
 | `codex queue --thread <id> --message <text>` answers a waiting session | the session went on with the answer in 3.4 s and 8.2 s (2 runs); 1.5 to 9.5 s in the parity eval |
+| UserPromptSubmit's input carries the prompt the owner typed | `session_id` (the root thread), `turn_id`, `transcript_path`, `prompt` (Codex 0.154.0, captured) |
 | Nothing in Codex enforces one answer | a queued message after a chat answer is one more user turn |
 | The TUI's pick list (Shift+Left) for an async question is offered only while the turn runs | once the turn is idle the owner answers by typing |
 | An idle Codex TUI waiting on the owner looks like an ended session | `codex queue` delivers to a thread when it next loads ([Reply delivery](reply-delivery.md), Constraints) |
 | A PreToolUse deny with a reason reaches the model as the tool's output | Default mode, observed; Plan mode untested |
 :::
 
-Reading: Codex's question is a message, not a wait: pm can raise it at the call, but first-wins must be checked in the rollout, since Codex itself accepts both answers.
+Reading: Codex's question is a message, not a wait: pm raises it at the call and closes it at the owner's next prompt; Codex itself accepts both answers, so pm must decide the winner before it queues one.
 
 Other constraints:
 
-- The hook and the service read a session's transcript, rollouts and inbox only on the host that raised the question.
+- No transcript or rollout is read for a question (a rollout's path and modification time tell only its CODEX_HOME and whether the session is live): each ending has an event (above), and a transcript is an undocumented format read by polling (project rule 2026-10-14).
+- The service pushes into a session's inbox only on the host that raised the question.
 - The work store's `need_kind` CHECK admitted only decision, action and review, so a fourth kind is a schema change (version 4).
 
 ## Design
@@ -113,7 +116,7 @@ A question need is a need of kind `question` ([Work store](work-store.md), Data 
 |---|---|
 | Kind | `question`, schema version 4 (the `need_kind` CHECK, the `ask_call` column, the `ask_questions` and `ask_options` tables) |
 | Ask | `call`: the call's key, at most 128 bytes, unequal values fail a merge; the questions in the order asked (`text`, `header`, `multi`), each with its options in order (`label`, `detail`) |
-| Call key | Codex: the call's `call_id`, PostToolUse's `tool_use_id`. Claude Code: the hook input's `prompt_id`, `-`, then the first 12 hex digits of the SHA-256 of the tool input (the input has no tool-use id) |
+| Call key | Codex: the call's `call_id`, PostToolUse's `tool_use_id`. Claude Code: the hook input's `prompt_id`, `-`, then the first 12 hex digits of the SHA-256 of the questions as pm reads them (the JSON of their text, header, multiple choice and options), since PermissionRequest's input has no tool-use id; it leaves out the answers and annotations PostToolUse's input adds, so both hooks give one key |
 | Raised by | the session, its inbox (Claude Code's messaging socket; Codex's `codex-queue:<CODEX_HOME>`) and the host, as for every need ([Reply delivery](reply-delivery.md), Raising) |
 | Parent | the newest open task the session holds (latest `claimed_at`), else none. Only an open question may be an open need with no parent: a session that steers a chat may hold no task |
 | Title | `Session <the session id's first 8 characters> asks: <the first question>`, on one line, cut at 120 characters |
@@ -123,19 +126,19 @@ A question need is a need of kind `question` ([Work store](work-store.md), Data 
 
 ### Raising
 
-`pm hook ask --runtime claude|codex` raises each question where the runtime shows the call to a hook. `pm init` writes both entries ([pm as an installable product](pm-product.md)).
+`pm hook ask --runtime claude|codex` raises each question where the runtime shows the call to a hook, and closes it where the runtime shows the answer. `pm init` writes the four entries ([pm as an installable product](pm-product.md)).
 
 | | Claude Code | Codex |
 |---|---|---|
-| Entry | `.claude/settings.json`, PermissionRequest, matcher `AskUserQuestion`, `pm hook ask --runtime claude \|\| exit 1`, timeout 86,400 s | `.codex/hooks.json`, PostToolUse, matcher `request_user_input_async`, `pm hook ask --runtime codex \|\| exit 1`, timeout 30 s |
-| When | at the call, beside the dialog, which shows at once | right after the call returns `{accepted: true}`; the turn goes on or ends |
-| Key | `prompt_id` with the tool input's hash | `tool_use_id` |
+| Raises at | `.claude/settings.json`, PermissionRequest, matcher `AskUserQuestion`, timeout 86,400 s: at the call, beside the dialog, which shows at once | `.codex/hooks.json`, PostToolUse, matcher `request_user_input_async`, timeout 30 s: right after the call returns `{accepted: true}`; the turn goes on or ends |
+| Closes a chat answer at | PostToolUse, matcher `AskUserQuestion`, timeout 10 s | UserPromptSubmit, timeout 10 s, beside `pm hook inbox` |
+| Key | `prompt_id` with the questions' hash | `tool_use_id` |
 | Raised once | a call that is an open need of the session is not raised again | a call that is a need of the session, open or closed, is not raised again |
-| Then | waits for the first answer (below), up to its 24 h timeout | exits; the pm service carries the answer |
+| Then | waits for a site answer or a close (below), up to its 24 h timeout | exits; the pm service carries the site's answer |
 | Steps aside | a call with an `agent_id` (a subagent's), another tool | another tool or event |
 
-- The hook fails open: on its own error it says why on stderr ("the question stays in the session only"), prints nothing and exits 0, so the dialog stays usable and the turn goes on.
-- The inbox of a Codex question is the CODEX_HOME of the rollout the hook input names (Codex runs hooks without its `CODEX_*` variables), else `$CODEX_HOME` or `~/.codex`.
+- Every entry runs `pm hook ask --runtime <runtime> \|\| exit 1`. The hook fails open: on its own error it says why on stderr ("the question stays in the session only"), prints nothing and exits 0, so the dialog stays usable and the turn goes on.
+- The inbox of a Codex question is the CODEX_HOME of the rollout the hook input names (Codex runs hooks without its `CODEX_*` variables), else `$CODEX_HOME` or `~/.codex`. pm reads the rollout's path only, never the file.
 - Codex's blocking `request_user_input` (Plan mode) is not raised: its answer comes in the session before the turn goes on.
 
 ### Claude Code: one question end to end
@@ -145,7 +148,8 @@ sequenceDiagram
   participant O as Owner
   participant D as Dialog in the TUI
   participant A as Claude Code session
-  participant H as pm hook ask
+  participant H as pm hook ask (PermissionRequest)
+  participant P as pm hook ask (PostToolUse)
   participant S as pm service (site, wait socket)
   participant W as Work store, through the pm service
   A->>D: AskUserQuestion
@@ -156,28 +160,29 @@ sequenceDiagram
     H->>W: create the question need
   end
   H->>S: GET /need?id= on the wait socket, held open
-  loop every second, no dial
-    H->>H: the transcript's new lines: the call's tool_result?
-  end
   alt the owner answers on the site first
     O->>S: picks on the card, POST
     S->>W: the writer stores it as a reply
     S->>H: the snapshot shows a reply waiting: 200
-    H->>H: the transcript once more: still no tool_result
-    H->>W: close as answered on the site, mark delivered
+    H->>W: close as answered on the site (fails if closed), mark delivered
     H->>A: allow, updatedInput.answers
     A->>D: closes the dialog with the site's answers
-  else the owner answers in the dialog first
-    O->>D: picks an option, or Esc
-    D->>A: tool_result with the answers, or a rejection
-    H->>H: reads it from the transcript
-    H->>W: close with the chat answer (Esc: dismissed, declined)
-    H->>S: hangs up the wait
+    A->>P: PostToolUse: the need is closed, nothing to do
+  else the owner picks an answer in the dialog first
+    O->>D: picks an option, or Other
+    A->>P: PostToolUse (prompt_id, tool_response.answers), 17 to 24 ms after
+    P->>W: close with the chat answer
+    S->>H: the next look shows it closed: 200
+    H->>H: exits, printing nothing
+  else the owner presses Esc, or the session stops
+    O->>D: Esc
+    A->>H: SIGTERM, about 80 ms after
+    H->>W: close as dismissed, within 0.8 s
     H->>H: exits
   end
 ```
 
-Reading: the hook is the only path into the dialog; it reads the transcript every second and holds one call to the service for the site, and whichever closes the need first is the answer the session gets. The service never pushes a Claude Code question's reply into the messaging socket.
+Reading: the PermissionRequest hook is the only path into the dialog and holds one call to the service for the site; PostToolUse brings the dialog's answer and SIGTERM brings Esc, so whichever closes the need first is the answer the session gets. The service never pushes a Claude Code question's reply into the messaging socket.
 
 ### How the Claude Code hook waits for the site
 
@@ -186,11 +191,11 @@ The hook holds one HTTP call on the pm service's wait socket, `<main checkout>/.
 | Part | What it does |
 |---|---|
 | The call | `GET /need?id=<need>`: answered 200 once the service's snapshot shows the need with a site reply waiting or closed; a need not in the snapshot yet (raised since its last look) is waited for |
-| What wakes it | every snapshot the refresher stores wakes every waiter. The writer pokes the refresher right after it stores a site reply, so that reply answers the call at once; a close any command makes reaches it at the service's next look (every 1 s, the look the site's pages already take) |
+| What wakes it | every snapshot the refresher stores wakes every waiter. The writer pokes the refresher right after it stores a site reply, so that reply answers the call at once; a close any command or hook makes reaches it at the service's next look (every 1 s, the look the site's pages already take) |
 | Cost while idle | one connection per open question and no store read; the service reads the store once per look for all waiters together. It was one dial, handshake and read per question per second (86,400 a day) |
-| After the call answers | the hook reads the transcript, then the need, as before (a dialog answer that came meanwhile wins), and closes the need |
+| After the call answers | the hook reads the need: a site reply waiting closes it as answered on the site, then the decision is printed; a need closed elsewhere (PostToolUse's chat answer) ends the hook, printing nothing |
 | A failed call | the service down, restarting or stopping (it answers 503, or the socket refuses): the hook calls again after 1, 2, 4, then 5 s, never sooner than a second. An answer the store does not confirm counts as a failure too. The dialog stays usable throughout, and the first failure is said on stderr when the hook ends |
-| Ending it | the hook's return (an answer in the transcript, a close, or a signal) cancels the call; the service drops the wait |
+| Ending it | the hook's return (a site answer printed, a close elsewhere, or a signal) cancels the call; the service drops the wait |
 | Long-poll bound | none: the call lives until the need moves, the hook hangs up or the service stops. A unix socket reports the service's exit at once, so no timeout is needed to notice it |
 
 ### Codex: one question end to end
@@ -199,30 +204,29 @@ The hook holds one HTTP call on the pm service's wait socket, `<main checkout>/.
 sequenceDiagram
   participant O as Owner
   participant A as Codex session
-  participant R as Rollout
   participant H as pm hook ask
   participant S as pm service
   participant W as Work store
-  A->>R: request_user_input_async (call_id), accepted
+  A->>A: request_user_input_async (call_id), accepted
   A->>H: PostToolUse (tool_use_id = call_id)
   H->>W: create the question need, then exit
   Note over A: the turn goes on or ends, nothing waits
   alt the owner answers on the site first
     O->>S: picks on the card, POST
     S->>W: store the reply
-    S->>R: a message typed after the call? none
+    S->>W: close as answered on the site (fails if closed)
     S->>A: codex queue, the answer's text alone
-    S->>W: mark delivered, close as answered on the site
+    S->>W: mark delivered
     A->>A: starts a turn on the answer
   else the owner types the answer in the chat first
     O->>A: types the answer
-    A->>R: a user message after the call
-    S->>R: the sweep, or the check before a queue, finds it
-    S->>W: close with the chat answer
+    A->>H: UserPromptSubmit (prompt)
+    H->>W: close the session's open questions with the prompt
+    O->>S: a later POST from the card: refused, already closed
   end
 ```
 
-Reading: the hook only raises; the service decides the winner by reading the rollout for a message typed after the call, right before it would queue the site's answer and at every sweep.
+Reading: the hook raises at the call and closes at the owner's next prompt; the service closes before it queues, so the close, a compare-and-set, decides the winner and no rollout is read.
 
 ### Answering on the site
 
@@ -245,20 +249,21 @@ The question's card ([Replies on the site](site-replies.md)) shows in "Sessions 
 | | Claude Code | Codex |
 |---|---|---|
 | Where the owner answers | the dialog: an option, Other, or Esc | the chat: the pick list while the turn runs, else a typed message |
-| How pm learns it | the hook reads the call's `tool_result` from the transcript: `toolUseResult.answers`, or `is_error` on Esc | the service reads the session's rollouts for the first user message after the call's `call_id` (`ChatAfterCall`), leaving out what the service relayed (a text starting `pm: `, or a site answer of one of the session's needs) |
-| When | the transcript every second while the hook waits (a file read, no dial), and once more when the hook is stopped | at every sweep (start, every 60 s, and whenever the store moves) and right before queueing a site answer |
-| What the need records | the answer as `<question>: <answer>` lines, by the session; Esc dismisses it as "declined in the session" | the typed message, by the service |
+| How pm learns it | PostToolUse of AskUserQuestion: `tool_response.answers`, matched to the question by the call key. Esc: the waiting hook's SIGTERM | UserPromptSubmit: the `prompt`, which answers each open question of the session; a message the service relayed (a site answer it queued, a delivery's `pm: ` text) is left out |
+| When | 17 to 24 ms after the dialog closes; Esc about 80 ms after | as the prompt is submitted |
+| What the need records | the answer as `<question>: <answer>` lines, by the session; Esc dismisses it as "the session stopped waiting for the answer: Esc in the dialog, or the session ended" | the typed message, by the session |
 
 A chat answer is stored as the need's answer comment. A site reply the need held when the chat answer closed it lost the race: it counts as delivered, with the note "answered in chat first; the site's reply did not reach the session".
 
 ### First answer wins
 
-A question closes once. The store's close is a compare-and-set under its write lock ([Work store](work-store.md), Concurrent writers): a close of a closed need fails with `ErrClosed` and changes nothing, so of two closers the second does nothing more.
+A question closes once. The store's close is a compare-and-set under its write lock ([Work store](work-store.md), Concurrent writers): a close of a closed need fails with `ErrClosed` and changes nothing, so of two closers the second does nothing more, and whoever would deliver an answer closes first.
 
 | Runtime | Guard | Accepted window |
 |---|---|---|
-| Claude Code | the hook reads the transcript again after it finds a site reply, then closes the need, then prints `allow`. Claude Code ignores a hook answer once the dialog is answered | the dialog answered between the hook's last transcript read and its close (one store write, tens to hundreds of ms): the need records the site answer while the session took the dialog's. The session's transcript stays the truth of what it was told; Claude Code offers no way to retract an answer printed |
-| Codex | the service reads the rollout for a typed message right before `codex queue`; it queues only when none | an answer typed in the second between the check and the queue: both reach the session, one extra user turn the agent can see. Closing it would need control of Codex pm does not have |
+| Claude Code | the hook closes the need, then prints `allow`; PostToolUse's close of a need the hook closed fails. Claude Code ignores a hook answer once the dialog is answered | the dialog answered between the hook's close and Claude Code taking its decision (milliseconds): the need records the site answer while the session took the dialog's. The session's transcript stays the truth of what it was told; Claude Code offers no way to retract an answer printed |
+| Claude Code, at the raise | none | the dialog answered before the raise stored the need (one store write, tens of ms after the dialog shows): PostToolUse finds no need, so the question stays open on the site until the session stops the hook (dismissed) or the session ends |
+| Codex | the service closes the need, then runs `codex queue`; UserPromptSubmit's close of a need the service closed fails | an answer typed after the service's close, before the queued message lands: both reach the session, one extra user turn the agent can see, and the need records the site's. Closing it would need control of Codex pm does not have |
 
 ### Closing
 
@@ -266,7 +271,7 @@ A question closes once. The store's close is a compare-and-set under its write l
 stateDiagram-v2
   [*] --> Open: pm hook ask raises the call
   Open --> Answered: the first answer, on the site or in the chat
-  Open --> Dismissed: Esc, the hook stopped unanswered, the Claude Code session gone, or pm need dismiss
+  Open --> Dismissed: Esc or the session stopping (SIGTERM), the Claude Code session gone, or pm need dismiss
   Answered --> [*]
   Dismissed --> [*]
 ```
@@ -275,14 +280,14 @@ Reading: a question has one open state and two ends; nothing reopens it, and a C
 
 | Close | Resolution, reason | Claude Code | Codex |
 |---|---|---|---|
-| Answered on the site | answered, "answered on the site" | by the hook, which then answers the tool | by the service, once `codex queue` took the answer |
-| Answered in the chat | answered, the answer as its comment | by the hook, from the transcript | by the service, from the rollout |
-| Declined | dismissed, "declined in the session" | Esc in the dialog | none |
-| Hook stopped | dismissed, "the session stopped waiting for the answer" | Claude Code stops the hook (SIGTERM, SIGINT, SIGHUP: its 24 h timeout, or the session ending) with no answer; with one in the transcript, it closes with that | none |
-| Session ended | dismissed, "the session that asked has ended" | the service's sweep, when the session's messaging socket on this host is gone | never: an idle Codex TUI looks the same as an ended session, and a late site answer still reaches it |
+| Answered on the site | answered, "answered on the site" | by the hook, which then answers the tool | by the service, right before `codex queue` |
+| Answered in the chat | answered, the answer as its comment | by the PostToolUse hook, from the tool's answers | by the UserPromptSubmit hook, with the prompt |
+| Hook stopped | dismissed, "the session stopped waiting for the answer: Esc in the dialog, or the session ended" | Claude Code stops the hook (SIGTERM, SIGINT, SIGHUP: Esc, the session ending, or its 24 h timeout): one close within 0.8 s, before Claude Code's kill at about 1.2 s; a need closed already stays | none |
+| Session ended | dismissed, "the session that asked has ended" | the service's sweep, when the session's messaging socket on this host is gone: a backstop for a hook that could not close | never: an idle Codex TUI looks the same as an ended session, and a late site answer still reaches it |
 | By hand | dismissed, the reason given | `pm need dismiss <id> --reason "…"` | the same; the only way to clear a stale Codex question |
 
-- A Codex site answer while the session is not live (its rollout unchanged for 30 minutes) is not queued: it stays undelivered, and the sweep queues it once the session's rollouts change, unless a message typed after the call answered first.
+- A Codex site answer while the session is not live (its rollout unchanged for 30 minutes), on another host, or with no usable codex is not queued and the question stays open: the sweep tries again once the session's rollouts change.
+- A `codex queue` that fails after the service closed the question leaves the answer undelivered; the sweep queues it again (a question closed as answered on the site with replies beyond its delivered count).
 - A question raised on another host, or by a Claude Code session with no socket, is left to its hook: the service settles only what it can see.
 
 ### What the judge does with an open question
@@ -295,8 +300,8 @@ The owner-request Stop hook ([Owner-request Stop hook](owner-request-hook.md), T
 
 ### How it is checked
 
-- Harness tests with the fakes: both races in each runtime, the reply text rule round trip (a question with a newline, a double space or edge whitespace), the refusals, the parent rule, migration 2 to 4 and a version 3 and 4 two-clone merge.
-- The parity live eval's ask-tool scenarios, each runtime's TUI in a pty (`make test-live-parity`, `-k ask_tool`): answered on the site, the session goes on with that answer and the need closes answered on the site, delivered 1; answered in the chat, the need closes with the chat answer, delivered 0, and a later POST from the stale card is refused as closed. 4 passed in 91 s on Claude Code 2.1.296 and Codex 0.162.1.
+- Harness tests with the fakes: both races in each runtime, the reply text rule round trip (a question with a newline, a double space or edge whitespace), the refusals, the parent rule, migration 2 to 4 and a version 3 and 4 two-clone merge; PostToolUse closing with the dialog's answer and leaving a closed question alone; SIGTERM dismissing with no transcript; UserPromptSubmit closing with the prompt and leaving a relayed message out; the service closing before it queues, and queueing again after a failed queue.
+- The parity live eval's ask-tool scenarios, each runtime's TUI in a pty (`make test-live-parity`, `-k ask_tool`): answered on the site, the session goes on with that answer and the need closes answered on the site, delivered 1; answered in the chat, the need closes with the chat answer, delivered 0, and a later POST from the stale card is refused as closed; Esc on Claude Code's dialog closes the need as dismissed. 5 passed on Claude Code 2.1.296 and Codex 0.162.1; each chat answer and the Esc closed the need by the first check after the key press (within 0.5 s); a site answer reached Claude Code in 0.5 s and Codex in 5.1 s.
 
 ## Alternatives considered
 
@@ -313,7 +318,9 @@ The owner-request Stop hook ([Owner-request Stop hook](owner-request-hook.md), T
 | Raising a Codex question at Stop from the turn's rollout | Raises the question only when the turn ends and needs a rollout scan to find the calls; PostToolUse fires on the call itself with its id |
 | Dismissing a Codex question when its session looks idle | An idle TUI waiting on the owner looks the same as an ended session, and `codex queue` still delivers when the thread next loads; a stale question costs one card the owner can dismiss |
 | Pushing a Claude Code question's site answer into the messaging socket | Lands as a separate user turn after the dialog was answered some other way; only the hook closes the open dialog with the answer |
-| Closing a Codex chat answer in a UserPromptSubmit hook | The service already reads the rollout before any queue and at its sweep, so the hook adds a second closer and nothing first-wins needs |
+| The Claude Code hook tailing the transcript for the dialog's answer | A poll of an undocumented format; PostToolUse brings the answers 17 to 24 ms after the dialog closes, and the hook's SIGTERM brings Esc, so no fact needs the transcript |
+| The service reading a Codex session's rollouts for a chat answer, before a queue and at its sweep | A poll of an undocumented format, and a chat answer closed only at the next sweep (41.5 s in the parity eval); UserPromptSubmit carries the typed prompt, and a close before the queue settles the race without looking |
+| Telling Esc from a stopped session | Both reach the hook only as SIGTERM; telling them apart needs the transcript, and both end the question the same way |
 | The Claude Code hook reading the need every second | One dial, handshake and read per open question per second, 86,400 a day, and up to a second's delay on a site answer |
 | A blocking SQL procedure on the work store's socket (`pm_wait_need`) | Writes reach the store as plain SQL from every client, so the host would still have to poll the change mark; and the work package sits at its size cap |
 | The wait on the site's TCP port | The hook would have to find the port (`$PORT`, the unit file, a free port in tests), and the endpoint would face the tunnel; a unix socket beside `work.sock` needs neither |
