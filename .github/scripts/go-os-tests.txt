@@ -142,3 +142,5 @@ internal/work      TestSyncFailsHardOnAddAddAndACycle                           
 internal/work      TestSyncFailsHardOnAnUnsettledConflictAndABrokenRemoteHead                         os  Dolt sync through a git remote
 internal/work      TestCreateRefusesWithTheRemoteUnreachable                                          os  Dolt host plus an unreachable git remote
 internal/work      TestAServiceOnAnotherVersionIsRefused                                              os  NewHost/Dial over a unix socket, sun_path length refusal
+internal/work      TestAQuestionIsRaisedClosedOnceAndKeepsItsAsk                                      os  serve(): Dolt on a unix socket
+internal/work      TestMigratingAV3StoreKeepsItsItemsAndTakesQuestions                                os  embedded Dolt schema migration through the host

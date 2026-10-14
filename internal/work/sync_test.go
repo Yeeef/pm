@@ -357,6 +357,24 @@ func TestSyncTwoClonesMergeListFieldsPerEntry(t *testing.T) {
 			t.Errorf("blocked_by after a removal %v", b)
 		}
 	})
+
+	t.Run("MergeAQuestionsAskWhole", func(t *testing.T) {
+		x := x.reseed(t)
+		var q Item
+		// through the service's compare-and-swap (CALL pm_create(?)), whose spec carries the ask as JSON
+		x.a.do(func(d *Dolt) { q = must(d.Create(NewQuestion(x.t1.ID, RaisedBy{Session: "s1"}, *askOf()))) })
+		x.a.synced = time.Now() // the create read the remote: A's next fetch waits out the read dedup
+		if got := find(x.converge(t), q.ID); !reflect.DeepEqual(got.Need.Ask, askOf()) {
+			t.Fatalf("B's copy of the ask: %+v", got.Need.Ask)
+		}
+		// One clone closes it, the other counts a delivery: the items row merges, the ask's rows stay whole.
+		x.a.do(func(d *Dolt) { must(0, d.Close(q.ID, "answered on the site", Answered, "s1")) })
+		x.b.do(func(d *Dolt) { must(0, d.UpdateNeed(q.ID, NeedUpdate{Delivered: ptr(1)})) })
+		got := find(x.converge(t), q.ID)
+		if got.Status != Closed || got.Need.Delivered != 1 || !reflect.DeepEqual(got.Need.Ask, askOf()) {
+			t.Fatalf("merged question: %+v %+v", got, got.Need)
+		}
+	})
 }
 
 // Close beats claim on a clean merge, and a create whose push the other clone keeps rejecting gives up.

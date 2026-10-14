@@ -20,6 +20,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
+	model "github.com/Yeeef/pm/internal/item"
 	"github.com/Yeeef/pm/internal/launch"
 )
 
@@ -340,8 +341,16 @@ func (d *Dolt) migrate() error {
 	}
 	for ; v < SchemaVersion; v++ {
 		steps := append(slices.Clone(migrations[v-1]), fmt.Sprintf("UPDATE schema_version SET version = %d", v+1))
+		pre := migrationPre[v+1]
 		if err := d.inTx(fmt.Sprintf("pm: migrate the work store schema to version %d", v+1), false,
-			func(tx *sql.Tx) error { return execAll(tx, steps) }); err != nil {
+			func(tx *sql.Tx) error {
+				if pre != nil {
+					if err := pre(tx); err != nil {
+						return err
+					}
+				}
+				return execAll(tx, steps)
+			}); err != nil {
 			return err
 		}
 	}
@@ -532,9 +541,10 @@ type querier interface {
 
 const itemColumns = `id, type, parent, title, description, status, resolution, close_reason, number, holder_session,
 	holder_host, holder_claimed_at, started_at, created_at, updated_at, closed_at, closed_by, need_kind, raised_session,
-	raised_inbox, raised_host, delivered, review_pr, review_focus, review_merged, review_merge_reported`
+	raised_inbox, raised_host, delivered, review_pr, review_focus, review_merged, review_merge_reported, ask_call`
 
-// load reads every item with its labels, blockers, review targets and comments, ordered by id; it does not check them.
+// load reads every item with its labels, blockers, review targets, questions and comments, ordered by id; it does not
+// check them.
 func load(q querier) ([]Item, error) {
 	rows, err := q.QueryContext(ctx, "SELECT "+itemColumns+" FROM items ORDER BY id")
 	if err != nil {
@@ -609,6 +619,9 @@ func load(q querier) ([]Item, error) {
 	if targetErr != nil {
 		return nil, targetErr
 	}
+	if err := loadAsks(q, of); err != nil {
+		return nil, err
+	}
 	r, err := q.QueryContext(ctx,
 		"SELECT id, item_id, kind, author, text, created_at FROM comments ORDER BY item_id, pos, created_at, id")
 	if err != nil {
@@ -634,18 +647,80 @@ func load(q querier) ([]Item, error) {
 	return items, nil
 }
 
+// loadAsks adds each question's questions and options, in the order asked; a row out of place fails hard.
+func loadAsks(q querier, of func(table, id string) (*Item, error)) error {
+	each := func(table, query string, fn func(r *sql.Rows, ask func(id string) (*AskInfo, error)) error) error {
+		r, err := q.QueryContext(ctx, query)
+		if err != nil {
+			return fmt.Errorf("work store: %w", err)
+		}
+		defer r.Close() //nolint:errcheck // The query loop returns r.Err(); deferred close remains cleanup.
+		ask := func(id string) (*AskInfo, error) {
+			it, err := of(table, id)
+			if err == nil && (it.Need == nil || it.Need.Ask == nil) {
+				err = itemError(id, "has %s rows but is no question need", table)
+			}
+			if err != nil {
+				return nil, err
+			}
+			return it.Need.Ask, nil
+		}
+		for r.Next() {
+			if err := fn(r, ask); err != nil {
+				return err
+			}
+		}
+		return r.Err()
+	}
+	if err := each("ask_questions", "SELECT item_id, q, text, header, multi FROM ask_questions ORDER BY item_id, q",
+		func(r *sql.Rows, ask func(string) (*AskInfo, error)) error {
+			var id string
+			qu, n := AskQuestion{Options: []AskOption{}}, 0
+			if err := r.Scan(&id, &n, &qu.Text, &qu.Header, &qu.Multi); err != nil {
+				return fmt.Errorf("work store: %w", err)
+			}
+			a, err := ask(id)
+			if err == nil && n != len(a.Questions) {
+				err = itemError(id, "has question %d after %d questions", n, len(a.Questions))
+			}
+			if err == nil {
+				a.Questions = append(a.Questions, qu)
+			}
+			return err
+		}); err != nil {
+		return err
+	}
+	return each("ask_options", "SELECT item_id, q, pos, label, detail FROM ask_options ORDER BY item_id, q, pos",
+		func(r *sql.Rows, ask func(string) (*AskInfo, error)) error {
+			var id string
+			var op AskOption
+			n, pos := 0, 0
+			if err := r.Scan(&id, &n, &pos, &op.Label, &op.Detail); err != nil {
+				return fmt.Errorf("work store: %w", err)
+			}
+			a, err := ask(id)
+			if err == nil && (n < 0 || n >= len(a.Questions) || pos != len(a.Questions[n].Options)) {
+				err = itemError(id, "has option %d of question %d, out of their order", pos, n)
+			}
+			if err == nil {
+				a.Questions[n].Options = append(a.Questions[n].Options, op)
+			}
+			return err
+		})
+}
+
 // scanItem reads one items row; a column set that fits no item (a need column without need_kind, half a holder)
 // fails hard.
 func scanItem(rows *sql.Rows) (Item, error) {
 	var it Item
 	var parent, resolution, closeReason, holderSession, holderHost, closedBy, needKind, raisedSession, raisedInbox,
-		raisedHost, reviewPR, reviewFocus, reviewMerged, reviewMergeReported sql.NullString
+		raisedHost, reviewPR, reviewFocus, reviewMerged, reviewMergeReported, askCall sql.NullString
 	var number, delivered sql.NullInt64
 	var holderClaimed, started, closed sql.NullTime
 	if err := rows.Scan(&it.ID, &it.Type, &parent, &it.Title, &it.Description, &it.Status, &resolution, &closeReason,
 		&number, &holderSession, &holderHost, &holderClaimed, &started, &it.CreatedAt, &it.UpdatedAt, &closed,
 		&closedBy, &needKind, &raisedSession, &raisedInbox, &raisedHost, &delivered, &reviewPR, &reviewFocus,
-		&reviewMerged, &reviewMergeReported); err != nil {
+		&reviewMerged, &reviewMergeReported, &askCall); err != nil {
 		return it, fmt.Errorf("work store: %w", err)
 	}
 	it.Parent, it.Resolution, it.CloseReason = parent.String, Resolution(resolution.String), closeReason.String
@@ -668,7 +743,7 @@ func scanItem(rows *sql.Rows) (Item, error) {
 	}
 	if !needKind.Valid {
 		for _, c := range []bool{raisedSession.Valid, raisedInbox.Valid, raisedHost.Valid, delivered.Valid,
-			reviewPR.Valid, reviewFocus.Valid, reviewMerged.Valid, reviewMergeReported.Valid} {
+			reviewPR.Valid, reviewFocus.Valid, reviewMerged.Valid, reviewMergeReported.Valid, askCall.Valid} {
 			if c {
 				return it, itemError(it.ID, "has need columns but no need_kind")
 			}
@@ -689,6 +764,11 @@ func scanItem(rows *sql.Rows) (Item, error) {
 			Merged: reviewMerged.String, MergeReported: reviewMergeReported.String}
 	} else if reviewPR.Valid || reviewFocus.Valid || reviewMerged.Valid || reviewMergeReported.Valid {
 		return it, itemError(it.ID, "is a %s need with review columns", n.Kind)
+	}
+	if n.Kind == Question {
+		n.Ask = &AskInfo{Call: askCall.String, Questions: []AskQuestion{}}
+	} else if askCall.Valid {
+		return it, itemError(it.ID, "is a %s need with ask_call", n.Kind)
 	}
 	it.Need = n
 	return it, nil
@@ -792,6 +872,9 @@ func (d *Dolt) write(msg string, fn change) error {
 		}
 		for _, it := range changed {
 			if i, ok := at[it.ID]; ok {
+				if b := items[i].Need; b != nil && b.Ask != nil && (it.Need == nil || !model.SameAsk(b.Ask, it.Need.Ask)) {
+					return itemError(it.ID, "changed its ask; a question's ask is written once, when it is raised")
+				}
 				after[i] = it
 			} else {
 				at[it.ID] = len(after)
@@ -850,7 +933,7 @@ func nullTime(t time.Time) any {
 // upsertItem writes an item's row in items, inserting it or setting every column.
 func upsertItem(tx *sql.Tx, it *Item) error {
 	var number, holderSession, holderHost, holderClaimed, needKind, raisedSession, raisedInbox, raisedHost, delivered,
-		reviewPR, reviewFocus, reviewMerged, reviewMergeReported any
+		reviewPR, reviewFocus, reviewMerged, reviewMergeReported, askCall any
 	if it.Number > 0 {
 		number = it.Number
 	}
@@ -866,6 +949,9 @@ func upsertItem(tx *sql.Tx, it *Item) error {
 			reviewPR, reviewFocus = r.PR, r.Focus
 			reviewMerged, reviewMergeReported = nullString(r.Merged), nullString(r.MergeReported)
 		}
+		if a := n.Ask; a != nil {
+			askCall = a.Call
+		}
 	}
 	cols := strings.Fields(strings.ReplaceAll(itemColumns, ",", " "))
 	set := make([]string, 0, len(cols))
@@ -879,15 +965,15 @@ func upsertItem(tx *sql.Tx, it *Item) error {
 		string(it.Status), nullString(string(it.Resolution)), nullString(it.CloseReason), number, holderSession,
 		holderHost, holderClaimed, nullTime(it.StartedAt), it.CreatedAt.UTC(), it.UpdatedAt.UTC(),
 		nullTime(it.ClosedAt), nullString(it.ClosedBy), needKind, raisedSession, raisedInbox, raisedHost, delivered,
-		reviewPR, reviewFocus, reviewMerged, reviewMergeReported)
+		reviewPR, reviewFocus, reviewMerged, reviewMergeReported, askCall)
 	if err != nil {
 		return fmt.Errorf("work store: write %s: %w", it.ID, err)
 	}
 	return nil
 }
 
-// writeLists replaces an item's labels, blockers and review targets with its own, and adds its comments from position
-// kept on, each with its position in the item's list.
+// writeLists replaces an item's labels, blockers, review targets, questions and options with its own, and adds its
+// comments from position kept on, each with its position in the item's list.
 func writeLists(tx *sql.Tx, it *Item, kept int) error {
 	exec := func(q string, args ...any) error {
 		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
@@ -895,7 +981,7 @@ func writeLists(tx *sql.Tx, it *Item, kept int) error {
 		}
 		return nil
 	}
-	for _, table := range []string{"labels", "blocked_by", "review_targets"} {
+	for _, table := range []string{"labels", "blocked_by", "review_targets", "ask_options", "ask_questions"} {
 		if err := exec("DELETE FROM "+table+" WHERE item_id = ?", it.ID); err != nil {
 			return err
 		}
@@ -915,6 +1001,20 @@ func writeLists(tx *sql.Tx, it *Item, kept int) error {
 			for pos, t := range targets {
 				if err := exec("INSERT INTO review_targets (item_id, kind, target, pos) VALUES (?, ?, ?, ?)",
 					it.ID, kind, t, pos); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if it.Need != nil && it.Need.Ask != nil {
+		for q, qu := range it.Need.Ask.Questions {
+			if err := exec("INSERT INTO ask_questions (item_id, q, text, header, multi) VALUES (?, ?, ?, ?, ?)",
+				it.ID, q, qu.Text, qu.Header, qu.Multi); err != nil {
+				return err
+			}
+			for pos, o := range qu.Options {
+				if err := exec("INSERT INTO ask_options (item_id, q, pos, label, detail) VALUES (?, ?, ?, ?, ?)",
+					it.ID, q, pos, o.Label, o.Detail); err != nil {
 					return err
 				}
 			}
@@ -974,17 +1074,25 @@ func cloneItem(it Item) Item {
 			r.Sprints, r.Designs = slices.Clone(r.Sprints), slices.Clone(r.Designs)
 			n.Review = &r
 		}
+		if n.Ask != nil {
+			a := *n.Ask
+			a.Questions = slices.Clone(a.Questions)
+			for i := range a.Questions {
+				a.Questions[i].Options = slices.Clone(a.Questions[i].Options)
+			}
+			n.Ask = &a
+		}
 		it.Need = &n
 	}
 	return it
 }
 
-// Create writes a new item and returns it: its id minted under the parent (a root id for a project), a sprint's
-// number one above its project's highest, status open. A child minted in a store with a remote goes through the
-// compare-and-swap on the remote, which the service runs (CALL pm_create(?), createShared); a project's random root id,
-// or any id in a store with no remote, is minted from this store copy by an ordinary write.
+// Create writes a new item and returns it: its id minted under the parent (a root id for a project or a question with
+// no parent), a sprint's number one above its project's highest, status open. A child minted in a store with a remote
+// goes through the compare-and-swap on the remote, which the service runs (CALL pm_create(?), createShared); a random
+// root id, or any id in a store with no remote, is minted from this store copy by an ordinary write.
 func (d *Dolt) Create(n New) (Item, error) {
-	if n.Type != Project {
+	if n.Parent != "" {
 		if _, ok, err := d.remoteURL(); err != nil {
 			return Item{}, err
 		} else if ok {
@@ -1008,7 +1116,7 @@ func (d *Dolt) createLocal(n New) (Item, error) {
 		switch {
 		case n.Type == Project && n.Parent != "":
 			return nil, fmt.Errorf("work store: a project has no parent, not %s", n.Parent)
-		case n.Type == Project:
+		case n.Type == Project || n.Parent == "" && n.Type == Need && n.Need != nil && n.Need.Kind == Question:
 			id, err := NewRoot(d.o.Prefix, func(id string) bool { return x.Item(id) != nil }, rand.Reader)
 			if err != nil {
 				return nil, err
@@ -1067,11 +1175,16 @@ func (d *Dolt) Edit(id string, title, description *string) error {
 	})
 }
 
-// Close closes an open item: its reason, resolution and closing session; it clears the holder.
+// ErrClosed is a close of an item that is closed already (Close, Answer): of two closes of one item, the first wins
+// and the second fails with it, writing nothing.
+var ErrClosed = errors.New("is closed already")
+
+// Close closes an open item: its reason, resolution and closing session; it clears the holder. A closed item fails
+// with ErrClosed.
 func (d *Dolt) Close(id, reason string, resolution Resolution, session string) error {
 	return d.update("close", id, func(it *Item, _ *Index) error {
 		if it.Status != Open {
-			return itemError(id, "is closed already")
+			return fmt.Errorf("work store: %s %w", id, ErrClosed)
 		}
 		it.Status, it.Resolution, it.CloseReason, it.ClosedBy = Closed, resolution, reason, session
 		it.ClosedAt, it.Holder = d.now(), nil
@@ -1201,14 +1314,14 @@ func (d *Dolt) Comment(id string, kind CommentKind, author, text string) (Commen
 }
 
 // Answer records the owner's answer to a need: a reply comment, then the close with resolution answered and the
-// reason "Responded", as bd human respond closed it.
+// reason "Responded", as bd human respond closed it. A closed need fails with ErrClosed.
 func (d *Dolt) Answer(id, text, session string) error {
 	return d.update("answer", id, func(it *Item, _ *Index) error {
 		if it.Type != Need {
 			return itemError(id, "is a %s; only a need is answered", it.Type)
 		}
 		if it.Status != Open {
-			return itemError(id, "is closed already")
+			return fmt.Errorf("work store: %s %w", id, ErrClosed)
 		}
 		cid, err := newUUID()
 		if err != nil {

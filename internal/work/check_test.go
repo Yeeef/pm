@@ -15,6 +15,7 @@ func TestCheckRefusesEachImpossibleState(t *testing.T) {
 	review := func(it *Item) {
 		it.Need = &NeedInfo{Kind: Review, Review: &ReviewInfo{PR: "https://x/pull/1", Sprints: []string{P + ".1"}}}
 	}
+	ask := func(it *Item) { it.Need.Ask = askOf() }
 	for _, c := range []struct {
 		id   string
 		edit func(*Item)
@@ -46,7 +47,16 @@ func TestCheckRefusesEachImpossibleState(t *testing.T) {
 			`kind "answer"`},
 		{P + ".1.1", func(it *Item) { it.Need = &NeedInfo{Kind: Decision} }, "task with need fields"},
 		{P + ".1.6", func(it *Item) { it.Need = nil }, "need without need fields"},
-		{P + ".1.6", func(it *Item) { it.Need.Kind = "question" }, `kind "question"`},
+		{P + ".1.6", func(it *Item) { it.Need.Kind = "riddle" }, `kind "riddle"`},
+		{P + ".1.6", func(it *Item) { it.Need.Kind = Question }, "question need without its ask"},
+		{P + ".1.6", ask, "decision need with an ask"},
+		{P + ".1.6", func(it *Item) { question(it); it.Need.RaisedBy = nil }, "question no session raised"},
+		{P + ".1.6", func(it *Item) { question(it); it.Need.Ask.Call = "" }, "without its call key"},
+		{P + ".1.6", func(it *Item) { question(it); it.Need.Ask.Questions = nil }, "asks nothing"},
+		{P + ".1.6", func(it *Item) { question(it); it.Need.Ask.Questions[1].Text = "" }, "question 1 without a text"},
+		{P + ".1.6", func(it *Item) { question(it); it.Need.Ask.Questions[0].Options[1].Label = "Yes" },
+			`repeated option "Yes"`},
+		{P + ".1.6", func(it *Item) { question(it); it.Need.Ask.Questions[0].Options[0].Label = "" }, "empty"},
 		{P + ".1.6", func(it *Item) { it.Need.Kind = Review }, "review need without review fields"},
 		{P + ".1.6", func(it *Item) { review(it); it.Need.Kind = Action }, "action need with review fields"},
 		{P + ".1.6", func(it *Item) { review(it); it.Need.Review.PR = "" }, "without a PR"},
@@ -81,6 +91,14 @@ func TestCheckRefusesEachImpossibleState(t *testing.T) {
 	// A closed task or need with no parent is allowed: bd let three of them in before the import refused them.
 	items := tree()
 	items = append(items, item("d-old", Task, "", closed), item("d-ask", Need, "", closed))
+	if err := Check(items); err != nil {
+		t.Error(err)
+	}
+	// An open question may have no parent (its session held no task), or sit under a task; it may ask a free-text
+	// question with no options.
+	items = append(tree(), item("d-why", Need, "", question), item(P+".1.11", Need, P+".1.1", question, func(it *Item) {
+		it.Need.Ask.Questions[1].Options = nil
+	}))
 	if err := Check(items); err != nil {
 		t.Error(err)
 	}

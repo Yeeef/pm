@@ -1,5 +1,12 @@
 package work
 
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+)
+
 // The work store's schema, as the work-store page's Storage section gives it: typed tables, no JSON cell, since Dolt
 // merges a cell whole. A list is a table of rows, so Dolt's row merge unions two clones' additions per entry. The
 // schema enforces types, NOT NULL, enums (a CHECK on a VARCHAR: dolthub/driver v2.2.0 panics reading an ENUM
@@ -7,7 +14,7 @@ package work
 
 // SchemaVersion is the version this pm's schema is at. A store at a lower version is migrated on open by the steps in
 // migrations; a store at a higher one is refused: an older pm does not write a newer schema.
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 // schema is version 1, statement by statement; CreateStore then runs migrations up to SchemaVersion, as an open of an
 // older store does.
@@ -111,4 +118,50 @@ var migrations = [][]string{
 		)`,
 		`INSERT INTO write_stamp (one, txn) VALUES (1, '')`,
 	},
+	// 4: the question need, an agent session's ask-tool call: need_kind takes question (the unnamed CHECK version 1
+	// made is dropped first, by migrationPre), ask_call is the call's key (item.AskInfo.Call), and ask_questions and
+	// ask_options hold its questions and options in the order asked (q, pos). They are written once, at the raise.
+	// The new CHECK is named, so two clones that each migrate make one schema.
+	{
+		`ALTER TABLE items ADD CONSTRAINT items_need_kind CHECK (need_kind IN ('decision','action','review','question'))`,
+		`ALTER TABLE items ADD COLUMN ask_call VARCHAR(128)`,
+		`CREATE TABLE ask_questions (
+			item_id VARCHAR(128) NOT NULL,
+			q INT NOT NULL,
+			text TEXT NOT NULL,
+			header TEXT NOT NULL,
+			multi BOOLEAN NOT NULL,
+			PRIMARY KEY (item_id, q),
+			CONSTRAINT ask_questions_item_fk FOREIGN KEY (item_id) REFERENCES items (id)
+		)`,
+		`CREATE TABLE ask_options (
+			item_id VARCHAR(128) NOT NULL,
+			q INT NOT NULL,
+			pos INT NOT NULL,
+			label TEXT NOT NULL,
+			detail TEXT NOT NULL,
+			PRIMARY KEY (item_id, q, pos),
+			CONSTRAINT ask_options_item_fk FOREIGN KEY (item_id) REFERENCES items (id)
+		)`,
+	},
+}
+
+// migrationPre[v] runs in migration v's transaction before its statements: a step on a name Dolt generated.
+var migrationPre = map[int]func(tx *sql.Tx) error{
+	4: func(tx *sql.Tx) error { return dropCheck(tx, "items", "need_kind") },
+}
+
+// dropCheck drops the one CHECK on table whose clause names column; version 1 made it unnamed, so Dolt named it.
+func dropCheck(tx *sql.Tx, table, column string) error {
+	var names sql.NullString
+	if err := tx.QueryRowContext(ctx, `SELECT GROUP_CONCAT(c.constraint_name) FROM information_schema.check_constraints c
+		JOIN information_schema.table_constraints t ON t.constraint_name = c.constraint_name
+		WHERE t.table_schema = DATABASE() AND t.table_name = ? AND t.constraint_type = 'CHECK' AND c.check_clause LIKE ?`,
+		table, "%`"+column+"`%").Scan(&names); err != nil || !names.Valid || strings.Contains(names.String, ",") {
+		return errors.Join(err, fmt.Errorf("work store: the CHECKs on %s.%s are %q, not one", table, column, names.String))
+	}
+	if _, err := tx.ExecContext(ctx, "ALTER TABLE "+table+" DROP CHECK `"+names.String+"`"); err != nil {
+		return fmt.Errorf("work store: drop the CHECK on %s.%s: %w", table, column, err)
+	}
+	return nil
 }

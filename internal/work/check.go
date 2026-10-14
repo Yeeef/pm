@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	model "github.com/Yeeef/pm/internal/item"
 )
 
 // The invariants pm checks in code on every write and on every load (the work-store page, Storage: Read), on top of
@@ -126,7 +128,8 @@ func checkItem(it *Item) error {
 	return checkNeed(it)
 }
 
-// checkNeed checks the need fields: present exactly on a need, review data exactly on a review.
+// checkNeed checks the need fields: present exactly on a need, review data exactly on a review, an ask exactly on a
+// question.
 func checkNeed(it *Item) error {
 	id, n := it.ID, it.Need
 	if (it.Type == Need) != (n != nil) {
@@ -139,9 +142,9 @@ func checkNeed(it *Item) error {
 		return nil
 	}
 	switch n.Kind {
-	case Decision, Action, Review:
+	case Decision, Action, Review, Question:
 	default:
-		return itemError(id, "is a need of kind %q, not decision, action or review", n.Kind)
+		return itemError(id, "is a need of kind %q, not decision, action, review or question", n.Kind)
 	}
 	if (n.Kind == Review) != (n.Review != nil) {
 		if n.Review == nil {
@@ -160,6 +163,9 @@ func checkNeed(it *Item) error {
 				}
 			}
 		}
+	}
+	if f := model.AskFault(n); f != "" {
+		return itemError(id, "%s", f)
 	}
 	if n.RaisedBy != nil && n.RaisedBy.Session == "" {
 		return itemError(id, "is raised by no session but has raised_by")
@@ -194,9 +200,10 @@ func (x *Index) checkTree(it *Item) error {
 			return itemError(id, "is a task under %s %s; a task sits under a sprint, a task or a project",
 				parent.Type, parent.ID)
 		}
-	case Need: // a need may sit under any item; an open one with none is refused below
+	case Need: // a need may sit under any item; an open one with none is refused below, but for a question
 	}
-	if parent == nil && (it.Type == Task || it.Type == Need) && it.Status == Open {
+	question := it.Need != nil && it.Need.Kind == Question // a session that holds no task asks with none
+	if parent == nil && (it.Type == Task || it.Type == Need && !question) && it.Status == Open {
 		return itemError(id, "is an open %s with no parent", it.Type)
 	}
 	seen := map[string]bool{id: true}
