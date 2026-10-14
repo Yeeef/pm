@@ -1,5 +1,6 @@
-"""The repo's .pm/config.toml: every pm command fails hard without it or on another pinned version, and a pin move
-names the worktrees whose branches still pin the old version."""
+"""The repo's .pm/config.toml: every pm command fails hard without it or on another pinned version, each config key
+is named in some --help, and a pin move names the worktrees whose branches still pin the old version; pm where, pm
+doctor and the version handshake across the move run as .go/pm-before, the pm a branch from before it runs."""
 
 from __future__ import annotations
 

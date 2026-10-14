@@ -3,6 +3,12 @@
 // changes. A page whose covers match a changed file passes when one of the PR's sprints updated it (a records commit
 // to the page since the sprint opened, and a link to it in the sprint record's Design pages) or waived it (a sprint
 // decision pm design unchanged records).
+//
+// The records store is shared across branches, so a sprint names a new file in its page's covers before its PR
+// merges: pm check lists a covers pattern that matches no tracked file as waiting on unmerged work (Check), and pm
+// sprint close refuses while a pattern the sprint added matches no file on the remote's main (LiveOnMain, Own).
+//
+// The gate reads a PR's changed files with gh api --paginate repos/<o>/<r>/pulls/<n>/files, a rename's old path too.
 package design
 
 import (

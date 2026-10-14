@@ -1,6 +1,10 @@
 // Package site renders records joined with live work-store status: the pages the pm service serves and pm check
 // renders. Page assembly uses html/template, and fragments are escaped with the standard library's html.EscapeString;
 // golden_test.go holds every page of testdata/constructs to its frozen copy.
+//
+// serve.go holds what only the service's pages have: the reply forms and the status line. The pages load Mermaid at one
+// exact version, MermaidVersion. A page change shows in the golden pages (testdata/constructs/pages); a construct the
+// fixture lacks gets a record or item in testdata/constructs.
 package site
 
 import (

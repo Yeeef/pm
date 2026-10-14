@@ -1,10 +1,10 @@
-// Package cli is pm's command tree: every command with its help, built on cobra from the table in commands.go, the
-// argument checks argparse makes, the config check every command passes first, and the dispatch to each command's
-// body.
-//
-// Cobra routes to the command; each command then parses its own arguments with pflag (cobra's flag parsing is off on
-// leaves) so that the checks and the messages follow argparse: required arguments, mutually exclusive groups, choices,
-// positional counts, and options that take two values (--option LABEL TEXT), which pflag cannot express.
+// Package cli is pm's command tree: every command with its help, built on cobra from the table in commands.go, which
+// holds every help text; the argument checks argparse makes; the config check every command passes first; and the
+// dispatch to each command's body. Cobra routes to the command; each leaf then parses its own arguments with pflag
+// (cobra's flag parsing is off on leaves) so that the checks and the messages follow argparse: required arguments,
+// mutually exclusive groups, choices, positional counts, and --option LABEL TEXT. store_commands.go holds the
+// work-store commands' bodies, and the forms show ID and task add --parent TASK, the one argv Execute routes before the
+// tree (storeFormOf). Every command pm runs is in the tree, so in pm --help: commands_test.go fails otherwise.
 package cli
 
 import (

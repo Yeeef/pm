@@ -1,8 +1,18 @@
 // Package hooks is what the runtimes' hooks run: pm prime (session and subagent context) and pm hook stop.
 //
 // Every hook fails open: it exits 0 and says on stderr why it let the event through, because a broken hook must never
-// stop a session from starting or an agent from stopping. The exception runs before any hook: pm's check of the repo's
-// .pm/config.toml, which fails hard.
+// stop a session from starting or an agent from stopping. The owner-request judge, when it cannot run, exits 1 with the
+// cause on stderr instead, which still lets the stop through: Claude Code shows the error, Codex takes it as a pass.
+// The exception runs before any hook: pm's check of the repo's .pm/config.toml, which fails hard.
+//
+// pm prime prints prime.md then the noun list, which Commands builds from the command tree (Machinery, the commands
+// left out). Claude Code passes a hook's additionalContext inline only up to Cap characters, per hook, and the hooks of
+// one entry arrive in any order, so the rules run as one hook per chunk: Chunks cuts them at the headings in Starts and
+// puts a title line naming each chunk's place and sections on top (pm prime --rules N); the state runs as its own hook,
+// cut at a line. TestChunksFitTheCapAndAddUpToTheHead fails when a chunk outgrows Cap. Beside prime: stop.go pm hook
+// stop (uncommitted records), ownerrequest.go pm hook owner-request (the judge on the session's runtime, --runtime
+// claude or codex, through internal/ask), asktool.go the runtimes' ask tools the judge lets through, inbox.go pm hook
+// inbox (UserPromptSubmit, never Stop).
 package hooks
 
 import (

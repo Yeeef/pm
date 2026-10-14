@@ -19,6 +19,19 @@
 //
 // A retired piece (Retired) is one an earlier pm wrote and this one does not: pm doctor names each one left, and pm
 // init, pm upgrade and pm uninstall remove it.
+//
+// The files: pieces.go the pieces, among them the hook entries (claudeHooks and codexHooks: a hook change edits both;
+// TestClaudeAndCodexRunTheSameHooks fails on a difference runtimeDifferences gives no reason for), pm's git hook
+// section in its own tracked .pm/hooks/post-checkout, and Retired (the main branch's records/ copy and its copy and
+// guard workflows, the pre-commit section); clone.go the clone's setup, which also turns off the per-worktree sparse
+// checkout once the worktree tracks no records/, and sets core.hooksPath to the main checkout's .pm/hooks (moved off
+// Beads' .beads/hooks); workstore.go the work store attached to the remote's refs/pm/work (cloned, or created and
+// pushed); codex.go the Codex roots; codextrust.go and sessiontrust.go which of pm's hooks Codex trusts (SessionTrust,
+// the state hook's check in a Codex session, kept in .pm/run/codex-trust.json); binary.go pm copied into the bin dir;
+// pins.go the launcher's pins that no checkout on the machine pins, which pm upgrade prunes and pm doctor names;
+// legacy.go the pre-package harness's pieces, found and refused; git.go the git calls, among them the records
+// branch's bootstrap (CreateRecordsBranch). golden_test.go holds the pieces on a table of inputs to
+// testdata/pieces.json.
 package install
 
 import (

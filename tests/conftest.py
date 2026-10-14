@@ -1,5 +1,34 @@
 """Fixtures: a temp clone whose records store holds a small record set and whose work store holds a few seeded items,
-served by a per-test pm service; the pm under test is the Go binary `make go-build` builds at .go/pm."""
+served by a per-test pm service; the pm under test is the Go binary `make go-build` builds at .go/pm.
+
+- `repo` is a temp main checkout with its store at .pm/store/records on branch `records` and the records/ link, as
+  `pm init` leaves a clone. It starts `pm service run` for the clone (Repo.start_service, on a free port), which every
+  work-store read and write goes through, and stops it at teardown; it is no integration test's service. A test that
+  starts the clone's own `pm service run` calls repo.stop_service() first and repo.start_service() after; the fake
+  supervisor stops it itself when it starts the clone's installed service.
+- Work data is read as work-store items, as `pm export` gives them: repo.items(), and repo.changes(), what pm changed
+  since the repo was set up or repo.mark(), without store stamps; repo.unchanged() is the strict "nothing written"
+  check (every item equal, stamps included).
+- Seeds are bd issues, the form the work store imports, written only through repo.set_issue and repo.add_issue: ids
+  <prefix>-<root>(.<n>)* (repo-demo.1), stamps as bd writes them, an in_progress issue with its claimed_by. The
+  fixture imports them with `pm init --import-bd` and reads items with `pm export --store`; a seed imports them anew,
+  so it must come before pm's first write.
+- fake_env puts the fakes first on PATH, links the pm under test as $HOME/.local/bin/pm, points HOME,
+  CLAUDE_CONFIG_DIR and CODEX_HOME at temp dirs, and sets PM_RELEASE_API to a port that refuses, so pm doctor never
+  reaches GitHub; a test that wants a release serves one there.
+- pytest_configure sets a short --basetemp under /tmp unless one is given (a socket path must fit the kernel's 104
+  bytes), puts .go first on the test process's own PATH for the git hooks pm installs, and points its HOME,
+  CODEX_HOME, CLAUDE_CONFIG_DIR and XDG_CONFIG_HOME at a temp dir, so git and the pm hooks it runs never touch the
+  user's files; an autouse check fails a test that changes the user's Codex config or pm service units. REAL keeps
+  the user's own values, which the live evals run with.
+- light_unless_integration (autouse) fails a test not marked `integration` that starts what integration_only names:
+  the pm service, the whole site (Repo.pages), a clone's setup (pm init, upgrade, uninstall, doctor), a git remote
+  (clone, fetch, pull, push, a bare repo), pm push, or the session-start hook (pm prime without --rules or
+  --subagent).
+- chunks() cuts the rules, prime.md and the command list, at RULE_STARTS (internal/hooks' Starts), as pm prime
+  --rules N prints them.
+- The fakes are fake_gh.py, fake_claude.py, fake_codex.py and fake_sched.py; each one's docstring says what it
+  answers."""
 
 from __future__ import annotations
 

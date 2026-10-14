@@ -2,6 +2,10 @@
 // <main checkout>/.pm/store/records. Every worktree finds it through the clone's common git dir, so a write is visible
 // from every branch and worktree at once. It finds and checks the store, locks it, writes records atomically and
 // commits exactly the files written.
+//
+// It also keeps a design page's dates and the commits on the main branch to the page's covered files after them
+// (CodeChanges: one git log --first-parent per page with covers, run in the records store, which shares the code's
+// repository).
 package store
 
 import (

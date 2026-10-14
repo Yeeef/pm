@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Refuse to merge a pull request whose CI did not test what the merge lands (AGENTS.md, Tests). Standard library only.
+"""Refuse to merge a pull request whose CI did not test what the merge lands (AGENTS.md, Merging). Standard
+library only.
 
   merge_ready.py N    exit 0 when PR N is open, its head contains its base branch as the remote has it now, every
                       check on that head passed (a check that ran twice, by its latest run), and every workflow that
@@ -9,7 +10,7 @@
 Each PR's CI runs on its head merged with its base as the base was then. Two PRs that pass alone can break main
 together; a head that contains the base, with every check passed, is the merged result tested.
 
-A head may lack the release workflow's own commits on the base (Releasing pm): each one, by github-actions[bot],
+A head may lack the release workflow's own commits on the base (release/README.md): each one, by github-actions[bot],
 writes a release's section into CHANGELOG.md and deletes the entry files it released, which ship nothing and run no
 test but the changelog's format, so a PR need not rebase and re-run its CI for them. The PR must touch neither
 CHANGELOG.md nor a deleted entry file.

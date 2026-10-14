@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Check CHANGELOG.md and the entry files in changelog.d/, print a release's notes, and write a release's section
-(AGENTS.md, Releasing pm). Standard library only.
+(release/README.md). Standard library only.
 
   changelog.py check                         the format CHANGELOG.md's preamble states, for CHANGELOG.md, each
                                              changelog.d/<slug>.md and release/hold; fails naming the file and line
@@ -316,7 +316,7 @@ def notes(log: Changelog, entries: list[Section], version: str) -> str:
         section = assemble(version, entries)
     if section is None:
         raise ChangelogError(f"CHANGELOG.md has no '## [{base}] - <date>' section; write release {base}'s notes there "
-                             f"(changelog.py release {base}) before tagging it (AGENTS.md, Releasing pm)")
+                             f"(changelog.py release {base}) before tagging it (release/README.md)")
     return section.body()
 
 

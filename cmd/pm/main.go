@@ -1,4 +1,6 @@
-// Command pm is Go pm: the project-management CLI, hooks and (later) site and service in one binary.
+// Command pm is Go pm: the project-management CLI, its hooks, site and service in one binary. main runs the launcher
+// (internal/launch) before anything else, so the installed pm runs each repo's pinned version; the module root's
+// package pm (assets.go) embeds prime.md, style.css, prompts/ and the release notes.
 package main
 
 import (

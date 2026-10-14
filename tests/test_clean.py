@@ -1,5 +1,6 @@
 """pm clean on a temp clone with a bare origin: each worktree listed with keep or remove and the reason, and --apply
-removing exactly the remove set."""
+removing exactly the remove set. The worktrees: dirty, unpushed, merged, squash-merged, pushed, locked by a live or a
+dead process, used by a live session; the main checkout, the store and the caller's worktree are always kept."""
 
 import json
 import os

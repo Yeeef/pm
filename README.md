@@ -175,7 +175,7 @@ give such a body with `--text-file PATH` or `--text="…"`.
 
 - `pm --help` and `pm <noun> --help`: every command, its rules and its refusals.
 - [`prime.md`](prime.md): the rules `pm prime` gives each agent session.
-- [`AGENTS.md`](AGENTS.md): developing pm: layout, tests, releasing.
+- [`AGENTS.md`](AGENTS.md): developing pm: the commands, the rules and where the detail lives; [`release/README.md`](release/README.md): releasing.
 - [`CHANGELOG.md`](CHANGELOG.md): each release's changes and upgrade guide.
 
 ## Credits

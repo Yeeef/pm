@@ -14,6 +14,13 @@
 // fails hard, naming the fix (move the pin to a release from 0.2.0 on).
 //
 // Any failure is a hard error that names the release; nothing falls back.
+//
+// A download goes to release pm-v<pin> with no token ($PM_RELEASE_URL replaces GitHub's release download URL) and, when
+// that fails, through the GitHub API with a token from $GH_TOKEN or gh auth token ($PM_RELEASE_API replaces the API
+// URL); the binary is checked against SHA256SUMS and the sha256 kept beside it, so a release's assets must never be
+// rebuilt. How is pm where's line; latest.go reads the latest release (<api>/releases/latest) for pm doctor's line on a
+// newer one; guide.go gives the upgrade guide of each release a pin move crosses, which pm upgrade --to X prints first,
+// from the notes pm X embeds.
 package launch
 
 import (

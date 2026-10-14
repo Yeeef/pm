@@ -1,5 +1,9 @@
 """The pm flows agents and the owner depend on, end to end against a temp repo: setup, the sprint loop,
-needs and replies, tasks, the shared records store, the pm service and its push."""
+needs and replies, tasks, the shared records store, the pm service and its push. Every refusal changes nothing, and
+every happy path writes what it says; the refusal texts asserted here are the ones prime.md and the --help texts name.
+
+Fixtures beside conftest's: `served` (a `pm service run` on a free port), `origin` (a cut-over origin, for pm init in a
+second clone) and `pushed` (a bare origin plus a second clone, for pm push)."""
 
 from __future__ import annotations
 
