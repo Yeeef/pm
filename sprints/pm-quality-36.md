@@ -47,6 +47,11 @@ The design page pm-go stays as it is for this sprint's code changes.
 access_test.go only lets moduleGoFiles take test files for the new port guard; the store access-path rule the page describes is unchanged
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page pm-product stays as it is for this sprint's code changes.
+lifecycle_test.go only changes how the end-to-end test picks its port; the service lifecycle the page describes is unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
