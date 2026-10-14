@@ -228,3 +228,9 @@ Two sessions edited the same design pages concurrently (pm-quality sprint 34 rem
 - pm commit commits whole files, so a session committing a page while another session has half-made edits in it would sweep those edits into its own commit under the wrong sprint. A per-hunk commit, or a refusal when the file changed since this session last wrote it, would close this.
 - The Stop hook's uncommitted-records check names every dirty file this session's tool calls mentioned, including files only another session edited. It blocked my turn twice for edits that were not mine. Attributing by who wrote the change (or saying "possibly another session's") would cut the noise.
 - Design pages on the shared records branch describe each sprint's code before its PR merges, so two open PRs touching one area (here #89 and #90) leave the pages describing a state main does not have until both land.
+
+### 2026-10-14 21:13 UTC, session `6e57b436-0127-510c-a396-3d490d7d974c`
+
+About project `pm-harness`.
+
+The agents-md cases CI job is flaky: its clean case fails non_inferable in about 1 of 4 runs on main too (6/24 on origin/main 8ad2720, 4/24 on PR 89's branch), the grader's 3 haiku votes flagging a different CLAUDE.md line each time. PR 89 hit it 3 times in 6 CI runs and each needed a rerun and a diagnosis. More votes, or a stricter rubric line for Map rows and pointers, would make it a check a PR can trust.
