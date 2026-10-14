@@ -134,6 +134,11 @@ The Claude hook's window between its last transcript check and its store close i
 The window is one store write (tens to hundreds of ms); closing it would need the hook to retract an answer already printed, which Claude Code offers no way to do. The session's own transcript stays the truth of what it was told.
 :::
 
+::: decision {source=agent date=2026-10-14}
+The Codex ask hook runs on PostToolUse of request_user_input_async, taking the call id from tool_use_id, instead of at Stop reading the rollout for the turn's calls.
+PostToolUse fires on the call itself with its id, so the question is raised the moment it is asked, whether or not the turn goes on, with no rollout scan to find it; Stop was chosen before the experiment showed Codex runs tool hooks for the ask tools.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
