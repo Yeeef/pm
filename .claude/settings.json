@@ -80,6 +80,30 @@
           }
         ]
       }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook ask --runtime claude || exit 1",
+            "type": "command",
+            "timeout": 86400
+          }
+        ],
+        "matcher": "AskUserQuestion"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook ask --runtime claude || exit 1",
+            "type": "command",
+            "timeout": 10
+          }
+        ],
+        "matcher": "AskUserQuestion"
+      }
     ]
   },
   "autoMemoryEnabled": false
