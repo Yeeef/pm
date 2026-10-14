@@ -8,13 +8,15 @@ covers:
   - "internal/cli/where.go"
   - "internal/cli/push.go"
   - "internal/sync/**"
+  - "internal/cli/commit.go"
+  - "internal/hooks/stop.go"
 ---
 
 ## Problem
 
 > What are we solving, and why now?
 
-Beads issues live in one git-ignored database per clone, so every worktree
+Work items live in one git-ignored database per clone, the work store, so every worktree
 and branch sees a write the moment it happens. Records (`records/**/*.md`)
 are tracked files, so every branch has its own copy. When an agent works in a
 worktree on a code branch, its `pm` writes land on that branch only, and the
@@ -31,7 +33,7 @@ as "None yet.", while the need citing the finding was visible everywhere.
 **Goals:**
 
 - One live records store per clone, independent of branch and worktree:
-  every `pm` write is immediately visible to `pm show`, `make render` and the
+  every `pm` write is immediately visible to `pm show`, the site and the
   owner, wherever the writer is.
 - Records keep full per-file git history.
 - Code branches, `main` included, track nothing under `records/`; people
@@ -40,7 +42,7 @@ as "None yet.", while the need citing the finding was visible everywhere.
 
 **Non-goals:**
 
-- Moving records into Dolt or Beads.
+- Moving records into the work store (Dolt).
 - A copy of the records on `main`.
 
 ## Constraints and key facts
@@ -48,16 +50,16 @@ as "None yet.", while the need citing the finding was visible everywhere.
 > Which facts, findings and constraints shaped the design? Only those that
 > still hold; sprint records keep the findings as they happened.
 
-- Beads finds its database from any worktree; records must be found the same
-  way, without configuration.
+- The work store (`<main checkout>/.pm/store/work`) is found from any
+  worktree; records must be found the same way, without configuration.
 - Agents may run sandboxed to their worktree: reads outside it are fine, but
   writes must go through `pm`, which commits them itself.
 - Codex's workspace-write sandbox (codex-cli 0.131.0) keeps every git dir
   read-only, even inside a writable root, unless that git dir is itself a
   writable root; a root's own git dir stays read-only even when its parent
-  is listed, so the store's `.git/worktrees/-records` must be listed on its
-  own. From a worktree, the store and `.beads` (which `pm` reads through
-  `bd`) are outside the workspace, and `bin/pm` needs uv's cache. `codex
+  is listed, so the store's `.git/worktrees/records` must be listed on its
+  own. From a worktree, the store, the work store and `.pm/run` (the pm
+  service's socket) are outside the workspace. `codex
   sandbox` and Codex sessions read the extra roots from
   `[sandbox_workspace_write] writable_roots` in `$CODEX_HOME/config.toml`.
 - Claude Code resolves `records/` to the store, which is outside the
@@ -79,7 +81,7 @@ as "None yet.", while the need citing the finding was visible everywhere.
   expendable. Merging `main` removes the tracked copy.
 - Turning sparse checkout off in a worktree whose `HEAD` or index tracks
   anything under `records/` writes that copy over the link.
-- Nothing pulls the store at session start, so a fresh clone with `bin/pm setup` works for one machine at a time.
+- Nothing pulls the store on its own: the push rebases onto `origin/records` only when the store has commits to push (Push, below), so a store with none stays behind another machine's pushes.
 
 ## Design
 
@@ -90,10 +92,10 @@ as "None yet.", while the need citing the finding was visible everywhere.
 flowchart LR
   wt1["Worktree on branch X"] -->|"pm write"| store
   wt2["Main checkout on branch Y"] -->|"pm write"| store
-  store[("records branch<br/>checked out at .records")]
+  store[("records branch<br/>checked out at .pm/store/records")]
   wt1 -.->|"records symlink"| store
   wt2 -.->|"records symlink"| store
-  store <-->|"push / pull"| remote["remote records branch"]
+  store <-->|"pm service: push, rebase when behind"| remote["remote records branch"]
   store -->|"pm service renders"| site["site"]
   remote -->|"GitHub"| people["people browsing"]
   site --> people
@@ -106,27 +108,35 @@ site or on the remote `records` branch; no code branch carries records.
 ### The store
 
 A `records` branch holds all records, design pages included. It is checked out once per clone, as a
-fixed worktree at `<main checkout>/.records`, and it is the only place records
-are written. It is built from the existing history with
-`git subtree split --prefix=records -b records`, so every file keeps its past
-commits.
+fixed worktree at `<main checkout>/.pm/store/records`, and it is the only place records
+are written. When the remote has no `records` branch, `pm init` creates it: an
+orphan commit holding the empty layout (`projects/`, `sprints/`, `days/`,
+`design/`, `docs/`, `postmortems/`), pushed first, so a rejected push leaves
+nothing local. A repo whose records were tracked on a code branch builds the branch by hand
+with `git subtree split --prefix=records -b records`, so every file keeps its
+past commits; pm has no command for it.
 
 ### Finding the store
 
-`pm` and `make render` locate the main checkout from any worktree with
-`git rev-parse --git-common-dir`, the way `bd` finds its database, and use
-its `.records`. They fail when it is missing or not a worktree on the
+`pm` locates the main checkout from any worktree with
+`git rev-parse --git-common-dir`, which must be a `.git` directory inside a
+main checkout, and uses its `.pm/store/records`. It fails when the store is missing or not a worktree on the
 `records` branch; nothing falls back to a local `records/`.
 `pm where records` prints the path; bare `pm where` lists every location
-setup touches (the store and its ahead/behind against `origin/records`, this
-checkout and its link, Beads, the hooks, the site) with its state.
+setup touches (pm's pin, the store and its ahead/behind against `origin/records`, this
+checkout and its link, the work store, the git hooks, Codex's writable roots,
+the pm service, each push step's last outcome, the site) with its state.
 
 ### Reading
 
-Each worktree has a git-ignored symlink `records -> <main checkout>/.records`,
+Each worktree has a git-ignored symlink `records -> <main checkout>/.pm/store/records`,
 so agents read `records/...` as before. `/records` is in the repo's
 `.gitignore`, so no code-branch commit can pick up the link or the store's
 files, and no hook or CI check guards `records/`.
+
+The site renders the store's working tree, uncommitted edits included: the
+pm service looks for a change every second. A record that does not parse
+makes every page an error page (status 500) until it is fixed or reverted.
 
 Claude Code reaches the store through `permissions.additionalDirectories`
 and Codex through `writable_roots` (Setup and sync, below). A `pm` command itself
@@ -142,16 +152,31 @@ and Codex through `writable_roots` (Setup and sync, below). A `pm` command itsel
 
 ### Writing
 
-Every `pm` write edits the file in `.records` and commits exactly the files
-it wrote on the `records` branch, under a lock on the store directory held
-across the edit and the commit, so no write is left uncommitted and
-concurrent writes land as separate commits. Hand edits are made in
-`.records` and committed there with `pm commit -m "…" <path>…`, which first checks
-that the whole record set renders and commits only the named records, so
-another session's edit in progress is never swept into the commit. A `pm`
-write whose commit fails restores the files it wrote and says so, so it
-leaves nothing behind either. Store commits skip git hooks: `pm` has
-already validated them, and code-branch hooks do not apply to records.
+Every `pm` write takes an exclusive `flock` on the store directory as it
+connects to the work store and holds it until the command ends, so concurrent
+writes land as separate commits. It refuses a target file with uncommitted
+changes (a hand edit or another session's edit in progress), since it builds
+on `HEAD`'s text; it validates the records it touches against the `records`
+branch's `HEAD` with its planned writes applied, so another session's
+uncommitted file neither blocks it nor is depended on; then it writes the
+files and commits exactly those paths. A `pm` write whose commit fails
+restores the files it wrote and unstages them, and says so, so it leaves
+nothing behind.
+
+Hand edits are made through `records/` and committed with
+`pm commit -m "…" <path>…`, under the same lock. It accepts only named paths
+that have uncommitted changes (with none named it lists what is uncommitted and
+commits nothing), checks that `HEAD` plus the named paths renders as a whole
+record set against the work store, and commits only those paths, so another
+session's edit in progress is never swept into the commit. It does not check
+who edited a named file. Store commits skip git hooks: `pm` has already
+validated them, and code-branch hooks do not apply to records.
+
+The Stop hook (`pm hook stop`) blocks a session's stop once when the store has
+uncommitted files whose paths appear in that session's tool calls (a substring
+match over the transcript's tool inputs), naming them with the `pm commit` and
+revert commands; a path that only a still-running subagent's prompt names is
+left out.
 
 ### Retired pieces
 
@@ -168,65 +193,82 @@ already validated them, and code-branch hooks do not apply to records.
 
 ### Setup and sync
 
-A fresh clone runs one command, `bin/pm setup`. It first connects Beads:
-`bd bootstrap` clones the issue database from `refs/dolt/data` on the remote
-(`bd init` would mint a new database instead), the clone gets
-`beads.role=maintainer`, and `bd hooks install --beads` sets
-`core.hooksPath` to the tracked `.beads/hooks`. It then creates the local
-`records` branch from `origin/records`, checks it out at `.records`, and
-makes the link. Each step runs only
-when it is missing, so re-running the command changes nothing. Last, if
-`$CODEX_HOME` (default `~/.codex`) exists, it adds the clone's `.git`, the
-store, the store's git dir, `.beads` and uv's cache to `writable_roots` in
-`$CODEX_HOME/config.toml`, so a Codex session in any worktree can write and
-commit records. Those paths are absolute and differ per machine, so they go
+A clone runs one command, `pm init`. Its clone half points `core.hooksPath`
+at the main checkout's `.pm/hooks`, adds `/.pm/store/`, `/.pm/run/` and
+`/records` to `.git/info/exclude`, creates the local `records` branch from
+`origin/records`, checks it out at `.pm/store/records`, and makes the link; the
+rest of `pm init` sets up the work store and the pm service
+([Work store](work-store.md)). Each step runs only when it is missing, so
+re-running the command changes nothing. If `$CODEX_HOME` (default `~/.codex`)
+exists, it adds the clone's `.git`, the store, the store's git dir, the work
+store and `.pm/run` to `writable_roots` in `$CODEX_HOME/config.toml`, so a
+Codex session in any worktree can write and commit records and reach the
+service's socket. Those paths are absolute and differ per machine, so they go
 in the user's config rather than the repo, and the owner chose no manual
-step over keeping that config untouched by repo tools. Setup reads the file
-with `tomllib`, refuses one it cannot parse, adds only the missing paths by
-a minimal text edit (creating the table if absent) and checks that the
-result parses to the old data plus those paths, so every other line and
+step over keeping that config untouched by repo tools. Setup parses the file,
+refuses one it cannot parse, adds only the missing paths by
+a minimal text edit (creating the table if absent) and refuses an edit whose
+result does not parse to the old data plus those paths, so every other line and
 comment stays byte for byte. Without `$CODEX_HOME` it says so and leaves
 Codex alone. If Claude Code's config dir (`$CLAUDE_CONFIG_DIR`, default
 `~/.claude`) exists, it also adds the store to
 `permissions.additionalDirectories` in the worktree's
 `.claude/settings.local.json`, keeping the file's other settings: that
 file is per worktree and git-ignored, so the absolute path stays out of
-the repo, and it refuses a file it cannot parse. After that,
-the session-start hook runs it at every session start, so every worktree
-an agent works in is set up whatever tool created it. Git's `post-checkout` hook used to run
-it in new worktrees and was dropped: git runs it only for a checkout, so it missed a worktree
-created without one and then reset (as Claude Code makes its bridge worktrees), and session
-start covers every case it did. A worktree used without an agent session needs `bin/pm setup`
-by hand. Setup makes every check itself and changes
-nothing in a set-up worktree (0.4 to 1.6 s measured), so the hook runs it unconditionally
-rather than guessing from the link whether it is needed; it gets 6 s, under the runtimes' 30 s
-hook limit, and a fresh clone's Beads bootstrap that needs longer is run by hand. A git
+the repo, and it refuses a file it cannot parse.
+
+The session-start hook runs `pm init --session-start` at every session start,
+so every worktree an agent works in is set up whatever tool created it; that
+run never restarts a running pm service. Git's `post-checkout` hook
+(`pm hook git-post-checkout`, in `.pm/hooks`) also runs the clone half, all but
+the service, in a new worktree (previous `HEAD` all zeros); git runs it only
+for a checkout, so a worktree created without one and then reset (as Claude
+Code makes its worktrees) is set up at session start instead. A worktree used
+without an agent session and created without a checkout needs `pm init` by
+hand. Setup makes every check itself and changes nothing in a set-up worktree
+(about 1 s), so the hook runs it unconditionally rather than guessing from the
+link whether it is needed; it gets 18 s, within the 28 s the state hook leaves
+for init, `pm where` and `pm show` under the runtimes' 30 s hook limit. A git
 `post-index-change` hook was tried and dropped: it fires on every index write, so it needed a
 once-per-worktree marker and a time limit (owner decision, superseding the answer to need
 yeeef-agents-9va.61.7). A link tracked on main cannot replace setup: a symlink's target is
 fixed text, and the store sits at a different relative path from each worktree. `pm` itself
 works even without the link, so `pm show` never notices one missing; session start therefore
 also injects `pm where`, which states the link and every other location. The `records` branch is pushed
-and pulled on its own, separate from code branches, as Beads syncs
-`refs/dolt/data`; who pushes it is under Push.
+and pulled on its own, separate from code branches, as the work store syncs
+at the remote's `refs/pm/work`; who pushes it is under Push.
 
 ### Push
 
-`pm` stays local: it commits records but never pushes them. The `records` branch is pushed by the same per-machine scheduled job that pushes Beads data ([Agent git authority and Beads sync](http://localhost:8000/design/agent-sync.html); owner decision, need yeeef-agents-9va.30.8.1; built in task yeeef-agents-9va.30.8). When the store is ahead of `origin/records`, the job fetches, rebases onto `origin/records` and pushes; a rebase conflict or failed push is logged and flagged. A failed or overdue push shows in `pm show` and on the site. The rebase holds the store lock every `pm` write takes and is aborted if it stops, leaving the store as it was; with uncommitted tracked edits in the store it is skipped until the next run.
+`pm` writes stay local: they commit records but never push them. The pm
+service's syncer runs one push every 10 minutes, the first 10 minutes after
+the service starts, and `pm push` runs the same steps once: the work store's
+sync, the day summary, then the records branch (owner decision, need
+yeeef-agents-9va.30.8.1). The records step:
+
+| Store against `origin/records`, after a fetch | What it does |
+|---|---|
+| Not ahead | Nothing, even when behind: it does not pull |
+| Ahead, not behind | Pushes |
+| Ahead and behind | Rebases onto `origin/records` under the store lock, then pushes outside the lock. Skipped until the next run while tracked records have uncommitted edits; a rebase that stops is aborted, leaving the store as it was |
+
+Each step's outcome goes to a state file in `.pm/run/` and a line to a log
+beside it. `pm where`, `pm service status` and the site flag a failed push, or
+one overdue (no success for three intervals); `pm show` shows a failed one.
 
 ### Costs accepted
 
 - A clone of `main` alone holds no records: reading them takes the site, the
   `records` branch on GitHub, or `pm init`.
 - One setup command per clone.
-- A record reaches `origin/records` up to one job interval (about 10 minutes)
+- A record reaches `origin/records` up to one push interval (10 minutes)
   after its commit, so the `records` branch on GitHub and sessions on other
   devices see it that much later.
 - A branch that still tracks `records/` loses the link when checked out in
   a worktree without sparse checkout, until it merges `main`.
 - Setup edits the user's Codex config, and every Codex workspace-write
-  session on the machine may then write the clone's `.git`, `.beads` and
-  uv's cache, not only sessions in this repo.
+  session on the machine may then write the clone's `.git`, its stores and
+  `.pm/run`, not only sessions in this repo.
 
 ## Alternatives considered
 
@@ -235,11 +277,11 @@ and pulled on its own, separate from code branches, as Beads syncs
 | Alternative | Why not |
 |---|---|
 | Always write to the main checkout's `records/` | Collides with the owner's uncommitted work, and with whatever branch that checkout is on |
-| Move records into Dolt or Beads | Loses hand-editable Markdown and git tooling |
+| Move records into the work store (Dolt) | Loses hand-editable Markdown and git tooling |
 | A full copy of the store on `main`'s `records/`, merged in by a GitHub Action (`git subtree merge`) | No machine reads it: `pm`, the site and agents all read the store. Keeping it took four mechanisms (the copy Action, a PR guard, a pre-commit guard, a sparse checkout per worktree) to stop it drifting or replacing the link |
 | Copy each PR's own record changes to `main` | The store mixes record writes from every worktree, so it cannot attribute them to a PR cleanly; this means cherry-picks, conflicts and drift |
 | An empty orphan `records` branch with the files copied in | Loses each file's history |
-| `pm` pushes after every write and `pm commit` (the earlier decision on need yeeef-agents-9va.30.2) | The owner kept `pm` light and local: no network step, timeout or retry in every write; the scheduled job already pushes Beads data and bounds the delay |
+| `pm` pushes after every write and `pm commit` (the earlier decision on need yeeef-agents-9va.30.2) | The owner kept `pm` light and local: no network step, timeout or retry in every write; the pm service already pushes on a schedule and bounds the delay |
 
 ## Prior art
 
@@ -251,5 +293,5 @@ None yet.
 
 > What is still unresolved?
 
-- Two machines at once: nothing pulls the store at session start; an auto-pull would be needed.
-- A `pm task add` hung 2:16 (state SN, no child) on 2026-10-05; unproven, likely its `LOCK_EX` on the store (`pm.py:232`) waiting on `pm serve`'s `LOCK_SH` during a render that runs `bd` (`pm.py:1038`). If so, the store lock should not be held across `bd` calls in a render.
+- Two machines at once: a store with nothing to push is never pulled (Push); an auto-pull would be needed.
+- A write's `LOCK_EX` on the store waits while the pm service holds `LOCK_SH`, which it takes to re-read the records after a partial or failed load, across a work-store read and a whole render. A `pm task add` under the Python pm hung 2:16 in a likely case of this, unproven; whether the shared lock should cover the work-store read is open.

@@ -23,13 +23,13 @@ daily page, goal, queue and owner items share the same cards.
 - Context lives in a few record types (project, sprint, day, design page,
   doc, postmortem), each with a checked header, fixed sections and a small block
   vocabulary, so the format does not drift.
-- Records point at Beads ids; the renderer looks status up.
+- Records point at work-store ids; the renderer looks status up.
 - Every record carries all of its sections from the start, so the file shows
   its full schema.
 
 **Non-goals**
 
-- Status, owners or dependencies in records: those are Beads fields.
+- Status, owners or dependencies in records: those are work-store fields.
 - Decisions and plans in design pages: they live in project and sprint
   records.
 
@@ -47,46 +47,46 @@ daily page, goal, queue and owner items share the same cards.
 > What is it, in its final state? Free `###` subsections. Decisions and plans
 > live in the project and sprint records.
 
-Records live in one store per clone, independent of branch and worktree: the `records` branch, checked out at `<main checkout>/.records`. `pm` finds it from any worktree through the clone's common git dir, as `bd` finds its database, and fails if it is missing; each worktree reads it through `records/`, a git-ignored link made by `pm setup`. Every `pm` write commits on the `records` branch; code branches never commit `records/`; `main` gets a copy from a GitHub Action. The detail is its own design page: [Shared records store](records-store.md).
+Records live in one store per clone, independent of branch and worktree: the `records` branch, checked out at `<main checkout>/.pm/store/records`. `pm` finds it from any worktree through the clone's common git dir (`git rev-parse --git-common-dir`) and fails if it is missing; each worktree reads it through `records/`, a git-ignored link made by `pm init`. Every `pm` write commits on the `records` branch; no code branch, `main` included, tracks `records/`. The detail is its own design page: [Shared records store](records-store.md).
 
-### How records relate to Beads
+### How records relate to the work store
 
 ```mermaid
 flowchart LR
-  subgraph W["Work layer: Beads"]
-    E["Epic<br/>bd-a3f8"]
-    C["Child epic<br/>bd-a3f8.9"]
-    T["Tasks<br/>bd-a3f8.9.1 …"]
-    N["Issues labelled<br/>human"]
+  subgraph W["Work layer: the work store"]
+    E["Project<br/>pm-a3f8"]
+    C["Sprint<br/>pm-a3f8.9"]
+    T["Tasks<br/>pm-a3f8.9.1 …"]
+    N["Needs"]
     E --> C --> T
   end
   subgraph R["Record layer: Markdown"]
     P["Project record<br/>goal,<br/>decisions"]
     S["Sprint record<br/>frame, decisions, findings,<br/>delivery report"]
-    D["Day record<br/>today's aim"]
+    D["Day page<br/>generated, with<br/>the day's summary"]
     DP["Design pages"]
   end
-  P -. "bead=bd-a3f8" .- E
-  S -. "bead=bd-a3f8.9" .- C
+  P -. "bead=pm-a3f8" .- E
+  S -. "bead=pm-a3f8.9" .- C
   D -. "query: tasks changed that day" .-> C
-  D -. "query: open, labelled human" .-> N
+  D -. "query: open needs" .-> N
   P --> DP
 ```
 
-*Reading:* records point at Beads ids and never copy status; the renderer looks status up when it builds a page.
+*Reading:* records point at work-store ids and never copy status; the renderer looks status up when it builds a page.
 
 ### Record types
-"Points to" is the id a record stores. The renderer follows it to pull live status from Beads, or to place the record under its project. Records never copy status.
+"Points to" is the id a record stores. The renderer follows it to pull live status from the work store, or to place the record under its project. Records never copy status.
 
 | Record | File | Points to | Checked fields | Free body |
 |---|---|---|---|---|
-| Project | `records/projects/learned-leaf.md` | Its Beads epic, via `bead:` in the header | Header: `type`, `title`, `bead` only. Sections: Goal (required), Decisions (required, may be empty); Outcome at close | Goal text, decisions, design-page links. Progress is generated, never written |
+| Project | `records/projects/learned-leaf.md` | Its work-store project, via `bead:` in the header | Header: `type`, `title`, `bead` only. Sections: Goal (required), Decisions (required, may be empty); Outcome at close | Goal text, decisions, design-page links. Progress is generated, never written |
 | Decision | `::: decision` inside the project record or a sprint record; where it lives sets its level | Nothing: it lives inside the record it governs | `source` and `date`; `until` only when there is a known condition to revisit | The decision and its reason |
-| Sprint | `records/sprints/learned-leaf-9.md` | Its Beads child epic, via `bead:` in the header | Header: `type`, `title`, `bead`. Sections: Goal, Scope, Done when, Design pages, Decisions, Findings; Delivery report at close | Findings, delivery report |
-| Day | `records/days/2026-09-29.md` | Nothing stored; the renderer finds the sprints and needs of that date in Beads | Header: `type`, `date` (repo-wide: one per day, across all projects). Sections: Today only | Today's aim |
+| Sprint | `records/sprints/learned-leaf-9.md` | Its work-store sprint, via `bead:` in the header | Header: `type`, `title`, `bead`. Sections: Goal, Scope, Done when, Design pages, Decisions, Findings; Delivery report at close | Findings, delivery report |
+| Day | Generated for each date, repo-wide across all projects; no record is written. `records/days/<YYYY-MM-DD>.summary.json` holds the day's summary, which `pm day summarize` (the push's summary step) asks of the model and commits | Nothing stored; the renderer finds the sprints, tasks and needs of that date in the work store | An older hand-written day record (`records/days/<YYYY-MM-DD>.md`): header `type`, `date`; no required section, and it keeps its `## Today` | None: generated |
 | Design page | `records/design/<slug>.md` | Its project record, via `project:` in the header | Header: `type`, `title`, `project`. Sections: Problem, Goals and non-goals, Design (required); Constraints and key facts, Alternatives considered, Open questions (required, may be empty); Prior art (optional) | Each section's text; free `###` subsections under Design |
 | Doc | `records/docs/<YYYY-MM-DD>-<slug>.md`, dated because a doc describes a moment | A sprint or task via `bead:`, or a project via `project:` (exactly one) | Header: `type`, `title`, `date` (matching the file name), and `bead` or `project`; the bead must exist inside a project with a record | Everything: a result, analysis, comparison or explainer. Written once, never a design's final state |
-| Postmortem | `records/postmortems/<YYYY-MM-DD>-<slug>.md`, dated by when it was written | A sprint via `sprint:` (its Beads id, which must have a sprint record), or a project via `project:` (exactly one) | Header: `type`, `title`, `date` (matching the file name), and `sprint` or `project`. Sections, each with a prompt line: Summary, Timeline, Cost, Root cause, What changed, What would have caught it earlier | Each section's text. Listed on its sprint's page, its project's page and the overview. Due for an incident that cost more than a day, or broke other sessions or the owner's view |
+| Postmortem | `records/postmortems/<YYYY-MM-DD>-<slug>.md`, dated by when it was written | A sprint via `sprint:` (its work-store id, which must have a sprint record), or a project via `project:` (exactly one) | Header: `type`, `title`, `date` (matching the file name), and `sprint` or `project`. Sections, each with a prompt line: Summary, Timeline, Cost, Root cause, What changed, What would have caught it earlier | Each section's text. Listed on its sprint's page, its project's page and the overview. Due for an incident that cost more than a day, or broke other sessions or the owner's view |
 
 ### The project record
 Minimal by design: a three-field header and four sections, each opened by a prompt line that tells agents what belongs there.
@@ -94,7 +94,7 @@ Minimal by design: a three-field header and four sections, each opened by a prom
 | Section | Prompt line | Written by | Required |
 |---|---|---|---|
 | Goal | Why do we do it? What is it? What outcome do we expect? | Hand | Yes |
-| Progress | Where are we now, and what's next? | Generated: a graph of sprints and their tasks, coloured by status, with dependency arrows from Beads; then a table of sprints with dates, question and outcome | Yes, never hand-written |
+| Progress | Where are we now, and what's next? | Generated: a graph of sprints and their tasks, coloured by status, with dependency arrows from the work store; then a table of sprints with dates, question and outcome | Yes, never hand-written |
 | Decisions | What constrains every future sprint? | Hand | Yes, may be empty |
 | Design pages | Where is the detail? | Hand: links | Yes, may be empty |
 | Outcome | What was achieved against the goal, what was learned, what was retired; links to the sprint delivery reports | Hand, when the project closes | Yes: "Not closed yet." until then |
@@ -111,12 +111,12 @@ evidence, trade-offs, next steps).
 | Goal | What should be true when this sprint ends, and why now? | Before | Yes |
 | Scope | What's in, and what's explicitly out? Keep this high level; implementation details go in a design page | Before | Yes; **In** and **Out** lists |
 | Done when | What evidence will show the goal is met? | Before | Yes; checkable items |
-| Progress | Where is the sprint now? | During | Generated from Beads |
+| Progress | Where is the sprint now? | During | Generated from the work store |
 | Decisions | What did we choose inside this sprint, and why? | During | Yes, may be empty |
 | Findings | What did we learn that changes the design, the plan, or how we work? Add results with their numbers | During | Yes, may be "None yet." |
 | Delivery report | Written in full before the PR review; `pm sprint close` stamps the merge commit. First line is the outcome | Before review | Yes: "Not closed yet." until then; fixed parts below |
 
-The header is `type`, `title`, `bead`; project and dates come from Beads.
+The header is `type`, `title`, `bead`; project and dates come from the work store.
 Findings go in the sprint record's Findings as they happen; an agent edits
 the section with `pm finding add`. The delivery report has two `###`
 subsections, each holding "Not closed yet." until the agent writes it in full,
@@ -134,7 +134,7 @@ The report holds no draft state: while the review is open, the sprint page
 shows it in its generated "Decisions await you" and "Actions await you"
 sections, and that card says the sprint awaits a merge. `pm sprint close`
 requires every task closed and each review closed as merged (a dismissed one skipped), stamps the
-Outcome, commits the record and closes the epic. The full flow, and the draft
+Outcome, commits the record and closes the sprint in the work store. The full flow, and the draft
 paragraph it replaced: [Sprint lifecycle](sprint-lifecycle.md).
 
 Findings are a plain list and stay in the sprint record; no structure yet.
@@ -204,7 +204,7 @@ record permanently; nothing is closed or moved.
 
 | Level | What it records | Examples | Revisited |
 |---|---|---|---|
-| Project | Rules that constrain every future sprint: architecture, formats, conventions, scope boundaries | Beads is the work layer; records are Markdown with fenced divs | When its `until` condition is met, if it has one |
+| Project | Rules that constrain every future sprint: architecture, formats, conventions, scope boundaries | The work store is the work layer; records are Markdown with fenced divs | When its `until` condition is met, if it has one |
 | Sprint | Choices inside one bet: approach, scope cut, what to try first | Dogfood on yeeef-agents; no CLI in sprint 1 | Not needed: it describes that sprint's own work |
 
 - **A decision later sprints must follow is a project decision.** Record it in the project record when it is made, or as soon as it turns out to apply beyond one sprint.
@@ -213,17 +213,18 @@ record permanently; nothing is closed or moved.
 
 ### The fenced-div vocabulary
 A fixed list. The renderer and CLI reject any other name or a missing required attribute.
-Attribute values with spaces are quoted: `until="Beads fails the mapping check"`. A raw HTML
+Attribute values with spaces are quoted: `until="the work store fails the mapping check"`. A raw HTML
 block (such as a mock-up) ends at the first blank line, so it must contain
 none; an empty line inside a `<pre>` is written as `&#8203;`.
 
 | Block | Used in | Required attributes | Renders as |
 |---|---|---|---|
 | `::: decision` | Project, sprint | `source`, `date`; optional `until` | Row in the decisions table of its project or sprint; the project page also lists the decisions of its open sprints |
+| `::: note` | Any | None | A boxed note |
 | `::: result` | Any | `title` | Titled table with a reading line |
 | `` ```mermaid `` | Any | A one-line reading after it | Rendered diagram |
 
-Not chosen for decisions: Beads' `decision` issue type (alias `adr`). It has no level, source or `until` fields, open decision issues show up in `bd ready` as work, and its only extra, `bd supersede`, is not needed yet. `date` stays an attribute because git blame dates are commit dates, not decision dates. See [the evaluation](../docs/2026-10-03-beads-decision-type.md).
+Not chosen for decisions, when Beads was the work layer: its `decision` issue type (alias `adr`). It has no level, source or `until` fields, open decision issues show up in `bd ready` as work, and its only extra, `bd supersede`, is not needed yet. `date` stays an attribute because git blame dates are commit dates, not decision dates. See [the evaluation](../docs/2026-10-03-beads-decision-type.md).
 
 ## Alternatives considered
 
