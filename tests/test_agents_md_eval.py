@@ -1,5 +1,5 @@
 """The AGENTS.md evaluation's own logic, offline: the rubric and the calls each mode makes, the answers it takes and
-refuses, the lines a quote is on, the vote on passages, the credentials a call runs with, a call's timeout, the
+refuses, the lines a quote is on, the vote on lines, the credentials a call runs with, a call's timeout, the
 labelled cases' edits, and the paths that run the cases job. A fake `claude` stands in for the model;
 tests/test_agents_md_live.py runs the real one."""
 
@@ -93,14 +93,17 @@ def test_auto_mode_is_full_when_the_diff_changes_agents_md_or_the_grader_and_dif
 
 
 def test_the_cases_job_runs_on_a_change_to_the_grader_alone():
-    """agents-md.yml's cases job decides with a grep of its own: it must name evaluate.GRADER's paths, and no other."""
+    """agents-md.yml's cases job decides with a grep of its own: it must be evaluate.GRADER's paths, each directory
+    with what is under it and each file exactly, as evaluate.grader matches them."""
     yml = (CHECKOUT / ".github/workflows/agents-md.yml").read_text()
     grep = re.search(r"grep -qE '([^']+)'", yml)
     assert grep, "the cases job's grep is gone"
+    want = "|".join(p.replace(".", r"\.") + ("" if p.endswith("/") else "$") for p in evaluate.GRADER)
+    assert grep[1] == f"^({want})"
     graded = [p + "x.py" if p.endswith("/") else p for p in evaluate.GRADER]
     for path in [*graded, "tests/conftest.py", "tests/run.py", "Makefile", "AGENTS.md", "tests/test_agents_md_eval.py",
-                 "tests/agents_md_x.py", ".github/workflows/agents-md.yml.bak"]:
-        assert bool(re.search(grep[1], path)) == (path in graded), path
+                 "tests/agents_md_x.py", ".github/workflows/agents-md.yml.bak", "tests/test_agents_md_live.pyc"]:
+        assert bool(re.search(grep[1], path)) == evaluate.grader(path) == (path in graded), path
 
 
 def test_an_answer_is_taken_only_when_well_formed():
@@ -116,10 +119,11 @@ def test_an_answer_is_taken_only_when_well_formed():
         "malformed finding": answer([{"quote": "q"}]),
         "without its quote or evidence": answer([{**ok, "evidence": " "}]),
         "not in AGENTS.md": answer([{**ok, "quote": "make lint runs go-build"}]),
-        "is not in AGENTS.md: '…'": answer([{**ok, "quote": "…"}]),  # no lines: it would agree with complete's
     }
     for why, out in refused.items():
         assert why in evaluate.parse(call(), out, text)[1], why
+    for dots in ("…", "....", ". . .", "`…` ..."):  # no text: "...." would quote every line with a full stop
+        assert "without its quote" in evaluate.parse(call(), answer([{**ok, "quote": dots}]), text)[1], dots
     # a missing rule has no text to quote
     assert evaluate.parse(call("complete"), answer([{**ok, "quote": ""}]), text)[1] == ""
 
@@ -141,27 +145,54 @@ def res(criterion, part, *lines, error=""):
                            [{"quote": f"q{ls}", "problem": "p", "evidence": "e", "lines": ls} for ls in lines], error)
 
 
-def test_a_part_fails_only_on_a_passage_a_majority_of_its_calls_agree_on_and_errors_on_any_bad_call():
+def test_a_part_fails_only_on_a_line_a_majority_of_its_calls_agree_on_and_errors_on_any_bad_call():
     def five(criterion, *found, error=""):
         """A part's five calls: one with each of `found`'s lines, the rest with no finding; the last errs if asked."""
         rs = [res(criterion, "f", *ls) for ls in found] + [res(criterion, "f") for _ in range(5 - len(found))]
         rs[-1].error = error
         return rs
 
-    r = [res("accurate", "A"), res("accurate", "B", [3]),  # one call on a part: its finding fails it
-         *five("map", [[4, 5]], [[5]]),  # 2 of 5 overlap: passes
-         *five("actionable", [[4, 5]], [[5, 6]], [[3, 4]]),  # 3 of 5 overlap
+    assert evaluate.VOTES // 2 + 1 == 3  # every part has VOTES calls, so a majority is 3
+    r = [*[res("accurate", "A") for _ in range(evaluate.VOTES)], *five("accurate", [[3]], [[3]], [[3]]),  # one part
+         *five("map", [[4, 5]], [[5]]),  # 2 of 5 on line 5: passes
+         *five("actionable", [[4, 5]], [[5, 6]], [[5]]),  # 3 of 5 on line 5
+         *five("non_inferable", [[4, 5]], [[5, 6]], [[3, 4]]),  # a chain: each line has 2 of 5
          *five("no_copies", [[4, 5]], [[9]], [[12]]),  # 3 of 5, disjoint
          *five("no_history", error="timed out after 240s"),
-         res("complete", "f")]
-    assert evaluate.verdicts(r) == {"accurate": "fail", "map": "pass", "actionable": "fail", "no_copies": "pass",
-                                    "no_history": "error", "complete": "pass"}
+         *five("complete")]
+    assert evaluate.verdicts(r) == {"accurate": "fail", "map": "pass", "actionable": "fail", "non_inferable": "pass",
+                                    "no_copies": "pass", "no_history": "error", "complete": "pass"}
     # one call's two findings on one passage are one vote
     assert evaluate.verdicts(five("map", [[4], [4]], [[4]])) == {"map": "pass"}
     # complete's findings quote nothing, so have no lines: any agree, and a passage-quoting one agrees with neither
     assert evaluate.verdicts(five("complete", [[]], [[]], [[]])) == {"complete": "fail"}
     assert evaluate.verdicts(five("complete", [[]], [[]])) == {"complete": "pass"}
     assert evaluate.verdicts(five("map", [[]], [[]], [[4]])) == {"map": "pass"}
+
+
+def test_a_broad_quote_is_one_vote_on_each_of_its_lines_and_carries_no_other_finding():
+    """A call that quotes a phrase found on many lines ("make test") votes once on each: two other calls, each on a
+    line of its own among them, make 2 votes on each line, not a majority; three calls on one line do."""
+    broad = [10, 22, 41, 80]
+    rs = [res("map", "f", broad), res("map", "f", [10]), res("map", "f", [80]), res("map", "f"), res("map", "f")]
+    assert evaluate.agreed(rs) == [] and evaluate.verdicts(rs) == {"map": "pass"}
+    rs[3] = res("map", "f", [10])
+    assert evaluate.agreed(rs) == [rs[0].findings[0], rs[1].findings[0], rs[3].findings[0]]  # line 10: 3 of 5
+    assert evaluate.verdicts(rs) == {"map": "fail"}
+    assert len(evaluate.quote_lines("make test", AGENTS_MD)) > 1  # such quotes are real
+
+
+def test_advice_says_fix_on_any_agreed_finding_and_rerun_on_any_error_both_when_both():
+    fix, rerun = "A rerun will not change agreed findings.", "A rerun may help."
+    agreed = [res("map", "A", [4]) for _ in range(3)] + [res("map", "A"), res("map", "A")]
+    errored = [res("map", "B") for _ in range(4)] + [res("map", "B", error="timed out after 420s")]
+    assert evaluate.verdicts(agreed + errored) == {"map": "error"}  # the verdict keeps error first
+    one = agreed[:4] + [res("map", "A", error="not JSON")]  # in one part: the four answers still agree 3 of 5
+    for rs in (agreed + errored, one):
+        both = evaluate.advice(rs)
+        assert len(both) == 2 and fix in both[0] and rerun in both[1]
+    assert [rerun in a for a in evaluate.advice(errored)] == [True]
+    assert [fix in a for a in evaluate.advice(agreed)] == [True]
 
 
 def test_five_calls_where_only_three_agree_fail_on_those_three_findings_and_print_the_others_outvoted():
@@ -316,9 +347,16 @@ def test_main_exits_1_on_a_finding_and_writes_every_call_to_out(fake_claude, tmp
     assert evaluate.main(argv) == 1
     got = json.loads(out.read_text())
     assert got["verdicts"] == {"map": "fail", "actionable": "fail"} and len(got["calls"]) == 10
-    out = capsys.readouterr().out
-    assert "map            fail" in out and "map, actionable failed on findings a majority of calls agreed on" in out
-    assert "A rerun will not change agreed findings." in out and "A rerun may help" not in out
+    printed = capsys.readouterr().out
+    assert "map            fail" in printed and "map, actionable failed on findings a majority of calls agreed on" in printed
+    assert "A rerun will not change agreed findings." in printed and "A rerun may help" not in printed
+    # a malformed finding: the error is printed, not the finding, and the table, advice and --out are all written
+    monkeypatch.setenv("FAKE_ANSWER", answer([{"quote": "q"}, "x"]))
+    assert evaluate.main(argv) == 1
+    got = json.loads(out.read_text())
+    assert got["verdicts"] == {"map": "error", "actionable": "error"} and got["calls"][0]["findings"][0] == {"quote": "q"}
+    printed = capsys.readouterr().out
+    assert "map            error" in printed and "error: malformed finding" in printed and "A rerun may help" in printed
     with pytest.raises(SystemExit):
         evaluate.main(["--criteria", "bogus"])
     with pytest.raises(SystemExit, match="needs --base"):

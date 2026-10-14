@@ -12,15 +12,17 @@ accurate and complete on each chunk of the diff. The calls run at once (--jobs),
 --timeout seconds, which fails the run.
 
 Each finding quotes AGENTS.md, and a quote that is not in it makes the answer malformed; a quote's lines are the
-lines of AGENTS.md its text (each part between ellipses, at each place it occurs) is on. The calls on one part (a
-criterion on a section, a diff chunk or the whole file) vote on passages: a finding is agreed when a majority of the
-part's calls (3 of 5) each report a finding whose lines intersect its lines, its own call counted, and the part fails
-on an agreed finding. A complete finding names a missing rule and quotes nothing, so it has no lines: two such
-findings agree, and complete fails a part when a majority of its calls each report a missing rule. A criterion fails
-when one of its parts fails. A malformed answer, a failed or a timed-out call is no vote: it fails the run. The run
-exits 1 on a failed criterion or any such call. It prints a table with every call's findings, a finding no majority
-agrees with marked outvoted, then a line on what to do: fix AGENTS.md as agreed findings say, since a rerun gives them
-again; rerun after an error. It writes every call's answer (each finding with its lines), seconds and cost to --out.
+lines of AGENTS.md its text (each part between ellipses, at each place it occurs) is on; a quote of nothing but dots,
+ellipses and spacing is malformed. The calls on one part (a criterion on a section, a diff chunk or the whole file)
+vote line by line: a line of AGENTS.md is agreed when a majority of the part's calls (3 of 5) each report a finding on
+it, a finding stands when one of its lines is agreed, and the part fails on a standing finding. So one call's broad
+quote, on many lines, is one vote on each and carries no other call's finding on a line of its own. A complete
+finding names a missing rule and quotes nothing, so it has no lines: such findings stand when a majority of the part's
+calls each report one. A criterion fails when one of its parts fails. A malformed answer, a failed or a timed-out call
+is no vote: it fails the run. The run exits 1 on a failed criterion or any such call. It prints a table with every
+call's findings, a finding that does not stand marked outvoted, then a line on what to do: fix AGENTS.md when a
+finding stands, since a rerun gives it again; rerun when a call gave no answer; both when both. It writes every call's
+answer (each finding with its lines), seconds and cost to --out.
 
 In GitHub Actions (ACTIONS_ID_TOKEN_REQUEST_URL set) each call first writes a fresh GitHub OIDC token for the Anthropic
 API to a file of its own beside $ANTHROPIC_IDENTITY_TOKEN_FILE, for Claude Code's workload identity federation, and the
@@ -49,7 +51,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 RUBRIC = HERE / "rubric.md"
 CRITERIA = ("accurate", "non_inferable", "map", "no_copies", "actionable", "no_history", "consistent", "complete")
-VOTES = 5  # calls on each part; a finding stands when a majority (3) agree on its passage. A real defect draws
+VOTES = 5  # calls on each part; a finding stands when a majority (3) report one on a line of it. A real defect draws
 # nearly every call; a passage flagged by noise at a rate p per call stands at about 10p^3, against 3p^2 for 2 of 3
 DIFF_CRITERIA = ("accurate", "complete")
 MODEL = "haiku"
@@ -61,7 +63,7 @@ CHUNK = 60_000  # characters of diff per diff-mode call
 DIFF_EXCLUDE = (":(exclude)**/testdata/**", ":(exclude)uv.lock", ":(exclude)go.sum",
                 ":(exclude).github/scripts/work-test-seconds.txt")
 # The grader: a diff that changes it grades in full mode, since a changed grader must still pass the real AGENTS.md;
-# agents-md.yml's cases job runs on the same paths.
+# agents-md.yml's cases job runs on the same paths. A path ending in / is a directory, any other a file.
 GRADER = ("tests/agents_md/", "tests/test_agents_md_live.py", ".github/workflows/agents-md.yml")
 TOOLS = "Read,Grep,Glob"
 CREDENTIALS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
@@ -324,9 +326,9 @@ def parse(call: Call, out: str, agents_md: str) -> tuple[list[dict], str, float]
             return findings, f"malformed finding: {f!r}", cost
         if call.criterion == "complete":
             continue
-        if not f["evidence"].strip() or not normal(f["quote"]):
+        if not f["evidence"].strip() or not re.sub(r"[.…\s]", "", normal(f["quote"])):  # dots alone quote nothing
             return findings, f"a finding without its quote or evidence: {f!r}", cost
-        if not (lines := quote_lines(f["quote"], agents_md)):  # None, or [] for a quote of ellipses alone
+        if (lines := quote_lines(f["quote"], agents_md)) is None:
             return findings, f"a finding quotes text that is not in AGENTS.md: {f['quote']!r}", cost
         f["lines"] = lines
     return findings, "", cost
@@ -389,18 +391,18 @@ def parts(results: list[Result]) -> dict[tuple[str, str], list[Result]]:
     return out
 
 
-def overlap(f: dict, g: dict) -> bool:
-    """Two findings are on one passage when their lines intersect; two without lines (complete's, which name a missing
-    rule and quote nothing) agree."""
-    a, b = set(f.get("lines", ())), set(g.get("lines", ()))
-    return bool(a & b) or not (a or b)
-
-
 def agreed(rs: list[Result]) -> list[dict]:
-    """The findings of one part's calls that stand: each finding that overlaps a finding in each of a majority of the
-    calls, its own call counted."""
+    """The findings of one part's calls that stand: each on a line that a majority of the calls report a finding on;
+    without lines (complete's, which name a missing rule and quote nothing), each when a majority report one. A call
+    that gave no answer has no vote, and the majority stays one of all the part's calls."""
     need = len(rs) // 2 + 1
-    return [f for r in rs for f in r.findings if sum(any(overlap(f, g) for g in o.findings) for o in rs) >= need]
+    answered = [r for r in rs if not r.error]
+    votes: dict[int | None, int] = {}
+    for r in answered:
+        for n in {n for f in r.findings for n in (f.get("lines") or [None])}:
+            votes[n] = votes.get(n, 0) + 1
+    return [f for r in answered for f in r.findings
+            if any(votes[n] >= need for n in (f.get("lines") or [None]))]
 
 
 def verdicts(results: list[Result]) -> dict[str, str]:
@@ -423,21 +425,24 @@ def report(results: list[Result]) -> str:
         lines.append(f"{crit:14} {v:7} {len(rs)} call(s), {sum(bool(r.findings) for r in rs)} with findings, "
                      f"{len(stand)} agreed, {max(r.seconds for r in rs):.0f}s")
         for r in rs:
-            if r.error:
+            if r.error:  # its findings, malformed perhaps, are no vote: --out keeps them
                 lines.append(f"    [{r.call.part}] error: {r.error}")
+                continue
             lines += [f"    [{r.call.part}]{'' if id(f) in stand else ' outvoted:'} {f['quote']!r}"
                       f"{span(f)}: {f['problem']} ({f['evidence']})" for f in r.findings]
     return "\n".join(lines)
 
 
-def advice(verdict: dict[str, str]) -> list[str]:
-    """What the author does about a failed run: agreed findings stand on a rerun, a call that gave no answer may not."""
+def advice(results: list[Result]) -> list[str]:
+    """What the author does about a failed run: agreed findings stand on a rerun, a call that gave no answer may not.
+    A criterion with both, whose verdict is error, gets both lines."""
+    by = parts(results)
     out = []
-    if failed := [c for c, v in verdict.items() if v == "fail"]:
+    if failed := list(dict.fromkeys(c for (c, _), rs in by.items() if agreed(rs))):
         out.append(f"agents-md: {', '.join(failed)} failed on findings a majority of calls agreed on: fix AGENTS.md as "
                    "they say (cut text that restates what the code, a test or a lint already says; correct a false "
                    "claim; add a missing rule). A rerun will not change agreed findings.")
-    if errored := [c for c, v in verdict.items() if v == "error"]:
+    if errored := list(dict.fromkeys(r.call.criterion for r in results if r.error)):
         out.append(f"agents-md: {', '.join(errored)}: a call gave no answer (an error or a timeout, above), so the run "
                    "has no verdict there. A rerun may help.")
     return out
@@ -451,6 +456,11 @@ def span(f: dict) -> str:
     return f" (line {ls[0]})" if len(ls) == 1 else f" (lines {ls[0]}-{ls[-1]})"
 
 
+def grader(path: str) -> bool:
+    """Whether a changed path is the grader's: one of GRADER's files, or under one of its directories."""
+    return any(path.startswith(g) if g.endswith("/") else path == g for g in GRADER)
+
+
 def plan(mode: str, root: Path, agents_md_path: Path, base: str | None,
          criteria: tuple[str, ...]) -> tuple[str, str, list[Call]]:
     """The mode the run takes, the AGENTS.md text graded, and its calls."""
@@ -461,7 +471,7 @@ def plan(mode: str, root: Path, agents_md_path: Path, base: str | None,
             raise SystemExit(f"evaluate.py: --mode {mode} needs --base")
         diff, names = pr_diff(root, base)
         if mode == "auto":
-            mode = "full" if any(n == "AGENTS.md" or n.startswith(GRADER) for n in names) else "diff"
+            mode = "full" if any(n == "AGENTS.md" or grader(n) for n in names) else "diff"
     if mode == "full":
         return mode, agents_md, full_calls(agents_md, root, criteria)
     return mode, agents_md, diff_calls(agents_md, diff) if diff.strip() else []
@@ -493,7 +503,7 @@ def main(argv: list[str] | None = None) -> int:
     results = run_calls(calls, a.model, root, agents_md, a.jobs, a.timeout)
     cost = sum(r.cost_usd for r in results)
     print(report(results))
-    for line in advice(verdicts(results)):
+    for line in advice(results):
         print(line)
     print(f"agents-md: {time.monotonic() - start:.0f}s, ${cost:.3f}")
     if a.out:
