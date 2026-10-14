@@ -49,7 +49,17 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Reproduced at 8ad2720: 8 concurrent copies of the race test binary (`go test
+  -c -race -tags gms_pure_go -ldflags=-w ./internal/service`, then from
+  internal/service 8x `service-race.test -test.run
+  '^TestServiceInstallStatusRestartAndLogsEndToEnd$' -test.count 3` at once)
+  failed 16 of 24 runs, 7 of 8 copies, each with sprint 35's error:
+  "lifecycle_test.go:249: installed local.pm.main.9d6d8751, but the site does
+  not answer for this store on :8002 (... down: :8002 is held by another store
+  (/tmp/TestServiceInstallStatusRestartAndLogsEndToEnd4038071911/001/main/.pm/store/records)"
+  (11 on :8002, 1 on :8003, 4 on :8004). `make test-go` itself passed 6 of 6
+  at 8ad2720 here (load 6.0 to 16.4 at the starts): the clash needs both
+  copies inside the same ~0.1 s window, which make -j hits only sometimes.
 
 ## Delivery report
 
