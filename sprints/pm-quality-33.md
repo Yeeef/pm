@@ -143,6 +143,22 @@ Owner chose it in chat over a local-only eval with a calibration stamp: grader c
   calls, 16 at a time, 240 s each: 24 min, so its timeout went from 20 to 30
   min. Spend about $15.2.
 
+- AGENTS.md stability, final (3 of 5 votes; rubric non_inferable bullet: a Map
+  row's one-line summary that points at its detail passes, a file or function
+  tour still fails; AGENTS.md trims: go-os-tests bullet to the trigger plus
+  its header pointer, the //nolint format cut (nolintlint states it) keeping
+  'a cap is split along a seam, never kept with //nolint', the rule-chunk
+  re-cut steps replaced by a pointer to tests/test_hooks.py's docstring, the
+  parity paragraph to a pointer to its docstring and checks; 11,758 bytes). G1
+  clean full mode, 10 runs on haiku: 9 pass, 1 no verdict (run 5: one
+  consistent call timed out at 240s; no finding), 0 false fails. Calls with
+  findings before -> after over 50 per criterion: non_inferable 28 -> 11
+  (agreed 3 -> 0), accurate 3/550 -> 2/550, map 1 -> 1, consistent 1 -> 0,
+  others 0; hottest remaining line 'Hooks fail open…' 6/50. Planted cases, 3
+  runs each: non_inferable_tour 3/3 fail, map_detail 3/3 fail,
+  no_copies_bodies 3/3 fail ($0.16 in all). G1 cost/run median $0.575, wall
+  median 251 s, max 336 s; $5.82 for the 10 runs.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
