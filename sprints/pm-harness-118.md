@@ -257,7 +257,7 @@ done: an ask-tool question (Claude Code's AskUserQuestion, Codex's request_user_
 - `pm hook ask --runtime claude` on PermissionRequest, beside the open dialog, 24 h timeout; `pm hook ask --runtime codex` on PostToolUse of request_user_input_async; the service queues a Codex site answer only when the rollout holds no chat answer, and closes a question answered in chat from the rollout (within 60 s, at its sweep).
 - The design page [Owner questions](../design/owner-questions.md), and [Reply delivery](../design/reply-delivery.md) restructured by request kind and runtime.
 - The site's question card: options as radios or checkboxes, an Other box, one `<question>: <answer>` line per question.
-- prime.md names the question kind; a question's answer is an instruction to the session, not a decision.
+- pm's request rule picks the form by what is asked, not by whether the owner is in the chat: a question through the ask tool, a decision as a decision need, an action as an action need.
 - Left out: a dismiss control on the site's question card (a question from an abandoned Codex session stays until answered or `pm need dismiss`); Codex's blocking request_user_input (Plan mode).
 
 ### Against "Done when"
@@ -265,4 +265,5 @@ done: an ask-tool question (Claude Code's AskUserQuestion, Codex's request_user_
 > Each item, met or not, with its evidence (a page, a command, a number).
 
 - Live check in a scratch clone, each runtime in a TUI under a pty: met. `PM_PARITY_CODEX_SANDBOX=danger-full-access PM_LIVE_TESTS=1 uv run pytest -n 4 tests/test_agent_parity_live.py -k ask_tool` on 16214e0: 4 passed in 91 s. On the site: Claude's dialog closed with the site answer 1.0 s after the POST, Codex continued in 1.5 to 9.5 s, the question closed answered on the site. In chat: the question closed with the chat answer, nothing delivered, a later POST from the stale card refused "already closed". The whole parity set: 14 passed in 150 s. After the Codex hook moved to PostToolUse (9cc283d): the ask scenarios 4 passed in 77 s; a Codex chat answer closed the question 41.5 s after it was typed (the sweep), Claude's 2.5 s.
+- The request rule says which tool fits which kind, in its three texts, with judge cases: met. 9467a0f; 3 cases added; `make test-live` 234/234 on Claude and on Codex in two runs (earlier runs and the fix they led to are in Findings).
 - `make test` and the PR's CI green, with harness tests for both races and both runtimes: `make test` 142 passed (163 live-model tests skipped); `make test-go` and `make lint` pass; CI on [PR #89](https://github.com/Yeeef/pm/pull/89) recorded at review time in the PR. Judge live eval: Claude 206/207, Codex 206/207, the new case 3/3 on each; the misses were on cases this sprint did not touch.
