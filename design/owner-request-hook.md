@@ -9,6 +9,7 @@ covers:
   - "internal/ask/**"
   - "internal/hooks/asktool*.go"
   - "prompts/owner_request_*.txt"
+  - "internal/session/mode*.go"
 ---
 
 ## Problem
@@ -32,10 +33,12 @@ Goals:
 - One rule in three texts: prime.md's request rules, the judge prompt and the reprompt allow and block the same cases.
 - Few false alarms: a reply that quotes, reports or describes a request without asking it, and an offer nothing waits on, pass.
 - Cheap enough to run at every turn end: a few seconds at most.
+- While the owner chats in a session, they can turn the check off for that session alone, and back on; only the owner can, never the agent it blocks.
 
 Non-goals:
 
-- A per-session mode that turns the hook off while the owner is in the chat: the runtime's ask tool covers that case (Alternatives considered).
+- Turning off the uncommitted-records check (`pm hook stop`) in interactive mode: it stays on in both modes.
+- Syncing a session's mode across clones: it is local to the clone.
 - Checking subagent reports: they end with SubagentStop and go to the main agent, not the owner.
 - Proving a matched need is the right one: a semantic match to an open need of this session is enough.
 
@@ -57,6 +60,7 @@ Non-goals:
 - Codex's Stop payload differs from Claude Code's in one key the hook reads: `last_assistant_message` is nullable (null for a turn that ended without a message). `session_id` is the root session's in both runtimes.
 - A Stop hook that fails (exit 1) lets the stop through in both runtimes; Codex does so silently. A check that cannot run is therefore lost, not blocking: so each session's judge runs on the runtime that session already has.
 - Phrase patterns (sprint 13) missed requests worded differently and blocked a reply that cited every request because one line said "waiting on you".
+- A UserPromptSubmit hook gets `session_id`, `cwd` and `prompt` in both runtimes, and can block the prompt with `{"decision":"block","reason":…}`: the prompt is dropped and no turn runs. Measured on 2026-10-14: Claude Code 2.1.299 (`claude -p`) answered with `num_turns` 0 and the reason in its result, and wrote it to the transcript as a system line; Codex 0.162.1 (`codex app-server`, the TUI's backend) reported the hook run `blocked` with the reason as its `feedback` entry, the turn with no item and no model call, and its rollout holds no user message for it.
 - Agents cite requests by the short id `pm show` prints (`9va.29.4`). An id written in a reply is not a match by itself: only an open need of this session matches.
 
 ## Design
@@ -70,14 +74,16 @@ Non-goals:
 flowchart TD
   S[Stop: pm hook owner-request] --> A{stop_hook_active, or a blank,<br/>null or missing reply?}
   A -- yes --> P[pass]
-  A -- no --> N[read this session's open needs]
+  A -- no --> M{this session in<br/>interactive mode?}
+  M -- yes --> P
+  M -- no --> N[read this session's open needs]
   N --> J[the judge on the session's runtime<br/>labels each sentence and matches it to a need]
   J --> B{unmatched decision, review,<br/>action or clarification;<br/>or a needless ask?}
   B -- no --> P
   B -- yes --> K[block with the reprompt]
 ```
 
-Reading: every reply is judged; a question asked with the ask tool reaches the judge as an open request the owner sees (this turn's from the transcript, any turn's as an open question need), so neither it nor its repeat in the reply blocks.
+Reading: every reply of a session in autopilot is judged; a question asked with the ask tool reaches the judge as an open request the owner sees (this turn's from the transcript, any turn's as an open question need), so neither it nor its repeat in the reply blocks.
 
 ### One rule
 
@@ -105,6 +111,25 @@ The rule, as all three texts state it:
 - The judge checks that an ask reaches the owner, not which form it took: an ask-tool question passes whatever its kind, a decision included. Its kinds sort what blocks from what passes and are not the rule's three; which form fits is the agent's call, which prime.md and the reprompt guide (Alternatives considered).
 - prime.md is short and the reprompt is detailed, but no text adds a condition the others lack. The "sprint work waits on it" condition goes from all three: the judge cannot check it, and a chat request is lost whether a sprint holds it or not.
 - A rule change edits all three in one commit, and adds a labelled case to `tests/owner_request_cases.json` for each case it moves.
+- Interactive mode is no case of the rule the judge applies: in an interactive session the judge does not run. Only prime.md says so, in one sentence; the judge prompt and the reprompt run only in autopilot, where the rule is unchanged, so no labelled case moves.
+
+### Interactive mode
+
+A session is in autopilot, where the judge runs, or in interactive mode, where it does not. The owner sets it with a prompt; nothing else does.
+
+| Owner's prompt | `pm hook inbox` (UserPromptSubmit) | The owner sees |
+|---|---|---|
+| `pm interactive` | writes `<main checkout>/.pm/run/sessions/<session id>` | "Interactive mode on for this session: …"; the prompt does not reach the agent |
+| `pm autopilot` | removes it | "Autopilot on for this session: …"; the prompt does not reach the agent |
+| anything else | changes nothing; in an interactive session, adds one line of context telling the agent it may ask in chat | the agent's reply |
+
+- The prompt counts only when it is exactly the two words, after trimming whitespace, case-sensitive: a prompt that merely contains them changes nothing.
+- There is no `pm` command for the mode, so an agent the judge blocks cannot turn the judge off.
+- The mode file is the main checkout's, so every worktree of the clone shares a session's mode; it is never committed or synced. A session id that is not one path component of letters, digits, `_` and `-` gets no mode file: the hook says so on stderr and lets the prompt go on, and the judge treats the session as in autopilot.
+- `pm hook owner-request` checks the mode after its early exits (`stop_hook_active`, a blank reply), before it reads the work store; a mode file it cannot read is a check that did not run (exit 1).
+- The keyword prompt is blocked, so the replies waiting for the session are handed over at the next prompt, not with it.
+- `pm hook stop`, the uncommitted-records check, runs in both modes.
+- `pm clean` lists each mode file: kept while its session is live (a transcript or rollout written in the last 30 minutes), removed with `--apply` once it is not.
 
 ### The judge
 
@@ -142,6 +167,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | Judge | `claude -p`, Haiku, 15 s | `codex exec`, `gpt-5.6-luna`, 40 s, from an empty temp dir with hooks, rules and the user's config off and no saved session (`--ephemeral`); needs no `claude` |
 | A check that cannot run | exit 1 with the cause on stderr; the stop goes through | exit 1; Codex passes the stop silently |
 | Ask tool (rule item 2, a question) | AskUserQuestion | `request_user_input_async` (Default mode), `request_user_input` (Plan mode) |
+| Mode prompt (`pm interactive`, `pm autopilot`) | blocked; Claude Code shows "UserPromptSubmit operation blocked by hook" and the reason | blocked; the reason is the hook run's feedback |
 
 - Each entry names its runtime; pm never guesses it. An entry without `--runtime` runs the Claude judge, as every entry did before the flag.
 - One judge prompt serves both runtimes, and every labelled case must pass on each.
@@ -156,6 +182,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 - No recursion: the harness's fake `codex` logs the judge's argv and directory; live, a user Stop hook in `$CODEX_HOME/hooks.json` ran under a plain `codex exec` and did not under the judge's.
 - The parity live eval: a Codex session with no `claude` on its PATH that asks the owner only in chat is blocked, then raises a need.
 - A live session: a reply that asks the owner for a file only in chat is blocked and the reprompt names doing it yourself first; it passes once a need is raised under a sprint or task, or once the question moves to the ask tool.
+- Interactive mode: `test_owner_request_hook.py` (an interactive session's chat ask passes without the judge; the same ask in another session, or after `pm autopilot`, blocks), `test_hooks.py` (only the whole prompt sets or clears the mode file, on both runtimes' input), `test_clean.py` (a dead session's mode file goes, a live one's stays). Live: a `claude -p` session given `pm interactive`, then resumed with a prompt that makes it ask in chat, is not blocked; after `pm autopilot` the same ask is.
 - The parity live eval's ask tool scenario: an interactive session (Claude Code's and Codex's TUI) asks a multiple-choice question with its ask tool, the test picks an option at the keyboard, and the Stop hook does not block; the question need pm raised closes with the keyboard's answer.
 
 ## Alternatives considered
@@ -165,7 +192,9 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | Option | How it works | Why not chosen |
 |---|---|---|
 | **Keep the sprint-work condition** | Exempt requests no sprint waits on | The judge cannot see sprints or tasks, so the condition was never checked; and a chat request in an unattended session is lost whether a sprint holds it or not |
-| **Per-session interactive mode** | The owner sends `pm interactive`; the hook reads the last such prompt from the transcript and skips the judge | AskUserQuestion already keeps a live question out of the judged reply; the mode adds a transcript reader for two runtimes and open questions on Codex's transcript format and on compaction, for one block-and-retry per plain-text question (owner decision 2026-10-10) |
+| **Interactive mode read from the transcript** | The owner sends `pm interactive`; the Stop hook reads the last such prompt from the transcript and skips the judge | A transcript reader for two runtimes, with open questions on Codex's transcript format and on compaction (owner decision 2026-10-10); `pm hook inbox` already sees each prompt, and a mode file is one stat |
+| **A `pm interactive` command** | Any session runs `pm interactive` to turn its judge off | An agent the judge blocks could run it itself; only the owner's own prompt sets the mode |
+| **Tell the agent instead of blocking the mode prompt** | The keyword prompt goes on with a context line, and the agent acknowledges | Costs a model turn per switch; a block drops the prompt with no turn on both runtimes and shows the owner what changed |
 | **Pass when the session holds no claimed task and no open need** | Deterministic gate before the judge | Lets every request through in a planning or Q&A session where the owner may not be watching |
 | **Needs filed under the project** | A request outside any sprint becomes a project-level need | The owner ruled that every request is tracked work: open a sprint or task first (2026-10-10); pm also refuses a project as `--parent` |
 | **Claude Code prompt hook** (`"type": "prompt"`, the earlier design) | Haiku reads the reply in-process | Cannot read the work store, so it checked that an id was cited, not that the need was open; Claude Code only |

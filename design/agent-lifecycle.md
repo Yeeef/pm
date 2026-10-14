@@ -111,7 +111,8 @@ The hooks behind it, by runtime:
 | SubagentStart | the rules chunks, then `pm prime --subagent` | the same | The rules and pm's git rule for agents |
 | PermissionRequest, matcher `AskUserQuestion` | `pm hook ask --runtime claude` (up to a day, beside the question's dialog) | none | Raises the ask-tool question as a question need the owner can answer on the site too; the first answer, the dialog's or the site's, closes it and reaches the session ([Owner questions](owner-questions.md)) |
 | PostToolUse, matcher `request_user_input_async` | none | `pm hook ask --runtime codex` (30 s) | Raises the question as a question need by its call id; the pm service carries the answer ([Owner questions](owner-questions.md)) |
-| Stop | `pm hook owner-request --runtime claude` (judge: Haiku through `claude -p`, 30 s) | `pm hook owner-request --runtime codex` (judge: a small Codex model through `codex exec`, 45 s) | Blocks a reply that asks the owner only in chat; the judge runs on the session's own runtime |
+| UserPromptSubmit | `pm hook inbox` (10 s) | the same | Hands over the owner's replies no push delivered ([Reply delivery](reply-delivery.md)); the owner's whole prompt `pm interactive` or `pm autopilot` sets the session's mode instead, and is blocked, so no turn starts |
+| Stop | `pm hook owner-request --runtime claude` (judge: Haiku through `claude -p`, 30 s) | `pm hook owner-request --runtime codex` (judge: a small Codex model through `codex exec`, 45 s) | Blocks a reply that asks the owner only in chat; the judge runs on the session's own runtime. Off in a session the owner set to interactive mode ([Owner request hook](owner-request-hook.md)) |
 | Stop | `pm hook stop` | the same | Blocks while records this session named are uncommitted |
 | SubagentStop | none | `pm hook stop` on the subagent's own rollout | The same, for a subagent whose tool inputs the parent's rollout holds encrypted |
 

@@ -41,7 +41,10 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 
 > Where is the detail?
 
-None yet.
+- [Owner-request Stop hook](../design/owner-request-hook.md): Interactive mode, its prompts, mode file and checks; the UserPromptSubmit block measured on both runtimes; the mode read from the transcript, a `pm interactive` command and an unblocked mode prompt as alternatives not chosen (covers `internal/session/mode*.go`).
+- [Agent lifecycle](../design/agent-lifecycle.md): the UserPromptSubmit row of the hooks table, and the Stop check off in interactive mode (covers `prime.md`, `internal/hooks/prime*.go`, `internal/hooks/stop*.go`).
+- [pm CLI](../design/pm-cli.md): the same in its hooks table (covers `internal/cli/commands.go`, its help golden).
+- [Session claims](../design/session-claims.md): `pm clean` removing the mode file of a session not live (covers `internal/cli/clean.go`, `internal/session/**`).
 
 ## Progress
 
