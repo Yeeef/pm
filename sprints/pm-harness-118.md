@@ -150,6 +150,14 @@ An idle Codex TUI waiting on the owner looks the same as an ended session, and c
   user-rejected on Esc. A hook failing or printing nothing leaves the dialog
   usable.
 
+- make test-live after the question need joined the judge's open requests
+  (judge prompt unchanged), 69 cases x 3 runs: Claude 206/207, median 2.62 s,
+  p90 4.11 s; Codex 206/207, median 5.92 s, p90 13.98 s, max 20.01 s. The new
+  case (an earlier turn's ask-tool question, open on the site, repeated in the
+  reply: pass) 3/3 on both. Misses, 2/3 each, on cases this branch did not
+  touch: Claude on 'formal-methods feedback 2026-10-10 03:31' (block), Codex
+  on 'asks leave to push and open the PR' (needless).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
