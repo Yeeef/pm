@@ -109,8 +109,8 @@ The hooks behind it, by runtime:
 |---|---|---|---|
 | SessionStart | `pm prime --rules N` per chunk, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, then `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
 | SubagentStart | the rules chunks, then `pm prime --subagent` | the same | The rules and pm's git rule for agents |
-| PermissionRequest, matcher `AskUserQuestion` | `pm hook ask --runtime claude` (up to a day, beside the question's dialog) | none | Raises the ask-tool question as a question need the owner can answer on the site too; the first answer, the dialog's or the site's, closes it and reaches the session |
-| Stop | none | `pm hook ask --runtime codex`, first (30 s) | Raises the turn's `request_user_input_async` questions as question needs, each once by its call id |
+| PermissionRequest, matcher `AskUserQuestion` | `pm hook ask --runtime claude` (up to a day, beside the question's dialog) | none | Raises the ask-tool question as a question need the owner can answer on the site too; the first answer, the dialog's or the site's, closes it and reaches the session ([Owner questions](owner-questions.md)) |
+| PostToolUse, matcher `request_user_input_async` | none | `pm hook ask --runtime codex` (30 s) | Raises the question as a question need by its call id; the pm service carries the answer ([Owner questions](owner-questions.md)) |
 | Stop | `pm hook owner-request --runtime claude` (judge: Haiku through `claude -p`, 30 s) | `pm hook owner-request --runtime codex` (judge: a small Codex model through `codex exec`, 45 s) | Blocks a reply that asks the owner only in chat; the judge runs on the session's own runtime |
 | Stop | `pm hook stop` | the same | Blocks while records this session named are uncommitted |
 | SubagentStop | none | `pm hook stop` on the subagent's own rollout | The same, for a subagent whose tool inputs the parent's rollout holds encrypted |
@@ -266,15 +266,13 @@ other ready tasks:
   `request_user_input` in its Plan mode. The owner-request check reads the
   turn's ask-tool calls from the transcript and treats their questions as
   open requests, so the reply's repeat of one does not block.
-  pm raises the question as a **question need** (`pm hook ask`), under the
-  newest open task the session holds, or under none when it holds none, so the
-  owner can answer on the site as well as in the chat; the first answer
-  reaches the session and closes the need ([Reply delivery](reply-delivery.md),
-  Questions). Its answer steers the session and records no decision:
-  `pm decision add --need`, `pm decision close`, `pm action done` and
-  `pm need edit` refuse a question and name `pm need dismiss`.
+  pm raises the question as a **question need**, so the owner can answer on
+  the site as well as in the chat; the first answer reaches the session and
+  closes it. Its answer steers the session and records no decision
+  ([Owner questions](owner-questions.md)).
 
-Each stores the raising session and its inbox, with the machine's hostname:
+Each stores the raising session and its inbox, with the machine's hostname
+(a question too, though its answer travels as [Owner questions](owner-questions.md) says):
 a Claude Code session's socket, never the inbox's token, since the store
 syncs to the remote; a Codex session's CODEX_HOME, under which the pm service
 runs `codex queue`, never a socket it inherits from a Claude Code session

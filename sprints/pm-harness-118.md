@@ -38,15 +38,16 @@ An agent's ask-tool question (Claude Code's AskUserQuestion, Codex's request_use
 
 > Where is the detail?
 
+- [Owner questions](../design/owner-questions.md): the question kind end to end: what it is, its record, raising per runtime (Claude Code's PermissionRequest, Codex's PostToolUse), answering on the site and in chat, first answer wins, closing, the judge; a sequence diagram per runtime.
 - [Work store](../design/work-store.md): the question need kind, its ask fields and tables (schema 4), the parent rule, its closes and refusals (covers `internal/item/**`).
-- [Owner-request Stop hook](../design/owner-request-hook.md): Ask-tool questions on the site, per runtime; the judge reading an open question as an open request.
-- [Reply delivery](../design/reply-delivery.md): Questions: a Claude Code question answered only through its hook, a Codex one through `codex queue` after the rollout check, no idle dismissal of a Codex question.
+- [Owner-request Stop hook](../design/owner-request-hook.md): the judge reading an open question as an open request; Ask-tool questions on the site, a summary linking Owner questions.
+- [Reply delivery](../design/reply-delivery.md): Routes by request kind and runtime: a Claude Code question answered only through its hook, a Codex one through `codex queue` after the rollout check; the sweep settling questions; the Claude hook's accepted window.
 - [Replies on the site](../design/site-replies.md): A session's question: the card, its inputs and the reply text rule.
-- [pm in Codex](../design/pm-in-codex.md): the Codex Stop `pm hook ask` and its row in Areas.
+- [pm in Codex](../design/pm-in-codex.md): the Codex PostToolUse `pm hook ask` and its row in Areas.
 - [Views and the site](../design/views-and-site.md): the "Sessions ask you" section.
-- [Agent lifecycle](../design/agent-lifecycle.md): `pm hook ask` in the hook table per runtime, `pm hook inbox` closing a Codex question, the question need under Asking the owner.
+- [Agent lifecycle](../design/agent-lifecycle.md): `pm hook ask` in the hook table per runtime, the question need under Asking the owner.
 - [pm CLI](../design/pm-cli.md): `pm hook ask` in Agent hooks, the questions' refusals in the answer commands and `pm need edit`, the question lines of `pm show`.
-- [pm as an installable product](../design/pm-product.md): the `pm hook ask` entries, a Claude Code PermissionRequest and Codex's first Stop hook.
+- [pm as an installable product](../design/pm-product.md): the `pm hook ask` entries, a Claude Code PermissionRequest and a Codex PostToolUse.
 - [pm in Go](../design/pm-go.md): `hook ask` and the question's answer in the package table.
 - [Sprint lifecycle](../design/sprint-lifecycle.md): an ask-tool question raised as a question need; the sprint page's "Sessions ask you" section.
 

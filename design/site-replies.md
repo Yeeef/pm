@@ -9,7 +9,6 @@ covers:
   - "internal/service/access*.go"
   - "internal/service/deliver.go"
   - "internal/cli/serve*.go"
-  - "internal/item/answer*.go"
 ---
 
 ## Problem
@@ -137,18 +136,7 @@ delivered, or the error with the
 text back in the box (see Read path in [Views and the site](views-and-site.md)).
 
 ### A session's question
-A question need ([Work store](../design/work-store.md), Data model) shows in its own awaiting section, "Sessions ask you", above the decisions: on its sprint's, its project's and the overview page, and, for a question from a session that held no task, on the overview only, as "asked outside any task". Its card is titled "Session <the session id's first 8 characters> asks you" and holds a fieldset per question:
-
-| Question | Inputs |
-|---|---|
-| Single choice | a radio button per option (label, then its detail), and an "Other" text: the owner's own answer, instead of an option |
-| Multiple choice | a checkbox per option, and an "Other" text, added to the options picked |
-| No options | an "Answer" text |
-
-- The inputs belong to the form the service puts in the slot (`form="reply-<id>"`), which posts `token`, `id`, `rid` and a field per question (`q<n>`, `q<n>-other`), no text box. The reply id is new whenever the fields change.
-- The service makes the reply text from the fields: one line per question, in the order asked, `<question>: <answer>`; a multiple choice's labels in the options' order joined with `, `, then the Other text; question and Other text each put on one line. It refuses, with 400 and naming the question, a question with no answer, a label that is not one of its options, and two picks on a single choice.
-- A question's answer that failed to store shows its text above the form; the service stores it again from the spool. A question closed meanwhile (answered in the session first) refuses the POST as closed, naming why.
-- The text is stored as any reply is; it reaches the session that asked one way per runtime, first answer wins ([Reply delivery](../design/reply-delivery.md), Questions).
+A question need shows in its own awaiting section, "Sessions ask you", above the decisions. Its card holds a fieldset per question (options as radio buttons or checkboxes, and an "Other" text) instead of a text box; the service makes the reply from the fields, one `<question>: <answer>` line per question, and stores it as any reply is. The card, the reply text rule, its refusals and how the first answer wins: [Owner questions](owner-questions.md), Answering on the site.
 
 ### Storage
 Both kinds store the reply the same way: a Beads comment with author

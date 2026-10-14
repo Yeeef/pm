@@ -7,7 +7,7 @@ covers:
   - "internal/hooks/store.go"
   - "internal/cli/ownerrequest.go"
   - "internal/ask/**"
-  - "internal/hooks/ask*.go"
+  - "internal/hooks/asktool*.go"
   - "prompts/owner_request_*.txt"
 ---
 
@@ -45,7 +45,7 @@ Non-goals:
 > still hold; sprint records keep the findings as they happened.
 
 - A Stop hook sees the final reply (`last_assistant_message`), `session_id` and `cwd`, and can block once; on `stop_hook_active` the next stop must pass, so the hook can never loop.
-- AskUserQuestion runs mid-turn and waits for the answer, so its question is never in `last_assistant_message`. Codex's `request_user_input_async` (Default mode, gpt-6 models) returns `{"accepted":true}` at once and the answer arrives later as a new user message, so the turn ends with the question open, and its text can be in the final message (in `codex exec` it was). `request_user_input` (Plan mode) blocks, with no timeout. In a session nobody watches, a blocking ask waits forever. AskUserQuestion's and `request_user_input_async`'s questions show on the site as question needs (Ask-tool questions on the site); `request_user_input`'s do not.
+- AskUserQuestion runs mid-turn and waits for the answer, so its question is never in `last_assistant_message`. Codex's `request_user_input_async` (Default mode, gpt-6 models) returns `{"accepted":true}` at once and the answer arrives later as a new user message, so the turn ends with the question open, and its text can be in the final message (in `codex exec` it was). `request_user_input` (Plan mode) blocks, with no timeout. In a session nobody watches, a blocking ask waits forever. AskUserQuestion's and `request_user_input_async`'s questions show on the site as question needs ([Owner questions](owner-questions.md)); `request_user_input`'s do not.
 - The transcript records each ask: Claude Code's AskUserQuestion `tool_use` (input `questions[].question`), Codex's `function_call` named `request_user_input_async` (arguments `{"questions":[{"title":…,"options":[…]}]}`, measured live) or `request_user_input` (`questions[].question`).
 - The Claude judge, `claude -p --model claude-haiku-5-5` with thinking off and no settings, tools or MCP, takes about 2 s; with thinking on a verdict took 5 to 36 s. Its timeout is 15 s, inside the hook's 30 s.
 - Each judge runs in a process group of its own, killed whole at its timeout (both CLIs are launcher scripts), and killed by the hook when the runtime stops the hook (SIGTERM, SIGINT, SIGHUP) at its entry's timeout.
@@ -107,20 +107,7 @@ The rule, as all three texts state it:
 
 ### Ask-tool questions on the site
 
-`pm hook ask --runtime claude|codex` raises each ask-tool question as a question need ([Work store](../design/work-store.md), Data model), under the newest open task the session holds, else under none. The owner answers it in the chat or on the site's "Sessions ask you" card ([Replies on the site](../design/site-replies.md)); the first answer closes the need, and the other is dropped ([Reply delivery](../design/reply-delivery.md), Questions).
-
-| | Claude Code | Codex |
-|---|---|---|
-| Entry | PermissionRequest, matcher `AskUserQuestion`, `pm hook ask --runtime claude \|\| exit 1`, timeout 86,400 s | Stop, first: `pm hook ask --runtime codex \|\| exit 1`, 30 s |
-| When it raises | at the call: Claude Code runs the hook beside the question's dialog, without waiting for it | at turn end: `request_user_input_async` returns at once, so the hook raises each such call of the turn once, by its `call_id` |
-| Key | `prompt_id` with a hash of the tool input (the hook input has no tool-use id) | `call_id` |
-| Chat answer | the transcript's tool result: the answer closes the need; a rejected dialog dismisses it | the first user message after the call: the service's check before queueing and its sweep close the need with it |
-| Site answer | the hook, which polls every second, closes the need and prints `allow` with `updatedInput.answers`, which closes the dialog | the service queues it with `codex queue` |
-| A subagent's call | steps aside | not raised (a subagent's Stop is SubagentStop) |
-
-- A question's answer is an instruction to the session, not a ruling: `pm decision add --need`, `pm decision close`, `pm action done` and `pm need edit` refuse a question, naming `pm need dismiss`. The agent records a decision with `--confirmed` only when the answer rules the work.
-- The hook fails open: on its own error it says why on stderr, prints nothing and exits 0, so the dialog stays usable and the stop goes on.
-- `request_user_input` (Codex's Plan mode) blocks inside Codex's app-server, which a second client reaches only with `app-server --listen` and a TUI started with `--remote`; it is not raised.
+pm raises each ask-tool question as a question need (`pm hook ask`: Claude Code's PermissionRequest on AskUserQuestion, Codex's PostToolUse on `request_user_input_async`), which the owner answers in the chat or on the site, the first answer winning. Its answer steers the session and records no decision. The whole flow: [Owner questions](owner-questions.md). For this hook it matters only that an open question is an open request the owner sees (The judge).
 
 ### The reprompt
 
@@ -139,7 +126,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | | Claude Code | Codex |
 |---|---|---|
 | Entry | `.claude/settings.json`, Stop | `.codex/hooks.json`, Stop (runs once the owner trusts pm's hooks; a session whose start hooks ran is told at its start when Codex skips this one, as after a `pm upgrade` changed it) |
-| Command | `pm hook owner-request --runtime claude \|\| exit 1`, 30 s, before `pm hook stop` | `--runtime codex`, 45 s, after `pm hook ask --runtime codex` (30 s) and before `pm hook stop` |
+| Command | `pm hook owner-request --runtime claude \|\| exit 1`, 30 s, before `pm hook stop` | `--runtime codex`, 45 s, before `pm hook stop` |
 | Reply | `last_assistant_message`, a string | the same key, nullable: null passes |
 | Judge | `claude -p`, Haiku, 15 s | `codex exec`, `gpt-5.6-luna`, 40 s, from an empty temp dir with hooks, rules and the user's config off and no saved session (`--ephemeral`); needs no `claude` |
 | A check that cannot run | exit 1 with the cause on stderr; the stop goes through | exit 1; Codex passes the stop silently |
@@ -149,7 +136,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 - One judge prompt serves both runtimes, and every labelled case must pass on each.
 - `pm doctor` does not check either judge's CLI: a session's judge runs on its own runtime, which runs only where it is installed.
 - A Codex subagent's SubagentStop runs only `pm hook stop`; the owner-request check never judges a subagent's report (Non-goals).
-- The Stop entry runs only the two checks, after, in Codex, `pm hook ask`, which raises the turn's ask-tool questions first so the judge reads them as open needs.
+- The Stop entry runs only the two checks. A Codex question is an open need by then: PostToolUse raised it at the call.
 
 ### How it is checked
 

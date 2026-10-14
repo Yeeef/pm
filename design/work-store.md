@@ -155,19 +155,12 @@ An item has a fixed set of typed fields, stored as the columns and tables under 
 | Field | Type | Replaces in bd |
 |---|---|---|
 | `kind` | `decision` \| `action` \| `review` \| `question` | label `human`; label `action`; `metadata.review` present; none (a question is pm's own) |
-| `raised_by` | `{session, inbox, host}`, or null when no session raised it; `inbox` (the messaging socket) and `host` are a Claude Code session's only, empty for a Codex session ([Reply delivery](../design/reply-delivery.md)) | `metadata.session`, `inbox`, `inbox_host`; 44 of 154 sample needs have no session |
+| `raised_by` | `{session, inbox, host}`, or null when no session raised it; `inbox` is a Claude Code session's messaging socket or a Codex session's `codex-queue:<CODEX_HOME>`, `host` the machine that stored it ([Reply delivery](../design/reply-delivery.md)) | `metadata.session`, `inbox`, `inbox_host`; 44 of 154 sample needs have no session |
 | `delivered` | int: owner replies that reached `raised_by.session` | `metadata.picked_up` |
 | `review` | `{pr, sprints, designs, focus, merged, merge_reported}`, only on `kind=review` | `metadata.review`, `external_ref`, `metadata.merged`, `metadata.merge_reported` |
-| `ask` | `{call, questions}`, only on `kind=question`: `call` is the ask-tool call's key (Codex's `call_id`; for Claude Code, whose hook input has no tool-use id, the `prompt_id` with a hash of the tool input), at most 128 bytes; each question `{text, header, multi, options}`, each option `{label, detail}` | none |
+| `ask` | `{call, questions}`, only on `kind=question`: `call` is the ask-tool call's key (Codex's `call_id`; for Claude Code, the `prompt_id` with a hash of the tool input), at most 128 bytes; each question `{text, header, multi, options}`, each option `{label, detail}` | none |
 
-**Question.** A question need is a session's ask-tool question (AskUserQuestion; Codex's `request_user_input_async`), which `pm hook ask` raises; no agent command creates one, and its `ask` is written once, at the raise.
-
-| Part | Rule |
-|---|---|
-| Title | `Session <the session id's first 8 characters> asks: <the first question>`, on one line, cut at 120 characters |
-| Description | each question, with its header, and its options as a list |
-| Close | once, by the first answer; a second close fails and changes nothing. `answered`: the owner's answer on the site, or in the session's chat, stored as the reply. `dismissed`: declined in the session, the hook stopped before any answer, the Claude Code session ended, or `pm need dismiss` |
-| Refused | `pm decision add --need`, `pm decision close`, `pm action done` and `pm need edit`, each naming `pm need dismiss`: a question's answer goes to the session that asked and records no decision |
+**Question.** A question need is a session's ask-tool question, which `pm hook ask` raises; no agent command creates or edits one, its `ask` is written once at the raise, and it closes once: `answered` by the first answer, on the site or in the session's chat, or `dismissed`. Its title, description, checks, closes and the commands that refuse it: [Owner questions](owner-questions.md), Its record in the work store.
 
 **Comment**
 

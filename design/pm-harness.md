@@ -127,7 +127,7 @@ A session starts with the global and project rules and a `pm show` snapshot in i
 `pm` is the write path for records and for project actions that touch both Beads and a record. Finding, claiming and linking tasks stay plain `bd`. Every `pm` write validates the whole record set before and after, and writes nothing if the result would not render. The commands, how records are edited, the code structure, how a repo runs it and what `pm show` prints: [pm CLI](pm-cli.md).
 
 ### Views and the site
-Every view is rendered from records plus live status from Beads; nothing in a view is edited by hand. The views and their readers, the daily page, the renderer's implementation, how `make docs` serves a site at most 10 s behind that states its age, and where the files live: [Views and the site](views-and-site.md). How the owner replies to a decision or action on its card, and how the reply reaches the session that asked: [Replies on the site](site-replies.md).
+Every view is rendered from records plus live status from Beads; nothing in a view is edited by hand. The views and their readers, the daily page, the renderer's implementation, how `make docs` serves a site at most 10 s behind that states its age, and where the files live: [Views and the site](views-and-site.md). How the owner replies to a decision or action on its card, and how the reply reaches the session that asked: [Replies on the site](site-replies.md). How a session's ask-tool question shows on the site and takes the first answer, in the chat or on the card: [Owner questions](owner-questions.md).
 
 ## Alternatives considered
 

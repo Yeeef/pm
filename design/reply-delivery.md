@@ -4,10 +4,8 @@ title: "Reply delivery: getting an owner reply into the session that asked"
 project: pm-harness
 covers:
   - "internal/service/deliver*.go"
-  - "internal/service/question*.go"
   - "internal/service/codexqueue*.go"
   - "internal/hooks/store.go"
-  - "internal/cli/question_test.go"
   - "internal/service/run*.go"
   - "internal/cli/needs.go"
   - "internal/cli/request.go"
@@ -46,7 +44,7 @@ Root cause: the watched set was fixed at raise time, from printed text, and a wa
 > What must the design achieve, and what does it deliberately leave out?
 
 - **Goal:** both ways the owner answers keep working: a reply on the site, and an answer given in chat that the agent records and closes (see The two workflows).
-- **Goal:** every reply reaches the session that asked at least once while that session runs, by push, in Claude Code and in Codex, with no long-lived per-session process. What the push cannot deliver (a session with no inbox, or on another machine) `pm show` flags.
+- **Goal:** every reply reaches the session that asked at least once while that session runs, by push, in Claude Code and in Codex, with no long-lived per-session process. A Claude Code question is the one exception: its answer goes through the hook that waits beside its dialog ([Owner questions](owner-questions.md)). What the push cannot deliver (a session with no inbox, or on another machine) `pm show` flags.
 - **Goal:** a reply whose session is gone is never silently dropped. The next session sees it.
 - **Goal:** the core (what is undelivered, what marks it delivered) is runtime-agnostic. The push and `pm reply read` are thin adapters on it.
 - **Goal:** an idle session, Claude Code's or Codex's, starts a turn on the reply with nothing typed.
@@ -87,16 +85,21 @@ Root cause: the watched set was fixed at raise time, from printed text, and a wa
 
 **2. The owner answers in chat.** The agent already has the answer: it records it (`pm decision add --need`, `pm decision close`, `pm action done`) and the close stamps pm's own answer comment at the close. That comment is no reply to deliver, so nothing is undelivered and the close is never refused.
 
-A question need (an ask-tool question, which `pm hook ask` raises) is answered in either way too, but pm, not the agent, closes it with the first answer; see Questions.
+A question need (an ask-tool question, which `pm hook ask` raises) is answered either way too, but pm, not the agent, closes it with the first answer ([Owner questions](owner-questions.md)).
 
 "Undelivered" counts only reply comments made before the need closed, against the need's delivered count; pm's own and agents' comments never count.
 
-### Routes by runtime
+### Routes by request kind and runtime
 
-| Route | When | Claude Code | Codex |
-|---|---|---|---|
-| Push into the inbox | The moment the reply is stored, then on every sweep | yes, into the socket; an idle session starts a turn on it | yes, with `codex queue`; an idle TUI starts a turn on it, and a thread not loaded takes it in when it next loads |
-| `pm show` flag, `pm reply read` | Session start and any later look: a session with no inbox, a push that failed, the next session if this one ended | yes | yes |
+How a site reply reaches the session that asked depends on the request's kind and the session's runtime:
+
+| Request | Claude Code | Codex |
+|---|---|---|
+| Decision, action, PR review (and a reviewed PR's merge) | the service pushes the reply into the session's messaging socket the moment it is stored, then on every sweep; an idle session starts a turn on it | the service queues it with `codex queue` under the session's CODEX_HOME, the moment it is stored, then on every sweep; an idle TUI starts a turn on it, and a thread not loaded takes it in when it next loads |
+| Question | no push: `pm hook ask`, the PermissionRequest hook waiting beside the question's dialog, reads the reply and answers the tool with it | `codex queue` with the answer's text alone, only after the session's rollout shows no message the owner typed since the question; a typed message closes the question instead |
+| Any kind, what the push did not deliver | `pm show` flags it and `pm reply read` prints it: a session with no inbox, a push that failed, the next session if this one ended | the same |
+
+A question's whole flow, its two surfaces and how the first answer wins: [Owner questions](owner-questions.md). The rest of this page is the route for decisions, actions and reviews, with where a question differs.
 
 ```mermaid
 sequenceDiagram
@@ -120,20 +123,21 @@ sequenceDiagram
   A->>W: pm decision add --need, decision close, or action done
 ```
 
-Reading: the push is the one route into a running session; the flag and `pm reply read` read the same undelivered set and write the same delivered count, for whatever the push did not deliver.
+Reading (a decision, action or review): the push is the one route into a running session; the flag and `pm reply read` read the same undelivered set and write the same delivered count, for whatever the push did not deliver.
 
 The raising command's output names the session's route: with a socket, that the service pushes the reply; with a CODEX_HOME, that it queues the reply into the Codex session, which starts a turn with it when idle; either way, that if the session has ended by then `pm show` flags the reply for the next one, which reads it with `pm reply read <id>`. Without an inbox, that the session gets no push, that `pm show` flags the reply once it is posted, and that `pm reply read <id>` prints it.
 
 ### Raising: which session, which inbox
 
-`pm decision need` and `pm action need` (a PR review too) store `raised_by`: the session ([Session claims](../design/session-claims.md), Session resolution), its inbox by its runtime, and the machine's hostname. A Claude Code session's inbox is `$CLAUDE_CODE_MESSAGING_SOCKET` (never the token); a Codex session's is its CODEX_HOME (`$CODEX_HOME`, else `~/.codex`, made absolute), stored as `codex-queue:<CODEX_HOME>` in the same column, so the work store's schema is unchanged and an older pm reads it as a socket that is not there.
+`pm decision need`, `pm action need` (a PR review too) and `pm hook ask` (a question) store `raised_by`: the session ([Session claims](../design/session-claims.md), Session resolution), its inbox by its runtime, and the machine's hostname. A Claude Code session's inbox is `$CLAUDE_CODE_MESSAGING_SOCKET` (never the token); a Codex session's is its CODEX_HOME (`$CODEX_HOME`, else `~/.codex`, made absolute), stored as `codex-queue:<CODEX_HOME>` in the same column, so the work store's schema is unchanged and an older pm reads it as a socket that is not there.
 
+- Every kind stores the same inbox; what differs is its use. A decision's, action's or review's inbox takes the push. A Claude Code question's socket takes no push: the service only reads whether it is still there, and dismisses the question once it is gone. A Codex question's CODEX_HOME takes the queued answer, and names the rollouts the service reads for an answer typed in the chat.
 - A Codex session never stores the Claude Code socket it inherits: a push there would land in the Claude Code session that started it.
 - A resumed Claude Code session keeps its id but binds a new socket. The session-start hook runs `pm show --refresh-inbox`, which points the session's open needs at its current inbox and host; run from a Codex hook, it points them at the session's CODEX_HOME, replacing a socket an earlier pm stored. A session with no inbox clears the one its needs carry.
 
 ### Push
 
-The service's writer makes every write one at a time. After it stores a reply, it pushes the need's undelivered replies (and an unreported merge) into `raised_by.inbox`:
+The service's writer makes every write one at a time. After it stores a reply, it pushes the need's undelivered replies (and an unreported merge) into `raised_by.inbox`; a question takes the route in its row above instead:
 
 | Step | Rule |
 |---|---|
@@ -158,7 +162,7 @@ A reply any command stored (`pm reply add` at a shell) is pushed as soon as the 
 
 ### Sweep
 
-A sweep pushes again what an open need's session has not received: a failed push, or a crash between storing a reply and pushing it. It runs at start, every `MergePoll` (60 s) after the merge watch, and whenever the store moves. A need whose inbox socket is missing costs one `stat`; one whose push found the session not running is skipped until its socket path, inode or mtime changes, or, for a Codex inbox, until the session's rollouts change. It logs only a change.
+A sweep pushes again what an open need's session has not received: a failed push, or a crash between storing a reply and pushing it. It runs at start, every `MergePoll` (60 s) after the merge watch, and whenever the store moves. It also settles open questions: a Codex question whose rollout shows an answer typed after the call closes with it, and a Claude Code question whose socket is gone is dismissed ([Owner questions](owner-questions.md), Closing). A need whose inbox socket is missing costs one `stat`; one whose push found the session not running is skipped until its socket path, inode or mtime changes, or, for a Codex inbox, until the session's rollouts change. It logs only a change.
 
 ### Safety net: `pm show` and the next session
 
@@ -172,17 +176,10 @@ At start and every `MergePoll` (60 s) the service checks each open review's PR: 
 
 ### Questions
 
-A question need is answered once: the first answer, in the session's chat or on the site, closes it, and a close of a closed need fails and changes nothing. The site's answer reaches the session one way per runtime, never by two:
+A question need differs from the other kinds in three ways ([Owner questions](owner-questions.md) holds the detail):
 
-| | Claude Code | Codex |
-|---|---|---|
-| Site answer | `pm hook ask`, the PermissionRequest hook waiting beside the question's dialog, reads the reply (every second), closes the need as answered on the site, and answers the tool with it (`updatedInput.answers`), which closes the dialog. The service never pushes it: a socket push would land as a separate user turn after the dialog was answered another way | The service reads the session's rollouts for a message the owner typed after the call (leaving out what the service relayed). None: it queues the answer's text alone with `codex queue`, marks it delivered and closes the need as answered on the site |
-| Chat answer | the dialog's answer, from the transcript's tool result, closes the need (a rejected dialog dismisses it); the hook then exits, since Claude Code ignores a late hook answer | the first message typed after the call, from the session's rollouts: the service's check before queueing and its sweep close the need with it |
-| A site reply that lost | stays on the need, counted delivered, with a note that the chat answered first | the same |
-| Ended | the service's sweep dismisses a question whose session's socket is gone ("the session that asked has ended"); the hook dismisses one still unanswered when Claude Code stops it (its 24 h timeout, or the session ending) | never dismissed for idleness: an idle Codex TUI looks like an ended session, and `codex queue` delivers when the thread next loads; the owner dismisses a stale card |
-
-- The site's reply reads one line per question, `<question>: <answer>` (a multiple choice's labels joined with `, `); an answer naming an option's label is that option, any other text the owner's own. A reply with no such line (`pm reply add` free text) answers every question whole.
-- Codex's check and its queue are not one step: an answer typed in the second between them reaches the session twice, one extra user turn the agent can see. Closing that window would need control of Codex pm does not have.
+- It is answered once: the first answer, in the session's chat or on the site, closes it, and a close of a closed need fails and changes nothing. A site reply that lost stays on the need, counted delivered, with a note that the chat answered first.
+- Its site answer reaches the session one way per runtime, never by two: through its hook in Claude Code, through `codex queue` after the rollout check in Codex (Routes by request kind and runtime).
 - `pm reply read` words a question's reply as an answer to go on with, naming no `pm decision` or `pm action` command.
 
 ### Duplicates and loss
@@ -193,8 +190,9 @@ A question need is answered once: the first answer, in the session's chat or on 
 | Codex consumes one queued item twice (a race a codex review flagged) | A duplicate turn |
 | Session ended | Stays undelivered; `pm show` flags it for the next session |
 | Codex question answered in chat between the rollout check and `codex queue` | Both answers reach the session: a duplicate turn |
+| Claude Code question answered in its dialog between the hook's last transcript read and its close | The need records the site's answer, counted delivered, while the session took the dialog's; Claude Code ignores the hook's late answer |
 
-Every failure leaves the reply undelivered or delivers it twice; none marks a reply delivered that no session saw.
+Every failure leaves the reply undelivered or delivers it twice; none marks a reply delivered that no session saw, but for the last row, a window of one store write that pm accepts ([Owner questions](owner-questions.md), First answer wins).
 
 ## Alternatives considered
 

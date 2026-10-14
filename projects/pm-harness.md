@@ -615,6 +615,7 @@ Owner in chat, 2026-10-14: a decision is for a project or sprint outcome, not a 
 - [Views and the site](../design/views-and-site.md): the views, the renderer and how the site is served
 - [Shared records store](../design/records-store.md): where records live across branches and worktrees
 - [Owner-request Stop hook](../design/owner-request-hook.md): how an unraised owner request is caught at turn end
+- [Owner questions](../design/owner-questions.md): an agent's ask-tool question raised as a question need, answered in the chat or on the site, first answer wins
 
 ## Outcome
 
