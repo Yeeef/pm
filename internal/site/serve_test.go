@@ -61,3 +61,12 @@ func TestAReplyToASessionWithNoInboxWaitsForIt(t *testing.T) {
 		}
 	}
 }
+
+// A session's question takes a reply as a decision does: its slot becomes the reply form, with the answer's hint.
+func TestAQuestionsSlotBecomesAReplyForm(t *testing.T) {
+	got := FillReplies("<!--pm-reply x-1 question-->", "tok", nil)
+	if !strings.Contains(got, `<input type="hidden" name="id" value="x-1">`) ||
+		!strings.Contains(got, `placeholder="Your answer: the option you choose, or what you want instead"`) {
+		t.Errorf("question slot: %s", got)
+	}
+}

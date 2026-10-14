@@ -82,19 +82,25 @@ func State(it *Item, items *Items) string {
 	return "ready"
 }
 
-// Kind is what a need waits for: an action by the owner (a PR review is one), else a decision.
+// Kind is what a need waits for: an action by the owner (a PR review is one), the answer to a session's question,
+// else a decision.
 func Kind(it *Item) string {
 	if it.Need != nil && (it.Need.Kind == item.Action || it.Need.Kind == item.Review) {
 		return "action"
 	}
+	if it.Need != nil && it.Need.Kind == item.Question {
+		return "question"
+	}
 	return "decision"
 }
 
-// OwnerTasks is the open needs under a project item: what awaits the owner, newest first.
+// OwnerTasks is the open needs under a project item: what awaits the owner, newest first. Under "", it is the open
+// needs with no parent: questions from sessions that held no task.
 func OwnerTasks(items *Items, under string) []*Item {
 	var out []*Item
 	for _, it := range items.All() {
-		if it.Status != item.Closed && it.Type == item.Need && contains(items.Ancestors(it.ID), under) {
+		if it.Status != item.Closed && it.Type == item.Need && (contains(items.Ancestors(it.ID), under) ||
+			under == "" && it.Parent == "") {
 			out = append(out, it)
 		}
 	}
@@ -227,7 +233,8 @@ type unsprintedItem struct {
 }
 
 // unsprinted is each open task or need filed directly under a project epic or with no parent, with its project (nil
-// for none), by id. A need under a project is left out: the await-you sections show it.
+// for none), by id. A need under a project, and a question with no parent, is left out: the await-you sections show
+// it.
 func unsprinted(recs []*Record, items *Items) []unsprintedItem {
 	projects := map[string]*Record{}
 	for _, r := range recs {
@@ -240,7 +247,7 @@ func unsprinted(recs []*Record, items *Items) []unsprintedItem {
 		if it.Status == item.Closed || isEpic(it) {
 			continue
 		}
-		if p := projects[it.Parent]; it.Parent == "" || (p != nil && it.Type != item.Need) {
+		if p := projects[it.Parent]; it.Parent == "" && Kind(it) != "question" || (p != nil && it.Type != item.Need) {
 			out = append(out, unsprintedItem{it, p})
 		}
 	}
@@ -474,6 +481,8 @@ func dayToday(rec *Record) string {
 // ---------------------------------------------------------------- requests
 
 var awaitingKinds = []struct{ kind, anchor, heading, what, empty string }{
+	{"question", "sessions-ask-you", "Sessions ask you", "An agent session asks; your answer steers that session " +
+		"and records no decision.", "No session questions waiting on the owner."},
 	{"decision", "decisions-await-you", "Decisions await you", "The owner chooses; the agent records the answer.",
 		"No decisions waiting on the owner."},
 	{"action", "actions-await-you", "Actions await you", "The owner does something; the agent closes it once it " +
@@ -553,9 +562,10 @@ func reviewContext(review *item.ReviewInfo, items *Items, recs []*Record, frm *R
 		"</li><li>Design pages: " + ds + `</li></ul><p class="m-sec">Focus</p>` + focus, nil
 }
 
-// requestPlace is the sprint and the task a request sits under in the project, from its parent chain: the sprint is
-// the ancestor just below the project, the task the request's own parent when that is below the sprint.
-func requestPlace(it *Item, items *Items, project string) (sprint, task string) {
+// RequestPlace is the sprint and the task a request sits under in the project, from its parent chain: the sprint is
+// the ancestor just below the project, the task the request's own parent when that is below the sprint; "" where
+// absent.
+func RequestPlace(it *Item, items *Items, project string) (sprint, task string) {
 	chain := items.Ancestors(it.ID)
 	var below []string
 	for i, a := range chain {
@@ -574,7 +584,7 @@ func requestPlace(it *Item, items *Items, project string) (sprint, task string) 
 }
 
 func cardWhere(it *Item, proj *Record, items *Items, recs []*Record, frm *Record) string {
-	sid, tid := requestPlace(it, items, proj.Bead())
+	sid, tid := RequestPlace(it, items, proj.Bead())
 	parts := []string{`<a href="` + link(frm, proj.Out()) + `">` + esc(proj.Title()) + "</a>"}
 	if sid != "" {
 		parts = append(parts, itemTitle(items, sid, recs, frm))
@@ -664,9 +674,13 @@ func ownerCard(it *Item, where string, items *Items, md func(string) (string, er
 		return "", err
 	}
 	how := "Reply below with the evidence once done; the agent checks it and closes this."
-	if Kind(it) == "decision" {
+	switch Kind(it) {
+	case "decision":
 		how = "Reply below, or answer with <code>pm reply add " + esc(it.ID) + "</code>; the agent that asked " +
 			"records your answer."
+	case "question":
+		how = "Reply below, or answer with <code>pm reply add " + esc(it.ID) + "</code>; your answer goes to the " +
+			"session that asked."
 	}
 	return `<div class="card need" id="need-` + esc(it.ID) + `"><h4>` + pill(State(it, items)) + esc(it.Title) +
 		`</h4><p class="k">` + where + " · " + esc(it.ID) + "</p>" + desc + `<p class="k">` + how + "</p>" + thread(it) +
@@ -693,7 +707,7 @@ func awaiting(cards []card, prompt bool) string {
 		}
 		quote := ""
 		if prompt {
-			which := "decision needs"
+			which := k.kind + " needs"
 			if k.kind == "action" {
 				which = "action and PR review needs"
 			}
@@ -1076,6 +1090,13 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 			return "", err
 		}
 		cards = append(cards, cs...)
+	}
+	for _, it := range OwnerTasks(items, "") { // a question from a session that holds no task sits under no project
+		h, err := ownerCard(it, "asked outside any task", items, md, recs, nil)
+		if err != nil {
+			return "", err
+		}
+		cards = append(cards, card{it, h})
 	}
 	out := []string{awaiting(cards, false)}
 

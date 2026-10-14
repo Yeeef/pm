@@ -28,6 +28,8 @@ internal/cli       TestSyncCommand                                              
 internal/cli       TestShowIDPrintsTheItemItsHolderBlockersChildrenNeedsAndComments                   os  newFixture: Dolt host on a unix socket
 internal/cli       TestTaskAddParentAddsASubTaskUnderAnOpenTask                                       os  newFixture: Dolt host on a unix socket
 internal/cli       TestWrapFillPutsALongWordOnItsOwnLine                                              any text wrapping
+internal/cli       TestAQuestionIsClosedOnlyByNeedDismiss                                             os  git init and commit of a temp records store; refusals on a read-only fake store
+internal/cli       TestShowListsQuestionsAndThoseAskedOutsideAnyTask                                  any pm show text built from in-memory data
 internal/install   TestCodexTrustNamesPmsHooksCodexSkips                                              os  CodexTrust runs codex under Setpgid with a kill(-pgid) cancel
 internal/install   TestCodexTrustSaysWhyItWasNotCheckedAndIsBounded                                   os  the timeout kills a sleeping codex process group
 internal/install   TestCodexTrustAgainstRealCodex                                                     os  real codex binary; EvalSymlinks realpath used as the trusted project key
@@ -91,6 +93,7 @@ internal/service   TestGCRunsWhenDueAndRecordsTheSizes                          
 internal/service   TestSweepsCoalesceAndNeverTakeAReplysPlace                                         any channel logic
 internal/service   TestSinceIsTheRepliesFromTheWaitsSecond                                            any time filtering
 internal/service   TestAPushToASessionWithNoInboxWaitsForItWhileItLives                               any SessionLive stubbed, no inbox
+internal/service   TestAReplyToAQuestionTellsTheSessionToGoOnWithIt                                   any delivery text built in memory
 internal/session   TestSessionOfIsTheSetOneOrTheInnermostRuntimesWhenBothAre                          any injected innermost
 internal/session   TestInnermostRuntimeIsTheNearestClaudeCodeOrCodexAncestor                          any injected procInfo
 internal/session   TestReadProcReadsAProcesssParentAndArgv0                                           os  /proc/<pid>/stat on Linux, `ps -o ppid=,comm=` on macOS
@@ -107,6 +110,7 @@ internal/site      TestCheckRefusesEachBrokenRecord                             
 internal/site      TestCodeChangedLeavesOutTheMergesOfSprintsThatUpdatedOrWaivedThePage               any in-memory commits and records
 internal/site      TestFillRepliesAndStatus                                                           any HTML template fill compared with testdata
 internal/site      TestAReplyToASessionWithNoInboxWaitsForIt                                          any HTML text
+internal/site      TestAQuestionsSlotBecomesAReplyForm                                                any HTML text replacement in memory
 internal/sync      TestARunRecordsEachStepAndFlagsAFailure                                            os  the push lock is syscall.Flock LOCK_NB; the ASecondRunSkipsWhileOneHoldsTheLock subtest depends on it
 internal/sync      TestANeverSuccessfulPushIsOverdueFromTheInstall                                    any JSON state file and an injected clock
 internal/sync      TestPushRecordsPushesRebasesAndReports                                             os  git clone/push/rebase under a store flock, with process-group kill in Run

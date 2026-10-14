@@ -722,5 +722,169 @@
    "delivered": 0,
    "review": null
   }
+ },
+ {
+  "id": "demo.1.2.1",
+  "type": "need",
+  "title": "Session s-ask-12 asks: Ship it today?",
+  "description": "**Ship**: Ship it today?\n- Yes: merge now\n- No: wait for CI\n\n**Checks**: Which checks? (choose one or more)\n- lint\n- go: the Go tests",
+  "status": "open",
+  "resolution": null,
+  "close_reason": null,
+  "number": null,
+  "parent": "demo.1.2",
+  "blocked_by": [],
+  "labels": [],
+  "holder": null,
+  "started_at": null,
+  "created_at": "2026-10-03T13:00:00Z",
+  "updated_at": null,
+  "closed_at": null,
+  "closed_by": null,
+  "comments": [
+   {
+    "id": "c-ask-1",
+    "kind": "reply",
+    "author": "owner",
+    "text": "Yes; lint only",
+    "created_at": "2026-10-03T13:05:00Z"
+   }
+  ],
+  "need": {
+   "kind": "question",
+   "raised_by": {
+    "session": "s-ask-1234abcd",
+    "inbox": null,
+    "host": null
+   },
+   "delivered": 0,
+   "review": null,
+   "ask": {
+    "call": "toolu_01",
+    "questions": [
+     {
+      "text": "Ship it today?",
+      "header": "Ship",
+      "multi": false,
+      "options": [
+       {
+        "label": "Yes",
+        "detail": "merge now"
+       },
+       {
+        "label": "No",
+        "detail": "wait for CI"
+       }
+      ]
+     },
+     {
+      "text": "Which checks?",
+      "header": "Checks",
+      "multi": true,
+      "options": [
+       {
+        "label": "lint",
+        "detail": ""
+       },
+       {
+        "label": "go",
+        "detail": "the Go tests"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "demo.1.12",
+  "type": "need",
+  "title": "Session s-ask-12 asks: Use tabs?",
+  "description": "Use tabs?\n- Yes\n- No",
+  "status": "closed",
+  "resolution": "answered",
+  "close_reason": "answered on the site",
+  "number": null,
+  "parent": "demo.1",
+  "blocked_by": [],
+  "labels": [],
+  "holder": null,
+  "started_at": null,
+  "created_at": "2026-10-02T13:00:00Z",
+  "updated_at": null,
+  "closed_at": "2026-10-02T13:01:00Z",
+  "closed_by": "s-ask-1234abcd",
+  "comments": [],
+  "need": {
+   "kind": "question",
+   "raised_by": {
+    "session": "s-ask-1234abcd",
+    "inbox": null,
+    "host": null
+   },
+   "delivered": 0,
+   "review": null,
+   "ask": {
+    "call": "toolu_02",
+    "questions": [
+     {
+      "text": "Use tabs?",
+      "header": "",
+      "multi": false,
+      "options": [
+       {
+        "label": "Yes",
+        "detail": ""
+       },
+       {
+        "label": "No",
+        "detail": ""
+       }
+      ]
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": "ask1",
+  "type": "need",
+  "title": "Session s-ask-12 asks: Which port does the proxy expect?",
+  "description": "Which port does the proxy expect?",
+  "status": "open",
+  "resolution": null,
+  "close_reason": null,
+  "number": null,
+  "parent": "",
+  "blocked_by": [],
+  "labels": [],
+  "holder": null,
+  "started_at": null,
+  "created_at": "2026-10-03T14:00:00Z",
+  "updated_at": null,
+  "closed_at": null,
+  "closed_by": null,
+  "comments": [],
+  "need": {
+   "kind": "question",
+   "raised_by": {
+    "session": "s-ask-1234abcd",
+    "inbox": null,
+    "host": null
+   },
+   "delivered": 0,
+   "review": null,
+   "ask": {
+    "call": "call_7",
+    "questions": [
+     {
+      "text": "Which port does the proxy expect?",
+      "header": "",
+      "multi": false,
+      "options": []
+     }
+    ]
+   }
+  }
  }
 ]

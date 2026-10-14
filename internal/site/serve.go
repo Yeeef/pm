@@ -78,9 +78,10 @@ const replyForm = `<form class="reply" method="post" action="/reply" data-text="
 	`placeholder="%[3]s">%[4]s</textarea><button type="submit">Send reply</button></form>`
 
 var replyHints = map[string]string{"decision": "Your answer: the option you choose, or what you want instead",
-	"action": "The evidence that it is done: a command's output, a link"}
+	"action":   "The evidence that it is done: a command's output, a link",
+	"question": "Your answer: the option you choose, or what you want instead"}
 
-var slotRE = regexp.MustCompile(`<!--pm-reply (\S+) (decision|action)-->`)
+var slotRE = regexp.MustCompile(`<!--pm-reply (\S+) (decision|action|question)-->`)
 
 // pyEscape is Python's html.escape: quotes too, the single one as &#x27;.
 var pyEscape = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&#x27;").Replace

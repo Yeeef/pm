@@ -28,10 +28,13 @@ var (
 	GHTimeout   = 60 * time.Second // a gh or git call of the merge watch, before it counts as not merged yet
 )
 
-// kindWord is what a need waits for as its messages name it: an action (a review is one) or a decision.
+// kindWord is what a need waits for as its messages name it: an action (a review is one), a question or a decision.
 func kindWord(n *work.Item) string {
 	if n.Need != nil && (n.Need.Kind == work.Action || n.Need.Kind == work.Review) {
 		return "action"
+	}
+	if n.Need != nil && n.Need.Kind == work.Question {
+		return "question"
 	}
 	return "decision"
 }
@@ -113,6 +116,8 @@ func (t Texts) replyText(n *work.Item, replies []work.Comment) string {
 	switch {
 	case n.Status == work.Closed:
 		next = "it is closed already; check the reply is handled"
+	case k == "question":
+		next = "it answers the question you asked; go on with it (an answer to a question records no decision)"
 	case k == "decision":
 		next = fmt.Sprintf("record the answer: pm decision add --need %s --level … --decision '<the answer>' "+
 			"--reason '<why>' if it sets a rule, else pm decision close %s --reason \"<why it sets no rule>\" "+

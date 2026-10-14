@@ -71,6 +71,9 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 	_, textGiven := given(p, "text")
 	var desc string
 	switch need.Need.Kind {
+	case work.Question:
+		return "", refuse("%s is a session's question, whose card pm builds from the ask tool's call; ask again with the "+
+			"ask tool and dismiss this one with pm need dismiss %s --reason \"…\"", id, id)
 	case work.Review:
 		return "", refuse("%s is a PR review, whose card pm builds from its PR, sprints and focus; raise the review "+
 			"again with %s and dismiss this one with pm need dismiss %s --reason \"…\"", id, reviewForm, id)
@@ -111,7 +114,7 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 
 // ---------------------------------------------------------------- answering needs
 
-// humanIssue is the need id, refused unless it waits for want (decision or action).
+// humanIssue is the need id, refused unless it waits for want (decision or action); a question never does.
 func (r *repo) humanIssue(id, want string) (*work.Item, error) {
 	need := r.item(id)
 	if need == nil {
@@ -122,6 +125,10 @@ func (r *repo) humanIssue(id, want string) (*work.Item, error) {
 			"without --need", id)
 	}
 	if k := site.Kind(need); k != want {
+		if k == "question" {
+			return nil, refuse("%s is a session's question, whose answer goes to the session that asked and records no "+
+				"decision; close it with pm need dismiss %s --reason \"…\"", id, id)
+		}
 		if k == "action" {
 			return nil, refuse("%s is an action; close it with pm action done %s", id, id)
 		}

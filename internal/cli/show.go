@@ -175,6 +175,7 @@ type showData struct {
 	today    string
 	summary  *records.Summary
 	feedback *showFeedback // nil before the repo's pm feedback doc has an entry
+	asks     []string      // a line for each open question with no parent: from a session that held no task
 }
 
 type showProject struct {
@@ -306,7 +307,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 		sort.SliceStable(owner, func(i, j int) bool { return owner[i].ID < owner[j].ID })
 		var needs []showNeed
 		for _, n := range owner {
-			sid, tid := showRequestPlace(n, r.x, epic)
+			sid, tid := site.RequestPlace(n, r.x, epic)
 			session := ""
 			if n.Need != nil && n.Need.RaisedBy != nil {
 				session = n.Need.RaisedBy.Session
@@ -317,6 +318,13 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 		data.projects = append(data.projects, &showProject{name: p.Name(), bead: epic, title: p.Title(),
 			url: url + "/" + p.Out(), goal: firstSentence(records.SectionText(p.Body, "Goal"), 110), sprints: sprints,
 			needs: needs, decisions: last})
+	}
+	for _, n := range site.OwnerTasks(r.x, "") {
+		line := "    question " + n.ID + "  " + n.Title + "  (session " + needRaisedBy(n).Session + ")"
+		if service.ReplyWaiting(n) {
+			line += fmt.Sprintf(showReplyHint, n.ID)
+		}
+		data.asks = append(data.asks, line)
 	}
 	if doc := feedbackDoc(r.recs); doc != nil {
 		data.feedback = &showFeedback{entries: len(feedbackEntry.FindAllStringIndex(doc.Body, -1)), url: url + "/" + doc.Out()}
@@ -335,26 +343,6 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 	}
 	data.summary = summaries[data.today]
 	return data, nil
-}
-
-// showRequestPlace is the sprint a need sits under in the project (the ancestor just below
-// it) and its task (its own parent when that is below the sprint); "" where absent.
-func showRequestPlace(it *work.Item, items *records.Items, project string) (sprint, task string) {
-	chain := items.Ancestors(it.ID)
-	var below []string
-	for i, a := range chain {
-		if a == project {
-			below = chain[:i]
-			break
-		}
-	}
-	if len(below) > 0 {
-		sprint = below[len(below)-1]
-	}
-	if len(below) > 1 {
-		task = below[0]
-	}
-	return sprint, task
 }
 
 // ---------------------------------------------------------------- text
@@ -425,6 +413,9 @@ func showText(d *showData) string {
 	out = append(out, "site: "+d.site+" (the pm service); a record's page is <site>/<its path under records/, without .md>"+
 		".html; pm record link <target> prints one")
 	out = append(out, showFeedbackLine(d.feedback))
+	if len(d.asks) > 0 {
+		out = append(append(out, "sessions ask you, outside any task:"), d.asks...)
+	}
 	out = append(out, "projects: pm show --project NAME prints one's sprints, tasks, owner requests and last decisions")
 	for _, p := range d.projects {
 		e := p.bead
@@ -458,7 +449,7 @@ func showProjectText(p *showProject, feedback *showFeedback) string {
 	e := p.bead
 	names := showSprintNames(p)
 	out := []string{p.name + "  " + e + "  " + p.goal}
-	for _, k := range []string{"decision", "action"} {
+	for _, k := range []string{"decision", "action", "question"} {
 		var needs []showNeed
 		for _, n := range p.needs {
 			if n.kind == k {
