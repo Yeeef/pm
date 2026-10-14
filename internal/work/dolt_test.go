@@ -83,7 +83,7 @@ func get(t *testing.T, d *Dolt, id string) Item {
 	return must(d.Get(id))[0]
 }
 
-// TestDeliveredIsNeverLowered: two deliverers (the service's push, pm reply wait, pm hook inbox) that read different
+// TestDeliveredIsNeverLowered: two deliverers (the service's push and pm reply read) that read different
 // reply counts mark in either order; the count keeps the higher.
 func TestDeliveredIsNeverLowered(t *testing.T) {
 	d, _ := newStore(t)

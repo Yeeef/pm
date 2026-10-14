@@ -420,53 +420,6 @@ def test_a_subagents_uncommitted_record_blocks_alike_in_claude_code_and_codex(re
     assert parent_stop.returncode == 0 and parent_stop.stdout == "", parent_stop.stderr
 
 
-INBOX = [*PM, "hook", "inbox"]
-
-
-def need_with_reply(repo, nid: str, session: str) -> None:
-    """An open decision need `session` raised, holding a site reply not delivered yet."""
-    at = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
-    reply = {"id": f"6f1c0e2a-1b2c-4d3e-8f40-5a6b7c8d9e0{nid[-1]}", "issue_id": nid, "author": "owner (site reply)",
-             "text": f"Small, until tables.\n\n<!-- pm-reply 0b6c7c1e-2d3f-4a5b-9c6d-7e8f9a0b1c2{nid[-1]} -->",
-             "created_at": "2026-10-03T12:00:00Z"}
-    repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task", "parent": "repo-demo.1",
-                    "labels": ["human"], "metadata": {"session": session}, "comments": [reply], **at})
-
-
-def test_inbox_hands_a_reply_over_alike_in_claude_code_and_codex(repo, tmp_path):
-    """A reply to a need of this session that no push delivered (Codex has none) goes in as context beside the next
-    prompt, the same from either runtime's input, and is marked delivered, so it goes in once."""
-    need_with_reply(repo, "repo-demo.1.3", "sess-claude")
-    need_with_reply(repo, "repo-demo.1.4", "sess-codex")
-    got = {}
-    for runtime, session, nid in (("claude", "sess-claude", "repo-demo.1.3"), ("codex", "sess-codex", "repo-demo.1.4")):
-        payload = hook_payload(runtime, "UserPromptSubmit", session=session, cwd=str(repo.root),
-                               transcript=str(tmp_path / "t"), prompt="go on")
-        res = run(INBOX, payload, repo.env, repo.root)
-        assert res.returncode == 0 and res.stderr == "", res.stderr
-        got[runtime] = res.stdout.replace(nid, "<id>")
-        assert repo.items()[nid]["need"]["delivered"] == 1
-        again = run(INBOX, payload, repo.env, repo.root)
-        assert again.returncode == 0 and again.stdout == "", again.stdout
-    assert got["claude"] == got["codex"]
-    text = json.loads(got["codex"])["hookSpecificOutput"]["additionalContext"]
-    assert text.startswith("The owner replied to requests this session raised:\n\n"
-                           "pm: owner reply to decision <id> (Parser?), relayed from the site:")
-    assert "Small, until tables." in text
-
-
-def test_inbox_hands_nothing_over_at_a_stop(repo, tmp_path):
-    """A block at a stop would end the turn that acts on the reply with stop_hook_active, which lets the stop checks
-    through; at a stop the hook does nothing, and the reply stays undelivered."""
-    need_with_reply(repo, "repo-demo.1.3", ME)
-    for runtime in ("claude", "codex"):
-        payload = hook_payload(runtime, "Stop", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"),
-                               reply="Done.")
-        res = run(INBOX, payload, repo.env, repo.root)
-        assert res.returncode == 0 and res.stdout == "", res.stderr
-    assert repo.items()["repo-demo.1.3"]["need"]["delivered"] == 0
-
-
 @pytest.mark.integration
 def test_session_start_of_a_codex_session_started_from_claude_code_takes_no_claude_inbox(repo, tmp_path):
     """Codex's hooks get no CODEX_* variables and inherit the Claude Code session's that started Codex: session start

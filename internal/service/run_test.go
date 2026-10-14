@@ -819,29 +819,8 @@ func TestSweepsCoalesceAndNeverTakeAReplysPlace(t *testing.T) {
 	}
 }
 
-// TestSinceIsTheRepliesFromTheWaitsSecond: pm reply wait's new replies are those stamped in or after the second the
-// wait began (the store stamps to the second), delivered or not; an earlier one ("not yet") is none.
-func TestSinceIsTheRepliesFromTheWaitsSecond(t *testing.T) {
-	n := need("p-1.2.1", work.Decision, "")
-	n.Comments = []work.Comment{
-		{ID: "c1", Kind: work.Reply, Author: ReplyAuthor, Text: "not yet", CreatedAt: at},
-		{ID: "c2", Kind: work.Reply, Author: ReplyAuthor, Text: "go ahead", CreatedAt: at.Add(time.Minute)}}
-	n.Need.Delivered = 2
-	var texts Texts
-	for since, want := range map[time.Time]string{
-		at.Add(time.Hour):                          "",
-		at.Add(30 * time.Second):                   "go ahead",
-		at.Add(time.Minute + 400*time.Millisecond): "go ahead", // stamped in the wait's second
-	} {
-		got := texts.Since(&n, since)
-		if (want == "") != (got == "") || !strings.Contains(got, want) || strings.Contains(got, "not yet") {
-			t.Errorf("since %s: %q", since.Format(time.RFC3339Nano), got)
-		}
-	}
-}
-
 // TestAPushToASessionWithNoInboxWaitsForItWhileItLives: a need whose session stores no inbox (a Codex session's) gets
-// no push; while the session's transcript is live the reply waits for it ("no push"), once it has ended, or when no
+// no push; while the session's transcript is live the reply is held for it ("no push"), once it has ended, or when no
 // session asked, the next session sees it ("not running").
 func TestAPushToASessionWithNoInboxWaitsForItWhileItLives(t *testing.T) {
 	saved := SessionLive
@@ -849,8 +828,7 @@ func TestAPushToASessionWithNoInboxWaitsForItWhileItLives(t *testing.T) {
 	n := need("p-1.2.1", work.Decision, "")
 	n.Need.RaisedBy = &work.RaisedBy{Session: "cx"}
 	for live, want := range map[bool]string{
-		true: "no push: the session that asked gets no push; it sees the reply at its next prompt, or now if it " +
-			"waits with pm reply wait",
+		true:  "no push: the session that asked gets no push; pm show flags the reply and pm reply read prints it",
 		false: "not running: the session that asked has ended"} {
 		SessionLive = func(s string) bool { return s == "cx" && live }
 		if got := PushInbox(&n, "a reply"); got != want {

@@ -146,23 +146,21 @@ func needMarkdown(p *Parsed) (string, error) {
 }
 
 // deliveryHint is how the raising agent hears the answer: the pm service pushes it into the session's inbox when there
-// is one (Claude Code's); else pm hook inbox hands it over at the session's next prompt. Either way pm reply wait
-// waits for it within the turn.
+// is one (a Claude Code socket, or codex queue into a Codex session); else, and once the session has ended, pm show
+// flags it and pm reply read prints it.
 func deliveryHint(id string) string {
 	inbox := sessionInbox()
 	if _, codex := session.CodexHomeOf(inbox); codex {
 		return fmt.Sprintf("the pm service queues the owner's reply into this Codex session (codex queue), which "+
-			"starts a turn with it when idle; to wait for it within this turn, run pm reply wait %s; if the session has "+
-			"ended by then, pm show flags it for the next one, which reads it with pm reply read %s", id, id)
+			"starts a turn with it when idle; if the session has ended by then, pm show flags it for the next one, "+
+			"which reads it with pm reply read %s", id)
 	}
 	if inbox != "" {
-		return fmt.Sprintf("the pm service pushes the owner's reply into this session; to wait for it within this turn, "+
-			"run pm reply wait %s; if the session has ended by then, pm show flags it for the next one, which reads it "+
-			"with pm reply read %s", id, id)
+		return fmt.Sprintf("the pm service pushes the owner's reply into this session; if the session has ended by "+
+			"then, pm show flags it for the next one, which reads it with pm reply read %s", id)
 	}
-	return fmt.Sprintf("this session gets no push of the owner's reply (no inbox pm can push to): wait for it within "+
-		"this turn with pm reply wait %s (in the background where the runtime allows), else it reaches the session at "+
-		"its next prompt, and pm reply read %s prints it", id, id)
+	return fmt.Sprintf("this session gets no push of the owner's reply (no inbox pm can push to): pm show flags it "+
+		"once it is posted, and pm reply read %s prints it", id)
 }
 
 // raisedBy is the session that raises a need and its inbox, or nil outside a known session. Never the inbox's token:

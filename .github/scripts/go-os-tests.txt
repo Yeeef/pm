@@ -37,6 +37,7 @@ internal/install   TestPiecesEqualTheGoldenResults                              
 internal/install   TestEachRuntimesJudgeRunsOnThatRuntime                                             any hook-entry text
 internal/install   TestClaudeAndCodexRunTheSameHooks                                                  any hook-entry text
 internal/install   TestAnEarlierPmsCodexHooksAreRewritten                                             any JSON piece Drift/Rewrite on plain files
+internal/install   TestAnEarlierPmsInboxHookIsTakenOut                                                any JSON piece Present/Plan/Rewrite/Drift on plain files
 internal/install   TestDumpJSONKeepsASettingsFileByteForByte                                          any JSON serialization
 internal/install   TestTOMLStringReadsBack                                                            any TOML string quoting
 internal/install   TestPrunePinsRemovesTheBinaryOfEachPinNoCheckoutPinsAndKeepsItsSha256              os  XDG_DATA_HOME pin dirs plus git worktree paths with newlines
@@ -76,7 +77,6 @@ internal/service   TestThePublicHostIsRefusedWhenTheTeamKeysCannotBeFetched     
 internal/service   TestWithoutTheAccessKeysEveryPublicRequestIsRefusedNamingThem                      any access handler on httptest
 internal/service   TestLocalhostIsServedAsBeforeAndAnEdgeForwardedRequestNeedsTheTokenWhateverItsHost any access handler on httptest
 internal/service   TestTheServiceChecksAccessOnEveryRequestAndARefusalNamesNoStore                    os  serve(): service.Run with TCP listen and flock
-internal/service   TestInboxMarksWithinOneBudget                                                      any MarkWithin on a fake store with an injected clock
 internal/service   TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers                               os  PlatformKind unit file, UnitBytes for launchd/systemd, TCP port held
 internal/service   TestServesPagesStyleAndVersionWithTheStoreAndVersionHeaders                        os  serve(): service.Run with TCP listen and flock
 internal/service   TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt                         os  serve() plus os.Symlink escapes refused by os.Root
@@ -93,7 +93,6 @@ internal/service   TestRunReturnsOnlyOnceTheGoroutinesItStartedEnded            
 internal/service   TestSyncStepsSyncTheStoreSummarizeAndPushTheRecords                                any fake work; the records step's result is not asserted
 internal/service   TestGCRunsWhenDueAndRecordsTheSizes                                                any logical file sizes (dirSize) and a JSON state file
 internal/service   TestSweepsCoalesceAndNeverTakeAReplysPlace                                         any channel logic
-internal/service   TestSinceIsTheRepliesFromTheWaitsSecond                                            any time filtering
 internal/service   TestAPushToASessionWithNoInboxWaitsForItWhileItLives                               any SessionLive stubbed, no inbox
 internal/service   TestAReplyToAQuestionTellsTheSessionToGoOnWithIt                                   any delivery text built in memory
 internal/service   TestTheServiceClosesACodexQuestionBeforeItQueuesTheSitesAnswer                     os  codex queue exec under Setpgid/kill(-pgid), a /bin/sh fake codex

@@ -201,16 +201,13 @@ func claudeHooks() entries {
 		return out
 	}
 	return entries{
-		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop"},
+		events: []string{"SessionStart", "SubagentStart", "PermissionRequest", "PostToolUse", "Stop"},
 		groups: map[string]func() *object{
 			"SessionStart": func() *object {
 				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", 30)), "matcher", "")
 			},
 			"SubagentStart": func() *object {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", 15)), "matcher", "")
-			},
-			"UserPromptSubmit": func() *object {
-				return obj("hooks", []any{h("pm hook inbox || exit 1", 10)})
 			},
 			"PermissionRequest": func() *object { // beside the question's dialog, up to a day for the owner's answer
 				return obj("hooks", []any{h("pm hook ask --runtime claude || exit 1", 86400)}, "matcher", "AskUserQuestion")
@@ -256,8 +253,7 @@ func codexHooks() entries {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Loading pm's git rule for agents", 15)))
 			},
 			"UserPromptSubmit": func() *object {
-				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10),
-					h("pm hook ask --runtime codex || exit 1", "Closing the questions this prompt answers", 10)})
+				return obj("hooks", []any{h("pm hook ask --runtime codex || exit 1", "Closing the questions this prompt answers", 10)})
 			},
 			"PostToolUse": func() *object {
 				return obj("hooks", []any{h("pm hook ask --runtime codex || exit 1", "Raising the question for the site", 30)},
@@ -332,28 +328,43 @@ func groupHooks(g any) []any {
 	return hs
 }
 
+// hooksPresent is whether the file runs each of pm's hooks at its event and no pm hook this version does not write
+// there, such as an earlier pm's pm hook inbox: pm init writes the piece otherwise, which takes that one out.
 func hooksPresent(rel string, want entries) func(*string) (bool, error) {
 	return func(text *string) (bool, error) {
 		f, err := loadHooks(rel, text, false)
 		if err != nil {
 			return false, err
 		}
+		wanted := map[string]map[string]bool{}
 		for _, event := range want.events {
-			have := map[string]bool{}
-			if f.events != nil {
-				gs, _ := f.events.Get(event).([]any)
+			wanted[event] = map[string]bool{}
+			for _, h := range groupHooks(want.groups[event]()) {
+				wanted[event][h.(*object).Get("command").(string)] = true //nolint:errcheck // pm's own hook, built with a command
+			}
+		}
+		have := map[string]map[string]bool{}
+		if f.events != nil {
+			for _, event := range f.events.Keys {
+				have[event] = map[string]bool{}
+				gs := f.events.Get(event).([]any) //nolint:errcheck // loadHooks checked that it is a list
 				for _, g := range gs {
 					for _, h := range groupHooks(g) {
-						if o, ok := h.(*object); ok {
-							if c, ok := o.Get("command").(string); ok {
-								have[c] = true
-							}
+						if !isPMHook(h) {
+							continue
 						}
+						c := h.(*object).Get("command").(string) //nolint:errcheck // isPMHook checked both
+						if !wanted[event][c] {
+							return false, nil
+						}
+						have[event][c] = true
 					}
 				}
 			}
-			for _, h := range groupHooks(want.groups[event]()) {
-				if !have[h.(*object).Get("command").(string)] { //nolint:errcheck // pm's own hook, built with a command
+		}
+		for event, cs := range wanted {
+			for c := range cs {
+				if !have[event][c] {
 					return false, nil
 				}
 			}
@@ -392,7 +403,8 @@ func dropHooks(gs []any, is func(any) bool) []any {
 }
 
 // hooksApply is the settings with pm's hooks as this version writes them: pm's old hooks removed (a group left empty
-// goes too), then pm's group appended to each event. Everything else keeps its place.
+// goes too, and an event left empty that this version writes no hook at), then pm's group appended to each event.
+// Everything else keeps its place.
 func hooksApply(rel string, want entries) func(*string) (string, error) {
 	return func(text *string) (string, error) {
 		f, err := loadHooks(rel, text, true)
@@ -404,8 +416,14 @@ func hooksApply(rel string, want entries) func(*string) (string, error) {
 			events = newObject()
 			f.data.Set("hooks", events)
 		}
-		for _, e := range events.Keys {
-			events.Set(e, dropPMHooks(events.Get(e).([]any)))
+		for _, e := range append([]string(nil), events.Keys...) {
+			gs := events.Get(e).([]any) //nolint:errcheck // loadHooks checked that it is a list
+			kept := dropPMHooks(gs)
+			if _, wanted := want.groups[e]; !wanted && len(gs) > 0 && len(kept) == 0 {
+				events.Delete(e) // an event only an earlier pm's hook ran at
+			} else {
+				events.Set(e, kept)
+			}
 		}
 		for _, e := range want.events {
 			gs, _ := events.Get(e).([]any)

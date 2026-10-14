@@ -257,16 +257,15 @@ Close an open need as dismissed, with no answer: a [TEST] need, a replaced revie
 options:
       --reason string   why it is dismissed (required)
 ===== pm reply --help
-usage: pm reply [-h] {read,wait,add} ...
+usage: pm reply [-h] {read,add} ...
 
 positional arguments:
-  {read,wait,add}
-    read           print the owner's replies and reviews' merges that did not reach your session
-    wait           wait for the owner's reply to a need, then print it as pm reply read does
-    add            the owner's answer to an open need, at a shell, as a reply on the site writes; the answer with --text
+  {read,add}
+    read      print the owner's replies and reviews' merges that did not reach your session
+    add       the owner's answer to an open need, at a shell, as a reply on the site writes; the answer with --text
 
 options:
-  -h, --help       show this help message and exit
+  -h, --help  show this help message and exit
 ===== pm reply read --help
 usage: pm reply read [-h] [ID ...]
 
@@ -277,17 +276,6 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
-===== pm reply wait --help
-usage: pm reply wait [-h] [--timeout DURATION] id
-
-Block until the open need has a site reply (or its review a merged PR) that has not reached a session, then print it with what to do next and mark it delivered, as pm reply read does. For a session the pm service cannot push replies into (Codex, or no inbox): run it after raising the need, in the background where the runtime allows. Refuses an id that is not a need, a need that closes without a reply, and, at --timeout, says the need is still open.
-
-positional arguments:
-  id                  a decision need, action or review
-
-options:
-  -h, --help          show this help message and exit
-  --timeout DURATION  how long to wait, as 30m, 90s or 2h (default 30m)
 ===== pm reply add --help
 usage: pm reply add ID (--text TEXT | --text-file FILE)
 
@@ -810,14 +798,13 @@ options:
   --hook-json  read the SessionStart or SubagentStart input on stdin and print the hook's JSON envelope, as Claude Code and Codex read it
 ===== pm hook --help
 usage: pm hook [-h]
-               {stop,owner-request,ask,inbox,git-post-checkout,git-pre-commit} ...
+               {stop,owner-request,ask,git-post-checkout,git-pre-commit} ...
 
 positional arguments:
-  {stop,owner-request,ask,inbox,git-post-checkout,git-pre-commit}
+  {stop,owner-request,ask,git-post-checkout,git-pre-commit}
     stop                Stop: block once while records this session's tool calls name are uncommitted in the store, leaving out a record that only a still-running subagent's prompt names
     owner-request       Stop: block once while the reply asks the owner for something no open need or action of this session covers
     ask                 PermissionRequest and PostToolUse of AskUserQuestion (Claude Code), PostToolUse of request_user_input_async and UserPromptSubmit (Codex): raise the session's ask-tool question as a question need the owner can answer on the site too, and close it with the first answer
-    inbox               UserPromptSubmit: hand this session the owner's replies that did not reach it (Codex has no push) as context beside the prompt, then mark them delivered
     git-post-checkout   retired: does nothing; an earlier pm's section in .pm/hooks/post-checkout runs it until pm init unsets core.hooksPath or pm upgrade removes that section; session start sets each new worktree up
     git-pre-commit      retired: does nothing; an earlier pm's section in .pm/hooks/pre-commit runs it until pm upgrade removes that section
 
@@ -846,11 +833,6 @@ options:
   -h, --help            show this help message and exit
   --runtime {claude,codex}
                         the session's runtime; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json
-===== pm hook inbox --help
-usage: pm hook inbox [-h]
-
-options:
-  -h, --help  show this help message and exit
 ===== pm hook git-post-checkout --help
 usage: pm hook git-post-checkout [-h] [git_args ...]
 

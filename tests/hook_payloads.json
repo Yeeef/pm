@@ -1,5 +1,5 @@
 {
-  "about": "Hook inputs as Claude Code 2.1.296 and Codex 0.154.0 sent them (captured 2026-10-11), every key kept; the values pm reads are placeholders a test fills in: {session}, {cwd}, {transcript}, {reply}, {agent_transcript}, {prompt}, {tool_input}. Codex's SubagentStop was not captured: it is built from Codex 0.154's subagent-stop.command.input schema, every required key, with values like its Stop's. Claude Code's UserPromptSubmit was not captured either: it is built from the keys every Claude Code hook input has, as its Stop sent them, and prompt. Claude Code's PermissionRequest and PostToolUse were captured from Claude Code 2.1.296 on 2026-10-14, for AskUserQuestion; {prompt_id} is the prompt's id, which keys the call, and PostToolUse's tool_input and tool_response are one object, {tool_response}: the questions, the answers by question text, and annotations. Codex's PostToolUse was captured from Codex 0.162.1 on 2026-10-14 in its TUI, for request_user_input_async; {tool} and {call} are its tool_name and tool_use_id.",
+  "about": "Hook inputs as Claude Code 2.1.296 and Codex 0.154.0 sent them (captured 2026-10-11), every key kept; the values pm reads are placeholders a test fills in: {session}, {cwd}, {transcript}, {reply}, {agent_transcript}, {prompt}, {tool_input}. Codex's SubagentStop was not captured: it is built from Codex 0.154's subagent-stop.command.input schema, every required key, with values like its Stop's. Claude Code's PermissionRequest and PostToolUse were captured from Claude Code 2.1.296 on 2026-10-14, for AskUserQuestion; {prompt_id} is the prompt's id, which keys the call, and PostToolUse's tool_input and tool_response are one object, {tool_response}: the questions, the answers by question text, and annotations. Codex's PostToolUse was captured from Codex 0.162.1 on 2026-10-14 in its TUI, for request_user_input_async; {tool} and {call} are its tool_name and tool_use_id.",
   "claude": {
     "SessionStart": {
       "session_id": "{session}",
@@ -16,15 +16,6 @@
       "agent_id": "a97659d71887d8be2",
       "agent_type": "general-purpose",
       "hook_event_name": "SubagentStart"
-    },
-    "UserPromptSubmit": {
-      "session_id": "{session}",
-      "transcript_path": "{transcript}",
-      "cwd": "{cwd}",
-      "prompt_id": "c9802226-34a9-42b4-ae43-5fbee340aa3d",
-      "permission_mode": "auto",
-      "hook_event_name": "UserPromptSubmit",
-      "prompt": "{prompt}"
     },
     "PermissionRequest": {
       "session_id": "{session}",

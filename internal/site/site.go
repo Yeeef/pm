@@ -605,8 +605,8 @@ func cardWhere(it *Item, proj *Record, items *Items, recs []*Record, frm *Record
 const (
 	NotDelivered = "not delivered yet: the session that asked is not running, or the push failed and the pm service " +
 		"tries again; the next session sees it"
-	NotPushed = "not delivered yet: the session that asked has no inbox pm can push to; it sees the reply at its " +
-		"next prompt, or now if it waits with pm reply wait"
+	NotPushed = "not delivered yet: the session that asked has no inbox pm can push to; pm show flags the reply for " +
+		"it, and pm reply read prints it"
 )
 
 var replyMark = regexp.MustCompile(`[\t\n\v\f\r \x1c-\x1f\x85\p{Z}]*<!-- pm-reply [A-Za-z0-9-]+ -->[\t\n\v\f\r \x1c-\x1f\x85\p{Z}]*$`)
