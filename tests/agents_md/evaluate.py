@@ -62,8 +62,8 @@ CHUNK = 60_000  # characters of diff per diff-mode call
 # Diff paths no AGENTS.md claim rests on: generated expectations and lock files.
 DIFF_EXCLUDE = (":(exclude)**/testdata/**", ":(exclude)uv.lock", ":(exclude)go.sum",
                 ":(exclude).github/scripts/work-test-seconds.txt")
-# The grader: a diff that changes it grades in full mode, since a changed grader must still pass the real AGENTS.md;
-# agents-md.yml's cases job runs on the same paths. A path ending in / is a directory, any other a file.
+# The grader: auto mode grades a diff that changes it in full, since a changed grader must still pass the real
+# AGENTS.md; agents-md.yml's daily run grades in full on a change to these paths or AGENTS.md. A path ending in / is a directory, any other a file.
 GRADER = ("tests/agents_md/", "tests/test_agents_md_live.py", ".github/workflows/agents-md.yml")
 TOOLS = "Read,Grep,Glob"
 CREDENTIALS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")

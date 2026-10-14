@@ -46,7 +46,7 @@ hold it).
 | `make lint` | The linters as CI runs them; needs golangci-lint at `GOLANGCI_LINT_VERSION` on PATH |
 | `make test-live` | The owner-request judge's live eval (below) |
 | `make test-live-parity` | The parity live eval (below) |
-| `make agents-md-check`, `make test-live-agents-md` | This file graded against `tests/agents_md/rubric.md` (CI runs it on every PR); that grader's labelled cases |
+| `make agents-md-check`, `make test-live-agents-md` | This file graded against `tests/agents_md/rubric.md` (CI: diff mode on every PR; full mode and the cases daily, after AGENTS.md or the grader changed); that grader's labelled cases |
 | `make merge-ready PR=<n>` | The check before every merge (Merging) |
 
 ## Tests
