@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T13:05:07+00:00",
- "digest": "922d0a220346322c",
+ "generated_at": "2026-10-14T13:15:30+00:00",
+ "digest": "6cbf5a2373b0db1c",
  "model": "claude-haiku-5-5",
- "text": "- **Ask-tool questions on the site:** The owner can now answer ask-tool questions on the site, as well as in chat. The first answer wins.\n- **Faster PR checks:** A PR now runs only the Go tests that its changed files can affect. On the non-store PRs measured, Go compute fell by close to half, but check time still misses its target.\n- **Agent rules and guidance:** AGENTS.md is now a compact map, and CI grades it on every PR. Agents no longer ask leave before they open work the owner requested.\n- **Code cleanup and fixes:** The CLI code is split by noun, and the Python-port leftovers are removed. Unchecked errors in the hooks and site code are now handled."
+ "text": "- **Site answers agent questions:** Agents' ask-tool questions now appear on the site, with options and free text. Claude and Codex both route their questions there. The first answer, on the site or in chat, wins.\n- **Faster Go test runs:** A pull request now runs only the Go test packages its files can affect. Only tests that can differ by operating system run on macOS. Main still runs every test. Docs-only changes skip the Go checks. Go test compute fell sharply for changes outside the store, but pull request wall time missed its target.\n- **Agent guidance and rules:** AGENTS.md is now a short map that Claude Code, Codex and Grok Build all read in full. An agent grades it against a rubric on every pull request. The CI job signs in without a stored API key. Agents now open a project, sprint or task for owner-asked work without asking leave.\n- **Code layout and sprint checks:** The code under internal/cli now splits by noun. Every function stays under the complexity limit. Obsolete Python-port code is deleted. A sprint close now checks only the patterns that sprint added or changed."
 }
