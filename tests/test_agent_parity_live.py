@@ -14,6 +14,9 @@ transcript (Claude Code's session JSONL, Codex's rollout).
 - ask tool, per runtime: an interactive session asks a multiple-choice question with its ask tool; pm raises it as a
   question need, which the site shows; the test answers Blue in the TUI; the question closes with that chat answer, the
   Stop hook does not block, and an answer sent later from the site's card is refused and never reaches the session.
+- ask dismissed, Claude Code only: the same question, and the owner presses Esc on its dialog; no hook event fires,
+  but Claude Code stops the waiting PermissionRequest hook, which closes the question as dismissed; the latency from
+  the Esc to the close is printed. Codex's async question has no dialog to dismiss.
 - ask on site, per runtime: the same question answered on the site's card while it waits (Claude Code: its dialog
   open; Codex: the async question pending); the session continues with that answer (Claude Code: the tool's result;
   Codex: a message codex queue put on the thread) and the question closes as answered on the site; the latency from
@@ -35,7 +38,7 @@ by its pick list; Codex's question, whose pick list its TUI offers only while th
 the turn ended. The ask-on-site one posts the card's form, as the owner's browser does.
 
 Skipped unless PM_LIVE_TESTS=1 with `claude` and `codex` on PATH, both logged in; run with `make test-live-parity`:
-the 14 scenarios run at once, one worker each, 95 s to 5 min in all (the solo Claude run is the long one when it polls
+the 15 scenarios run at once, one worker each, 95 s to 5 min in all (the solo Claude run is the long one when it polls
 for the reply instead of waiting); test_ci holds that count to the scenarios pytest collects and to the Makefile's
 -n. PM_PARITY_TIMEOUT sets each session's limit in seconds (default 600). Each run prints its latency, and its output
 and transcript paths, kept under the test's tmp dir (-rA shows them).
@@ -400,6 +403,10 @@ Red and Blue. After asking, do not wait or poll: end your turn. When my answer r
 # TUI offers the pick list ("shift + ← to answer") only while the turn runs, so once the turn ended the owner types
 # the answer into the composer
 ASK_CHAT = {"claude": [b"\x1b[B", b"\r"], "codex": [b"B", b"l", b"u", b"e", b"\r"]}
+# how the owner dismisses Claude Code's dialog: Esc
+ASK_ESC = [b"\x1b"]
+# the close reason pm hook ask gives a question whose dialog Claude Code stopped waiting on
+STOPPED = "the session stopped waiting for the answer: Esc in the dialog, or the session ended"
 
 
 def questions(clone: Clone) -> list[dict]:
@@ -464,11 +471,12 @@ def continued_with(entries: list[dict], runtime: str, word: str) -> bool:
 def ask_and_answer(clone: Clone, runtime: str, name: str, on: str) -> tuple[Run, dict]:
     """An interactive session (Claude Code's or Codex's TUI, in a pty) with the owner in its chat asks a multiple-choice
     question with its ask tool. Once the question is on the session's screen, raised as a question need and on the
-    site's card, the owner (this test) picks Blue: `on` "chat", at the TUI's keyboard; "site", posting the card's form.
-    Then it waits for the session to take the answer in and reply, and for the need to close. What it saw by name:
+    site's card, the owner (this test) picks Blue: `on` "chat", at the TUI's keyboard; "site", posting the card's form;
+    or "esc" presses Esc on Claude Code's dialog. Then it waits for the session to take the answer in and reply (not
+    after Esc), and for the need to close. What it saw by name:
     need (the question as it was open), page (the site's overview then), posted (a site answer's status and body),
-    took (seconds from the owner's answer to the session taking it in), closed (seconds from it to the need closed, or
-    to the deadline), stale (a site answer posted from the card once
+    took (seconds from the owner's answer to the session taking it in), closed (seconds from it to the need closed, read
+    each second while the test waits, or to the deadline), stale (a site answer posted from the card once
     the chat answer closed the question)."""
     clone.seed(1)
     tui = Tui(clone, runtime, name, ASK_PROMPT)
@@ -487,29 +495,38 @@ def ask_and_answer(clone: Clone, runtime: str, name: str, on: str) -> tuple[Run,
             return tui.run(), seen
         time.sleep(2)  # noqa: TID251 — the question settles on screen before the owner answers
         answered = time.monotonic()
-        if on == "chat":
-            tui.keys(*ASK_CHAT[runtime])
+
+        def closed() -> bool:  # notes when the need closed, the first time it is seen closed
+            if "closed" not in seen and clone.items().get(seen["need"]["id"], {}).get("status") == "closed":
+                seen["closed"] = time.monotonic() - answered
+            return "closed" in seen
+
+        if on in ("chat", "esc"):
+            tui.keys(*(ASK_CHAT[runtime] if on == "chat" else ASK_ESC))
             answered = time.monotonic()
         else:
             seen["posted"] = site_answer(clone, seen["page"], seen["need"]["id"], [("q0", seen["option"])])
-        while time.monotonic() < deadline and "took" not in seen:
+        while on != "esc" and time.monotonic() < deadline and "took" not in seen:
             if continued_with(tui.entries(), runtime, "blue"):
                 seen["took"] = time.monotonic() - answered
+            closed()
             time.sleep(0.5)  # noqa: TID251 — the poll interval the latency is measured at
-        while time.monotonic() < deadline and not \
+        while on != "esc" and time.monotonic() < deadline and not \
                 re.search(r"chose\W+blue", " ".join(json.dumps(e) for e in tui.entries()[-6:]), re.I):
-            time.sleep(2)  # noqa: TID251 — the poll interval over a live session, under its deadline
-        while time.monotonic() < deadline and \
-                clone.items().get(seen["need"]["id"], {}).get("status") != "closed":
-            time.sleep(1)  # noqa: TID251 — the poll interval over the work store, under its deadline
-        seen["closed"] = time.monotonic() - answered
+            closed()
+            time.sleep(1)  # noqa: TID251 — the poll interval over a live session, under its deadline
+        while time.monotonic() < deadline and not closed():
+            time.sleep(0.5)  # noqa: TID251 — the poll interval over the work store, under its deadline
+        seen.setdefault("closed", time.monotonic() - answered)
         if on == "chat":  # the owner's site tab still shows the card: an answer sent from it must reach nobody
             while time.monotonic() < deadline and card_option(site(clone), seen["need"]["id"], "red") is not None:
                 time.sleep(1)  # noqa: TID251 — the service's snapshot taking the close in, under its deadline
             red = card_option(seen["page"], seen["need"]["id"], "red")
             seen["stale"] = site_answer(clone, seen["page"], seen["need"]["id"], [("q0", red or "Red")])
-        quiet = time.monotonic() + 15  # time for any late delivery to show, then the session idle
-        while time.monotonic() < deadline and (time.monotonic() < quiet or not tui.idle(quiet=5)):
+        # time for any late delivery to show, then the session idle; after Esc the turn ends on the tool's rejection,
+        # with no assistant reply for idle to see, so only the time
+        quiet = time.monotonic() + 15
+        while time.monotonic() < deadline and (time.monotonic() < quiet or on != "esc" and not tui.idle(quiet=5)):
             time.sleep(2)  # noqa: TID251 — the poll interval over a live session, under its deadline
     finally:
         run = tui.run()
@@ -570,6 +587,29 @@ def test_an_ask_tool_question_answered_in_chat_closes_with_the_chat_answer(clone
     check(stale[0] == 400 and "already closed" in stale[1],
           f"{run.name}: a site answer sent once the chat answer closed the question was not refused: {stale}")
     check(not continued_with(run.entries, runtime, "red"), f"{run.name}: an answer of Red reached the session")
+    check.done()
+
+
+def test_an_ask_tool_question_dismissed_with_esc_closes_dismissed(clone):
+    """Claude Code only, since Codex's async question has no dialog: the owner presses Esc on the AskUserQuestion
+    dialog. No hook event fires for it, but Claude Code sends the waiting PermissionRequest hook SIGTERM, on which pm
+    hook ask closes the question as dismissed, at once and with nothing delivered. Prints the latency from the Esc to
+    the close."""
+    run, seen = ask_and_answer(clone, "claude", "ask-esc-claude", on="esc")
+    need = clone.items().get((seen.get("need") or {}).get("id", ""), {})
+    check = Checks(clone, run)
+    print(f"\nask dismissed claude: {run.seconds:.1f}s; question {need.get('id')} closed "
+          f"{need.get('status')}/{need.get('resolution')} ({need.get('close_reason')}) {seen.get('closed', 0):.1f}s "
+          f"after the Esc")
+    check(ask_tool_calls(run.entries, "claude"), f"{run.name}: the session made no AskUserQuestion call")
+    raised = ((need.get("need") or {}).get("raised_by") or {}).get("session")
+    check(need and raised == run.session, f"{run.name}: no question need raised by {run.session}: {need}")
+    check((need.get("status"), need.get("resolution"), need.get("close_reason")) == ("closed", "dismissed", STOPPED),
+          f"{run.name}: the question is {need.get('status')}/{need.get('resolution')} ({need.get('close_reason')}), "
+          f"not dismissed by the stopped hook")
+    check(seen.get("closed", TIMEOUT) < 5, f"{run.name}: the question closed {seen.get('closed')}s after the Esc")
+    check((need.get("need") or {}).get("delivered", 0) == 0 and not [
+        c for c in need.get("comments", []) if c["kind"] == "reply"], f"{run.name}: an answer was recorded: {need}")
     check.done()
 
 
