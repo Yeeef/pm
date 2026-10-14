@@ -3,6 +3,7 @@ UV ?= uv
 PYRUN := $(UV) run --quiet
 
 .PHONY: test test-full test-live test-live-parity test-live-agents-md agents-md-check test-go go-build go-fmt go-vet go-test go-test-but-work go-test-work \
+	go-os-check go-test-work-macos go-test-but-work-os go-test-work-os go-test-race-os \
 	go-build-pm go-test-race go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
@@ -106,7 +107,7 @@ RACE_TESTS := Racing|Migrating|OutsideTheLock|Outlasting|WriteLock|PmLock|ASecon
 # parallel jobs: go-build, go-fmt, go-vet and go-test-but-work; go-test-work; go-test-race. Measure WORK_SECONDS with
 # make go-test-work UPDATE=1 alone, not through test-go, whose other parts would slow the tests it times.
 test-go:
-	$(MAKE) -j go-build go-fmt go-vet go-test-but-work go-test-work go-test-race
+	$(MAKE) -j go-build go-fmt go-vet go-os-check go-test-but-work go-test-work go-test-race
 
 # Fail when gofmt would change a Go file of the module, naming each one. The files are those of go list's packages,
 # every build tag's and the tests' included, so the module's own: no testdata, vendor or other worktree under .claude/
@@ -142,17 +143,42 @@ go-test-but-work:
 
 # internal/work's tests, the longest package's (about 100 s in one process, mostly waiting on git and Dolt), in
 # WORK_SHARDS processes at once, balanced by the seconds each test took (WORK_SECONDS, which must name every test:
-# UPDATE=1 measures and rewrites it). .github/scripts/go_shards.py fails unless every test ran and passed.
+# UPDATE=1 measures and rewrites it). .github/scripts/go_shards.py fails unless every test ran and passed. WORK_RUN
+# narrows it to test names joined by |, as go_shards.py's --run takes them.
 WORK_SHARDS ?= 8
 WORK_SECONDS := .github/scripts/work-test-seconds.txt
+WORK_RUN ?= .
 go-test-work:
 	CGO_ENABLED=1 go test -c $(GO_TEST_FLAGS) $(GO_TEST_LINK) -o .go/work.test ./internal/work
-	python3 .github/scripts/go_shards.py --shards $(WORK_SHARDS) $(if $(UPDATE),--update) .go/work.test internal/work $(WORK_SECONDS)
+	python3 .github/scripts/go_shards.py --shards $(WORK_SHARDS) $(if $(UPDATE),--update,--run '$(WORK_RUN)') .go/work.test internal/work $(WORK_SECONDS)
 # The pm service's tests and RACE_TESTS under -race, the latter sharded as go-test-work's; make -j2 runs both at once.
 # No -trimpath: a race build shares no compile with go-build's, and the race cache pm-go.yml saves has none.
+# RACE_SERVICE_RUN (go test's -run) and RACE_RUN (names joined by |) narrow them.
+RACE_SERVICE_RUN ?= .
+RACE_RUN ?= $(RACE_TESTS)
 go-test-race: go-test-race-service go-test-race-work
 go-test-race-service:
-	CGO_ENABLED=1 go test -race -tags gms_pure_go $(GO_TEST_LINK) ./internal/service
+	CGO_ENABLED=1 go test -race -tags gms_pure_go $(GO_TEST_LINK) -run '$(RACE_SERVICE_RUN)' ./internal/service
 go-test-race-work:
 	CGO_ENABLED=1 go test -c -race -tags gms_pure_go $(GO_TEST_LINK) -o .go/work-race.test ./internal/work
-	python3 .github/scripts/go_shards.py --shards $(WORK_SHARDS) --run '$(RACE_TESTS)' .go/work-race.test internal/work $(WORK_SECONDS)
+	python3 .github/scripts/go_shards.py --shards $(WORK_SHARDS) --run '$(RACE_RUN)' .go/work-race.test internal/work $(WORK_SECONDS)
+
+# macOS (pm-go.yml). On a push to main every test runs there, RACE_TESTS only under -race (go-test-race), as the owner
+# decided: they are half of internal/work's CPU on the 3-core runner. A pull request runs there only the tests whose
+# behaviour can differ by OS, the os rows of .github/scripts/go-os-tests.txt, which classifies every test (make
+# go-os-check); Linux runs every test on both. Each list is taken before the tests run, so a list that fails fails the
+# target instead of testing nothing.
+OS_TESTS = python3 .github/scripts/go_os_tests.py
+go-os-check:
+	$(OS_TESTS) check
+go-test-work-macos:
+	run=$$($(OS_TESTS) names --package internal/work --skip '$(RACE_TESTS)') && $(MAKE) go-test-work WORK_RUN="$$run"
+go-test-but-work-os:
+	pkgs=$$($(OS_TESTS) packages --os --but internal/work) && run=$$($(OS_TESTS) names --os --anchored --but internal/work) && \
+	  CGO_ENABLED=1 go test $(GO_TEST_FLAGS) $(GO_TEST_LINK) -run "$$run" $$pkgs
+go-test-work-os:
+	run=$$($(OS_TESTS) names --os --package internal/work --skip '$(RACE_TESTS)') && $(MAKE) go-test-work WORK_RUN="$$run"
+go-test-race-os:
+	svc=$$($(OS_TESTS) names --os --anchored --package internal/service) && \
+	  work=$$($(OS_TESTS) names --os --package internal/work --only '$(RACE_TESTS)') && \
+	  $(MAKE) -j2 go-test-race RACE_SERVICE_RUN="$$svc" RACE_RUN="$$work"
