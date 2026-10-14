@@ -839,6 +839,19 @@ func (s *server) writeReply(j job) {
 func (s *server) sweep() {
 	snap := s.snap.Load()
 	for _, n := range snap.order {
+		if n.Status != work.Closed && IsQuestion(n) {
+			did, err := s.settleQuestion(n)
+			if err != nil {
+				did = "failed: " + err.Error()
+			}
+			if did != "" {
+				s.logf("question %s (sweep): %s", n.ID, did)
+				continue
+			}
+			if _, codex := CodexQuestion(n); !codex {
+				continue // a Claude Code session's question takes its answer through its hook
+			}
+		}
 		if n.Status == work.Closed || n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Inbox == "" {
 			continue
 		}

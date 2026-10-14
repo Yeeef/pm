@@ -354,8 +354,11 @@ func (s *server) pushUndelivered(id string) (string, error) {
 		return "", err
 	}
 	text, mark := s.texts.Undelivered(&n)
-	if text == "" {
+	if text == "" || IsQuestion(&n) && n.Status == work.Closed {
 		return "nothing to deliver", nil
+	}
+	if IsQuestion(&n) {
+		return s.deliverQuestion(&n)
 	}
 	if why := PushInbox(&n, text); why != "" {
 		return why, nil

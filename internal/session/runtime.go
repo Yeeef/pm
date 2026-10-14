@@ -5,7 +5,8 @@
 // The files: runtime.go the session from the environment (CLAUDE_CODE_SESSION_ID, Codex's CODEX_SESSION_ID, else
 // CODEX_THREAD_ID mapped to its root thread through its rollout) and the innermost runtime from the process ancestry
 // when both are set; codex.go Codex's rollouts and whether pm's session-start hooks ran in a Codex session
-// (CodexHooksRan); codexhooks.go the warning a pm command gives once per session when they did not; live.go a session's
+// (CodexHooksRan); codexchat.go the answer typed into a Codex session after its ask-tool call (ChatAfterCall) and the
+// CODEX_HOME a rollout lies under; codexhooks.go the warning a pm command gives once per session when they did not; live.go a session's
 // liveness; uses.go the worktrees live sessions used, for pm clean.
 package session
 
