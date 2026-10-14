@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T11:42:03+00:00",
- "digest": "3ffd3b1b8db2770b",
+ "generated_at": "2026-10-14T11:52:25+00:00",
+ "digest": "56898cb0dd230bd7",
  "model": "claude-haiku-5-5",
- "text": "- **Agent instructions:** AGENTS.md is now a short map that Claude Code, Codex and Grok Build read in full. An agent grades it against a rubric on every pull request.\n- **Agent behavior:** Agents now open projects, sprints and tasks for owner requests without asking leave. A sprint close now checks only the patterns that sprint added or changed.\n- **Code cleanup:** The command-line code is now split by noun, and every function is under the complexity limit. Leftover code from the Python port is deleted, including the argument parser emulation.\n- **Pull request checks:** macOS now runs only the Go tests that depend on the operating system. Checks finish sooner, but they still miss their time target."
+ "text": "- **AGENTS.md map and checks:** AGENTS.md is now a short map that Claude Code, Codex and Grok Build read in full. Every pull request now gets an evaluation of AGENTS.md against a rubric. The evaluation signs in through workload identity federation, with no stored API key.\n- **Code layout cleanup:** The command-line code is now split by noun. Every function meets the complexity limit. Old Python-port code is removed, including the JSON helper package and the parser's argparse emulation.\n- **macOS test compute:** Pull requests run only the macOS Go tests that depend on the operating system. Docs-only pull requests skip the Go test matrix. MacOS compute per pull request fell, but the speed targets were not met.\n- **Sprint and agent rules:** `pm sprint close` now checks only the covers patterns that its sprint added or changed. Agents now open a project, sprint or task for owner-requested work without asking leave. The `pm check` waiting line now states the close rule that it applies."
 }
