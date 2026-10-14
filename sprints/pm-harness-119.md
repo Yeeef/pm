@@ -132,10 +132,23 @@ stop.go only gains mainOf, which StoreOf now uses to find the store; where the s
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm interactive` and `pm autopilot` set a session's mode, and the owner-request judge lets an interactive session's asks in chat through (PR #91, pending merge).
+
+- `pm interactive` / `pm autopilot`: create and remove `<main checkout>/.pm/run/sessions/<session-id>`, with the session id from the environment; both refuse without a session.
+- `pm hook owner-request`: skips the judge while the session's mode file exists. `pm hook stop` is unchanged.
+- `pm hook inbox`: adds one context line to each prompt while the session is interactive.
+- `pm clean`: lists mode files; `--apply` removes those of sessions that are not live.
+- `prime.md`: one sentence saying an agent runs `pm interactive` when the owner asks. Nothing enforces that, as the owner decided.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| `test_owner_request_hook.py` | met | CI `integration` and `light` pass on PR #91; the test counts judge calls: 0 when interactive; another session, autopilot and after `pm autopilot` are blocked |
+| `test_pm.py` | met | Same CI run: the commands write and remove the file, and refuse with no session id |
+| `test_hooks.py` | met | Same CI run: the inbox line appears only while interactive, on Claude Code and Codex input |
+| `test_clean.py` | met | Same CI run: a dead session's mode file is removed, live Claude Code and Codex sessions' files are kept |
+| Live check | met | Scratch clone, real `claude -p` Haiku, 1 passed in 59.65 s: blocked in autopilot, 0 blocks after `pm interactive`, blocked again after `pm autopilot`; a TUI `!pm interactive` set the TUI session's own file (Findings) |
+| PR on main | not yet | PR #91, CI green, awaiting review |
