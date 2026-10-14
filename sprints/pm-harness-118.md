@@ -44,6 +44,11 @@ An agent's ask-tool question (Claude Code's AskUserQuestion, Codex's request_use
 - [Replies on the site](../design/site-replies.md): A session's question: the card, its inputs and the reply text rule.
 - [pm in Codex](../design/pm-in-codex.md): the Codex Stop `pm hook ask` and its row in Areas.
 - [Views and the site](../design/views-and-site.md): the "Sessions ask you" section.
+- [Agent lifecycle](../design/agent-lifecycle.md): `pm hook ask` in the hook table per runtime, `pm hook inbox` closing a Codex question, the question need under Asking the owner.
+- [pm CLI](../design/pm-cli.md): `pm hook ask` in Agent hooks, the questions' refusals in the answer commands and `pm need edit`, the question lines of `pm show`.
+- [pm as an installable product](../design/pm-product.md): the `pm hook ask` entries, a Claude Code PermissionRequest and Codex's first Stop hook.
+- [pm in Go](../design/pm-go.md): `hook ask` and the question's answer in the package table.
+- [Sprint lifecycle](../design/sprint-lifecycle.md): an ask-tool question raised as a question need; the sprint page's "Sessions ask you" section.
 
 ## Progress
 
