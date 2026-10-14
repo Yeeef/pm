@@ -152,10 +152,26 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: the Go tests do measurably less work on macOS (internal/work's shards use 27% less CPU, and 4 test binaries stop linking Dolt), but macOS CI compute per PR did not halve; it stayed about 160 s.
+
+- #81: the item model moves to internal/item, which links no Dolt, so records, store, design and site test without Dolt. TestTheItemReadersLinkNoDolt holds this.
+- #81: newPair seeds locally and pushes once (241 to about 70 git calls per pair). The compare-and-swap refs check moved onto the concurrent-mints case.
+- #81: make test-go runs its parts at once.
+- #82: internal/work's test seconds were remeasured.
+- Open: decision need "Run the 9 race tests on macOS only under -race?", the largest lever left (58.9 s of internal/work's 125.4 s of macOS CPU).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- macOS Go compute (build and test steps of the two macOS jobs, summed) ≤ ~55 s, median of 3 PRs: **not met**.
+  - Samples: #81 248 s, #82 166 s, #82's rerun on main's new cache 160 s.
+  - Before: 148-181 s over 13 runs, median 163 s.
+  - The frame's 96-98 s baseline was the build-test step alone. That step went from 89-113 s to 102-108 s, or 178 s on a slow runner.
+  - Only 2 PRs and 1 rerun were sampled (see Findings).
+- A code PR's median wall to the last check ≤ ~100 s: **not met**. #81 249 s (the agents-md job last), #82 164 s, #82's Go rerun 145 s; 138 s before.
+- The per-OS test lists are identical before and after: **met**, apart from the added guard test.
+  - go test -v at main and at the head ran in one CI run per job.
+  - macOS: 183/184, 92/92, 39/39 and 16/16 results. Linux: the same counts.
+- `make test-go` local wall time reported: **met**. 35.5-35.8 s at main (3 runs); 33.9-34.8 s with #81's test changes; 19.6-19.8 s with the parts run at once (32 cores).
+- `make lint`, `make test` (129 passed) and `make test-go` passed locally. CI was green on #81 and #82, each merged through merge_ready.py's command.
