@@ -61,6 +61,8 @@ None yet.
 
 done: the committed `.claude/settings.json` sets `"autoMemoryEnabled": false`, so no Claude Code session in this repo saves or loads an auto memory (PR #92).
 
+Merged as dcfbe4e (PR #92).
+
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
