@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T13:25:53+00:00",
- "digest": "bcbc4fae99d4f490",
+ "generated_at": "2026-10-14T13:46:14+00:00",
+ "digest": "10f61456d6f7db00",
  "model": "claude-haiku-5-5",
- "text": "- **Ask-tool answers on the site:** Claude and Codex questions can now be answered on the site or in chat, and the first answer wins. The site shows each question with its options and a free-text field.\n- **AGENTS.md checks:** AGENTS.md is now a short map that Claude Code, Codex and Grok Build read in full. Each pull request runs an agent check of it, signed in with federated identity and no stored API key.\n- **Pull request test speed:** Pull requests run only the Go tests that their changed files can affect. On macOS, they run only the tests whose behaviour can differ by OS. MacOS compute fell, but wall time still misses its target.\n- **Owner-request rules and code cleanup:** Agents now open owner-requested work without asking leave. The command-line code is split by noun, and the Python-port leftovers are deleted."
+ "text": "- **Site replies to questions:** Agent ask-tool questions now appear on the site, with their options and a free-text field. The first reply, from the site or from chat, wins for Claude and Codex.\n- **Agent guidance and rules:** Agents now open owner-requested projects, sprints and tasks without asking leave first. AGENTS.md is now a short map that every runtime reads in full, and CI grades it on every PR.\n- **macOS CI test speed:** A PR now runs only the Go test packages its changed files can affect. On three non-store PRs, macOS Go compute fell by almost half, but overall PR wall time still missed its target.\n- **Code structure cleanup:** The command-line code is split by noun, and every function is under the complexity limit. Python-port leftovers, including the argparse emulation and an internal JSON package, are removed."
 }
