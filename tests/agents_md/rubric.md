@@ -48,6 +48,9 @@ or docstrings, the Makefile and its comments, or a `--help` text already says.
 - Pass: commands, rules and conventions that the code does not state, the reasons behind them, and short pointers
   ("the hook entries are `claudeHooks` and `codexHooks` in `internal/install/pieces.go`"). A table of the Make
   targets an agent runs, each with a line on what it is for and when to run it, passes.
+- Pass: a Map row's one-line summary of an area that points at where its detail lives (a package doc comment, a
+  docstring, a file) is what `map` asks for, never a non_inferable defect. A tour of an area's files or functions
+  still fails.
 - Exempt: a passage stating one of the must-know rules is never a defect under this criterion. They are: merging
   through `make merge-ready`; not running the whole integration set locally; a `changelog.d/` entry or the
   `no-changelog` label; never moving a release tag; golden files rewritten with `-update`; `make go-test-work

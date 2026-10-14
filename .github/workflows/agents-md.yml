@@ -1,9 +1,10 @@
 # AGENTS.md graded against tests/agents_md/rubric.md on every pull request (make agents-md-check): every criterion on
-# the whole file when the PR changes AGENTS.md, else whether the PR's diff makes an AGENTS.md claim false or adds a rule
-# it lacks. No paths filter, so release/merge_ready.py requires its check on every PR. claude -p reaches the Anthropic
-# API through workload identity federation: a GitHub OIDC token (id-token: write) that tests/agents_md/evaluate.py
-# writes fresh to ANTHROPIC_IDENTITY_TOKEN_FILE before each call; no API key is stored. A PR that changes the
-# evaluation itself also runs its labelled cases once (make test-live-agents-md).
+# the whole file when the PR changes AGENTS.md or the grader (evaluate.py's GRADER: tests/agents_md/, the live test,
+# this workflow), else whether the PR's diff makes an AGENTS.md claim false or adds a rule it lacks. No paths filter,
+# so release/merge_ready.py requires its check on every PR. claude -p reaches the Anthropic API through workload
+# identity federation: a GitHub OIDC token (id-token: write) that tests/agents_md/evaluate.py writes fresh to
+# ANTHROPIC_IDENTITY_TOKEN_FILE before each call; no API key is stored. A PR that changes the grader also runs its
+# planted and diff cases once (make test-live-agents-md).
 name: agents md
 
 on:
@@ -27,7 +28,9 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Full mode on an AGENTS.md of 11 sections makes 90 calls, 16 at a time: 6 waves, each at most 460 s (an OIDC
+    # token fetch of up to 30 s, the call killed at 420 s, 10 s to reap it), so done within 46 min, plus setup
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,20 +51,23 @@ jobs:
           if-no-files-found: ignore
   cases:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The planted and diff cases make about 170 calls, 16 at a time: 11 waves of at most 460 s each (as check's), so
+    # done within 85 min at worst, plus setup; a run typically takes about 4 min
+    timeout-minutes: 95
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Does the PR change the evaluation?
+      # The grader's paths, evaluate.py's GRADER (tests/test_agents_md_eval.py holds the two equal). The harness files
+      # the live test runs under (conftest.py, run.py, the Makefile) are not among them: the light suite covers them.
+      - name: Does the PR change the grader?
         id: changed
         run: |
           if git diff --name-only "origin/${{ github.base_ref }}...HEAD" |
-              grep -qE -e '^(tests/agents_md/|tests/(test_agents_md_live|conftest|run)\.py$)' \
-                -e '^(Makefile|\.github/workflows/agents-md\.yml)$'; then
+              grep -qE '^(tests/agents_md/|tests/test_agents_md_live\.py$|\.github/workflows/agents-md\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "The PR leaves the evaluation alone: its labelled cases do not run."
+            echo "The PR leaves the grader alone: its labelled cases do not run."
           fi
       - uses: actions/setup-go@v5
         if: steps.changed.outputs.run == 'true'
@@ -75,9 +81,12 @@ jobs:
         run: |
           curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CODE_VERSION"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: The evaluation's labelled cases, one run each (make test-live-agents-md)
+      - name: The grader's planted and diff cases, one run each (make test-live-agents-md)
         if: steps.changed.outputs.run == 'true'
         env:
           ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/oidc-token
           PM_LIVE_RUNS: "1"
+          # The clean case grades this commit's AGENTS.md in full mode, which check already does on a grader change:
+          # here it would only repeat check's verdict, and fail the job on its noise. A local run keeps it.
+          PM_AGENTS_MD_SKIP: clean
         run: make test-live-agents-md
