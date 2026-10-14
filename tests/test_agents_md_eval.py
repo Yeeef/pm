@@ -38,25 +38,25 @@ def test_the_rubric_has_every_criterion_in_order():
         evaluate.rubric("# r\n\n## accurate\n\nx\n")
 
 
-def test_full_mode_makes_three_calls_per_criterion_and_section_and_one_complete_call():
+def test_full_mode_makes_three_calls_per_criterion_and_section():
     text = "# T\n\nintro\n\n## A\n\na `x`\n\n## B\n\nb\n"
     assert evaluate.sections(text) == [("A", "# T\n\nintro\n\n## A\n\na `x`\n\n"), ("B", "## B\n\nb\n")]
     calls = evaluate.full_calls(text, CHECKOUT, evaluate.CRITERIA)
     assert [(c.criterion, c.part) for c in calls] == [*[("accurate", "A")] * 3, *[("accurate", "B")] * 3, *(
-        (c, "the whole file") for c in evaluate.CRITERIA[1:-1] for _ in range(3)), ("complete", "the whole file")]
+        (c, "the whole file") for c in evaluate.CRITERIA[1:] for _ in range(3))]
     by = {c.criterion: c.prompt for c in calls}
     assert "<prime_md>" in by["no_copies"] and "<changelog_preamble>" in by["no_copies"]
     assert "<prime_md>" in by["consistent"] and "<prime_md>" not in by["map"]
     assert all("<agents_md>\n" + text.rstrip() + "\n</agents_md>" in c.prompt for c in calls)
 
 
-def test_diff_mode_checks_accurate_and_complete_on_each_chunk_cut_at_file_boundaries():
+def test_diff_mode_checks_accurate_and_complete_three_times_on_each_chunk_cut_at_file_boundaries():
     files = [f"diff --git a/f{i} b/f{i}\n" + "+x\n" * 40 for i in range(5)]
     cut = evaluate.chunks("".join(files), size=len(files[0]) * 2)
     assert cut == ["".join(files[0:2]), "".join(files[2:4]), files[4]]
     assert evaluate.chunks(files[0], size=10) == [files[0]]  # a file over the size, no hunk to cut at: whole
     calls = evaluate.diff_calls(AGENTS_MD, "".join(files))
-    assert [(c.criterion, c.part) for c in calls] == [("accurate", "diff 1/1"), ("complete", "diff 1/1")]
+    assert [(c.criterion, c.part) for c in calls] == [("accurate", "diff 1/1")] * 3 + [("complete", "diff 1/1")] * 3
     assert "<diff>\n" in calls[0].prompt and "make a claim in AGENTS.md false" in calls[0].prompt
 
 
@@ -74,7 +74,7 @@ def test_auto_mode_is_full_when_the_diff_changes_agents_md_and_diff_otherwise(tm
     case = cases.CASES["diff_neutral"]
     base = cases.materialize(case, CHECKOUT, tmp_path)
     mode, _, calls = evaluate.plan("auto", tmp_path, tmp_path / "AGENTS.md", base, evaluate.CRITERIA)
-    assert mode == "diff" and len(calls) == 2 and "go_cache_trim.py" in calls[0].prompt
+    assert mode == "diff" and len(calls) == 6 and "go_cache_trim.py" in calls[0].prompt
     (tmp_path / "AGENTS.md").write_text(AGENTS_MD + "\nmore\n")
     cases.git(tmp_path, "commit", "-qam", "agents")
     mode, _, calls = evaluate.plan("auto", tmp_path, tmp_path / "AGENTS.md", base, evaluate.CRITERIA)
@@ -131,6 +131,12 @@ def test_a_part_fails_only_on_a_passage_a_majority_of_its_calls_agree_on_and_err
                                     "no_history": "error", "complete": "pass"}
     # one call's two findings on one passage are one vote
     assert evaluate.verdicts([res("map", "f", [4], [4]), res("map", "f"), res("map", "f")]) == {"map": "pass"}
+    # complete's findings quote nothing, so have no lines: any two agree, and a passage-quoting one agrees with neither
+    assert evaluate.verdicts([res("complete", "f", []), res("complete", "f", []), res("complete", "f")]) == \
+        {"complete": "fail"}
+    assert evaluate.verdicts([res("complete", "f", []), res("complete", "f"), res("complete", "f")]) == \
+        {"complete": "pass"}
+    assert evaluate.verdicts([res("map", "f", []), res("map", "f", [4]), res("map", "f")]) == {"map": "pass"}
 
 
 def test_three_calls_where_only_two_agree_fail_on_those_two_findings_and_print_the_third_outvoted():
@@ -320,6 +326,32 @@ def test_a_judgement_criterion_fails_when_two_of_its_three_calls_quote_overlappi
     assert out.count("outvoted:") == 1 and f"outvoted: {there!r}" in out
     code, out = run(answer([]), answer([]), "oops")  # a malformed answer is no vote
     assert code == 1 and "error: not JSON" in out
+
+
+def test_diff_mode_fails_only_on_a_passage_a_majority_of_a_chunks_calls_agree_on(fake_claude, tmp_path, monkeypatch,
+                                                                                capsys):
+    """Run 38567955117 failed on one call's finding in one of five chunks: each diff-mode part now votes."""
+    root = tmp_path / "case"
+    base = cases.materialize(cases.CASES["diff_neutral"], CHECKOUT, root)
+    line = next(x for x in AGENTS_MD.splitlines() if len(x) > 40)
+    found = answer([{"quote": line, "problem": "stale", "evidence": "Makefile:1"}])
+    missing = answer([{"quote": "", "problem": "a new rule", "evidence": "x.py:1"}])
+    argv = ["--root", str(root), "--mode", "diff", "--base", base, "--jobs", "1"]  # the n-th call, the n-th answer
+
+    def run(*answers):  # the chunk's three accurate calls, then its three complete calls
+        if fake_claude.exists():
+            fake_claude.unlink()
+        monkeypatch.setenv("FAKE_ANSWERS", json.dumps(list(answers)))
+        return evaluate.main(argv), capsys.readouterr().out
+
+    empty = answer([])
+    code, out = run(found, empty, empty, missing, empty, empty)
+    assert code == 0 and "accurate       pass    3 call(s), 1 with findings, 0 agreed" in out
+    assert "complete       pass    3 call(s), 1 with findings, 0 agreed" in out and out.count("outvoted:") == 2
+    code, out = run(found, empty, found, empty, empty, empty)
+    assert code == 1 and "accurate       fail    3 call(s), 2 with findings, 2 agreed" in out
+    code, out = run(empty, empty, empty, missing, missing, empty)
+    assert code == 1 and "complete       fail    3 call(s), 2 with findings, 2 agreed" in out
 
 
 @pytest.mark.parametrize("name", cases.CASES)
