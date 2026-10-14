@@ -11,6 +11,9 @@ covers:
   - "prompts/owner_request_*.txt"
   - "internal/session/mode*.go"
   - "internal/cli/mode.go"
+  - "internal/hooks/requestrule.go"
+  - "internal/hooks/sessionend*.go"
+  - "prompts/request_rule_*.txt"
 ---
 
 ## Problem
@@ -31,7 +34,7 @@ Goals:
 - The agent picks the form by what it asks, not by whether the owner is in the chat: a question that steers its session goes through the runtime's ask tool (AskUserQuestion in Claude Code; `request_user_input_async` in Codex, `request_user_input` in its Plan mode), never as a question in plain text; a decision on a project's or sprint's outcome and a step only the owner can do are needs.
 - An ask-tool question is not lost when the owner steps away from the chat: pm raises it as a question need, which shows on the site, and the first answer, in the chat or on the site, reaches the session.
 - The agent does what it can itself first, and asks the owner only for what only the owner can do.
-- One rule in three texts: prime.md's request rules, the judge prompt and the reprompt allow and block the same cases.
+- One rule in three texts: the autopilot request rule, the judge prompt and the reprompt allow and block the same cases.
 - Few false alarms: a reply that quotes, reports or describes a request without asking it, and an offer nothing waits on, pass.
 - Cheap enough to run at every turn end: a few seconds at most.
 - While the owner chats in a session, they can have the check turned off for that session alone, and back on.
@@ -105,14 +108,14 @@ The rule, as all three texts state it:
 
 | Text | Where | States the rule as |
 |---|---|---|
-| prime.md | the "Never leave a request only in chat" invariant | ask only for what you cannot do yourself, then one line per kind with its form (the ask tool named per runtime in one clause), then where a need goes; item 4 is the two invariants that agents push and open PRs, and open the project, sprint or task for work the owner asked for, without asking. The Need row of the objects table points at the invariant. The detail is left to the reprompt, which the agent gets whenever it matters, to keep every session's context small |
+| Autopilot request rule | `request_rule_autopilot.txt`, the "Never leave a request only in chat" rule the session-start state prints in autopilot (in prime.md until 2026-10-14) | ask only for what you cannot do yourself, then one line per kind with its form (the ask tool named per runtime in one clause), then where a need goes; item 4 is the two invariants that agents push and open PRs, and open the project, sprint or task for work the owner asked for, without asking. The Need row of the objects table points at the invariant. The detail is left to the reprompt, which the agent gets whenever it matters, to keep every session's context small |
 | Judge prompt | `owner_request_system.txt` | what to block: an unmatched decision, review, action or clarification asked in the reply, and a needless ask (items 2 to 4); what passes: offers nothing waits on, quotes, reports and plans, and an ask covered by an open request or an ask-tool question |
 | Reprompt | `owner_request_reason.txt`, `owner_request_needless.txt` | how to get past a block: item 1, then each kind with its form (item 2) and where a need goes (item 3); item 4 for a needless ask |
 
-- The judge checks that an ask reaches the owner, not which form it took: an ask-tool question passes whatever its kind, a decision included. Its kinds sort what blocks from what passes and are not the rule's three; which form fits is the agent's call, which prime.md and the reprompt guide (Alternatives considered).
-- prime.md is short and the reprompt is detailed, but no text adds a condition the others lack. The "sprint work waits on it" condition goes from all three: the judge cannot check it, and a chat request is lost whether a sprint holds it or not.
+- The judge checks that an ask reaches the owner, not which form it took: an ask-tool question passes whatever its kind, a decision included. Its kinds sort what blocks from what passes and are not the rule's three; which form fits is the agent's call, which the autopilot rule and the reprompt guide (Alternatives considered).
+- The autopilot rule is short and the reprompt is detailed, but no text adds a condition the others lack. The "sprint work waits on it" condition goes from all three: the judge cannot check it, and a chat request is lost whether a sprint holds it or not.
 - A rule change edits all three in one commit, and adds a labelled case to `tests/owner_request_cases.json` for each case it moves.
-- Interactive mode is no case of the rule the judge applies: in an interactive session the judge does not run. Only prime.md says so, in one sentence (run `pm interactive` when the owner asks for it; asking in chat is then fine until `pm autopilot`); the judge prompt and the reprompt run only in autopilot, where the rule is unchanged, so no labelled case moves.
+- Interactive mode is no case of the rule the judge applies: in an interactive session the judge does not run. The judge prompt and the reprompt run only in autopilot, where the rule is unchanged, so no labelled case moves; the interactive text (The rule per mode) is no part of the three.
 
 ### Interactive mode
 
@@ -120,16 +123,35 @@ A session is in autopilot, where the judge runs, or in interactive mode, where i
 
 | Command | Does | Prints |
 |---|---|---|
-| `pm interactive` | writes `<main checkout>/.pm/run/sessions/<session id>` | `session <id> is in interactive mode: the owner-request check lets asks in chat through until pm autopilot` |
-| `pm autopilot` | removes it | `session <id> is in autopilot: …`, or, already in autopilot, `… is already in autopilot, the default; nothing changed` |
+| `pm interactive` | writes `<main checkout>/.pm/run/sessions/<session id>` | `session <id> is in interactive mode: the owner-request check lets asks in chat through until pm autopilot`, then the interactive request rule |
+| `pm autopilot` | removes it | `session <id> is in autopilot: …`, or, already in autopilot, `… is already in autopilot, the default; nothing changed`, then the autopilot request rule |
 
 - The session is the command's own, from the environment (`CLAUDE_CODE_SESSION_ID`, or Codex's root session), as `pm task claim` takes it; with none, both refuse. The Stop hook's input names the same id in both runtimes.
-- Nothing enforces that the owner asked: an agent can run the command, or write the file, itself. prime.md and `pm interactive --help` give the rule.
+- Nothing enforces that the owner asked: an agent can run the command, or write the file, itself. The autopilot request rule and `pm interactive --help` say to run it only when the owner asks.
 - The mode file is the main checkout's, so every worktree of the clone shares a session's mode; it is never committed or synced. A session id that is not one path component of letters, digits, `_` and `-` gets no mode file, and the judge treats it as in autopilot.
 - `pm hook owner-request` checks the mode after its early exits (`stop_hook_active`, a blank reply), before it reads the work store; a mode file it cannot read is a check that did not run (exit 1).
-- While the session is interactive, `pm hook inbox` adds one line to each prompt saying so, so the agent knows the mode after a compaction too. A prompt never sets the mode.
 - `pm hook stop`, the uncommitted-records check, runs in both modes.
-- `pm clean` lists each mode file: kept while its session is live (a transcript or rollout written in the last 30 minutes), removed with `--apply` once it is not. A session idle that long loses its mode.
+- The session's end removes its mode file: `pm hook session-end`, on SessionEnd in both runtimes. A session that crashed leaves it; `pm clean` lists each mode file and removes it with `--apply` once the session's transcripts have been untouched for a day, not the 30 minutes that make a session not live, so an interactive session the owner stepped away from keeps its mode.
+
+| SessionEnd (measured 2026-10-14) | Claude Code 2.1.299 | Codex 0.162.1 |
+|---|---|---|
+| When it fires | when the session ends; `claude -p`: at the end of each run | at the end of `codex exec`; about 90 s after the TUI exits (`/quit`, `/exit`, Ctrl-C twice, Ctrl-D alike) |
+| Input | `session_id`, `transcript_path`, `cwd`, `prompt_id`, `reason: "other"` | `session_id` (the thread id), `transcript_path`, `cwd`, `reason: "other"` |
+
+- So a mode lasts one `claude -p` run or one `codex exec`: a resumed run starts in autopilot.
+
+### The rule per mode
+
+How an agent may ask the owner depends on the mode, so the rule is no part of prime.md, which every session and subagent gets alike. It is two texts:
+
+| Mode | Text | Says |
+|---|---|---|
+| Autopilot | `prompts/request_rule_autopilot.txt` | the rule above (One rule), as prime.md stated it until now, and to run `pm interactive` when the owner asks for interactive mode |
+| Interactive | `prompts/request_rule_interactive.txt` | ask the owner in chat when you need to, the hook is off; still ask only for what you cannot do yourself, and raise a need for what must outlive the chat; `pm autopilot` when the owner asks |
+
+- The session-start state (`pm prime --state`) opens with the text of the session's mode, under a heading naming it, ahead of `pm init`, `pm where` and `pm show`, so the cut that keeps the hook under 10,000 characters takes `pm show`'s tail, never the rule. Its entries run at startup, resume, clear and compact on both runtimes, so a compacted or resumed session gets the rule of its current mode. The session is the hook input's `session_id`; run by hand, the environment's.
+- `pm interactive` and `pm autopilot` print the text of the mode they set, since no start hook fires at a switch mid-session.
+- A subagent gets neither: it reports to its parent, never to the owner, and its stop is not judged.
 
 ### The judge
 
@@ -176,12 +198,12 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 
 ### How it is checked
 
-- Review: prime.md, the judge prompt and the reprompt read side by side; no case is allowed by one and blocked by another.
+- Review: the autopilot request rule, the judge prompt and the reprompt read side by side; no case is allowed by one and blocked by another.
 - `make test-live` on `tests/owner_request_cases.json`, on each runtime's judge, each case 3 runs by default (`PM_LIVE_RUNS`), all with the case's verdict (2026-10-13, 68 cases: Claude 204/204, median 2.35 s, p90 4.08 s; Codex 204/204, median 5.77 s, p90 14.74 s, max 33.79 s); after a prompt change, run 10, since a case at 4 in 10 can pass 3 of 3 by chance. Cases include the three replies blocked on 2026-10-10, labelled by the rule (a chat request with no sprint blocks), and a reply whose only question went through AskUserQuestion (passes).
 - No recursion: the harness's fake `codex` logs the judge's argv and directory; live, a user Stop hook in `$CODEX_HOME/hooks.json` ran under a plain `codex exec` and did not under the judge's.
 - The parity live eval: a Codex session with no `claude` on its PATH that asks the owner only in chat is blocked, then raises a need.
 - A live session: a reply that asks the owner for a file only in chat is blocked and the reprompt names doing it yourself first; it passes once a need is raised under a sprint or task, or once the question moves to the ask tool.
-- Interactive mode: `test_pm.py` (the commands write and remove the mode file, and refuse with no session), `test_owner_request_hook.py` (an interactive session's chat ask passes without the judge; the same ask in another session, or after `pm autopilot`, blocks), `test_hooks.py` (the inbox's line only while interactive, on both runtimes' input; a prompt never sets the mode), `test_clean.py` (a dead session's mode file goes, a live one's stays). Live: a `claude -p` session told to run `pm interactive`, then resumed with a prompt that makes it ask in chat, is not blocked; after `pm autopilot` the same ask is.
+- Interactive mode: `test_pm.py` (the commands write and remove the mode file, print their mode's rule, and refuse with no session), `test_owner_request_hook.py` (an interactive session's chat ask passes without the judge; the same ask in another session, or after `pm autopilot`, blocks), `test_hooks.py` (the state opens with the autopilot rule by default and the interactive rule while the session's file exists, on both runtimes' input; SessionEnd removes the file), `test_clean.py` (a mode file goes after a day idle, and stays after two hours). Live: a `claude -p` session told to run `pm interactive` and then ask in chat in the same run is not blocked, and its SessionEnd removes the mode file; after `pm autopilot` the same ask is blocked.
 - The parity live eval's ask tool scenario: an interactive session (Claude Code's and Codex's TUI) asks a multiple-choice question with its ask tool, the test picks an option at the keyboard, and the Stop hook does not block; the question need pm raised closes with the keyboard's answer.
 
 ## Alternatives considered

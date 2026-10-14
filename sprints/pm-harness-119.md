@@ -16,11 +16,12 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 > details go in a design page.
 
 **In:**
-- The commands `pm interactive` and `pm autopilot`: they write or remove a mode file under the main checkout's `.pm/run/sessions/<session-id>`, the session from the environment, and refuse with none. An agent runs them when the owner asks; nothing enforces it (owner decision). While the file exists, `pm hook inbox` adds a line saying so to each prompt.
+- The commands `pm interactive` and `pm autopilot`: they write or remove a mode file under the main checkout's `.pm/run/sessions/<session-id>`, the session from the environment, and refuse with none. An agent runs them when the owner asks; nothing enforces it (owner decision). Each prints the request rule of the mode it set.
 - `pm hook owner-request` reads the hook input's `session_id` and passes the stop through when that session is interactive. Sessions start in autopilot.
 - `pm hook stop` (the uncommitted-records check) stays on in both modes.
-- Mode files of sessions that are not live: removed by `pm clean`.
-- The rule: `prime.md` tells agents to run `pm interactive` when the owner asks for it. The judge prompt and the block reasons stay: the judge does not run in interactive mode, so no labelled case moves.
+- The request rule per mode, out of `prime.md`: `prompts/request_rule_autopilot.txt` and `request_rule_interactive.txt`; the session-start state hook (startup, resume, clear, compact) opens with the one for the session's mode (owner decision).
+- SessionEnd (both runtimes): `pm hook session-end` removes the ended session's mode file; `pm clean` removes one a crashed session left after a day idle (owner decision).
+- The rule: the autopilot text tells agents to run `pm interactive` when the owner asks for it. The judge prompt and the block reasons stay: the judge does not run in interactive mode, so no labelled case moves.
 - Both runtimes: Claude Code and Codex.
 
 **Out:**
@@ -32,20 +33,21 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 > What evidence will show the goal is met?
 
 - `test_owner_request_hook.py`: an interactive session's chat ask passes the stop; the same ask in another session, in an autopilot session, or after `pm autopilot` is blocked.
-- `test_pm.py`: `pm interactive` / `pm autopilot` write / remove the session's mode file, and refuse with no session id.
-- `test_hooks.py`: `pm hook inbox` adds the interactive-mode line only while the session is interactive, on both runtimes' input.
-- `test_clean.py`: `pm clean` removes a dead session's mode file and keeps a live one's.
-- Live check, in a scratch clone: a `claude -p` session told to run `pm interactive`, then resumed with a prompt that makes it ask in chat, is not blocked; after `pm autopilot`, the same ask is blocked.
+- `test_pm.py`: `pm interactive` / `pm autopilot` write / remove the session's mode file, print their mode's rule, and refuse with no session id.
+- `test_hooks.py`: the state hook prints the autopilot rule by default and the interactive rule while the session's file exists, on both runtimes' input; `pm hook session-end` removes the file.
+- `test_clean.py`: `pm clean` removes the mode file of a session idle for a day and keeps one idle for two hours.
+- Live check, in a scratch clone: a `claude -p` run told to run `pm interactive` and then ask in chat is not blocked; told to run `pm autopilot` and then ask, it is blocked. A `claude -p` run ends its session (SessionEnd fires at the end of each run), so a resumed run starts in autopilot.
+- Live check: ending a Claude Code session removes its mode file.
 - PR on main.
 
 ## Design pages
 
 > Where is the detail?
 
-- [Owner-request Stop hook](../design/owner-request-hook.md): Interactive mode, its commands, mode file and checks; the prompt keyword and the mode read from the transcript as alternatives not chosen (covers `internal/session/mode*.go`, `internal/cli/mode.go`).
-- [Agent lifecycle](../design/agent-lifecycle.md): the UserPromptSubmit row of the hooks table (the interactive-mode line), and the Stop check off in interactive mode (covers `prime.md`, `internal/hooks/prime*.go`, `internal/hooks/stop*.go`).
-- [pm CLI](../design/pm-cli.md): the same in its hooks table (covers `internal/cli/commands.go`, its help golden).
-- [Session claims](../design/session-claims.md): `pm clean` removing the mode file of a session not live (covers `internal/cli/clean.go`, `internal/session/**`).
+- [Owner-request Stop hook](../design/owner-request-hook.md): Interactive mode, its commands, mode file, SessionEnd (measured on both runtimes) and checks; The rule per mode; the prompt keyword and the mode read from the transcript as alternatives not chosen (covers `internal/session/mode*.go`, `internal/cli/mode.go`, `internal/hooks/requestrule.go`, `internal/hooks/sessionend*.go`, `prompts/request_rule_*.txt`).
+- [Agent lifecycle](../design/agent-lifecycle.md): the hooks table's SessionStart (the rule per mode), UserPromptSubmit and SessionEnd rows, and the Stop check off in interactive mode (covers `prime.md`, `internal/hooks/prime*.go`, `internal/hooks/stop*.go`).
+- [pm CLI](../design/pm-cli.md): the same in its hooks table, SessionEnd included (covers `internal/cli/commands.go`, its help golden).
+- [Session claims](../design/session-claims.md): `pm clean` removing the mode file of a session idle for a day (covers `internal/cli/clean.go`, `internal/session/**`).
 
 ## Progress
 

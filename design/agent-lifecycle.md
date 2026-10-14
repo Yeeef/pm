@@ -107,13 +107,14 @@ The hooks behind it, by runtime:
 
 | Event | Claude Code (`.claude/settings.json`) | Codex (`.codex/hooks.json`, main checkout) | What it does |
 |---|---|---|---|
-| SessionStart | `pm prime --rules N` per chunk, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, then `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
+| SessionStart | `pm prime --rules N` per chunk, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, then the request rule of the session's mode (autopilot or interactive), `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
 | SubagentStart | the rules chunks, then `pm prime --subagent` | the same | The rules and pm's git rule for agents |
 | PermissionRequest, matcher `AskUserQuestion` | `pm hook ask --runtime claude` (up to a day, beside the question's dialog) | none | Raises the ask-tool question as a question need the owner can answer on the site too; the first answer, the dialog's or the site's, closes it and reaches the session ([Owner questions](owner-questions.md)) |
 | PostToolUse, matcher `request_user_input_async` | none | `pm hook ask --runtime codex` (30 s) | Raises the question as a question need by its call id; the pm service carries the answer ([Owner questions](owner-questions.md)) |
-| UserPromptSubmit | `pm hook inbox` (10 s) | the same | Hands over the owner's replies no push delivered ([Reply delivery](reply-delivery.md)); while the session is in interactive mode, a line saying so |
+| UserPromptSubmit | `pm hook inbox` (10 s) | the same | Hands over the owner's replies no push delivered ([Reply delivery](reply-delivery.md)) |
 | Stop | `pm hook owner-request --runtime claude` (judge: Haiku through `claude -p`, 30 s) | `pm hook owner-request --runtime codex` (judge: a small Codex model through `codex exec`, 45 s) | Blocks a reply that asks the owner only in chat; the judge runs on the session's own runtime. Off in a session in interactive mode, which `pm interactive` sets when the owner asks ([Owner request hook](owner-request-hook.md)) |
 | Stop | `pm hook stop` | the same | Blocks while records this session named are uncommitted |
+| SessionEnd | `pm hook session-end` (10 s) | the same; Codex fires it at the end of `codex exec` and about 90 s after its TUI exits | Removes the ended session's interactive-mode file ([Owner request hook](owner-request-hook.md)) |
 | SubagentStop | none | `pm hook stop` on the subagent's own rollout | The same, for a subagent whose tool inputs the parent's rollout holds encrypted |
 
 Codex runs these only once the owner trusts the project and pm's hooks, and
