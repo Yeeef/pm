@@ -66,15 +66,18 @@ func SessionReplies(dir, session, prompt string) ([]string, func() error, error)
 	if err != nil {
 		return nil, nil, err
 	}
-	t := service.Texts{Main: main, Remote: cfg.Remote, MainBranch: cfg.MainBranch}
-	texts, marks, err := t.SessionUndelivered(ws, session)
-	var needs []work.Item
-	if err == nil {
-		needs, err = ws.Needs(session)
-	}
+	return sessionReplies(ws, service.Texts{Main: main, Remote: cfg.Remote, MainBranch: cfg.MainBranch}, session, prompt)
+}
+
+// sessionReplies is SessionReplies on the store ws, which deliver lets go of. It reads the session's needs once: what
+// it prints and what deliver marks and closes are the same replies, so a reply landing meanwhile is neither marked
+// delivered unprinted nor closes a question as answered on the site, and the prompt still answers it in the chat.
+func sessionReplies(ws work.Store, t service.Texts, session, prompt string) ([]string, func() error, error) {
+	needs, err := ws.Needs(session)
 	if err != nil {
 		return nil, nil, errors.Join(err, ws.Shutdown())
 	}
+	texts, marks := t.SessionUndelivered(needs)
 	deliver := func() error {
 		deadline := time.Now().Add(inboxMarkBudget)
 		errs := []error{service.MarkWithin(ws, marks, inboxMarkBudget, time.Now, func(left time.Duration) {

@@ -5,6 +5,10 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/session"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 // fakePending answers texts, and records whether deliver ran and what it saw printed by then.
@@ -64,5 +68,62 @@ func TestInboxIsNotOnStopAndFailsOpen(t *testing.T) {
 		if (out.Len() > 0) != c.wantOut || errb.String() != c.stderr || c.f.delivered != c.marked {
 			t.Errorf("%s: out %q, stderr %q, marked %v", name, out.String(), errb.String(), c.f.delivered)
 		}
+	}
+}
+
+// replyAfterRead is an askStore as a work.Store that the owner replies on the site to need right after the first read
+// of the session's needs. Another method of work.Store panics: the inbox calls none.
+type replyAfterRead struct {
+	work.Store
+	s     *askStore
+	need  string
+	reads int
+}
+
+func (r *replyAfterRead) Needs(session string) ([]work.Item, error) {
+	needs, err := r.s.Needs(session)
+	if r.reads++; r.reads == 1 {
+		r.s.reply(r.need, "Blue")
+	}
+	return needs, err
+}
+
+func (r *replyAfterRead) Get(ids ...string) ([]work.Item, error) { return r.s.Get(ids...) }
+func (r *replyAfterRead) UpdateNeed(id string, u work.NeedUpdate) error {
+	return r.s.UpdateNeed(id, u)
+}
+func (r *replyAfterRead) Close(id, reason string, res work.Resolution, session string) error {
+	return r.s.Close(id, reason, res, session)
+}
+func (r *replyAfterRead) Answer(id, text, session string) error { return r.s.Answer(id, text, session) }
+func (r *replyAfterRead) Comment(id string, kind work.CommentKind, author, text string) (work.Comment, error) {
+	return r.s.Comment(id, kind, author, text)
+}
+func (r *replyAfterRead) Shutdown() error { return r.s.Shutdown() }
+
+// TestInboxMarksAndClosesWhatItRead: a site reply that lands on a Codex question after the inbox read the session's
+// needs is not printed, so it is neither marked delivered nor closes the question as answered on the site: the prompt
+// typed in the chat answers it, and the reply is recorded as the one that did not reach the session.
+func TestInboxMarksAndClosesWhatItRead(t *testing.T) {
+	q := work.Item{ID: "q-1", Type: work.Need, Status: work.Open, Need: &work.NeedInfo{Kind: work.Question,
+		Ask: &work.AskInfo{Call: "call_1", Questions: colorAsk("call_1").Questions},
+		RaisedBy: &work.RaisedBy{Session: "s", Inbox: session.CodexInbox("/codex-home")}}}
+	s := newAskStore(q)
+	texts, deliver, err := sessionReplies(&replyAfterRead{s: s, need: q.ID}, service.Texts{}, "s", "red, please")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deliver(); err != nil {
+		t.Fatal(err)
+	}
+	got := s.item(q.ID)
+	var said []string
+	for _, c := range got.Comments {
+		said = append(said, string(c.Kind)+": "+c.Text)
+	}
+	if len(texts) != 0 || got.Status != work.Closed || got.CloseReason == service.AnsweredOnSite ||
+		got.Need.Delivered != 1 || len(said) != 3 || !strings.HasSuffix(said[1], "red, please") {
+		t.Errorf("printed %q; closed %q (%s), delivered %d, comments %q", texts, got.CloseReason, got.Status,
+			got.Need.Delivered, said)
 	}
 }

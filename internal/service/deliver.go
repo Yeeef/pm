@@ -231,13 +231,9 @@ type Mark struct {
 	Update work.NeedUpdate
 }
 
-// SessionUndelivered is what of the session's open needs has not reached it, each as the push writes it, and the
-// marks that deliver it: pm hook inbox's read.
-func (t Texts) SessionUndelivered(st work.Store, session string) ([]string, []Mark, error) {
-	needs, err := st.Needs(session)
-	if err != nil {
-		return nil, nil, err
-	}
+// SessionUndelivered is what of a session's open needs, as pm hook inbox read them, has not reached it, each as the
+// push writes it, and the marks that deliver it.
+func (t Texts) SessionUndelivered(needs []work.Item) ([]string, []Mark) {
 	var texts []string
 	var marks []Mark
 	for i := range needs {
@@ -249,7 +245,7 @@ func (t Texts) SessionUndelivered(st work.Store, session string) ([]string, []Ma
 			marks = append(marks, Mark{needs[i].ID, *u})
 		}
 	}
-	return texts, marks, nil
+	return texts, marks
 }
 
 // MarkWithin makes the marks, one write per need (the store has no batch write), all within budget: lockWait gets
