@@ -63,6 +63,11 @@ The design page pm-in-codex stays as it is for this sprint's code changes.
 The PR changes only pieces.go's git-hook piece, which this page does not describe; its runtime hook entries are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page session-claims stays as it is for this sprint's code changes.
+The PR only drops the hook's name from the claim refusal's worktree hint; the claim rules this page holds are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
