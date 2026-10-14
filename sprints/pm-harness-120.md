@@ -98,6 +98,8 @@ It covers prime.md at product level and does not list the authorized steps or th
 
 done: agents now open the project, sprint or task for work the owner asked for without asking leave, and the owner-request judge blocks asking that leave as a needless ask, in PR #69.
 
+Merged as c4c255c (PR #69).
+
 - prime.md: a new invariant beside the push/PR one ("the request is the leave"; a request that states the goal confirms it; ask what an unclear goal is, never leave to open), and the `open a project` line and `pm project open --help` say a request that states the goal confirms it.
 - Judge prompt: the "authorized" kind names opening a project, sprint or task for work the owner asked for; asking whether to open one for work nobody asked for stays a decision, asking the goal stays a clarification.
 - Needless block reason: lists opening the project, sprint or task for requested work among the authorized steps.
