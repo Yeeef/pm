@@ -87,7 +87,7 @@ complete list is never a non_inferable, map or no_copies defect.
 
 `claude -p --model M --setting-sources "" --strict-mcp-config --tools Read,Grep,Glob --allowedTools Read,Grep,Glob
 --disallowedTools Bash,Edit,Write --no-session-persistence --output-format json --json-schema S`, from the checkout
-root, the prompt on stdin, in a process group of its own killed whole at the timeout (240 s).
+root, the prompt on stdin, in a process group of its own killed whole at the timeout (420 s, inside the ~10 min federated token).
 
 | Mode | When | Calls |
 |---|---|---|
@@ -162,8 +162,8 @@ numbers are in sprint 23's Findings.
 
 - `check`: checkout with full history, Claude Code from its native installer, `make agents-md-check
   BASE=origin/<base>` (auto mode: full on a change to AGENTS.md or the grader), the answers uploaded as an artifact.
-  30 min job timeout: 90 calls on an AGENTS.md of 11 sections, 16 at a time, each killed at 240 s, end within
-  6 × 240 s = 24 min.
+  45 min job timeout: 90 calls on an AGENTS.md of 11 sections, 16 at a time, each killed at 420 s, end within
+  6 × 420 s = 42 min.
 - `cases`: when the PR changes the grader (its grep names `GRADER`'s paths, which `tests/test_agents_md_eval.py`
   holds equal), the planted and diff cases once each (`PM_LIVE_RUNS=1`, `PM_AGENTS_MD_SKIP=clean`); otherwise a step
   says so and the job passes. The harness files the live test runs under (`conftest.py`, `run.py`, the Makefile) do
@@ -209,6 +209,6 @@ numbers are in sprint 23's Findings.
 
 - A full run's slowest accuracy call has reached 149 s of its 240 s timeout; a longer AGENTS.md section may need a
   finer split.
-- How Claude Code behaves when a call outlives the 10 min federated token (not reached at 240 s per call).
+- How Claude Code behaves when a call outlives the 10 min federated token (not reached at 420 s per call).
 - Residual variance under the vote: a passage that three of five calls flag on a borderline reading still fails a
   clean file; fixing the passages that draw repeated findings lowers it.
