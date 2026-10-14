@@ -25,7 +25,7 @@ func OtherField(q int) string { return fmt.Sprintf("q%d-other", q) }
 func AnswerText(ask AskInfo, fields map[string][]string) (string, error) {
 	lines := make([]string, 0, len(ask.Questions))
 	for i, q := range ask.Questions {
-		text := oneLine(q.Text)
+		text := q.Line()
 		picked := fields[AnswerField(i)]
 		for _, p := range picked {
 			if !slices.ContainsFunc(q.Options, func(o AskOption) bool { return o.Label == p }) {
@@ -54,5 +54,9 @@ func AnswerText(ask AskInfo, fields map[string][]string) (string, error) {
 	}
 	return strings.Join(lines, "\n"), nil
 }
+
+// Line is the question's text on one line, as its line of an answer names it: AnswerText writes it, and the hook that
+// relays the answer to the session reads it.
+func (q AskQuestion) Line() string { return oneLine(q.Text) }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }

@@ -265,12 +265,13 @@ type localAnswer struct {
 	answers  map[string]string
 }
 
-// text is the answer as a need records it: one line per question answered, "<question>: <answer>".
+// text is the answer as a need records it: one line per question answered, "<question>: <answer>", as the site
+// writes it (item.AnswerText).
 func (a *localAnswer) text(info work.AskInfo) string {
 	var lines []string
 	for _, q := range info.Questions {
 		if v, ok := a.answers[q.Text]; ok {
-			lines = append(lines, q.Text+": "+v)
+			lines = append(lines, q.Line()+": "+v)
 		}
 	}
 	if len(lines) == 0 {
@@ -372,19 +373,19 @@ func sameJSON(raw json.RawMessage, v map[string]any) bool {
 	return json.Unmarshal(raw, &got) == nil && reflect.DeepEqual(got, v)
 }
 
-// answersFrom is the site's answer to each question, keyed by its text, as AskUserQuestion's answers are. The site
-// writes one line per question, "<question>: <answer>" (a multiple choice's labels joined with ", "); an answer
-// naming an option's label in any case is that label, any other is the owner's own text. A reply with no such line (pm
-// reply add's free text) answers every question whole.
+// answersFrom is the site's answer to each question, keyed by its text as asked, as AskUserQuestion's answers are. The
+// site writes one line per question, "<question>: <answer>" (item.AnswerText: the question's Line, a multiple choice's
+// labels joined with ", "); an answer naming an option's label in any case is that label, any other is the owner's own
+// text. A reply with no such line (pm reply add's free text) answers every question whole.
 func answersFrom(info work.AskInfo, reply string) map[string]string {
-	byLength := slices.Clone(info.Questions) // a question that starts with another's text is matched first
-	sort.SliceStable(byLength, func(i, j int) bool { return len(byLength[i].Text) > len(byLength[j].Text) })
+	byLength := slices.Clone(info.Questions) // a question whose line starts with another's is matched first
+	sort.SliceStable(byLength, func(i, j int) bool { return len(byLength[i].Line()) > len(byLength[j].Line()) })
 	values := map[string][]string{}
 	cur := ""
 	for _, line := range strings.Split(reply, "\n") {
 		matched := false
 		for _, q := range byLength {
-			if rest, ok := strings.CutPrefix(line, q.Text+":"); ok {
+			if rest, ok := strings.CutPrefix(line, q.Line()+":"); ok {
 				cur, matched = q.Text, true
 				values[cur] = []string{strings.TrimSpace(rest)}
 				break

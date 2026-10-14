@@ -23,9 +23,10 @@ var askTools = map[string]bool{"AskUserQuestion": true, "request_user_input": tr
 // header), request_user_input_async's title.
 type toolQuestion struct{ Question, Title, Header string }
 
+// text is the question's first field that is not blank, as asked: Claude Code keys AskUserQuestion's answers by it.
 func (q toolQuestion) text() string {
 	for _, s := range []string{q.Question, q.Title, q.Header} {
-		if s = strings.TrimSpace(s); s != "" {
+		if strings.TrimSpace(s) != "" {
 			return s
 		}
 	}
@@ -58,7 +59,7 @@ func ToolAsks(transcript string) []string {
 			continue
 		}
 		for _, q := range args.Questions {
-			if t := q.text(); t != "" {
+			if t := strings.TrimSpace(q.text()); t != "" {
 				out = append(out, t)
 			}
 		}

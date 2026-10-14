@@ -39,7 +39,7 @@ func ShortSession(session string) string {
 func QuestionText(ask AskInfo) string {
 	var desc []string
 	for _, q := range ask.Questions {
-		text := q.Text
+		text := strings.TrimSpace(q.Text)
 		if q.Header != "" {
 			text = "**" + q.Header + "**: " + text
 		}

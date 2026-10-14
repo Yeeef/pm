@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/ask"
+	"github.com/Yeeef/pm/internal/item"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -218,6 +219,67 @@ func TestAnswersFromMapsTheSitesReplyToEachQuestion(t *testing.T) {
 	} {
 		if got := answersFrom(info, c.reply); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%q: got %q, want %q", c.reply, got, c.want)
+		}
+	}
+}
+
+// TestTheSitesAnswerReachesEachQuestionAsAsked: the questions of an AskUserQuestion input, as askOf reads them, answered
+// on the site's card (item.AnswerText) come back from answersFrom keyed by each question's text as the tool asked it:
+// one with a newline and a double space, one with whitespace at its edges, one that is a prefix of another, one with
+// ": " in it; each asked alone and all asked together.
+func TestTheSitesAnswerReachesEachQuestionAsAsked(t *testing.T) {
+	type question struct {
+		text, pick, other string
+		multi             bool
+		labels            []string
+		want              string
+	}
+	questions := []question{
+		{text: "Which DB?", pick: "Postgres", labels: []string{"Postgres", "MySQL"}, want: "Postgres"},
+		{text: "Deploy  where?\nPick one.", pick: "EU", labels: []string{"EU", "US"}, want: "EU"},
+		{text: "  Which DB, really?  ", other: "my  own\nanswer", labels: []string{"Yes"}, want: "my own answer"},
+		{text: "Note", pick: "A", labels: []string{"A", "B"}, want: "A"},
+		{text: "Note: which regions?", pick: "EU,US", multi: true, labels: []string{"EU", "US"}, want: "EU, US"},
+	}
+	ask := func(qs []question) (json.RawMessage, map[string][]string, map[string]string) {
+		var in []map[string]any
+		fields, want := map[string][]string{}, map[string]string{}
+		for i, q := range qs {
+			var opts []map[string]any
+			for _, l := range q.labels {
+				opts = append(opts, map[string]any{"label": l, "description": "d"})
+			}
+			in = append(in, map[string]any{"question": q.text, "header": "H", "multiSelect": q.multi, "options": opts})
+			if q.pick != "" {
+				fields[item.AnswerField(i)] = strings.Split(q.pick, ",")
+			}
+			if q.other != "" {
+				fields[item.OtherField(i)] = []string{q.other}
+			}
+			want[q.text] = q.want
+		}
+		raw, err := json.Marshal(map[string]any{"questions": in})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw, fields, want
+	}
+	sets := [][]question{questions}
+	for _, q := range questions {
+		sets = append(sets, []question{q})
+	}
+	for _, qs := range sets {
+		raw, fields, want := ask(qs)
+		info, err := askOf(raw, "call")
+		if err != nil {
+			t.Fatal(err)
+		}
+		reply, err := item.AnswerText(info, fields)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := answersFrom(info, reply); !reflect.DeepEqual(got, want) {
+			t.Errorf("reply %q: got %q, want %q", reply, got, want)
 		}
 	}
 }
