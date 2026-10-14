@@ -70,11 +70,9 @@ hold it).
   PR; never hand-edit one to make a test pass.
 - **After adding or renaming an `internal/work` test, run `make go-test-work UPDATE=1`**: it measures and rewrites
   `.github/scripts/work-test-seconds.txt`, which must name every test and no other, or `go-test-work` fails.
-- **After adding or renaming a Go test, classify it in `.github/scripts/go-os-tests.txt`**: `os` when its behaviour can
-  differ by OS (with the evidence: process groups, flock, unix sockets, symlinks, file modes, service units, the Dolt
-  engine on disk), else `any`. A PR runs only the `os` tests on macOS; `make go-os-check` fails on an unclassified test.
-- A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python). A function
-  or file past a cap (`.golangci.yml`, `size_test.go`) is split along a seam.
+- **After adding or renaming a Go test, classify it `os` or `any` in `.github/scripts/go-os-tests.txt`**, whose header
+  says how; `make go-os-check` fails until you do.
+- A function or file past a cap (`.golangci.yml`, `size_test.go`) is split along a seam, never kept with `//nolint`.
 
 ## Merging
 
@@ -103,9 +101,8 @@ ran against main as main was then, so two PRs that pass alone can break main tog
   wording, and a flag named in either must parse. `test_pm.py` asserts refusal texts: grep it before rewording one.
 - A body shown in pm's docs, `--help` texts and hints takes one of the two forms `prime.md`'s Bodies paragraph gives,
   never `--text "…"`.
-- The rules run as one hook per chunk under a size cap (`internal/hooks`' doc). When a chunk outgrows it, move a
-  heading in `hooks.Starts` and in `conftest.py`'s `RULE_STARTS`, or add one plus its hook entries. Two PRs that each
-  fit the cap can overflow it together.
+- The rules run as one hook per chunk under a size cap; `tests/test_hooks.py`'s docstring says how to re-cut them
+  when a chunk outgrows it. Two PRs that each fit the cap can overflow it together.
 - **A hook change edits both `claudeHooks` and `codexHooks`** (`internal/install/pieces.go`);
   `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for.
 - Hooks fail open on their own errors, the owner-request judge's exit 1 included (`internal/hooks`' package doc).
@@ -131,10 +128,8 @@ it); leave a stale service to a typed `pm init` or `pm service restart`.
 
 ## The parity live eval
 
-A parity scenario asserts from the work store, the records store and each runtime's transcript, never from the
-agent's prose; `tests/test_agent_parity_live.py`'s docstring lists the scenarios. A new scenario updates the
-Makefile's `-n` and the docstring's count (`tests/test_ci.py` holds both to the scenarios pytest collects). Every
-copy of a login goes through `agents.login_copy` (`test_login_copies.py` holds the harness to it).
+`tests/test_agent_parity_live.py`'s docstring lists the scenarios and what they assert from; `tests/test_ci.py` and
+`tests/test_login_copies.py` hold a new scenario to the harness's counts and login copies.
 
 ## The site
 
