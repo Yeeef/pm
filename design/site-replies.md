@@ -160,8 +160,10 @@ comments. A reply it cannot push waits: the card says the session is not
 running, `pm show` flags it, and `pm reply read <id>` prints it and marks it
 delivered. A Codex session gets it queued with `codex queue`, which starts a
 turn when the session is idle; a session with no inbox sees it flagged by
-`pm show` and reads it with `pm reply read <id>`. Closing a request
-through pm refuses while it holds one. The full
+`pm show` and reads it with `pm reply read <id>`. A question's answer takes
+no push: a Claude Code session's `pm hook ask` waits for it on the wait socket
+(see Security), and a Codex session's question is closed, then queued.
+Closing a request through pm refuses while it holds one. The full
 design, with the failures it replaced and the alternatives, is
 [Reply delivery](../design/reply-delivery.md).
 
@@ -213,6 +215,11 @@ neither the store-path nor the build header.
   request to its host gets a 403 naming the key; certs that cannot be
   fetched or parsed, or any other failure to verify, refuse the request. A missing Access policy in Cloudflare therefore leaves
   the site unreachable, not open.
+- **The wait socket.** The service's other listener,
+  `<main checkout>/.pm/run/wait.sock`, is a unix socket of mode 0600, which
+  no tunnel and no other user reaches. It serves only `GET /need?id=` for
+  `pm hook ask`, answering when the need has a site reply waiting or is
+  closed; it carries no reply text and writes nothing.
 - **Out of scope.** A shell user can forge a reply with `bd comments add
   --author "owner (site reply)"`; the machine's users are trusted, as for
   every other Beads write.

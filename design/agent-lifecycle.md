@@ -109,9 +109,9 @@ The hooks behind it, by runtime:
 |---|---|---|---|
 | SessionStart | `pm prime --rules N` per chunk, `pm prime --request-rule`, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, the request rule of the session's mode (autopilot or interactive), then `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
 | SubagentStart | the rules chunks, then `pm prime --subagent` | the same | The rules and pm's git rule for agents |
-| PermissionRequest, matcher `AskUserQuestion` | `pm hook ask --runtime claude` (up to a day, beside the question's dialog) | none | Raises the ask-tool question as a question need the owner can answer on the site too; the first answer, the dialog's or the site's, closes it and reaches the session ([Owner questions](owner-questions.md)) |
-| PostToolUse, matcher `request_user_input_async` | none | `pm hook ask --runtime codex` (30 s) | Raises the question as a question need by its call id; the pm service carries the answer ([Owner questions](owner-questions.md)) |
-| UserPromptSubmit | `pm hook inbox` (10 s) | the same | Hands over the owner's replies no push delivered ([Reply delivery](reply-delivery.md)) |
+| PermissionRequest, matcher `AskUserQuestion` | `pm hook ask --runtime claude` (up to a day, beside the question's dialog) | none | Raises the ask-tool question as a question need the owner can answer on the site too, and waits for a site answer on one call to the pm service's wait socket; the first answer, the dialog's or the site's, closes it and reaches the session; stopped by Claude Code (SIGTERM: Esc, or the session's end), it closes the question as dismissed ([Owner questions](owner-questions.md)) |
+| PostToolUse, matcher `AskUserQuestion` (Claude Code), `request_user_input_async` (Codex) | `pm hook ask --runtime claude` (10 s) | `pm hook ask --runtime codex` (30 s) | Claude Code: closes the question with the dialog's answer. Codex: raises the question as a question need by its call id; the pm service carries the site's answer ([Owner questions](owner-questions.md)) |
+| UserPromptSubmit | `pm hook inbox` (10 s) | the same, then `pm hook ask --runtime codex` (10 s) | Hands over the owner's replies no push delivered ([Reply delivery](reply-delivery.md)); in Codex, the typed prompt closes the session's open questions as their chat answer |
 | Stop | `pm hook owner-request --runtime claude` (judge: Haiku through `claude -p`, 30 s) | `pm hook owner-request --runtime codex` (judge: a small Codex model through `codex exec`, 45 s) | Blocks a reply that asks the owner only in chat; the judge runs on the session's own runtime. Off in a session in interactive mode, which `pm interactive` sets when the owner asks ([Owner request hook](owner-request-hook.md)) |
 | Stop | `pm hook stop` | the same | Blocks while records this session named are uncommitted |
 | SessionEnd | `pm hook session-end` (10 s) | the same; Codex fires it at the end of `codex exec` and about 90 s after its TUI exits | Removes the ended session's interactive-mode file ([Owner request hook](owner-request-hook.md)) |
@@ -252,10 +252,12 @@ records on the `records` branch, which each `pm` write commits itself.
 
 ### Asking the owner
 
-When work waits on the owner, the agent raises a need and keeps working on
-other ready tasks:
+When work waits on the owner, the agent picks the form by what it asks,
+not by whether the owner is in the chat, and splits a mixed ask; it raises a
+need and keeps working on other ready tasks:
 
-- **Decision need**, `pm decision need --title … --parent ID`: the owner
+- **Decision need**, `pm decision need --title … --parent ID`: a ruling on a
+  project's or sprint's outcome that later sessions must follow; the owner
   must choose. Its body stands alone: the question, Options with their cost,
   a Default.
 - **Action need**, `pm action need --title … --parent ID`: the owner must do
@@ -263,9 +265,12 @@ other ready tasks:
 - **PR review**, `pm action need --pr URL --sprint ID --focus …`: refused
   until the sprint's delivery report is written; a need that asks to
   review, merge or approve a PR without `--pr` is refused.
-- **The runtime's ask tool**, when the owner is plainly in the chat:
+- **The runtime's ask tool**, for a question that steers this session (what
+  to do next, confirm a scope or plan, clarify what the owner meant):
   AskUserQuestion in Claude Code; `request_user_input_async` in Codex,
-  `request_user_input` in its Plan mode. The owner-request check reads the
+  `request_user_input` in its Plan mode; with no ask tool (`claude -p`, a
+  subagent), a decision need closed with `pm decision close` when its answer
+  sets no rule. The owner-request check reads the
   turn's ask-tool calls from the transcript and treats their questions as
   open requests, so the reply's repeat of one does not block.
   pm raises the question as a **question need**, so the owner can answer on

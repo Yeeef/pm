@@ -74,6 +74,7 @@ flowchart LR
     pmcli["pm CLI<br/>(writes records, raises requests)"]
     bdcli["bd CLI"]
     inbox["session inbox<br/>(socket, or codex queue)"]
+    askhook["pm hook ask<br/>(a Claude Code question)"]
   end
   subgraph data["Shared data, one per clone"]
     store[".records<br/>records branch (git)"]
@@ -84,6 +85,7 @@ flowchart LR
     snap["snapshot + as-of time"]
     handler["request handler<br/>GET page, /version, POST /reply"]
     writer["reply write thread"]
+    waits["wait socket<br/>GET /need"]
   end
   browser["Owner's browser"]
   pmcli --> store
@@ -97,11 +99,13 @@ flowchart LR
   handler --> writer
   writer --> dolt
   writer -. "pushes the reply" .-> inbox
+  snap --> waits
+  askhook <--> waits
   store --> render["make render<br/>(check before commits)"]
   dolt --> render
 ```
 
-*Reading:* agents write the records store and Beads; `pm serve` reads them only in its refresh thread, serves the owner from the snapshot, and hands replies to its own write thread, so the owner's requests never touch the shared data directly.
+*Reading:* agents write the records store and Beads; `pm serve` reads them only in its refresh thread, serves the owner from the snapshot, and hands replies to its own write thread, so the owner's requests never touch the shared data directly. A Claude Code question's hook waits on the wait socket, which answers from the same snapshot ([Owner questions](owner-questions.md), How the Claude Code hook waits for the site).
 
 ### Views
 Every view is rendered from records plus live status from Beads. Nothing in a view is edited by hand.
@@ -292,7 +296,8 @@ stateDiagram-v2
   new snapshot is as of the time the read started, so its data is at least
   that current. Beads are reread with `bd list` only when the fingerprint
   moved; a reread equal to the last one (readers move the fingerprint too)
-  keeps the rendered pages.
+  keeps the rendered pages. Each snapshot stored wakes the waits on the wait
+  socket, so they share this one look.
 - **No lock.** The read takes no store lock, since `pm` writes each file
   atomically. Between a `pm` write's steps the records and Beads may not
   render together (a need closed before its decision is written), so a read

@@ -42,14 +42,14 @@ An agent's ask-tool question (Claude Code's AskUserQuestion, Codex's request_use
 - [Owner questions](../design/owner-questions.md): the question kind end to end: what it is, its record, raising per runtime (Claude Code's PermissionRequest, Codex's PostToolUse), answering on the site and in chat, first answer wins, closing, the judge; a sequence diagram per runtime.
 - [Work store](../design/work-store.md): the question need kind, its ask fields and tables (schema 4), the parent rule, its closes and refusals (covers `internal/item/**`).
 - [Owner-request Stop hook](../design/owner-request-hook.md): the judge reading an open question as an open request; Ask-tool questions on the site, a summary linking Owner questions.
-- [Reply delivery](../design/reply-delivery.md): Routes by request kind and runtime: a Claude Code question answered only through its hook, a Codex one through `codex queue` after the rollout check; the sweep settling questions; the Claude hook's accepted window.
-- [Replies on the site](../design/site-replies.md): A session's question: the card, its inputs and the reply text rule.
-- [pm in Codex](../design/pm-in-codex.md): the Codex PostToolUse `pm hook ask` and its row in Areas.
-- [Views and the site](../design/views-and-site.md): the "Sessions ask you" section.
-- [Agent lifecycle](../design/agent-lifecycle.md): `pm hook ask` in the hook table per runtime, the question need under Asking the owner.
+- [Reply delivery](../design/reply-delivery.md): Routes by request kind and runtime: a Claude Code question answered only through its hook, waiting on the service's wait socket; a Codex one closed by the service, then queued with `codex queue`; the sweep settling questions; the accepted windows.
+- [Replies on the site](../design/site-replies.md): A session's question: the card, its inputs and the reply text rule; the wait socket under Security.
+- [pm in Codex](../design/pm-in-codex.md): the Codex `pm hook ask` at PostToolUse (raise) and UserPromptSubmit (chat answer) and its row in Areas.
+- [Views and the site](../design/views-and-site.md): the "Sessions ask you" section; the wait socket fed by the snapshot.
+- [Agent lifecycle](../design/agent-lifecycle.md): `pm hook ask` in the hook table per runtime (raise, chat-answer close, SIGTERM dismiss), the form by what is asked and the question need under Asking the owner.
 - [pm CLI](../design/pm-cli.md): `pm hook ask` in Agent hooks, the questions' refusals in the answer commands and `pm need edit`, the question lines of `pm show`.
-- [pm as an installable product](../design/pm-product.md): the `pm hook ask` entries, a Claude Code PermissionRequest and a Codex PostToolUse.
-- [pm in Go](../design/pm-go.md): `hook ask` and the question's answer in the package table.
+- [pm as an installable product](../design/pm-product.md): the `pm hook ask` entries: Claude Code's PermissionRequest and PostToolUse, Codex's PostToolUse and UserPromptSubmit.
+- [pm in Go](../design/pm-go.md): `hook ask`, the wait socket and the question's answer in the package table.
 - [Sprint lifecycle](../design/sprint-lifecycle.md): an ask-tool question raised as a question need; the sprint page's "Sessions ask you" section.
 
 ## Progress
