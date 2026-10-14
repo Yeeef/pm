@@ -1,7 +1,8 @@
 """The CI workflows' own logic: which changes run the release build test (pm-release-build.yml's push and
 pull_request path lists equal, naming what can alter the release build), the Go test job's package list (make
 go-test-but-work failing when go list fails) and go_shards.py's shards, go_changes.py's skip of the Go jobs' work on a
-PR no Go job reads (each job still running on every PR), every restore of pm-go.yml's Go caches, the parity
+PR no Go job reads (each job still running on every PR) and its selection of the test packages a PR's changes can
+affect, which the go test targets take as SELECTED, every restore of pm-go.yml's Go caches, the parity
 eval's scenario count, and the release on a push to main (its jobs, their tokens, main_ci.py, and the scripts of its
 plan and tag steps, run against a local bare origin and a fake gh). The expected results come from what each job is
 for, on fake tools built here."""
@@ -19,6 +20,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import REAL
 
 PM_DIR = Path(__file__).resolve().parents[1]
 
@@ -97,6 +99,39 @@ def test_go_test_but_work_fails_when_go_list_fails_and_tests_nothing(tmp_path):
                          capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr
     assert (ok / "test.log").read_text() == "test -trimpath -tags gms_pure_go -ldflags=-w m/a m/b\n"
+
+
+def test_the_go_test_targets_run_only_their_selected_packages_and_fail_on_a_missing_selection(tmp_path):
+    """SELECTED, as pm-go.yml sets it on a pull request: a target with none of its packages selected runs no go and
+    passes; go-test-but-work tests the selected packages but internal/work; a missing file fails before any go runs."""
+    selected = tmp_path / "selected"
+    selected.write_text("./internal/site\n.\n")
+    env = fake_go(tmp_path, False)
+
+    def make(target, file=selected):
+        log = tmp_path / "test.log"
+        log.unlink(missing_ok=True)
+        res = subprocess.run(["make", "-s", target], cwd=PM_DIR, capture_output=True, text=True, check=False,
+                             env={**env, "SELECTED": str(file)})
+        return res.returncode, res.stdout + res.stderr, log.read_text() if log.exists() else ""
+
+    for target in ("go-test-work", "go-test-race", "go-test-work-os", "go-test-race-os"):
+        code, out, log = make(target)
+        assert (code, log) == (0, ""), out
+        assert "internal/work is not selected" in out, out
+    code, out, log = make("go-test-but-work")
+    assert (code, log) == (0, "test -trimpath -tags gms_pure_go -ldflags=-w . ./internal/site\n"), out
+    code, out, log = make("go-test-but-work-os")  # site's os tests; the root package has none
+    assert code == 0 and log.startswith("test -trimpath -tags gms_pure_go -ldflags=-w -run ^(") and \
+        log.endswith(")$ ./internal/site\n"), (out, log)
+    selected.write_text(".\n")
+    assert make("go-test-but-work-os")[::2] == (0, "")
+    selected.write_text("./internal/service\n")
+    code, out, log = make("go-test-race-service")
+    assert (code, log) == (0, "test -race -tags gms_pure_go -ldflags=-w -run . ./internal/service\n"), out
+    for target in ("go-test-work", "go-test-but-work"):
+        code, out, log = make(target, tmp_path / "missing")
+        assert code != 0 and log == "", (target, out)
 
 
 SHARDS = PM_DIR / ".github/scripts/go_shards.py"
@@ -224,6 +259,19 @@ def test_the_os_lists_name_each_test_of_their_set_and_refuse_a_test_in_no_row_or
         res = os_tests(root, "names", "--os", *args)
         assert res.returncode == 1 and "outside the set" in res.stderr, res
     assert os_tests(root, "names", "--os", "--anchored", "--but", "a").stdout.strip() == "^(TestThree|TestTwo)$"
+    # --in keeps a selection's packages (go_changes.py select's file): an empty package list prints nothing and passes,
+    # empty names still fail, and a package with no tests fails
+    selected = tmp_path / "selected"
+    selected.write_text("./b\n")
+    assert os_tests(root, "packages", "--os", "--in", str(selected)).stdout.split() == ["./b"]
+    assert os_tests(root, "names", "--os", "--anchored", "--in", str(selected)).stdout.strip() == "^(TestThree|TestTwo)$"
+    selected.write_text("./a\n")
+    res = os_tests(root, "packages", "--os", "--but", "a", "--in", str(selected))
+    assert (res.returncode, res.stdout) == (0, "")
+    assert os_tests(root, "names", "--os", "--but", "a", "--in", str(selected)).returncode == 1
+    selected.write_text("./a\n./c\n")
+    res = os_tests(root, "packages", "--in", str(selected))
+    assert res.returncode == 1 and "names c, no package with tests" in res.stderr
 
     root = module("a TestOne os x\na TestTwo any x\na TestTwo os x\nb TestNone os x\nc * any x\n")
     res = os_tests(root, "check")
@@ -300,6 +348,125 @@ def test_go_changes_reads_a_pull_requests_merge_commit_and_runs_every_job_on_a_p
     (repo / "a.go").write_text("package a // changed\n")
     git("commit", "-qam", "go"), git("checkout", "-q", "main"), git("merge", "-q", "--no-ff", "-m", "m2", "pr")
     assert run("pull_request")[:2] == (0, "go=true\n")
+
+
+def test_go_changes_select_runs_the_test_packages_a_change_can_affect_and_everything_for_one_it_cannot_place():
+    """A graph built here: store (a library) linked by the tests of work and cli; site linked by cli's alone; root
+    embeds prime.md and is linked by hooks; svc's test names ../../tests/fake.py; root's tests read every .go file
+    (go_changes.SOURCE_READERS)."""
+    P = go_changes.Package  # noqa: N806
+    pkgs = {
+        ".": P(".", {"assets.go": "//go:embed prime.md"}, {"size_test.go": 'strings.HasSuffix(p, ".go")'},
+               ["prime.md", "prompts/a.txt"], links={"."}),
+        "internal/store": P("internal/store", {"s.go": ""}),
+        "internal/work": P("internal/work", {"w.go": ""}, {"w_test.go": ""}, links={"internal/work", "internal/store"}),
+        "internal/site": P("internal/site", {"site.go": ""}, {"site_test.go": ""}, test_embeds=["golden/*.html"],
+                           links={"internal/site"}),
+        "internal/cli": P("internal/cli", {"cli.go": ""}, {"cli_test.go": ""},
+                          links={"internal/cli", "internal/site", "internal/store", "internal/work"}),
+        "internal/hooks": P("internal/hooks", {"h.go": ""}, {"h_test.go": ""}, links={"internal/hooks", "."}),
+        "internal/svc": P("internal/svc", {"svc.go": ""}, {"svc_test.go": 'filepath.Abs("../../tests/fake.py")'},
+                          links={"internal/svc"}),
+    }
+
+    def chosen(*changed):
+        return go_changes.select(list(changed), pkgs)[0]
+
+    # a store change runs every test binary linking store, and the root's, which reads every .go file
+    assert chosen("internal/store/s.go") == {".", "internal/work", "internal/cli"}
+    # a site-only change does not run internal/work's tests
+    assert chosen("internal/site/site.go") == {".", "internal/site", "internal/cli"}
+    assert chosen("internal/site/site_test.go") == {".", "internal/site"}  # a test file: its own package's binary
+    # testdata and a test-only embed run the reader's tests; an embedded file runs every binary linking its package
+    assert chosen("internal/site/testdata/x.json") == {"internal/site"}
+    assert chosen("internal/site/golden/a.html") == {"internal/site"}
+    assert chosen("prime.md") == chosen("prompts/a.txt") == {".", "internal/hooks"}
+    assert chosen("tests/fake.py") == {"internal/svc"}  # named by a path from the package's directory
+    assert chosen("AGENTS.md", "tests/test_pm.py") == set()  # NO_GO files no Go file names
+    # what the selector cannot place, and go.mod or go.sum, run every package
+    for path in ("Makefile", ".github/workflows/pm-go.yml", "prompts/new.txt", "internal/gone/x.go", "go.mod", "go.sum"):
+        assert chosen("internal/site/site.go", path) is go_changes.ALL, path
+    assert chosen() is go_changes.ALL  # no change found
+
+    # a package whose tests read Go source must be in SOURCE_READERS, and one listed must still read it
+    pkgs["internal/svc"].test_files["parse_test.go"] = 'import "go/parser"'
+    errors = go_changes.source_reader_errors(pkgs)
+    assert any(e.startswith("internal/svc: its tests read Go source") for e in errors), errors
+    assert any(e.startswith("internal/item: in SOURCE_READERS") for e in errors), errors
+
+
+def test_go_changes_select_on_this_repo_follows_its_import_graph_and_its_readers(monkeypatch):
+    # go list loads every dependency's source: from the user's module cache, which conftest's temp HOME hides
+    real = {k: v for k, v in {**os.environ, "HOME": REAL["HOME"], "XDG_CONFIG_HOME": REAL["XDG_CONFIG_HOME"]}.items()
+            if v}
+    for var in ("GOCACHE", "GOMODCACHE"):
+        monkeypatch.setenv(var, subprocess.run(["go", "env", var], env=real, capture_output=True, text=True,
+                                               check=True).stdout.strip())
+    pkgs = go_changes.go_list(PM_DIR)
+    assert go_changes.source_reader_errors(pkgs) == []
+
+    def chosen(*changed):
+        return go_changes.select(list(changed), pkgs)[0]
+
+    store = chosen("internal/work/sync.go")  # internal/cli, config, install and service import internal/work
+    assert {"internal/work", "internal/cli", "internal/config", "internal/install", "internal/service"} <= store
+    assert not store & {"internal/site", "internal/records", "internal/hooks", "internal/design"}, store
+    for path in ("internal/site/site.go", "internal/records/records.go", "internal/hooks/prime.go",
+                 "internal/install/pieces.go", "internal/site/testdata/serve/filled.html"):
+        assert "internal/work" not in chosen(path), path  # TestTheItemReadersLinkNoDolt holds site's and records'
+    assert "internal/site" in chosen("internal/site/testdata/serve/filled.html")
+    assert "internal/hooks" in chosen("prime.md")  # embedded by the root package, which hooks imports
+    assert "internal/launch" in chosen("changelog.d/x.md")  # an embedded directory's file
+    assert "internal/service" in chosen("tests/fake_sched.py")  # internal/service's lifecycle test runs it
+    assert "internal/work" in chosen("internal/work/testdata/bd-export.jsonl")
+    for path in ("go.mod", "Makefile", ".github/scripts/go-os-tests.txt", ".pm/hooks/post-checkout"):
+        assert chosen(path) is go_changes.ALL, path
+    assert chosen("AGENTS.md", "tests/test_pm.py") == set()
+
+
+def test_go_changes_select_writes_a_pull_requests_packages_and_every_package_on_a_push(tmp_path):
+    """A module built here, with no dependency to fetch: lib (no tests), a (imports lib), b (reads testdata), and
+    SOURCE_READERS' packages, whose tests read Go source."""
+    repo = tmp_path / "repo"
+
+    def git(*args):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=repo, check=True,
+                       capture_output=True)
+
+    def write(path, text):
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text(text)
+
+    def run(event, *args):
+        r = subprocess.run([sys.executable, str(GO_CHANGES), "select", ".go/selected", *args], cwd=repo,
+                           capture_output=True, text=True, check=False,
+                           env={**os.environ, "GITHUB_EVENT_NAME": event, "GOFLAGS": "-mod=mod"})
+        out = repo / ".go/selected"
+        return r.returncode, out.read_text() if out.exists() else None, r.stdout + r.stderr
+
+    repo.mkdir()
+    write("go.mod", "module m\n\ngo 1.21\n")
+    write("lib/lib.go", "package lib\n\nfunc X() int { return 1 }\n")
+    write("a/a.go", "package a\n")
+    write("a/a_test.go", 'package a\n\nimport (\n\t"testing"\n\n\t"m/lib"\n)\n\nfunc TestA(t *testing.T) { _ = lib.X() }\n')
+    write("b/b_test.go", "package b\n\nimport \"testing\"\n\nfunc TestB(t *testing.T) {}\n")
+    write("b/testdata/x.txt", "x\n")
+    for d in (".", "internal/item", "internal/cli"):
+        write(f"{d}/src_test.go", f'package {Path(d).name or "m"}\n\nimport "testing"\n\n// keeps ".go" files\n'
+                                  'func TestSrc(t *testing.T) {}\n')
+    git("init", "-q", "-b", "main"), git("add", "."), git("commit", "-qm", "base")
+    assert run("push")[:2] == (0, ".\n./a\n./b\n./internal/cli\n./internal/item\n")
+    # lib's change runs a, which links it, and the root's and internal/item's tests, which read every .go file
+    for n, (path, want) in enumerate((("lib/lib.go", ".\n./a\n./internal/item\n"), ("b/testdata/x.txt", "./b\n"))):
+        git("checkout", "-qb", f"pr{n}", "main")
+        write(path, (repo / path).read_text() + "// changed\n")
+        git("commit", "-qam", "pr"), git("checkout", "-q", "main")
+        git("merge", "-q", "--no-ff", "-m", "merge", f"pr{n}")  # as refs/pull/N/merge is
+        code, out, log = run("pull_request")
+        assert (code, out) == (0, want), log
+        git("reset", "-q", "--hard", "HEAD^1")
+    code, out, log = run("pull_request")  # main's own commit, one parent: not a PR's merge commit
+    assert code != 0 and "merge commit" in log, log
 
 
 def steps(workflow: Path) -> list[str]:

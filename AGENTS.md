@@ -56,8 +56,8 @@ hold it).
 - **Never run the whole integration set locally.** `.github/workflows/pm-tests.yml` runs it on every PR, and that run
   is the check: push, then watch it (`gh pr checks <n> --watch`); to reproduce a CI failure, run only the failing tests
   with `make test-full ARGS="-k …"`. The PR's CI must be green before `pm action need --pr`.
-- `.github/scripts/go_changes.py` decides which PRs skip the Go jobs' work: read its docstring before a Go file reads
-  a repo file outside its package.
+- `.github/scripts/go_changes.py` decides which PRs skip the Go jobs' work and which Go test packages a PR runs:
+  read its docstring before a Go file reads a repo file outside its package, or a test reads Go source.
 - **Mark a test `integration`** when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
   (`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a bare repo),
   runs `pm push`, or runs the session-start hook (`pm prime` without `--rules` or `--subagent`). The autouse fixture
