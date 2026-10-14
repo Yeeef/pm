@@ -70,6 +70,12 @@ pm init plans repo files only without .pm/config.toml (internal/cli/setup/init.g
 - `pm init`'s hook presence check counted a hooks file that held every current hook plus a stale pm hook as present, so on a first install init never took out a hook an earlier pm wrote; only `pm upgrade` did. On an installed repo (one with `.pm/config.toml`) `pm init`, `--session-start` included, plans no repo file at all, so `pm upgrade` remains the step that takes it out there. Now a pm hook this version does not write at that event makes the piece not present. `test_init_takes_out_an_earlier_pms_inbox_hook` fails on the old check (1 failed) and passes on the new one.
 - PR #89 (pm-harness sprint 118) extends `pm hook inbox` to close a Codex question answered in chat; `git merge-tree` against this branch conflicts in 9 files. Its service check before queueing and its sweep close that question too, so whichever PR merges second drops the inbox code and regenerates the goldens.
 
+- The AGENTS.md check (agents md workflow) failed on both CI runs of PR #90 on
+  lines the PR does not change, and passed on rerun: run 38625376046
+  non_inferable (Map rows 24-25, 4 agreed), run 38630236956 accurate (Map row
+  23, 2 agreed of 33 calls; the earlier run had 0 findings of 33). Sprint 33
+  owns this flake.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
