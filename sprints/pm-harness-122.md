@@ -63,7 +63,28 @@ Session start already runs the same clone setup in every agent worktree; the hoo
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check of the retired post-checkout hook, in a scratch origin and clone
+  under a temp dir with HOME, CODEX_HOME and systemctl faked as the test
+  fixtures do (a scratch script driving each command): pm 0.8.6, the pinned
+  release, run as `pm init` wrote `.pm/hooks/post-checkout` (section v0.8.6)
+  and set `core.hooksPath=<clone>/.pm/hooks`. This build's `pm upgrade --to
+  0.9.0-dev` printed "removed .pm/hooks/post-checkout, retired with pm's git
+  hooks, as session start sets each new worktree up" and "unset
+  core.hooksPath=<clone>/.pm/hooks, …"; after it `.pm/` held config.toml,
+  .gitignore and README.md (no hooks/), `git config --get core.hooksPath`
+  exited 1, and the status showed `M .pm/config.toml` and `D
+  .pm/hooks/post-checkout`. A new `git worktree add` then had no `records/`
+  (no hook ran); `pm init --session-start` there linked `records ->
+  <clone>/.pm/store/records` (the 6 layout directories listed). `pm hook
+  git-post-checkout <40 zeros> abc 1` exits 0 with no output. With both
+  leftovers recreated by hand, this build's `pm doctor` named the two ("repo:
+  .pm/hooks/post-checkout: an earlier pm's file, retired with pm's git hooks
+  …" and "hooks path: core.hooksPath is <clone>/.pm/hooks, … run pm init to
+  unset it"); `pm init --session-start` unset the path, `pm upgrade` removed
+  the file, and `pm doctor` then named neither. The fake supervisor never
+  brought the scratch pm service up, for pm 0.8.6 as for this build, so each
+  `pm init` exited 1 at the service step after the clone setup had run; this
+  change does not touch that step.
 
 ## Delivery report
 
