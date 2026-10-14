@@ -159,6 +159,14 @@ Owner chose it in chat over a local-only eval with a calibration stamp: grader c
   no_copies_bodies 3/3 fail ($0.16 in all). G1 cost/run median $0.575, wall
   median 251 s, max 336 s; $5.82 for the 10 runs.
 
+- G1 (the branch's AGENTS.md, full mode, haiku) at 6119739 with a 420 s
+  per-call timeout: 10/10 pass, 90 calls per run, no timeout or error. Calls
+  with findings (agreed): accurate 0/550 (0), non_inferable 4/50 (0), map 2/50
+  (0), consistent 3/50 (0), no_copies, actionable, no_history, complete 0/50
+  each. Slowest call per run 120-167 s, always consistent. Per run: median
+  $0.545 ($0.516-$0.630), wall median 236 s (213-265 s); total $5.51 over two
+  lanes of 5.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
