@@ -199,6 +199,13 @@ The window is one store write (tens to hundreds of ms); closing it would need th
   offered only while the turn runs; pm raises the question at Stop, and once
   the turn is idle the owner answers in chat by typing, not picking.
 
+- Review (fresh context) found two bugs, fixed with tests that fail without
+  them: a question with a newline, double space or edge whitespace got the
+  wrong site answer (site and hook normalised the text differently), and pm
+  hook inbox read the session's needs twice, so a site reply landing between
+  the reads was closed as delivered without reaching the session. Migration
+  2->4 and a v3/v4 two-clone merge were checked in a scratch copy and hold.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
