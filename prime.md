@@ -106,7 +106,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
   - Find ready work: `pm task ready`
   - See a task, its holder and its needs: `pm show <id>`
   - See every location and its state: `pm where`; `pm where records` prints the store's path.
-- open a project: `pm project open <name> --title "…"`; body: a one-paragraph Goal, once the owner confirmed the goal in their own words; a request from the owner that states the goal confirms it.
+- open a project: `pm project open <name> --title "…"`; body: a one-paragraph Goal, once the owner confirmed the goal in their own words.
 - open a sprint: `pm sprint open <project> --title "…"`; body: the frame as `## Goal`, `## Scope` and `## Done when`. It refuses a frame with a required section missing.
 - open tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. A dependency: `pm dep add <id> --on <blocker>`. A sub-task: `pm task add --parent <task> --title "…"`.
 - claim a task: `pm task claim <id>`, from your own worktree. It records your session and refuses a task that another live session holds, or a claim from the main checkout. Do not take or brief work that another live session holds.
