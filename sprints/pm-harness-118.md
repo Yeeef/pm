@@ -263,6 +263,16 @@ Claude Code takes a PermissionRequest answer only from the hook process's stdout
   within 1 s (ServeCheck). Live ask scenarios 4/4; Claude site-answer latency
   0.5 s (was 1.0 s).
 
+- Claude Code 2.1.296, pty, 2 runs per case: when an AskUserQuestion dialog
+  ends, PostToolUse fires 17-24 ms after a chosen answer (tool_response holds
+  questions and answers; stdin has session_id, prompt_id, tool_use_id,
+  tool_input) and after a hook's answer; on Esc no hook fires at all (not
+  Stop; PermissionDenied fires only on an auto-mode classifier denial), but
+  the running PermissionRequest hook gets SIGTERM 79-81 ms after the dialog
+  closes and is killed about 1.2 s later; a session stopped with the dialog
+  open sends it SIGTERM at +21 ms; a chosen answer sends no signal; no hook
+  process outlives the session.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
