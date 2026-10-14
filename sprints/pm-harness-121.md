@@ -59,10 +59,12 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the committed `.claude/settings.json` sets `"autoMemoryEnabled": false`, so no Claude Code session in this repo saves or loads an auto memory (PR #92).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **`.claude/settings.json` on main holds `"autoMemoryEnabled": false` and its hooks unchanged:** met on the PR's branch, at commit `47f45bd`. The diff adds that one key and leaves the hooks byte for byte. It is on main once PR #92 merges.
+- **`pm init` in a worktree of the branch leaves the key in place:** met. After `pm init` in the `auto-memory-off` worktree, `git diff --exit-code .claude/settings.json` exited 0.
+- **The PR's CI is green and its review need is raised:** met. All 13 checks of PR #92 pass, and its review need is raised with this report.
