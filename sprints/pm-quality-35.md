@@ -74,6 +74,11 @@ None yet.
   AGENTS.md grader live cases), integration 37 -> 63 (12 of them the parity
   live eval).
 
+- Local runtime (go build cache warm, GOFLAGS=-count=1): make test 7.7 -> 12.6
+  s wall (load 8.3 before; a second run at load 5.1: 13.0 s); make test-go
+  70.5 -> 20.5 s (load 10.1; second run 19.7 s at 5.7). go-test-work 27.7 ->
+  12.6 s; make test-go keeps 4.3 cores busy (was 1.3).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
