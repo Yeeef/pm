@@ -58,7 +58,11 @@ Both change tests/agents_md/evaluate.py and agents-md.yml, and 33 fixes (vote in
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- After sprint 33, on grader-changing PRs (agents-md-stable, ask-tool-on-site;
+  3 runs): check takes 187-241 s, of which grading is 184-226 s and Claude
+  Code install 9-15 s; cases takes 262-302 s, of which the cases step is
+  219-230 s, setup-go 15-22 s, install 10-11 s. The model calls set both jobs'
+  time; setup is at most 35 s.
 
 ## Delivery report
 
