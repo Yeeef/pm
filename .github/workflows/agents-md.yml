@@ -28,8 +28,9 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # Full mode on an AGENTS.md of 11 sections makes 90 calls, 16 at a time, each killed at 420 s: done within 42 min
-    timeout-minutes: 45
+    # Full mode on an AGENTS.md of 11 sections makes 90 calls, 16 at a time: 6 waves, each at most 460 s (an OIDC
+    # token fetch of up to 30 s, the call killed at 420 s, 10 s to reap it), so done within 46 min, plus setup
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,7 +51,9 @@ jobs:
           if-no-files-found: ignore
   cases:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The planted and diff cases make about 170 calls, 16 at a time: 11 waves of at most 460 s each (as check's), so
+    # done within 85 min at worst, plus setup; a run typically takes about 4 min
+    timeout-minutes: 95
     steps:
       - uses: actions/checkout@v4
         with:
