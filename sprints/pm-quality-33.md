@@ -177,6 +177,8 @@ Owner chose it in chat over a local-only eval with a calibration stamp: grader c
 
 done: the AGENTS.md check gives the same verdict on reruns: every known-good input passed 10 of 10 and every known-bad one failed 10 of 10 (PR #95).
 
+Merged as 1eb3a7e (PR #95).
+
 - Every part of a grading gets 5 calls; a finding stands only when 3 distinct calls flag the same line.
 - A grader change grades AGENTS.md in full mode; the cases job runs only on grader changes, without the clean case (owner decision).
 - Two planted cases plant unambiguous defects; the rubric passes a Map row's pointer summary; four restating passages in AGENTS.md became pointers.
