@@ -109,6 +109,11 @@ The request rule for the session mode is printed by its own SessionStart hook en
 Review of dbf3f41: the state hook prints nothing when init, where or show fail or when it hits its 30 s timeout, so the rule, which prime.md delivered before this sprint, would be lost; a small hook that reads only the mode file keeps it.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page agents-md-evaluation stays as it is for this sprint's code changes.
+the rubric change only renames item 9's first text from the rule in prime.md to prompts/request_rule_autopilot.txt; the page names the 13 must-know rules (one rule in three texts among them) without naming the texts, and its criteria, structure and evaluation stay true
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
