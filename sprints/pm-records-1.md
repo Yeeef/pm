@@ -54,7 +54,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-14}
+Sprint 1 is a design sprint; the design page works out two models in full, shadow records branches (A) and design pages in the code tree (B), and the owner picks one at review.
+The per-file version check in pm commit was dropped as a first step: it refuses the second writer without separating the two sessions edits, works per file not per hunk, and pm cannot see edits made with file tools. The choice between A and B shapes every build sprint, so the owner wants both worked out before deciding.
+:::
 
 ## Findings
 
