@@ -204,6 +204,8 @@ the PR moves this page's covered code into noun files and subpackages, quotes va
 
 done: `internal/cli` is split by noun, every function is under cyclomatic complexity 30, and the Python-port leftovers are retired (`internal/pyjson` deleted, the parser's argparse emulation gone), in [PR #62](https://github.com/Yeeef/pm/pull/62).
 
+Merged as bb44e51 (PR #62).
+
 - Command bodies live by noun; the parser and setup have their own packages (`internal/cli/parse`, `internal/cli/setup`, `internal/cli/fsutil`). The `internal/cli` package is 7,457 non-test lines, down from 8,896; that is code moved into subpackages, not removed: everything under `internal/cli` totals 9,347 lines, against 8,859 on main before the merge.
 - `internal/pyjson` (429 lines) is deleted: JSON goes through `encoding/json`, a small ordered object keeps a user's own settings files' keys, values and order on rewrite, messages quote values with Go quoting, and `.pm/config.toml` values go through a tested TOML quoter.
 - The parser keeps pm's CLI grammar and names it in pm's terms; abbreviated flags are refused.
