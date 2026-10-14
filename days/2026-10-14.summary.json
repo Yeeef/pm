@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T07:39:15+00:00",
- "digest": "8bc67b90ae18baa2",
+ "generated_at": "2026-10-14T07:49:33+00:00",
+ "digest": "236d727477d0a0ea",
  "model": "claude-haiku-5-5",
- "text": "- **CLI structure and cleanup:** The internal CLI package is split by noun, and every function is under a set complexity limit. Python-port leftovers are gone, including the internal pyjson package and the argparse emulation.\n- **Agent guidance file:** AGENTS.md is now a short map that every runtime reads in full. A size test and an agentic evaluation in CI hold it to that shape on every PR.\n- **PR check speed:** Docs-only PRs skip the Go test matrix and pass merge-ready. Each PR starts fewer macOS jobs, but median run time stays above target.\n- **Sprint close rules:** A sprint's close now checks only the covers patterns it added or changed while open. Another session's older pending pattern no longer blocks a sprint's close, and the pm check waiting line and help state this rule."
+ "text": "- **Agent guidance map:** AGENTS.md is now a short map, and a size test keeps it under its limit. CI runs its evaluation on every pull request.\n- **CLI code cleanup:** The CLI code is split by noun, every function is under the complexity limit, and the Python-port leftovers are deleted. The argparse emulation is gone.\n- **Sprint close rules:** `pm sprint close` checks only the covers patterns a sprint added or changed while open. Another session's older pending pattern no longer blocks a close.\n- **macOS CI speed:** Each pull request starts fewer macOS jobs, and docs-only changes skip the Go test matrix. Median run time still missed the target, because the macOS runner's cores set the limit."
 }
