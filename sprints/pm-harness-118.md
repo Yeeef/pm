@@ -114,6 +114,11 @@ A Codex question is never dismissed for idleness: it closes when answered on the
 An idle Codex TUI waiting on the owner looks the same as an ended session, and codex queue delivers to a thread when it next loads, so a late site answer still reaches the session; a stale question costs one card the owner can dismiss.
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page decision-need-layout stays as it is for this sprint's code changes.
+needs.go only refuses a question need in pm need edit and the answer commands; the page holds a decision need's parts, layout and checks, which are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
