@@ -89,10 +89,18 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `make test-go` passes on every run at the fix, since the service end-to-end test takes a kernel-picked port instead of `FreePort`'s shared :8002; delivered as [PR #93](https://github.com/Yeeef/pm/pull/93).
+
+- `internal/service/lifecycle_test.go`: `TestServiceInstallStatusRestartAndLogsEndToEnd` listens on 127.0.0.1:0 for its site port.
+- `ports_test.go` (root package): `TestNoTestTakesFreePortsSitePort` fails on a `FreePort` call in any `_test.go` file of the module.
+- No changelog entry: test-only, labelled `no-changelog`.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| The failure reproduces at least once at `8ad2720` before the fix, command and output in Findings | Met | 8 concurrent copies of the race test binary, `-test.count 3`: 16 of 24 runs failed with ":8002 is held by another store" (Findings). `make test-go` alone passed 6 of 6 here at 8ad2720 (load 6.0 to 16.4) |
+| At the fix's commit, `make test-go` passes 10 of 10, load at each start recorded | Met | At `ea50cfd`: 10 of 10, 1-min load 7.39 to 17.03 at the starts (Findings). The 8-copy reproduction: 24 of 24 pass |
+| The fix's PR has green CI and a review need raised | Met | [PR #93](https://github.com/Yeeef/pm/pull/93): 13 of 13 checks pass on `ea50cfd`; review need raised with `pm action need --pr` |
