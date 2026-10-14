@@ -61,6 +61,11 @@ The stale pm hook inbox entry leaves an installed repo by pm upgrade, and a firs
 pm init plans repo files only without .pm/config.toml (internal/cli/setup/init.go:234), and making session start rewrite committed files is out of this sprint; an installed repo keeps its pinned release, which still has the command, until pm upgrade moves the pin and rewrites the hooks
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page decision-need-layout stays as it is for this sprint's code changes.
+request.go's change is the raise output's delivery hint, which the reply-delivery page holds; this page's layout of a decision need is unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
