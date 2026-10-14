@@ -71,6 +71,11 @@ The design page session-claims stays as it is for this sprint's code changes.
 prime.go changes only the hooks package doc's file list (inbox.go gone); session claims are unchanged
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page work-store stays as it is for this sprint's code changes.
+dolt_test.go changes one comment naming the deliverers; the work store is unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
