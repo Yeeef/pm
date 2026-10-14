@@ -219,3 +219,12 @@ pm hook stop blocked this session on every turn for records/design/owner-request
 About project `pm-quality`.
 
 pm sprint close pm-d2k5.23 refused on 20 covers patterns (pm-cli, pm-product, session-claims, sprint-lifecycle) that this sprint never touched: another sprint (the internal/cli split, PR #62, not merged) edited those pages while 23 was open, and the close counts any pattern added or changed since the sprint opened as the sprint's own. What would have helped: attribute a covers pattern to the sprint whose records commit added it (pm design unchanged already names the sprint), so one sprint's close does not wait on another's unmerged PR.
+
+### 2026-10-14 20:18 UTC, session `7980dcda-c143-5967-a670-c1c7824485f8`
+
+About project `pm-quality`.
+
+Two sessions edited the same design pages concurrently (pm-quality sprint 34 removing pm hook inbox / pm reply wait, pm-harness sprint 118 adding ask-tool questions). Nothing was lost, but only by timing: my commit bca443a landed at 21:36 and the other session began editing the same 8 pages at 21:38.
+- pm commit commits whole files, so a session committing a page while another session has half-made edits in it would sweep those edits into its own commit under the wrong sprint. A per-hunk commit, or a refusal when the file changed since this session last wrote it, would close this.
+- The Stop hook's uncommitted-records check names every dirty file this session's tool calls mentioned, including files only another session edited. It blocked my turn twice for edits that were not mine. Attributing by who wrote the change (or saying "possibly another session's") would cut the noise.
+- Design pages on the shared records branch describe each sprint's code before its PR merges, so two open PRs touching one area (here #89 and #90) leave the pages describing a state main does not have until both land.
