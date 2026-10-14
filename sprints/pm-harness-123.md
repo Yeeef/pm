@@ -65,10 +65,14 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: this repo's pin moves from 0.8.6 to 0.11.0, which carries sprint 118's ask-tool questions on the site (0.10.0) and replies by push alone (0.11.0).
+
+- `pm upgrade --to 0.11.0` wrote the pin and the hook entries: Claude Code's PermissionRequest and PostToolUse on AskUserQuestion, Codex's PostToolUse on request_user_input_async and UserPromptSubmit, `pm hook inbox` out of both.
+- 0.11.0 installed on this machine; pins 0.5.0 to 0.8.5 that no checkout uses were pruned (593 MB).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- CI green and `make merge-ready` passes: met. [PR #96](https://github.com/Yeeef/pm/pull/96), 13 checks pass at 9eed4c4; `make merge-ready PR=96` prints its merge command.
+- On the branch `pm version` reports 0.11.0: met. `pm doctor` there names only that the clone's service still runs 0.8.6, which holds until the move is on main and the main checkout pulls it; Codex's hook trust is the owner's step after that, raised on the site.
