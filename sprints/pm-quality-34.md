@@ -17,7 +17,7 @@ An owner's reply reaches the session that asked by one route: the service's push
 
 **In:**
 - Remove the `pm reply wait` command, the site/service endpoint only it uses, and its mentions in raise outputs, `--help` texts, hints and prime.md.
-- Remove `pm hook inbox` and its UserPromptSubmit entries from `claudeHooks` and `codexHooks`; `pm init` and `pm upgrade` drop the entry from a repo that has it, so no installed repo keeps calling a removed command.
+- Remove `pm hook inbox` and its UserPromptSubmit entries from `claudeHooks` and `codexHooks`; `pm upgrade`, which moves an installed repo to this version, drops the entry from a repo that has it, and so does `pm init` on a first install (on an installed repo neither `pm init` nor session start rewrites the repo's files), so no installed repo keeps calling a removed command.
 - A Codex question need answered in chat closes by the service's check before queueing and its sweep alone.
 - Update the reply-delivery design page to the new state (routes, diagram, questions, duplicates, alternatives, open questions), CLAUDE.md's hook rule, tests, goldens, the parity eval's docstring, and a changelog entry.
 
@@ -62,7 +62,7 @@ Owner in chat, 2026-10-14: neither delivered a real reply in the transcripts on 
 > results with their numbers.
 
 - Usage before removal, from the transcripts on the owner's machine (about 180 Claude Code sessions in this repo, about 1,760 Codex sessions): `pm hook inbox` handed over 0 real replies on either runtime (all 11 Claude Code matches were agents reading `inbox.go` or its tests); `pm reply wait <id>` ran once outside its own development, with `--timeout 10`; no raise printed the no-inbox route.
-- `pm init`'s hook presence check counted a hooks file that held every current hook plus a stale pm hook as present, so init never took out a hook an earlier pm wrote; only `pm upgrade` did. Now a pm hook this version does not write at that event makes the piece not present. `test_init_takes_out_an_earlier_pms_inbox_hook` fails on the old check (1 failed) and passes on the new one.
+- `pm init`'s hook presence check counted a hooks file that held every current hook plus a stale pm hook as present, so on a first install init never took out a hook an earlier pm wrote; only `pm upgrade` did. On an installed repo (one with `.pm/config.toml`) `pm init`, `--session-start` included, plans no repo file at all, so `pm upgrade` remains the step that takes it out there. Now a pm hook this version does not write at that event makes the piece not present. `test_init_takes_out_an_earlier_pms_inbox_hook` fails on the old check (1 failed) and passes on the new one.
 - PR #89 (pm-harness sprint 118) extends `pm hook inbox` to close a Codex question answered in chat; `git merge-tree` against this branch conflicts in 9 files. Its service check before queueing and its sweep close that question too, so whichever PR merges second drops the inbox code and regenerates the goldens.
 
 ## Delivery report
