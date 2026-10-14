@@ -232,6 +232,17 @@ Owner in chat, 2026-10-14: the goal must make clear to pm agents what a decision
   with a reason reaches the model as the tool output (Default mode, observed),
   so it can carry an answer; Plan mode untested.
 
+- Request rule by kind (9467a0f): prime.md, the block reason and the judge
+  prompt pick the form by what is asked (question: ask tool, or a decision
+  need with no ask tool; decision: decision need; action: action need); the
+  presence test is gone. 3 judge cases added, none moved. make test-live, 78
+  cases x 3 runs: two clean runs, Claude 234/234 (median 2.4 s, p90 4.2 s),
+  Codex 234/234 (median 5.4 s, p90 13.8 s). Three earlier runs each had a miss
+  (one Claude timeout; Codex blocking 'Should I push the branch and open the
+  PR?' in 1 of 3 runs, fixed in the prompt by excluding leave for an
+  authorized step from the decision kind); the Codex miss rate before the fix
+  was about 1 in 6 runs, so two clean runs are a small sample.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
