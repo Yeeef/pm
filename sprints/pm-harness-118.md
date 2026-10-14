@@ -151,6 +151,11 @@ Scope adds: pm's rules tell agents which tool fits by what they ask, not by whet
 Owner in chat, 2026-10-14: the goal must make clear to pm agents what a decision is and what a question is, so they choose the right tool; now that a question also shows on the site, the owner being in the chat no longer decides it.
 :::
 
+::: decision {source=agent date=2026-10-14}
+The Claude ask hook waits for a site answer on one blocking call to the pm service, which answers it when the reply is stored; the hook still tails the transcript itself for a dialog answer.
+Claude Code takes a PermissionRequest answer only from the hook process's stdout, so the process must live while the dialog is open; but its 1 s poll dialed the service, handshook and read the need about 86,400 times a day per open question, while the service already learns of a reply the moment it is stored.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
