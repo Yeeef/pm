@@ -24,10 +24,9 @@ pytestmark = pytest.mark.integration  # each test makes a repo with a remote; in
 LAYOUT = ["days", "design", "docs", "postmortems", "projects", "sprints"]
 BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n"
               "# --- END BEADS INTEGRATION v1.3.1 ---\n")
-HOOKS = ".pm/hooks"  # pm's own git hook files, which core.hooksPath names
+HOOKS = ".pm/hooks"  # an earlier pm's git hook files, which it pointed core.hooksPath at
 PM_FILES = [".pm/config.toml", ".pm/README.md", ".pm/.gitignore", ".claude/settings.json", ".codex/hooks.json",
-            ".codex/rules/pm.rules",
-            f"{HOOKS}/post-checkout", ".gitignore"]
+            ".codex/rules/pm.rules", ".gitignore"]
 GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n"
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
                    "/.claude/settings.local.json\n# --- END PM ---\n")
@@ -129,9 +128,9 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     cfg = tomllib.loads((new_repo / ".pm/config.toml").read_text())
     assert cfg == {"version": VERSION, "remote": "origin", "main_branch": "main", "port": site_port(tmp_path)}
     assert (new_repo / ".pm/.gitignore").read_text() == "store/\nrun/\n"
-    assert (new_repo / f"{HOOKS}/post-checkout").read_text() == "#!/usr/bin/env sh\n" + section("post-checkout")
-    assert not (new_repo / f"{HOOKS}/pre-commit").exists() and not (new_repo / ".github").exists()
-    assert git(new_repo, "config", "core.hooksPath").strip() == str(new_repo / HOOKS)
+    # pm installs no git hook
+    assert not (new_repo / HOOKS).exists() and not (new_repo / ".github").exists()
+    assert git(new_repo, "config", "--get", "--default=", "core.hooksPath").strip() == ""
     claude = json.loads((new_repo / ".claude/settings.json").read_text())
     assert all(commands(claude, e) == c for e, c in CLAUDE_PM.items())
     codex = json.loads((new_repo / ".codex/hooks.json").read_text())
@@ -161,15 +160,16 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert (new_repo / ".git/info/exclude").read_text() == exclude
     assert "git add" not in again.stdout and "already set up" in again.stdout
 
-    # pm's git hooks, once committed: a new worktree gets its records link and no sparse checkout, and the link is
-    # git-ignored, so a code-branch commit of everything leaves records/ out
+    # once committed: a new worktree gets its records link and no sparse checkout from session start's pm init, and
+    # the link is git-ignored, so a code-branch commit of everything leaves records/ out
     git(new_repo, "add", "-A")
     git(new_repo, "commit", "-qm", "Install pm")
     wt = tmp_path / "wt"
-    res = subprocess.run(["git", "worktree", "add", "-q", "-b", "feature", str(wt)], cwd=new_repo, env=env(tmp_path),
-                         capture_output=True, text=True, check=False)
+    git(new_repo, "worktree", "add", "-q", "-b", "feature", str(wt))
+    assert not (wt / "records").exists(), "no git hook links it"
+    res = pm(wt, "init", "--session-start")
     assert res.returncode == 0, res.stderr
-    assert (wt / "records").is_symlink() and (wt / "records").resolve() == store.resolve(), res.stderr
+    assert (wt / "records").is_symlink() and (wt / "records").resolve() == store.resolve(), res.stdout
     for tree in (new_repo, wt):
         assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() == ""
     (wt / "code.txt").write_text("code\n")

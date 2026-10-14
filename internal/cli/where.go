@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/BurntSushi/toml"
 	"github.com/Yeeef/pm/internal/buildinfo"
@@ -115,25 +114,6 @@ func whereAll(here string) (string, error) {
 		return "", err
 	}
 	out = append(out, fmt.Sprintf("work      %s  %s", workDir, workState))
-
-	if hp := whereGit(main, "config", "--get", "core.hooksPath"); hp != "" {
-		hooks := hp
-		if !filepath.IsAbs(hp) {
-			hooks = filepath.Join(main, hp)
-		}
-		hooks = fsutil.Resolved(hooks)
-		var have []string
-		for _, h := range install.GitHooks {
-			st := "missing"
-			if syscall.Access(filepath.Join(hooks, h), 0x1) == nil {
-				st = "installed"
-			}
-			have = append(have, h+" "+st)
-		}
-		out = append(out, fmt.Sprintf("hooks     %s  %s", hooks, strings.Join(have, ", ")))
-	} else {
-		out = append(out, "hooks     core.hooksPath unset; run "+whereSetup)
-	}
 
 	home := codexHome()
 	switch {

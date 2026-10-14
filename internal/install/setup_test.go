@@ -306,19 +306,22 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 	block := "<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:1105d646 -->\n## Beads Issue Tracker\n\nUse bd.\n" +
 		"<!-- END BEADS INTEGRATION -->\n"
 	beadsHook := "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n"
+	pmSection := func(name string) string {
+		return "# --- BEGIN PM v0.1.4 ---\npm hook git-" + name + " \"$@\" || exit $?\n# --- END PM ---\n"
+	}
 	files := map[string]string{
 		".claude/settings.json":      applied(t, ".claude/settings.json", bdClaude),
 		".codex/hooks.json":          applied(t, ".codex/hooks.json", bdCodex),
 		"CLAUDE.md":                  "# Repo\n\nIntro.\n\n" + block,
-		".beads/hooks/pre-commit":    beadsHook + GitHookSection("pre-commit"),
-		".beads/hooks/post-checkout": beadsHook + GitHookSection("post-checkout"),
+		".beads/hooks/pre-commit":    beadsHook + pmSection("pre-commit"),
+		".beads/hooks/post-checkout": beadsHook + pmSection("post-checkout"),
 	}
 	writeTree(t, top, files)
 	if err := os.Symlink("CLAUDE.md", filepath.Join(top, "AGENTS.md")); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range Pieces(s) { // the rest of pm's pieces as Python pm wrote them
-		if _, ok := files[p.Rel]; !ok && !strings.HasPrefix(p.Rel, HooksRel+"/") {
+		if _, ok := files[p.Rel]; !ok {
 			text, _ := p.Apply(nil)
 			writeTree(t, top, map[string]string{p.Rel: text})
 		}
@@ -333,7 +336,6 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 		".claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm " + v + " removes",
 		".codex/hooks.json: holds Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart, " +
 			"bd codex-hook UserPromptSubmit), which pm " + v + " removes",
-		".pm/hooks/post-checkout: pm's part is missing",
 		"CLAUDE.md: holds the Beads block (<!-- BEGIN BEADS INTEGRATION … -->), which pm " + v + " removes",
 	}
 	if strings.Join(drift, "\n") != strings.Join(wantDrift, "\n") {
@@ -351,7 +353,6 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 		"removed Beads' hook entries (bd prime --hook-json) from .claude/settings.json",
 		"removed Beads' hook entries (bd codex-hook PostCompact, bd codex-hook SessionStart, bd codex-hook " +
 			"UserPromptSubmit) from .codex/hooks.json",
-		"wrote .pm/hooks/post-checkout",
 		"removed the Beads block (<!-- BEGIN BEADS INTEGRATION … -->) from CLAUDE.md",
 	}
 	if got := Said(planned); strings.Join(got, "\n") != strings.Join(wantSaid, "\n") {
@@ -361,7 +362,6 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 		".claude/settings.json":      applied(t, ".claude/settings.json", userClaude),
 		".codex/hooks.json":          applied(t, ".codex/hooks.json", userCodex),
 		"CLAUDE.md":                  "# Repo\n\nIntro.\n",
-		".pm/hooks/post-checkout":    "#!/usr/bin/env sh\n" + GitHookSection("post-checkout"),
 		".beads/hooks/pre-commit":    files[".beads/hooks/pre-commit"],
 		".beads/hooks/post-checkout": files[".beads/hooks/post-checkout"],
 	}
@@ -370,10 +370,8 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 			t.Errorf("%s:\n%s\nwant:\n%s", rel, b, text)
 		}
 	}
-	for _, name := range GitHooks {
-		if st, err := os.Stat(filepath.Join(top, HooksRel, name)); err != nil || st.Mode().Perm() != 0o755 {
-			t.Errorf("%s/%s: %v, %v; want an executable file", HooksRel, name, st, err)
-		}
+	if _, err := os.Stat(filepath.Join(top, HooksRel)); !os.IsNotExist(err) {
+		t.Errorf("%s: %v; want none, as pm installs no git hook", HooksRel, err)
 	}
 	if !isLink(filepath.Join(top, "AGENTS.md")) {
 		t.Error("AGENTS.md is no longer the link it was")
@@ -389,66 +387,88 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 	}
 }
 
-// core.hooksPath: Beads' .beads/hooks, where Python pm left it, moves to .pm/hooks, once; another hook manager's path
-// is refused.
-func TestHooksPathMovesOffBeads(t *testing.T) {
+// core.hooksPath at an earlier pm's .pm/hooks, relative or absolute, is unset once, and pm doctor names it until then;
+// one naming another directory, Beads' .beads/hooks or another hook manager's, is not pm's and stays.
+func TestRetireHooksPath(t *testing.T) {
 	main := t.TempDir()
 	run(t, main, "git", "init", "-q")
-	beads, pm := filepath.Join(main, ".beads", "hooks"), filepath.Join(main, ".pm", "hooks")
-	run(t, main, "git", "config", "core.hooksPath", beads)
-	if err := CheckHooksPath(main, main); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := DoctorSetup(main, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000); err != nil {
-		t.Fatal(err)
-	}
-	// the main checkout has no .pm/hooks yet (the pin moved in another worktree): nothing moves, doctor says why
-	if said, err := SetupHooksPath(main); err != nil || said != "" {
-		t.Fatalf("without .pm/hooks in main: %q, %v", said, err)
-	}
-	if got, _ := GitConfig(main, "core.hooksPath"); got != beads {
-		t.Fatalf("core.hooksPath %q moved before main has pm's hooks", got)
-	}
-	run(t, main, "git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x")
-	wt := filepath.Join(t.TempDir(), "wt") // a worktree where the pin moved: pm upgrade there writes no hooks in main
-	run(t, main, "git", "worktree", "add", "-q", wt)
-	drift, err := DoctorSetup(wt, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := "hooks path: core.hooksPath is " + beads + " (Beads' hooks), not .pm/hooks; the main checkout " + main +
-		" has no pm hooks in .pm/hooks yet; once it pins Go pm (merge the pin, then pull main there), run pm init " +
-		"there to move it"; !contains(drift, want) {
-		t.Errorf("doctor: %q, want %q among them", drift, want)
-	}
-	if err := os.MkdirAll(pm, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range GitHooks {
-		if err := os.WriteFile(filepath.Join(pm, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
+	records := filepath.Join(main, ".pm", "store", "records")
+	doctor := func() []string {
+		t.Helper()
+		var lines []string
+		drift, err := DoctorSetup(main, main, records, "origin", 8000)
+		if err != nil {
 			t.Fatal(err)
 		}
+		for _, l := range drift {
+			if strings.HasPrefix(l, "hooks path: ") {
+				lines = append(lines, l)
+			}
+		}
+		return lines
 	}
-	drift, _ = DoctorSetup(main, main, filepath.Join(main, ".pm", "store", "records"), "origin", 8000)
-	if want := "hooks path: core.hooksPath is " + beads + " (Beads' hooks), not .pm/hooks; run pm upgrade --to " +
-		buildinfo.Version + " to move it"; !contains(drift, want) {
-		t.Errorf("doctor: %q, want %q among them", drift, want)
+	for _, hp := range []string{filepath.Join(main, ".pm", "hooks"), ".pm/hooks", "/elsewhere/clone/.pm/hooks/"} {
+		run(t, main, "git", "config", "core.hooksPath", hp)
+		want := "hooks path: core.hooksPath is " + hp + ", " + HooksWhy + "; run pm init to unset it"
+		if got := doctor(); len(got) != 1 || got[0] != want {
+			t.Errorf("doctor on %s: %q, want %q", hp, got, want)
+		}
+		said, err := RetireHooksPath(main)
+		if want := "unset core.hooksPath=" + hp + ", " + HooksWhy; err != nil || said != want {
+			t.Fatalf("%q, %v; want %q", said, err, want)
+		}
+		if got, _ := GitConfig(main, "core.hooksPath"); got != "" {
+			t.Fatalf("core.hooksPath %q after the unset", got)
+		}
+		if said, err := RetireHooksPath(main); err != nil || said != "" {
+			t.Fatalf("a second run: %q, %v", said, err)
+		}
+		if got := doctor(); len(got) != 0 {
+			t.Errorf("doctor after the unset: %q", got)
+		}
 	}
-	said, err := SetupHooksPath(main)
-	if want := "moved the git hooks off Beads' " + beads + ": core.hooksPath=" + pm; err != nil || said != want {
-		t.Fatalf("%q, %v; want %q", said, err, want)
+	for _, hp := range []string{filepath.Join(main, ".beads", "hooks"), ".husky", "/x/.pm/hooks-old"} {
+		run(t, main, "git", "config", "core.hooksPath", hp)
+		if said, err := RetireHooksPath(main); err != nil || said != "" {
+			t.Fatalf("%s: %q, %v; want it left", hp, said, err)
+		}
+		if got, _ := GitConfig(main, "core.hooksPath"); got != hp {
+			t.Fatalf("core.hooksPath %q, want %q left", got, hp)
+		}
+		if got := doctor(); len(got) != 0 {
+			t.Errorf("doctor on %s: %q", hp, got)
+		}
 	}
-	if got, _ := GitConfig(main, "core.hooksPath"); got != pm {
-		t.Fatalf("core.hooksPath %q", got)
+}
+
+// pm upgrade's rewrite takes an earlier pm's hook files out, and .pm/hooks with them once nothing else is left there; a
+// file of the user's keeps the directory.
+func TestWriteTakesAnEmptyHooksDirectoryAway(t *testing.T) {
+	s := Settings{"origin", "main", 8000, "", "", "", "", nil}
+	old := func(name string) string {
+		return shebang + "# --- BEGIN PM v0.9.1 ---\npm hook git-" + name + " \"$@\" || exit $?\n# --- END PM ---\n"
 	}
-	if said, err := SetupHooksPath(main); err != nil || said != "" {
-		t.Fatalf("a second run: %q, %v", said, err)
-	}
-	run(t, main, "git", "config", "core.hooksPath", ".husky")
-	if err := CheckHooksPath(main, main); err == nil || err.Error() != "core.hooksPath is .husky, not .pm/hooks; pm's git "+
-		"hooks live in its own hook files, so pm init works only with pm's hooks path (other hook managers are not "+
-		"supported)" {
-		t.Fatalf("%v", err)
+	for _, mine := range []bool{false, true} {
+		top := t.TempDir()
+		files := map[string]string{HooksRel + "/post-checkout": old("post-checkout"), HooksRel + "/pre-commit": old("pre-commit")}
+		if mine {
+			files[HooksRel+"/pre-push"] = "#!/bin/sh\necho mine\n"
+		}
+		writeTree(t, top, files)
+		planned, err := Rewrite(top, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Write(planned); err != nil {
+			t.Fatal(err)
+		}
+		left, err := os.ReadDir(filepath.Join(top, HooksRel))
+		switch {
+		case !mine && !os.IsNotExist(err):
+			t.Errorf("%s: %v, %v; want it gone", HooksRel, left, err)
+		case mine && (err != nil || len(left) != 1 || left[0].Name() != "pre-push"):
+			t.Errorf("%s: %v, %v; want the user's pre-push alone", HooksRel, left, err)
+		}
 	}
 }
 

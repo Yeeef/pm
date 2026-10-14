@@ -45,8 +45,9 @@ internal/install   TestSetupWorkCreatesPushesAndClones                          
 internal/install   TestSetupWorkRefusesAFork                                                          os  work.NewHost (Dolt on a unix socket) plus a bare git remote
 internal/install   TestInstallBinary                                                                  os  os.Executable copy, 0755 Perm check, symlink replacement
 internal/install   TestExcludeRoundTrip                                                               any exclude file text round trip
-internal/install   TestRewriteTakesOutBeadsPieces                                                     os  AGENTS.md symlink kept (isLink), hook files' 0755 Perm checked
-internal/install   TestHooksPathMovesOffBeads                                                         os  git worktree add and core.hooksPath compared with absolute temp paths
+internal/install   TestRewriteTakesOutBeadsPieces                                                     os  AGENTS.md symlink kept (isLink)
+internal/install   TestRetireHooksPath                                                                os  core.hooksPath set to absolute temp paths; DoctorSetup reads the service unit, which differs by OS
+internal/install   TestWriteTakesAnEmptyHooksDirectoryAway                                            os  os.Remove on a directory: Linux says ENOTEMPTY, other systems EEXIST, for one that holds a file
 internal/install   TestABeadsFileIsNoBeads                                                            os  os.Chmod(0) expects ErrPermission; skipped as root
 internal/launch    TestGuidesPrintsEachCrossedReleasesGuideOldestFirst                                any changelog text
 internal/launch    TestGuidesFailWhenACrossedReleaseHasNoGuide                                        any changelog text
