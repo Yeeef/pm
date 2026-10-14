@@ -1,5 +1,5 @@
 {
-  "about": "Hook inputs as Claude Code 2.1.296 and Codex 0.154.0 sent them (captured 2026-10-11), every key kept; the values pm reads are placeholders a test fills in: {session}, {cwd}, {transcript}, {reply}, {agent_transcript}, {prompt}, {tool_input}. Codex's SubagentStop was not captured: it is built from Codex 0.154's subagent-stop.command.input schema, every required key, with values like its Stop's. Claude Code's PermissionRequest and PostToolUse were captured from Claude Code 2.1.296 on 2026-10-14, for AskUserQuestion; {prompt_id} is the prompt's id, which keys the call, and PostToolUse's tool_input and tool_response are one object, {tool_response}: the questions, the answers by question text, and annotations. Codex's PostToolUse was captured from Codex 0.162.1 on 2026-10-14 in its TUI, for request_user_input_async; {tool} and {call} are its tool_name and tool_use_id.",
+  "about": "Hook inputs as Claude Code 2.1.296 and Codex 0.154.0 sent them (captured 2026-10-11), every key kept; the values pm reads are placeholders a test fills in: {session}, {cwd}, {transcript}, {reply}, {agent_transcript}, {prompt}, {tool_input}. Codex's SubagentStop was not captured: it is built from Codex 0.154's subagent-stop.command.input schema, every required key, with values like its Stop's. Claude Code's PermissionRequest and PostToolUse were captured from Claude Code 2.1.296 on 2026-10-14, for AskUserQuestion; {prompt_id} is the prompt's id, which keys the call, and PostToolUse's tool_input and tool_response are one object, {tool_response}: the questions, the answers by question text, and annotations. Codex's PostToolUse was captured from Codex 0.162.1 on 2026-10-14 in its TUI, for request_user_input_async; {tool} and {call} are its tool_name and tool_use_id. SessionEnd was captured from Claude Code 2.1.299 (claude -p) and Codex 0.162.1 (codex exec) on 2026-10-14.",
   "claude": {
     "SessionStart": {
       "session_id": "{session}",
@@ -61,6 +61,14 @@
       "last_assistant_message": "{reply}",
       "background_tasks": [],
       "session_crons": []
+    },
+    "SessionEnd": {
+      "session_id": "{session}",
+      "transcript_path": "{transcript}",
+      "cwd": "{cwd}",
+      "prompt_id": "02339586-a5a1-4a6a-8a95-c3f443ea569f",
+      "hook_event_name": "SessionEnd",
+      "reason": "other"
     }
   },
   "codex": {
@@ -131,6 +139,13 @@
       "agent_id": "01a12bef-027d-7c33-8fb3-8fd52363eaf7",
       "agent_type": "default",
       "agent_transcript_path": "{agent_transcript}"
+    },
+    "SessionEnd": {
+      "session_id": "{session}",
+      "transcript_path": "{transcript}",
+      "cwd": "{cwd}",
+      "hook_event_name": "SessionEnd",
+      "reason": "other"
     }
   }
 }

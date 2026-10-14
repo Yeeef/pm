@@ -91,9 +91,17 @@ func cmdClean(p *Parsed, here string, stdout io.Writer) error {
 		}
 		fmt.Fprintln(stdout, line)
 	}
+	modesRemoving, modesFailed, err := session.CleanModes(main, apply, stdout)
+	if err != nil {
+		return refuse("pm clean cannot read the sessions' interactive-mode files: %v", err)
+	}
 	if apply {
 		if failed > 0 {
 			return refuse("%d of %d worktrees to remove were not removed; each line above says why", failed, removing)
+		}
+		if modesFailed > 0 {
+			return refuse("%d of %d interactive-mode files to remove were not removed; each line above says why",
+				modesFailed, modesRemoving)
 		}
 		fmt.Fprintf(stdout, "removed %d of %d worktrees\n", removing, len(trees))
 		return nil

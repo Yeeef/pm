@@ -201,10 +201,11 @@ func claudeHooks() entries {
 		return out
 	}
 	return entries{
-		events: []string{"SessionStart", "SubagentStart", "PermissionRequest", "PostToolUse", "Stop"},
+		events: []string{"SessionStart", "SubagentStart", "PermissionRequest", "PostToolUse", "Stop", "SessionEnd"},
 		groups: map[string]func() *object{
 			"SessionStart": func() *object {
-				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", 30)), "matcher", "")
+				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", 30),
+					h("pm prime --request-rule --hook-json", 10)), "matcher", "")
 			},
 			"SubagentStart": func() *object {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", 15)), "matcher", "")
@@ -218,18 +219,22 @@ func claudeHooks() entries {
 			"Stop": func() *object {
 				return obj("hooks", []any{h("pm hook owner-request --runtime claude || exit 1", 30), h("pm hook stop || exit 1", 10)})
 			},
+			"SessionEnd": func() *object {
+				return obj("hooks", []any{h("pm hook session-end || exit 1", 10)})
+			},
 		},
 	}
 }
 
-// codexHooks is pm's entries in .codex/hooks.json. Codex's SessionStart matcher is a pattern over its sources, which
-// name each one: startup, resume, clear and compact. Its SubagentStop runs pm hook stop on the subagent's own rollout:
-// Codex keeps a subagent's prompt from its parent's rollout (encrypted), so the parent's Stop cannot see what the
-// subagent was asked to write, as Claude Code's parent transcript shows it. Its PostToolUse runs pm hook ask on each
-// request_user_input_async call, which returns at once and asks no permission, to raise its question (Claude Code
-// raises AskUserQuestion's at PermissionRequest), with time for a question under a task, whose id the remote mints;
-// its UserPromptSubmit runs pm hook ask too, since the owner's next message is the chat answer to an open question
-// (Claude Code's comes at AskUserQuestion's PostToolUse).
+// codexHooks is pm's entries in .codex/hooks.json. Codex keys its trust in each hook by its group and index, so a new
+// entry goes after the released ones of its group (TestNewHookEntriesFollowTheReleasedOnes). Codex's SessionStart
+// matcher is a pattern over its sources, which name each one: startup, resume, clear and compact. Its SubagentStop runs
+// pm hook stop on the subagent's own rollout: Codex keeps a subagent's prompt from its parent's rollout (encrypted), so
+// the parent's Stop cannot see what the subagent was asked to write, as Claude Code's parent transcript shows it. Its
+// PostToolUse runs pm hook ask on each request_user_input_async call, which returns at once and asks no permission, to
+// raise its question (Claude Code raises AskUserQuestion's at PermissionRequest), with time for a question under a
+// task, whose id the remote mints; its UserPromptSubmit runs pm hook ask too, since the owner's next message is the
+// chat answer to an open question (Claude Code's comes at AskUserQuestion's PostToolUse).
 func codexHooks() entries {
 	h := func(command, status string, timeout int) any {
 		return obj("command", command, "statusMessage", status, "type", "command", "timeout", timeout)
@@ -243,11 +248,11 @@ func codexHooks() entries {
 		return out
 	}
 	return entries{
-		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "PostToolUse", "Stop", "SubagentStop"},
+		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "PostToolUse", "Stop", "SubagentStop", "SessionEnd"},
 		groups: map[string]func() *object{
 			"SessionStart": func() *object {
-				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", "Loading pm init, pm where and pm show", 30)),
-					"matcher", "startup|resume|clear|compact")
+				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", "Loading pm init, pm where and pm show", 30),
+					h("pm prime --request-rule --hook-json", "Loading the rule for asking the owner", 10)), "matcher", "startup|resume|clear|compact")
 			},
 			"SubagentStart": func() *object {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Loading pm's git rule for agents", 15)))
@@ -265,6 +270,9 @@ func codexHooks() entries {
 			},
 			"SubagentStop": func() *object {
 				return obj("hooks", []any{h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
+			},
+			"SessionEnd": func() *object {
+				return obj("hooks", []any{h("pm hook session-end || exit 1", "Clearing this session's interactive mode", 10)})
 			},
 		},
 	}

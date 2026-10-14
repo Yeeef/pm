@@ -276,3 +276,33 @@ def test_a_question_asked_with_the_ask_tool_is_not_an_ask_left_in_chat(needs, ru
     res = run(needs, reply=asked, judged=answer(("Which color should the doc use?", "decision", "ask-tool-1")),
               runtime=runtime, transcript_path=str(path))
     assert res.returncode == 0 and res.stdout == "", res.stderr
+
+
+def set_mode(repo, session, command):
+    """`pm interactive` or `pm autopilot` run by `session`'s agent, the session from its environment."""
+    saved = repo.env
+    repo.env = dict(saved, CLAUDE_CODE_SESSION_ID=session)
+    try:
+        res = repo.pm(command)
+    finally:
+        repo.env = saved
+    assert res.returncode == 0, res.stderr
+
+
+@pytest.mark.parametrize("runtime", ["claude", "codex"])
+def test_an_interactive_sessions_ask_in_chat_passes_and_no_other_sessions(needs, runtime):
+    """In a session that ran `pm interactive`, an ask left in chat passes the stop without the judge; the same ask in
+    another session, or in the session after `pm autopilot`, is blocked."""
+    reply = "Should I merge the PR now or wait for review?"
+    judged = answer((reply, "decision", None))
+    stop = {"cwd": str(needs.root)}
+    assert json.loads(run(needs, reply=reply, judged=judged, runtime=runtime, **stop).stdout)["decision"] == "block"
+    set_mode(needs, ME, "interactive")
+    before = len(calls(needs, runtime))
+    res = run(needs, reply=reply, judged=judged, runtime=runtime, **stop)
+    assert res.returncode == 0 and res.stdout == "" and res.stderr == "", res.stderr
+    assert len(calls(needs, runtime)) == before, "the judge ran in an interactive session"
+    other = run(needs, reply=reply, judged=judged, runtime=runtime, **dict(stop, session_id=OTHER))
+    assert json.loads(other.stdout)["decision"] == "block", "another session is in autopilot"
+    set_mode(needs, ME, "autopilot")
+    assert json.loads(run(needs, reply=reply, judged=judged, runtime=runtime, **stop).stdout)["decision"] == "block"

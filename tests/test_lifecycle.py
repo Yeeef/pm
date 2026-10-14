@@ -91,6 +91,13 @@ def edit(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1))
 
 
+def drop_event(path: Path, event: str) -> None:
+    """The hooks file without one event's entries, as a pm from before the event wrote it."""
+    data = json.loads(path.read_text())
+    del data["hooks"][event]
+    path.write_text(json.dumps(data, indent=2) + "\n")
+
+
 # each hand-made change, by the kind of piece it hits, and the start of the line doctor reports for it
 REPO_CHANGES = {
     "whole file": (lambda r: edit(r / ".pm/README.md", "# pm", "# not pm"),
@@ -102,6 +109,8 @@ REPO_CHANGES = {
                    ".claude/settings.json: pm's part differs"),
     "retired git hook": (lambda r: write(r / f"{HOOKS}/post-checkout", old_hook_file("post-checkout", "0.9.1")),
                          f"{HOOKS}/post-checkout: an earlier pm's file, {HOOKS_RETIRED}"),
+    "event an earlier pm lacked": (lambda r: drop_event(r / ".codex/hooks.json", "SessionEnd"),
+                                   ".codex/hooks.json: pm's part differs"),
     "gitignore block": (lambda r: edit(r / ".gitignore", "/records\n", "/records/\n"),
                         ".gitignore: pm's part differs"),
 }
@@ -569,6 +578,7 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
     hooks = new_repo / ".codex/hooks.json"
     fix = f"; open Codex in {new_repo} and trust pm's hooks in /hooks"
     trust = tmp_path / "trust.json"
+    n = sum(len(g["hooks"]) for groups in json.loads(hooks.read_text())["hooks"].values() for g in groups)
 
     def run(*args, **extra):
         return subprocess.run([*PM, *args], cwd=new_repo, env=dict(env(tmp_path), **extra), capture_output=True,
@@ -579,9 +589,9 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
     assert res.returncode == 1, res.stdout + res.stderr
     lines = res.stdout.splitlines()
     assert lines[:2] == [
-        f"codex: Codex skips 1 of pm's 13 hooks in {hooks}, which you have not trusted: stop `pm hook stop || exit 1`"
+        f"codex: Codex skips 1 of pm's {n} hooks in {hooks}, which you have not trusted: stop `pm hook stop || exit 1`"
         + fix,
-        f"codex: Codex skips 1 of pm's 13 hooks in {hooks}, which changed since you trusted them: subagentStop "
+        f"codex: Codex skips 1 of pm's {n} hooks in {hooks}, which changed since you trusted them: subagentStop "
         f"`pm hook stop || exit 1`" + fix], res.stdout
     assert lines[-1].startswith("release: cannot read pm's latest release"), res.stdout
     res = run("init", FAKE_CODEX_TRUST=str(trust))

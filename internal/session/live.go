@@ -86,13 +86,16 @@ func claudeConfigDir() string {
 // Live is whether one of the session's transcripts changed within LiveWindow: Claude Code's
 // <config>/projects/<project dir>/<id>.jsonl (any project dir, since each worktree has its own), or Codex's rollout of
 // the thread (Rollouts).
-func Live(session string) bool {
+func Live(session string) bool { return activeWithin(session, LiveWindow) }
+
+// activeWithin is whether one of the session's transcripts (Live) changed within window.
+func activeWithin(session string, window time.Duration) bool {
 	if !sessionID.MatchString(session) {
 		return false
 	}
 	paths := append(glob(filepath.Join(claudeConfigDir(), "projects", "*", session+".jsonl")), Rollouts(session)...)
 	for _, p := range paths {
-		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < LiveWindow {
+		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < window {
 			return true
 		}
 	}

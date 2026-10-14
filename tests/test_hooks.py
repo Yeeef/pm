@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, hook_payload, nouns, \
-    rules, stop_services, wait_for, write_config, VERSION
+    rules, stop_services, wait_for, write_config, CHECKOUT, VERSION
 
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
@@ -55,6 +55,10 @@ def context_of(res, event="SessionStart"):
     return out["additionalContext"]
 
 
+RULE_HEADING = "# Asking the owner: this session is in "
+REQUEST_RULE = [*PM, "prime", "--request-rule", "--hook-json"]
+
+
 @pytest.mark.integration
 def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     """One hook per rules chunk, then the state, each under Claude Code's per-hook cap, with pm show whole."""
@@ -62,6 +66,8 @@ def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
     event = {"hook_event_name": "SessionStart", "cwd": str(repo.root)}
     got = [context_of(run(rules_cmd(n), event, repo.env, repo.root)) for n in range(1, len(RULE_STARTS) + 1)]
     assert got == chunks() and got[0].startswith("# pm rules (1 of 3): the introduction; ")
+    rule = context_of(run(REQUEST_RULE, event, repo.env, repo.root))
+    assert rule == f"{RULE_HEADING}autopilot\n\n" + (CHECKOUT / "prompts/request_rule_autopilot.txt").read_text().strip()
     text = context_of(run(STATE, event, repo.env, repo.root))
     shown = repo.pm("show").stdout.strip()
     ran, _, rest = text.partition("\n\n")
@@ -79,7 +85,7 @@ def test_session_start_injects_rules_then_init_where_and_pm_show(repo):
         return re.sub(r"\d\d:\d\d UTC", "hh:mm UTC", s)
     assert minute(body) == minute(shown) and "decision .1.2  Ask the owner  (sprint 1)" in body
     plain = repo.pm("prime")  # by hand: the rules whole and in order, then the state, no envelope
-    assert plain.returncode == 0 and minute(plain.stdout.strip()) == minute(head() + "\n\n" + text)
+    assert plain.returncode == 0 and minute(plain.stdout.strip()) == minute(head() + "\n\n" + rule + "\n\n" + text)
 
 
 @pytest.mark.integration
@@ -204,13 +210,15 @@ def flags_named(text: str):
 
 
 def test_every_flag_prime_md_and_the_help_texts_name_parses():
-    """A flag named after `pm <command>` in prime.md or any --help is one that command parses: its own --help lists
-    it. The two forms `Execute` routes before the tree (`pm show ID`, `pm task add --parent`) have their own help."""
+    """A flag named after `pm <command>` in prime.md, the request-rule texts (prompts/request_rule_*.txt) or any --help
+    is one that command parses: its own --help lists it. The two forms `Execute` routes before the tree (`pm show ID`, `pm task add --parent`) have their own help."""
     tree = help_tree()
     forms = {("show", "ID"): ("show", "ID"), ("task", "add", "--parent"): ("task", "add", "--parent", "TASK")}
     helps = tree | {form: subprocess.run([*PM, *argv, "--help"], cwd="/", check=True, capture_output=True,
                                          text=True).stdout for form, argv in forms.items()}
-    docs = {"prime.md": rules()} | {" ".join(("pm", *path, "--help")): text for path, text in helps.items()}
+    rule_texts = {f"prompts/{p.name}": p.read_text() for p in sorted((CHECKOUT / "prompts").glob("request_rule_*.txt"))}
+    assert len(rule_texts) == 2, rule_texts.keys()
+    docs = {"prime.md": rules()} | rule_texts | {" ".join(("pm", *path, "--help")): text for path, text in helps.items()}
     checked, wrong = 0, []
     for source, text in docs.items():
         for words, flags in flags_named(text):
@@ -418,6 +426,38 @@ def test_a_subagents_uncommitted_record_blocks_alike_in_claude_code_and_codex(re
     parent_stop = run(STOP, hook_payload("codex", "Stop", session=ROOT, cwd=str(repo.root), transcript=parent,
                                          reply="Done."), repo.env, repo.root)
     assert parent_stop.returncode == 0 and parent_stop.stdout == "", parent_stop.stderr
+
+
+def set_mode(repo, session, command, cwd=None):
+    """`pm interactive` or `pm autopilot` run by `session`'s agent; its output."""
+    res = run([*PM, command], {}, dict(repo.env, CLAUDE_CODE_SESSION_ID=session), cwd or repo.root)
+    assert res.returncode == 0, res.stderr
+    return res.stdout
+
+
+def test_session_start_gives_the_request_rule_of_the_sessions_mode_and_session_end_clears_it(repo, tmp_path):
+    """The request-rule hook gives autopilot's rule by default and interactive mode's while the session's mode file
+    exists, on either runtime's SessionStart input; another session keeps autopilot's. SessionEnd, on either runtime's
+    input, removes the ended session's file and no other's."""
+    auto, inter = [(CHECKOUT / f"prompts/request_rule_{m}.txt").read_text().strip() for m in ("autopilot", "interactive")]
+    modes, tree = repo.root / ".pm/run/sessions", repo.worktree("wt")
+
+    def rule(runtime, session):
+        payload = hook_payload(runtime, "SessionStart", session=session, cwd=str(repo.root), transcript=str(tmp_path / "t"))
+        return context_of(run(REQUEST_RULE, payload, repo.env, repo.root))
+
+    for runtime in ("claude", "codex"):
+        assert rule(runtime, ME) == f"{RULE_HEADING}autopilot\n\n{auto}"
+        set_mode(repo, ME, "interactive", cwd=tree)  # from a worktree: the main checkout's file
+        set_mode(repo, "sess-other", "interactive")
+        assert rule(runtime, ME) == f"{RULE_HEADING}interactive mode\n\n{inter}"
+        assert rule(runtime, "sess-third") == f"{RULE_HEADING}autopilot\n\n{auto}"
+        end = hook_payload(runtime, "SessionEnd", session=ME, cwd=str(tree), transcript=str(tmp_path / "t"))
+        res = run([*PM, "hook", "session-end"], end, repo.env, tree)
+        assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+        assert sorted(p.name for p in modes.iterdir()) == ["sess-other"]
+        assert rule(runtime, ME) == f"{RULE_HEADING}autopilot\n\n{auto}"
+        set_mode(repo, "sess-other", "autopilot")
 
 
 @pytest.mark.integration

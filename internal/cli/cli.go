@@ -127,6 +127,8 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return hooks.HookStop(stdin, stdout, stderr)
 	case "hook ask":
 		return hooks.HookAsk(here, ask.Runtime(p.Get("runtime")), hooks.DialStore, stdin, stdout, stderr)
+	case "hook session-end":
+		return hooks.HookSessionEnd(here, stdin, stderr)
 	case "hook owner-request":
 		return runOwnerHook(p, here, stdin, stdout, stderr)
 	case "service install", "service status", "service restart", "service stop", "service logs", "service run":
@@ -163,6 +165,8 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return cmdWhere(p, here, stdout)
 	case "clean":
 		return cmdClean(p, here, stdout)
+	case "interactive", "autopilot":
+		return cmdMode(here, name == "interactive", stdout)
 	}
 	if cmd, ok := agentCommands[name]; ok {
 		return runAgent(name, cmd, p, here, stdin, stdout, stderr)
@@ -172,8 +176,9 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 
 func runPrime(p *Parsed, stdin io.Reader, stdout io.Writer) error {
 	part := hooks.Part{}
+	part.RequestRule = p.Get("part") == "request-rule"
 	switch v := p.Get("part"); v {
-	case "":
+	case "", "request-rule":
 	case "state":
 		part.State = true
 	case "subagent":
@@ -201,6 +206,21 @@ func runOwnerHook(p *Parsed, here string, stdin io.Reader, stdout, stderr io.Wri
 	} else {
 		return &exitCode{code}
 	}
+}
+
+// cmdMode is pm interactive (on) and pm autopilot, for this command's session (hooks.SetMode).
+func cmdMode(here string, on bool, stdout io.Writer) error {
+	id := currentSession()
+	if id == "" {
+		return refuse("no agent session: neither %s nor %s is set, so there is no session to set the mode of",
+			sessionEnv, codexSessionEnv)
+	}
+	text, err := hooks.SetMode(here, id, on)
+	if err != nil {
+		return refuse("the mode of session %s is unchanged: %v", id, err)
+	}
+	_, err = fmt.Fprintln(stdout, text)
+	return err
 }
 
 func runInit(p *Parsed, here string, stdout io.Writer) error {

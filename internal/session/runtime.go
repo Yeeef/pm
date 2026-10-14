@@ -6,7 +6,9 @@
 // CODEX_THREAD_ID mapped to its root thread through its rollout) and the innermost runtime from the process ancestry
 // when both are set; codex.go Codex's rollouts and whether pm's session-start hooks ran in a Codex session
 // (CodexHooksRan) and the CODEX_HOME a rollout's path lies under; codexhooks.go the warning a pm command gives once per
-// session when they did not; live.go a session's liveness; uses.go the worktrees live sessions used, for pm clean.
+// session when they did not; live.go a session's liveness; uses.go the worktrees live sessions used, for pm clean;
+// mode.go a session's mode, interactive or autopilot, which pm interactive and pm autopilot set and pm hook
+// owner-request reads.
 package session
 
 import (

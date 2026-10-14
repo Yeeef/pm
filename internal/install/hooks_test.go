@@ -1,6 +1,7 @@
 package install
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -278,6 +279,48 @@ func inboxTakenOut(t *testing.T, p Piece, name, old, want string) {
 		}
 		if got != want {
 			t.Errorf("%s, %s: pm %s writes\n%s\nwant\n%s", p.Rel, name, cmd, got, want)
+		}
+	}
+}
+
+// TestNewHookEntriesFollowTheReleasedOnes: Codex keys its trust in a hook by its event, group and index
+// (<file>:session_start:<group>:<index>) beside the entry's hash, so an entry put before a released one shifts that
+// one's index: Codex then takes it as modified and the one after as untrusted, and skips both until the owner trusts
+// them again. Each event's entries as the last release wrote them (testdata/released-hooks, pm 0.11.0's
+// .claude/settings.json and .codex/hooks.json) must be the first of that event's entries now, unchanged and in order;
+// a new entry goes after them. Claude Code keys no trust by position; its entries follow the same order. A release
+// that changes an entry on purpose rewrites the file it changed here.
+func TestNewHookEntriesFollowTheReleasedOnes(t *testing.T) {
+	for file, e := range map[string]entries{"claude-settings.json": claudeHooks(), "codex-hooks.json": codexHooks()} {
+		raw, err := os.ReadFile(filepath.Join("testdata", "released-hooks", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var released struct {
+			Hooks map[string][]struct{ Hooks []any } `json:"hooks"`
+		}
+		if err := json.Unmarshal(raw, &released); err != nil {
+			t.Fatal(err)
+		}
+		for event, groups := range released.Hooks {
+			group, ok := e.groups[event]
+			if !ok {
+				t.Errorf("%s: pm no longer writes %s, which the last release did", file, event)
+				continue
+			}
+			text, err := json.Marshal(group())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var now struct{ Hooks []any }
+			if err := json.Unmarshal(text, &now); err != nil {
+				t.Fatal(err)
+			}
+			was := groups[0].Hooks // pm writes one group per event
+			if len(now.Hooks) < len(was) || !reflect.DeepEqual(now.Hooks[:len(was)], was) {
+				t.Errorf("%s %s: the released entries %v are not the first of the entries now %v", file, event, was,
+					now.Hooks)
+			}
 		}
 	}
 }
