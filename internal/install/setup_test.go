@@ -388,7 +388,8 @@ func TestRewriteTakesOutBeadsPieces(t *testing.T) {
 }
 
 // core.hooksPath at an earlier pm's .pm/hooks, relative or absolute, is unset once, and pm doctor names it until then;
-// one naming another directory, Beads' .beads/hooks or another hook manager's, is not pm's and stays.
+// one naming another directory, Beads' .beads/hooks or another hook manager's, is not pm's and stays, and so does one
+// whose .pm/hooks holds a hook of the user's.
 func TestRetireHooksPath(t *testing.T) {
 	main := t.TempDir()
 	run(t, main, "git", "init", "-q")
@@ -417,7 +418,7 @@ func TestRetireHooksPath(t *testing.T) {
 		if want := "unset core.hooksPath=" + hp + ", " + HooksWhy; err != nil || said != want {
 			t.Fatalf("%q, %v; want %q", said, err, want)
 		}
-		if got, _ := GitConfig(main, "core.hooksPath"); got != "" {
+		if got, err := GitConfig(main, "core.hooksPath"); err != nil || got != "" {
 			t.Fatalf("core.hooksPath %q after the unset", got)
 		}
 		if said, err := RetireHooksPath(main); err != nil || said != "" {
@@ -427,12 +428,27 @@ func TestRetireHooksPath(t *testing.T) {
 			t.Errorf("doctor after the unset: %q", got)
 		}
 	}
-	for _, hp := range []string{filepath.Join(main, ".beads", "hooks"), ".husky", "/x/.pm/hooks-old"} {
+	hooks := filepath.Join(main, ".pm", "hooks")
+	if err := os.MkdirAll(hooks, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := shebang + "# --- BEGIN PM v0.9.1 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
+	if err := os.WriteFile(filepath.Join(hooks, "post-checkout"), []byte(old), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run(t, main, "git", "config", "core.hooksPath", ".pm/hooks")
+	if said, err := RetireHooksPath(main); err != nil || said == "" {
+		t.Fatalf("pm's section alone: %q, %v; want the path unset", said, err)
+	}
+	if err := os.WriteFile(filepath.Join(hooks, "post-checkout"), []byte(old+"echo mine\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, hp := range []string{filepath.Join(main, ".beads", "hooks"), ".husky", "/x/.pm/hooks-old", ".pm/hooks"} {
 		run(t, main, "git", "config", "core.hooksPath", hp)
 		if said, err := RetireHooksPath(main); err != nil || said != "" {
 			t.Fatalf("%s: %q, %v; want it left", hp, said, err)
 		}
-		if got, _ := GitConfig(main, "core.hooksPath"); got != hp {
+		if got, err := GitConfig(main, "core.hooksPath"); err != nil || got != hp {
 			t.Fatalf("core.hooksPath %q, want %q left", got, hp)
 		}
 		if got := doctor(); len(got) != 0 {

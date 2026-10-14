@@ -1,7 +1,9 @@
 package install
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -365,18 +367,50 @@ func localHooksPath(main string) (string, error) {
 	return Git(main, "config", "--local", "--get", "--default=", "core.hooksPath")
 }
 
-// pmHooksPath is whether a core.hooksPath value names pm's retired hook directory .pm/hooks: relative, or under any
-// checkout, as an earlier pm set the main checkout's absolute path.
-func pmHooksPath(value string) bool {
+// pmHooksPath is whether a core.hooksPath value is pm's alone: it names pm's retired hook directory .pm/hooks
+// (relative, or under any checkout, as an earlier pm set the main checkout's absolute path), and that directory, read
+// from the main checkout, holds no hook of the user's: each file in it is empty, or a shebang, once pm's section is
+// out. A user who kept hooks of their own there (an earlier pm's doctor said to) keeps the path, and so their hooks.
+func pmHooksPath(main, value string) (bool, error) {
 	p := filepath.ToSlash(filepath.Clean(value))
-	return value != "" && (p == HooksRel || strings.HasSuffix(p, "/"+HooksRel))
+	if value == "" || (p != HooksRel && !strings.HasSuffix(p, "/"+HooksRel)) {
+		return false, nil
+	}
+	dir := value
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(main, dir)
+	}
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			return false, nil
+		}
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return false, err
+		}
+		if rest := section.ReplaceAllString(string(b), ""); rest != "" && rest != shebang {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
-// RetireHooksPath unsets the clone's core.hooksPath where an earlier pm pointed it at its .pm/hooks (HooksWhy); one
-// naming another directory is not pm's and stays. "" when nothing changed.
+// RetireHooksPath unsets the clone's core.hooksPath where an earlier pm pointed it at its .pm/hooks and nothing but
+// pm's sections is there (HooksWhy); one naming another directory, or holding hooks of the user's, stays. "" when
+// nothing changed.
 func RetireHooksPath(main string) (string, error) {
 	current, err := localHooksPath(main)
-	if err != nil || !pmHooksPath(current) {
+	if err != nil {
+		return "", err
+	}
+	if pm, err := pmHooksPath(main, current); err != nil || !pm {
 		return "", err
 	}
 	if _, err := Git(main, "config", "--local", "--unset", "core.hooksPath"); err != nil {
@@ -495,7 +529,9 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
-	if pmHooksPath(hp) {
+	if pm, err := pmHooksPath(main, hp); err != nil {
+		return nil, err
+	} else if pm {
 		out = append(out, fmt.Sprintf("hooks path: core.hooksPath is %s, %s; run pm init to unset it", hp, HooksWhy))
 	}
 	work, err := WorkDrift(main, remote)
