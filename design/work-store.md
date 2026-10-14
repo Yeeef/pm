@@ -4,6 +4,7 @@ title: "Work store: pm's own replacement for Beads"
 project: pm-harness
 covers:
   - "internal/work/**"
+  - "internal/item/**"
   - "internal/cli/store_commands*.go"
   - "internal/cli/work.go"
   - "internal/install/workstore.go"
@@ -111,12 +112,14 @@ Sample data on this page: a `bd export` of this repo with 466 items, 245 comment
 
 | Table | Key | Columns |
 |---|---|---|
-| `items` | `id` | `type`, `parent`, `title`, `description`, `status`, `resolution`, `close_reason`, `number` (sprints only), `holder_session`, `holder_host`, `holder_claimed_at`, `started_at`, `created_at`, `updated_at`, `closed_at`, `closed_by`; need fields: `need_kind`, `raised_session`, `raised_inbox`, `raised_host`, `delivered`, `review_pr`, `review_focus`, `review_merged`, `review_merge_reported` |
+| `items` | `id` | `type`, `parent`, `title`, `description`, `status`, `resolution`, `close_reason`, `number` (sprints only), `holder_session`, `holder_host`, `holder_claimed_at`, `started_at`, `created_at`, `updated_at`, `closed_at`, `closed_by`; need fields: `need_kind`, `raised_session`, `raised_inbox`, `raised_host`, `delivered`, `review_pr`, `review_focus`, `review_merged`, `review_merge_reported`, `ask_call` |
 | `review_targets` | `item_id`, `kind`, `target` | a review's sprints (`kind=sprint`) and design pages (`kind=design`) |
+| `ask_questions` | `item_id`, `q` | a question need's questions in the order asked: `text`, `header`, `multi` |
+| `ask_options` | `item_id`, `q`, `pos` | each question's options in order: `label`, `detail` |
 | `labels` | `item_id`, `label` | |
 | `blocked_by` | `item_id`, `blocker_id` | |
 | `comments` | `id` | `item_id`, `pos`, `kind`, `author`, `text`, `created_at`; `pos` orders an item's comments and is not unique, since two clones may each add a comment to one item |
-| `schema_version` | one row | the version pm's migrations start from |
+| `schema_version` | one row | the version pm's migrations start from: 4. An open of a store at a lower version migrates it; a store or a remote at a higher one is refused, naming `pm upgrade` |
 | `write_stamp` | one row | `txn`: a fresh UUID that every write transaction sets, so a write that raced one outside the write lock conflicts (Concurrent writers); it carries no data; a merge keeps this side's value, then sets a fresh one, as every write does |
 
 A list is a table of rows, so Dolt's row merge unions two clones' additions per entry.
@@ -145,16 +148,26 @@ An item has a fixed set of typed fields, stored as the columns and tables under 
 | `created_at`, `updated_at`, `closed_at` | timestamp | the store | UTC, `YYYY-MM-DDTHH:MM:SSZ` |
 | `closed_by` | session id or null | close | who closed it; bd has only the git user |
 | `comments` | list of comment | `pm comment add`, replies | returned with the item on every read |
-| `need` | object, only on `type=need` | `pm decision need`, `pm action need` | below |
+| `need` | object, only on `type=need` | `pm decision need`, `pm action need`, `pm hook ask` | below |
 
 **Need fields** (`need` object):
 
 | Field | Type | Replaces in bd |
 |---|---|---|
-| `kind` | `decision` \| `action` \| `review` | label `human`; label `action`; `metadata.review` present |
+| `kind` | `decision` \| `action` \| `review` \| `question` | label `human`; label `action`; `metadata.review` present; none (a question is pm's own) |
 | `raised_by` | `{session, inbox, host}`, or null when no session raised it; `inbox` (the messaging socket) and `host` are a Claude Code session's only, empty for a Codex session ([Reply delivery](../design/reply-delivery.md)) | `metadata.session`, `inbox`, `inbox_host`; 44 of 154 sample needs have no session |
 | `delivered` | int: owner replies that reached `raised_by.session` | `metadata.picked_up` |
 | `review` | `{pr, sprints, designs, focus, merged, merge_reported}`, only on `kind=review` | `metadata.review`, `external_ref`, `metadata.merged`, `metadata.merge_reported` |
+| `ask` | `{call, questions}`, only on `kind=question`: `call` is the ask-tool call's key (Codex's `call_id`; for Claude Code, whose hook input has no tool-use id, the `prompt_id` with a hash of the tool input), at most 128 bytes; each question `{text, header, multi, options}`, each option `{label, detail}` | none |
+
+**Question.** A question need is a session's ask-tool question (AskUserQuestion; Codex's `request_user_input_async`), which `pm hook ask` raises; no agent command creates one, and its `ask` is written once, at the raise.
+
+| Part | Rule |
+|---|---|
+| Title | `Session <the session id's first 8 characters> asks: <the first question>`, on one line, cut at 120 characters |
+| Description | each question, with its header, and its options as a list |
+| Close | once, by the first answer; a second close fails and changes nothing. `answered`: the owner's answer on the site, or in the session's chat, stored as the reply. `dismissed`: declined in the session, the hook stopped before any answer, the Claude Code session ended, or `pm need dismiss` |
+| Refused | `pm decision add --need`, `pm decision close`, `pm action done` and `pm need edit`, each naming `pm need dismiss`: a question's answer goes to the session that asked and records no decision |
 
 **Comment**
 
@@ -172,10 +185,11 @@ An item has a fixed set of typed fields, stored as the columns and tables under 
 | `project` | none | `yeeef-agents-9va` | epic at depth 1 (5 in sample) |
 | `sprint` | a project | `yeeef-agents-9va.77` | epic under an epic (82) |
 | `task` | a sprint, a task (sub-task), or a project | `yeeef-agents-9va.77.2`, `…77.2.1`, `9va.26` | task (221), bug (5) |
-| `need` | any item | `yeeef-agents-9va.41.2` | task labelled `human` (154; 79 also `action`; 59 with a review) |
+| `need` | any item; an open question may have none | `yeeef-agents-9va.41.2` | task labelled `human` (154; 79 also `action`; 59 with a review) |
 
 - A task directly under a project is allowed: work that no sprint has taken up yet (4 open in the sample). It orders after every sprint's tasks in `pm task ready`. `pm task move` puts it into one of the project's open sprints, with the decision in that sprint.
-- Only a project has no parent. A task or need with no parent fails a write, and fails the import unless it is closed (see Migration).
+- Only a project has no parent, and a question raised by a session that holds no task. Any other task or need with no parent fails a write, and fails the import unless it is closed (see Migration).
+- A question's parent is the newest open task its session holds, else none: a question steers one session, which may hold no task.
 
 Statuses: `open` and `closed` only. bd's `in_progress`, `blocked`, `deferred` and `hooked` go: in progress is "open with a holder", blocked is computed, and pm defers nothing.
 
@@ -209,6 +223,7 @@ Across clones, two copies can change the same item before they sync. The merge i
 | `started_at` | min (the earliest start) |
 | `updated_at` | max |
 | `need.delivered` | max |
+| `need.ask.call` | written once, at the raise: unequal values fail the merge. The questions and options are rows, written once too |
 | other scalars (`title`, `description`, `parent`, `need.review.*`) | the later `updated_at` wins |
 
 Close beats claim also applies where Dolt merged cleanly: one side closed an item while the other claimed it from a null holder. pm clears the holder of every closed item in the merge result. Then the merged item must hold the invariants (closed ⇒ holder null; the type's fields present), and the merged store must have no `blocked_by` cycle (Storage, Cycle check); else the merge fails hard.
@@ -305,7 +320,7 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 | `bd unclaim` | `pm task release <id>` | clears this session's holder |
 | `bd comments add`, `bd comment` | `pm comment add <id>` | text through `--text` or `--text-file`; a `note` |
 | `bd close` | `pm task close` (exists) | |
-| `bd human dismiss` | `pm need dismiss <id> --reason "…"` | `resolution=dismissed`; for `[TEST]` needs, replaced reviews and needs that became moot |
+| `bd human dismiss` | `pm need dismiss <id> --reason "…"` | `resolution=dismissed`; for `[TEST]` needs, replaced reviews, needs that became moot and a question nobody will answer |
 | `bd human respond` (owner at a shell) | `pm reply add <id>` | owner's answer through `--text` or `--text-file`; a `reply` comment, as a reply on the site writes. The need stays open: the session that raised it reads the reply, then records it (`pm decision add --need`, `pm decision close`, `pm action done`), which closes it with its `resolution` |
 | `bd list`, `bd search`, `bd count` | `pm show` filters; `pm export` | `pm export` prints the store as JSONL for ad hoc `jq` |
 | `bd remember`, `bd memories`, `bd forget` | none | see Session context |

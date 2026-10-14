@@ -9,6 +9,7 @@ covers:
   - "internal/service/access*.go"
   - "internal/service/deliver.go"
   - "internal/cli/serve*.go"
+  - "internal/item/answer*.go"
 ---
 
 ## Problem
@@ -29,7 +30,7 @@ the session that raised the request on its own.
 
 **Goals**
 
-- A reply box on every decision and action card that `pm serve` serves.
+- A reply box on every decision and action card that `pm serve` serves, and an answer form on every question card: a session's ask-tool question, answerable on the site as well as in the session.
 - The reply lands in Beads on the right issue, before anyone acts on it.
 - The session that raised the request learns of the reply without the owner
   telling it, whether it is busy or idle, and then acts on it: records a
@@ -114,7 +115,7 @@ the Claude Code socket it inherits. The command's output says how the reply
 will be pushed or queued, and how to wait for it (`pm reply wait <id>`).
 
 ### Replying: the form and the POST
-Every awaiting card carries an invisible slot, `<!--pm-reply ID-->`. On each
+Every awaiting card carries an invisible slot, `<!--pm-reply ID KIND-->`. On each
 GET, `pm serve` replaces the slot with a form holding the issue id and the
 server's token; the static site from `make render` keeps the slot, so it
 shows no form that could not work. The form posts `token`, `id`, `rid` and
@@ -133,6 +134,20 @@ a reply left pending by a crash or kill is stored at the next start; the
 card shows "Saving your reply…", then "Reply saved;" and whether it was
 delivered, or the error with the
 text back in the box (see Read path in [Views and the site](views-and-site.md)).
+
+### A session's question
+A question need ([Work store](../design/work-store.md), Data model) shows in its own awaiting section, "Sessions ask you", above the decisions: on its sprint's, its project's and the overview page, and, for a question from a session that held no task, on the overview only, as "asked outside any task". Its card is titled "Session <the session id's first 8 characters> asks you" and holds a fieldset per question:
+
+| Question | Inputs |
+|---|---|
+| Single choice | a radio button per option (label, then its detail), and an "Other" text: the owner's own answer, instead of an option |
+| Multiple choice | a checkbox per option, and an "Other" text, added to the options picked |
+| No options | an "Answer" text |
+
+- The inputs belong to the form the service puts in the slot (`form="reply-<id>"`), which posts `token`, `id`, `rid` and a field per question (`q<n>`, `q<n>-other`), no text box. The reply id is new whenever the fields change.
+- The service makes the reply text from the fields: one line per question, in the order asked, `<question>: <answer>`; a multiple choice's labels in the options' order joined with `, `, then the Other text; question and Other text each put on one line. It refuses, with 400 and naming the question, a question with no answer, a label that is not one of its options, and two picks on a single choice.
+- A question's answer that failed to store shows its text above the form; the service stores it again from the spool. A question closed meanwhile (answered in the session first) refuses the POST as closed, naming why.
+- The text is stored as any reply is; it reaches the session that asked one way per runtime, first answer wins ([Reply delivery](../design/reply-delivery.md), Questions).
 
 ### Storage
 Both kinds store the reply the same way: a Beads comment with author

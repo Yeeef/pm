@@ -38,7 +38,12 @@ An agent's ask-tool question (Claude Code's AskUserQuestion, Codex's request_use
 
 > Where is the detail?
 
-None yet.
+- [Work store](../design/work-store.md): the question need kind, its ask fields and tables (schema 4), the parent rule, its closes and refusals (covers `internal/item/**`).
+- [Owner-request Stop hook](../design/owner-request-hook.md): Ask-tool questions on the site, per runtime; the judge reading an open question as an open request.
+- [Reply delivery](../design/reply-delivery.md): Questions: a Claude Code question answered only through its hook, a Codex one through `codex queue` after the rollout check, no idle dismissal of a Codex question.
+- [Replies on the site](../design/site-replies.md): A session's question: the card, its inputs and the reply text rule.
+- [pm in Codex](../design/pm-in-codex.md): the Codex Stop `pm hook ask` and its row in Areas.
+- [Views and the site](../design/views-and-site.md): the "Sessions ask you" section.
 
 ## Progress
 

@@ -55,13 +55,14 @@ Each area's design lives on its own page; this page keeps a summary per area, th
 
 | Area | Codex in short | Page |
 |---|---|---|
-| Setup | `pm init` writes `.codex/hooks.json` (the same commands per event as `.claude/settings.json`, SessionStart on `startup\|resume\|clear\|compact`, plus SubagentStop running `pm hook stop`) and `.codex/rules/pm.rules`; `pm doctor` reports Codex's trust in pm's hooks; a typed `pm init` keeps the service unit's PATH | [pm as an installable product](../design/pm-product.md) |
+| Setup | `pm init` writes `.codex/hooks.json` (the same commands per event as `.claude/settings.json`, SessionStart on `startup\|resume\|clear\|compact`, plus SubagentStop running `pm hook stop`; Claude Code's PermissionRequest `pm hook ask` runs at Codex's Stop instead) and `.codex/rules/pm.rules`; `pm doctor` reports Codex's trust in pm's hooks; a typed `pm init` keeps the service unit's PATH | [pm as an installable product](../design/pm-product.md) |
 | Session identity and claims | `CODEX_SESSION_ID`, else `CODEX_THREAD_ID` mapped to its root; the innermost runtime decides when both runtimes' ids are set, and an ambiguous session refuses; liveness and `pm clean` read Codex rollouts | [Session claims](../design/session-claims.md) |
 | Owner replies | The pm service queues the reply into a live Codex session with `codex queue` under the CODEX_HOME its need stores, and an idle TUI starts a turn with it; `pm reply wait` within a turn, `pm hook inbox` at the next prompt, `pm show` and `pm reply read` as in Claude Code; a Codex session never stores the Claude Code socket it inherits | [Reply delivery](../design/reply-delivery.md) |
 | Owner-request check | The same Stop hook, with `--runtime codex`: the judge runs `codex exec` on `gpt-5.6-luna`, so a Codex session needs no `claude`; a null final reply passes; a failing check is a silent pass in Codex | [Owner-request Stop hook](../design/owner-request-hook.md) |
+| Ask-tool questions | Stop runs `pm hook ask --runtime codex` first (30 s): `request_user_input_async` returns at once and leaves its question in the rollout, so the hook raises each such call of the turn as a question need, once, by its `call_id`, before the owner-request judge reads the session's open needs. A site answer goes through `codex queue` only when the rollout shows no message the owner typed after the call; the first such message, at `pm hook inbox` or the service's sweep, closes the question as answered in the chat. A Codex question is never dismissed for idleness. Plan mode's blocking `request_user_input` is not raised | [Owner-request Stop hook](../design/owner-request-hook.md), [Reply delivery](../design/reply-delivery.md) |
 | Uncommitted records | The same Stop hook; a subagent's SubagentStop reads its own rollout (`agent_transcript_path`), since its tool inputs are encrypted in the parent's | [Agent lifecycle](../design/agent-lifecycle.md) |
 
-`TestClaudeAndCodexRunTheSameHooks` holds the two hook files to the same commands per event, except the differences one allowlist names with a reason: the matchers' syntax and Codex's SubagentStop. It reads each Stop entry's `--runtime` as the entry's own.
+`TestClaudeAndCodexRunTheSameHooks` holds the two hook files to the same commands per event, except the differences one allowlist names with a reason: the matchers' syntax, Codex's SubagentStop, and where `pm hook ask` runs (Claude Code's PermissionRequest on AskUserQuestion; first at Codex's Stop). It reads each Stop entry's `--runtime` as the entry's own.
 
 ### Hook trust
 
@@ -145,7 +146,7 @@ Three of the 12 gaps are not closed: hook trust (1), `.codex/` from the main che
 
 - CI: `TestClaudeAndCodexRunTheSameHooks`; the harness tests that drive each hook with both runtimes' real payloads (`tests/hook_payloads.json`) and assert the same output.
 - Live: `make test-live-parity`, real `claude -p` and `codex exec` sessions on a scratch clone, identical assertions per runtime: the solo scenario (context, claim, finding, need, reply, decision, record, task close), the Stop hook, the reply at the next prompt, an idle interactive session (each runtime's TUI in a pty) woken by the owner's reply with nothing typed, and both runtimes on one project at once with claims refused across runtimes; and a Codex session with no `claude` on PATH, asking only in chat, blocked by the judge on `codex exec`.
-- Live: the parity eval's ask tool scenario, in each runtime's TUI: a multiple-choice question asked with AskUserQuestion or `request_user_input_async`, answered at the keyboard, is not blocked and raises no need.
+- Live: the parity eval's ask tool scenario, in each runtime's TUI: a multiple-choice question asked with AskUserQuestion or `request_user_input_async`, answered at the keyboard, is not blocked, and the question need pm raised closes with the keyboard's answer.
 - Live: `make test-live` runs the owner-request judge's labelled cases on both runtimes ([Owner-request Stop hook](../design/owner-request-hook.md)).
 
 ## Alternatives considered
