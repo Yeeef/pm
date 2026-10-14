@@ -124,6 +124,11 @@ The design page record-layer stays as it is for this sprint's code changes.
 records.go only adds Sessions ask you to the generated headings a sprint or day record may not hold; the page lists no such headings, and its review-card line stays true
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page session-claims stays as it is for this sprint's code changes.
+the branch adds question needs (their store rows, a pm show line for parentless questions, the read of a Codex chat answer after an ask-tool call); session resolution, claims, liveness and the holder display are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
