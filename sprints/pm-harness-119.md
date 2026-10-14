@@ -75,6 +75,11 @@ The design page pm-product stays as it is for this sprint's code changes.
 prime.md gains one sentence on interactive mode and prime.go only its file map; the page's install and hook model stay true
 :::
 
+::: decision {source=agent date=2026-10-14}
+The mode is read from the runtime transcript, not a file: the session is interactive when its latest owner prompt that is exactly pm interactive or pm autopilot is pm interactive. The keyword prompt is not blocked, so it lands in the transcript and starts a short turn that acknowledges it.
+Only the runtime writes owner prompts into its transcript, so an agent cannot set the mode short of tampering with that file; with no state file, pm clean has nothing to reset and no idle session loses its mode.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
