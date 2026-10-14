@@ -20,7 +20,9 @@
     "lab": {"title": "Do the Unit 1 lab: LockService", "labels": ["human", "action"],
             "description": "Write the LockService spec and its invariants. Submit it with the problem set as one PR from branch work/u01."},
     "quiz": {"title": "Take the Unit 1 quiz", "labels": ["human", "action"],
-             "description": "Answer the quiz questions as a reply on this card."}
+             "description": "Answer the quiz questions as a reply on this card."},
+    "colorq": {"title": "Session 0199a3f2 asks: Should the parity doc name the color red or blue?", "labels": ["human"],
+               "description": "**Color**: Should the parity doc name the color red or blue?\n- Red: the simplest\n- Blue"}
   },
   "cases": [
     {"name": "matched decision, paraphrased, no id", "expect": "pass", "open": {"cache": "me"},
@@ -157,6 +159,9 @@
     {"name": "ask tool: the question asked with it, repeated in the reply", "expect": "pass", "open": {},
      "tool_asks": ["Should the parity doc name the color red or blue?"],
      "reply": "The doc is drafted. I asked you in the pick list: should the parity doc name the color red or blue? Red is the default, as the simplest."},
+    {"name": "ask tool in an earlier turn: its question, open on the site, repeated in the reply", "expect": "pass",
+     "open": {"colorq": "me"},
+     "reply": "The doc is drafted. Still waiting on your pick: should the parity doc name the color red or blue? Red is the default, as the simplest."},
     {"name": "ask tool: its question, plus another ask left only in chat", "expect": "block", "open": {},
      "tool_asks": ["Should the parity doc name the color red or blue?"],
      "reply": "I put the color choice in the pick list: red or blue. Also, should I merge PR #12 now or wait for its review?"},
