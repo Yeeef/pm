@@ -132,7 +132,9 @@ func (c *clone) items() []Item {
 }
 
 // pair is two clones of a store on a bare remote, seeded by A with a project, a sprint, two tasks and a decision need,
-// and pushed; B cloned it after, and its clock starts where A's stopped.
+// and pushed in one sync; B cloned it after, and its clock starts where A's stopped. The seed mints its ids locally, as
+// reseed does: a create through the remote pulls and pushes per item (about 50 git calls each), which the TestCreate
+// tests check, and would make most of a pair's setup.
 type pair struct {
 	a, b               *clone
 	bare               string
@@ -149,11 +151,11 @@ func newPair(t *testing.T) *pair {
 	if err := d.AddRemote(x.bare); err != nil {
 		t.Fatal(err)
 	}
-	x.p = must(d.Create(New{Type: Project, Title: "P"}))
-	x.s = must(d.Create(New{Type: Sprint, Parent: x.p.ID, Title: "S"}))
-	x.t1 = must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T1", Labels: []string{"keep", "drop"}}))
-	x.t2 = must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T2"}))
-	x.need = must(d.Create(New{Type: Need, Parent: x.t1.ID, Title: "N?", Need: &NeedInfo{Kind: Decision,
+	x.p = must(d.createLocal(New{Type: Project, Title: "P"}))
+	x.s = must(d.createLocal(New{Type: Sprint, Parent: x.p.ID, Title: "S"}))
+	x.t1 = must(d.createLocal(New{Type: Task, Parent: x.s.ID, Title: "T1", Labels: []string{"keep", "drop"}}))
+	x.t2 = must(d.createLocal(New{Type: Task, Parent: x.s.ID, Title: "T2"}))
+	x.need = must(d.createLocal(New{Type: Need, Parent: x.t1.ID, Title: "N?", Need: &NeedInfo{Kind: Decision,
 		RaisedBy: &RaisedBy{Session: "s1"}}}))
 	must(d.Sync())
 	x.a.synced = time.Now()
@@ -457,7 +459,7 @@ func TestSyncTwoClonesMoveSprintKeepsTheOtherClonesWrites(t *testing.T) {
 		items := x.converge(t)
 		s, t1, task := find(items, x.s.ID), find(items, x.t1.ID), find(items, ta.ID)
 		if s.Parent != q.ID || s.Number != 2 || s.Description != "from B" || s.Title != "S from A" || len(s.Comments) != 3 ||
-			!slices.Equal(SprintMoves(&s), []SprintMove{{x.p.ID, 1, q.ID, 2, "r\nr"}}) {
+			!slices.Equal(SprintMoves(&s), []SprintMove{{From: x.p.ID, FromNumber: 1, To: q.ID, ToNumber: 2, Reason: "r\nr"}}) {
 			t.Errorf("sprint %+v", s)
 		}
 		if t1.Holder == nil || t1.Holder.Session != "sb" || task.Parent != x.s.ID {

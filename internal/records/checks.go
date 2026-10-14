@@ -12,18 +12,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Yeeef/pm/internal/work"
+	"github.com/Yeeef/pm/internal/item"
 )
 
 // Items is the work store's items by id, in the order the store gave them: what records and pages read status from.
 type Items struct {
-	byID  map[string]*work.Item
-	order []*work.Item
+	byID  map[string]*item.Item
+	order []*item.Item
 }
 
 // NewItems indexes items.
-func NewItems(items []work.Item) *Items {
-	x := &Items{byID: map[string]*work.Item{}}
+func NewItems(items []item.Item) *Items {
+	x := &Items{byID: map[string]*item.Item{}}
 	for i := range items {
 		it := &items[i]
 		x.byID[it.ID] = it
@@ -33,10 +33,10 @@ func NewItems(items []work.Item) *Items {
 }
 
 // Get is the item with the id, or nil.
-func (x *Items) Get(id string) *work.Item { return x.byID[id] }
+func (x *Items) Get(id string) *item.Item { return x.byID[id] }
 
 // All is every item, in the store's order.
-func (x *Items) All() []*work.Item { return x.order }
+func (x *Items) All() []*item.Item { return x.order }
 
 // Parent is the item's parent id; "" for an unknown item or one without a parent.
 func (x *Items) Parent(id string) string {
@@ -55,15 +55,15 @@ func (x *Items) Ancestors(id string) []string {
 	return out
 }
 
-// Children is the items whose parent is the id, in id order (work.CompareIDs).
-func (x *Items) Children(parent string) []*work.Item {
-	var out []*work.Item
+// Children is the items whose parent is the id, in id order (item.CompareIDs).
+func (x *Items) Children(parent string) []*item.Item {
+	var out []*item.Item
 	for _, it := range x.order {
 		if it.Parent == parent {
 			out = append(out, it)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return work.CompareIDs(out[i].ID, out[j].ID) < 0 })
+	sort.SliceStable(out, func(i, j int) bool { return item.CompareIDs(out[i].ID, out[j].ID) < 0 })
 	return out
 }
 
@@ -148,10 +148,10 @@ func MovedSprint(recs []*Record, items *Items, rel string) *Record {
 		}
 	}
 	for _, it := range items.All() {
-		if it.Type != work.Sprint {
+		if it.Type != item.Sprint {
 			continue
 		}
-		for _, m := range work.SprintMoves(it) {
+		for _, m := range item.SprintMoves(it) {
 			if p, ok := projects[m.From]; ok && fmt.Sprintf("%s-%d", p, m.FromNumber) == name {
 				return SprintRecord(recs, Value{Kind: KindStr, Str: it.ID})
 			}

@@ -243,7 +243,8 @@ func checkSprintMovesReadsOnlyPmsNotes(t *testing.T) {
 		{Kind: Note, Author: MoveAuthor, Text: "pm sprint move: elsewhere"},
 		{Kind: Note, Author: MoveAuthor, Text: text, CreatedAt: time.Now()},
 	}}
-	if got := SprintMoves(&it); len(got) != 1 || got[0] != (SprintMove{"demo-a", 3, "demo-b", 1, "why"}) {
+	want := SprintMove{From: "demo-a", FromNumber: 3, To: "demo-b", ToNumber: 1, Reason: "why"}
+	if got := SprintMoves(&it); len(got) != 1 || got[0] != want {
 		t.Fatalf("%+v", got)
 	}
 }
