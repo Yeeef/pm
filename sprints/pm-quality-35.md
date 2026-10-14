@@ -76,7 +76,8 @@ None yet.
 
 - Local runtime (go build cache warm, GOFLAGS=-count=1): make test 7.7 -> 12.6
   s wall (load 8.3 before; a second run at load 5.1: 13.0 s); make test-go
-  70.5 -> 20.5 s (load 10.1; second run 19.7 s at 5.7). go-test-work 27.7 ->
+  70.5 -> 20.5 s (load 10.1; the second run failed after 19.7 s at 5.7, one of
+  the failures below). go-test-work 27.7 ->
   12.6 s; make test-go keeps 4.3 cores busy (was 1.3).
 
 - make test-go fails intermittently at 8ad2720: 4 of 7 runs of

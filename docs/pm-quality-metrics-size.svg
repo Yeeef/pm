@@ -1,94 +1,120 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 516" width="620" height="516" role="img" aria-label="Code lines per package, non-test and test" style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 663" width="620" height="663" role="img" aria-label="Code lines per package, non-test and test" style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
 <title>Code lines per package, non-test and test</title>
-<rect width="620" height="516" fill="#fcfcfb"/>
+<rect width="620" height="663" fill="#fcfcfb"/>
 <text x="16.0" y="22.0" font-size="14" fill="#0b0b0b" text-anchor="start" font-weight="600" >Code lines per package: non-test and test</text>
 <rect x="16.0" y="35.0" width="10.0" height="10.0" fill="#2a78d6" rx="2"></rect>
 <text x="31.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >non-test</text>
 <rect x="94.0" y="35.0" width="10.0" height="10.0" fill="#eb6834" rx="2"></rect>
 <text x="109.0" y="44.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="400" >test</text>
-<line x1="150.0" y1="52.0" x2="150.0" y2="482.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="150.0" y="498.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >0</text>
-<line x1="232.8" y1="52.0" x2="232.8" y2="482.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="232.8" y="498.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >2K</text>
-<line x1="315.6" y1="52.0" x2="315.6" y2="482.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="315.6" y="498.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >4K</text>
-<line x1="398.4" y1="52.0" x2="398.4" y2="482.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="398.4" y="498.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >6K</text>
-<line x1="481.2" y1="52.0" x2="481.2" y2="482.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="481.2" y="498.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >8K</text>
-<line x1="564.0" y1="52.0" x2="564.0" y2="482.0" stroke="#e1e0d9" stroke-width="1" />
-<text x="564.0" y="498.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >10K</text>
+<line x1="150.0" y1="52.0" x2="150.0" y2="629.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="150.0" y="645.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >0</text>
+<line x1="232.8" y1="52.0" x2="232.8" y2="629.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="232.8" y="645.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >2K</text>
+<line x1="315.6" y1="52.0" x2="315.6" y2="629.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="315.6" y="645.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >4K</text>
+<line x1="398.4" y1="52.0" x2="398.4" y2="629.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="398.4" y="645.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >6K</text>
+<line x1="481.2" y1="52.0" x2="481.2" y2="629.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="481.2" y="645.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >8K</text>
+<line x1="564.0" y1="52.0" x2="564.0" y2="629.0" stroke="#e1e0d9" stroke-width="1" />
+<text x="564.0" y="645.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="400" >10K</text>
 <text x="142.0" y="67.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cli</text>
-<rect x="150.0" y="56.0" width="331.4" height="14.0" fill="#2a78d6" rx="2"><title>cli: 8054 non-test</title></rect>
-<rect x="483.4" y="56.0" width="33.9" height="14.0" fill="#eb6834" rx="2"><title>cli: 820 test</title></rect>
-<text x="523.4" y="67.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >8,874</text>
+<rect x="150.0" y="56.0" width="276.5" height="14.0" fill="#2a78d6" rx="2"><title>cli: 6728 non-test</title></rect>
+<rect x="428.5" y="56.0" width="40.2" height="14.0" fill="#eb6834" rx="2"><title>cli: 972 test</title></rect>
+<text x="474.8" y="67.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >7,700</text>
 <text x="142.0" y="88.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >work</text>
-<rect x="150.0" y="77.0" width="161.0" height="14.0" fill="#2a78d6" rx="2"><title>work: 3937 non-test</title></rect>
-<rect x="313.0" y="77.0" width="133.5" height="14.0" fill="#eb6834" rx="2"><title>work: 3224 test</title></rect>
-<text x="452.5" y="88.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >7,161</text>
+<rect x="150.0" y="77.0" width="163.1" height="14.0" fill="#2a78d6" rx="2"><title>work: 3987 non-test</title></rect>
+<rect x="315.1" y="77.0" width="134.4" height="14.0" fill="#eb6834" rx="2"><title>work: 3247 test</title></rect>
+<text x="455.5" y="88.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >7,234</text>
 <text x="142.0" y="109.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >service</text>
-<rect x="150.0" y="98.0" width="99.1" height="14.0" fill="#2a78d6" rx="2"><title>service: 2442 non-test</title></rect>
-<rect x="251.1" y="98.0" width="70.1" height="14.0" fill="#eb6834" rx="2"><title>service: 1693 test</title></rect>
-<text x="327.2" y="109.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >4,135</text>
+<rect x="150.0" y="98.0" width="112.7" height="14.0" fill="#2a78d6" rx="2"><title>service: 2770 non-test</title></rect>
+<rect x="264.7" y="98.0" width="82.4" height="14.0" fill="#eb6834" rx="2"><title>service: 1990 test</title></rect>
+<text x="353.1" y="109.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >4,760</text>
 <text x="142.0" y="130.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >install</text>
-<rect x="150.0" y="119.0" width="93.0" height="14.0" fill="#2a78d6" rx="2"><title>install: 2294 non-test</title></rect>
-<rect x="245.0" y="119.0" width="32.4" height="14.0" fill="#eb6834" rx="2"><title>install: 783 test</title></rect>
-<text x="283.4" y="130.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >3,077</text>
+<rect x="150.0" y="119.0" width="118.9" height="14.0" fill="#2a78d6" rx="2"><title>install: 2921 non-test</title></rect>
+<rect x="270.9" y="119.0" width="59.2" height="14.0" fill="#eb6834" rx="2"><title>install: 1429 test</title></rect>
+<text x="336.1" y="130.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >4,350</text>
 <text x="142.0" y="151.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >site</text>
-<rect x="150.0" y="140.0" width="61.8" height="14.0" fill="#2a78d6" rx="2"><title>site: 1540 non-test</title></rect>
-<rect x="213.8" y="140.0" width="15.5" height="14.0" fill="#eb6834" rx="2"><title>site: 375 test</title></rect>
-<text x="235.3" y="151.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >1,915</text>
+<rect x="150.0" y="140.0" width="65.2" height="14.0" fill="#2a78d6" rx="2"><title>site: 1622 non-test</title></rect>
+<rect x="217.2" y="140.0" width="20.4" height="14.0" fill="#eb6834" rx="2"><title>site: 493 test</title></rect>
+<text x="243.6" y="151.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >2,115</text>
 <text x="142.0" y="172.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >records</text>
-<rect x="150.0" y="161.0" width="48.2" height="14.0" fill="#2a78d6" rx="2"><title>records: 1212 non-test</title></rect>
-<rect x="200.2" y="161.0" width="5.9" height="14.0" fill="#eb6834" rx="2"><title>records: 143 test</title></rect>
-<text x="212.1" y="172.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >1,355</text>
+<rect x="150.0" y="161.0" width="58.5" height="14.0" fill="#2a78d6" rx="2"><title>records: 1461 non-test</title></rect>
+<rect x="210.5" y="161.0" width="8.9" height="14.0" fill="#eb6834" rx="2"><title>records: 215 test</title></rect>
+<text x="225.4" y="172.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >1,676</text>
 <text x="142.0" y="193.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >hooks</text>
-<rect x="150.0" y="182.0" width="35.2" height="14.0" fill="#2a78d6" rx="2"><title>hooks: 899 non-test</title></rect>
-<rect x="187.2" y="182.0" width="6.0" height="14.0" fill="#eb6834" rx="2"><title>hooks: 145 test</title></rect>
-<text x="199.2" y="193.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >1,044</text>
+<rect x="150.0" y="182.0" width="44.2" height="14.0" fill="#2a78d6" rx="2"><title>hooks: 1117 non-test</title></rect>
+<rect x="196.2" y="182.0" width="11.1" height="14.0" fill="#eb6834" rx="2"><title>hooks: 268 test</title></rect>
+<text x="213.3" y="193.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >1,385</text>
 <text x="142.0" y="214.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >launch</text>
-<rect x="150.0" y="203.0" width="19.4" height="14.0" fill="#2a78d6" rx="2"><title>launch: 516 non-test</title></rect>
-<rect x="171.4" y="203.0" width="18.8" height="14.0" fill="#eb6834" rx="2"><title>launch: 455 test</title></rect>
-<text x="196.2" y="214.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >971</text>
-<text x="142.0" y="235.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >store</text>
-<rect x="150.0" y="224.0" width="16.0" height="14.0" fill="#2a78d6" rx="2"><title>store: 434 non-test</title></rect>
-<rect x="168.0" y="224.0" width="6.6" height="14.0" fill="#eb6834" rx="2"><title>store: 160 test</title></rect>
-<text x="180.6" y="235.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >594</text>
-<text x="142.0" y="256.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >sync</text>
-<rect x="150.0" y="245.0" width="13.2" height="14.0" fill="#2a78d6" rx="2"><title>sync: 368 non-test</title></rect>
-<rect x="165.2" y="245.0" width="5.8" height="14.0" fill="#eb6834" rx="2"><title>sync: 141 test</title></rect>
-<text x="177.1" y="256.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >509</text>
-<text x="142.0" y="277.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >pyjson</text>
-<rect x="150.0" y="266.0" width="13.8" height="14.0" fill="#2a78d6" rx="2"><title>pyjson: 382 non-test</title></rect>
-<rect x="165.8" y="266.0" width="0.4" height="14.0" fill="#eb6834" rx="2"><title>pyjson: 10 test</title></rect>
-<text x="172.2" y="277.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >392</text>
-<text x="142.0" y="298.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >config</text>
-<rect x="150.0" y="287.0" width="7.6" height="14.0" fill="#2a78d6" rx="2"><title>config: 184 non-test</title></rect>
-<text x="163.6" y="298.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >184</text>
-<text x="142.0" y="319.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >proc</text>
-<rect x="150.0" y="308.0" width="4.4" height="14.0" fill="#2a78d6" rx="2"><title>proc: 106 non-test</title></rect>
-<text x="160.4" y="319.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >106</text>
-<text x="142.0" y="340.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >(root) pm</text>
-<rect x="150.0" y="329.0" width="0.0" height="14.0" fill="#2a78d6" rx="2"><title>(root) pm: 18 non-test</title></rect>
-<rect x="150.7" y="329.0" width="2.4" height="14.0" fill="#eb6834" rx="2"><title>(root) pm: 58 test</title></rect>
-<text x="159.1" y="340.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >76</text>
-<text x="142.0" y="361.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >work/worktest</text>
-<rect x="150.0" y="350.0" width="3.0" height="14.0" fill="#2a78d6" rx="2"><title>work/worktest: 73 non-test</title></rect>
-<text x="159.0" y="361.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >73</text>
-<text x="142.0" y="382.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >tests/render-pages</text>
-<rect x="150.0" y="371.0" width="2.4" height="14.0" fill="#2a78d6" rx="2"><title>tests/render-pages: 57 non-test</title></rect>
-<text x="158.4" y="382.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >57</text>
-<text x="142.0" y="403.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cmd/pm</text>
-<rect x="150.0" y="392.0" width="0.6" height="14.0" fill="#2a78d6" rx="2"><title>cmd/pm: 14 non-test</title></rect>
-<text x="156.6" y="403.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >14</text>
-<text x="142.0" y="424.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >buildinfo</text>
-<rect x="150.0" y="413.0" width="0.1" height="14.0" fill="#2a78d6" rx="2"><title>buildinfo: 2 non-test</title></rect>
-<text x="156.1" y="424.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >2</text>
-<text x="142.0" y="445.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >Python harness</text>
-<rect x="150.0" y="434.0" width="180.0" height="14.0" fill="#eb6834" rx="2"><title>Python harness: 4347 test</title></rect>
-<text x="336.0" y="445.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >4,347</text>
-<text x="142.0" y="466.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >Python tools</text>
-<rect x="150.0" y="455.0" width="17.7" height="14.0" fill="#2a78d6" rx="2"><title>Python tools: 428 non-test</title></rect>
-<text x="173.7" y="466.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >428</text>
-<line x1="150.0" y1="52.0" x2="150.0" y2="482.0" stroke="#c3c2b7" stroke-width="1" />
+<rect x="150.0" y="203.0" width="26.1" height="14.0" fill="#2a78d6" rx="2"><title>launch: 679 non-test</title></rect>
+<rect x="178.1" y="203.0" width="23.7" height="14.0" fill="#eb6834" rx="2"><title>launch: 573 test</title></rect>
+<text x="207.8" y="214.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >1,252</text>
+<text x="142.0" y="235.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cli/setup</text>
+<rect x="150.0" y="224.0" width="43.6" height="14.0" fill="#2a78d6" rx="2"><title>cli/setup: 1054 non-test</title></rect>
+<text x="199.6" y="235.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >1,054</text>
+<text x="142.0" y="256.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >session</text>
+<rect x="150.0" y="245.0" width="21.8" height="14.0" fill="#2a78d6" rx="2"><title>session: 575 non-test</title></rect>
+<rect x="173.8" y="245.0" width="10.8" height="14.0" fill="#eb6834" rx="2"><title>session: 261 test</title></rect>
+<text x="190.6" y="256.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >836</text>
+<text x="142.0" y="277.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cli/parse</text>
+<rect x="150.0" y="266.0" width="23.3" height="14.0" fill="#2a78d6" rx="2"><title>cli/parse: 610 non-test</title></rect>
+<rect x="175.3" y="266.0" width="2.7" height="14.0" fill="#eb6834" rx="2"><title>cli/parse: 65 test</title></rect>
+<text x="183.9" y="277.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >675</text>
+<text x="142.0" y="298.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >store</text>
+<rect x="150.0" y="287.0" width="18.2" height="14.0" fill="#2a78d6" rx="2"><title>store: 488 non-test</title></rect>
+<rect x="170.2" y="287.0" width="6.6" height="14.0" fill="#eb6834" rx="2"><title>store: 160 test</title></rect>
+<text x="182.8" y="298.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >648</text>
+<text x="142.0" y="319.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >sync</text>
+<rect x="150.0" y="308.0" width="13.2" height="14.0" fill="#2a78d6" rx="2"><title>sync: 368 non-test</title></rect>
+<rect x="165.2" y="308.0" width="5.8" height="14.0" fill="#eb6834" rx="2"><title>sync: 141 test</title></rect>
+<text x="177.1" y="319.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >509</text>
+<text x="142.0" y="340.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >design</text>
+<rect x="150.0" y="329.0" width="11.6" height="14.0" fill="#2a78d6" rx="2"><title>design: 328 non-test</title></rect>
+<rect x="163.6" y="329.0" width="7.4" height="14.0" fill="#eb6834" rx="2"><title>design: 179 test</title></rect>
+<text x="177.0" y="340.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >507</text>
+<text x="142.0" y="361.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >(root) pm</text>
+<rect x="150.0" y="350.0" width="0.0" height="14.0" fill="#2a78d6" rx="2"><title>(root) pm: 19 non-test</title></rect>
+<rect x="150.8" y="350.0" width="10.9" height="14.0" fill="#eb6834" rx="2"><title>(root) pm: 263 test</title></rect>
+<text x="167.7" y="361.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >282</text>
+<text x="142.0" y="382.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >ask</text>
+<rect x="150.0" y="371.0" width="4.0" height="14.0" fill="#2a78d6" rx="2"><title>ask: 144 non-test</title></rect>
+<rect x="156.0" y="371.0" width="5.5" height="14.0" fill="#eb6834" rx="2"><title>ask: 134 test</title></rect>
+<text x="167.5" y="382.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >278</text>
+<text x="142.0" y="403.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >config</text>
+<rect x="150.0" y="392.0" width="7.0" height="14.0" fill="#2a78d6" rx="2"><title>config: 218 non-test</title></rect>
+<rect x="159.0" y="392.0" width="2.2" height="14.0" fill="#eb6834" rx="2"><title>config: 52 test</title></rect>
+<text x="167.2" y="403.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >270</text>
+<text x="142.0" y="424.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >item</text>
+<rect x="150.0" y="413.0" width="5.1" height="14.0" fill="#2a78d6" rx="2"><title>item: 172 non-test</title></rect>
+<rect x="157.1" y="413.0" width="1.1" height="14.0" fill="#eb6834" rx="2"><title>item: 26 test</title></rect>
+<text x="164.2" y="424.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >198</text>
+<text x="142.0" y="445.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >proc</text>
+<rect x="150.0" y="434.0" width="6.3" height="14.0" fill="#2a78d6" rx="2"><title>proc: 153 non-test</title></rect>
+<text x="162.3" y="445.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >153</text>
+<text x="142.0" y="466.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >textwrap</text>
+<rect x="150.0" y="455.0" width="3.6" height="14.0" fill="#2a78d6" rx="2"><title>textwrap: 87 non-test</title></rect>
+<text x="159.6" y="466.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >87</text>
+<text x="142.0" y="487.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >work/worktest</text>
+<rect x="150.0" y="476.0" width="3.1" height="14.0" fill="#2a78d6" rx="2"><title>work/worktest: 74 non-test</title></rect>
+<text x="159.1" y="487.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >74</text>
+<text x="142.0" y="508.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >tests/render-pages</text>
+<rect x="150.0" y="497.0" width="2.7" height="14.0" fill="#2a78d6" rx="2"><title>tests/render-pages: 65 non-test</title></rect>
+<text x="158.7" y="508.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >65</text>
+<text x="142.0" y="529.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cli/fsutil</text>
+<rect x="150.0" y="518.0" width="0.9" height="14.0" fill="#2a78d6" rx="2"><title>cli/fsutil: 21 non-test</title></rect>
+<text x="156.9" y="529.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >21</text>
+<text x="142.0" y="550.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >cmd/pm</text>
+<rect x="150.0" y="539.0" width="0.6" height="14.0" fill="#2a78d6" rx="2"><title>cmd/pm: 14 non-test</title></rect>
+<text x="156.6" y="550.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >14</text>
+<text x="142.0" y="571.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >buildinfo</text>
+<rect x="150.0" y="560.0" width="0.1" height="14.0" fill="#2a78d6" rx="2"><title>buildinfo: 2 non-test</title></rect>
+<text x="156.1" y="571.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >2</text>
+<text x="142.0" y="592.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >Python harness</text>
+<rect x="150.0" y="581.0" width="337.3" height="14.0" fill="#eb6834" rx="2"><title>Python harness: 8148 test</title></rect>
+<text x="493.3" y="592.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >8,148</text>
+<text x="142.0" y="613.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="400" >Python tools</text>
+<rect x="150.0" y="602.0" width="25.6" height="14.0" fill="#2a78d6" rx="2"><title>Python tools: 619 non-test</title></rect>
+<text x="181.6" y="613.0" font-size="11" fill="#52514e" text-anchor="start" font-weight="400" >619</text>
+<line x1="150.0" y1="52.0" x2="150.0" y2="629.0" stroke="#c3c2b7" stroke-width="1" />
 </svg>

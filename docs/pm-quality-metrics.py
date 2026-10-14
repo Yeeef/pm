@@ -427,7 +427,10 @@ def runtime_of(repo):
     """Wall and CPU time of make test and make test-go (tests uncached: GOFLAGS=-count=1), go build cache warm."""
     run(["make", "go-build"], cwd=repo)
     count1 = dict(GOFLAGS="-count=1")
-    parts = re.search(r"(?m)^test-go: (.+)$", Path(repo, "Makefile").read_text()).group(1).split()
+    # test-go's parts: its prerequisites (`test-go: a b`), or the targets of its `$(MAKE) -j a b` recipe
+    parts = re.search(r"(?m)^test-go:[ \t]*(\S.*)$|^test-go:\n\t\$\(MAKE\) -j (.+)$",
+                      Path(repo, "Makefile").read_text())
+    parts = (parts.group(1) or parts.group(2)).split()
     return dict(make_test=timed(["make", "test"], repo),
                 make_test_go=timed(["make", "test-go"], repo, env=count1),
                 test_go_parts=[timed(["make", t], repo, env=count1) for t in parts])
@@ -623,9 +626,10 @@ def trend_commits(repo):
     rows = []
     for line in log.splitlines():
         sha, date, subj = line.split("\t")
-        m = re.search(r"pm-quality sprint (\d+)[^)]*\) \(#(\d+)\)$", subj)
-        if m:
-            rows.append(dict(sha=sha, date=date, subject=subj, sprint=int(m.group(1)), pr=int(m.group(2))))
+        # "… (pm-quality sprint N) (#PR)" or "pm-quality sprint N: … (#PR)"
+        m, pr = re.search(r"pm-quality sprint (\d+)", subj), re.search(r"\(#(\d+)\)$", subj)
+        if m and pr:
+            rows.append(dict(sha=sha, date=date, subject=subj, sprint=int(m.group(1)), pr=int(pr.group(1))))
     head = run(["git", "log", "-1", "--format=%H%x09%cI%x09%s", "HEAD"], cwd=repo).stdout.strip().split("\t")
     if head[0] not in {r["sha"] for r in rows}:
         m = re.search(r"\(#(\d+)\)$", head[2])
@@ -858,7 +862,7 @@ def fig_coverage(cov, path):
     s.save(path)
 
 
-def fig_ci(ci, path, marks=(48, 43, 44, 53)):
+def fig_ci(ci, path, marks=(71, 81, 83, 85)):  # the CI sprints' merges in the window
     prs = sorted((p for p in ci["prs"] if p["wall"] is not None), key=lambda p: p["merged"])
     w, h, left, top, right = W, 330, 40, 64, 10
     pw, ph = w - left - right, h - top - 76
@@ -875,22 +879,23 @@ def fig_ci(ci, path, marks=(48, 43, 44, 53)):
     for i, p in enumerate(prs):
         if p["number"] in marks:
             s.line(sx(i), top - 6, sx(i), top + ph, MUTED, 1, 'stroke-dasharray="3 3"')
-    day = None
+    starts = [i for i, p in enumerate(prs) if i == 0 or p["merged"][:10] != prs[i - 1]["merged"][:10]]
     for i, p in enumerate(prs):
         s.text(sx(i), top + ph + 14, p["number"], 9, INK if p["number"] in marks else MUTED, "middle",
                600 if p["number"] in marks else 400)
-        if p["merged"][:10] != day:
-            day = p["merged"][:10]
+        if i in starts:
             s.line(sx(i) - 6, top + ph, sx(i) - 6, top + ph + 34, AXIS)
-            s.text(sx(i) - 2, top + ph + 32, day[5:], 10, MUTED)
+            nxt = [k for k in starts if k > i]
+            if not nxt or sx(nxt[0]) - sx(i) >= 34:  # a date label needs about 30 px: skip a day it would overlap
+                s.text(sx(i) - 2, top + ph + 32, p["merged"][5:10], 10, MUTED)
     for series, color, vals in (("wall", BLUE, [p["wall"] / 60 for p in prs]), ("slowest job", ORANGE, slow)):
         pts = [(sx(i), sy(v)) for i, v in enumerate(vals)]
         s.path(pts, color, 2)
         for p, (x, y), v in zip(prs, pts, vals):
             s.dot(x, y, color, 3.5, f"#{p['number']} {series}: {v:.1f} min")
     s.line(left, top + ph, left + pw, top + ph, AXIS)
-    s.text(left + pw, h - 8, "x: PR number, then merge date (UTC); dashed: the merges of #48, #43, #44, #53", 11,
-           MUTED, "end")
+    s.text(left + pw, h - 8, "x: PR number, then merge date (UTC); dashed: the merges of "
+           + ", ".join(f"#{m}" for m in marks), 11, MUTED, "end")
     s.save(path)
 
 
@@ -901,9 +906,11 @@ def fig_trend(tr, path):
               ("Go top-level tests", [("go_tests", "tests", BLUE)]),
               ("Functions with gocyclo > 30", [("gocyclo30", "non-test", BLUE), ("gocyclo30_test", "_test.go", ORANGE)]),
               ("staticcheck findings", [("staticcheck", "findings", BLUE)])]
-    cols, pw, ph = 2, 245, 120
+    # two columns of panels; one, wider, when the x labels of more than 13 commits would overlap in a half width
+    cols = 2 if len(rows) <= 13 else 1
+    pw, ph = (245 if cols == 2 else W - 90), 120
     w = W
-    h = 80 + 3 * (ph + 82)
+    h = 80 + math.ceil(len(panels) / cols) * (ph + 82)
     s = Svg(w, h, "Metrics at each pm-quality sprint merge")
     s.text(16, 22, "At each pm-quality sprint PR's merge commit (x: sprint, then PR)", 14, INK, weight=600)
     s.text(16, 44, "Go lines and tests counted per file; gocyclo and staticcheck with this commit's settings", 11, MUTED)
