@@ -1447,7 +1447,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def post_reply(url: str, form: dict[str, str], headers: dict[str, str] | None = None) -> tuple[int, str, str]:
+def post_reply(url: str, form: dict[str, str] | list[tuple[str, str]], headers: dict[str, str] | None = None) -> tuple[int, str, str]:
     """POST a card's form as the browser does; the status, the Location header and the body."""
     import urllib.error
     import urllib.parse
@@ -1527,6 +1527,46 @@ def test_reply_is_refused_without_the_token_or_from_another_host(repo, served, t
     res = post_reply(served, form, headers)
     assert res[0] == code and said in res[2]
     assert repo.unchanged()
+
+
+@pytest.mark.integration
+def test_a_questions_card_posts_its_picks_and_the_service_stores_one_line_per_question(repo):
+    """A session's question shows as a card whose inputs post through the form the service fills in its slot; the
+    stored reply is one "<question>: <answer>" line per question, a multi-select's picks joined ", " and Other text
+    following them; a post that leaves a question unanswered is refused and writes nothing. internal/item holds the
+    composition's every case."""
+    items = repo.items()
+    question = {**items["repo-demo.1.2"], "id": "repo-demo.1.9", "title": "Session s-ask-12 asks: Ship it?",
+                "description": "Ship it?", "comments": [],
+                "need": {"kind": "question", "raised_by": {"session": "s-ask-1234", "inbox": None, "host": None},
+                         "delivered": 0, "review": None,
+                         "ask": {"call": "toolu_1", "questions": [
+                             {"text": "Ship it?", "header": "Ship", "multi": False,
+                              "options": [{"label": "Yes", "detail": "merge now"}, {"label": "No", "detail": ""}]},
+                             {"text": "Which checks?", "header": "", "multi": True,
+                              "options": [{"label": "lint", "detail": ""}, {"label": "go", "detail": ""}]}]}}}
+    export = repo.root.parent / "with-question.jsonl"
+    export.write_text("".join(json.dumps(i) + "\n" for i in [*items.values(), question]))
+    repo.stop_service()
+    shutil.rmtree(repo.root / ".pm/store/work")
+    repo.start_service()
+    assert repo.pm("init", "--import", str(export)).returncode == 0
+    with serving(repo) as (url, _):
+        page = urllib.request.urlopen(f"{url}/").read().decode()
+        assert "Session s-ask-12 asks you" in page and '<form class="reply" id="reply-repo-demo.1.9"' in page
+        assert '<input type="checkbox" name="q1" value="go" form="reply-repo-demo.1.9">' in page
+        token = page_token(url)
+        repo.mark()
+        code, _, said = post_reply(url, [("token", token), ("id", "repo-demo.1.9"), ("q0", "Yes")])
+        assert (code, said) == (400, 'refused: question 2, "Which checks?", has no answer: pick an option or fill in '
+                                     "Other\n")
+        assert repo.unchanged()
+        code, where, _ = post_reply(url, [("token", token), ("id", "repo-demo.1.9"), ("q0", "No"), ("q1", "lint"),
+                                          ("q1", "go"), ("q1-other", "vet")], {"Referer": f"{url}/"})
+        assert (code, where) == (303, "/#need-repo-demo.1.9")
+        wait_for(lambda: repo.items()["repo-demo.1.9"]["comments"], "the reply, written in the background", timeout=10)
+    assert [reply_body(c["text"]) for c in repo.items()["repo-demo.1.9"]["comments"]] == [
+        "Ship it?: No\nWhich checks?: lint, go, vet"]
 
 
 @pytest.mark.integration

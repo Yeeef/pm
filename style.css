@@ -87,6 +87,11 @@ td.n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .card.need .reply-item p{margin:.2rem 0}
 .asof{font:500 .72rem var(--mono);color:var(--muted);margin:0 0 8px;text-align:right}
 .asof.behind{color:var(--queue)}
+.card.need fieldset.ask{border:1px solid var(--line);border-radius:6px;margin:8px 0;padding:6px 10px 8px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.card.need fieldset.ask legend{padding:0 4px;font-weight:500}
+.card.need fieldset.ask label{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.card.need fieldset.ask label.other input{flex:1;min-width:12rem;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+.card.need.question .reply-item p{white-space:pre-line}
 form.reply{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 form.reply textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;resize:vertical;width:100%;box-sizing:border-box}
 form.reply button{align-self:flex-start;font:inherit;color:var(--panel);background:var(--accent);border:0;border-radius:6px;padding:4px 12px;cursor:pointer}

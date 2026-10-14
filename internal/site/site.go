@@ -662,9 +662,14 @@ const StatusSlot = "<!--pm-status-->"
 func ownerCard(it *Item, where string, items *Items, md func(string) (string, error), recs []*Record, frm *Record) (string, error) {
 	var desc string
 	var err error
-	if it.Need != nil && it.Need.Review != nil {
+	title, cls := esc(it.Title), ""
+	switch {
+	case it.Need != nil && it.Need.Review != nil:
 		desc, err = reviewContext(it.Need.Review, items, recs, frm, md)
-	} else {
+	case it.Need != nil && it.Need.Ask != nil:
+		title, cls = "Session "+esc(item.ShortSession(it.Need.RaisedBy.Session))+" asks you", " question"
+		desc = askFields(it.ID, *it.Need.Ask)
+	default:
 		desc, err = md(it.Description)
 		if desc == "" {
 			desc = `<p class="empty">No details given.</p>`
@@ -679,12 +684,49 @@ func ownerCard(it *Item, where string, items *Items, md func(string) (string, er
 		how = "Reply below, or answer with <code>pm reply add " + esc(it.ID) + "</code>; the agent that asked " +
 			"records your answer."
 	case "question":
-		how = "Reply below, or answer with <code>pm reply add " + esc(it.ID) + "</code>; your answer goes to the " +
-			"session that asked."
+		how = "Answer each question and send it, or answer with <code>pm reply add " + esc(it.ID) + "</code>; your " +
+			"answer goes to the session that asked."
 	}
-	return `<div class="card need" id="need-` + esc(it.ID) + `"><h4>` + pill(State(it, items)) + esc(it.Title) +
+	return `<div class="card need` + cls + `" id="need-` + esc(it.ID) + `"><h4>` + pill(State(it, items)) + title +
 		`</h4><p class="k">` + where + " · " + esc(it.ID) + "</p>" + desc + `<p class="k">` + how + "</p>" + thread(it) +
 		ReplySlot(it.ID, Kind(it)) + "</div>", nil
+}
+
+// askFields is a question card's questions, each with its header and its options: radio buttons, checkboxes when it
+// is multi-select, and an "Other" text for the owner's own answer. Each input belongs to the reply form the pm service
+// puts in the card's slot (form="reply-<id>"), and posts under the names item.AnswerText reads.
+func askFields(id string, ask item.AskInfo) string {
+	form := `form="reply-` + esc(id) + `"`
+	var b strings.Builder
+	for i, q := range ask.Questions {
+		kind, choose := "radio", ""
+		if q.Multi {
+			kind, choose = "checkbox", ` <span class="k">choose one or more</span>`
+		}
+		b.WriteString(`<fieldset class="ask"><legend>`)
+		if q.Header != "" {
+			b.WriteString(`<span class="pill queued">` + esc(q.Header) + "</span> ")
+		}
+		b.WriteString(esc(q.Text) + choose + "</legend>")
+		for _, o := range q.Options {
+			detail := ""
+			if o.Detail != "" {
+				detail = ` <span class="k">` + esc(o.Detail) + "</span>"
+			}
+			b.WriteString(`<label><input type="` + kind + `" name="` + item.AnswerField(i) + `" value="` + esc(o.Label) +
+				`" ` + form + "> " + esc(o.Label) + detail + "</label>")
+		}
+		other, hint := "Other", "your own answer, instead of an option"
+		switch {
+		case len(q.Options) == 0:
+			other, hint = "Answer", "your answer"
+		case q.Multi:
+			hint = "your own answer, added to the options you pick"
+		}
+		b.WriteString(`<label class="other">` + other + ` <input type="text" name="` + item.OtherField(i) +
+			`" placeholder="` + hint + `" ` + form + "></label></fieldset>")
+	}
+	return b.String()
 }
 
 type card struct {

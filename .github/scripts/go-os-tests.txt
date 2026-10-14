@@ -111,7 +111,7 @@ internal/site      TestCheckRefusesEachBrokenRecord                             
 internal/site      TestCodeChangedLeavesOutTheMergesOfSprintsThatUpdatedOrWaivedThePage               any in-memory commits and records
 internal/site      TestFillRepliesAndStatus                                                           any HTML template fill compared with testdata
 internal/site      TestAReplyToASessionWithNoInboxWaitsForIt                                          any HTML text
-internal/site      TestAQuestionsSlotBecomesAReplyForm                                                any HTML text replacement in memory
+internal/site      TestAQuestionsSlotBecomesTheFormItsInputsPost                                      any HTML text replacement in memory
 internal/sync      TestARunRecordsEachStepAndFlagsAFailure                                            os  the push lock is syscall.Flock LOCK_NB; the ASecondRunSkipsWhileOneHoldsTheLock subtest depends on it
 internal/sync      TestANeverSuccessfulPushIsOverdueFromTheInstall                                    any JSON state file and an injected clock
 internal/sync      TestPushRecordsPushesRebasesAndReports                                             os  git clone/push/rebase under a store flock, with process-group kill in Run
