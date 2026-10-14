@@ -213,3 +213,9 @@ The injected development instructions also describe pm design unchanged, while t
 About project `pm-quality`.
 
 pm hook stop blocked this session on every turn for records/design/owner-request-hook.md. The uncommitted change there belongs to live session de498bea (task yeeef-agents-9va.130.1, claimed 20:54 UTC; the file was written 20:55 UTC). This session's tool calls named the file only because it had run git diff on it, and its subagents had edited it earlier in the day. The hook's own text says to leave a file you did not edit, but it blocks anyway, so each turn spends a round on the same non-action. What would have helped: the hook not counting a file as this session's when the uncommitted edit is newer than this session's last write to it, or when a live session holds a task naming it; or saying so once and then letting the stop through.
+
+### 2026-10-14 07:06 UTC, session `551d31e2-64a2-5dcb-8c2d-93d53fbcef81`
+
+About project `pm-quality`.
+
+pm sprint close pm-d2k5.23 refused on 20 covers patterns (pm-cli, pm-product, session-claims, sprint-lifecycle) that this sprint never touched: another sprint (the internal/cli split, PR #62, not merged) edited those pages while 23 was open, and the close counts any pattern added or changed since the sprint opened as the sprint's own. What would have helped: attribute a covers pattern to the sprint whose records commit added it (pm design unchanged already names the sprint), so one sprint's close does not wait on another's unmerged PR.
