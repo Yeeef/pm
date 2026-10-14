@@ -112,7 +112,7 @@ prints that a rerun may help.
 
 An answer is malformed, and the run fails, when it is not JSON, has no structured output, has a finding without
 quote or evidence, or quotes text that is not in AGENTS.md (compared without Markdown marks and spacing, ellipses
-splitting a quote); a complete finding has an empty quote. A timed-out, failed or malformed call is no vote: it fails
+splitting a quote; ellipses alone quote nothing); a complete finding has an empty quote. A timed-out, failed or malformed call is no vote: it fails
 the run. Never a retry: the number of calls is fixed before the run, so a verdict means the same thing every time. The run prints a table of criteria, findings and errors,
 writes every call's answer, seconds and cost to `--out`, and exits 1 on anything but every criterion passing.
 `--agents-md PATH` grades another file against the same checkout; `--criteria` narrows full mode.
