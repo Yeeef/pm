@@ -162,7 +162,8 @@ numbers are in sprint 23's Findings.
 
 - `check`: checkout with full history, Claude Code from its native installer, `make agents-md-check
   BASE=origin/<base>` (auto mode: full on a change to AGENTS.md or the grader), the answers uploaded as an artifact.
-  20 min job timeout.
+  30 min job timeout: 90 calls on an AGENTS.md of 11 sections, 16 at a time, each killed at 240 s, end within
+  6 × 240 s = 24 min.
 - `cases`: when the PR changes the grader (its grep names `GRADER`'s paths, which `tests/test_agents_md_eval.py`
   holds equal), the planted and diff cases once each (`PM_LIVE_RUNS=1`, `PM_AGENTS_MD_SKIP=clean`); otherwise a step
   says so and the job passes. The harness files the live test runs under (`conftest.py`, `run.py`, the Makefile) do
