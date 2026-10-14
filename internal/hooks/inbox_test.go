@@ -106,7 +106,7 @@ func (r *replyAfterRead) Shutdown() error { return r.s.Shutdown() }
 // typed in the chat answers it, and the reply is recorded as the one that did not reach the session.
 func TestInboxMarksAndClosesWhatItRead(t *testing.T) {
 	q := work.Item{ID: "q-1", Type: work.Need, Status: work.Open, Need: &work.NeedInfo{Kind: work.Question,
-		Ask: &work.AskInfo{Call: "call_1", Questions: colorAsk("call_1").Questions},
+		Ask:      &work.AskInfo{Call: "call_1", Questions: colorAsk("call_1").Questions},
 		RaisedBy: &work.RaisedBy{Session: "s", Inbox: session.CodexInbox("/codex-home")}}}
 	s := newAskStore(q)
 	texts, deliver, err := sessionReplies(&replyAfterRead{s: s, need: q.ID}, service.Texts{}, "s", "red, please")
