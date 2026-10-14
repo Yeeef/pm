@@ -52,7 +52,7 @@ Non-goals:
 | A Linux argument is at most 128 KiB | The prompt goes on stdin |
 | GitHub Actions to the Anthropic API works through workload identity federation (sprint 23 Findings) | No stored API key; a fresh OIDC token per call, as the GitHub JWT lives 5 min |
 | `release/merge_ready.py` requires every workflow with a `pull_request` trigger and no `paths` | The workflow has no paths filter; a conditional job skips itself instead |
-| A stochastic grader false-fails a clean file on borderline readings: one call per criterion failed half the clean full runs (sprint 23 Findings), and one diff-mode call's finding in 1 of 5 chunks failed a PR that only added a golden file (run 38567955117) | The rubric fails only clear defects, every fail must quote AGENTS.md, every part in both modes takes a majority of 3 calls, and the clean case must pass every run |
+| A stochastic grader false-fails a clean file on borderline readings: one call per criterion failed half the clean full runs (sprint 23 Findings), and one diff-mode call's finding in 1 of 5 chunks failed a PR that only added a golden file (run 38567955117) | The rubric fails only clear defects, every fail must quote AGENTS.md, every part in both modes takes a majority of 5 calls (3 agreeing), and the clean case must pass every run |
 | A full-mode fail is mostly 3 of 3 calls agreeing on new AGENTS.md text, such as a rule a test already enforces restated (sprint 33 Findings): the check working, which a rerun gives again | The failure output says so: fix AGENTS.md as the agreed findings say; a rerun helps only after an error or a timeout |
 | A stochastic grader also misses a planted defect that reads either way: `map_detail` and `accurate_wrong_behaviour` each passed 1 of 5 local runs | A planted case's text is unmistakable under its criterion; a case that misses gets clearer text, never a new label |
 
@@ -91,16 +91,16 @@ root, the prompt on stdin, in a process group of its own killed whole at the tim
 
 | Mode | When | Calls |
 |---|---|---|
-| full | `--mode full`, or `auto` when the diff since the merge base changes AGENTS.md or the grader (`GRADER`: `tests/agents_md/`, the live test, the workflow), since a changed grader must still pass the real AGENTS.md | Parts: each criterion on the whole file; `accurate` on each `## ` section of AGENTS.md (the whole file as context); `no_copies` and `consistent` get `prime.md` (and the preamble) in the prompt. 3 calls per part (the vote): 54 calls on an AGENTS.md of 11 sections |
-| diff | `--mode diff --base REF`, or `auto` otherwise | Parts: `accurate` (does the diff make an AGENTS.md claim false?) and `complete` (does it add a rule AGENTS.md lacks?) on each chunk of `git diff <merge-base>...HEAD`, cut at file boundaries at 60,000 characters; testdata, `uv.lock`, `go.sum` and the work-test seconds file left out. 3 calls per part (the vote): 6 per chunk. An empty diff makes no call and passes |
+| full | `--mode full`, or `auto` when the diff since the merge base changes AGENTS.md or the grader (`GRADER`: `tests/agents_md/`, the live test, the workflow), since a changed grader must still pass the real AGENTS.md | Parts: each criterion on the whole file; `accurate` on each `## ` section of AGENTS.md (the whole file as context); `no_copies` and `consistent` get `prime.md` (and the preamble) in the prompt. 5 calls per part (the vote): 90 calls on an AGENTS.md of 11 sections |
+| diff | `--mode diff --base REF`, or `auto` otherwise | Parts: `accurate` (does the diff make an AGENTS.md claim false?) and `complete` (does it add a rule AGENTS.md lacks?) on each chunk of `git diff <merge-base>...HEAD`, cut at file boundaries at 60,000 characters; testdata, `uv.lock`, `go.sum` and the work-test seconds file left out. 5 calls per part (the vote): 10 per chunk. An empty diff makes no call and passes |
 
 All calls of a run go at once (`--jobs`, 16). The answer schema is `{"findings": [{"quote", "problem", "evidence"}]}`.
 
 The vote is on passages. A finding's lines are the lines of the graded AGENTS.md its quote is on: each part between
 ellipses, compared without Markdown marks and spacing, at every place it occurs. The calls on one part (a criterion
 on one section, on the whole file, or on one diff chunk) vote: a finding is agreed when a majority of the part's
-calls (2 of 3) each report a finding whose lines intersect its lines, its own call counted, and the part fails on an
-agreed finding. So two calls that each flag a different passage do not fail the part; two that flag one passage do.
+calls (3 of 5) each report a finding whose lines intersect its lines, its own call counted, and the part fails on an
+agreed finding. So calls that each flag a different passage do not fail the part; three that flag one passage do.
 A `complete` finding names a missing rule and quotes nothing, so it has no lines; two such findings agree, so
 `complete` fails a part when a majority of its calls each report a missing rule. A criterion fails when one of its
 parts fails. The table prints every call's findings with their lines, a finding no majority agrees with marked
@@ -184,7 +184,8 @@ numbers are in sprint 23's Findings.
 | One call grading every criterion | Long, unfocused calls; one per criterion keeps each call under the timeout and its answer about one thing |
 | Retrying a failed or malformed call | A retry changes what a verdict means; a flaky grader shows in the labelled cases instead |
 | One call per part, failing on any finding | Measured on the clean file: half the full runs false-failed (map, non_inferable, accurate); in diff mode one call's finding in 1 of 5 chunks failed a PR |
-| `complete` left single-call | It did not false-fail in its measurement (0 of 14 runs), but one rule for every part is simpler, and its vote costs 2 calls of 54 |
+| A majority of 3 calls (2 agreeing) | Scattered noise at a rate p per call on a passage stands at about 3p² there, against 10p³ for 3 of 5: on the clean file 1 of 10 full runs and 1 of 5 clean cases false-failed when 2 of 3 non_inferable calls flagged one line (sprint 33 Findings) |
+| `complete` left single-call | It did not false-fail in its measurement (0 of 14 runs), but one rule for every part is simpler, and its vote costs 4 calls of 90 |
 | `complete` findings agreeing only on the same rule | Telling two wordings of one missing rule apart is a semantic match no line test gives; complete did not false-fail on a single call, so any-rule agreement is enough |
 | The clean case in CI's `cases` job | It grades the commit's own AGENTS.md, as `check` does in full mode on the same change, so it only repeated `check`'s verdict and failed the job on its noise |
 
@@ -208,5 +209,5 @@ numbers are in sprint 23's Findings.
 - A full run's slowest accuracy call has reached 149 s of its 240 s timeout; a longer AGENTS.md section may need a
   finer split.
 - How Claude Code behaves when a call outlives the 10 min federated token (not reached at 240 s per call).
-- Residual variance under the vote: a passage that two of three calls flag on a borderline reading still fails a
+- Residual variance under the vote: a passage that three of five calls flag on a borderline reading still fails a
   clean file; fixing the passages that draw repeated findings lowers it.
