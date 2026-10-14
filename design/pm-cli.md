@@ -221,7 +221,7 @@ Ids are shortened relative to the project epic. Each decision shows its first se
 
 | Event | Command | Does |
 |---|---|---|
-| SessionStart (Claude Code: every source; Codex: `startup\|resume\|clear\|compact`) | `pm prime --rules N` per chunk, then `pm prime --state` | The rules, then the request rule of the session's mode, `pm init --session-start`, `pm where` and `pm show --refresh-inbox`, each hook's text within Claude Code's 10,000-character cap; a step that fails is one line saying so, and the session starts anyway |
+| SessionStart (Claude Code: every source; Codex: `startup\|resume\|clear\|compact`) | `pm prime --rules N` per chunk, `pm prime --request-rule`, then `pm prime --state` | The rules, the request rule of the session's mode, then `pm init --session-start`, `pm where` and `pm show --refresh-inbox`, each hook's text within Claude Code's 10,000-character cap; a step that fails is one line saying so, and the session starts anyway |
 | SubagentStart | the same chunks, then `pm prime --subagent` | The rules and pm's git rule for agents |
 | Claude Code's PermissionRequest on AskUserQuestion (up to a day); Codex's PostToolUse on `request_user_input_async` | `pm hook ask --runtime claude\|codex` | Raises the session's ask-tool question as a question need under the newest open task the session holds (else none), so the owner can answer it on the site too; in Claude Code it waits beside the dialog and answers the tool with a site reply; the first answer closes the need ([Owner questions](owner-questions.md)) |
 | UserPromptSubmit | `pm hook inbox` | Hands over the owner's replies no push delivered |

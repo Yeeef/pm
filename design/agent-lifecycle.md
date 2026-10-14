@@ -107,7 +107,7 @@ The hooks behind it, by runtime:
 
 | Event | Claude Code (`.claude/settings.json`) | Codex (`.codex/hooks.json`, main checkout) | What it does |
 |---|---|---|---|
-| SessionStart | `pm prime --rules N` per chunk, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, then the request rule of the session's mode (autopilot or interactive), `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
+| SessionStart | `pm prime --rules N` per chunk, `pm prime --request-rule`, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, the request rule of the session's mode (autopilot or interactive), then `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
 | SubagentStart | the rules chunks, then `pm prime --subagent` | the same | The rules and pm's git rule for agents |
 | PermissionRequest, matcher `AskUserQuestion` | `pm hook ask --runtime claude` (up to a day, beside the question's dialog) | none | Raises the ask-tool question as a question need the owner can answer on the site too; the first answer, the dialog's or the site's, closes it and reaches the session ([Owner questions](owner-questions.md)) |
 | PostToolUse, matcher `request_user_input_async` | none | `pm hook ask --runtime codex` (30 s) | Raises the question as a question need by its call id; the pm service carries the answer ([Owner questions](owner-questions.md)) |

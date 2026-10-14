@@ -36,7 +36,7 @@ Non-goals:
 
 - Codex's blocking `request_user_input` (Plan mode): not raised (Open questions).
 - Exactly-once across the two surfaces: two accepted windows can let both answers through or record the losing one (First answer wins).
-- A subagent's question: Claude Code gives subagents no AskUserQuestion; a Claude Code call with an `agent_id` is stepped over. With no ask tool, the request rule sends a question as a decision need.
+- A subagent's question: Claude Code gives subagents no AskUserQuestion; a Claude Code call with an `agent_id` is stepped over. A subagent gets no request rule and never asks the owner: it reports to its parent, which owns any ask.
 - Sync versus async timing as a property of every request: a lens, not built ([Owner-request Stop hook](owner-request-hook.md), Open question 2).
 
 ## Constraints and key facts

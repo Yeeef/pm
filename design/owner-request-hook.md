@@ -10,7 +10,6 @@ covers:
   - "internal/hooks/asktool*.go"
   - "prompts/owner_request_*.txt"
   - "internal/session/mode*.go"
-  - "internal/cli/mode.go"
   - "internal/hooks/requestrule.go"
   - "internal/hooks/sessionend*.go"
   - "prompts/request_rule_*.txt"
@@ -149,7 +148,7 @@ How an agent may ask the owner depends on the mode, so the rule is no part of pr
 | Autopilot | `prompts/request_rule_autopilot.txt` | the rule above (One rule), as prime.md stated it until now, and to run `pm interactive` when the owner asks for interactive mode |
 | Interactive | `prompts/request_rule_interactive.txt` | ask the owner in chat when you need to, the hook is off; still ask only for what you cannot do yourself, and raise a need for what must outlive the chat; `pm autopilot` when the owner asks |
 
-- The session-start state (`pm prime --state`) opens with the text of the session's mode, under a heading naming it, ahead of `pm init`, `pm where` and `pm show`, so the cut that keeps the hook under 10,000 characters takes `pm show`'s tail, never the rule. Its entries run at startup, resume, clear and compact on both runtimes, so a compacted or resumed session gets the rule of its current mode. The session is the hook input's `session_id`; run by hand, the environment's.
+- A SessionStart hook of its own, `pm prime --request-rule`, beside the rules chunks on both runtimes (startup, resume, clear and compact), gives the text of the session's mode under a heading naming it. It reads nothing but the hook input's `session_id` and the mode file, and gives autopilot's text on any failure (no session, a cwd outside a repo, an unreadable file). So the rule arrives when the state hook (`pm prime --state`: init, where and show, 30 s) fails, times out or is skipped, as the rules chunks do. A compacted or resumed session gets the rule of its current mode. Run by hand, `pm prime` gives the rules, the rule of the session that runs it, then the state.
 - `pm interactive` and `pm autopilot` print the text of the mode they set, since no start hook fires at a switch mid-session.
 - A subagent gets neither: it reports to its parent, never to the owner, and its stop is not judged.
 
