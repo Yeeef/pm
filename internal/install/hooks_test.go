@@ -222,7 +222,10 @@ func promptGroups(t *testing.T, text string) []any {
 	if !ok {
 		t.Fatalf("no hooks: %s", text)
 	}
-	groups, _ := events.Get("UserPromptSubmit").([]any)
+	groups, ok := events.Get("UserPromptSubmit").([]any)
+	if !ok {
+		return nil // the file runs nothing there
+	}
 	return groups
 }
 
