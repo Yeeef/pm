@@ -56,10 +56,9 @@ SOURCE_READERS = {
     "internal/item": (".", "item_test.go runs go list -deps on the item readers, whose imports can reach any package"),
     "internal/cli": ("internal/cli", "doc_test.go parses the func docs of internal/cli and its subpackages"),
 }
-# What marks a test file as reading Go source: the parser's packages, the go command, or a walk or glob keeping .go
-# files.
+# What marks a test file as reading Go source: the parser's packages, the go command, or a walk keeping .go files.
 SOURCE_MARK = re.compile(r'"go/(?:ast|parser|build|doc|types)"|"golang\.org/x/tools/go/packages"|'
-                         r'exec\.Command(?:Context)?\((?:\w+, )?"go"|"\.go"|\*\.go"')
+                         r'exec\.Command(?:Context)?\((?:\w+, )?"go"|"\.go"')
 ALL = None  # select's answer when every package runs
 
 
