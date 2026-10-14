@@ -851,7 +851,8 @@ func (s *server) writeReply(j job) {
 }
 
 // sweep, on the writer: push again what an open need's session has not received (a push that failed, or a crash
-// between storing a reply and pushing it). A session that is gone costs a stat per look: a need whose push found it
+// between storing a reply and pushing it), and a Codex question's site answer whose queue failed once the question
+// closed (Unqueued). A session that is gone costs a stat per look: a need whose push found it
 // not running is skipped until its inbox path appears or changes. It logs only a change.
 func (s *server) sweep() {
 	snap := s.snap.Load()
@@ -869,10 +870,11 @@ func (s *server) sweep() {
 				continue // a Claude Code session's question takes its answer through its hook
 			}
 		}
-		if n.Status == work.Closed || n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Inbox == "" {
+		if n.Status == work.Closed && !Unqueued(n) || n.Need == nil || n.Need.RaisedBy == nil ||
+			n.Need.RaisedBy.Inbox == "" {
 			continue
 		}
-		if !ReplyWaiting(n) && MergeWaiting(n) == "" {
+		if !ReplyWaiting(n) && MergeWaiting(n) == "" && !Unqueued(n) {
 			continue
 		}
 		key, ok := inboxKey(n.Need.RaisedBy)

@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,69 +24,122 @@ func question(thread, inbox string) work.Item {
 	return n
 }
 
-// rollout writes rootThread's rollout under home: the ask call, then each message the user typed.
-func rollout(t *testing.T, home string, typed ...string) {
-	t.Helper()
-	dir := filepath.Join(home, "sessions", "2026", "10", "12")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	lines := []string{`{"type":"response_item","payload":{"type":"function_call","name":"request_user_input_async",` +
-		`"arguments":"{}","call_id":"call_1"}}`,
-		`{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"AgentMessage","id":"call_1"}}}`}
-	for _, m := range typed {
-		lines = append(lines, `{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"UserMessage",`+
-			`"content":[{"type":"text","text":"`+m+`"}]}}}`)
-	}
-	p := filepath.Join(dir, "rollout-2026-10-12T10-00-00-"+rootThread+".jsonl")
-	if err := os.WriteFile(p, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func bareServer(w *fakeWork) *server { return &server{d: Deps{Open: w.Open, Log: io.Discard}} }
 
-// TestACodexQuestionGetsTheSitesAnswerQueuedUnlessTheChatAnsweredFirst: the site's answer alone is queued into the
-// live session, then the question is closed as answered on the site and marked delivered; when the rollout shows the
-// owner typed an answer after the question, that answer closes it, nothing is queued, and the site's reply counts as
-// delivered with a note.
-func TestACodexQuestionGetsTheSitesAnswerQueuedUnlessTheChatAnsweredFirst(t *testing.T) {
+// liveCodex makes every Codex session live for the test.
+func liveCodex(t *testing.T, live bool) {
+	t.Helper()
 	saved := CodexLive
 	t.Cleanup(func() { CodexLive = saved })
-	CodexLive = func(string, string) bool { return true }
+	CodexLive = func(string, string) bool { return live }
+}
+
+// queuedMessages is the --message arguments codex queue got, from the fake codex's log; none when it never ran.
+func queuedMessages(t *testing.T, log string) []string {
+	t.Helper()
+	b, err := os.ReadFile(log)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	lines := strings.Split(string(b), "\n")
+	for i, l := range lines {
+		if l == "--message" && i+1 < len(lines) {
+			out = append(out, lines[i+1])
+		}
+	}
+	return out
+}
+
+// TestTheServiceClosesACodexQuestionBeforeItQueuesTheSitesAnswer: the site's answer closes the question as answered
+// on the site, then alone is queued into the live session and marked delivered. A question closed first (the owner
+// answered in the chat, which pm hook ask closed at UserPromptSubmit) queues nothing. A session the answer cannot reach
+// keeps its question open, undelivered.
+func TestTheServiceClosesACodexQuestionBeforeItQueuesTheSitesAnswer(t *testing.T) {
+	liveCodex(t, true)
 	home := codexHome(t)
-	rollout(t, home)
 	w := newFakeWork(question(rootThread, session.CodexInbox(home)))
 	log := fakeCodex(t, "0.154.0", rootThread)
 	if got, err := bareServer(w).pushUndelivered("p-1.2.9"); got != "delivered" || err != nil {
 		t.Fatalf("queued: %q %v", got, err)
 	}
-	b, err := os.ReadFile(log)
 	n := w.item("p-1.2.9")
-	if err != nil || !strings.HasSuffix(string(b), "--message\nRed or blue?: Blue\n") || n.Status != work.Closed ||
+	if q := queuedMessages(t, log); !slices.Equal(q, []string{"Red or blue?: Blue"}) || n.Status != work.Closed ||
 		n.Resolution != work.Answered || n.CloseReason != AnsweredOnSite || n.Need.Delivered != 1 {
-		t.Fatalf("queued %q (%v); need %+v", b, err, n)
+		t.Fatalf("queued %q; need %+v", q, n)
 	}
 
-	rollout(t, home, "Red, thanks")
-	w = newFakeWork(question(rootThread, session.CodexInbox(home)))
+	stale := question(rootThread, session.CodexInbox(home)) // read open, then answered in the chat
+	w = newFakeWork(stale)
+	st, err := w.Open()
+	if err == nil {
+		err = AnswerInChat(st, &stale, "Red, thanks", rootThread)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
 	log = fakeCodex(t, "0.154.0", rootThread)
-	if got, err := bareServer(w).pushUndelivered("p-1.2.9"); got != "answered in chat first" || err != nil {
+	if got, err := bareServer(w).deliverQuestion(&stale); got != "closed already: answered in the session first" ||
+		err != nil {
 		t.Fatalf("chat first: %q %v", got, err)
 	}
-	n = w.item("p-1.2.9")
-	if _, err := os.Stat(log); err == nil {
-		t.Error("codex was run for a question answered in the chat")
+	if q := queuedMessages(t, log); q != nil {
+		t.Errorf("codex queued %q for a question answered in the chat", q)
 	}
-	if n.Status != work.Closed || n.Resolution != work.Answered || n.Need.Delivered != 1 || len(n.Comments) != 3 ||
-		n.Comments[1].Text != "Red, thanks" || n.Comments[2].Kind != work.Note {
-		t.Errorf("chat first: %+v", n)
+	if got, err := bareServer(w).pushUndelivered("p-1.2.9"); got != "nothing to deliver" || err != nil {
+		t.Errorf("answered in the chat, pushed again: %q %v", got, err)
+	}
+
+	liveCodex(t, false)
+	w = newFakeWork(question(rootThread, session.CodexInbox(home)))
+	if got, err := bareServer(w).pushUndelivered("p-1.2.9"); !strings.HasPrefix(got, "not running") || err != nil ||
+		w.item("p-1.2.9").Status != work.Open {
+		t.Errorf("a session not live: %q %v, need %+v", got, err, w.item("p-1.2.9"))
+	}
+}
+
+// TestASiteAnswerWhoseQueueFailedIsQueuedAgainByTheSweep: codex queue failing once the question closed leaves the
+// answer undelivered (Unqueued), even with the reply stamped in the close's second; the next sweep queues it and marks
+// it delivered, and the one after queues nothing more.
+func TestASiteAnswerWhoseQueueFailedIsQueuedAgainByTheSweep(t *testing.T) {
+	liveCodex(t, true)
+	home := codexHome(t)
+	w := newFakeWork(question(rootThread, session.CodexInbox(home)))
+	s := bareServer(w)
+	s.swept = map[string]sweepState{}
+	fakeCodex(t, "0.154.0", "another-thread") // says it queued for another thread: a failure
+	if got, err := s.pushUndelivered("p-1.2.9"); !strings.HasPrefix(got, "failed: ") || err != nil {
+		t.Fatalf("failed queue: %q %v", got, err)
+	}
+	n := w.item("p-1.2.9")
+	n.ClosedAt = n.Comments[0].CreatedAt // the reply in the close's second
+	w = newFakeWork(n)
+	s = bareServer(w)
+	s.swept = map[string]sweepState{}
+	if n.CloseReason != AnsweredOnSite || n.Need.Delivered != 0 || !Unqueued(&n) {
+		t.Fatalf("closed, not delivered: %+v", n)
+	}
+	log := fakeCodex(t, "0.154.0", rootThread)
+	s.snap.Store(&snapshot{order: []*work.Item{&n}})
+	s.sweep()
+	got := w.item("p-1.2.9")
+	if q := queuedMessages(t, log); !slices.Equal(q, []string{"Red or blue?: Blue"}) || got.Need.Delivered != 1 ||
+		Unqueued(&got) {
+		t.Fatalf("the sweep queued %q; need %+v", q, got)
+	}
+	s.snap.Store(&snapshot{order: []*work.Item{&got}})
+	s.sweep()
+	if q := queuedMessages(t, log); len(q) != 1 {
+		t.Errorf("queued again once delivered: %q", q)
 	}
 }
 
 // TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession: its hook takes the answer, so the push leaves its inbox alone;
 // the sweep dismisses it once its messaging socket is gone, and leaves one with no socket to its hook. A Codex
-// question is never dismissed for idleness: with its rollout idle and nothing answered, it stays open.
+// question is never dismissed for idleness: with its session idle and nothing answered, it stays open.
 func TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession(t *testing.T) {
 	sock := filepath.Join(codexHome(t), "s.sock")
 	ln, err := net.Listen("unix", sock)
@@ -115,71 +169,33 @@ func TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession(t *testing.T) {
 		t.Errorf("no socket: %q %v", did, err)
 	}
 
-	saved := CodexLive
-	t.Cleanup(func() { CodexLive = saved })
-	CodexLive = func(string, string) bool { return false } // idle past the live window
-	home := codexHome(t)
-	rollout(t, home)
-	codex := question(rootThread, session.CodexInbox(home))
+	liveCodex(t, false) // idle past the live window
+	codex := question(rootThread, session.CodexInbox(codexHome(t)))
 	codex.Comments = nil
 	w = newFakeWork(codex)
 	if did, err := bareServer(w).settleQuestion(&codex); did != "" || err != nil || w.item("p-1.2.9").Status != work.Open {
 		t.Errorf("an idle Codex question with nothing answered: %q %v", did, err)
 	}
-	rollout(t, home, "Red, thanks")
-	if did, err := bareServer(w).settleQuestion(&codex); did != "answered in chat" || err != nil ||
-		w.item("p-1.2.9").Resolution != work.Answered {
-		t.Errorf("an idle Codex question answered in its chat: %q %v", did, err)
-	}
 }
 
-// TestWhatTheServiceQueuedIsNoChatAnswer: codex queue's message shows in the rollout as a user message, so a site
-// answer the service queued for one need, or a delivery's text, is not taken for the owner's answer to another
-// question; what the owner typed is.
+// TestWhatTheServiceQueuedIsNoChatAnswer: codex queue's message may come back as a prompt, so the site answer of a
+// question the service closed as answered on the site (its reply stamped in the close's second included), or a
+// delivery's text, is not taken for the owner's answer to another question; what the owner typed is, even when it
+// repeats an earlier chat answer.
 func TestWhatTheServiceQueuedIsNoChatAnswer(t *testing.T) {
 	home := codexHome(t)
-	answered := question(rootThread, session.CodexInbox(home))
-	answered.ID = "p-1.2.8"
+	onSite := question(rootThread, session.CodexInbox(home))
+	onSite.ID, onSite.Status, onSite.CloseReason, onSite.ClosedAt = "p-1.2.8", work.Closed, AnsweredOnSite, at
+	inChat := question(rootThread, session.CodexInbox(home))
+	inChat.ID, inChat.Status, inChat.CloseReason, inChat.ClosedAt = "p-1.2.7", work.Closed, "Responded", at
+	inChat.Comments = []work.Comment{{Kind: work.Reply, Author: "owner", Text: "Red", CreatedAt: at}}
 	open := question(rootThread, session.CodexInbox(home))
 	open.Comments = nil
-	needs := []work.Item{answered, open}
+	needs := []work.Item{onSite, inChat, open}
 	for text, relayed := range map[string]bool{"Red or blue?: Blue": true, "pm: owner reply to decision x": true,
-		"Blue, thanks": false} {
+		"Blue, thanks": false, "Red": false} {
 		if got := Relayed(needs, text); got != relayed {
 			t.Errorf("%q: relayed %v", text, got)
 		}
-	}
-	rollout(t, home, "Red or blue?: Blue", "Blue, thanks")
-	if got, ok := ChatAnswer(&open, needs); !ok || got != "Blue, thanks" {
-		t.Errorf("the answer typed after a queued one: %q %v", got, ok)
-	}
-}
-
-// TestTheSweepClosesACodexQuestionAnsweredInTheChat: with no site answer, the sweep leaves an open Codex question
-// alone until its rollout shows what the owner typed after the call, then closes it with that answer, queueing
-// nothing.
-func TestTheSweepClosesACodexQuestionAnsweredInTheChat(t *testing.T) {
-	home := codexHome(t)
-	n := question(rootThread, session.CodexInbox(home))
-	n.Comments = nil
-	w := newFakeWork(n)
-	s := bareServer(w)
-	s.swept = map[string]sweepState{}
-	s.snap.Store(&snapshot{order: []*work.Item{&n}})
-	log := fakeCodex(t, "0.154.0", rootThread)
-	rollout(t, home)
-	s.sweep()
-	if got := w.item(n.ID); got.Status != work.Open {
-		t.Fatalf("nothing typed yet: %+v", got)
-	}
-	rollout(t, home, "Blue, thanks")
-	s.sweep()
-	got := w.item(n.ID)
-	if got.Status != work.Closed || got.Resolution != work.Answered || len(got.Comments) != 1 ||
-		got.Comments[0].Text != "Blue, thanks" {
-		t.Errorf("answered in the chat: %+v", got)
-	}
-	if _, err := os.Stat(log); err == nil {
-		t.Error("codex was run for a question answered in the chat")
 	}
 }

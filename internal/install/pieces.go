@@ -201,7 +201,7 @@ func claudeHooks() entries {
 		return out
 	}
 	return entries{
-		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "PermissionRequest", "Stop"},
+		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop"},
 		groups: map[string]func() *object{
 			"SessionStart": func() *object {
 				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", 30)), "matcher", "")
@@ -215,6 +215,9 @@ func claudeHooks() entries {
 			"PermissionRequest": func() *object { // beside the question's dialog, up to a day for the owner's answer
 				return obj("hooks", []any{h("pm hook ask --runtime claude || exit 1", 86400)}, "matcher", "AskUserQuestion")
 			},
+			"PostToolUse": func() *object { // the dialog's answer closes the question
+				return obj("hooks", []any{h("pm hook ask --runtime claude || exit 1", 10)}, "matcher", "AskUserQuestion")
+			},
 			"Stop": func() *object {
 				return obj("hooks", []any{h("pm hook owner-request --runtime claude || exit 1", 30), h("pm hook stop || exit 1", 10)})
 			},
@@ -227,7 +230,9 @@ func claudeHooks() entries {
 // Codex keeps a subagent's prompt from its parent's rollout (encrypted), so the parent's Stop cannot see what the
 // subagent was asked to write, as Claude Code's parent transcript shows it. Its PostToolUse runs pm hook ask on each
 // request_user_input_async call, which returns at once and asks no permission, to raise its question (Claude Code
-// raises AskUserQuestion's at PermissionRequest), with time for a question under a task, whose id the remote mints.
+// raises AskUserQuestion's at PermissionRequest), with time for a question under a task, whose id the remote mints;
+// its UserPromptSubmit runs pm hook ask too, since the owner's next message is the chat answer to an open question
+// (Claude Code's comes at AskUserQuestion's PostToolUse).
 func codexHooks() entries {
 	h := func(command, status string, timeout int) any {
 		return obj("command", command, "statusMessage", status, "type", "command", "timeout", timeout)
@@ -251,7 +256,8 @@ func codexHooks() entries {
 				return obj("hooks", append(rules(15), h("pm prime --subagent --hook-json", "Loading pm's git rule for agents", 15)))
 			},
 			"UserPromptSubmit": func() *object {
-				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10)})
+				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10),
+					h("pm hook ask --runtime codex || exit 1", "Closing the questions this prompt answers", 10)})
 			},
 			"PostToolUse": func() *object {
 				return obj("hooks", []any{h("pm hook ask --runtime codex || exit 1", "Raising the question for the site", 30)},

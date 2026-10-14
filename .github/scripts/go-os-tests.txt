@@ -95,10 +95,10 @@ internal/service   TestSweepsCoalesceAndNeverTakeAReplysPlace                   
 internal/service   TestSinceIsTheRepliesFromTheWaitsSecond                                            any time filtering
 internal/service   TestAPushToASessionWithNoInboxWaitsForItWhileItLives                               any SessionLive stubbed, no inbox
 internal/service   TestAReplyToAQuestionTellsTheSessionToGoOnWithIt                                   any delivery text built in memory
-internal/service   TestACodexQuestionGetsTheSitesAnswerQueuedUnlessTheChatAnsweredFirst               os  codex queue exec under Setpgid/kill(-pgid), rollout files under a CODEX_HOME
+internal/service   TestTheServiceClosesACodexQuestionBeforeItQueuesTheSitesAnswer                     os  codex queue exec under Setpgid/kill(-pgid), a /bin/sh fake codex
+internal/service   TestASiteAnswerWhoseQueueFailedIsQueuedAgainByTheSweep                             os  codex queue exec under Setpgid/kill(-pgid), a /bin/sh fake codex
 internal/service   TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession                              os  a unix socket listened on and closed; inboxKey stats it through syscall.Stat_t
-internal/service   TestWhatTheServiceQueuedIsNoChatAnswer                                             any rollout files under a temp CODEX_HOME, read in memory
-internal/service   TestTheSweepClosesACodexQuestionAnsweredInTheChat                                  any rollout files under a temp CODEX_HOME, read in memory; no codex run
+internal/service   TestWhatTheServiceQueuedIsNoChatAnswer                                             any compares need comments in memory
 internal/service   TestAWaitEndsAsSoonAsTheSiteReplyIsStored                                          os  serveEvery (service.Run) plus a call on its wait socket, a unix socket under a short temp dir
 internal/service   TestAWaitEndsWhenItsNeedIsClosedElsewhere                                          os  serveEvery (service.Run) plus a call on its wait socket, a unix socket under a short temp dir
 internal/service   TestACallerThatHangsUpEndsItsWait                                                  os  serveEvery (service.Run) plus a call on its wait socket, a unix socket under a short temp dir
@@ -112,7 +112,7 @@ internal/session   TestCurrentSessionOfACodexSubagentIsItsRootThread            
 internal/session   TestCodexRolloutsReadsOnlyTheDatesAThreadCanHaveStarted                            any dated rollout directory reads
 internal/session   TestCodexLiveLooksUnderTheHomeItIsGiven                                            any rollout mtime within LiveWindow
 internal/session   TestCodexHooksRanReadsTheRolloutUpToTheFirstPrompt                                 any rollout parsing
-internal/session   TestChatAfterCallIsTheFirstMessageTypedAfterTheCall                                any rollout parsing and path matching
+internal/session   TestCodexHomeOfRolloutIsTheHomeItsPathLiesUnder                                    any path matching on strings
 internal/site      TestMermaidLoadsOneExactVersionAtNaturalWidth                                      any rendered HTML strings
 internal/site      TestPagesEqualTheGoldenPages                                                       os  git fast-import store in TempDir read through records.Read (EvalSymlinks) with git dates
 internal/site      TestADesignPageSaysWhyItsCoveredCodeWasNotChecked                                  os  same git store fixture plus git update-ref

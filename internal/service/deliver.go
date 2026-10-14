@@ -281,12 +281,9 @@ var (
 	CodexLive   = session.CodexLive
 )
 
-// PushInbox hands text, as one user message, to the session that raised the need, only on the machine that stored its
-// inbox: written into a Claude Code session's inbox socket, connecting only once the line is ready, or queued into a
-// live Codex session with codex queue (queueCodex). "" once handed over; else why not: "no push: …" (a live session
-// that stores no inbox: the reply waits for it), "no codex: …" (codex is not on the service's PATH), "not running: …"
-// (no session, or one whose transcript has ended, another machine, the socket gone or refusing) or "failed: …".
-func PushInbox(n *work.Item, text string) string {
+// pushBlocked is why no push can reach the session that raised n, from what is known before one is tried (PushInbox's
+// reasons but "failed: …"); "" when one may.
+func pushBlocked(n *work.Item) string {
 	if n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Session == "" {
 		return "not running: the request names no session"
 	}
@@ -309,6 +306,24 @@ func PushInbox(n *work.Item, text string) string {
 		if !CodexLive(home, rb.Session) {
 			return "not running: the session that asked has ended"
 		}
+		if _, why := CodexUsable(); why != "" {
+			return noCodex(why)
+		}
+	}
+	return ""
+}
+
+// PushInbox hands text, as one user message, to the session that raised the need, only on the machine that stored its
+// inbox: written into a Claude Code session's inbox socket, connecting only once the line is ready, or queued into a
+// live Codex session with codex queue (queueCodex). "" once handed over; else why not: "no push: …" (a live session
+// that stores no inbox: the reply waits for it), "no codex: …" (codex is not on the service's PATH), "not running: …"
+// (no session, or one whose transcript has ended, another machine, the socket gone or refusing) or "failed: …".
+func PushInbox(n *work.Item, text string) string {
+	if why := pushBlocked(n); why != "" {
+		return why
+	}
+	rb := n.Need.RaisedBy
+	if home, codex := session.CodexHomeOf(rb.Inbox); codex {
 		return queueCodex(home, rb.Session, text)
 	}
 	message := struct {
@@ -353,12 +368,15 @@ func (s *server) pushUndelivered(id string) (string, error) {
 	}); err != nil {
 		return "", err
 	}
-	text, mark := s.texts.Undelivered(&n)
-	if text == "" || IsQuestion(&n) && n.Status == work.Closed {
-		return "nothing to deliver", nil
-	}
 	if IsQuestion(&n) {
+		if !ReplyWaiting(&n) && !Unqueued(&n) {
+			return "nothing to deliver", nil
+		}
 		return s.deliverQuestion(&n)
+	}
+	text, mark := s.texts.Undelivered(&n)
+	if text == "" {
+		return "nothing to deliver", nil
 	}
 	if why := PushInbox(&n, text); why != "" {
 		return why, nil

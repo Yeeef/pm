@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -169,39 +170,6 @@ func colorAsk(call string) work.AskInfo {
 		Options: []work.AskOption{{Label: "Red", Detail: "warm"}, {Label: "Blue", Detail: "cool"}}}}}
 }
 
-// dialogLines is what Claude Code appends to the transcript once the dialog closes: the call, then its result, which
-// holds the answers or, rejected (Esc), is an error.
-func dialogLines(input map[string]any, answer string) string {
-	in, err := json.Marshal(input)
-	if err != nil {
-		panic(err)
-	}
-	use := `{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1",` +
-		`"name":"AskUserQuestion","input":` + string(in) + `}]}}`
-	result := `{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"answered",` +
-		`"tool_use_id":"toolu_1"}]},"toolUseResult":{"answers":{"Which color?":"` + answer + `"},"annotations":{}}}`
-	if answer == "" {
-		result = `{"type":"user","message":{"role":"user","content":[{"type":"tool_result",` +
-			`"content":"User rejected tool use","is_error":true,"tool_use_id":"toolu_1"}]},` +
-			`"toolUseResult":"User rejected tool use","toolDenialKind":"user-rejected"}`
-	}
-	return use + "\n" + result + "\n"
-}
-
-func appendTo(t *testing.T, path, text string) {
-	t.Helper()
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.WriteString(text); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // TestAnswersFromMapsTheSitesReplyToEachQuestion: one "<question>: <answer>" line per question, an option's label in
 // any case is that label, a multiple choice's labels are joined by ", ", other text is the owner's own (lines after
 // a question's line belong to its answer), and a reply with no such line answers every question whole.
@@ -288,42 +256,13 @@ func TestTheSitesAnswerReachesEachQuestionAsAsked(t *testing.T) {
 	}
 }
 
-// TestTheTailFindsTheDialogsAnswerAppendedAfterTheHookStarted: lines written before the hook started, a call with
-// other input and a half-written line are no answer; the call with the hook's input and its result are, read as the
-// answers or, on a rejection, as one.
-func TestTheTailFindsTheDialogsAnswerAppendedAfterTheHookStarted(t *testing.T) {
-	path := transcript(t, strings.TrimSpace(dialogLines(colorInput, "Red"))) // an earlier call, before the hook
-	tail := newAskTail(path, colorInput)
-	if got := tail.read(); got != nil {
-		t.Fatalf("before the dialog closed: %+v", got)
-	}
-	other := map[string]any{"questions": []any{map[string]any{"question": "Other?"}}}
-	appendTo(t, path, dialogLines(other, "x"))
-	lines := dialogLines(colorInput, "Blue")
-	appendTo(t, path, lines[:len(lines)-20])
-	if got := tail.read(); got != nil {
-		t.Fatalf("another call, and half the answer: %+v", got)
-	}
-	appendTo(t, path, lines[len(lines)-20:])
-	got := tail.read()
-	if got == nil || got.rejected || got.text(colorAsk("")) != "Which color?: Blue" {
-		t.Fatalf("the answer: %+v", got)
-	}
-
-	path = transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`)
-	tail = newAskTail(path, colorInput)
-	appendTo(t, path, dialogLines(colorInput, ""))
-	if got := tail.read(); got == nil || !got.rejected {
-		t.Fatalf("rejected with Esc: %+v", got)
-	}
-}
-
 // TestASubagentsCallOrAnotherToolStepsAside: no dialog the owner sees, so nothing is raised and nothing printed.
 func TestASubagentsCallOrAnotherToolStepsAside(t *testing.T) {
 	st := newAskStore()
 	for name, in := range map[string]string{
-		"a subagent":   `{"agent_id":"a1","tool_name":"AskUserQuestion","session_id":"s","transcript_path":"/t"}`,
-		"another tool": `{"tool_name":"Bash","session_id":"s","transcript_path":"/t"}`,
+		"a subagent": `{"hook_event_name":"PermissionRequest","agent_id":"a1","tool_name":"AskUserQuestion",` +
+			`"session_id":"s"}`,
+		"another tool": `{"hook_event_name":"PermissionRequest","tool_name":"Bash","session_id":"s"}`,
 	} {
 		var out, errb bytes.Buffer
 		if err := HookAsk("/here", ask.Claude, st.open, strings.NewReader(in), &out, &errb); err != nil {
@@ -340,15 +279,20 @@ func TestASubagentsCallOrAnotherToolStepsAside(t *testing.T) {
 	}
 }
 
-// raised is a question colorInput raised by session s under the newest task it holds, as askClaude raises it.
-func raised(t *testing.T, st *askStore, path string) *claudeQuestion {
+// raised is a question colorInput raised by session s in prompt p1 under the newest task it holds, as askClaude raises
+// it.
+func raised(t *testing.T, st *askStore) *claudeQuestion {
 	t.Helper()
-	ids, err := raise(st.open, "/here", work.RaisedBy{Session: "s"}, []work.AskInfo{colorAsk("p1-abc")}, false)
+	key, err := claudeCall("p1", colorAsk(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids, err := raise(st.open, "/here", work.RaisedBy{Session: "s"}, []work.AskInfo{colorAsk(key)}, false)
 	if err != nil || len(ids) != 1 {
 		t.Fatalf("raise: %v %v", ids, err)
 	}
 	q := &claudeQuestion{open: func() (AskStore, error) { return st.open("") }, id: ids[0], session: "s",
-		ask: colorAsk("p1-abc"), input: colorInput, tail: newAskTail(path, colorInput)}
+		ask: colorAsk(key), input: colorInput}
 	q.waitSite = (&siteWaits{st: st}).wait(q.id)
 	return q
 }
@@ -397,15 +341,10 @@ func (f *siteWaits) seen() (calls int, ended []error) {
 	return f.calls, slices.Clone(f.ended)
 }
 
-// waitAsHooked runs q.wait as askClaude does, the transcript read every 10 ms, on a goroutine: its error once it
-// returns.
+// waitAsHooked runs q.wait as askClaude does, on a goroutine: its error once it returns.
 func waitAsHooked(q *claudeQuestion, stop chan os.Signal, out *bytes.Buffer) <-chan error {
 	done := make(chan error, 1)
-	go func() {
-		tick := time.NewTicker(10 * time.Millisecond)
-		defer tick.Stop()
-		done <- q.wait(stop, tick.C, out)
-	}()
+	go func() { done <- q.wait(stop, out) }()
 	return done
 }
 
@@ -424,7 +363,7 @@ func ended(t *testing.T, done <-chan error) error {
 // reaches the store no more; the site's reply ends that call, and one look at the store answers the tool.
 func TestAClaudeQuestionWaitsOnOneCallToTheService(t *testing.T) {
 	st := newAskStore(heldTasks...)
-	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+	q := raised(t, st)
 	f := &siteWaits{st: st}
 	q.waitSite = f.wait(q.id)
 	opens := st.opens
@@ -451,24 +390,28 @@ func TestAClaudeQuestionWaitsOnOneCallToTheService(t *testing.T) {
 	}
 }
 
-// TestADialogAnswerEndsTheCallToTheService: the transcript's answer closes the need, and the call under way ends.
+// TestADialogAnswerEndsTheCallToTheService: the dialog's answer, closed at PostToolUse, ends the wait with nothing
+// printed, and the call under way ends.
 func TestADialogAnswerEndsTheCallToTheService(t *testing.T) {
 	st := newAskStore(heldTasks...)
-	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+	q := raised(t, st)
 	f := &siteWaits{st: st}
 	q.waitSite = f.wait(q.id)
 	var out bytes.Buffer
 	done := waitAsHooked(q, make(chan os.Signal), &out)
-	appendTo(t, q.tail.path, dialogLines(colorInput, "Red"))
+	var errb bytes.Buffer
+	if err := HookAsk("/here", ask.Claude, st.open, strings.NewReader(postToolUse()), &out, &errb); err != nil ||
+		errb.Len() != 0 {
+		t.Fatalf("PostToolUse: %v %q", err, errb.String())
+	}
 	if err := ended(t, done); err != nil || out.Len() != 0 {
 		t.Fatalf("%v, printed %q", err, out.String())
 	}
 	if n := st.item(q.id); n.Resolution != work.Answered || n.Comments[0].Text != "Which color?: Red" {
 		t.Errorf("need %+v", n)
 	}
-	var how []error
-	if !within(time.Second, func() bool { _, how = f.seen(); return len(how) == 1 }) || !errors.Is(how[0], context.Canceled) {
-		t.Errorf("the call ended %v", how)
+	if calls, how := f.seen(); calls != 1 || len(how) != 1 || how[0] != nil {
+		t.Errorf("%d calls, ended %v", calls, how)
 	}
 }
 
@@ -476,7 +419,7 @@ func TestADialogAnswerEndsTheCallToTheService(t *testing.T) {
 // nothing printed.
 func TestAClaudeQuestionClosedElsewhereEndsTheWait(t *testing.T) {
 	st := newAskStore(heldTasks...)
-	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+	q := raised(t, st)
 	var out bytes.Buffer
 	done := waitAsHooked(q, make(chan os.Signal), &out)
 	if err := st.Close(q.id, "elsewhere", work.Dismissed, "x"); err != nil {
@@ -495,7 +438,7 @@ func TestAClaudeQuestionCallsTheServiceAgainAfterItFails(t *testing.T) {
 	var waited []int
 	AskRetry = func(tries int) time.Duration { waited = append(waited, tries); return 20 * time.Millisecond }
 	st := newAskStore(heldTasks...)
-	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+	q := raised(t, st)
 	f := &siteWaits{st: st, down: 2}
 	q.waitSite = f.wait(q.id)
 	var out bytes.Buffer
@@ -552,8 +495,8 @@ var heldTasks = []work.Item{
 // reply closes it as answered on the site, delivered, and answers the tool with it.
 func TestAClaudeQuestionAnsweredOnTheSiteAnswersTheTool(t *testing.T) {
 	st := newAskStore(heldTasks...)
-	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
-	if n := st.item(q.id); n.Parent != "p-1.2" || n.Need.Ask.Call != "p1-abc" {
+	q := raised(t, st)
+	if n := st.item(q.id); n.Parent != "p-1.2" || n.Need.Ask.Call != q.ask.Call {
 		t.Fatalf("raised under %q with call %q", n.Parent, n.Need.Ask.Call)
 	}
 	var out bytes.Buffer
@@ -574,62 +517,166 @@ func TestAClaudeQuestionAnsweredOnTheSiteAnswersTheTool(t *testing.T) {
 	}
 }
 
-// TestAClaudeQuestionTakesTheDialogsAnswerOrEnds: the dialog's answer closes it with that answer, and wins over a site
-// reply that comes in meanwhile, which counts as delivered with a note; a rejection or a stop dismisses it; a need
-// closed elsewhere ends the wait with nothing printed.
-func TestAClaudeQuestionTakesTheDialogsAnswerOrEnds(t *testing.T) {
-	path := transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`)
-	var out bytes.Buffer
+// claudePostToolUse is the PostToolUse input Claude Code 2.1.296 sent once an AskUserQuestion dialog was answered
+// (captured 2026-10-14 under a pty), every key kept, with the prompt id and the answer a test's. tool_input and
+// tool_response are the same object: the questions, the answers by question text, and annotations.
+const claudePostToolUse = `{"session_id": "s", "transcript_path": "/t/s.jsonl", "cwd": "/here", ` +
+	`"scratchpad_dir": "/t/scratchpad", "prompt_id": %q, "permission_mode": "default", "effort": {"level": "medium"}, ` +
+	`"hook_event_name": "PostToolUse", "tool_name": "AskUserQuestion", "tool_input": %s, "tool_response": %s, ` +
+	`"tool_use_id": "toolu_015hnvv6TtZypF9MyoZ9EamU", "duration_ms": 1}`
+
+// postToolUse is claudePostToolUse for colorInput answered Red under the prompt p1, the prompt raised asks under.
+func postToolUse() string {
+	result := map[string]any{"answers": map[string]any{"Which color?": "Red"}, "annotations": map[string]any{}}
+	for k, v := range colorInput {
+		result[k] = v
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf(claudePostToolUse, "p1", raw, raw)
+}
+
+// TestClaudesCallKeyReadsOnlyTheQuestions: PermissionRequest's input and PostToolUse's, which adds the answers and
+// annotations, give one key; another prompt or other questions give another.
+func TestClaudesCallKeyReadsOnlyTheQuestions(t *testing.T) {
+	key := func(prompt string, input map[string]any) string {
+		raw, err := json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := askOf(raw, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		k, err := claudeCall(prompt, info)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return k
+	}
+	var event map[string]any
+	if err := json.Unmarshal([]byte(postToolUse()), &event); err != nil {
+		t.Fatal(err)
+	}
+	answered, ok := event["tool_input"].(map[string]any)
+	if !ok {
+		t.Fatal("no tool_input")
+	}
+	other := map[string]any{"questions": []any{map[string]any{"question": "Which size?"}}}
+	if k := key("p1", colorInput); k != key("p1", answered) || k == key("p2", colorInput) || k == key("p1", other) ||
+		!strings.HasPrefix(k, "p1-") || len(k) != len("p1-")+12 {
+		t.Errorf("keys: %q %q %q %q", k, key("p1", answered), key("p2", colorInput), key("p1", other))
+	}
+}
+
+// TestPostToolUseClosesTheQuestionWithTheDialogsAnswer: the open question of the call closes with the answers the tool
+// returned, by the session; a site reply that came meanwhile lost the race and counts as delivered with a note. A
+// question closed already (the hook's own answer) stays as it is, and another prompt's question is left open.
+func TestPostToolUseClosesTheQuestionWithTheDialogsAnswer(t *testing.T) {
+	key, err := claudeCall("p1", colorAsk(""))
+	if err != nil {
+		t.Fatal(err)
+	}
 	for name, c := range map[string]struct {
-		answer, reply string
-		want          func(n work.Item) bool
+		reply string
+		want  func(n work.Item) bool
 	}{
-		"in the dialog": {"Red", "", func(n work.Item) bool {
-			return n.Resolution == work.Answered && len(n.Comments) == 1 && n.Comments[0].Text == "Which color?: Red"
+		"in the dialog": {"", func(n work.Item) bool {
+			return n.Resolution == work.Answered && len(n.Comments) == 1 && n.Comments[0].Text == "Which color?: Red" &&
+				n.ClosedBy == "s"
 		}},
-		"in the dialog, the site late": {"Red", "Which color?: Blue", func(n work.Item) bool {
+		"in the dialog, the site late": {"Which color?: Blue", func(n work.Item) bool {
 			return n.Resolution == work.Answered && len(n.Comments) == 3 && n.Comments[1].Text == "Which color?: Red" &&
 				n.Comments[2].Kind == work.Note && n.Need.Delivered == 1
 		}},
-		"rejected": {"", "", func(n work.Item) bool {
-			return n.Resolution == work.Dismissed && n.CloseReason == declined
-		}},
 	} {
 		st := newAskStore(heldTasks...)
-		q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+		ids, err := raise(st.open, "/here", work.RaisedBy{Session: "s"}, []work.AskInfo{colorAsk(key)}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if c.reply != "" {
-			st.reply(q.id, c.reply)
+			st.reply(ids[0], c.reply)
 		}
-		appendTo(t, q.tail.path, dialogLines(colorInput, c.answer))
-		var out bytes.Buffer
-		if done, err := q.step(&out); !done || err != nil || out.Len() != 0 {
-			t.Fatalf("%s: %v %v %q", name, done, err, out.String())
+		var out, errb bytes.Buffer
+		if err := HookAsk("/here", ask.Claude, st.open, strings.NewReader(postToolUse()), &out, &errb); err != nil ||
+			out.Len() != 0 || errb.Len() != 0 {
+			t.Fatalf("%s: %v, out %q, stderr %q", name, err, out.String(), errb.String())
 		}
-		if n := st.item(q.id); n.Status != work.Closed || !c.want(n) {
+		if n := st.item(ids[0]); n.Status != work.Closed || !c.want(n) {
 			t.Errorf("%s: %+v", name, n)
 		}
 	}
 
 	st := newAskStore(heldTasks...)
-	q := raised(t, st, path)
-	if err := st.Close(q.id, "elsewhere", work.Dismissed, "x"); err != nil {
+	ids, err := raise(st.open, "/here", work.RaisedBy{Session: "s"}, []work.AskInfo{colorAsk(key), colorAsk("p2-x")}, false)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if done, err := q.step(&out); !done || err != nil {
-		t.Errorf("closed elsewhere: %v %v", done, err)
-	}
-
-	st = newAskStore(heldTasks...)
-	q = raised(t, st, path)
-	stop := make(chan os.Signal, 1)
-	stop <- os.Interrupt
-	if err := q.wait(stop, nil, &out); err != nil {
+	if err := st.Close(ids[0], service.AnsweredOnSite, work.Answered, "s"); err != nil {
 		t.Fatal(err)
 	}
-	if n := st.item(q.id); n.Resolution != work.Dismissed || n.CloseReason != stopped {
-		t.Errorf("stopped: %+v", n)
+	var out, errb bytes.Buffer
+	if err := HookAsk("/here", ask.Claude, st.open, strings.NewReader(postToolUse()), &out, &errb); err != nil ||
+		out.Len() != 0 || errb.Len() != 0 {
+		t.Fatalf("closed already: %v, out %q, stderr %q", err, out.String(), errb.String())
+	}
+	if n := st.item(ids[0]); n.CloseReason != service.AnsweredOnSite || len(n.Comments) != 0 {
+		t.Errorf("closed on the site, then PostToolUse: %+v", n)
+	}
+	if n := st.item(ids[1]); n.Status != work.Open {
+		t.Errorf("another prompt's question: %+v", n)
 	}
 }
+
+// TestASignalDismissesTheQuestionAtOnce: Claude Code's SIGTERM (Esc, or the session stopping) closes the question as
+// dismissed within AskStopBudget, reading no transcript; a question PostToolUse closed first stays answered; a store
+// that does not answer in time ends the hook with the reason.
+func TestASignalDismissesTheQuestionAtOnce(t *testing.T) {
+	st := newAskStore(heldTasks...)
+	q := raised(t, st)
+	var out bytes.Buffer
+	stop := make(chan os.Signal, 1)
+	done := waitAsHooked(q, stop, &out)
+	start := time.Now()
+	stop <- syscall.SIGTERM
+	if err := ended(t, done); err != nil || out.Len() != 0 {
+		t.Fatalf("%v, printed %q", err, out.String())
+	}
+	if n := st.item(q.id); n.Resolution != work.Dismissed || n.CloseReason != stopped || n.ClosedBy != "s" {
+		t.Errorf("stopped: %+v", n)
+	}
+	t.Logf("signal to dismissed: %v", time.Since(start))
+
+	st = newAskStore(heldTasks...)
+	q = raised(t, st)
+	if err := service.AnswerInChat(st, ptr(st.item(q.id)), "Which color?: Red", "s"); err != nil {
+		t.Fatal(err)
+	}
+	stop = make(chan os.Signal, 1)
+	stop <- syscall.SIGTERM
+	if err := q.wait(stop, &out); err != nil || st.item(q.id).Resolution != work.Answered {
+		t.Errorf("answered, then signalled: %v %+v", err, st.item(q.id))
+	}
+
+	saved := AskStopBudget
+	t.Cleanup(func() { AskStopBudget = saved })
+	AskStopBudget = 20 * time.Millisecond
+	q = raised(t, newAskStore(heldTasks...))
+	hung := make(chan struct{})
+	t.Cleanup(func() { close(hung) })
+	q.open = func() (AskStore, error) { <-hung; return nil, errors.New("late") }
+	stop = make(chan os.Signal, 1)
+	stop <- syscall.SIGTERM
+	start = time.Now()
+	if err := q.wait(stop, &out); err == nil || !strings.Contains(err.Error(), "took over") || time.Since(start) > 500*time.Millisecond {
+		t.Errorf("a store that does not answer: %v after %v", err, time.Since(start))
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 // codexPostToolUse is the PostToolUse input Codex 0.162.1 sent for a request_user_input_async call (captured
 // 2026-10-14 in its TUI), every key kept, with the transcript path a test's.
@@ -676,4 +723,60 @@ func TestCodexPostToolUseRaisesTheAsyncQuestionOnce(t *testing.T) {
 		!strings.HasPrefix(errb.String(), "pm hook ask: the hook input has no") {
 		t.Errorf("no call id: %v, out %q, stderr %q", err, out.String(), errb.String())
 	}
+}
+
+// codexUserPromptSubmit is the UserPromptSubmit input Codex 0.154.0 sent (captured 2026-10-11), every key kept, with
+// the session and the prompt a test's.
+const codexUserPromptSubmit = `{"session_id": %q, "turn_id": "01a12be7-d295-73c0-bf06-91db5a02a58c", ` +
+	`"transcript_path": "/t/rollout.jsonl", "cwd": "/here", "hook_event_name": "UserPromptSubmit", ` +
+	`"model": "gpt-6-astra", "permission_mode": "bypassPermissions", "prompt": %q}`
+
+// TestCodexUserPromptSubmitClosesTheOpenQuestionsWithThePrompt: what the owner types answers each open question of
+// the session, by the session; the site answer the service queued for a question it closed first, or a delivery's
+// text, answers none; a closed question, another session's and an empty prompt are left alone.
+func TestCodexUserPromptSubmitClosesTheOpenQuestionsWithThePrompt(t *testing.T) {
+	codex := work.RaisedBy{Session: "t1", Inbox: "codex-queue:/h"}
+	st := newAskStore()
+	ids, err := raise(st.open, "/here", codex, []work.AskInfo{colorAsk("call_1"), colorAsk("call_2"), colorAsk("call_3")},
+		true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := raise(st.open, "/here", work.RaisedBy{Session: "t2", Inbox: "codex-queue:/h"},
+		[]work.AskInfo{colorAsk("call_9")}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.reply(ids[0], "Which color?: Blue") // answered on the site: the service closed it, then queued the answer
+	if err := st.Close(ids[0], service.AnsweredOnSite, work.Answered, ""); err != nil {
+		t.Fatal(err)
+	}
+	prompt := func(text string) {
+		t.Helper()
+		var out, errb bytes.Buffer
+		in := fmt.Sprintf(codexUserPromptSubmit, "t1", text)
+		if err := HookAsk("/here", ask.Codex, st.open, strings.NewReader(in), &out, &errb); err != nil || out.Len() != 0 ||
+			errb.Len() != 0 {
+			t.Fatalf("%q: %v, out %q, stderr %q", text, err, out.String(), errb.String())
+		}
+	}
+	for _, relayed := range []string{"Which color?: Blue", "pm: owner reply to decision x", "  "} {
+		prompt(relayed)
+	}
+	if st.item(ids[1]).Status != work.Open || st.item(ids[2]).Status != work.Open {
+		t.Fatalf("a relayed message or an empty prompt closed a question: %+v", st.item(ids[1]))
+	}
+	prompt("Red, thanks")
+	for _, id := range ids[1:] {
+		if n := st.item(id); n.Resolution != work.Answered || n.Comments[0].Text != "Red, thanks" || n.ClosedBy != "t1" {
+			t.Errorf("%s: %+v", id, n)
+		}
+	}
+	if n := st.item(ids[0]); n.CloseReason != service.AnsweredOnSite || len(n.Comments) != 1 {
+		t.Errorf("answered on the site, then a prompt: %+v", n)
+	}
+	if st.item(other[0]).Status != work.Open {
+		t.Error("another session's question was closed")
+	}
+	prompt("and another thing") // no open question left: nothing to close
 }
