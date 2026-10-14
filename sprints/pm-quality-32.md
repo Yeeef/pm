@@ -53,7 +53,10 @@ A PR runs only the Go test packages that its changed files can affect, and the f
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-14}
+The design page work-store stays as it is for this sprint's code changes.
+The access-path test left internal/work for the root package; the work-store page never described it (pm-go's Store access does, updated)
+:::
 
 ## Findings
 
