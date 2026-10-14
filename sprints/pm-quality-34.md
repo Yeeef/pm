@@ -66,6 +66,11 @@ The design page decision-need-layout stays as it is for this sprint's code chang
 request.go's change is the raise output's delivery hint, which the reply-delivery page holds; this page's layout of a decision need is unchanged
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page session-claims stays as it is for this sprint's code changes.
+prime.go changes only the hooks package doc's file list (inbox.go gone); session claims are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
