@@ -94,10 +94,16 @@ Session start already runs the same clone setup in every agent worktree; the hoo
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: pm installs no git hook and no longer owns `core.hooksPath`; session start's `pm init --session-start` sets each new worktree up, as it already did in every agent worktree.
+
+- The post-checkout section is a retired piece: `pm upgrade` and `pm uninstall` remove it, and `.pm/hooks` once empty; `pm doctor` names a leftover.
+- Every `pm init` unsets `core.hooksPath` when it names `.pm/hooks` and that directory holds only pm's sections; a directory with the user's own hooks keeps the path.
+- `pm hook git-post-checkout` stays as a no-op for checkouts on older pins; `pm where` drops its hooks line.
+- Known window: until every checkout pins this release, an older pin's session sets the clone-wide path back (noted in the changelog).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `make test` and `make test-go` pass; the PR's CI is green: met. `make test` 135 passed, `make test-go` exit 0, `make test-full` on the init, lifecycle and pm tests 185 passed; PR #94's CI 13 of 13 checks pass on d1f6e35.
+- Upgrade in a scratch clone leaves no hook and no `core.hooksPath`, and a new worktree gets `records/` from `pm init --session-start`: met. See the live-check finding: after this build's `pm upgrade`, `.pm/` had no `hooks/`, `git config --get core.hooksPath` exited 1, and `pm init --session-start` linked the new worktree's `records/`.
