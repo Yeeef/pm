@@ -2,11 +2,14 @@ package hooks
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +17,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/item"
+	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -343,8 +347,195 @@ func raised(t *testing.T, st *askStore, path string) *claudeQuestion {
 	if err != nil || len(ids) != 1 {
 		t.Fatalf("raise: %v %v", ids, err)
 	}
-	return &claudeQuestion{open: func() (AskStore, error) { return st.open("") }, id: ids[0], session: "s",
+	q := &claudeQuestion{open: func() (AskStore, error) { return st.open("") }, id: ids[0], session: "s",
 		ask: colorAsk("p1-abc"), input: colorInput, tail: newAskTail(path, colorInput)}
+	q.waitSite = (&siteWaits{st: st}).wait(q.id)
+	return q
+}
+
+// siteWaits fakes the pm service's wait: a call returns nil once the store shows the need with a reply waiting or
+// closed, looking in memory (no dial), and ctx's error once ctx ends; the first down calls fail at once, as calls to a
+// service that is restarting do. It counts the calls and keeps how each ended.
+type siteWaits struct {
+	st    *askStore
+	mu    sync.Mutex
+	down  int
+	calls int
+	ended []error
+}
+
+func (f *siteWaits) wait(id string) func(ctx context.Context) error {
+	return func(ctx context.Context) (err error) {
+		f.mu.Lock()
+		f.calls++
+		failing := f.calls <= f.down
+		f.mu.Unlock()
+		defer func() {
+			f.mu.Lock()
+			f.ended = append(f.ended, err)
+			f.mu.Unlock()
+		}()
+		if failing {
+			return errors.New("the pm service is restarting")
+		}
+		for {
+			if n := f.st.item(id); n.Status == work.Closed || service.ReplyWaiting(&n) {
+				return nil
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(5 * time.Millisecond):
+			}
+		}
+	}
+}
+
+func (f *siteWaits) seen() (calls int, ended []error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls, slices.Clone(f.ended)
+}
+
+// waitAsHooked runs q.wait as askClaude does, the transcript read every 10 ms, on a goroutine: its error once it
+// returns.
+func waitAsHooked(q *claudeQuestion, stop chan os.Signal, out *bytes.Buffer) <-chan error {
+	done := make(chan error, 1)
+	go func() {
+		tick := time.NewTicker(10 * time.Millisecond)
+		defer tick.Stop()
+		done <- q.wait(stop, tick.C, out)
+	}()
+	return done
+}
+
+func ended(t *testing.T, done <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(5 * time.Second):
+		t.Fatal("the hook still waits 5 s on")
+	}
+	return nil
+}
+
+// TestAClaudeQuestionWaitsOnOneCallToTheService: while nobody answers, the hook holds one call to the service and
+// reaches the store no more; the site's reply ends that call, and one look at the store answers the tool.
+func TestAClaudeQuestionWaitsOnOneCallToTheService(t *testing.T) {
+	st := newAskStore(heldTasks...)
+	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+	f := &siteWaits{st: st}
+	q.waitSite = f.wait(q.id)
+	opens := st.opens
+	var out bytes.Buffer
+	done := waitAsHooked(q, make(chan os.Signal), &out)
+	select { // a test of idleness: what happens in a second while nobody answers
+	case err := <-done:
+		t.Fatalf("the wait ended with no answer: %v", err)
+	case <-time.After(time.Second):
+	}
+	if calls, _ := f.seen(); calls != 1 || st.opens != opens {
+		t.Fatalf("idle for 1 s: %d calls to the service, %d dials of the store", calls, st.opens-opens)
+	}
+	start := time.Now()
+	st.reply(q.id, "Which color?: blue")
+	if err := ended(t, done); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("site reply to the decision: %v", time.Since(start))
+	calls, how := f.seen()
+	if n := st.item(q.id); calls != 1 || how[0] != nil || st.opens != opens+1 || n.CloseReason != service.AnsweredOnSite ||
+		!strings.Contains(out.String(), `"answers":{"Which color?":"Blue"}`) {
+		t.Errorf("%d calls (%v), %d dials; printed %q; need %+v", calls, how, st.opens-opens, out.String(), n)
+	}
+}
+
+// TestADialogAnswerEndsTheCallToTheService: the transcript's answer closes the need, and the call under way ends.
+func TestADialogAnswerEndsTheCallToTheService(t *testing.T) {
+	st := newAskStore(heldTasks...)
+	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+	f := &siteWaits{st: st}
+	q.waitSite = f.wait(q.id)
+	var out bytes.Buffer
+	done := waitAsHooked(q, make(chan os.Signal), &out)
+	appendTo(t, q.tail.path, dialogLines(colorInput, "Red"))
+	if err := ended(t, done); err != nil || out.Len() != 0 {
+		t.Fatalf("%v, printed %q", err, out.String())
+	}
+	if n := st.item(q.id); n.Resolution != work.Answered || n.Comments[0].Text != "Which color?: Red" {
+		t.Errorf("need %+v", n)
+	}
+	var how []error
+	if !within(time.Second, func() bool { _, how = f.seen(); return len(how) == 1 }) || !errors.Is(how[0], context.Canceled) {
+		t.Errorf("the call ended %v", how)
+	}
+}
+
+// TestAClaudeQuestionClosedElsewhereEndsTheWait: the service's answer to a need closed elsewhere ends the wait, with
+// nothing printed.
+func TestAClaudeQuestionClosedElsewhereEndsTheWait(t *testing.T) {
+	st := newAskStore(heldTasks...)
+	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+	var out bytes.Buffer
+	done := waitAsHooked(q, make(chan os.Signal), &out)
+	if err := st.Close(q.id, "elsewhere", work.Dismissed, "x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ended(t, done); err != nil || out.Len() != 0 {
+		t.Fatalf("%v, printed %q", err, out.String())
+	}
+}
+
+// TestAClaudeQuestionCallsTheServiceAgainAfterItFails: calls that fail (the service restarting) are made again after
+// AskRetry, and the next call that holds takes the site's reply; the failure is said once the wait ends.
+func TestAClaudeQuestionCallsTheServiceAgainAfterItFails(t *testing.T) {
+	saved := AskRetry
+	t.Cleanup(func() { AskRetry = saved })
+	var waited []int
+	AskRetry = func(tries int) time.Duration { waited = append(waited, tries); return 20 * time.Millisecond }
+	st := newAskStore(heldTasks...)
+	q := raised(t, st, transcript(t, `{"type":"user","message":{"role":"user","content":"go"}}`))
+	f := &siteWaits{st: st, down: 2}
+	q.waitSite = f.wait(q.id)
+	var out bytes.Buffer
+	done := waitAsHooked(q, make(chan os.Signal), &out)
+	if !within(time.Second, func() bool { calls, _ := f.seen(); return calls == 3 }) {
+		t.Fatal("not called again after two failures")
+	}
+	st.reply(q.id, "Which color?: red")
+	err := ended(t, done)
+	if calls, _ := f.seen(); err == nil || !strings.Contains(err.Error(), "restarting") || calls != 3 ||
+		!slices.Equal(waited, []int{0, 1}) || !strings.Contains(out.String(), `"Which color?":"Red"`) {
+		t.Errorf("err %v, %d calls, retries %v, printed %q", err, calls, waited, out.String())
+	}
+}
+
+// TestAskRetryNeverCallsMoreOftenThanEverySecondNorWaitsOverFive: 1, 2, 4, then 5 s.
+func TestAskRetryNeverCallsMoreOftenThanEverySecondNorWaitsOverFive(t *testing.T) {
+	var got []time.Duration
+	for tries := range 6 {
+		got = append(got, AskRetry(tries))
+	}
+	want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}
+	if !slices.Equal(got, want) {
+		t.Errorf("AskRetry: %v", got)
+	}
+}
+
+// within checks cond every 5 ms until it holds, for up to d; whether it held.
+func within(d time.Duration, cond func() bool) bool {
+	tick := time.NewTicker(5 * time.Millisecond)
+	defer tick.Stop()
+	deadline := time.After(d)
+	for !cond() {
+		select {
+		case <-tick.C:
+		case <-deadline:
+			return cond()
+		}
+	}
+	return true
 }
 
 // heldTasks are the tasks of the Claude question tests: session s holds two, the later claimed last.

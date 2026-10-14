@@ -1,18 +1,21 @@
 package hooks
 
-// pm hook ask: a session's ask-tool question raised as a question need, so the owner can answer it on the site as
-// well as in the session. Claude Code (--runtime claude) runs it on PermissionRequest for AskUserQuestion, beside the
+// pm hook ask: a session's ask-tool question raised as a question need, so the owner can answer it on the site as well
+// as in the session. Claude Code (--runtime claude) runs it on PermissionRequest for AskUserQuestion, beside the
 // question's dialog, for up to a day: it raises the question, then waits for the first answer, the dialog's (the
 // transcript shows the tool's result, or its rejection) or the site's (a reply on the need), and closes the need with
-// it; on the site's it prints the decision that answers the tool, which closes the dialog. Of two answers the first to
-// close the need wins (work.ErrClosed). A subagent's call, or another tool's, is no dialog the owner sees: it steps
-// aside. Codex (--runtime codex) runs it on PostToolUse of request_user_input_async, which returns at once: the hook
-// raises the question once, by its call id, and returns; the pm service queues the site's answer into the session, or
-// closes the question with the answer the owner typed in the chat once the session's rollout shows it. It fails open: on its own error it says why on
-// stderr, prints nothing and exits 0, so the dialog stays usable.
+// it; on the site's it prints the decision that answers the tool, which closes the dialog. It waits for the site's on
+// one blocking call to the pm service (service.WaitNeed), which answers once the need has a reply or is closed, and
+// reads the store only then; the transcript it reads itself. Of two answers the first to close the need wins
+// (work.ErrClosed). A subagent's call, or another tool's, is no dialog the owner sees: it steps aside. Codex (--runtime
+// codex) runs it on PostToolUse of request_user_input_async, which returns at once: the hook raises the question once,
+// by its call id, and returns; the pm service queues the site's answer into the session, or closes the question with
+// the answer the owner typed in the chat once the session's rollout shows it. It fails open: on its own error it says
+// why on stderr, prints nothing and exits 0, so the dialog stays usable.
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -32,6 +35,7 @@ import (
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/session"
+	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -57,8 +61,12 @@ func DialStore(dir string) (AskStore, error) {
 	return st, nil
 }
 
-// AskPoll is how often pm hook ask looks for an answer to a Claude Code question: the transcript, then the need.
+// AskPoll is how often pm hook ask reads the transcript for the dialog's answer to a Claude Code question.
 var AskPoll = time.Second
+
+// AskRetry is the wait before pm hook ask calls the pm service again after a call that failed (the service down or
+// restarting) or answered with no answer the store confirms: 1, 2, 4, then 5 s, never sooner than a second.
+var AskRetry = func(tries int) time.Duration { return min(5*time.Second, time.Second<<min(tries, 3)) }
 
 // declined is the close reason of a question the owner rejected in the session; stopped, of one whose hook was
 // stopped before any answer.
@@ -127,8 +135,13 @@ func askClaude(event Event, dir string, open OpenStore, stdout io.Writer) error 
 	if err != nil || len(id) == 0 {
 		return err
 	}
-	q := &claudeQuestion{open: func() (AskStore, error) { return open(dir) }, id: id[0], session: sid, ask: info,
-		input: input, tail: tail}
+	records, err := store.PathOf(dir)
+	if err != nil {
+		return err
+	}
+	main, nid := store.MainOf(records), id[0]
+	q := &claudeQuestion{open: func() (AskStore, error) { return open(dir) }, id: nid, session: sid, ask: info,
+		input: input, tail: tail, waitSite: func(ctx context.Context) error { return service.WaitNeed(ctx, main, nid) }}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	defer signal.Stop(sigs)
@@ -144,22 +157,48 @@ type claudeQuestion struct {
 	ask         work.AskInfo
 	input       map[string]any // the tool's input, which the decision repeats with the answers
 	tail        *askTail
-	storeErr    error // the first failed look at the need, said once the wait ends
+	// waitSite is one call to the pm service that returns once the need has a reply waiting or is closed (nil), or
+	// fails; it ends when ctx does.
+	waitSite func(ctx context.Context) error
+	storeErr error // the first failed look at the need, said once the wait ends
 }
 
-// wait looks for the answer at each tick until one closes the need, or the need is closed elsewhere; a signal (the
-// session stopping the hook) ends it, closing the need with the dialog's answer if the transcript holds one, else as
-// dismissed.
+// wait reads the transcript at each tick and holds one waitSite call meanwhile, until an answer closes the need or
+// the need is closed elsewhere; when the call answers it looks at the need (step), and when the call fails, or the
+// look finds nothing to take, it calls again after AskRetry. A signal (the session stopping the hook) ends it, closing
+// the need with the dialog's answer if the transcript holds one, else as dismissed. Its return ends the call under way.
 func (q *claudeQuestion) wait(stop <-chan os.Signal, tick <-chan time.Time, stdout io.Writer) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	moved := make(chan error, 1) // one call at a time: the next starts only once its answer was taken
+	call := func(after time.Duration) {
+		go func() {
+			select {
+			case <-time.After(after):
+			case <-ctx.Done():
+				return
+			}
+			moved <- q.waitSite(ctx)
+		}()
+	}
+	call(0)
+	tries := 0
 	for {
 		select {
 		case <-stop:
 			return errors.Join(q.storeErr, q.closeLocal(q.tail.read(), true))
 		case <-tick:
-		}
-		done, err := q.step(stdout)
-		if done || err != nil {
-			return errors.Join(q.storeErr, err)
+			if local := q.tail.read(); local != nil {
+				return errors.Join(q.storeErr, q.closeLocal(local, false))
+			}
+		case err := <-moved:
+			if err != nil {
+				q.storeErr = cmpOr(q.storeErr, err)
+			} else if done, err := q.step(stdout); done || err != nil {
+				return errors.Join(q.storeErr, err)
+			}
+			call(AskRetry(tries))
+			tries++
 		}
 	}
 }

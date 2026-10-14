@@ -8,8 +8,10 @@
 // the records store's images (ImageTypes); access.go the check every request passes first (Host, and on a public one
 // the Cloudflare Access token); deliver.go, spool.go and codexqueue.go the replies' delivery (a Claude Code session's
 // socket, a Codex session's codex queue); question.go a question need's answer (none pushed to a Claude Code
-// session, whose pm hook ask takes it; queued to a Codex session unless it answered in its chat first); gc.go the store's garbage collection; lifecycle.go install, restart and the
-// probe of a unit that runs the pm at config.BinPath(). internal/cli/serve.go wires it to the clone.
+// session, whose pm hook ask takes it; queued to a Codex session unless it answered in its chat first); wait.go the
+// wait socket, on which that hook waits for its question's site reply; gc.go the store's garbage collection;
+// lifecycle.go install, restart and the probe of a unit that runs the pm at config.BinPath(). internal/cli/serve.go
+// wires it to the clone.
 package service
 
 import (

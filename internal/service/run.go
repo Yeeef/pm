@@ -166,6 +166,8 @@ type server struct {
 	logMu                 gosync.Mutex
 	gh                    bool
 	access                accessKeys // the Access team's signing keys, fetched on first use
+	movedMu               gosync.Mutex
+	moved                 chan struct{} // closed when the next snapshot is stored: the waits look again (wait.go)
 }
 
 func (s *server) logf(format string, a ...any) {
@@ -226,10 +228,11 @@ func (s *server) poke() {
 // against the snapshot, spooled before the POST is answered, and stored by the writer, which retries a failed write
 // with backoff and then pushes the reply into the raising session's inbox. The merge watch, at start and every
 // MergePoll, hands reviews' merges to main to the writer, then has it sweep the open needs for anything their running
-// session has not received. Every look reads the pin again: once it pins another version, Run returns that error.
-// Run returns only once every goroutine it started has ended, so a stopped service never touches the work store (the
-// caller closes the store's host next): it tells them to stop, waits for the requests under way, then for each loop to
-// finish what it was doing (a sync or gc under way runs to its end or its timeout, as the host's statement does).
+// session has not received. Each snapshot stored wakes the waits on the wait socket (wait.go). Every look reads the
+// pin again: once it pins another version, Run returns that error. Run returns only once every goroutine it started
+// has ended, so a stopped service never touches the work store (the caller closes the store's host next): it tells
+// them to stop, waits for the requests under way, then for each loop to finish what it was doing (a sync or gc under
+// way runs to its end or its timeout, as the host's statement does).
 func Run(d Deps) error {
 	if d.Open == nil || d.Mark == nil || d.Sync == nil || d.GC == nil || d.Site == nil || d.Summarize == nil || d.Out == nil || d.Log == nil ||
 		d.Main == "" || d.Records == "" || d.Spool == "" || d.Pin == "" || d.WorkDir == "" {
@@ -242,7 +245,7 @@ func Run(d Deps) error {
 	s := &server{d: d, texts: Texts{d.Main, d.Remote, d.MainBranch}, token: base64.RawURLEncoding.EncodeToString(tok),
 		replies: map[string]Reply{}, merges: map[string]bool{}, swept: map[string]sweepState{},
 		queue: make(chan job, 1024), sweepDue: make(chan struct{}, 1), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
-		serveCheck: ServeCheck, mergePoll: MergePoll}
+		serveCheck: ServeCheck, mergePoll: MergePoll, moved: make(chan struct{})}
 	ctx, stop := context.WithCancel(context.Background())
 	s.stop, s.done = stop, ctx.Done()
 	defer s.stop()
@@ -253,11 +256,15 @@ func Run(d Deps) error {
 		return err
 	}
 	srv := &http.Server{Handler: s, ReadHeaderTimeout: 30 * time.Second}
-	s.snap.Store(s.refresh(nil)) // the first load has data to serve
+	s.setSnap(s.refresh(nil)) // the first load has data to serve
 	pending, err := Pending(d.Spool)
 	if err != nil {
 		ln.Close()
 		return err
+	}
+	waits, err := s.serveWaits()
+	if err != nil {
+		return errors.Join(err, ln.Close())
 	}
 	s.spawn(s.writer)           // before the pending replies are queued, so any number of them fits
 	for _, e := range pending { // replies a crash or kill left pending
@@ -280,6 +287,7 @@ func Run(d Deps) error {
 	err = srv.Serve(ln)
 	s.stop()
 	_ = srv.Shutdown(context.Background()) // the requests under way end; the refresher already shut it down on a pin move
+	_ = waits.Close()                      //nolint:errcheck // the waits end on the stop; their callers call again
 	s.wg.Wait()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
@@ -344,7 +352,7 @@ func (s *server) refresher(srv *http.Server) {
 		}
 		old := s.snap.Load()
 		next := s.refresh(old)
-		s.snap.Store(next)
+		s.setSnap(next)
 		// a reply any command stored (pm reply add, not the site's form, which pushes its own) is pushed once the
 		// store moves, not at the ticker's next sweep a MergePoll later
 		if old != nil && !next.readFailed && next.fp != old.fp {

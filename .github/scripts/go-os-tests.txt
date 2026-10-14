@@ -99,6 +99,10 @@ internal/service   TestACodexQuestionGetsTheSitesAnswerQueuedUnlessTheChatAnswer
 internal/service   TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession                              os  a unix socket listened on and closed; inboxKey stats it through syscall.Stat_t
 internal/service   TestWhatTheServiceQueuedIsNoChatAnswer                                             any rollout files under a temp CODEX_HOME, read in memory
 internal/service   TestTheSweepClosesACodexQuestionAnsweredInTheChat                                  any rollout files under a temp CODEX_HOME, read in memory; no codex run
+internal/service   TestAWaitEndsAsSoonAsTheSiteReplyIsStored                                          os  serveEvery (service.Run) plus a call on its wait socket, a unix socket under a short temp dir
+internal/service   TestAWaitEndsWhenItsNeedIsClosedElsewhere                                          os  serveEvery (service.Run) plus a call on its wait socket, a unix socket under a short temp dir
+internal/service   TestACallerThatHangsUpEndsItsWait                                                  os  serveEvery (service.Run) plus a call on its wait socket, a unix socket under a short temp dir
+internal/service   TestAWaitFailsWhenTheServiceStopsAndAnswersFromTheNextOne                          os  serveEvery (service.Run) plus a call on its wait socket, a unix socket under a short temp dir
 internal/session   TestSessionOfIsTheSetOneOrTheInnermostRuntimesWhenBothAre                          any injected innermost
 internal/session   TestInnermostRuntimeIsTheNearestClaudeCodeOrCodexAncestor                          any injected procInfo
 internal/session   TestReadProcReadsAProcesssParentAndArgv0                                           os  /proc/<pid>/stat on Linux, `ps -o ppid=,comm=` on macOS

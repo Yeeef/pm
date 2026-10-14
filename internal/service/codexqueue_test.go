@@ -127,7 +127,7 @@ func TestTheServiceQueuesAReplyIntoACodexSessionAndMarksItDelivered(t *testing.T
 	home := codexHome(t)
 	CodexLive = func(h, s string) bool { return h == home && s == rootThread }
 	w := newFakeWork(codexNeed(home))
-	main := t.TempDir()
+	main := shortTemp(t)
 	log := fakeCodex(t, "0.154.0", rootThread)
 	s := serveEvery(t, w, main, time.Hour)
 	eventually(t, "the first snapshot", func() bool { return strings.Contains(s.log.String(), "refresh total=") })
