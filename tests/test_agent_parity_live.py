@@ -6,9 +6,10 @@ transcript (Claude Code's session JSONL, Codex's rollout).
 - solo, per runtime, identical assertions: session-start context; claim, finding, a decision need answered by the
   owner (this test, through `pm reply add`) while the session waits; the decision citing it; a doc; the task closed.
 - next prompt, per runtime: a session raises a need and ends its turn; the owner answers; the session, resumed on a
-  prompt that does not name the need, gets the reply (a Codex session as the message the pm service queued into it,
-  a Claude Code session, whose socket closed with its turn, through pm reply read once pm show flags it) and records
-  the decision.
+  prompt that does not name the need, gets the reply (a Codex session as the message the pm service queued into it;
+  a Claude Code session, whose socket closed with its turn, as the message the pm service pushes once session start's
+  pm show points the need at the resumed session's new socket, or through pm reply read once pm show flags it) and
+  records the decision.
 - wake, per runtime: an interactive session (the runtime's TUI, in a pty) raises a need and ends its turn; once it
   is idle the owner replies, and with nothing typed the session starts a turn on the reply the pm service delivered
   (Claude Code: its socket; Codex: codex queue) and records the decision; the wake latency is printed.
@@ -288,7 +289,9 @@ blue?" When a hook then tells you what is left to do, do it, under sprint {sprin
 def test_reply_reaches_the_session_at_its_next_prompt(clone, runtime):
     """A session that raised a need and ended its turn gets the owner's reply when it is resumed, and records it: for
     a Codex session the pm service queued the reply into while its rollout was live, as the queued message the resumed
-    thread takes in; else from a pm command, pm reply read once the session-start pm show flags the reply."""
+    thread takes in; for a Claude Code session, as the message the pm service pushes to the new socket that the
+    session-start pm show writes onto the need, or, should the session read first, from pm reply read once that pm
+    show flags the reply."""
     ids = clone.seed(1)
     sprint = ids["sprint"]
     asked = clone.run(runtime, f"next-prompt-1-{runtime}", f"""You work in this git repo, whose project work pm \
@@ -312,9 +315,9 @@ raising it, with one line: asked.""", TIMEOUT)
     inbox_by_runtime(check, asked, need, "as raised")
     check(replied is not None and replied.returncode == 0, f"the owner's reply failed: {replied}")
     reached = run.reached_by(OWNER_ANSWER)
-    check(any(r == "queued" or "pm " in r for r in reached),
-          f"{run.name}: the reply reached the resumed session by {reached or 'nothing'}, not a pm command (pm reply "
-          f"read, once pm show flagged it) or a message the pm service queued into it")
+    check(any(r in ("pushed", "queued") or "pm " in r for r in reached),
+          f"{run.name}: the reply reached the resumed session by {reached or 'nothing'}, not a message the pm service "
+          f"pushed or queued into it or a pm command (pm reply read, once pm show flagged it)")
     need = items.get(need.get("id", ""), {})
     inbox_by_runtime(check, run, need, "after the resumed session's start refreshed it")
     check((need.get("need") or {}).get("delivered", 0) >= 1, f"{run.name}: the reply was not delivered: {need.get('need')}")
