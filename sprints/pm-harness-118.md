@@ -119,6 +119,11 @@ The design page decision-need-layout stays as it is for this sprint's code chang
 needs.go only refuses a question need in pm need edit and the answer commands; the page holds a decision need's parts, layout and checks, which are unchanged
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page record-layer stays as it is for this sprint's code changes.
+records.go only adds Sessions ask you to the generated headings a sprint or day record may not hold; the page lists no such headings, and its review-card line stays true
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
