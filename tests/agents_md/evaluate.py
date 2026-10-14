@@ -53,7 +53,7 @@ VOTES = 5  # calls on each part; a finding stands when a majority (3) agree on i
 # nearly every call; a passage flagged by noise at a rate p per call stands at about 10p^3, against 3p^2 for 2 of 3
 DIFF_CRITERIA = ("accurate", "complete")
 MODEL = "haiku"
-TIMEOUT = 240  # seconds per call; a call past it fails the run
+TIMEOUT = 420  # seconds per call, inside the federated token's ~10 min; a call past it fails the run
 REAP = 10  # seconds to drain a killed call's pipes
 JOBS = 16
 CHUNK = 60_000  # characters of diff per diff-mode call

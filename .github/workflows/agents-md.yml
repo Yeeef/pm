@@ -28,8 +28,8 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # Full mode on an AGENTS.md of 11 sections makes 90 calls, 16 at a time, each killed at 240 s: done within 24 min
-    timeout-minutes: 30
+    # Full mode on an AGENTS.md of 11 sections makes 90 calls, 16 at a time, each killed at 420 s: done within 42 min
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
