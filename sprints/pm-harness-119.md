@@ -113,6 +113,17 @@ stop.go only gains mainOf, which StoreOf now uses to find the store; where the s
   clean --apply, which the inbox context line makes visible on resume; and pm
   clean --apply resets an interactive session idle over 30 min.
 
+- Live check, scratch clone (agents.Clone, pm 8646707), real claude -p Haiku
+  sessions, 1 passed in 59.65 s. Autopilot chat ask: blocked by the Stop hook
+  (10.9 s). A session that ran pm interactive got mode file
+  .pm/run/sessions/<its id>. Resumed with the same ask: 0 blocks, 3.3 s, and
+  the prompt carried the inbox line. After pm autopilot the file was gone and
+  the ask was blocked again (16.1 s). A TUI session's !pm interactive created
+  the file for that TUI session's own id, so bash-mode commands get
+  CLAUDE_CODE_SESSION_ID. The judge being skipped is inferred: the same ask
+  was blocked 2 of 2 times in autopilot and 0 of 1 in interactive, with the
+  shorter latency.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
