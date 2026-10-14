@@ -90,10 +90,23 @@ pm init plans repo files only without .pm/config.toml (internal/cli/setup/init.g
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: an owner's reply reaches the session that asked by the pm service's push alone, with the `pm show` flag and `pm reply read` as the safety net; `pm reply wait` and `pm hook inbox` are removed, delivered as [PR #90](https://github.com/Yeeef/pm/pull/90).
+
+- `pm reply wait <id>` and its service code (`WaitReply`, `ReplyPoll`, `MarkWithin`, `Mark` and the rest) removed; raise output and the site's "no push" card name the `pm show` flag and `pm reply read <id>`.
+- `pm hook inbox` and its UserPromptSubmit entries removed from both `claudeHooks` and `codexHooks`.
+- `pm init`'s hook presence check now counts a pm hook this version does not write as drift, so a first install takes an earlier pm's hook out; `pm upgrade` takes it out of an installed repo; `pm doctor` reports it.
+- 11 design pages updated to the new state; changelog entry `changelog.d/reply-delivery-by-push-alone.md` (Removed: next release 0.10.0).
+- PR diff: 32 files, +244 / -666 before the review fixes.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| `pm reply wait` and `pm hook inbox` are unknown commands; grep finds them only in the released notes and the entry | Met, with named exceptions | `.go/pm reply wait x` and `.go/pm hook inbox`: "invalid choice", exit 2. `grep -rn "reply wait\|hook inbox"` outside records also finds the tests and one comment for taking the stale hook out (`internal/install/hooks_test.go`, `pieces.go`, `tests/test_init.py`), and this repo's own `.claude/settings.json` and `.codex/hooks.json`, which the pinned 0.9.1 wrote and which still has the command; the pin move rewrites them |
+| `pm init` on a scratch clone with the old entry removes it, asserted by a test | Met for a first install; an installed repo by `pm upgrade` (sprint decision) | `test_init_takes_out_an_earlier_pms_inbox_hook` runs `pm init` on a scratch repo seeded with every current hook plus the stale one: 1 failed on the old presence check, passes on the new. `TestAnEarlierPmsInboxHookIsTakenOut` covers Plan (init), Rewrite (upgrade) and Drift (doctor) for both files |
+| `make test`, `make test-go`, `make lint` pass; the PR's CI is green | Met | `make test`: 132 passed, 161 skipped; `make test-go` exit 0; `make lint` 0 issues. CI on `fa51b8a`: 13 of 13 checks pass, after the AGENTS.md check was rerun (it failed on three runs on lines the PR does not change; Findings) |
+| The reply-delivery page names push and the `pm show` flag as the only routes; listed under Design pages | Met | [Reply delivery](../design/reply-delivery.md), records commits `bca443a` and `75faa6e`; listed above |
+
+Not run: `make test-live-parity`, whose next-prompt check now accepts a push; no live check beyond the integration test that runs `pm init` on a scratch repo.
