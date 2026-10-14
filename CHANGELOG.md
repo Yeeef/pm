@@ -29,6 +29,44 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.9.0] - 2026-10-14
+
+pm reads and writes JSON with Go's own encoder now that Python pm is retired, and quotes a value in its messages the
+Go way; the files pm writes in a repo stay byte for byte the same when their text is ASCII. pm reads each option only
+by its whole name.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.9.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.9.0`, then commit what it changes and merge it, as an ordinary PR.
+
+### Changed
+
+- A message that quotes a value quotes it in double quotes, Go's way, instead of Python's single quotes: for example
+  `no open project "old"; open ones: demo` (was `'old'`), `--merged "HEAD" is not a commit sha`, and the records
+  commit `pm: renamed sprint <id> to "Sprint 1: …"`. The wording around the value is unchanged. A record header's list
+  value shows its strings the same way (`covers is a list of path patterns …; got "internal/**"`), and a hook input of
+  the wrong type is named by its JSON type (`last_assistant_message is a number`, was `a int`).
+- `pm show --json` writes non-ASCII text as it is (UTF-8) instead of `\uXXXX` escapes; its layout is unchanged.
+- The hooks' JSON output (`pm prime --hook-json`, `pm hook inbox`, `pm hook stop`, `pm hook owner-request`) is compact
+  (`{"decision":"block","reason":"…"}`) and keeps non-ASCII text as it is. Claude Code and Codex read it as before.
+- The site's `/version` answer is compact JSON, and its time drops a trailing `.0`.
+- `.pm/config.toml` keeps a non-ASCII value (a remote or branch name, say) as it is instead of a `\uXXXX` escape; a
+  character outside the Basic Multilingual Plane was written as a pair of escapes TOML does not read, and is now
+  written as it is. With a non-ASCII value, `pm doctor` names the file as differing until `pm upgrade` rewrites it.
+- `.claude/settings.json`, `.codex/hooks.json` and `.claude/settings.local.json` keep a number as the file writes it
+  (`1.50` stays `1.50`) where pm rewrote it the way Python writes numbers, and `pm init` no longer refuses a file
+  only for such a number. A string holding U+2028 or U+2029 is now written with that character escaped, so `pm init`
+  refuses a file that holds either one raw as not laid out as pm writes JSON.
+
+### Removed
+
+- An abbreviated option is refused: `pm task add --tit x` no longer means `--title x` but fails with
+  `unrecognized arguments: --tit x`, as any unknown argument does. Write each option in full. A prefix could change
+  meaning when a command gained an option that shares it, and no agent or doc in use relied on one. A command line
+  with both an unknown argument and a missing required one now names the unknown one.
+
 ## [0.8.8] - 2026-10-13
 
 `pm check` and its `--help` state the sprint-close rule for covers patterns as pm 0.8.6 applies it.
@@ -780,6 +818,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.9.0]: https://github.com/Yeeef/pm/compare/pm-v0.8.8...pm-v0.9.0
 [0.8.8]: https://github.com/Yeeef/pm/compare/pm-v0.8.7...pm-v0.8.8
 [0.8.7]: https://github.com/Yeeef/pm/compare/pm-v0.8.6...pm-v0.8.7
 [0.8.6]: https://github.com/Yeeef/pm/compare/pm-v0.8.5...pm-v0.8.6
