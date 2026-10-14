@@ -243,6 +243,14 @@ Owner in chat, 2026-10-14: the goal must make clear to pm agents what a decision
   authorized step from the decision kind); the Codex miss rate before the fix
   was about 1 in 6 runs, so two clean runs are a small sample.
 
+- The CI job cases (make test-live-agents-md) failed in 3 of 6 runs on this
+  branch: its clean case got fail: non_inferable. Grader noise, not this
+  branch: the clean case's 3 non_inferable calls, 24 runs per tree, failed
+  4/24 on the branch and 6/24 on origin/main 8ad2720, each time 2 of 3 haiku
+  calls calling a different CLAUDE.md line (a Map row, the lint rule, the
+  go-os-tests bullet) a restatement of a doc comment. At about 20% per run the
+  job fails often on any PR.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
