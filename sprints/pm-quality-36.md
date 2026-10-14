@@ -75,6 +75,12 @@ None yet.
   lifecycle_test.go:244). After the fix the 8-copy reproduction passed 24 of
   24 at ea50cfd.
 
+- At the fix's commit ea50cfd, `make test-go` passed 10 of 10 runs one after
+  another on the 32-core machine, 19 to 21 s each; 1-min load at each start:
+  17.03, 14.03, 11.67, 9.82, 8.73, 7.39, 14.18, 11.44, 10.26, 10.19. An
+  earlier 10 at 3b1b655 (before the errcheck fixes) also passed 10 of 10 (load
+  5.35 to 11.22). `make lint` (golangci-lint 2.14.0, ruff) passes.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
