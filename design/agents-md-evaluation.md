@@ -52,7 +52,9 @@ Non-goals:
 | A Linux argument is at most 128 KiB | The prompt goes on stdin |
 | GitHub Actions to the Anthropic API works through workload identity federation (sprint 23 Findings) | No stored API key; a fresh OIDC token per call, as the GitHub JWT lives 5 min |
 | `release/merge_ready.py` requires every workflow with a `pull_request` trigger and no `paths` | The workflow has no paths filter; a conditional job skips itself instead |
-| A stochastic grader false-fails a clean file on borderline readings: one call per criterion failed half the clean full runs (sprint 23 Findings) | The rubric fails only clear defects, every fail must quote AGENTS.md, full mode takes a majority of 3 calls, and the clean case must pass every run |
+| A stochastic grader false-fails a clean file on borderline readings: one call per criterion failed half the clean full runs (sprint 23 Findings), and one diff-mode call's finding in 1 of 5 chunks failed a PR that only added a golden file (run 38567955117) | The rubric fails only clear defects, every fail must quote AGENTS.md, every part in both modes takes a majority of 3 calls, and the clean case must pass every run |
+| A full-mode fail is mostly 3 of 3 calls agreeing on new AGENTS.md text, such as a rule a test already enforces restated (sprint 33 Findings): the check working, which a rerun gives again | The failure output says so: fix AGENTS.md as the agreed findings say; a rerun helps only after an error or a timeout |
+| A stochastic grader also misses a planted defect that reads either way: `map_detail` and `accurate_wrong_behaviour` each passed 1 of 5 local runs | A planted case's text is unmistakable under its criterion; a case that misses gets clearer text, never a new label |
 
 ## Design
 
@@ -89,8 +91,8 @@ root, the prompt on stdin, in a process group of its own killed whole at the tim
 
 | Mode | When | Calls |
 |---|---|---|
-| full | `--mode full`, or `auto` when the diff since the merge base changes AGENTS.md | One per criterion on the whole file; `accurate` one per `## ` section of AGENTS.md (the whole file as context); `no_copies` and `consistent` get `prime.md` (and the preamble) in the prompt. Each of these parts but `complete`'s gets 3 calls (the vote). 52 calls on an AGENTS.md of 11 sections |
-| diff | `--mode diff --base REF`, or `auto` otherwise | `accurate` (does the diff make an AGENTS.md claim false?) and `complete` (does it add a rule AGENTS.md lacks?) on each chunk of `git diff <merge-base>...HEAD`, cut at file boundaries at 60,000 characters; testdata, `uv.lock`, `go.sum` and the work-test seconds file left out. An empty diff makes no call and passes |
+| full | `--mode full`, or `auto` when the diff since the merge base changes AGENTS.md or the grader (`GRADER`: `tests/agents_md/`, the live test, the workflow), since a changed grader must still pass the real AGENTS.md | Parts: each criterion on the whole file; `accurate` on each `## ` section of AGENTS.md (the whole file as context); `no_copies` and `consistent` get `prime.md` (and the preamble) in the prompt. 3 calls per part (the vote): 54 calls on an AGENTS.md of 11 sections |
+| diff | `--mode diff --base REF`, or `auto` otherwise | Parts: `accurate` (does the diff make an AGENTS.md claim false?) and `complete` (does it add a rule AGENTS.md lacks?) on each chunk of `git diff <merge-base>...HEAD`, cut at file boundaries at 60,000 characters; testdata, `uv.lock`, `go.sum` and the work-test seconds file left out. 3 calls per part (the vote): 6 per chunk. An empty diff makes no call and passes |
 
 All calls of a run go at once (`--jobs`, 16). The answer schema is `{"findings": [{"quote", "problem", "evidence"}]}`.
 
@@ -99,10 +101,14 @@ ellipses, compared without Markdown marks and spacing, at every place it occurs.
 on one section, on the whole file, or on one diff chunk) vote: a finding is agreed when a majority of the part's
 calls (2 of 3) each report a finding whose lines intersect its lines, its own call counted, and the part fails on an
 agreed finding. So two calls that each flag a different passage do not fail the part; two that flag one passage do.
-This holds for every full-mode criterion but `complete`, which, like each diff-mode call, is one call that fails on
-any finding. A criterion fails when one of its parts fails. The table prints every call's findings with their lines,
-a finding no majority agrees with marked `outvoted`, and per criterion the count of calls with findings and of
-agreed findings; `--out` keeps each finding's lines.
+A `complete` finding names a missing rule and quotes nothing, so it has no lines; two such findings agree, so
+`complete` fails a part when a majority of its calls each report a missing rule. A criterion fails when one of its
+parts fails. The table prints every call's findings with their lines, a finding no majority agrees with marked
+`outvoted`, and per criterion the count of calls with findings and of agreed findings; `--out` keeps each finding's
+lines. Under the table, a run that failed on agreed findings prints one line naming the criteria and what to do: fix
+AGENTS.md as the findings say (cut text that restates what the code, a test or a lint already says; correct a false
+claim; add a missing rule), since a rerun will not change agreed findings. A run that failed on an error or a timeout
+prints that a rerun may help.
 
 An answer is malformed, and the run fails, when it is not JSON, has no structured output, has a finding without
 quote or evidence, or quotes text that is not in AGENTS.md (compared without Markdown marks and spacing, ellipses
@@ -124,9 +130,9 @@ the checkout's tracked files, committed, then its edits committed on top, so a d
 | Case | Edit | Must fail |
 |---|---|---|
 | `accurate_unknown_target` | A `make test-smoke` that does not exist, under Tests | accurate |
-| `accurate_wrong_behaviour` | "`make lint` runs `make go-build` first" | accurate |
+| `accurate_wrong_behaviour` | "`make lint` runs only `ruff check`", which the Makefile's `lint` prerequisites refute | accurate |
 | `non_inferable_tour` | A file-by-file tour of `internal/work` | non_inferable |
-| `map_detail` | A subsection on the work store host's stored procedures | map |
+| `map_detail` | A subsection on the work store host: its socket and clients, then a table of every stored procedure with its arguments, bound and effect | map |
 | `no_copies_bodies` | `prime.md`'s Bodies paragraph, as `prime.md` has it | no_copies |
 | `actionable_dont` | "Don't break the hooks." | actionable |
 | `no_history_dated` | A dated judge eval result | no_history |
@@ -142,6 +148,7 @@ prompt change, or a fix to AGENTS.md when the clean case fails on a real defect.
 `make test-live-agents-md` (`tests/test_agents_md_live.py`, `PM_LIVE_TESTS=1`) runs every case `PM_LIVE_RUNS` times
 (3) on each of `PM_AGENTS_MD_MODELS` (default: the runner's model), every call in one pool, and requires every run to
 give its case's verdict; it prints pass counts, per-call and per-run latency (median, p90, max) and cost per run.
+`PM_AGENTS_MD_CASES` runs only the cases it names, `PM_AGENTS_MD_SKIP` leaves out the ones it names.
 `tests/test_agents_md_eval.py` tests the runner offline against a fake `claude`.
 
 ### The model
@@ -154,9 +161,14 @@ numbers are in sprint 23's Findings.
 `.github/workflows/agents-md.yml`, `on: pull_request` without paths, `id-token: write`:
 
 - `check`: checkout with full history, Claude Code from its native installer, `make agents-md-check
-  BASE=origin/<base>`, the answers uploaded as an artifact. 20 min job timeout.
-- `cases`: when the PR changes `tests/agents_md/`, the live test or the workflow, the labelled cases once each
-  (`PM_LIVE_RUNS=1`); otherwise a step says so and the job passes.
+  BASE=origin/<base>` (auto mode: full on a change to AGENTS.md or the grader), the answers uploaded as an artifact.
+  20 min job timeout.
+- `cases`: when the PR changes the grader (its grep names `GRADER`'s paths, which `tests/test_agents_md_eval.py`
+  holds equal), the planted and diff cases once each (`PM_LIVE_RUNS=1`, `PM_AGENTS_MD_SKIP=clean`); otherwise a step
+  says so and the job passes. The harness files the live test runs under (`conftest.py`, `run.py`, the Makefile) do
+  not run it: the light suite covers them. The clean case is left out because `check` grades the same commit's
+  AGENTS.md in full mode on every grader change, so it would only repeat that verdict; a local
+  `make test-live-agents-md` keeps it.
 
 ## Alternatives considered
 
@@ -171,8 +183,10 @@ numbers are in sprint 23's Findings.
 | The Agent SDK (Python) | A dependency and a second agent loop for what `claude -p` with a schema already does |
 | One call grading every criterion | Long, unfocused calls; one per criterion keeps each call under the timeout and its answer about one thing |
 | Retrying a failed or malformed call | A retry changes what a verdict means; a flaky grader shows in the labelled cases instead |
-| One call per criterion, failing on any finding | Measured on the clean file: half the full runs false-failed (map, non_inferable, accurate) |
-| A vote on `complete` and in diff mode | Neither false-failed in the measurement (complete 0 of 14 runs; diff mode 0 of 15 on five merged PRs); a vote would triple their calls for nothing |
+| One call per part, failing on any finding | Measured on the clean file: half the full runs false-failed (map, non_inferable, accurate); in diff mode one call's finding in 1 of 5 chunks failed a PR |
+| `complete` left single-call | It did not false-fail in its measurement (0 of 14 runs), but one rule for every part is simpler, and its vote costs 2 calls of 54 |
+| `complete` findings agreeing only on the same rule | Telling two wordings of one missing rule apart is a semantic match no line test gives; complete did not false-fail on a single call, so any-rule agreement is enough |
+| The clean case in CI's `cases` job | It grades the commit's own AGENTS.md, as `check` does in full mode on the same change, so it only repeated `check`'s verdict and failed the job on its noise |
 
 ## Prior art
 
@@ -194,7 +208,5 @@ numbers are in sprint 23's Findings.
 - A full run's slowest accuracy call has reached 149 s of its 240 s timeout; a longer AGENTS.md section may need a
   finer split.
 - How Claude Code behaves when a call outlives the 10 min federated token (not reached at 240 s per call).
-- Residual variance under the vote: 1 of 10 clean full runs still false-failed (non_inferable, two calls on two
-  different passages). The vote counts calls with findings, not agreement on one defect; requiring the failing calls
-  to name the same passage, or fixing the passages that draw repeated findings, would lower it. Full mode runs only on
-  a PR that changes AGENTS.md; diff mode, on every other PR, did not false-fail.
+- Residual variance under the vote: a passage that two of three calls flag on a borderline reading still fails a
+  clean file; fixing the passages that draw repeated findings lowers it.
