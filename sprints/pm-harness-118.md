@@ -278,6 +278,16 @@ Project rule (2026-10-14): a transcript is read only when no event gives the fac
   open sends it SIGTERM at +21 ms; a chosen answer sends no signal; no hook
   process outlives the session.
 
+- Questions close from hook events, no transcript or rollout read (72b703a):
+  Claude PostToolUse closes a dialog answer, SIGTERM (Esc, session stop)
+  dismisses, Codex UserPromptSubmit closes a typed answer, the service closes
+  before codex queue. Parity -k ask_tool, 5 passed (Esc scenario added): each
+  chat answer and the Esc closed the need by the first check after the key
+  press (<0.5 s; Codex was 41.5 s via the sweep); site answer reached Claude
+  in 0.5 s, Codex in 5.1 s. Whether a codex-queued message fires
+  UserPromptSubmit was not observed; the service's close before the queue and
+  Relayed make it harmless either way.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
