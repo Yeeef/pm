@@ -28,7 +28,8 @@ Goals:
 - A rubric for a good AGENTS.md, each criterion judged pass or fail with evidence.
 - An evaluation: an agent with read access to the checkout grades AGENTS.md on the rubric, accuracy against the code
   included.
-- It runs in CI on every PR, and `make merge-ready` refuses a PR where it did not pass.
+- It runs in CI: diff mode on every PR, which `make merge-ready` requires; full mode and the labelled cases daily on
+  main when AGENTS.md or the grader changed.
 - The evaluation is itself tested: labelled cases, the clean file and planted defects, each given its verdict in every
   run.
 - One path for a local run and CI: `make agents-md-check`.
@@ -51,7 +52,8 @@ Non-goals:
 | `claude -p --json-schema` returns `structured_output` beside `total_cost_usd` | A strict answer and its cost from one call |
 | A Linux argument is at most 128 KiB | The prompt goes on stdin |
 | GitHub Actions to the Anthropic API works through workload identity federation (sprint 23 Findings) | No stored API key; a fresh OIDC token per call, as the GitHub JWT lives 5 min |
-| `release/merge_ready.py` requires every workflow with a `pull_request` trigger and no `paths` | The workflow has no paths filter; a conditional job skips itself instead |
+| `release/merge_ready.py` requires every workflow with a `pull_request` trigger and no `paths` | The workflow has no paths filter; the daily jobs skip themselves on a PR |
+| Full mode's floor is its slowest call: a `consistent` call makes about 24 tool turns in sequence, 73-131 s median and 102-154 s max over 4 CI runs, while every other criterion's median is under 40 s | No pool size or call order brings a full-mode job (setup included) reliably under 155 s, so full mode and the cases leave the PR path |
 | A stochastic grader false-fails a clean file on borderline readings: one call per criterion failed half the clean full runs (sprint 23 Findings), and one diff-mode call's finding in 1 of 5 chunks failed a PR that only added a golden file (run 38567955117) | The rubric fails only clear defects, every fail must quote AGENTS.md, every part in both modes takes a majority of 5 calls (3 agreeing), and the clean case must pass every run |
 | A full-mode fail is mostly 3 of 3 calls agreeing on new AGENTS.md text, such as a rule a test already enforces restated (sprint 33 Findings): the check working, which a rerun gives again | The failure output says so: fix AGENTS.md as the agreed findings say; a rerun helps only after an error or a timeout |
 | A stochastic grader also misses a planted defect that reads either way: `map_detail` and `accurate_wrong_behaviour` each passed 1 of 5 local runs | A planted case's text is unmistakable under its criterion; a case that misses gets clearer text, never a new label |
@@ -91,8 +93,8 @@ root, the prompt on stdin, in a process group of its own killed whole at the tim
 
 | Mode | When | Calls |
 |---|---|---|
-| full | `--mode full`, or `auto` when the diff since the merge base changes AGENTS.md or the grader (`GRADER`: `tests/agents_md/`, the live test, the workflow), since a changed grader must still pass the real AGENTS.md | Parts: each criterion on the whole file; `accurate` on each `## ` section of AGENTS.md (the whole file as context); `no_copies` and `consistent` get `prime.md` (and the preamble) in the prompt. 5 calls per part (the vote): 90 calls on an AGENTS.md of 11 sections |
-| diff | `--mode diff --base REF`, or `auto` otherwise | Parts: `accurate` (does the diff make an AGENTS.md claim false?) and `complete` (does it add a rule AGENTS.md lacks?) on each chunk of `git diff <merge-base>...HEAD`, cut at file boundaries at 60,000 characters; testdata, `uv.lock`, `go.sum` and the work-test seconds file left out. 5 calls per part (the vote): 10 per chunk. An empty diff makes no call and passes |
+| full | `--mode full` (CI's daily run), or `auto` (the local default) when the diff since the merge base changes AGENTS.md or the grader (`GRADER`: `tests/agents_md/`, the live test, the workflow), since a changed grader must still pass the real AGENTS.md | Parts: each criterion on the whole file; `accurate` on each `## ` section of AGENTS.md (the whole file as context); `no_copies` and `consistent` get `prime.md` (and the preamble) in the prompt. 5 calls per part (the vote): 90 calls on an AGENTS.md of 11 sections |
+| diff | `--mode diff --base REF` (CI on every PR), or `auto` otherwise | Parts: `accurate` (does the diff make an AGENTS.md claim false?) and `complete` (does it add a rule AGENTS.md lacks?) on each chunk of `git diff <merge-base>...HEAD`, cut at file boundaries at 60,000 characters; testdata, `uv.lock`, `go.sum` and the work-test seconds file left out. 5 calls per part (the vote): 10 per chunk. An empty diff makes no call and passes |
 
 All calls of a run go at once (`--jobs`, 16). The answer schema is `{"findings": [{"quote", "problem", "evidence"}]}`.
 
@@ -166,20 +168,26 @@ numbers are in sprint 23's Findings.
 
 ### CI
 
-`.github/workflows/agents-md.yml`, `on: pull_request` without paths, `id-token: write`:
+`.github/workflows/agents-md.yml`: `on: pull_request` without paths, `schedule` (daily) and `workflow_dispatch`;
+`id-token: write`, and `actions: read` for the daily gate.
 
-- `check`: checkout with full history, Claude Code from its native installer, `make agents-md-check
-  BASE=origin/<base>` (auto mode: full on a change to AGENTS.md or the grader), the answers uploaded as an artifact.
-  50 min job timeout: a call takes at most 460 s (an OIDC token fetch of up to 30 s, the call killed at 420 s, 10 s
-  to reap it), and 90 calls on an AGENTS.md of 11 sections, 16 at a time, are 6 waves: 6 × 460 s = 46 min, plus
-  setup.
-- `cases`: when the PR changes the grader (its grep names `GRADER`'s paths, each directory with what is under it and each file exactly,
-  as `evaluate.grader` matches them; `tests/test_agents_md_eval.py` derives the grep from `GRADER`), the planted and diff cases once each (`PM_LIVE_RUNS=1`, `PM_AGENTS_MD_SKIP=clean`); otherwise a step
-  says so and the job passes. 95 min job timeout: about 170 calls, 16 at a time, are 11 waves of 460 s, 85 min at
-  worst, plus setup; a run typically takes about 4 min. The harness files the live test runs under (`conftest.py`, `run.py`, the Makefile) do
-  not run it: the light suite covers them. The clean case is left out because `check` grades the same commit's
-  AGENTS.md in full mode on every grader change, so it would only repeat that verdict; a local
-  `make test-live-agents-md` keeps it.
+- `check` (PRs only): checkout with full history, Claude Code from its native installer, `make agents-md-check
+  MODE=diff BASE=origin/<base>`, the answers uploaded as an artifact. 45 min job timeout: a call takes at most 460 s
+  (an OIDC token fetch of up to 30 s, the call killed at 420 s, 10 s to reap it), and a diff of up to 480 KB is 80
+  calls, 16 at a time, 5 waves: 5 × 460 s = 39 min, plus setup.
+- `changed` (schedule and dispatch only), the gate: `gh run list --workflow agents-md.yml --branch <ref> --status
+  success` gives the newest successful run whose event is not `pull_request`; `git diff --name-only <its head>
+  HEAD` is grepped for AGENTS.md and `GRADER`'s paths, each directory with what is under it and each file exactly, as
+  `evaluate.grader` matches them (`tests/test_agents_md_eval.py` derives the grep from both). A successful run either
+  graded its commit or found nothing changed since an earlier one, so the diff from the newest covers every change not
+  yet graded. No earlier successful run: everything runs. A `gh` or `git` failure fails the run; it never guesses.
+  Nothing changed: the run passes without a model call.
+- `full`, after the gate: `make agents-md-check MODE=full`, the answers uploaded. 50 min job timeout: 90 calls on
+  an AGENTS.md of 11 sections, 16 at a time, are 6 waves: 6 × 460 s = 46 min, plus setup.
+- `cases`, after the gate: the planted and diff cases once each (`PM_LIVE_RUNS=1`, `PM_AGENTS_MD_SKIP=clean`). 95 min
+  job timeout: about 170 calls, 16 at a time, are 11 waves of 460 s, 85 min at worst, plus setup; a run typically
+  takes about 4 min. The clean case is left out because `full` grades the same commit's AGENTS.md, so it would only
+  repeat that verdict; a local `make test-live-agents-md` keeps it.
 
 ## Alternatives considered
 
@@ -199,7 +207,9 @@ numbers are in sprint 23's Findings.
 | A majority of 3 calls (2 agreeing) | Scattered noise at a rate p per call on a passage stands at about 3p² there, against 10p³ for 3 of 5: on the clean file 1 of 10 full runs and 1 of 5 clean cases false-failed when 2 of 3 non_inferable calls flagged one line (sprint 33 Findings) |
 | `complete` left single-call | It did not false-fail in its measurement (0 of 14 runs), but one rule for every part is simpler, and its vote costs 4 calls of 90 |
 | `complete` findings agreeing only on the same rule | Telling two wordings of one missing rule apart is a semantic match no line test gives; complete did not false-fail on a single call, so any-rule agreement is enough |
-| The clean case in CI's `cases` job | It grades the commit's own AGENTS.md, as `check` does in full mode on the same change, so it only repeated `check`'s verdict and failed the job on its noise |
+| The clean case in CI's `cases` job | It grades the commit's own AGENTS.md, as `full` does on the same run, so it only repeated that verdict and failed the job on its noise |
+| Full mode and the cases on every PR that changes AGENTS.md or the grader | They held such a PR 3-5 min (full grading 164-226 s, cases 219-267 s) |
+| Keeping them on PRs with a larger pool and the slowest criteria started first | Replaying CI's per-call times shows it cuts full mode to its slowest `consistent` call (102-154 s), still over the target with setup in half the runs; the cases also carry a Go build for the harness |
 
 ## Prior art
 
