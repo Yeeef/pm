@@ -175,10 +175,19 @@ Owner chose it in chat over a local-only eval with a calibration stamp: grader c
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the AGENTS.md check gives the same verdict on reruns: every known-good input passed 10 of 10 and every known-bad one failed 10 of 10 (PR #95).
+
+- Every part of a grading gets 5 calls; a finding stands only when 3 distinct calls flag the same line.
+- A grader change grades AGENTS.md in full mode; the cases job runs only on grader changes, without the clean case (owner decision).
+- Two planted cases plant unambiguous defects; the rubric passes a Map row's pointer summary; four restating passages in AGENTS.md became pointers.
+- A failed run says whether to fix AGENTS.md or rerun; 420 s per call, check job 50 min, cases job 95 min.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **3 known-good inputs, 10 reruns each, 30/30 pass: met.** Main's AGENTS.md in full mode 10/10 (at 420 s per call: 0 agreed findings, slowest call 167 s, median run 236 s and $0.55); PR #85's diff 10/10; PR #83's diff 10/10; a 3-chunk diff of PRs #81-#88 10/10. Before: 9/10, 10/10, 9/10.
+- **A known-bad AGENTS.md fails 10/10: met.** The planted `accurate_wrong_behaviour` failed 10/10 and `diff_renamed_target` 10/10, both measured under the 3-of-5 vote before its per-line form; under the final per-line vote every planted case failed its criterion (12/12, one run each). The per-line rule only narrows when a finding stands.
+- **The labelled cases pass: met.** Locally 39/39 (3 runs each, clean included); the cases job passed on PR #95 in 4m22s.
+- **Per-criterion pass rates before and after in Findings: met.** Main's AGENTS.md, calls with findings: `non_inferable` 13/30 before, 4/50 after; agreed findings 2 before, 0 after.
+- **Cost:** a full run went from $0.34 / 196 s to about $0.55 / 236 s; measurement spend about $41 across the sprint.
