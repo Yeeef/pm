@@ -206,6 +206,15 @@ The window is one store write (tens to hundreds of ms); closing it would need th
   the reads was closed as delivered without reaching the session. Migration
   2->4 and a v3/v4 two-clone merge were checked in a scratch copy and hold.
 
+- Codex 0.162.1, TUI under a pty: PreToolUse and PostToolUse fire for
+  request_user_input_async (Default) and request_user_input (Plan);
+  PermissionRequest fires for neither. Hook stdin carries tool_use_id (the
+  rollout's call_id), turn_id, transcript_path, tool_input. PostToolUse's
+  tool_response is {accepted:true} for the async tool and
+  {answers:{<id>:{answers:[...]}}} for the blocking one. A PreToolUse deny
+  with a reason reaches the model as the tool output (Default mode, observed),
+  so it can carry an answer; Plan mode untested.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
