@@ -137,6 +137,18 @@ An ended session cleans up after itself structurally; the one-day window keeps p
   was blocked 2 of 2 times in autopilot and 0 of 1 in interactive, with the
   shorter latency.
 
+- Live check, round 3 (dbf3f41, scratch clone, Claude Code 2.1.300 Haiku,
+  codex-cli 0.162.1): 4 passed in 114.68 s. (1) claude -p ran pm interactive,
+  then asked in chat: not blocked; owner-request took 26 ms (judge skipped);
+  the mode file was gone after the run (SessionEnd). (2) Same with pm
+  autopilot: blocked. (3) TUI: !pm interactive set the file; after /compact
+  the one SessionStart context carried the interactive rule header; the ask
+  was not blocked (26 ms); /exit removed the file. (4) codex exec ran pm
+  interactive, then asked: not blocked, and the file was gone before exec
+  exited. Seen besides: after the block in (2), Haiku with no project or
+  sprint in the clone still ended with an ask in chat, which the second stop
+  let through (stop_hook_active, existing behaviour).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
