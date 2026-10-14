@@ -58,6 +58,11 @@ Retire the post-checkout git hook and pm ownership of core.hooksPath.
 Session start already runs the same clone setup in every agent worktree; the hook only covered worktrees used without a session, at the cost of owning the hooks path and rewriting the hook on every pin move.
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page pm-in-codex stays as it is for this sprint's code changes.
+The PR changes only pieces.go's git-hook piece, which this page does not describe; its runtime hook entries are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
