@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T21:08:07+00:00",
- "digest": "704d110256e103ef",
+ "generated_at": "2026-10-14T21:18:32+00:00",
+ "digest": "1cc624b854cde630",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions and replies:** Ask-tool questions now appear on the site, and the first answer from the site or chat is used. A change removes the reply wait and inbox commands; owner replies reach a session by push alone.\n- **Pull request CI:** Pull requests run only the Go tests their changed files can affect, and macOS runs only the OS-dependent ones. MacOS compute fell on several pull requests, but the run time is still above target.\n- **Agent behavior:** Agents no longer ask permission before opening a project, sprint or task the owner requested. Claude Code's auto memory is now off in this repo.\n- **Agent guidance checks:** AGENTS.md is now a short map that every runtime reads in full. A check grades it on every pull request; work on repeatable verdicts is in progress."
+ "text": "- **Questions on the site:** Agents can ask the owner questions with the ask tool. The owner answers on the site or in chat, and the first answer wins.\n- **Pull request checks:** A pull request runs only the Go tests its changed files can affect. On three measured pull requests, macOS compute fell by roughly half.\n- **Agent rules and sessions:** Each session sets interactive or autopilot mode, which gates the owner-request judge. Agents now open requested projects, sprints and tasks without asking permission.\n- **Benchmark study and record design:** A survey of long-horizon agent benchmarks now proposes a shortlist for measuring pm. A design page for per-sprint record drafts was written and reviewed."
 }
