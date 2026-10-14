@@ -43,7 +43,7 @@ The `agents md` workflow's grading of AGENTS.md is deterministic enough to gate 
 
 > Where is the detail?
 
-None yet.
+- [AGENTS.md rubric and its agentic evaluation](../design/agents-md-evaluation.md): the per-line vote of 5 calls, the advice lines, the cases job, the timeouts.
 
 ## Progress
 
