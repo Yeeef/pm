@@ -47,7 +47,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-14}
+Retire the post-checkout git hook and pm ownership of core.hooksPath.
+Session start already runs the same clone setup in every agent worktree; the hook only covered worktrees used without a session, at the cost of owning the hooks path and rewriting the hook on every pin move.
+:::
 
 ## Findings
 
