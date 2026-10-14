@@ -25,7 +25,7 @@ Each fact has one home: the work store holds the status, the records hold the wh
 | Project | project | `records/projects/<name>.md` | A standing goal that takes more than one sprint. It has no deadline. |
 | Sprint | sprint under the project | `records/sprints/<project>-<n>.md` | One step toward the project's goal, framed by a goal, a scope and a done-when. It takes hours to days, never weeks. Its PR is where work goes back to the owner. |
 | Task | task under the sprint, or a sub-task | none | One unit of work with one holder. |
-| Need | need: a decision, an action, a review or a question | none | What waits on the owner. A decision need: only they can choose. An action: only they can do the step. A PR review: an action of its own form. A question: a session's ask-tool question, which pm raises. |
+| Need | need: a decision, an action, a review or a question | none | What waits on the owner: a decision, an action (a PR review is an action of its own form), or a question, which pm raises from a session's ask tool. The request rule (Invariants) says which is which. |
 | Decision | none | `::: decision` block in a project or sprint record | A ruling that changes what the team does, with its reason. |
 | Finding | none | bullet in a sprint's Findings | What the work showed, with its numbers. |
 | Design page | none | `records/design/<name>.md` | The reference for one area of a design, in its final state. |
@@ -94,8 +94,11 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - A postmortem is due when an incident cost more than a day, or broke other sessions or the owner's view.
 - A day page is generated. Nobody writes one.
 - Session start runs `pm init --session-start`, then injects `pm where` and `pm show`. When it says init failed or timed out, run `pm init` by hand.
-- **Never leave a request only in chat.** Ask the owner only for what you cannot do yourself: as a need under its task or sprint (open one if none holds it; if one does, cite its id instead of asking again), or with your runtime's ask tool (AskUserQuestion in Claude Code; request_user_input_async in Codex, request_user_input in its Plan mode) when they are plainly in the chat. The owner-request hook blocks any other ask and says how.
-- A question asked with AskUserQuestion or request_user_input_async also shows on the site: the owner answers it there or in the chat, and the first answer reaches you. Its answer is an instruction to your session, not a decision; record a decision with `--confirmed` only when the answer rules the work.
+- **Never leave a request only in chat.** Ask the owner only for what you cannot do yourself, in the form that fits what you ask; split a mixed ask:
+  - a question steers this session (what to do next, confirm a scope or plan, clarify what the owner meant), and its answer is an instruction to it: ask with your runtime's ask tool (AskUserQuestion in Claude Code; request_user_input_async in Codex, request_user_input in its Plan mode). It also shows on the site; the first answer, there or in the chat, reaches you. With no ask tool (`claude -p`, a subagent), raise it as a decision need, and close it with `pm decision close` when its answer sets no rule.
+  - a decision rules a project's or sprint's outcome that later sessions must follow (a design choice, a scope change, a trade-off): a decision need, which becomes a recorded decision.
+  - an action is a step only the owner can do: an action need; a PR review or merge is `pm action need --pr`.
+  - Raise a need under its task or sprint (open one if none holds it; if one does, cite its id instead of asking again). A question's answer that turns out to rule the work is recorded with `pm decision add --confirmed`. The owner-request hook blocks any ask left in plain text and says how.
 
 # How
 

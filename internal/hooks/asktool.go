@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// An agent may ask the owner with its runtime's ask tool instead of raising a need, when the owner is plainly in the
-// chat: Claude Code's AskUserQuestion, Codex's request_user_input_async (Default mode) or request_user_input (Plan
+// An agent asks the owner a question that steers its session with its runtime's ask tool instead of raising a need:
+// Claude Code's AskUserQuestion, Codex's request_user_input_async (Default mode) or request_user_input (Plan
 // mode). The owner sees such a question in the session, so the owner-request check must not take it, or the reply's
 // repeat of it, for an ask left only in chat; Codex's async tool returns at once, and its question can also end up in
 // the turn's final message. ToolAsks finds those questions in the turn that is stopping; the judge gets them beside

@@ -26,3 +26,11 @@ well as in the session's chat; the first answer reaches the session.
 - A question's answer steers the session that asked and records no decision: `pm decision add --need`,
   `pm decision close`, `pm action done` and `pm need edit` refuse a question and name `pm need dismiss`, which closes a
   stale one.
+
+### Changed
+
+- pm's rules choose how an agent asks the owner by what it asks, not by whether the owner is in the chat: a question
+  that steers the session (what to do next, confirm a plan, clarify what the owner meant) goes through the runtime's
+  ask tool, or as a decision need where there is none (`claude -p`, a subagent); a decision on a project's or sprint's
+  outcome is a decision need; a step only the owner can do is an action need. The owner-request hook's block reason
+  says the same.
