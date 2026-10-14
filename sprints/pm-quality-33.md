@@ -79,6 +79,17 @@ None yet.
   repeats check's verdict on an AGENTS.md edit; cases now runs on every PR
   touching tests/conftest.py, tests/run.py or the Makefile.
 
+- Planted cases, 5 local haiku runs each (branch agents-md-stable): map_detail
+  4/5 with the old text, 5/5 with the new (a host-procedure table);
+  accurate_wrong_behaviour 4/5 old ('make lint runs make go-build first',
+  blurred by the Makefile's comment on shared compiles), 5/5 new ('make lint
+  runs only ruff check'); complete_merge_ready, complete_pm_launched,
+  diff_renamed_target and diff_neutral 5/5 each under the 3-call vote; every
+  other planted case 5/5. Smoke on the fixed grader: full mode pass (54 calls,
+  135 s, $0.35); diff mode on PR #85's merge pass (6 calls, 21 s, $0.02); diff
+  mode on ask-tool-on-site head de575a9, the 5-chunk diff run 38567955117
+  failed on, pass (30 calls, 51 s, $0.24).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
