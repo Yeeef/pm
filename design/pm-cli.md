@@ -5,7 +5,6 @@ project: pm-harness
 covers:
   - "internal/cli/cli.go"
   - "internal/cli/commands*.go"
-  - "internal/cli/help.go"
   - "internal/cli/help_golden_test.go"
   - "internal/cli/testdata/help.golden"
   - "internal/cli/doc_test.go"

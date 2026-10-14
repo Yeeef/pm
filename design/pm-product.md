@@ -5,7 +5,6 @@ project: pm-harness
 covers:
   - "internal/install/**"
   - "internal/cli/setup/**"
-  - "internal/cli/install.go"
   - "internal/cli/service.go"
   - "internal/service/unit*.go"
   - "internal/service/lifecycle*.go"
