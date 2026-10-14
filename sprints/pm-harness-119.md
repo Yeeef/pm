@@ -80,6 +80,11 @@ The mode is read from the runtime transcript, not a file: the session is interac
 Only the runtime writes owner prompts into its transcript, so an agent cannot set the mode short of tampering with that file; with no state file, pm clean has nothing to reset and no idle session loses its mode.
 :::
 
+::: decision {source=owner date=2026-10-14}
+Ship the shell commands pm interactive and pm autopilot, which create and remove the mode file .pm/run/sessions/<session-id> using the session id from the environment; the Stop hook checks that file. This replaces the prompt keyword and the transcript design. prime.md says an agent runs them only when the owner asks; nothing enforces it.
+Any file-based mode can be set by an agent whichever way it is meant to be set, so a prompt keyword buys no protection; reading the transcript would protect it but costs a scan per stop (0.1 s for grep over a 410 MB transcript, warm). The owner chose the simplest design.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
