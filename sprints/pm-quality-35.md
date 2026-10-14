@@ -126,10 +126,15 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the pm code and test metrics doc now measures origin/main `8ad2720` (#88), with every table, reading and figure from one run of its generator on 2026-10-14.
+
+- CI wall per PR: median 1.7 min over the last 5 merged PRs (was 2.9), 2.3 min over 30 recent ones (was 4.0); the tail is now the `agents md / cases` job, not the macOS queue.
+- The trend runs through sprint 32 (24 commits); the generator was fixed to find sprints 22, 26, 27 and 28, to read `test-go`'s `$(MAKE) -j` recipe, and to mark the CI sprints' merges.
+- Found, not fixed (out of scope): `make test-go` failed 4 of 7 runs at `8ad2720`, each in `go-test-race-service` (":8002 is held by another store"); recorded in Findings.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **"Commit measured" names an origin/main commit of 2026-10-14 or later, and every table and figure comes from that run's data:** met. The header names `8ad2720`, committed 2026-10-14 12:31 UTC, measured 20:12–20:26 UTC; the tables come from `draw` of that run's data, and the 5 figures were redrawn from it.
+- **`pm commit` passes, and the site page shows the new commit and CI numbers:** met through the service that serves the site. `pm commit` committed the doc, its generator and 5 svgs as `c3f9b0a`, and the service pushed it to origin/records at 20:36 UTC. `curl http://127.0.0.1:8001/docs/2026-10-12-pm-quality-metrics.html` returns 200 with `8ad2720` and "median 1.7 min over the last 5 merged PRs; 2.3 min over 30 recent ones". The public URL answers through Cloudflare Access (302 to its login), so curl could not read it there.
