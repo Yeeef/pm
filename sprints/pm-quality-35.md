@@ -112,6 +112,11 @@ None yet.
   merges of #80 and #81, the span that holds only #62 (internal/cli split by
   noun).
 
+- Reruns: 7 of 507 pull_request runs since 2026-10-12 failed, then passed on a
+  rerun (1.4%; was 7 of 457, 1.5%): agents md cases 3, pm go 3 (race
+  linux-amd64 2, work linux-amd64 1, 2.8% of 108 pm go runs), pm tests
+  integration 1.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
