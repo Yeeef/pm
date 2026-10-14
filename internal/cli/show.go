@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Yeeef/pm/internal/config"
@@ -69,7 +70,7 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 		if list == "" {
 			list = "none"
 		}
-		return "", refuse("no open project %s; open ones: %s", pyRepr(name), list)
+		return "", refuse("no open project %s; open ones: %s", strconv.Quote(name), list)
 	}
 	if p.Get("json") != "" {
 		return showDumps(data.json()), nil
@@ -261,7 +262,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 		epic := p.Bead()
 		pi := r.item(epic)
 		if pi == nil {
-			return nil, fmt.Errorf("project record %s names %s, which the work store does not hold", p.Rel, pyRepr(epic))
+			return nil, fmt.Errorf("project record %s names %s, which the work store does not hold", p.Rel, strconv.Quote(epic))
 		}
 		if pi.Status == work.Closed {
 			continue
@@ -288,41 +289,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 			if sp.Status == work.Closed {
 				continue
 			}
-			tasks := r.x.Children(sp.ID)
-			s := &showSprint{id: sp.ID, name: name, title: sp.Title, state: site.State(sp, r.x), total: len(tasks)}
-			doneWhen := ""
-			if rec != nil {
-				doneWhen = records.SectionText(rec.Body, "Done when")
-				rel, out := rec.Rel, url+"/"+rec.Out()
-				s.record, s.url = &rel, &out
-				s.goal = firstSentence(records.SectionText(rec.Body, "Goal"), 110)
-			}
-			s.doneWhenItems = len(showListItem.FindAllStringIndex(doneWhen, -1))
-			if s.doneWhenItems == 0 {
-				s.doneWhen = firstSentence(doneWhen, 110)
-			}
-			for _, t := range tasks {
-				if t.Status == work.Closed {
-					if site.State(t, r.x) == "done" {
-						s.done++
-					} else { // dropped: not done, and no longer to do
-						s.total--
-					}
-					continue
-				}
-				status := string(t.Status)
-				if t.Holder != nil {
-					status = "in_progress"
-				}
-				blocked := []string{}
-				for _, b := range t.BlockedBy {
-					if x := r.item(b); x == nil || x.Status != work.Closed {
-						blocked = append(blocked, b)
-					}
-				}
-				s.tasks = append(s.tasks, showTask{id: t.ID, title: t.Title, state: site.State(t, r.x), status: status,
-					human: t.Type == work.Need, kind: site.Kind(t), blockedBy: blocked, holder: holderOf(t)})
-			}
+			s := r.showSprintOf(sp, rec, name, url)
 			sprints = append(sprints, s)
 		}
 		sort.SliceStable(decisions, func(i, j int) bool {
@@ -388,78 +355,6 @@ func showRequestPlace(it *work.Item, items *records.Items, project string) (spri
 		task = below[0]
 	}
 	return sprint, task
-}
-
-// ---------------------------------------------------------------- JSON
-
-func showOpt(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
-}
-
-func showOptPtr(s *string) any {
-	if s == nil {
-		return nil
-	}
-	return *s
-}
-
-func (h *holder) json() any {
-	if h == nil {
-		return nil
-	}
-	return showObj{{"session", h.Session}, {"assignee", nil}, {"claimed_at", h.ClaimedAt.UTC().Format("2006-01-02T15:04:05Z")},
-		{"live", h.Live}}
-}
-
-func (d *showData) json() any {
-	projects := []any{}
-	for _, p := range d.projects {
-		sprints := []any{}
-		for _, s := range p.sprints {
-			tasks := []any{}
-			for _, t := range s.tasks {
-				blocked := []any{}
-				for _, b := range t.blockedBy {
-					blocked = append(blocked, b)
-				}
-				tasks = append(tasks, showObj{{"id", t.id}, {"title", t.title}, {"state", t.state}, {"status", t.status},
-					{"human", t.human}, {"kind", t.kind}, {"blocked_by", blocked}, {"holder", t.holder.json()}})
-			}
-			sprints = append(sprints, showObj{{"id", s.id}, {"name", s.name}, {"title", s.title}, {"state", s.state},
-				{"record", showOptPtr(s.record)}, {"url", showOptPtr(s.url)}, {"done", s.done}, {"total", s.total},
-				{"goal", s.goal}, {"done_when_items", s.doneWhenItems}, {"done_when", s.doneWhen}, {"tasks", tasks}})
-		}
-		needs := []any{}
-		for _, n := range p.needs {
-			needs = append(needs, showObj{{"sprint", showOpt(n.sprint)}, {"task", showOpt(n.task)}, {"id", n.id},
-				{"title", n.title}, {"kind", n.kind}, {"session", showOpt(n.session)}, {"replied", n.replied}})
-		}
-		decisions := []any{}
-		for _, x := range p.decisions {
-			decisions = append(decisions, showObj{{"date", x.date}, {"source", x.source}, {"level", x.level},
-				{"record", x.record}, {"text", x.text}})
-		}
-		projects = append(projects, showObj{{"name", p.name}, {"bead", p.bead}, {"title", p.title}, {"url", p.url},
-			{"goal", p.goal}, {"sprints", sprints}, {"needs", needs}, {"decisions", decisions}})
-	}
-	push := []any{}
-	for _, l := range d.push {
-		push = append(push, l)
-	}
-	var summary, generated any
-	if d.summary != nil {
-		summary = firstSentence(records.SummaryLine(d.summary.Text), 160)
-		generated = d.summary.GeneratedAt
-	}
-	var feedback any
-	if d.feedback != nil {
-		feedback = showObj{{"entries", d.feedback.entries}, {"url", d.feedback.url}}
-	}
-	return showObj{{"site", d.site}, {"projects", projects}, {"push", push}, {"today", showObj{{"date", d.today},
-		{"page", "days/" + d.today + ".html"}, {"summary", summary}, {"generated_at", generated}}}, {"feedback", feedback}}
 }
 
 // ---------------------------------------------------------------- text
@@ -665,7 +560,7 @@ func sprintDetail(r *repo, id string) (string, error) {
 	}
 	sp := r.item(id)
 	if sp == nil {
-		return "", fmt.Errorf("the work store holds no item %s", pyRepr(id))
+		return "", fmt.Errorf("the work store holds no item %s", strconv.Quote(id))
 	}
 	out := []string{sp.Title + "  " + id + "  " + site.State(sp, r.x) + "  " + r.rel(rec.Path)}
 	for _, name := range []string{"Goal", "Scope", "Done when", "Findings"} {
@@ -680,4 +575,43 @@ func sprintDetail(r *repo, id string) (string, error) {
 		out = append(out, line)
 	}
 	return strings.Join(out, "\n"), nil
+}
+
+func (r *repo) showSprintOf(sp *work.Item, rec *records.Record, name, url string) *showSprint {
+	tasks := r.x.Children(sp.ID)
+	s := &showSprint{id: sp.ID, name: name, title: sp.Title, state: site.State(sp, r.x), total: len(tasks)}
+	doneWhen := ""
+	if rec != nil {
+		doneWhen = records.SectionText(rec.Body, "Done when")
+		rel, out := rec.Rel, url+"/"+rec.Out()
+		s.record, s.url = &rel, &out
+		s.goal = firstSentence(records.SectionText(rec.Body, "Goal"), 110)
+	}
+	s.doneWhenItems = len(showListItem.FindAllStringIndex(doneWhen, -1))
+	if s.doneWhenItems == 0 {
+		s.doneWhen = firstSentence(doneWhen, 110)
+	}
+	for _, t := range tasks {
+		if t.Status == work.Closed {
+			if site.State(t, r.x) == "done" {
+				s.done++
+			} else { // dropped: not done, and no longer to do
+				s.total--
+			}
+			continue
+		}
+		status := string(t.Status)
+		if t.Holder != nil {
+			status = "in_progress"
+		}
+		blocked := []string{}
+		for _, b := range t.BlockedBy {
+			if x := r.item(b); x == nil || x.Status != work.Closed {
+				blocked = append(blocked, b)
+			}
+		}
+		s.tasks = append(s.tasks, showTask{id: t.ID, title: t.Title, state: site.State(t, r.x), status: status,
+			human: t.Type == work.Need, kind: site.Kind(t), blockedBy: blocked, holder: holderOf(t)})
+	}
+	return s
 }

@@ -42,15 +42,15 @@ func TestCoversIsADesignPagesListOfPatterns(t *testing.T) {
 		{page("covers:\n  - internal/records/**\n  - prime.md\n"), ""},
 		{page("covers: []\n"), ""},
 		{page("covers: internal/records/**\n"), "design/t: covers is a list of path patterns relative to the repo " +
-			"root, e.g. covers: [internal/records/**, prime.md]; got 'internal/records/**'"},
+			"root, e.g. covers: [internal/records/**, prime.md]; got \"internal/records/**\""},
 		{page("covers: [5]\n"), "design/t: covers pattern 5 is not a string; quote it"},
-		{page("covers: [/abs/x.go]\n"), "design/t: covers pattern '/abs/x.go' is not relative to the repo root " +
+		{page("covers: [/abs/x.go]\n"), "design/t: covers pattern \"/abs/x.go\" is not relative to the repo root " +
 			"(no leading /)"},
-		{page("covers: [internal/../x.go]\n"), "design/t: covers pattern 'internal/../x.go' has an empty, . or .. " +
+		{page("covers: [internal/../x.go]\n"), "design/t: covers pattern \"internal/../x.go\" has an empty, . or .. " +
 			"segment"},
-		{page("covers: [internal/**.go]\n"), "design/t: covers pattern 'internal/**.go' has ** inside a segment; ** " +
+		{page("covers: [internal/**.go]\n"), "design/t: covers pattern \"internal/**.go\" has ** inside a segment; ** " +
 			"stands alone between slashes (internal/**/x.go)"},
-		{page("covers: ['internal/[x.go']\n"), "design/t: covers pattern 'internal/[x.go' is no glob: syntax error " +
+		{page("covers: ['internal/[x.go']\n"), "design/t: covers pattern \"internal/[x.go\" is no glob: syntax error " +
 			"in pattern"},
 		{"---\ntype: doc\ntitle: T\ndate: 2026-10-01\nproject: demo\ncovers: [x]\n---\n\nx\n",
 			"docs/2026-10-01-t: covers is a design page's header field; remove it"},

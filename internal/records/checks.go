@@ -1,6 +1,7 @@
 package records
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/work"
 )
 
@@ -249,29 +249,25 @@ func ReadSummary(path string) (*Summary, error) {
 	if err != nil {
 		return nil, err
 	}
-	v, err := pyjson.Loads(string(b))
-	if err != nil {
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
 		return nil, errorf("%s: not valid JSON (%v); fix it or delete it and run pm day summarize", name, err)
 	}
-	o, ok := v.(*pyjson.Object)
+	o, ok := v.(map[string]any)
 	fields := map[string]string{}
 	for _, k := range []string{"date", "generated_at", "digest", "text"} {
-		s, isStr := any(nil), false
-		if ok {
-			s = o.Get(k)
-			_, isStr = s.(string)
-		}
-		if !isStr {
+		s, isStr := o[k].(string)
+		if !ok || !isStr {
 			return nil, errorf("%s: a summary is a JSON object with string fields date, generated_at, digest and "+
 				"text; fix it or delete it and run pm day summarize", name)
 		}
-		fields[k] = s.(string)
+		fields[k] = s
 	}
 	if day := strings.SplitN(base, ".", 2)[0]; fields["date"] != day {
-		return nil, errorf("%s: its date is %s, not the date in its name", name, pyjson.StrRepr(fields["date"]))
+		return nil, errorf("%s: its date is %q, not the date in its name", name, fields["date"])
 	}
 	if _, err := ParseISO(fields["generated_at"]); err != nil {
-		return nil, errorf("%s: generated_at %s is not an ISO timestamp", name, pyjson.StrRepr(fields["generated_at"]))
+		return nil, errorf("%s: generated_at %q is not an ISO timestamp", name, fields["generated_at"])
 	}
 	return &Summary{fields["date"], fields["generated_at"], fields["digest"], fields["text"]}, nil
 }
@@ -284,7 +280,7 @@ var isoRE = regexp.MustCompile(`^(\d{4})-?(\d{2})-?(\d{2})(?:[T ](\d{2})(?::?(\d
 func ParseISO(s string) (time.Time, error) {
 	m := isoRE.FindStringSubmatch(s)
 	if m == nil {
-		return time.Time{}, fmt.Errorf("Invalid isoformat string: %s", pyjson.StrRepr(s)) //nolint:staticcheck // ST1005: Python's datetime error, word for word
+		return time.Time{}, fmt.Errorf("Invalid isoformat string: %q", s) //nolint:staticcheck // ST1005: Python's datetime error's wording
 	}
 	layout, value := "2006-01-02", m[1]+"-"+m[2]+"-"+m[3]
 	if m[4] != "" {
@@ -317,7 +313,7 @@ func ParseISO(s string) (time.Time, error) {
 	}
 	t, err := time.ParseInLocation(layout, value, loc)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("Invalid isoformat string: %s", pyjson.StrRepr(s)) //nolint:staticcheck // ST1005: Python's datetime error, word for word
+		return time.Time{}, fmt.Errorf("Invalid isoformat string: %q", s) //nolint:staticcheck // ST1005: Python's datetime error's wording
 	}
 	return t, nil
 }

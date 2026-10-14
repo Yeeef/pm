@@ -40,7 +40,7 @@ func TestWrapFillPutsALongWordOnItsOwnLine(t *testing.T) {
 			t.Fatalf("Sub: %q %v", got, err)
 		}
 		_, err = recordSection(rec, "Nope")
-		want := "records/sprints/demo-1.md has no section named 'Nope'; its sections:\n  Goal\n    Sub\n  Scope"
+		want := "records/sprints/demo-1.md has no section named \"Nope\"; its sections:\n  Goal\n    Sub\n  Scope"
 		if err == nil || err.Error() != want {
 			t.Fatalf("Nope: %v", err)
 		}

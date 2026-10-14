@@ -28,9 +28,9 @@ linters:
     - nolintlint     # every //nolint names its linter and gives a reason
     - forbidigo      # time.Sleep in tests
     - gocritic       # diagnostic checks
+    - gocyclo       # gate every function after the complexity backlog was cleared
     # ratchet: gate only on the lines a branch changes (RATCHET in the Makefile)
     - errcheck       # with check-blank: `n, _ := strconv.Atoi(s)` is a finding
-    - gocyclo
     - gocognit
     - funlen
     - revive         # file-length-limit

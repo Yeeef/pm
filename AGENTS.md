@@ -22,7 +22,7 @@ it covers.
 | `internal/site`, `internal/service` | The pages; the pm service, its units and its access check |
 | `internal/install`, `internal/launch` | `pm init`, `doctor`, `upgrade`, `uninstall`; the launcher that runs a repo's pinned release |
 | `internal/session`, `internal/sync` | Which session runs pm and which are live; the push steps |
-| `internal/config`, `buildinfo`, `proc`, `pyjson`, `textwrap` | `.pm/config.toml`; the build's version; subprocesses; JSON as Python pm wrote it; Python's `textwrap.fill` |
+| `internal/config`, `buildinfo`, `proc`, `textwrap` | `.pm/config.toml`; the build's version; subprocesses; Python's `textwrap.fill` |
 | `tests/` | The harness: `conftest.py` (fixtures, seeds, the integration guard), the fakes, the live evals |
 | `release/`, `install.sh`, `CHANGELOG.md`, `changelog.d/` | The release build and tools (`release/README.md`); released notes; unreleased entry files |
 | `.github/workflows/`, `.github/scripts/` | CI on every PR and push to main, the release, the website deploy; their helpers |
@@ -65,12 +65,13 @@ hold it).
 - **A test that pins another version and does not test the launch sets `PM_LAUNCHED=<pin>`**, as a launched pm has
   it; without it the launcher downloads that release from GitHub.
 - A test seeds and reads work data only through the `repo` helpers that `conftest.py`'s docstring names.
-- **Golden files** (`internal/site`, `internal/install`): after an intended change, rewrite them with
-  `go test -tags gms_pure_go ./internal/<pkg> -run Golden -update` and review the diff in the PR; never hand-edit one
-  to make a test pass.
+- **Golden files** (`internal/site`, `internal/install`, and every `--help` text in `internal/cli`): after an intended
+  change, rewrite them with `go test -tags gms_pure_go ./internal/<pkg> -run Golden -update` and review the diff in the
+  PR; never hand-edit one to make a test pass.
 - **After adding or renaming an `internal/work` test, run `make go-test-work UPDATE=1`**: it measures and rewrites
   `.github/scripts/work-test-seconds.txt`, which must name every test and no other, or `go-test-work` fails.
-- A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python).
+- A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python). A function
+  or file past a cap (`.golangci.yml`, `size_test.go`) is split along a seam.
 
 ## Merging
 

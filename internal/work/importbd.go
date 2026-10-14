@@ -224,32 +224,60 @@ func parentOf(is *bdIssue) (string, []string, error) {
 
 func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error) {
 	id := is.ID
-	fail := func(format string, a ...any) (Item, error) {
-		return Item{}, fmt.Errorf("bd import: %s: %s", id, fmt.Sprintf(format, a...))
-	}
 	if is.Design != "" || is.AcceptanceCriteria != "" {
-		return fail("has design or acceptance_criteria, which the work store has no field for")
+		return Item{}, issueFailure(id, "has design or acceptance_criteria, which the work store has no field for")
 	}
 	if is.CommentCount != nil && *is.CommentCount != len(is.Comments) {
-		return fail("comment_count %d, but %d comments: a partial export", *is.CommentCount, len(is.Comments))
+		return Item{}, issueFailure(id, "comment_count %d, but %d comments: a partial export", *is.CommentCount, len(is.Comments))
 	}
 	var meta bdMetadata
 	if m := strings.TrimSpace(string(is.Metadata)); m != "" && m != "null" {
 		if err := strictly(is.Metadata, &meta); err != nil {
-			return fail("metadata: %v", err)
+			return Item{}, issueFailure(id, "metadata: %v", err)
 		}
 	}
 	parent, blockers, err := parentOf(is)
 	if err != nil {
 		return Item{}, err
 	}
-	labels := slices.Clone(is.Labels)
-	has := func(l string) bool { return slices.Contains(labels, l) }
 
 	it := Item{ID: id, Parent: parent, Title: is.Title}
 	if len(blockers) > 0 {
 		it.BlockedBy = slices.Sorted(slices.Values(blockers))
 	}
+	if err := issueType(is, &it, by); err != nil {
+		return Item{}, err
+	}
+	if err := issueStatus(is, &it); err != nil {
+		return Item{}, err
+	}
+	if err := issueSprint(is, &it, recs); err != nil {
+		return Item{}, err
+	}
+	if err := issueContent(is, &it); err != nil {
+		return Item{}, err
+	}
+	if err := issueHolder(is, &it, meta); err != nil {
+		return Item{}, err
+	}
+	issueLabels(is, &it)
+	if err := issueComments(is, &it); err != nil {
+		return Item{}, err
+	}
+	if err := issueNeed(is, &it, meta); err != nil {
+		return Item{}, err
+	}
+	return it, nil
+}
+
+func issueFailure(id, format string, a ...any) error {
+	return fmt.Errorf("bd import: %s: %s", id, fmt.Sprintf(format, a...))
+}
+
+func issueType(is *bdIssue, it *Item, by map[string]*bdIssue) error {
+	id := is.ID
+	parent := it.Parent
+	has := func(l string) bool { return slices.Contains(is.Labels, l) }
 	switch is.IssueType {
 	case "epic":
 		if parent == "" {
@@ -258,10 +286,10 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 		}
 		up := by[parent]
 		if up == nil || up.IssueType != "epic" {
-			return fail("an epic under %s, which is no project", parent)
+			return issueFailure(id, "an epic under %s, which is no project", parent)
 		}
 		if upParent, _, err := parentOf(up); err != nil || upParent != "" {
-			return fail("an epic under %s, which is no project", parent)
+			return issueFailure(id, "an epic under %s, which is no project", parent)
 		}
 		it.Type = Sprint
 	case "task", "bug":
@@ -270,22 +298,28 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 			it.Type = Need
 		}
 	default:
-		return fail("unknown issue_type %q", is.IssueType)
+		return issueFailure(id, "unknown issue_type %q", is.IssueType)
 	}
 	if (has("human") || has("action")) && it.Type != Need {
-		return fail("label human or action on a %s", it.Type)
+		return issueFailure(id, "label human or action on a %s", it.Type)
 	}
 
+	return nil
+}
+
+func issueStatus(is *bdIssue, it *Item) error {
+	id := is.ID
+	has := func(l string) bool { return slices.Contains(is.Labels, l) }
 	switch is.Status {
 	case "open", "in_progress":
 		it.Status = Open
 	case "closed":
 		it.Status = Closed
 	default:
-		return fail("unknown status %q", is.Status)
+		return issueFailure(id, "unknown status %q", is.Status)
 	}
 	if it.Status == Open && (is.CloseReason != "" || is.ClosedAt != "" || has("no-decision")) {
-		return fail("is %s with close fields (close_reason, closed_at or label no-decision)", is.Status)
+		return issueFailure(id, "is %s with close fields (close_reason, closed_at or label no-decision)", is.Status)
 	}
 	if it.Status == Closed {
 		it.CloseReason = is.CloseReason
@@ -301,28 +335,39 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 		}
 	}
 
+	return nil
+}
+
+func issueSprint(is *bdIssue, it *Item, recs BDRecords) error {
+	id := is.ID
+	parent := it.Parent
 	if it.Type == Sprint {
 		m := sprintTitle.FindStringSubmatch(is.Title)
 		if m == nil {
-			return fail("a sprint whose title does not start \"Sprint N: \"")
+			return issueFailure(id, "a sprint whose title does not start \"Sprint N: \"")
 		}
 		n, err := strconv.Atoi(m[1])
 		if err != nil || n <= 0 {
-			return fail("sprint number %q", m[1])
+			return issueFailure(id, "sprint number %q", m[1])
 		}
 		project, ok := recs.Projects[parent]
 		if !ok {
-			return fail("a sprint of %s, which has no project record", parent)
+			return issueFailure(id, "a sprint of %s, which has no project record", parent)
 		}
 		want := fmt.Sprintf("%s-%d", project, n)
 		if got, ok := recs.Sprints[id]; !ok {
-			return fail("sprint %d has no sprint record; %s.md should name it", n, want)
+			return issueFailure(id, "sprint %d has no sprint record; %s.md should name it", n, want)
 		} else if got != want {
-			return fail("its title says sprint %d, so record %s, but its record is %s", n, want, got)
+			return issueFailure(id, "its title says sprint %d, so record %s, but its record is %s", n, want, got)
 		}
 		it.Number = n
 	}
 
+	return nil
+}
+
+func issueContent(is *bdIssue, it *Item) error {
+	id := is.ID
 	it.Description = is.Description
 	if is.Notes != "" {
 		if it.Description != "" {
@@ -337,33 +382,44 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 		t    *time.Time
 	}{{"created_at", is.CreatedAt, &it.CreatedAt}, {"updated_at", is.UpdatedAt, &it.UpdatedAt},
 		{"started_at", is.StartedAt, &it.StartedAt}, {"closed_at", is.ClosedAt, &it.ClosedAt}} {
-		if *f.t, err = optStamp(id, f.name, f.s); err != nil {
-			return Item{}, err
+		at, err := optStamp(id, f.name, f.s)
+		if err != nil {
+			return err
 		}
+		*f.t = at
 	}
 
+	return nil
+}
+
+func issueHolder(is *bdIssue, it *Item, meta bdMetadata) error {
+	id := is.ID
 	if (meta.ClaimedBy == "") != (meta.ClaimedAt == "") {
-		return fail("claimed_by and claimed_at come together")
+		return issueFailure(id, "claimed_by and claimed_at come together")
 	}
 	switch is.Status {
 	case "in_progress":
 		if meta.ClaimedBy == "" {
-			return fail("in_progress without claimed_by: held by no session")
+			return issueFailure(id, "in_progress without claimed_by: held by no session")
 		}
 		at, err := stamp(id, "claimed_at", meta.ClaimedAt)
 		if err != nil {
-			return Item{}, err
+			return err
 		}
 		it.Holder = &Holder{Session: meta.ClaimedBy, ClaimedAt: at}
 	case "open":
 		if meta.ClaimedBy != "" {
-			return fail("open but claimed_by %s: neither held (in_progress) nor released", meta.ClaimedBy)
+			return issueFailure(id, "open but claimed_by %s: neither held (in_progress) nor released", meta.ClaimedBy)
 		}
 	case "closed":
 		it.ClosedBy = meta.ClaimedBy
 	}
 
-	for _, l := range labels {
+	return nil
+}
+
+func issueLabels(is *bdIssue, it *Item) {
+	for _, l := range is.Labels {
 		if !slices.Contains(flagLabels, l) {
 			it.Labels = append(it.Labels, l)
 		}
@@ -376,13 +432,17 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 		it.Labels = nil
 	}
 
+}
+
+func issueComments(is *bdIssue, it *Item) error {
+	id := is.ID
 	for _, c := range is.Comments {
 		if c.IssueID != id {
-			return fail("holds a comment of %s", c.IssueID)
+			return issueFailure(id, "holds a comment of %s", c.IssueID)
 		}
 		at, err := stamp(id, "comment "+c.ID+" created_at", c.CreatedAt)
 		if err != nil {
-			return Item{}, err
+			return err
 		}
 		cm := Comment{ID: c.ID, Kind: Note, Author: c.Author, Text: c.Text, CreatedAt: at}
 		if c.Author == siteReply {
@@ -391,12 +451,18 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 		it.Comments = append(it.Comments, cm) // in bd's order, which the store keeps
 	}
 
+	return nil
+}
+
+func issueNeed(is *bdIssue, it *Item, meta bdMetadata) error {
+	id := is.ID
+	has := func(l string) bool { return slices.Contains(is.Labels, l) }
 	if it.Type != Need {
 		if meta.Session != "" || meta.Inbox != "" || meta.InboxHost != "" || meta.PickedUp != nil ||
 			meta.Review != nil || meta.Merged != "" || meta.MergeReported != "" || is.ExternalRef != "" {
-			return fail("need metadata or external_ref on a %s", it.Type)
+			return issueFailure(id, "need metadata or external_ref on a %s", it.Type)
 		}
-		return it, nil
+		return nil
 	}
 	need := &NeedInfo{Kind: Decision}
 	switch {
@@ -407,19 +473,19 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 	}
 	if meta.PickedUp != nil {
 		if *meta.PickedUp < 0 {
-			return fail("picked_up %d", *meta.PickedUp)
+			return issueFailure(id, "picked_up %d", *meta.PickedUp)
 		}
 		need.Delivered = *meta.PickedUp
 	}
 	if meta.Session != "" {
 		need.RaisedBy = &RaisedBy{Session: meta.Session, Inbox: meta.Inbox, Host: meta.InboxHost}
 	} else if meta.Inbox != "" || meta.InboxHost != "" {
-		return fail("an inbox without the session that raised it")
+		return issueFailure(id, "an inbox without the session that raised it")
 	}
 	if need.Kind == Review {
 		rv := meta.Review
 		if is.ExternalRef != "" && is.ExternalRef != rv.PR {
-			return fail("external_ref %s is not the review's PR %s", is.ExternalRef, rv.PR)
+			return issueFailure(id, "external_ref %s is not the review's PR %s", is.ExternalRef, rv.PR)
 		}
 		need.Review = &ReviewInfo{PR: rv.PR, Sprints: slices.Clone(rv.Sprints), Designs: slices.Clone(rv.Designs),
 			Focus: rv.Focus, Merged: meta.Merged, MergeReported: meta.MergeReported}
@@ -430,10 +496,10 @@ func fromIssue(is *bdIssue, by map[string]*bdIssue, recs BDRecords) (Item, error
 			need.Review.Designs = nil
 		}
 	} else if meta.Merged != "" || meta.MergeReported != "" || is.ExternalRef != "" {
-		return fail("review data on a %s need", need.Kind)
+		return issueFailure(id, "review data on a %s need", need.Kind)
 	}
 	it.Need = need
-	return it, nil
+	return nil
 }
 
 // ReadBDRecords reads the project and sprint records' names and item ids (the bead: line of each record's header)

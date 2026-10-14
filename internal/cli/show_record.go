@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/yuin/goldmark"
@@ -83,7 +85,7 @@ func recordSection(rec *records.Record, name string) (string, error) {
 		if len(found) > 0 {
 			why = fmt.Sprintf("has %d sections", len(found))
 		}
-		return "", refuse("records/%s.md %s named %s; its sections:\n%s", rec.Rel, why, pyRepr(name), strings.Join(names, "\n"))
+		return "", refuse("records/%s.md %s named %s; its sections:\n%s", rec.Rel, why, strconv.Quote(name), strings.Join(names, "\n"))
 	}
 	lvl, start := found[0].level, found[0].line
 	end := len(lines)
@@ -119,7 +121,7 @@ func linkTarget(e *env, recs []*records.Record, target string) (*records.Record,
 	if strings.Contains(target, "/") || strings.HasSuffix(target, ".md") {
 		given := target
 		if filepath.IsAbs(given) {
-			rel, err := filepath.Rel(resolvedPath(store), resolvedPath(given))
+			rel, err := filepath.Rel(fsutil.Resolved(store), fsutil.Resolved(given))
 			if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
 				return nil, refuse("%s is not in the records store %s", target, store)
 			}
@@ -155,14 +157,14 @@ func linkTarget(e *env, recs []*records.Record, target string) (*records.Record,
 	}
 	if len(found) == 0 {
 		return nil, refuse("no record matches %s; give a sprint id, a project name, a design slug or a record path "+
-			"such as records/sprints/<name>.md", pyRepr(target))
+			"such as records/sprints/<name>.md", strconv.Quote(target))
 	}
 	if len(found) > 1 {
 		names := make([]string, len(found))
 		for i, r := range found {
 			names[i] = "records/" + r.Rel + ".md"
 		}
-		return nil, refuse("%s names %s; give the record path instead", pyRepr(target), strings.Join(names, " and "))
+		return nil, refuse("%s names %s; give the record path instead", strconv.Quote(target), strings.Join(names, " and "))
 	}
 	return found[0], nil
 }

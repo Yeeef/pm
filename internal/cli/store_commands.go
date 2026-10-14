@@ -14,6 +14,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
+	"slices"
 )
 
 // The work-store commands: task ready, edit and release, dep add and rm, comment add, need dismiss, reply add and sync,
@@ -74,11 +75,11 @@ var storeCommands = func() map[string]*storeCommand {
 	}
 	var walk func(c *command)
 	walk = func(c *command) {
-		if c.store != nil {
-			out[c.path()] = c.store
+		if c.Store != nil {
+			out[c.Path()] = c.Store
 		}
-		for _, s := range c.subs {
-			s.parent = c
+		for _, s := range c.Subs {
+			s.Parent = c
 			walk(s)
 		}
 	}
@@ -94,7 +95,7 @@ func textFlags(fs *pflag.FlagSet, what string) {
 }
 
 // storeFormOf is the form argv names, if any, and its arguments after the name: pm show with an id first, and pm task
-// add with --parent. Any other pm show or pm task add is the argparse tree's.
+// add with --parent. Any other pm show or pm task add is the command tree's.
 func storeFormOf(argv []string) (string, []string, bool) {
 	if len(argv) >= 2 && argv[0] == "show" && !strings.HasPrefix(argv[1], "-") {
 		return "show ID", argv[1:], true
@@ -220,7 +221,7 @@ func taskReady(c *storeCall) error {
 	}
 	ready := []work.Item{}
 	for _, it := range x.ReadyTasks(c.live) {
-		if sprint == "" || contains(x.Ancestors(it.ID), sprint) {
+		if sprint == "" || slices.Contains(x.Ancestors(it.ID), sprint) {
 			ready = append(ready, it)
 		}
 	}

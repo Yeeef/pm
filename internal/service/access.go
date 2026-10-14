@@ -12,12 +12,12 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	gosync "sync"
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/proc"
 )
 
 const (
@@ -50,7 +50,7 @@ func (a *accessKeys) key(team, kid string, now time.Time) (*rsa.PublicKey, error
 		return k, nil
 	}
 	if a.keys != nil && now.Sub(a.fetched) < refetchEvery {
-		return nil, fmt.Errorf("the team's keys hold no key with kid %s", proc.Repr(kid))
+		return nil, fmt.Errorf("the team's keys hold no key with kid %q", kid)
 	}
 	keys, err := fetchKeys(CertsURL(team))
 	if err != nil {
@@ -60,7 +60,7 @@ func (a *accessKeys) key(team, kid string, now time.Time) (*rsa.PublicKey, error
 	if k := keys[kid]; k != nil {
 		return k, nil
 	}
-	return nil, fmt.Errorf("the team's keys hold no key with kid %s", proc.Repr(kid))
+	return nil, fmt.Errorf("the team's keys hold no key with kid %q", kid)
 }
 
 // fetchKeys reads a JWKS: the team's RSA keys by kid.
@@ -91,7 +91,7 @@ func fetchKeys(u string) (map[string]*rsa.PublicKey, error) {
 		n, err1 := base64.RawURLEncoding.DecodeString(k.N)
 		e, err2 := base64.RawURLEncoding.DecodeString(k.E)
 		if err1 != nil || err2 != nil || len(e) == 0 || len(e) > 4 {
-			return nil, fmt.Errorf("the team's key %s is not an RSA key", proc.Repr(k.Kid))
+			return nil, fmt.Errorf("the team's key %q is not an RSA key", k.Kid)
 		}
 		keys[k.Kid] = &rsa.PublicKey{N: new(big.Int).SetBytes(n), E: int(new(big.Int).SetBytes(e).Int64())}
 	}
@@ -110,7 +110,7 @@ func (a *accessKeys) verify(token, team, aud string, now time.Time) error {
 		return fmt.Errorf("its header %w", err)
 	}
 	if head.Alg != "RS256" {
-		return fmt.Errorf("its algorithm is %s, not RS256", proc.Repr(head.Alg))
+		return fmt.Errorf("its algorithm is %q, not RS256", head.Alg)
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
@@ -222,7 +222,7 @@ func (s *server) refusal(r *http.Request) string {
 	if (public == "" || name != public) && !edge {
 		shown := "None"
 		if r.Host != "" {
-			shown = proc.Repr(r.Host)
+			shown = strconv.Quote(r.Host)
 		}
 		return fmt.Sprintf("refused: Host %s is neither this machine nor the configured site_url; open the site at %s",
 			shown, s.siteURL())

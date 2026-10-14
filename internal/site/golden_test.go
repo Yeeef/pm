@@ -242,7 +242,7 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 		{"no-header", map[string]string{"sprints/demo-1.md": strings.SplitN(sprint, "---\n", 3)[2]}, nil,
 			"sprints/demo-1: missing YAML header"},
 		{"unknown-type", map[string]string{"sprints/demo-1.md": strings.Replace(sprint, "type: sprint", "type: epic", 1)}, nil,
-			"sprints/demo-1: type must be one of project, sprint, day, design, doc, postmortem, got 'epic'"},
+			"sprints/demo-1: type must be one of project, sprint, day, design, doc, postmortem, got \"epic\""},
 		{"typed-type", map[string]string{"sprints/demo-1.md": strings.Replace(sprint, "type: sprint", "type: 5", 1)}, nil,
 			"sprints/demo-1: type must be one of project, sprint, day, design, doc, postmortem, got 5"},
 		{"missing-field", map[string]string{"sprints/demo-1.md": strings.Replace(sprint, "title: First\n", "", 1)}, nil,
@@ -278,7 +278,7 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 			"docs/2026-10-03-demo-feedback: a repo keeps one pm feedback doc, records/docs/pm-feedback.md; move this doc's entries into it in time order, each tagged with its project (About project `<name>`.), delete this doc and commit both with pm commit"},
 		{"doc-bad-date", map[string]string{"docs/2026-10-02-notes.md": "---\ntype: doc\ntitle: Notes\ndate: 2026-10\n" +
 			"project: demo\n---\n\nx\n"}, nil,
-			"docs/2026-10-02-notes: date must be YYYY-MM-DD, got '2026-10'"},
+			"docs/2026-10-02-notes: date must be YYYY-MM-DD, got \"2026-10\""},
 		{"doc-bad-path", map[string]string{"docs/notes.md": "---\ntype: doc\ntitle: Notes\ndate: 2026-10-02\nproject: demo\n" +
 			"---\n\nx\n"}, nil,
 			"docs/notes: a doc dated 2026-10-02 lives at docs/2026-10-02-<slug>.md (slug: lowercase words joined by '-')"},
@@ -291,11 +291,11 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 		{"uncited-need", nil, []string{uncited},
 			`need demo.1.9 (Pick a parser) is closed but no decision cites it; record the owner's answer with pm decision add --need demo.1.9, or, if the answer sets no rule, close it with pm decision close demo.1.9 --reason "<why>"`},
 		{"bad-summary", map[string]string{"days/2026-10-01.summary.json": `{"date": "2026-10-02", "generated_at": "x", "digest": "d", "text": "t"}`}, nil,
-			"days/2026-10-01.summary.json: its date is '2026-10-02', not the date in its name"},
+			"days/2026-10-01.summary.json: its date is \"2026-10-02\", not the date in its name"},
 		{"summary-not-object", map[string]string{"days/2026-10-01.summary.json": "[1]"}, nil,
 			"days/2026-10-01.summary.json: a summary is a JSON object with string fields date, generated_at, digest and text; fix it or delete it and run pm day summarize"},
 		{"summary-bad-time", map[string]string{"days/2026-10-01.summary.json": `{"date": "2026-10-01", "generated_at": "noon", "digest": "d", "text": "t"}`}, nil,
-			"days/2026-10-01.summary.json: generated_at 'noon' is not an ISO timestamp"},
+			"days/2026-10-01.summary.json: generated_at \"noon\" is not an ISO timestamp"},
 	}
 	for _, c := range cases {
 		dir := constructsStore(t, c.edits)

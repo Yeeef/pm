@@ -3,12 +3,14 @@ package cli
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
+	"slices"
 )
 
 // designGate is the design-page gate (design.Gate) on the files a PR changes, for the sprints it delivers. When no
@@ -36,7 +38,7 @@ func (r *repo) designGate(pr string, sprintIDs []string, files func() ([]string,
 func (r *repo) designSlugs() []string {
 	var out []string
 	for _, rec := range r.recs {
-		if rec.Type() == "design" && !contains(out, rec.Name()) {
+		if rec.Type() == "design" && !slices.Contains(out, rec.Name()) {
 			out = append(out, rec.Name())
 		}
 	}
@@ -63,8 +65,8 @@ func cmdDesignUnchanged(e *env, p *Parsed) (string, error) {
 	if it := r.item(id); it == nil || it.Status == work.Closed {
 		return "", refuse("sprint %s is closed or not in the work store; waive a page in an open sprint", id)
 	}
-	if known := r.designSlugs(); !contains(known, slug) {
-		return "", refuse("no design page %s; known: %s", pyRepr(slug), strings.Join(known, ", "))
+	if known := r.designSlugs(); !slices.Contains(known, slug) {
+		return "", refuse("no design page %s; known: %s", strconv.Quote(slug), strings.Join(known, ", "))
 	}
 	if _, ok := design.Waivers(rec)[slug]; ok {
 		return "", refuse("%s already records that design page %s stays as it is", r.rel(rec.Path), slug)

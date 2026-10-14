@@ -296,37 +296,7 @@ func results(t *testing.T) golden {
 			g.Trees = append(g.Trees, c)
 		}
 	}
-	for _, text := range goldenCodexTexts {
-		for _, roots := range [][]string{{"/a b/.git", "/é/store"}, {"/x"}} {
-			path := filepath.Join(t.TempDir(), "config.toml")
-			write := func() {
-				if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			write()
-			add := func() string { // pm init adds only what is missing, and nothing when nothing is
-				t, _, have, err := CodexConfig(path)
-				if err != nil {
-					return "error: " + err.Error()
-				}
-				var missing []string
-				for _, r := range roots {
-					if !contains(have, r) {
-						missing = append(missing, r)
-					}
-				}
-				if len(missing) == 0 {
-					return t
-				}
-				return result(AddCodexRoots(path, t, have, missing))
-			}()
-			write()
-			remove := result(RemoveCodexRoots(path, roots))
-			g.Codex = append(g.Codex, codexCase{Text: text, Roots: roots,
-				Add: tempConfig.ReplaceAllString(add, "<config>"), Remove: tempConfig.ReplaceAllString(remove, "<config>")})
-		}
-	}
+	g.Codex = codexResults(t)
 	return g
 }
 
@@ -374,4 +344,41 @@ func lineDiff(a, b string) string {
 		out = append(out, "+ "+l)
 	}
 	return strings.Join(out, "\n")
+}
+
+func codexResults(t *testing.T) []codexCase {
+	t.Helper()
+	var out []codexCase
+	for _, text := range goldenCodexTexts {
+		for _, roots := range [][]string{{"/a b/.git", "/é/store"}, {"/x"}} {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			write := func() {
+				if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write()
+			add := func() string { // pm init adds only what is missing, and nothing when nothing is
+				t, _, have, err := CodexConfig(path)
+				if err != nil {
+					return "error: " + err.Error()
+				}
+				var missing []string
+				for _, r := range roots {
+					if !contains(have, r) {
+						missing = append(missing, r)
+					}
+				}
+				if len(missing) == 0 {
+					return t
+				}
+				return result(AddCodexRoots(path, t, have, missing))
+			}()
+			write()
+			remove := result(RemoveCodexRoots(path, roots))
+			out = append(out, codexCase{Text: text, Roots: roots,
+				Add: tempConfig.ReplaceAllString(add, "<config>"), Remove: tempConfig.ReplaceAllString(remove, "<config>")})
+		}
+	}
+	return out
 }

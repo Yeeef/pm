@@ -447,36 +447,15 @@ func resolveConflicts(tx *sql.Tx) (int, []Override, error) {
 		}
 	}
 	kinds.Close()
-	side := func(prefix string) ([]Item, error) {
-		cols := strings.Fields(strings.ReplaceAll(itemColumns, ",", " "))
-		for i, c := range cols {
-			cols[i] = prefix + c
-		}
-		r, err := tx.QueryContext(ctx, "SELECT "+strings.Join(cols, ", ")+
-			" FROM dolt_conflicts_items ORDER BY dolt_conflict_id")
-		if err != nil {
-			return nil, err
-		}
-		defer r.Close()
-		var out []Item
-		for r.Next() {
-			it, err := scanItem(r)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, it)
-		}
-		return out, r.Err()
-	}
-	base, err := side("base_")
+	base, err := conflictSide(tx, "base_")
 	if err != nil {
 		return 0, nil, err
 	}
-	ours, err := side("our_")
+	ours, err := conflictSide(tx, "our_")
 	if err != nil {
 		return 0, nil, err
 	}
-	theirs, err := side("their_")
+	theirs, err := conflictSide(tx, "their_")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -699,4 +678,26 @@ func (d *Dolt) mergeCAS() error {
 		_, err := loadChecked(tx)
 		return err
 	})
+}
+
+func conflictSide(tx *sql.Tx, prefix string) ([]Item, error) {
+	cols := strings.Fields(strings.ReplaceAll(itemColumns, ",", " "))
+	for i, c := range cols {
+		cols[i] = prefix + c
+	}
+	r, err := tx.QueryContext(ctx, "SELECT "+strings.Join(cols, ", ")+
+		" FROM dolt_conflicts_items ORDER BY dolt_conflict_id")
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close() //nolint:errcheck // The query loop returns r.Err(); deferred close remains cleanup.
+	var out []Item
+	for r.Next() {
+		it, err := scanItem(r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, r.Err()
 }

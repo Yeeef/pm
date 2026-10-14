@@ -1,4 +1,4 @@
-package cli
+package parse
 
 import (
 	"fmt"
@@ -10,74 +10,71 @@ import (
 	"golang.org/x/term"
 )
 
-// The --help text, laid out as Python 3.13's argparse lays it out: the usage line wrapped to the terminal's width as
-// argparse wraps it, then the sections and alignment, with no wrapping of the help texts. Python pm wraps those to the
-// terminal too; whitespace aside, the two are identical.
+// The --help text: the usage line, wrapped to the terminal's width, then the description, the positional arguments and
+// the options, each item's help aligned at one column, then the epilog. Help texts are not wrapped.
 
-const helpPosition = 24 // argparse's max_help_position
+const helpPosition = 24 // the help column's widest position; a wider invocation puts its help on the next line
 
 var asciiSpace = regexp.MustCompile(`[ \t\n\r\f\v]+`)
 
-// collapse is argparse's whitespace handling of a help or description text: runs of ASCII whitespace become one space.
+// collapse is a help or description text as --help prints it: runs of ASCII whitespace become one space.
 func collapse(s string) string { return strings.TrimSpace(asciiSpace.ReplaceAllString(s, " ")) }
 
-// formatArgs is argparse's _format_args: the metavar part of an argument in usage and help.
-func formatArgs(a arg, def string) string {
-	m := a.metavar
+// formatArgs is the metavar part of an argument in usage and help, as its arity shows it.
+func formatArgs(a Arg, def string) string {
+	m := a.Metavar
 	if m == nil {
-		if a.choices != nil {
-			m = []string{"{" + strings.Join(a.choices, ",") + "}"}
+		if a.Choices != nil {
+			m = []string{"{" + strings.Join(a.Choices, ",") + "}"}
 		} else {
 			m = []string{def}
 		}
 	}
-	switch a.nargs {
-	case "":
+	switch a.Arity {
+	case One:
 		return m[0]
-	case "?":
+	case Optional:
 		return "[" + m[0] + "]"
-	case "*":
+	case Many:
 		return "[" + m[0] + " ...]"
-	case "+":
-		return m[0] + " [" + m[0] + " ...]"
-	case "2":
+	case Two:
 		if len(m) == 1 {
 			m = []string{m[0], m[0]}
 		}
 		return strings.Join(m, " ")
 	}
-	panic(fmt.Sprintf("pm: nargs %q of %s has no usage form", a.nargs, a.dest))
+	panic(fmt.Sprintf("pm: arity %d of %s has no usage form", a.Arity, a.Dest))
 }
 
 // usagePart is one optional's part of the usage line, without the brackets of an optional or a group.
-func usagePart(a arg) string {
-	if a.kind == flagTrue || a.kind == flagConst {
-		return a.flags[0]
+func usagePart(a Arg) string {
+	if a.Kind == SwitchOn || a.Kind == SwitchTo {
+		return a.Flags[0]
 	}
-	return a.flags[0] + " " + formatArgs(a, strings.ToUpper(a.dest))
+	return a.Flags[0] + " " + formatArgs(a, strings.ToUpper(a.Dest))
 }
 
-// choicesText is a subcommand list as argparse shows it: {a,b,c}.
-func (c *command) choicesText() string {
-	names := make([]string, len(c.subs))
-	for i, s := range c.subs {
-		names[i] = s.name
+// choicesText is a subcommand list as usage and help show it: {a,b,c}.
+func (c *Command[T]) choicesText() string {
+	names := make([]string, len(c.Subs))
+	for i, s := range c.Subs {
+		names[i] = s.Name
 	}
 	return "{" + strings.Join(names, ",") + "}"
 }
 
-// usageParts is the usage line's parts after the prog, as Python 3.13's argparse cuts them for wrapping: [-h], each
+// usageParts is the usage line's parts after the prog, the units it wraps at: [-h], each
 // optional (a mutually exclusive group's members each a part, all but the last ending in " |", the first opening the
 // group's bracket and the last closing it), then the positionals and the subcommands; nOpt is the optionals' count.
-func (c *command) usageParts() (parts []string, nOpt int) {
+func (c *Command[T]) usageParts() (parts []string, nOpt int) {
 	parts = []string{"[-h]"}
-	for i := 0; i < len(c.args); i++ {
-		a := c.args[i]
-		if a.positional() {
+	for i := 0; i < len(c.Args); i++ {
+		a := c.Args[i]
+		if a.Positional() {
 			continue
 		}
-		if a.group == 0 {
-			if a.required {
+		if a.Group == 0 {
+			if a.Required {
 				parts = append(parts, usagePart(a))
 			} else {
 				parts = append(parts, "["+usagePart(a)+"]")
@@ -85,12 +82,12 @@ func (c *command) usageParts() (parts []string, nOpt int) {
 			continue
 		}
 		var members []string
-		for ; i < len(c.args) && c.args[i].group == a.group; i++ {
-			members = append(members, usagePart(c.args[i]))
+		for ; i < len(c.Args) && c.Args[i].Group == a.Group; i++ {
+			members = append(members, usagePart(c.Args[i]))
 		}
 		i--
 		opening, closing := "[", "]"
-		if c.groups[a.group-1] {
+		if c.Groups[a.Group-1] {
 			opening, closing = "(", ")"
 			if len(members) == 1 {
 				opening, closing = "", ""
@@ -104,22 +101,22 @@ func (c *command) usageParts() (parts []string, nOpt int) {
 		parts = append(parts, members...)
 	}
 	nOpt = len(parts)
-	for _, a := range c.args {
-		if a.positional() {
-			parts = append(parts, formatArgs(a, a.dest))
+	for _, a := range c.Args {
+		if a.Positional() {
+			parts = append(parts, formatArgs(a, a.Dest))
 		}
 	}
-	if c.subs != nil {
+	if c.Subs != nil {
 		parts = append(parts, c.choicesText()+" ...")
 	}
 	return parts, nOpt
 }
 
-// usage is the usage line after "usage: ", wrapped as argparse wraps it to the terminal's width (HelpFormatter: the
-// width shutil.get_terminal_size gives, less 2): when "usage: " and the line are longer, the parts go on lines indented
-// under the first part after the prog, the positionals starting a line of their own.
-func (c *command) usage() string {
-	prog := c.prog()
+// Usage is the usage line after "usage: ", wrapped to the terminal's width less 2: when "usage: " and the line are
+// longer, the parts go on lines indented under the first part after the prog, the positionals starting a line of their
+// own; a prog wider than three quarters of the width puts every part on the lines under it.
+func (c *Command[T]) Usage() string {
+	prog := c.Prog()
 	parts, nOpt := c.usageParts()
 	line := prog + " " + strings.Join(parts, " ")
 	const prefix = "usage: "
@@ -173,8 +170,8 @@ func (c *command) usage() string {
 	return strings.Join(lines, "\n")
 }
 
-// terminalColumns is shutil.get_terminal_size().columns: $COLUMNS when a positive number, else the width of the
-// terminal on stdout, else 80.
+// terminalColumns is the terminal's width: $COLUMNS when a positive number, else the width of the terminal on stdout,
+// else 80.
 func terminalColumns() int {
 	if n, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && n > 0 {
 		return n
@@ -188,10 +185,10 @@ func terminalColumns() int {
 type helpItem struct {
 	indent     int
 	invocation string
-	help       string
+	Help       string
 }
 
-// section lays out items as argparse does: each invocation, then its help at the help column, or on the next line
+// section lays out items: each invocation, then its help at the help column, or on the next line
 // when the invocation is too wide for it.
 func section(title string, items []helpItem, column int) string {
 	var b strings.Builder
@@ -200,68 +197,68 @@ func section(title string, items []helpItem, column int) string {
 		width := column - it.indent - 2
 		pad := strings.Repeat(" ", it.indent)
 		switch {
-		case it.help == "":
+		case it.Help == "":
 			b.WriteString(pad + it.invocation + "\n")
 		case len(it.invocation) <= width:
-			fmt.Fprintf(&b, "%s%-*s  %s\n", pad, width, it.invocation, it.help)
+			fmt.Fprintf(&b, "%s%-*s  %s\n", pad, width, it.invocation, it.Help)
 		default:
-			fmt.Fprintf(&b, "%s%s\n%s%s\n", pad, it.invocation, strings.Repeat(" ", column), it.help)
+			fmt.Fprintf(&b, "%s%s\n%s%s\n", pad, it.invocation, strings.Repeat(" ", column), it.Help)
 		}
 	}
 	return b.String()
 }
 
-// help is the command's --help text.
-func (c *command) helpText() string {
+// HelpText is the command's --help text.
+func (c *Command[T]) HelpText() string {
 	var positionals, options []helpItem
-	for _, a := range c.args {
-		if a.positional() {
-			inv := a.dest
-			if a.metavar != nil {
-				inv = a.metavar[0]
-			} else if a.choices != nil {
-				inv = "{" + strings.Join(a.choices, ",") + "}"
+	for _, a := range c.Args {
+		if a.Positional() {
+			inv := a.Dest
+			if a.Metavar != nil {
+				inv = a.Metavar[0]
+			} else if a.Choices != nil {
+				inv = "{" + strings.Join(a.Choices, ",") + "}"
 			}
-			positionals = append(positionals, helpItem{2, inv, collapse(a.help)})
+			positionals = append(positionals, helpItem{2, inv, collapse(a.Help)})
 		}
 	}
-	if c.subs != nil {
+	if c.Subs != nil {
 		positionals = append(positionals, helpItem{2, c.choicesText(), ""})
-		for _, s := range c.subs {
-			positionals = append(positionals, helpItem{4, s.name, collapse(s.help)})
+		for _, s := range c.Subs {
+			positionals = append(positionals, helpItem{4, s.Name, collapse(s.Help)})
 		}
 	}
 	options = append(options, helpItem{2, "-h, --help", "show this help message and exit"})
-	for _, a := range c.args {
-		if a.positional() {
+	for _, a := range c.Args {
+		if a.Positional() {
 			continue
 		}
-		inv := strings.Join(a.flags, ", ")
-		if a.kind != flagTrue && a.kind != flagConst {
-			inv += " " + formatArgs(a, strings.ToUpper(a.dest))
+		inv := strings.Join(a.Flags, ", ")
+		if a.Kind != SwitchOn && a.Kind != SwitchTo {
+			inv += " " + formatArgs(a, strings.ToUpper(a.Dest))
 		}
-		options = append(options, helpItem{2, inv, collapse(a.help)})
+		options = append(options, helpItem{2, inv, collapse(a.Help)})
 	}
-	longest := 0 // argparse measures a subcommand at its section's indent, not its own
+	longest := 0 // a subcommand is measured at its section's indent, not its own
 	for _, it := range append(append([]helpItem{}, positionals...), options...) {
 		longest = max(longest, 2+len(it.invocation))
 	}
 	column := min(longest+2, helpPosition)
 
-	parts := []string{"usage: " + c.usage() + "\n"}
-	if c.description != "" {
-		if c.raw {
-			parts = append(parts, c.description+"\n")
+	parts := []string{"usage: " + c.Usage() + "\n"}
+	if c.Description != "" {
+		if c.Raw {
+			parts = append(parts, c.Description+"\n")
 		} else {
-			parts = append(parts, collapse(c.description)+"\n")
+			parts = append(parts, collapse(c.Description)+"\n")
 		}
 	}
 	if len(positionals) > 0 {
 		parts = append(parts, section("positional arguments", positionals, column))
 	}
 	parts = append(parts, section("options", options, column))
-	if c.epilog != "" {
-		parts = append(parts, collapse(c.epilog)+"\n")
+	if c.Epilog != "" {
+		parts = append(parts, collapse(c.Epilog)+"\n")
 	}
 	return strings.Join(parts, "\n")
 }

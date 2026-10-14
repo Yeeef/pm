@@ -16,11 +16,13 @@
 package hooks
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -29,7 +31,6 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/launch"
 	"github.com/Yeeef/pm/internal/proc"
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 const (
@@ -92,7 +93,7 @@ func Chunks(nouns []string) ([]string, error) {
 			}
 		}
 		if at[i] < 0 || (i > 0 && at[i] < at[i-1]) || at[0] != 0 {
-			return nil, fmt.Errorf("the chunk headings %s are not in order at the top of prime.md", startsRepr())
+			return nil, fmt.Errorf("the chunk headings %q are not in order at the top of prime.md", Starts)
 		}
 	}
 	var out []string
@@ -133,14 +134,6 @@ func Chunks(nouns []string) ([]string, error) {
 		out = append(out, fmt.Sprintf("# pm rules (%d of %d): %s\n\n%s", i+1, len(at), strings.Join(what, "; "), body))
 	}
 	return out, nil
-}
-
-func startsRepr() string {
-	parts := make([]string, len(Starts))
-	for i, s := range Starts {
-		parts[i] = proc.Repr(s)
-	}
-	return "(" + strings.Join(parts, ", ") + ")"
 }
 
 // failure is the line Python prints for a command that exited non-zero: (stderr or stdout).strip().splitlines().
@@ -306,12 +299,12 @@ func State(cwd *string, session string, trust func(cwd string) string) (string, 
 	if line := <-said; line != "" { // bounded by trust itself, well inside the budget
 		first = line + "\n\n" + first
 	}
-	// pm show gets what init and where left: min(TIMEOUT, max(1.0, BUDGET - elapsed)), an int when it is TIMEOUT
-	left, leftText := float64(timeout), fmt.Sprint(timeout)
+	// pm show gets what init and where left: min(TIMEOUT, max(1.0, BUDGET - elapsed))
+	left := float64(timeout)
 	if rest := budget - time.Since(start).Seconds(); rest < timeout {
 		left = max(1.0, rest)
-		leftText = pyjson.FloatRepr(left)
 	}
+	leftText := strconv.FormatFloat(left, 'f', -1, 64)
 	show, err := Context(cwd, session, Cap-utf8.RuneCountInString(first), time.Duration(left*float64(time.Second)),
 		leftText, time.Now)
 	if err != nil {
@@ -326,36 +319,104 @@ func State(cwd *string, session string, trust func(cwd string) string) (string, 
 const Subagent = "Git: commit and push are routine for agents unless your brief says otherwise; only the PR review " +
 	"and the merge wait on the owner."
 
-// ReadEvent is the hook input JSON on stdin, or nil when it is not a JSON object.
-func ReadEvent(stdin io.Reader) (*pyjson.Object, error) {
+// Event is a hook's input: a JSON object as encoding/json reads one into any.
+type Event map[string]any
+
+// ReadEvent is the hook input JSON on stdin ({} when empty), or nil when it is not a JSON object.
+func ReadEvent(stdin io.Reader) (Event, error) {
 	data, err := io.ReadAll(stdin)
 	if err != nil {
 		return nil, err
 	}
-	text := string(data)
-	if text == "" {
-		text = "{}"
+	if len(data) == 0 {
+		return Event{}, nil
 	}
-	v, err := pyjson.Loads(text)
-	if err != nil {
+	var event Event
+	if err := json.Unmarshal(data, &event); err != nil {
 		return nil, nil //nolint:nilerr // input that is not JSON reads as no event: a hook fails open
 	}
-	obj, _ := v.(*pyjson.Object)
-	return obj, nil
+	return event, nil // nil for JSON null
 }
 
 // eventString is an event field that pm passes on as a path or an id: absent or null is nil, a string is itself, and
 // anything else is an input the runtimes never send, which fails the hook.
-func eventString(event *pyjson.Object, key string) (*string, error) {
-	switch v := event.Get(key).(type) {
+func eventString(event Event, key string) (*string, error) {
+	switch v := event[key].(type) {
 	case nil:
 		return nil, nil
 	case string:
 		return &v, nil
 	default:
-		return nil, fmt.Errorf("the hook input's %s is a %s, not a string", key, pyjson.TypeName(v))
+		return nil, fmt.Errorf("the hook input's %s is a %s, not a string", key, jsonType(v))
 	}
 }
+
+// truthy is whether a JSON value is set: not null, false, 0, "", [] or {}.
+func truthy(v any) bool {
+	switch t := v.(type) {
+	case nil:
+		return false
+	case bool:
+		return t
+	case float64:
+		return t != 0
+	case string:
+		return t != ""
+	case []any:
+		return len(t) > 0
+	case map[string]any:
+		return len(t) > 0
+	}
+	return true
+}
+
+// jsonType is the JSON type of a value encoding/json read into any.
+func jsonType(v any) string {
+	switch v.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "boolean"
+	case float64:
+		return "number"
+	case string:
+		return "string"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	}
+	return fmt.Sprintf("%T", v)
+}
+
+// writeJSON prints v as one line of JSON, with <, > and & as they are.
+func writeJSON(w io.Writer, v any) error {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(v)
+}
+
+// hookContext is the output that adds context for the event that ran the hook, as Claude Code and Codex both read it.
+type hookContext struct {
+	HookSpecificOutput struct {
+		HookEventName     string `json:"hookEventName"`
+		AdditionalContext string `json:"additionalContext"`
+	} `json:"hookSpecificOutput"`
+}
+
+func contextFor(event, text string) hookContext {
+	var c hookContext
+	c.HookSpecificOutput.HookEventName, c.HookSpecificOutput.AdditionalContext = event, text
+	return c
+}
+
+// block is a Stop hook's output that blocks the stop, with the reason the agent is given.
+type block struct {
+	Decision string `json:"decision"`
+	Reason   string `json:"reason"`
+}
+
+func blockFor(reason string) block { return block{"block", reason} }
 
 // Part is which part pm prime prints: a rules chunk (1-based), the state, the subagent line, or everything.
 type Part struct {
@@ -370,7 +431,7 @@ type Part struct {
 // CmdPrime is pm prime: the rules, the commands and the state, or one part of them; with hookJSON it reads the hook
 // input on stdin and prints the envelope Claude Code and Codex both read, named for the event that ran it.
 func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout io.Writer) error {
-	event := &pyjson.Object{Values: map[string]any{}}
+	event := Event{}
 	if hookJSON {
 		e, err := ReadEvent(stdin)
 		if err != nil {
@@ -396,7 +457,7 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 			text = Subagent
 		} else {
 			var session string // only pm show reads it
-			if pyjson.Truthy(event.Get("session_id")) {
+			if truthy(event["session_id"]) {
 				s, err := eventString(event, "session_id")
 				if err != nil {
 					return err
@@ -412,14 +473,14 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 		}
 	}
 	if hookJSON {
-		name := event.Get("hook_event_name")
-		if !pyjson.Truthy(name) {
+		name, ok := event["hook_event_name"].(string)
+		if !ok || name == "" {
 			name = "SessionStart"
 			if part.Subagent {
 				name = "SubagentStart"
 			}
 		}
-		text = pyjson.Dumps([][2]any{{"hookSpecificOutput", [][2]any{{"hookEventName", name}, {"additionalContext", text}}}}, true)
+		return writeJSON(stdout, contextFor(name, text))
 	}
 	_, err := fmt.Fprintln(stdout, text)
 	return err

@@ -538,235 +538,32 @@ func (x *pair) openA(t *testing.T) *Dolt {
 // The case with a store of its own runs before the pair starts: Dolt panics in a host still running when another host
 // of the process closes ("attempt to reference a closed spoolingTableReaderAt").
 func TestCreatePushTimeout(t *testing.T) {
-	t.Run("DoltRemoteURL", func(t *testing.T) {
-		for in, want := range map[string]string{
-			"/srv/x.git":                       "git+file:///srv/x.git",
-			"file:///srv/x.git":                "git+file:///srv/x.git",
-			"https://github.com/o/r.git":       "git+https://github.com/o/r.git",
-			"ssh://git@github.com/o/r.git":     "git+ssh://git@github.com/o/r.git",
-			"git@github.com:o/r.git":           "git+ssh://git@github.com/o/r.git",
-			"git+ssh://git@github.com/o/r.git": "git+ssh://git@github.com/o/r.git",
-		} {
-			if got, err := DoltRemoteURL(in); err != nil || got != want {
-				t.Errorf("%s: %s %v", in, got, err)
-			}
-		}
-		if _, err := DoltRemoteURL("r.git"); err == nil {
-			t.Error("a relative path passed")
-		}
-	})
+	t.Run("DoltRemoteURL", checkDoltRemoteURL)
 
-	t.Run("SyncWithoutARemoteFails", func(t *testing.T) {
-		d, _ := newStore(t)
-		if _, err := d.Sync(); err == nil || !strings.Contains(err.Error(), "no remote") {
-			t.Fatal(err)
-		}
-		bare := bareRemote(t)
-		if err := d.AddRemote(bare); err != nil {
-			t.Fatal(err)
-		}
-		if err := d.AddRemote(bare); err == nil {
-			t.Fatal("a second remote was added")
-		}
-	})
+	t.Run("SyncWithoutARemoteFails", checkSyncWithoutARemoteFails)
 
 	x := newPair(t)
 
-	t.Run("SyncPushesUnderPmsOwnRefOnly", func(t *testing.T) {
-		x.on(t)
-		refs := gitRun(t, x.bare, "for-each-ref", "--format=%(refname)")
-		if !strings.Contains(refs, RemoteRef+"\n") || strings.Contains(refs, "refs/dolt/data") ||
-			strings.Contains(refs, "__dolt_remote_info__") {
-			t.Fatalf("remote refs:\n%s", refs)
-		}
-		if got := x.b.items(); !reflect.DeepEqual(got, x.a.items()) || len(got) != 5 {
-			t.Fatalf("the clone has %d items", len(got))
-		}
-	})
+	t.Run("SyncPushesUnderPmsOwnRefOnly", func(t *testing.T) { checkSyncPushesUnderPmsOwnRefOnly(t, x) })
 
 	// Concurrent child mints: B pulls and mints on pm-cas, and before its push A mints under the same parent and pushes;
 	// B's push is rejected, B drops pm-cas, pulls A's child and mints the next number. The same for a sprint's number.
 	// B runs the compare-and-swap in process (createShared, what its service runs for pm_create), so the test can hold
 	// its push; A's creates go through A's service (CALL pm_create).
-	t.Run("CreateConcurrentChildMintsGetDistinctIDs", func(t *testing.T) {
-		x.on(t)
-		var ia, ib, sa, sb Item
-		da := x.openA(t)
-		race := func(mintA func()) func(push func() error) error {
-			raced := false
-			return func(push func() error) error {
-				if !raced {
-					raced = true
-					mintA()
-				}
-				return push()
-			}
-		}
-		x.b.do(func(d *Dolt) {
-			d.pushFn = race(func() { ia = must(da.Create(New{Type: Task, Parent: x.s.ID, Title: "A"})) })
-			ib = must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "B"}))
-			d.pushFn = race(func() { sa = must(da.Create(New{Type: Sprint, Parent: x.p.ID, Title: "SA"})) })
-			sb = must(d.createShared(New{Type: Sprint, Parent: x.p.ID, Title: "SB"}))
-		})
-		if err := da.Shutdown(); err != nil {
-			t.Fatal(err)
-		}
-		if ia.ID == ib.ID || ib.ID != x.s.ID+".4" || ia.ID != x.s.ID+".3" {
-			t.Fatalf("task ids A %s B %s", ia.ID, ib.ID)
-		}
-		if sa.ID == sb.ID || sa.Number == sb.Number || sb.Number != 3 {
-			t.Fatalf("sprints A %s #%d B %s #%d", sa.ID, sa.Number, sb.ID, sb.Number)
-		}
-		items := x.converge(t)
-		if len(items) != 9 {
-			t.Fatalf("%d items", len(items))
-		}
-	})
+	t.Run("CreateConcurrentChildMintsGetDistinctIDs", func(t *testing.T) { checkCreateConcurrentChildMintsGetDistinctIDs(t, x) })
 
-	t.Run("CreatePushTimeout", func(t *testing.T) {
-		x := x.reseed(t)
-		timeout := func(landed bool) func(push func() error) error {
-			return func(push func() error) error {
-				if landed {
-					if err := push(); err != nil {
-						return err
-					}
-				}
-				return errPushTimeout
-			}
-		}
-		x.b.do(func(d *Dolt) {
-			d.pushFn = timeout(true)
-			must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "landed"}))
-			d.pushFn = nil
-			if r := must(d.Sync()); r.Pushed != 0 {
-				t.Fatalf("pushed %d after a landed create", r.Pushed)
-			}
-			calls, head := 0, must(d.head())
-			d.pushFn = func(push func() error) error { // a push that times out and has not landed when checked
-				calls++
-				return errPushTimeout
-			}
-			_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "lost"})
-			want := "the push may still land as " + x.s.ID + ".4. Nothing was merged here: run pm sync, then check with " +
-				"pm show " + x.s.ID + ".4 before you create it again"
-			if err == nil || !strings.Contains(err.Error(), "the remote's history does not hold it yet: the outcome is "+
-				"unknown") || !strings.Contains(err.Error(), want) || calls != 1 || must(d.head()) != head {
-				t.Fatalf("%d pushes: %v", calls, err)
-			}
-			d.pushFn = nil
-		})
-		x.b.do(func(d *Dolt) {
-			head := must(d.head())
-			d.pushFn = func(push func() error) error {
-				// The fetch that checks the outcome fails: the store loses its remote. (Taking the remote away would not
-				// do: a real timeout comes after PushTimeout, but here the fetch follows the pull within Dolt's 1 s read
-				// dedup, and a deduped fetch reads no remote.)
-				if _, err := d.conn.ExecContext(ctx, "CALL DOLT_REMOTE('remove', ?)", remote); err != nil {
-					t.Fatal(err)
-				}
-				return errPushTimeout
-			}
-			_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "unknown"})
-			if err == nil || !strings.Contains(err.Error(), "the outcome is unknown") || must(d.head()) != head {
-				t.Fatalf("%v", err)
-			}
-			d.pushFn = nil
-			if err := d.AddRemote(x.bare); err != nil {
-				t.Fatal(err)
-			}
-		})
-		titles := map[string]bool{}
-		for _, it := range x.converge(t) {
-			titles[it.Title] = true
-		}
-		if !titles["landed"] || titles["lost"] || titles["unknown"] {
-			t.Fatalf("%v", titles)
-		}
-	})
+	t.Run("CreatePushTimeout", func(t *testing.T) { checkCreatePushTimeout(t, x) })
 
 	// A push the client dropped at its timeout lands on the remote only after the fetch that checked it (the server
 	// finishes the dropped statement): the create fails, the outcome unknown, and mints nothing again, so the item is on
 	// the remote once, and the next sync brings it here.
-	t.Run("CreateWhosePushLandsAfterItsCheckMakesTheItemOnce", func(t *testing.T) {
-		x := x.reseed(t)
-		x.b.do(func(d *Dolt) {
-			calls := 0
-			d.pushFn = func(push func() error) error {
-				calls++
-				// the push the client dropped: C1, held to land later
-				if _, err := d.conn.ExecContext(ctx, "CALL DOLT_BRANCH('held', 'pm-cas')"); err != nil {
-					t.Fatal(err)
-				}
-				return errPushTimeout
-			}
-			_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "once"})
-			if err == nil || !strings.Contains(err.Error(), "the outcome is unknown") || calls != 1 {
-				t.Fatalf("%d pushes: %v", calls, err)
-			}
-			// the dropped push lands now, after the check
-			if err := d.remoteCall(ctx, "CALL DOLT_PUSH(?, ?)", remote, "held:main"); err != nil {
-				t.Fatal(err)
-			}
-		})
-		var ids []string
-		for _, it := range x.converge(t) {
-			if it.Title == "once" {
-				ids = append(ids, it.ID)
-			}
-		}
-		if len(ids) != 1 {
-			t.Fatalf("the item is there %d times: %v", len(ids), ids)
-		}
-	})
+	t.Run("CreateWhosePushLandsAfterItsCheckMakesTheItemOnce", func(t *testing.T) { checkCreateWhosePushLandsAfterItsCheckMakesTheItemOnce(t, x) })
 
 	// Every fetch the host's Dolt runs into the remote's cache repo, under the store's .dolt, finishes the auto
 	// maintenance it starts before it returns. git 2.47 on detaches that maintenance by default, and a detached one
 	// drops objects/maintenance.lock while a clone walks .dolt, where Dolt's walk panics on the file gone ("clone:
 	// invalid connection"). git's trace2 events name each maintenance a fetch starts, with --detach when it detaches.
-	t.Run("TheHostsFetchLeavesNoMaintenanceRunning", func(t *testing.T) {
-		trace := filepath.Join(t.TempDir(), "git-trace2")
-		t.Setenv("GIT_TRACE2_EVENT", trace)
-		x := x.reseed(t) // A pushes, B pulls (a fetch into B's cache repo)
-		x.b.do(func(d *Dolt) { must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T3"})) })
-		b, err := os.ReadFile(trace)
-		if err != nil {
-			t.Fatal(err)
-		}
-		argv, hierarchy := map[string][]string{}, map[string]string{}
-		for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
-			var e struct {
-				Event, SID, Hierarchy string
-				Argv                  []string
-			}
-			if err := json.Unmarshal([]byte(line), &e); err != nil {
-				t.Fatalf("%v: %s", err, line)
-			}
-			switch e.Event {
-			case "start":
-				argv[e.SID] = e.Argv
-			case "cmd_name":
-				hierarchy[e.SID] = e.Hierarchy
-			}
-		}
-		started, detached := 0, 0
-		for sid, h := range hierarchy {
-			if h != "fetch/maintenance" {
-				continue
-			}
-			started++
-			if slices.Contains(argv[sid], "--detach") {
-				detached++
-			}
-		}
-		if started == 0 {
-			t.Fatal("no fetch started its auto maintenance; git's trace2 logged none")
-		}
-		if detached > 0 {
-			t.Fatalf("%d of %d auto maintenances the host's fetches started were detached", detached, started)
-		}
-		t.Logf("%d auto maintenances started by a fetch, none detached", started)
-	})
+	t.Run("TheHostsFetchLeavesNoMaintenanceRunning", func(t *testing.T) { checkTheHostsFetchLeavesNoMaintenanceRunning(t, x) })
 }
 
 // A merge with the same new id on both sides, or with a blocked_by cycle across the clones, fails hard; each case
@@ -855,4 +652,228 @@ func TestCreateRefusesWithTheRemoteUnreachable(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func checkDoltRemoteURL(t *testing.T) {
+	t.Helper()
+	for in, want := range map[string]string{
+		"/srv/x.git":                       "git+file:///srv/x.git",
+		"file:///srv/x.git":                "git+file:///srv/x.git",
+		"https://github.com/o/r.git":       "git+https://github.com/o/r.git",
+		"ssh://git@github.com/o/r.git":     "git+ssh://git@github.com/o/r.git",
+		"git@github.com:o/r.git":           "git+ssh://git@github.com/o/r.git",
+		"git+ssh://git@github.com/o/r.git": "git+ssh://git@github.com/o/r.git",
+	} {
+		if got, err := DoltRemoteURL(in); err != nil || got != want {
+			t.Errorf("%s: %s %v", in, got, err)
+		}
+	}
+	if _, err := DoltRemoteURL("r.git"); err == nil {
+		t.Error("a relative path passed")
+	}
+}
+
+func checkSyncWithoutARemoteFails(t *testing.T) {
+	t.Helper()
+	d, _ := newStore(t)
+	if _, err := d.Sync(); err == nil || !strings.Contains(err.Error(), "no remote") {
+		t.Fatal(err)
+	}
+	bare := bareRemote(t)
+	if err := d.AddRemote(bare); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.AddRemote(bare); err == nil {
+		t.Fatal("a second remote was added")
+	}
+}
+
+func checkSyncPushesUnderPmsOwnRefOnly(t *testing.T, x *pair) {
+	t.Helper()
+	x.on(t)
+	refs := gitRun(t, x.bare, "for-each-ref", "--format=%(refname)")
+	if !strings.Contains(refs, RemoteRef+"\n") || strings.Contains(refs, "refs/dolt/data") ||
+		strings.Contains(refs, "__dolt_remote_info__") {
+		t.Fatalf("remote refs:\n%s", refs)
+	}
+	if got := x.b.items(); !reflect.DeepEqual(got, x.a.items()) || len(got) != 5 {
+		t.Fatalf("the clone has %d items", len(got))
+	}
+}
+
+func checkCreateConcurrentChildMintsGetDistinctIDs(t *testing.T, x *pair) {
+	t.Helper()
+	x.on(t)
+	var ia, ib, sa, sb Item
+	da := x.openA(t)
+	race := func(mintA func()) func(push func() error) error {
+		raced := false
+		return func(push func() error) error {
+			if !raced {
+				raced = true
+				mintA()
+			}
+			return push()
+		}
+	}
+	x.b.do(func(d *Dolt) {
+		d.pushFn = race(func() { ia = must(da.Create(New{Type: Task, Parent: x.s.ID, Title: "A"})) })
+		ib = must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "B"}))
+		d.pushFn = race(func() { sa = must(da.Create(New{Type: Sprint, Parent: x.p.ID, Title: "SA"})) })
+		sb = must(d.createShared(New{Type: Sprint, Parent: x.p.ID, Title: "SB"}))
+	})
+	if err := da.Shutdown(); err != nil {
+		t.Fatal(err)
+	}
+	if ia.ID == ib.ID || ib.ID != x.s.ID+".4" || ia.ID != x.s.ID+".3" {
+		t.Fatalf("task ids A %s B %s", ia.ID, ib.ID)
+	}
+	if sa.ID == sb.ID || sa.Number == sb.Number || sb.Number != 3 {
+		t.Fatalf("sprints A %s #%d B %s #%d", sa.ID, sa.Number, sb.ID, sb.Number)
+	}
+	items := x.converge(t)
+	if len(items) != 9 {
+		t.Fatalf("%d items", len(items))
+	}
+}
+
+func checkCreatePushTimeout(t *testing.T, source *pair) {
+	t.Helper()
+	x := source.reseed(t)
+	timeout := func(landed bool) func(push func() error) error {
+		return func(push func() error) error {
+			if landed {
+				if err := push(); err != nil {
+					return err
+				}
+			}
+			return errPushTimeout
+		}
+	}
+	x.b.do(func(d *Dolt) {
+		d.pushFn = timeout(true)
+		must(d.createShared(New{Type: Task, Parent: x.s.ID, Title: "landed"}))
+		d.pushFn = nil
+		if r := must(d.Sync()); r.Pushed != 0 {
+			t.Fatalf("pushed %d after a landed create", r.Pushed)
+		}
+		calls, head := 0, must(d.head())
+		d.pushFn = func(push func() error) error { // a push that times out and has not landed when checked
+			calls++
+			return errPushTimeout
+		}
+		_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "lost"})
+		want := "the push may still land as " + x.s.ID + ".4. Nothing was merged here: run pm sync, then check with " +
+			"pm show " + x.s.ID + ".4 before you create it again"
+		if err == nil || !strings.Contains(err.Error(), "the remote's history does not hold it yet: the outcome is "+
+			"unknown") || !strings.Contains(err.Error(), want) || calls != 1 || must(d.head()) != head {
+			t.Fatalf("%d pushes: %v", calls, err)
+		}
+		d.pushFn = nil
+	})
+	x.b.do(func(d *Dolt) {
+		head := must(d.head())
+		d.pushFn = func(push func() error) error {
+			// The fetch that checks the outcome fails: the store loses its remote. (Taking the remote away would not
+			// do: a real timeout comes after PushTimeout, but here the fetch follows the pull within Dolt's 1 s read
+			// dedup, and a deduped fetch reads no remote.)
+			if _, err := d.conn.ExecContext(ctx, "CALL DOLT_REMOTE('remove', ?)", remote); err != nil {
+				t.Fatal(err)
+			}
+			return errPushTimeout
+		}
+		_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "unknown"})
+		if err == nil || !strings.Contains(err.Error(), "the outcome is unknown") || must(d.head()) != head {
+			t.Fatalf("%v", err)
+		}
+		d.pushFn = nil
+		if err := d.AddRemote(x.bare); err != nil {
+			t.Fatal(err)
+		}
+	})
+	titles := map[string]bool{}
+	for _, it := range x.converge(t) {
+		titles[it.Title] = true
+	}
+	if !titles["landed"] || titles["lost"] || titles["unknown"] {
+		t.Fatalf("%v", titles)
+	}
+}
+
+func checkCreateWhosePushLandsAfterItsCheckMakesTheItemOnce(t *testing.T, source *pair) {
+	t.Helper()
+	x := source.reseed(t)
+	x.b.do(func(d *Dolt) {
+		calls := 0
+		d.pushFn = func(push func() error) error {
+			calls++
+			// the push the client dropped: C1, held to land later
+			if _, err := d.conn.ExecContext(ctx, "CALL DOLT_BRANCH('held', 'pm-cas')"); err != nil {
+				t.Fatal(err)
+			}
+			return errPushTimeout
+		}
+		_, err := d.createShared(New{Type: Task, Parent: x.s.ID, Title: "once"})
+		if err == nil || !strings.Contains(err.Error(), "the outcome is unknown") || calls != 1 {
+			t.Fatalf("%d pushes: %v", calls, err)
+		}
+		// the dropped push lands now, after the check
+		if err := d.remoteCall(ctx, "CALL DOLT_PUSH(?, ?)", remote, "held:main"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var ids []string
+	for _, it := range x.converge(t) {
+		if it.Title == "once" {
+			ids = append(ids, it.ID)
+		}
+	}
+	if len(ids) != 1 {
+		t.Fatalf("the item is there %d times: %v", len(ids), ids)
+	}
+}
+
+func checkTheHostsFetchLeavesNoMaintenanceRunning(t *testing.T, source *pair) {
+	t.Helper()
+	trace := filepath.Join(t.TempDir(), "git-trace2")
+	t.Setenv("GIT_TRACE2_EVENT", trace)
+	x := source.reseed(t) // A pushes, B pulls (a fetch into B's cache repo)
+	x.b.do(func(d *Dolt) { must(d.Create(New{Type: Task, Parent: x.s.ID, Title: "T3"})) })
+	b, err := os.ReadFile(trace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	argv, hierarchy := map[string][]string{}, map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		var e struct {
+			Event, SID, Hierarchy string
+			Argv                  []string
+		}
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("%v: %s", err, line)
+		}
+		switch e.Event {
+		case "start":
+			argv[e.SID] = e.Argv
+		case "cmd_name":
+			hierarchy[e.SID] = e.Hierarchy
+		}
+	}
+	started, detached := 0, 0
+	for sid, h := range hierarchy {
+		if h != "fetch/maintenance" {
+			continue
+		}
+		started++
+		if slices.Contains(argv[sid], "--detach") {
+			detached++
+		}
+	}
+	if started == 0 {
+		t.Fatal("no fetch started its auto maintenance; git's trace2 logged none")
+	}
+	if detached > 0 {
+		t.Fatalf("%d of %d auto maintenances the host's fetches started were detached", detached, started)
+	}
+	t.Logf("%d auto maintenances started by a fetch, none detached", started)
 }

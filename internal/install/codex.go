@@ -2,6 +2,7 @@ package install
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,7 +12,6 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -131,7 +131,7 @@ func tomlLoads(text string) (map[string]any, error) {
 func items(roots []string) string {
 	q := make([]string, len(roots))
 	for i, r := range roots {
-		q[i] = pyjson.String(r, false)
+		q[i] = tomlString(r)
 	}
 	return strings.Join(q, ", ")
 }
@@ -229,7 +229,7 @@ func RemoveCodexRoots(path string, roots []string) (string, error) {
 	}
 	section := text[header[1]:end]
 	for _, r := range gone {
-		item := pyjson.String(r, false)
+		item := tomlString(r)
 		for _, form := range []string{item + ", ", ", " + item, item} {
 			if strings.Contains(section, form) {
 				section = strings.Replace(section, form, "", 1)
@@ -267,6 +267,39 @@ func RemoveCodexRoots(path string, roots []string) (string, error) {
 		return "", refuse("editing %s would change more than writable_roots; remove these by hand: %s", path, list)
 	}
 	return n, nil
+}
+
+// tomlString is s as a TOML basic string: " and \ escaped, each control character too (\b, \t, \n, \f, \r, else
+// \uXXXX, as TOML allows none of them raw but the tab), everything else as it is.
+func tomlString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '"':
+			b.WriteString(`\"`)
+		case '\\':
+			b.WriteString(`\\`)
+		case '\b':
+			b.WriteString(`\b`)
+		case '\t':
+			b.WriteString(`\t`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\f':
+			b.WriteString(`\f`)
+		case '\r':
+			b.WriteString(`\r`)
+		default:
+			if r < 0x20 || r == 0x7f {
+				fmt.Fprintf(&b, `\u%04x`, r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 func contains(list []string, s string) bool {

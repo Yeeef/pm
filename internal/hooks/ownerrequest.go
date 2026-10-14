@@ -11,6 +11,7 @@ package hooks
 // fails, it exits 1 with the cause on stderr.
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,7 +26,6 @@ import (
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 const (
@@ -79,7 +79,7 @@ func HookOwnerRequest(here string, runtime ask.Runtime, requests Requests, stdin
 		return 0, err
 	}
 	if reason != "" {
-		if _, err := fmt.Fprintln(stdout, pyjson.Dumps([][2]any{{"decision", "block"}, {"reason", reason}}, true)); err != nil {
+		if err := writeJSON(stdout, blockFor(reason)); err != nil {
 			return 0, err
 		}
 	}
@@ -87,34 +87,34 @@ func HookOwnerRequest(here string, runtime ask.Runtime, requests Requests, stdin
 }
 
 // decide is the block reason for this stop, or "" to let it through.
-func decide(event *pyjson.Object, here string, runtime ask.Runtime, requests Requests) (string, error) {
-	if pyjson.Truthy(event.Get("stop_hook_active")) {
+func decide(event Event, here string, runtime ask.Runtime, requests Requests) (string, error) {
+	if truthy(event["stop_hook_active"]) {
 		return "", nil
 	}
-	session, ok := event.Get("session_id").(string)
+	session, ok := event["session_id"].(string)
 	if !ok || session == "" {
 		return "", hookErrorf("the hook input has no session_id")
 	}
 	var reply string // Codex sends null for a turn that ended without a message, as missing is: nothing was asked
-	switch m := event.Get("last_assistant_message").(type) {
+	switch m := event["last_assistant_message"].(type) {
 	case nil:
 	case string:
 		reply = m
 	default:
-		return "", hookErrorf("the hook input's last_assistant_message is a %s, not a string", pyjson.TypeName(m))
+		return "", hookErrorf("the hook input's last_assistant_message is a %s, not a string", jsonType(m))
 	}
 	if config.PyStrip(reply) == "" {
 		return "", nil
 	}
 	dir := here
-	if cwd, ok := event.Get("cwd").(string); ok && cwd != "" { // Python ran bd there; None is the process's directory
+	if cwd, ok := event["cwd"].(string); ok && cwd != "" { // Python ran bd there; None is the process's directory
 		dir = cwd
 	}
 	open, err := requests(dir, session)
 	if err != nil {
 		return "", hookErrorf("reading this session's open needs failed: %s", strings.Join(strings.Fields(err.Error()), " "))
 	}
-	if path, ok := event.Get("transcript_path").(string); ok && path != "" { // what the owner sees asked by the tool
+	if path, ok := event["transcript_path"].(string); ok && path != "" { // what the owner sees asked by the tool
 		for i, q := range ToolAsks(path) {
 			open = append(open, Request{ID: fmt.Sprintf("ask-tool-%d", i+1), Title: q + " " + askedWithTool})
 		}
@@ -204,7 +204,7 @@ func judge(runtime ask.Runtime, reply string, open []Request) ([]judged, error) 
 	}
 	items, ok := parseJudged(out)
 	if !ok {
-		return nil, hookErrorf("%s answered out of shape: %s", runtime.Command(), pyjson.StrRepr(head(out, 300)))
+		return nil, hookErrorf("%s answered out of shape: %q", runtime.Command(), head(out, 300))
 	}
 	return items, nil
 }
@@ -240,38 +240,22 @@ func parseJudged(out string) ([]judged, bool) {
 	if span == "" {
 		return nil, false
 	}
-	v, err := pyjson.Loads(span)
-	if err != nil {
+	var answer struct {
+		Items *[]struct {
+			Quote *string `json:"quote"`
+			Kind  *string `json:"kind"`
+			Match *string `json:"match"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(span), &answer); err != nil || answer.Items == nil {
 		return nil, false
 	}
-	obj, ok := v.(*pyjson.Object)
-	if !ok {
-		return nil, false
-	}
-	list, ok := obj.Get("items").([]any)
-	if !ok {
-		return nil, false
-	}
-	items := make([]judged, 0, len(list))
-	for _, e := range list {
-		o, ok := e.(*pyjson.Object)
-		if !ok {
+	items := make([]judged, 0, len(*answer.Items))
+	for _, e := range *answer.Items {
+		if e.Quote == nil || e.Kind == nil {
 			return nil, false
 		}
-		quote, ok1 := o.Get("quote").(string)
-		kind, ok2 := o.Get("kind").(string)
-		if !ok1 || !ok2 {
-			return nil, false
-		}
-		var match *string
-		switch m := o.Get("match").(type) {
-		case nil:
-		case string:
-			match = &m
-		default:
-			return nil, false
-		}
-		items = append(items, judged{quote, kind, match})
+		items = append(items, judged{*e.Quote, *e.Kind, e.Match})
 	}
 	return items, true
 }

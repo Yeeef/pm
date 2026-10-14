@@ -3,16 +3,17 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/pyjson"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/site"
@@ -144,7 +145,7 @@ func (r *repo) project(name string) (*records.Record, error) {
 	if list == "" {
 		list = "none"
 	}
-	return nil, refuse("no project record named %s; known projects: %s", pyRepr(name), list)
+	return nil, refuse("no project record named %s; known projects: %s", strconv.Quote(name), list)
 }
 
 // rel is a store path as pm names it: records/<path>.
@@ -219,13 +220,13 @@ func (r *repo) checkPlanned(writes []store.Write, items []work.Item) error {
 		}
 		written := map[string]bool{}
 		for _, p := range paths {
-			written[resolvedPath(p)] = true
+			written[fsutil.Resolved(p)] = true
 		}
 		if err := site.CheckNeedsAnswered(recs, x, changed); err != nil {
 			return err
 		}
 		for _, rec := range recs {
-			if written[resolvedPath(rec.Path)] || (rec.Bead() != "" && touched[rec.Bead()]) {
+			if written[fsutil.Resolved(rec.Path)] || (rec.Bead() != "" && touched[rec.Bead()]) {
 				if _, err := site.RenderRecord(rec, recs, x, nil); err != nil {
 					return err
 				}
@@ -238,18 +239,6 @@ func (r *repo) checkPlanned(writes []store.Write, items []work.Item) error {
 		return refuse("the change would not render: %s", re.Msg)
 	}
 	return err
-}
-
-// resolvedPath is Python's Path.resolve() for a path that may not exist yet.
-func resolvedPath(p string) string {
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return p
-	}
-	if r, err := filepath.EvalSymlinks(abs); err == nil {
-		return r
-	}
-	return filepath.Join(resolvedPath(filepath.Dir(abs)), filepath.Base(abs))
 }
 
 // apply writes the records and commits exactly those files, the message prefix + message; it returns message. A
@@ -345,7 +334,7 @@ const textForms = "--text or --text-file - <<'EOF'" // the two ways to give a bo
 
 // body is a command's body: --text-file's, read before the store is opened, else --text stripped, else "".
 func (e *env) body(p *Parsed) (string, error) {
-	path, given := p.values["text_file"]
+	path, given := p.Values["text_file"]
 	if !given || len(path) == 0 {
 		return config.PyStrip(p.Get("text")), nil
 	}
@@ -365,6 +354,3 @@ func firstSentence(text string, limit int) string {
 	}
 	return s
 }
-
-// pyRepr is Python's repr() of a string.
-func pyRepr(s string) string { return pyjson.StrRepr(s) }

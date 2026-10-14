@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -46,7 +46,7 @@ func findStore(cwd string) (main, records string, err error) {
 	}
 	main = filepath.Dir(common)
 	records = filepath.Join(main, config.Store)
-	if !isDir(records) {
+	if !fsutil.IsDir(records) {
 		return "", "", &refusal{fmt.Sprintf("no records store at %s; set it up with pm init", records)}
 	}
 	top, err := git(records, "rev-parse", "--show-toplevel")
@@ -61,11 +61,6 @@ func findStore(cwd string) (main, records string, err error) {
 		return "", "", &refusal{fmt.Sprintf("%s is not a worktree on branch records; move it away and run pm init", records)}
 	}
 	return main, records, nil
-}
-
-func isDir(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && st.IsDir()
 }
 
 // resolvePath is Python's Path.resolve(): symlinks followed where the path exists.

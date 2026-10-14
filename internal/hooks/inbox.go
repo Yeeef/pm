@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/Yeeef/pm/internal/pyjson"
 )
 
 // Pending is the session's undelivered replies, each as the push writes it, and deliver, which marks them delivered
@@ -30,12 +28,12 @@ func HookInbox(here string, pending Pending, stdin io.Reader, stdout, stderr io.
 		fmt.Fprintln(stderr, "pm hook inbox: the hook input is not a JSON object; no reply handed over")
 		return nil
 	}
-	session, ok := event.Get("session_id").(string)
-	if event.Get("hook_event_name") != "UserPromptSubmit" || !ok || session == "" {
+	session, ok := event["session_id"].(string)
+	if event["hook_event_name"] != "UserPromptSubmit" || !ok || session == "" {
 		return nil // no prompt to add to, or no session with requests of its own
 	}
 	dir := here
-	if cwd, ok := event.Get("cwd").(string); ok && cwd != "" {
+	if cwd, ok := event["cwd"].(string); ok && cwd != "" {
 		dir = cwd
 	}
 	texts, deliver, err := pending(dir, session)
@@ -46,8 +44,7 @@ func HookInbox(here string, pending Pending, stdin io.Reader, stdout, stderr io.
 	}
 	if len(texts) > 0 {
 		text := "The owner replied to requests this session raised:\n\n" + strings.Join(texts, "\n\n")
-		out := [][2]any{{"hookSpecificOutput", [][2]any{{"hookEventName", "UserPromptSubmit"}, {"additionalContext", text}}}}
-		if _, err := fmt.Fprintln(stdout, pyjson.Dumps(out, true)); err != nil {
+		if err := writeJSON(stdout, contextFor("UserPromptSubmit", text)); err != nil {
 			return err // not printed, so not marked: the next prompt hands it over again
 		}
 	}

@@ -180,109 +180,11 @@ func list(t *testing.T, dir string) []string {
 }
 
 func TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne(t *testing.T) {
-	t.Run("DownloadKeepsTheCheckedBinaryAndItsSha", func(t *testing.T) {
-		pins := dataDir(t)
-		tgz := tarball(t, "pm", fakePM, tar.TypeReg)
-		serve(t, "0.2.0", tgz, "")
-		if err := Download("0.2.0"); err != nil {
-			t.Fatal(err)
-		}
-		dir := filepath.Join(pins, "0.2.0")
-		b, _ := os.ReadFile(filepath.Join(dir, "pm"))
-		st, _ := os.Stat(filepath.Join(dir, "pm"))
-		kept, _ := os.ReadFile(filepath.Join(dir, "sha256"))
-		if string(b) != fakePM || st.Mode().Perm() != 0o755 || string(kept) != sum(tgz)+"\n" {
-			t.Fatalf("pm %q mode %v sha256 %q", b, st.Mode(), kept)
-		}
-		if got := list(t, dir); strings.Join(got, ",") != "pm,sha256" {
-			t.Fatalf("temp files left: %v", got)
-		}
-	})
-	t.Run("DownloadFailsHardAndInstallsNothing", func(t *testing.T) {
-		good := tarball(t, "pm", fakePM, tar.TypeReg)
-		asset := assetOf(t, "0.2.0")
-		cases := []struct {
-			name, sums, keptSum, want string
-			tgz                       []byte
-			missing                   bool
-		}{
-			{name: "checksum mismatch", tgz: good, sums: strings.Repeat("a", 64) + "  " + asset + "\n",
-				want: "could not be checked: " + "URL/" + asset + " has sha256 " + sum(good) + ", but SHA256SUMS says " +
-					strings.Repeat("a", 64) + fix},
-			{name: "no line for the asset", tgz: good, sums: sum(good) + "  pm-0.2.0-plan9-amd64.tar.gz\n",
-				want: "could not be checked: URL/SHA256SUMS has no line for " + asset + fix},
-			{name: "kept sha256 differs", tgz: good, keptSum: strings.Repeat("b", 64) + "\n",
-				want: "changed since this machine first downloaded it: URL/" + asset + " has sha256 " + sum(good) + ", but "},
-			{name: "no pm in the tarball", tgz: tarball(t, "bin/pm", fakePM, tar.TypeReg),
-				want: "could not be unpacked: URL/" + asset + " is not a gzip tar holding one file pm" + fix},
-			{name: "pm is not a regular file", tgz: tarball(t, "pm", "", tar.TypeSymlink),
-				want: "could not be unpacked: URL/" + asset + " is not a gzip tar holding one file pm" + fix},
-			{name: "not a gzip tar", tgz: []byte("pm"), want: "could not be unpacked: URL/"},
-			{name: "missing release", tgz: good, missing: true, want: "could not be downloaded: URL/SHA256SUMS: HTTP 404" + fix},
-		}
-		for _, c := range cases {
-			t.Run(c.name, func(t *testing.T) {
-				pins := dataDir(t)
-				r := serve(t, "0.2.0", c.tgz, c.sums)
-				if c.missing {
-					r.files = map[string][]byte{}
-				}
-				dir := filepath.Join(pins, "0.2.0")
-				if c.keptSum != "" {
-					os.MkdirAll(dir, 0o755)
-					os.WriteFile(filepath.Join(dir, "sha256"), []byte(c.keptSum), 0o644)
-				}
-				err := Download("0.2.0")
-				want := "this repo pins pm 0.2.0, but release pm-v0.2.0 " +
-					strings.ReplaceAll(c.want, "URL/", r.srv.URL+"/pm-v0.2.0/")
-				if err == nil || !strings.HasPrefix(err.Error(), want) {
-					t.Fatalf("err = %v, want %q", err, want)
-				}
-				if got := list(t, dir); c.keptSum == "" && got != nil || c.keptSum != "" && len(got) != 1 {
-					t.Fatalf("left %v", got)
-				} else if _, err := os.Stat(dir); c.keptSum == "" && err == nil {
-					t.Fatal("the pin dir was made")
-				}
-			})
-		}
-	})
-	t.Run("DownloadGivesUpAtItsDeadline", func(t *testing.T) {
-		dataDir(t)
-		block := make(chan struct{})
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-block }))
-		defer srv.Close()
-		defer close(block)
-		t.Setenv("PM_RELEASE_URL", srv.URL)
-		defer func(d time.Duration) { downloadTimeout = d }(downloadTimeout)
-		downloadTimeout = 100 * time.Millisecond
-		assetOf(t, "0.2.0")
-		err := Download("0.2.0")
-		if err == nil || !strings.Contains(err.Error(), "not downloaded within 0.1 s") {
-			t.Fatalf("err = %v", err)
-		}
-	})
-	t.Run("AFailedCheckIsNotTriedThroughTheAPI", func(t *testing.T) {
-		dataDir(t)
-		tgz := tarball(t, "pm", fakePM, tar.TypeReg)
-		r := serve(t, "0.2.0", tgz, strings.Repeat("a", 64)+"  "+assetOf(t, "0.2.0")+"\n")
-		t.Setenv("GH_TOKEN", "tok")
-		t.Setenv("PM_RELEASE_API", "http://127.0.0.1:1/api") // never asked
-		if err := Download("0.2.0"); err == nil || !strings.Contains(err.Error(), "could not be checked: "+r.srv.URL) {
-			t.Fatalf("err = %v", err)
-		}
-	})
-	t.Run("ADownloadThatFailsBothWaysReportsTheAPIsFailure", func(t *testing.T) {
-		dataDir(t)
-		r := serve(t, "0.2.0", tarball(t, "pm", fakePM, tar.TypeReg), "")
-		api(t, r, "tok")
-		t.Setenv("GH_TOKEN", "wrong")
-		err := Download("0.2.0")
-		want := "this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: " +
-			os.Getenv("PM_RELEASE_API") + "/releases/tags/pm-v0.2.0: HTTP 401" + fix
-		if err == nil || err.Error() != want {
-			t.Fatalf("err = %v, want %q", err, want)
-		}
-	})
+	t.Run("DownloadKeepsTheCheckedBinaryAndItsSha", checkDownloadKeepsTheCheckedBinaryAndItsSha)
+	t.Run("DownloadFailsHardAndInstallsNothing", checkDownloadFailsHardAndInstallsNothing)
+	t.Run("DownloadGivesUpAtItsDeadline", checkDownloadGivesUpAtItsDeadline)
+	t.Run("AFailedCheckIsNotTriedThroughTheAPI", checkAFailedCheckIsNotTriedThroughTheAPI)
+	t.Run("ADownloadThatFailsBothWaysReportsTheAPIsFailure", checkADownloadThatFailsBothWaysReportsTheAPIsFailure)
 	pins := dataDir(t)
 	tgz := tarball(t, "pm", fakePM, tar.TypeReg)
 	r := serve(t, "0.2.0", tgz, "")
@@ -303,16 +205,7 @@ func TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne(t *testing.T) 
 		t.Fatalf("requests:\n%s", got)
 	}
 
-	t.Run("ReleaseURL", func(t *testing.T) {
-		t.Setenv("PM_RELEASE_URL", "")
-		if releaseURL() != "https://github.com/Yeeef/pm/releases/download" {
-			t.Fatal(releaseURL())
-		}
-		t.Setenv("PM_RELEASE_URL", "http://mirror/x///")
-		if releaseURL() != "http://mirror/x" {
-			t.Fatal(releaseURL())
-		}
-	})
+	t.Run("ReleaseURL", checkReleaseURL)
 }
 
 // Markers hands the launcher's markers to a child that is this same pm (the session-start pm init), and only when
@@ -470,4 +363,136 @@ func TestAGoPinIsDownloadedOnceThenExecdWithTheMarks(t *testing.T) {
 			}
 		}
 	})
+}
+
+func checkDownloadKeepsTheCheckedBinaryAndItsSha(t *testing.T) {
+	pins := dataDir(t)
+	tgz := tarball(t, "pm", fakePM, tar.TypeReg)
+	serve(t, "0.2.0", tgz, "")
+	if err := Download("0.2.0"); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(pins, "0.2.0")
+	b, err := os.ReadFile(filepath.Join(dir, "pm"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Stat(filepath.Join(dir, "pm"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept, err := os.ReadFile(filepath.Join(dir, "sha256"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != fakePM || st.Mode().Perm() != 0o755 || string(kept) != sum(tgz)+"\n" {
+		t.Fatalf("pm %q mode %v sha256 %q", b, st.Mode(), kept)
+	}
+	if got := list(t, dir); strings.Join(got, ",") != "pm,sha256" {
+		t.Fatalf("temp files left: %v", got)
+	}
+}
+
+func checkDownloadFailsHardAndInstallsNothing(t *testing.T) {
+	good := tarball(t, "pm", fakePM, tar.TypeReg)
+	asset := assetOf(t, "0.2.0")
+	cases := []struct {
+		name, sums, keptSum, want string
+		tgz                       []byte
+		missing                   bool
+	}{
+		{name: "checksum mismatch", tgz: good, sums: strings.Repeat("a", 64) + "  " + asset + "\n",
+			want: "could not be checked: " + "URL/" + asset + " has sha256 " + sum(good) + ", but SHA256SUMS says " +
+				strings.Repeat("a", 64) + fix},
+		{name: "no line for the asset", tgz: good, sums: sum(good) + "  pm-0.2.0-plan9-amd64.tar.gz\n",
+			want: "could not be checked: URL/SHA256SUMS has no line for " + asset + fix},
+		{name: "kept sha256 differs", tgz: good, keptSum: strings.Repeat("b", 64) + "\n",
+			want: "changed since this machine first downloaded it: URL/" + asset + " has sha256 " + sum(good) + ", but "},
+		{name: "no pm in the tarball", tgz: tarball(t, "bin/pm", fakePM, tar.TypeReg),
+			want: "could not be unpacked: URL/" + asset + " is not a gzip tar holding one file pm" + fix},
+		{name: "pm is not a regular file", tgz: tarball(t, "pm", "", tar.TypeSymlink),
+			want: "could not be unpacked: URL/" + asset + " is not a gzip tar holding one file pm" + fix},
+		{name: "not a gzip tar", tgz: []byte("pm"), want: "could not be unpacked: URL/"},
+		{name: "missing release", tgz: good, missing: true, want: "could not be downloaded: URL/SHA256SUMS: HTTP 404" + fix},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			pins := dataDir(t)
+			r := serve(t, "0.2.0", c.tgz, c.sums)
+			if c.missing {
+				r.files = map[string][]byte{}
+			}
+			dir := filepath.Join(pins, "0.2.0")
+			if c.keptSum != "" {
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "sha256"), []byte(c.keptSum), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err := Download("0.2.0")
+			want := "this repo pins pm 0.2.0, but release pm-v0.2.0 " +
+				strings.ReplaceAll(c.want, "URL/", r.srv.URL+"/pm-v0.2.0/")
+			if err == nil || !strings.HasPrefix(err.Error(), want) {
+				t.Fatalf("err = %v, want %q", err, want)
+			}
+			if got := list(t, dir); c.keptSum == "" && got != nil || c.keptSum != "" && len(got) != 1 {
+				t.Fatalf("left %v", got)
+			} else if _, err := os.Stat(dir); c.keptSum == "" && err == nil {
+				t.Fatal("the pin dir was made")
+			}
+		})
+	}
+}
+
+func checkDownloadGivesUpAtItsDeadline(t *testing.T) {
+	dataDir(t)
+	block := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-block }))
+	defer srv.Close()
+	defer close(block)
+	t.Setenv("PM_RELEASE_URL", srv.URL)
+	defer func(d time.Duration) { downloadTimeout = d }(downloadTimeout)
+	downloadTimeout = 100 * time.Millisecond
+	assetOf(t, "0.2.0")
+	err := Download("0.2.0")
+	if err == nil || !strings.Contains(err.Error(), "not downloaded within 0.1 s") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func checkAFailedCheckIsNotTriedThroughTheAPI(t *testing.T) {
+	dataDir(t)
+	tgz := tarball(t, "pm", fakePM, tar.TypeReg)
+	r := serve(t, "0.2.0", tgz, strings.Repeat("a", 64)+"  "+assetOf(t, "0.2.0")+"\n")
+	t.Setenv("GH_TOKEN", "tok")
+	t.Setenv("PM_RELEASE_API", "http://127.0.0.1:1/api") // never asked
+	if err := Download("0.2.0"); err == nil || !strings.Contains(err.Error(), "could not be checked: "+r.srv.URL) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func checkADownloadThatFailsBothWaysReportsTheAPIsFailure(t *testing.T) {
+	dataDir(t)
+	r := serve(t, "0.2.0", tarball(t, "pm", fakePM, tar.TypeReg), "")
+	api(t, r, "tok")
+	t.Setenv("GH_TOKEN", "wrong")
+	err := Download("0.2.0")
+	want := "this repo pins pm 0.2.0, but release pm-v0.2.0 could not be downloaded: " +
+		os.Getenv("PM_RELEASE_API") + "/releases/tags/pm-v0.2.0: HTTP 401" + fix
+	if err == nil || err.Error() != want {
+		t.Fatalf("err = %v, want %q", err, want)
+	}
+}
+
+func checkReleaseURL(t *testing.T) {
+	t.Setenv("PM_RELEASE_URL", "")
+	if releaseURL() != "https://github.com/Yeeef/pm/releases/download" {
+		t.Fatal(releaseURL())
+	}
+	t.Setenv("PM_RELEASE_URL", "http://mirror/x///")
+	if releaseURL() != "http://mirror/x" {
+		t.Fatal(releaseURL())
+	}
 }

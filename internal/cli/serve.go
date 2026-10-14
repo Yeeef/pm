@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/install"
 	"github.com/Yeeef/pm/internal/records"
@@ -142,7 +143,7 @@ func summarizeDay(main string) (bool, string) {
 		return false, err.Error()
 	}
 	e := &env{here: main, records: records, stdin: strings.NewReader(""), stdout: io.Discard, stderr: io.Discard}
-	said, err := cmdDaySummarize(e, &Parsed{values: map[string][]string{}})
+	said, err := cmdDaySummarize(e, &Parsed{Values: map[string][]string{}})
 	if err = errors.Join(err, e.release()); err != nil {
 		return false, err.Error()
 	}
@@ -175,7 +176,7 @@ func newServedSite(records, name, main string) (*servedSite, error) {
 	if len(dirs) != 2 {
 		return nil, fmt.Errorf("git rev-parse --git-dir --git-common-dir printed %q", out)
 	}
-	if !isDir(filepath.Join(dirs[1], "refs/heads")) {
+	if !fsutil.IsDir(filepath.Join(dirs[1], "refs/heads")) {
 		return nil, refuse("%s keeps refs in a format other than files (reftable?); the pm service reads refs as files",
 			dirs[1])
 	}
@@ -233,7 +234,7 @@ func (s *servedSite) Stamp() (string, error) {
 // pages' dates and their covered code's changes come from git, read again only when the stamp moved. Records that moved while it read them (a file gone,
 // or the stamp after the read not the stamp before) make it a service.Partial.
 func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
-	rewriting := exists(s.indexLock)
+	rewriting := fsutil.Exists(s.indexLock)
 	stamp, err := s.Stamp() // before the read: a write between the two moves the stamp again, and the next look reads
 	if err != nil {
 		return nil, err
@@ -270,7 +271,7 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	// A records sync rewrote them mid-read: a file listed went, or the walk missed one being rewritten, which only the
 	// stamp shows, or git was rewriting the worktree, which a git that stalled mid-checkout hides from both stamps (each
 	// walk misses the same unlinked file). The service reads again under the records lock.
-	if after, err := s.Stamp(); err != nil || after != stamp || gone != nil || rewriting || exists(s.indexLock) {
+	if after, err := s.Stamp(); err != nil || after != stamp || gone != nil || rewriting || fsutil.Exists(s.indexLock) {
 		return nil, &service.Partial{Pages: served, Gone: gone}
 	}
 	return served, nil
