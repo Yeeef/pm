@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T21:18:32+00:00",
- "digest": "1cc624b854cde630",
+ "generated_at": "2026-10-14T21:29:04+00:00",
+ "digest": "73638e83ef5df273",
  "model": "claude-haiku-5-5",
- "text": "- **Questions on the site:** Agents can ask the owner questions with the ask tool. The owner answers on the site or in chat, and the first answer wins.\n- **Pull request checks:** A pull request runs only the Go tests its changed files can affect. On three measured pull requests, macOS compute fell by roughly half.\n- **Agent rules and sessions:** Each session sets interactive or autopilot mode, which gates the owner-request judge. Agents now open requested projects, sprints and tasks without asking permission.\n- **Benchmark study and record design:** A survey of long-horizon agent benchmarks now proposes a shortlist for measuring pm. A design page for per-sprint record drafts was written and reviewed."
+ "text": "- **Owner questions and replies:** The owner can answer an agent's question on the site or in chat, and the first answer wins. Owner replies now reach a session by push alone.\n- **Agent modes and leave:** A session's interactive or autopilot mode now gates the owner-request judge. Agents open a project, sprint or task the owner asked for without asking leave.\n- **Pull request checks:** Each pull request now runs only the Go tests its changed files can affect. The AGENTS.md file is now a size-capped map, graded on every pull request.\n- **Design and code layout:** The record layer design page now covers per-sprint drafts, published at merge. The command code is split by noun, and old Python-port leftovers are gone."
 }
