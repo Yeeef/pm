@@ -183,6 +183,18 @@ The window is one store write (tens to hundreds of ms); closing it would need th
   touch: Claude on 'formal-methods feedback 2026-10-10 03:31' (block), Codex
   on 'asks leave to push and open the PR' (needless).
 
+- Live check (Done when), parity eval on HEAD 16214e0, Claude Code 2.1.296 and
+  Codex 0.162.1 TUIs in pty: PM_PARITY_CODEX_SANDBOX=danger-full-access
+  PM_LIVE_TESTS=1 uv run pytest -n 4 tests/test_agent_parity_live.py -k
+  ask_tool: 4 passed in 91 s. Answered on the site: Claude's dialog closed
+  with toolUseResult.answers Blue from the hook, 1.0 s after the owner's POST;
+  Codex continued on the queued answer in 1.5 to 9.5 s; the question closed
+  answered on the site, delivered 1. Answered in chat: the question closed
+  with the chat answer, delivered 0, and a later POST from the stale card was
+  refused 400 already closed. Whole parity set: 14 passed in 150 s (with the
+  default sandbox, 3 Codex scenarios fail on this host's bwrap, as
+  documented).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
