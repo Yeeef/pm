@@ -108,7 +108,10 @@ func TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt(t *testing.T) {
 			}
 			var got []string
 			for _, f := range files {
-				rel, _ := filepath.Rel(root, f)
+				rel, err := filepath.Rel(root, f)
+				if err != nil {
+					t.Fatal(err)
+				}
 				got = append(got, filepath.ToSlash(rel))
 			}
 			sort.Strings(got)

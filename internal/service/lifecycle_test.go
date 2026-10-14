@@ -250,8 +250,11 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if err := l.Close(); err != nil || !ok {
+		t.Fatal(l.Addr(), err)
+	}
+	port := addr.Port
 	exe, _ := Exe()
 	said, err := Install(main, port, exe, false)
 	if err != nil || !strings.HasPrefix(said, "installed the pm service: ") ||
