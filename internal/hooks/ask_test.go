@@ -22,6 +22,13 @@ type askStore struct {
 	items  map[string]*work.Item
 	opens  int
 	closed bool // a connection the test made fail
+	clock  int  // seconds since the store's epoch: each write's stamp, one later than the last
+}
+
+// tick is the next write's stamp; under s.mu.
+func (s *askStore) tick() time.Time {
+	s.clock++
+	return time.Date(2026, 10, 14, 12, 0, s.clock, 0, time.UTC)
 }
 
 func newAskStore(items ...work.Item) *askStore {
@@ -104,7 +111,7 @@ func (s *askStore) Close(id, reason string, r work.Resolution, session string) e
 	defer s.mu.Unlock()
 	it, err := s.closeOpen(id)
 	if err == nil {
-		it.Status, it.CloseReason, it.Resolution, it.ClosedBy = work.Closed, reason, r, session
+		it.Status, it.CloseReason, it.Resolution, it.ClosedBy, it.ClosedAt = work.Closed, reason, r, session, s.tick()
 	}
 	return err
 }
@@ -114,8 +121,9 @@ func (s *askStore) Answer(id, text, session string) error {
 	defer s.mu.Unlock()
 	it, err := s.closeOpen(id)
 	if err == nil {
-		it.Comments = append(it.Comments, work.Comment{Kind: work.Reply, Author: "owner", Text: text})
-		it.Status, it.CloseReason, it.Resolution, it.ClosedBy = work.Closed, "Responded", work.Answered, session
+		when := s.tick() // the answer is stamped with the close, as the store's Answer does
+		it.Comments = append(it.Comments, work.Comment{Kind: work.Reply, Author: "owner", Text: text, CreatedAt: when})
+		it.Status, it.CloseReason, it.Resolution, it.ClosedBy, it.ClosedAt = work.Closed, "Responded", work.Answered, session, when
 	}
 	return err
 }
@@ -123,7 +131,7 @@ func (s *askStore) Answer(id, text, session string) error {
 func (s *askStore) Comment(id string, kind work.CommentKind, author, text string) (work.Comment, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c := work.Comment{Kind: kind, Author: author, Text: text}
+	c := work.Comment{Kind: kind, Author: author, Text: text, CreatedAt: s.tick()}
 	s.items[id].Comments = append(s.items[id].Comments, c)
 	return c, nil
 }

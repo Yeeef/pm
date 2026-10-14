@@ -26,6 +26,7 @@ type QuestionStore interface {
 	Answer(id, text, session string) error
 	Comment(id string, kind work.CommentKind, author, text string) (work.Comment, error)
 	UpdateNeed(id string, u work.NeedUpdate) error
+	Get(ids ...string) ([]work.Item, error)
 }
 
 // IsQuestion is whether the item is a question need.
@@ -55,18 +56,50 @@ func AnswerOnSite(st QuestionStore, n *work.Item, session string) error {
 }
 
 // AnswerInChat closes an open question with the answer given in the session's own chat, by session. Site replies it
-// held lost the race: they count as delivered, with a note that says so. A need closed already fails with
-// work.ErrClosed.
+// held, read again once it closed, lost the race: they count as delivered, with a note that says so. A need closed
+// already fails with work.ErrClosed.
 func AnswerInChat(st QuestionStore, n *work.Item, answer, session string) error {
 	if err := st.Answer(n.ID, answer, session); err != nil {
 		return err
 	}
-	total := len(siteReplies(n))
-	if total <= n.Need.Delivered {
+	got, err := st.Get(n.ID)
+	if err != nil {
+		return err
+	}
+	// the replies but the one Answer wrote: the store stamps to the second, so a reply in the close's second is no
+	// earlier than the close, and siteReplies would leave it out
+	total := -1
+	for _, c := range got[0].Comments {
+		if c.Kind == work.Reply {
+			total++
+		}
+	}
+	if total <= got[0].Need.Delivered {
 		return nil
 	}
-	_, err := st.Comment(n.ID, work.Note, "pm", "answered in chat first; the site's reply did not reach the session")
+	_, err = st.Comment(n.ID, work.Note, "pm", "answered in chat first; the site's reply did not reach the session")
 	return errors.Join(err, st.UpdateNeed(n.ID, work.NeedUpdate{Delivered: &total}))
+}
+
+// Relayed is whether a message in a session is one the pm service handed it, not the owner's own: a delivery's text
+// (each starts "pm: ") or a site answer of one of needs, the session's, as deliverQuestion queues it.
+func Relayed(needs []work.Item, text string) bool {
+	text = strings.TrimSpace(text)
+	if strings.HasPrefix(text, "pm: ") {
+		return true
+	}
+	for i := range needs {
+		var bodies []string
+		for _, c := range siteReplies(&needs[i]) {
+			bodies = append(bodies, strings.TrimSpace(ReplyBody(c.Text)))
+		}
+		for from := range bodies {
+			if text == bodies[from] || text == strings.Join(bodies[from:], "\n\n") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // CodexQuestion is the CODEX_HOME of an open question a Codex session asked; false for any other need.
@@ -77,14 +110,28 @@ func CodexQuestion(n *work.Item) (string, bool) {
 	return session.CodexHomeOf(n.Need.RaisedBy.Inbox)
 }
 
-// ChatAnswer is the answer the owner typed into the Codex session after its question, from its rollouts; false when
-// none, or the need is no open Codex question.
-func ChatAnswer(n *work.Item) (string, bool) {
+// ChatAnswer is the answer the owner typed into the Codex session after its question, from its rollouts, leaving out
+// what the service relayed for needs, the session's; false when none, or the need is no open Codex question.
+func ChatAnswer(n *work.Item, needs []work.Item) (string, bool) {
 	home, ok := CodexQuestion(n)
 	if !ok {
 		return "", false
 	}
-	return session.ChatAfterCall(session.RolloutsIn(home, n.Need.RaisedBy.Session), n.Need.Ask.Call)
+	return session.ChatAfterCall(session.RolloutsIn(home, n.Need.RaisedBy.Session), n.Need.Ask.Call,
+		func(text string) bool { return Relayed(needs, text) })
+}
+
+// sessionNeeds is the needs in the snapshot the session that raised n raised.
+func (s *server) sessionNeeds(n *work.Item) []work.Item {
+	var out []work.Item
+	if snap := s.snap.Load(); snap != nil {
+		for _, it := range snap.order {
+			if it.Need != nil && it.Need.RaisedBy != nil && it.Need.RaisedBy.Session == n.Need.RaisedBy.Session {
+				out = append(out, *it)
+			}
+		}
+	}
+	return append(out, *n)
 }
 
 // deliverQuestion is pushUndelivered for a question: none for a Claude Code session's, whose hook takes the answer;
@@ -94,7 +141,7 @@ func (s *server) deliverQuestion(n *work.Item) (string, error) {
 	if _, codex := CodexQuestion(n); !codex {
 		return "no push: a Claude Code session's question takes its answer through pm hook ask", nil
 	}
-	if chat, ok := ChatAnswer(n); ok {
+	if chat, ok := ChatAnswer(n, s.sessionNeeds(n)); ok {
 		err := s.withStore("answer "+n.ID, func(st work.Store) error { return AnswerInChat(st, n, chat, "") })
 		if errors.Is(err, work.ErrClosed) {
 			return "closed already", nil
@@ -127,7 +174,7 @@ func (s *server) settleQuestion(n *work.Item) (string, error) {
 	var live bool
 	switch {
 	case codex:
-		if chat, ok := ChatAnswer(n); ok {
+		if chat, ok := ChatAnswer(n, s.sessionNeeds(n)); ok {
 			return s.closeQuestion(n, "answered in chat", func(st work.Store) error {
 				return AnswerInChat(st, n, chat, "")
 			})

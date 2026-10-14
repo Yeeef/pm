@@ -99,7 +99,7 @@ func closeChatQuestions(st service.QuestionStore, needs []work.Item, prompt, ses
 		var err error
 		if service.ReplyWaiting(n) {
 			err = service.AnswerOnSite(st, n, session)
-		} else if prompt != "" {
+		} else if prompt != "" && !service.Relayed(needs, prompt) { // the service's queued answer to another need
 			err = service.AnswerInChat(st, n, prompt, session)
 		}
 		if !errors.Is(err, work.ErrClosed) {

@@ -14,9 +14,10 @@ import (
 // pm service does not also queue the site's answer into the session.
 
 // ChatAfterCall is the first message the user typed into the session after the function call whose call_id is call,
-// read from the rollouts at paths in order: a UserMessage item (Codex 0.154), or a user_message event (earlier Codex);
-// false when the call is not there or nothing was typed after it.
-func ChatAfterCall(paths []string, call string) (string, bool) {
+// read from the rollouts at paths in order: a UserMessage item (Codex 0.154), or a user_message event (earlier Codex),
+// leaving out each message relayed says is not the user's own (one the pm service queued into the session); false when
+// the call is not there or nothing was typed after it.
+func ChatAfterCall(paths []string, call string, relayed func(string) bool) (string, bool) {
 	seen := false
 	for _, p := range paths {
 		f, err := os.Open(p)
@@ -29,7 +30,7 @@ func ChatAfterCall(paths []string, call string) (string, bool) {
 			if !seen && strings.Contains(string(line), call) {
 				seen = callLine(line, call)
 			} else if seen {
-				if text, ok := typed(line); ok {
+				if text, ok := typed(line); ok && !relayed(text) {
 					_ = f.Close() //nolint:errcheck // read only
 					return text, true
 				}

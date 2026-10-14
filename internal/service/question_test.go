@@ -130,3 +130,25 @@ func TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession(t *testing.T) {
 		t.Errorf("a Codex question with nothing waiting: %q %v", did, err)
 	}
 }
+
+// TestWhatTheServiceQueuedIsNoChatAnswer: codex queue's message shows in the rollout as a user message, so a site
+// answer the service queued for one need, or a delivery's text, is not taken for the owner's answer to another
+// question; what the owner typed is.
+func TestWhatTheServiceQueuedIsNoChatAnswer(t *testing.T) {
+	home := codexHome(t)
+	answered := question(rootThread, session.CodexInbox(home))
+	answered.ID = "p-1.2.8"
+	open := question(rootThread, session.CodexInbox(home))
+	open.Comments = nil
+	needs := []work.Item{answered, open}
+	for text, relayed := range map[string]bool{"Red or blue?: Blue": true, "pm: owner reply to decision x": true,
+		"Blue, thanks": false} {
+		if got := Relayed(needs, text); got != relayed {
+			t.Errorf("%q: relayed %v", text, got)
+		}
+	}
+	rollout(t, home, rootThread, "Red or blue?: Blue", "Blue, thanks")
+	if got, ok := ChatAnswer(&open, needs); !ok || got != "Blue, thanks" {
+		t.Errorf("the answer typed after a queued one: %q %v", got, ok)
+	}
+}
