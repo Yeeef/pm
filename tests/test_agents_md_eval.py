@@ -1,6 +1,7 @@
 """The AGENTS.md evaluation's own logic, offline: the rubric and the calls each mode makes, the answers it takes and
-refuses, the lines a quote is on, the vote on passages, the credentials a call runs with, a call's timeout, and the
-labelled cases' edits. A fake `claude` stands in for the model; tests/test_agents_md_live.py runs the real one."""
+refuses, the lines a quote is on, the vote on passages, the credentials a call runs with, a call's timeout, the
+labelled cases' edits, and the paths that run the cases job. A fake `claude` stands in for the model;
+tests/test_agents_md_live.py runs the real one."""
 
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ import http.server
 import io
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -88,6 +90,17 @@ def test_auto_mode_is_full_when_the_diff_changes_agents_md_or_the_grader_and_dif
         cases.git(root, "commit", "-qam", "grader")
         mode, _, calls = evaluate.plan("auto", root, root / "AGENTS.md", base, evaluate.CRITERIA)
         assert mode == "full" and {c.criterion for c in calls} == set(evaluate.CRITERIA), path
+
+
+def test_the_cases_job_runs_on_a_change_to_the_grader_alone():
+    """agents-md.yml's cases job decides with a grep of its own: it must name evaluate.GRADER's paths, and no other."""
+    yml = (CHECKOUT / ".github/workflows/agents-md.yml").read_text()
+    grep = re.search(r"grep -qE '([^']+)'", yml)
+    assert grep, "the cases job's grep is gone"
+    graded = [p + "x.py" if p.endswith("/") else p for p in evaluate.GRADER]
+    for path in [*graded, "tests/conftest.py", "tests/run.py", "Makefile", "AGENTS.md", "tests/test_agents_md_eval.py",
+                 "tests/agents_md_x.py", ".github/workflows/agents-md.yml.bak"]:
+        assert bool(re.search(grep[1], path)) == (path in graded), path
 
 
 def test_an_answer_is_taken_only_when_well_formed():
