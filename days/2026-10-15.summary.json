@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-14T23:07:20+00:00",
- "digest": "22902bdca52ce4f8",
+ "generated_at": "2026-10-14T23:17:34+00:00",
+ "digest": "cd7e900dc9704281",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions:** Ask-tool questions can now be answered on the site or in chat, and the first answer wins. pm now closes each question from hook events, not from transcript or rollout files.\n- **Agent setup:** This repo moved to the new pm release, and its service restarted on it. Claude Code no longer saves or loads auto memory here, and pm no longer installs a git hook.\n- **Check stability:** The AGENTS.md check now gives the same verdict on every rerun. On pull requests, the check runs in diff mode; full runs and cases run daily on main.\n- **Test stability:** `make test-go` passes on every run. The service test asks the kernel for a free port, so runs no longer share one port."
+ "text": "- **Owner questions:** Ask-tool questions can now be answered on the site or in chat, and the first answer wins. Questions now close from hook events, and transcript and rollout reads are removed.\n- **Agent review checks:** The AGENTS.md check now gives the same verdict on every rerun. Its CI jobs run faster, and the verdicts did not change.\n- **Agent sessions:** pm no longer installs a git hook, and session start sets up each new worktree. Owner replies reach a session by push alone, and Claude Code auto memory is off in this repo.\n- **Test reliability:** `make test-go` passes on every run. The service end-to-end test now takes a kernel-picked free port."
 }
