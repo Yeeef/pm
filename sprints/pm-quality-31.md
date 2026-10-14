@@ -103,8 +103,8 @@ None yet.
   twice on macOS: 58.9 s of internal/work's 125.4 s CPU; out of scope, raised
   as a decision need. (2) 4 fewer Dolt links: the item model moved to
   internal/item, which links no Dolt, and records, store, design and site
-  import it; their test binaries stop linking Dolt (6 Dolt-linking test
-  binaries left: cli, config, install, service, work, and pm). Every package's
+  import it; their test binaries stop linking Dolt (5 test binaries still
+  link it: cli, config, install, service and work, beside pm). Every package's
   tests but internal/work's: 31.0 s wall, 63.3 CPU before; 26.2 s, 48.0 CPU
   after. TestTheItemReadersLinkNoDolt holds it. (3) newPair seeds its 5 items
   locally and pushes them in one sync, as reseed does: 241 to about 70 git
