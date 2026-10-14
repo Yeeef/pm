@@ -56,6 +56,11 @@ Remove both pm reply wait and pm hook inbox; push plus the pm show flag and pm r
 Owner in chat, 2026-10-14: neither delivered a real reply in the transcripts on the owner machine; both predate Codex push and complicate the design
 :::
 
+::: decision {source=agent date=2026-10-14}
+The stale pm hook inbox entry leaves an installed repo by pm upgrade, and a first install by pm init; pm init on an installed repo keeps writing no repo file
+pm init plans repo files only without .pm/config.toml (internal/cli/setup/init.go:234), and making session start rewrite committed files is out of this sprint; an installed repo keeps its pinned release, which still has the command, until pm upgrade moves the pin and rewrites the hooks
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
