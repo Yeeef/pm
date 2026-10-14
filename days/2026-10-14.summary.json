@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T12:44:07+00:00",
- "digest": "757fb36458f934e2",
+ "generated_at": "2026-10-14T12:54:37+00:00",
+ "digest": "591f2c8eaaf17fa4",
  "model": "claude-haiku-5-5",
- "text": "- **Test speed and CI:** A pull request now runs only the Go test packages its changed files affect. On three non-store pull requests, Go compute fell by about half.\n- **Site-answered agent questions:** Agent questions from the ask tool can now be answered on the site as well as in chat. The first answer wins, and the site shows each question with its options and a free-text field.\n- **Agent rules and checks:** Agents now open a project, sprint or task for owner-requested work without asking leave. Sprint close checks only the waiting patterns that the sprint added or changed.\n- **Instructions and code layout:** The agent instruction file is now a short map that agents read in full, checked on every pull request. Internal command code is split by noun, and old Python-port leftovers are removed."
+ "text": "- **Agent questions on site:** Agent questions now show on the site with their options. The first answer, from the site or from chat, wins.\n- **Faster pull request checks:** Each pull request now runs only the Go tests its changes can affect, and macOS compute fell sharply. Check time for code changes fell but did not reach its goal.\n- **Agent guidance and checks:** AGENTS.md is now a map under a size cap that agents read in full. Agents now open project work for owner requests without asking leave.\n- **Sprint close and cleanup:** `pm sprint close` now checks only the patterns its sprint added or changed. The project removed the Python-port leftovers and split its command-line code by noun."
 }
