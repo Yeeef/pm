@@ -90,6 +90,15 @@ None yet.
   copies all passed, so the trigger is not fully established. Not fixed here
   (sprint scope Out).
 
+- Coverage (Go tests plus light harness, union): 72.8% of 12,465 -> 74.0% of
+  13,925 statements; Go tests alone 55.1 -> 57.0%, light harness 44.4 ->
+  44.9%. internal/cli 59.5 -> 69.2% (now 3,476 statements after the split);
+  the new internal/cli/setup (pm init, doctor, upgrade, uninstall: 651
+  statements) is 0.0% in both, as only integration tests run it. One light
+  test fails only under the coverage build
+  (test_a_hook_stopped_mid_judge_takes_its_judge_with_it[SIGTERM]: exit 143,
+  not 1), because the build's SIGTERM patch exits first.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
