@@ -106,6 +106,8 @@ The PR only drops the hook's name from the claim refusal's worktree hint; the cl
 
 done: pm installs no git hook and no longer owns `core.hooksPath`; session start's `pm init --session-start` sets each new worktree up, as it already did in every agent worktree.
 
+Merged as f5a956c (PR #94).
+
 - The post-checkout section is a retired piece: `pm upgrade` and `pm uninstall` remove it, and `.pm/hooks` once empty; `pm doctor` names a leftover.
 - Every `pm init` unsets `core.hooksPath` when it names `.pm/hooks` and that directory holds only pm's sections; a directory with the user's own hooks keeps the path.
 - `pm hook git-post-checkout` stays as a no-op for checkouts on older pins; `pm where` drops its hooks line.
