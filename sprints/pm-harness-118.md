@@ -195,6 +195,10 @@ The window is one store write (tens to hundreds of ms); closing it would need th
   default sandbox, 3 Codex scenarios fail on this host's bwrap, as
   documented).
 
+- Codex 0.162.1: the TUI's pick list (shift+left) for an async question is
+  offered only while the turn runs; pm raises the question at Stop, and once
+  the turn is idle the owner answers in chat by typing, not picking.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
