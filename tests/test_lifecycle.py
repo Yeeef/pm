@@ -573,9 +573,9 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
     assert res.returncode == 1, res.stdout + res.stderr
     lines = res.stdout.splitlines()
     assert lines[:2] == [
-        f"codex: Codex skips 1 of pm's 13 hooks in {hooks}, which you have not trusted: stop `pm hook stop || exit 1`"
+        f"codex: Codex skips 1 of pm's 14 hooks in {hooks}, which you have not trusted: stop `pm hook stop || exit 1`"
         + fix,
-        f"codex: Codex skips 1 of pm's 13 hooks in {hooks}, which changed since you trusted them: userPromptSubmit "
+        f"codex: Codex skips 1 of pm's 14 hooks in {hooks}, which changed since you trusted them: userPromptSubmit "
         f"`pm hook inbox || exit 1`" + fix], res.stdout
     assert lines[-1].startswith("release: cannot read pm's latest release"), res.stdout
     res = run("init", FAKE_CODEX_TRUST=str(trust))
