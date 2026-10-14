@@ -37,7 +37,7 @@ The `agents md` workflow's two jobs, `check` (grades AGENTS.md) and `cases` (tes
 
 > Where is the detail?
 
-None yet.
+- [AGENTS.md rubric and its agentic evaluation](../design/agents-md-evaluation.md): CI's split, diff mode on every PR and full mode with the labelled cases daily on main, the daily gate, and why.
 
 ## Progress
 
