@@ -99,6 +99,8 @@ lifecycle_test.go only changes how the end-to-end test picks its port; the servi
 
 done: `make test-go` passes on every run at the fix, since the service end-to-end test takes a kernel-picked port instead of `FreePort`'s shared :8002; delivered as [PR #93](https://github.com/Yeeef/pm/pull/93).
 
+Merged as 39641f6 (PR #93).
+
 - `internal/service/lifecycle_test.go`: `TestServiceInstallStatusRestartAndLogsEndToEnd` listens on 127.0.0.1:0 for its site port.
 - `ports_test.go` (root package): `TestNoTestTakesFreePortsSitePort` fails on a `FreePort` call in any `_test.go` file of the module.
 - No changelog entry: test-only, labelled `no-changelog`.
