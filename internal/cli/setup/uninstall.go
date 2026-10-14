@@ -186,6 +186,11 @@ func (u uninstallPlan) removeClone() ([]string, error) {
 	} else if said != "" {
 		out = append(out, said)
 	}
+	if said, err := install.RetireHooksPath(main); err != nil {
+		return nil, err
+	} else if said != "" {
+		out = append(out, said)
+	}
 	if codexNew != nil {
 		if cur, err := os.ReadFile(codexPath); err == nil && string(cur) != *codexNew {
 			if err := store.WriteAtomic(codexPath, *codexNew); err != nil {

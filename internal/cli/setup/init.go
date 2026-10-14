@@ -1,5 +1,5 @@
 // Package setup runs pm's setup commands on a clone: pm init (init.go), pm doctor (doctor.go), pm upgrade
-// (upgrade.go), pm uninstall (uninstall.go) and the git hooks pm installs (hooks.go), on install's pieces.
+// (upgrade.go), pm uninstall (uninstall.go) and the retired git hooks' commands (hooks.go), on install's pieces.
 package setup
 
 import (
@@ -23,7 +23,7 @@ import (
 	"strings"
 )
 
-// pm init, pm doctor, pm upgrade, pm uninstall and the git hooks. The pieces and
+// pm init, pm doctor, pm upgrade, pm uninstall and the retired git hooks. The pieces and
 // the clone's setup are internal/install's.
 
 // latest is how to install the newest Go pm release, whose launcher launches any pin: its install.sh (install.sh).
@@ -225,9 +225,6 @@ func Init(p Arguments, here string, stdout io.Writer) error {
 	}
 	if fsutil.Resolved(top) == fsutil.Resolved(records) {
 		return fmt.Errorf("%s is the records store; run pm init from a code worktree", top)
-	}
-	if err := install.CheckHooksPath(top, main); err != nil {
-		return err
 	}
 	sessionStart := p.Get("session_start") == "true"
 	siteArg, siteGiven := p.Get("site_url"), len(p.ValuesOf("site_url")) > 0

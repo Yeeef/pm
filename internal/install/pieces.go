@@ -1,37 +1,37 @@
 // Package install is what pm init, pm doctor, pm upgrade and pm uninstall manage: the pieces pm puts in a repo's
-// tracked files, the clone's and the worktree's setup (the work store, the records store and its link, the git hooks
-// path, the excludes, the Codex and Claude Code settings), pm's own binary on the machine, and the bootstrap of a
-// brand-new repo's records branch.
+// tracked files, the clone's and the worktree's setup (the work store, the records store and its link, the excludes,
+// the Codex and Claude Code settings), pm's own binary on the machine, and the bootstrap of a brand-new repo's records
+// branch.
 //
 // A piece is either a whole file pm owns (.pm/config.toml, .pm/README.md, .pm/.gitignore) or pm's part of a shared
 // file: its hook entries in .claude/settings.json and .codex/hooks.json (a hook is pm's when its command starts with
-// "pm prime" or "pm hook "), its marked section in its own git hook file .pm/hooks/post-checkout, and its marked block
-// in .gitignore. Each piece has Present, whether pm's part is there,
+// "pm prime" or "pm hook "), and its marked block in .gitignore. Each piece has Present, whether pm's part is there,
 // Apply, the file with pm's part as this version writes it and every other byte kept, Part, pm's part alone (what pm
 // doctor compares with Part(Apply(text))), and Remove, the file without pm's part (nil: nothing else is left, so the
 // file goes). pm init applies a piece only when it is not present, so a second run changes nothing; pm upgrade applies
-// every piece; pm uninstall removes every piece. Each writes the bytes Python pm 0.1.x writes, but for the hook files'
-// place: Python pm 0.1.x puts its sections in Beads' .beads/hooks.
+// every piece; pm uninstall removes every piece. Each writes the bytes Python pm 0.1.x writes.
 //
 // Go pm runs no bd, so pm init and pm upgrade also take Beads' own pieces out of the tracked files (the work-store
 // page, Cut-over): bd's hook entries in the runtimes' settings and the Beads block in CLAUDE.md and AGENTS.md
 // (leftovers below); pm doctor names each one left. pm uninstall leaves them, as they are not pm's.
 //
 // A retired piece (Retired) is one an earlier pm wrote and this one does not: pm doctor names each one left, and pm
-// init, pm upgrade and pm uninstall remove it.
+// init, pm upgrade and pm uninstall remove it. pm installs no git hook: its sections in its own hook files
+// .pm/hooks/post-checkout and pre-commit are retired pieces, and the clone's core.hooksPath, which an earlier pm
+// pointed at .pm/hooks, is unset (RetireHooksPath); a core.hooksPath naming another directory, Beads' .beads/hooks
+// among them, is not pm's and stays.
 //
 // The files: pieces.go the pieces, among them the hook entries (claudeHooks and codexHooks: a hook change edits both;
-// TestClaudeAndCodexRunTheSameHooks fails on a difference runtimeDifferences gives no reason for), pm's git hook
-// section in its own tracked .pm/hooks/post-checkout, and Retired (the main branch's records/ copy and its copy and
-// guard workflows, the pre-commit section); clone.go the clone's setup, which also turns off the per-worktree sparse
-// checkout once the worktree tracks no records/, and sets core.hooksPath to the main checkout's .pm/hooks (moved off
-// Beads' .beads/hooks); workstore.go the work store attached to the remote's refs/pm/work (cloned, or created and
-// pushed); codex.go the Codex roots; codextrust.go and sessiontrust.go which of pm's hooks Codex trusts (SessionTrust,
-// the state hook's check in a Codex session, kept in .pm/run/codex-trust.json); binary.go pm copied into the bin dir;
-// pins.go the launcher's pins that no checkout on the machine pins, which pm upgrade prunes and pm doctor names;
-// legacy.go the pre-package harness's pieces, found and refused; jsonobject.go a JSON settings file read and rewritten
-// with every key in its order; git.go the git calls, among them the records branch's bootstrap (CreateRecordsBranch).
-// golden_test.go holds the pieces on a table of inputs to testdata/pieces.json.
+// TestClaudeAndCodexRunTheSameHooks fails on a difference runtimeDifferences gives no reason for), and Retired (the
+// main branch's records/ copy and its copy and guard workflows, the pre-commit section; the post-checkout section);
+// clone.go the clone's setup, which also turns off the per-worktree sparse checkout once the worktree tracks no
+// records/, and unsets a core.hooksPath at .pm/hooks; workstore.go the work store attached to the remote's refs/pm/work
+// (cloned, or created and pushed); codex.go the Codex roots; codextrust.go and sessiontrust.go which of pm's hooks
+// Codex trusts (SessionTrust, the state hook's check in a Codex session, kept in .pm/run/codex-trust.json); binary.go
+// pm copied into the bin dir; pins.go the launcher's pins that no checkout on the machine pins, which pm upgrade prunes
+// and pm doctor names; legacy.go the pre-package harness's pieces, found and refused; jsonobject.go a JSON settings
+// file read and rewritten with every key in its order; git.go the git calls, among them the records branch's bootstrap
+// (CreateRecordsBranch). golden_test.go holds the pieces on a table of inputs to testdata/pieces.json.
 package install
 
 import (
@@ -472,12 +472,8 @@ func hooksPiece(rel string, want entries) Piece {
 
 // ---------------------------------------------------------------- marked sections
 
-// GitHooks are the git hooks pm runs: its own files in .pm/hooks (HooksRel), and the Beads hook files Python pm put its
-// section in.
-var GitHooks = []string{"post-checkout"}
-
-// HooksRel is pm's git hook directory under a worktree, which core.hooksPath names (the work-store page, Constraints
-// resolved, row 8: pm owns its hook directory).
+// HooksRel is the git hook directory an earlier pm kept under a worktree and pointed core.hooksPath at; its hook
+// sections are retired (Retired), and so is that hooks path (RetireHooksPath).
 const HooksRel = ".pm/hooks"
 
 const (
@@ -488,14 +484,7 @@ const (
 var (
 	section  = regexp.MustCompile(`(?ms)^# --- BEGIN PM v[^\n]* ---\n.*?^# --- END PM ---\n?`)
 	beginAny = regexp.MustCompile(`(?m)^# --- BEGIN PM v[^\n]* ---$`)
-	beadsEnd = regexp.MustCompile(`(?m)^# --- END BEADS INTEGRATION[^\n]*(\n|\z)`)
 )
-
-// GitHookSection is pm's section in a git hook file: one line, so the logic ships in pm. `|| exit $?` keeps a
-// failure (pm missing, say) from being lost when lines follow it.
-func GitHookSection(name string) string {
-	return "# --- BEGIN PM v" + buildinfo.Version + " ---\npm hook git-" + name + " \"$@\" || exit $?\n" + sectionEnd + "\n"
-}
 
 func stripSection(rel, text string, pattern, begin *regexp.Regexp) (string, error) {
 	out := pattern.ReplaceAllLiteralString(text, "")
@@ -503,29 +492,6 @@ func stripSection(rel, text string, pattern, begin *regexp.Regexp) (string, erro
 		return "", refuse("%s has a pm begin marker without its end marker (%s); fix it by hand", rel, sectionEnd)
 	}
 	return out, nil
-}
-
-// gitHookApply puts pm's section right after Beads' end marker (or at the end when Beads has none); a new file gets
-// a shebang, and so holds pm's section alone.
-func gitHookApply(rel, name string) func(*string) (string, error) {
-	return func(text *string) (string, error) {
-		if text == nil {
-			return shebang + GitHookSection(name), nil
-		}
-		t, err := stripSection(rel, *text, section, beginAny)
-		if err != nil {
-			return "", err
-		}
-		at := len(t)
-		if m := beadsEnd.FindStringIndex(t); m != nil {
-			at = m[1]
-		}
-		head := t[:at]
-		if head != "" && !strings.HasSuffix(head, "\n") {
-			head += "\n"
-		}
-		return head + GitHookSection(name) + t[at:], nil
-	}
 }
 
 const (
@@ -736,32 +702,41 @@ func Pieces(s Settings) []Piece {
 		hooksPiece(".claude/settings.json", claudeHooks()),
 		hooksPiece(".codex/hooks.json", codexHooks()),
 		whole(".codex/rules/pm.rules", CodexRules),
-	}
-	for _, name := range GitHooks {
-		out = append(out, gitHookPiece(name))
-	}
-	return append(out,
-		Piece{".gitignore", marked(gitignoreBeginRe), gitignoreApply, sectionPart(gitignoreSection),
+		{".gitignore", marked(gitignoreBeginRe), gitignoreApply, sectionPart(gitignoreSection),
 			sectionRemove(".gitignore", gitignoreSection, gitignoreBeginRe, ""), 0o644},
-	)
+	}
+	return out
 }
 
+// gitHookPiece is an earlier pm's marked section in its git hook file .pm/hooks/<name>, which held only a shebang
+// besides when pm made it; retired, so it has no Apply.
 func gitHookPiece(name string) Piece {
 	rel := HooksRel + "/" + name
-	return Piece{rel, marked(beginAny), gitHookApply(rel, name), sectionPart(section),
-		sectionRemove(rel, section, beginAny, "", shebang), 0o755}
+	return Piece{rel, marked(beginAny), nil, sectionPart(section), sectionRemove(rel, section, beginAny, "", shebang),
+		0o755}
 }
 
-// Retired is each piece an earlier pm wrote and this one does not, all retired with the main branch's records/ copy:
-// the workflow that copied the records branch into it, the one that failed a pull request editing it, and pm's
-// pre-commit section that refused a code-branch commit editing it. Its Apply is never used.
+// Retired is each piece an earlier pm wrote and this one does not: with the main branch's records/ copy, the workflow
+// that copied the records branch into it, the one that failed a pull request editing it, and pm's pre-commit section
+// that refused a code-branch commit editing it; with pm's git hooks (HooksWhy), its post-checkout section, which set a
+// new worktree up as session start does. Its Apply is nil.
 var Retired = []Piece{
 	whole(".github/workflows/pm-records-copy.yml", ""),
 	whole(".github/workflows/pm-records-guard.yml", ""),
 	gitHookPiece("pre-commit"),
+	gitHookPiece("post-checkout"),
 }
 
-const retiredWhy = "retired with the main branch's records/ copy"
+// HooksWhy is why pm's git hooks, its post-checkout section and core.hooksPath at .pm/hooks, are retired.
+const HooksWhy = "retired with pm's git hooks, as session start sets each new worktree up"
+
+// whyRetired is why the retired piece at rel is retired.
+func whyRetired(rel string) string {
+	if rel == HooksRel+"/post-checkout" {
+		return HooksWhy
+	}
+	return "retired with the main branch's records/ copy"
+}
 
 // retire is the file at path without the retired piece p: nil when it holds none, Gone when nothing else is left.
 // Read-only.
@@ -805,9 +780,9 @@ func Said(planned []Planned) []string {
 	for _, p := range planned {
 		switch {
 		case p.Retired && p.Gone:
-			out = append(out, "removed "+p.Piece.Rel+", "+retiredWhy)
+			out = append(out, "removed "+p.Piece.Rel+", "+whyRetired(p.Piece.Rel))
 		case p.Retired:
-			out = append(out, "removed pm's section from "+p.Piece.Rel+", "+retiredWhy)
+			out = append(out, "removed pm's section from "+p.Piece.Rel+", "+whyRetired(p.Piece.Rel))
 		}
 		if p.Wrote {
 			out = append(out, "wrote "+p.Piece.Rel)
@@ -989,7 +964,8 @@ func Drift(top string, s Settings) ([]string, error) {
 			if pl.Gone {
 				what = "file"
 			}
-			line = fmt.Sprintf("%s: an earlier pm's %s, %s; pm %s removes it", p.Rel, what, retiredWhy, buildinfo.Version)
+			line = fmt.Sprintf("%s: an earlier pm's %s, %s; pm %s removes it", p.Rel, what, whyRetired(p.Rel),
+				buildinfo.Version)
 		}
 		if _, err := note(p.Rel, line, err); err != nil {
 			return nil, err
@@ -1070,12 +1046,15 @@ func Removals(top string, s Settings) ([]Removal, error) {
 }
 
 // Write writes the planned pieces, a new file with its piece's mode, and deletes each file a retired piece leaves
-// empty; the paths written or deleted, as pieces name them.
+// empty, and .pm/hooks once that leaves it empty; the paths written or deleted, as pieces name them.
 func Write(planned []Planned) ([]string, error) {
 	var out []string
 	for _, p := range planned {
 		if p.Gone {
 			if err := os.Remove(p.Path); err != nil {
+				return out, err
+			}
+			if err := RemoveEmptyHooksDir(p.Piece.Rel, p.Path); err != nil {
 				return out, err
 			}
 			out = append(out, p.Piece.Rel)
@@ -1095,4 +1074,17 @@ func Write(planned []Planned) ([]string, error) {
 		out = append(out, p.Piece.Rel)
 	}
 	return out, nil
+}
+
+// RemoveEmptyHooksDir removes .pm/hooks, the directory of the file at path, once removing a retired hook file at rel
+// leaves it empty; a directory that still holds a file stays.
+func RemoveEmptyHooksDir(rel, path string) error {
+	if !strings.HasPrefix(rel, HooksRel+"/") {
+		return nil
+	}
+	err := os.Remove(filepath.Dir(path))
+	if err == nil || errors.Is(err, syscall.ENOTEMPTY) || errors.Is(err, syscall.EEXIST) {
+		return nil
+	}
+	return err
 }
