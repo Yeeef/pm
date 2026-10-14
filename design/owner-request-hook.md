@@ -26,7 +26,7 @@ covers:
 Goals:
 
 - An agent cannot end its turn with a request to the owner left only in chat. Each request is raised as a need first: a decision, an action or a PR review, under the sprint or task it belongs to; with none, the agent opens one first.
-- When the agent has a clear reason not to raise a need, such as the owner plainly being in the chat and wanting to answer there, it asks with the runtime's ask tool (AskUserQuestion in Claude Code; `request_user_input_async` in Codex, `request_user_input` in its Plan mode), never as a question in plain text.
+- The agent picks the form by what it asks, not by whether the owner is in the chat: a question that steers its session goes through the runtime's ask tool (AskUserQuestion in Claude Code; `request_user_input_async` in Codex, `request_user_input` in its Plan mode), never as a question in plain text; a decision on a project's or sprint's outcome and a step only the owner can do are needs.
 - An ask-tool question is not lost when the owner steps away from the chat: pm raises it as a question need, which shows on the site, and the first answer, in the chat or on the site, reaches the session.
 - The agent does what it can itself first, and asks the owner only for what only the owner can do.
 - One rule in three texts: prime.md's request rules, the judge prompt and the reprompt allow and block the same cases.
@@ -84,16 +84,25 @@ Reading: every reply is judged; a question asked with the ask tool reaches the j
 The rule, as all three texts state it:
 
 1. Do what you can yourself first. Ask the owner only for what only the owner can do: a choice, a credential, a review or merge, a step outside the agent's reach.
-2. Raise each such request as a need under the task or sprint it belongs to. If no sprint or task holds it, open one first (`pm task add`, or `pm sprint open` for work no open sprint fits).
-3. When there is a clear reason not to raise a need, such as the owner plainly being in the chat and wanting to answer there, ask with the runtime's ask tool (AskUserQuestion in Claude Code; `request_user_input_async` in Codex, `request_user_input` in its Plan mode), never as a question in plain text. pm raises the question on the site too; its answer steers the session and records no decision.
+2. Ask each request in the form that fits what it asks (owner decision 2026-10-14, pm-harness sprint 118), splitting a mixed ask:
+
+   | Kind | What it asks | Form |
+   |---|---|---|
+   | Question | steers this session: what to do next, confirm a scope or plan, clarify what the owner meant; its answer is an instruction to this session | the runtime's ask tool, never plain text; pm raises it on the site too ([Owner questions](owner-questions.md)). With no ask tool (`claude -p`, a subagent): a decision need, closed with `pm decision close` when its answer sets no rule |
+   | Decision | a ruling on a project's or sprint's outcome that later sessions must follow: a design choice, a scope change, a trade-off | `pm decision need`, which becomes a recorded decision |
+   | Action | a step only the owner can do | `pm action need`; a PR review or merge is `pm action need --pr` |
+
+   "Do you want me to open a sprint for it?" is a question; "should interactive mode also turn off the uncommitted-records check?" is a decision, since it changes what the sprint builds.
+3. Raise a need under the task or sprint it belongs to. If no sprint or task holds it, open one first (`pm task add`, or `pm sprint open` for work no open sprint fits). A question's answer that turns out to rule the work is recorded with `pm decision add --confirmed`.
 4. Do not ask leave for a step you are authorized to take: opening the project, sprint or task for work the owner asked for, working a sprint's tasks, committing, pushing its branch, opening its PR. The owner's request is the leave to open; a request that states the goal confirms it. Asking what an unclear goal is stays a clarification, and asking whether to take on work the owner did not ask for stays a decision.
 
 | Text | Where | States the rule as |
 |---|---|---|
-| prime.md | the "Never leave a request only in chat" invariant | the rule in one line: ask only for what you cannot do yourself, as a need under its task or sprint (opened if none holds it), or with the runtime's ask tool, named per runtime in one clause; item 4 is the two invariants that agents push and open PRs, and open the project, sprint or task for work the owner asked for, without asking. The detail is left to the reprompt, which the agent gets whenever it matters, to keep every session's context small |
-| Judge prompt | `owner_request_system.txt` | what to block: an unmatched decision, review, action or clarification, and a needless ask (items 2 and 4); what passes: offers nothing waits on, and quotes, reports and plans |
-| Reprompt | `owner_request_reason.txt`, `owner_request_needless.txt` | how to get past a block: items 1, 2 and 3 in that order; item 4 for a needless ask |
+| prime.md | the "Never leave a request only in chat" invariant | ask only for what you cannot do yourself, then one line per kind with its form (the ask tool named per runtime in one clause), then where a need goes; item 4 is the two invariants that agents push and open PRs, and open the project, sprint or task for work the owner asked for, without asking. The Need row of the objects table points at the invariant. The detail is left to the reprompt, which the agent gets whenever it matters, to keep every session's context small |
+| Judge prompt | `owner_request_system.txt` | what to block: an unmatched decision, review, action or clarification asked in the reply, and a needless ask (items 2 to 4); what passes: offers nothing waits on, quotes, reports and plans, and an ask covered by an open request or an ask-tool question |
+| Reprompt | `owner_request_reason.txt`, `owner_request_needless.txt` | how to get past a block: item 1, then each kind with its form (item 2) and where a need goes (item 3); item 4 for a needless ask |
 
+- The judge checks that an ask reaches the owner, not which form it took: an ask-tool question passes whatever its kind, a decision included. Its kinds sort what blocks from what passes and are not the rule's three; which form fits is the agent's call, which prime.md and the reprompt guide (Alternatives considered).
 - prime.md is short and the reprompt is detailed, but no text adds a condition the others lack. The "sprint work waits on it" condition goes from all three: the judge cannot check it, and a chat request is lost whether a sprint holds it or not.
 - A rule change edits all three in one commit, and adds a labelled case to `tests/owner_request_cases.json` for each case it moves.
 
@@ -115,9 +124,11 @@ The block reason the agent sees (`owner_request_reason.txt`), in this order:
 
 1. The quoted sentences that blocked.
 2. Do it yourself first: read the file, run the command, find the transcript, take the step the rules authorize. Only what only the owner can do is a request.
-3. For each request left, raise it, with the `pm decision need`, `pm action need` and `pm action need --pr` forms; the parent is the task or sprint it belongs to. If there is no such sprint or task, create one first (`pm task add`, or `pm sprint open` for work no open sprint fits).
-4. If there is a clear reason not to raise a need (for example, the owner is plainly in the chat and wants to answer there), ask with the session's ask tool, never as a question in plain text: the reason names AskUserQuestion for a Claude Code session and `request_user_input_async` (or `request_user_input` in Plan mode) for a Codex one, from the hook's `--runtime`.
-5. Then end the reply, with no plain-text question to the owner left in it.
+3. Ask each request left in the form that fits what it asks, splitting a mixed ask; a need's parent is the task or sprint it belongs to, created first if there is none (`pm task add`, or `pm sprint open` for work no open sprint fits):
+   - a question that steers this session: the session's ask tool, never as a question in plain text; the reason names AskUserQuestion for a Claude Code session and `request_user_input_async` (or `request_user_input` in Plan mode) for a Codex one, from the hook's `--runtime`. With no ask tool, a decision need;
+   - a decision on a project's or sprint's outcome: the `pm decision need` form;
+   - an action only the owner can do: the `pm action need` form; a PR review or merge: `pm action need --pr`.
+4. Then end the reply, with no plain-text question to the owner left in it.
 
 The needless-ask reason (`owner_request_needless.txt`): take the authorized step instead of asking; it lists the same authorized steps as item 4 of the rule, committing included.
 
@@ -130,7 +141,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | Reply | `last_assistant_message`, a string | the same key, nullable: null passes |
 | Judge | `claude -p`, Haiku, 15 s | `codex exec`, `gpt-5.6-luna`, 40 s, from an empty temp dir with hooks, rules and the user's config off and no saved session (`--ephemeral`); needs no `claude` |
 | A check that cannot run | exit 1 with the cause on stderr; the stop goes through | exit 1; Codex passes the stop silently |
-| Ask tool (rule item 3) | AskUserQuestion | `request_user_input_async` (Default mode), `request_user_input` (Plan mode) |
+| Ask tool (rule item 2, a question) | AskUserQuestion | `request_user_input_async` (Default mode), `request_user_input` (Plan mode) |
 
 - Each entry names its runtime; pm never guesses it. An entry without `--runtime` runs the Claude judge, as every entry did before the flag.
 - One judge prompt serves both runtimes, and every labelled case must pass on each.
@@ -163,6 +174,8 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | **`claude -p` for every runtime** (sprint 1) | Codex sessions call the Claude judge | A Codex-only machine has no `claude`; the judge fails at every stop and Codex passes each silently (owner decision 2026-10-12) |
 | **Skip the judge for a turn with an ask tool call** | Any ask tool call in the turn lets the stop through | Another ask left only in chat in the same reply would pass; giving the tool's questions to the judge as asked keeps it judged |
 | **An ask-tool question as a decision need** | The hook raises a decision need for the question | A decision rules a project's or sprint's outcome and is recorded; a question steers one session and its answer is not recorded, so a decision need would demand a decision record for every answer (owner decision 2026-10-14) |
+| **The judge blocks a decision asked with the ask tool** | The judge sorts each ask-tool question into question or decision and blocks a decision | The judge sees one sentence, not the sprint, so whether an ask changes a sprint's outcome is a call it can only guess, and a wrong block costs a retry; a decision asked with the ask tool is not lost, since it shows on the site, and an answer that rules the work is recorded with `--confirmed` (sprint pm-harness-118) |
+| **The owner's presence in the chat picks the form** | A need by default; the ask tool when the owner is plainly in the chat (the rule until 2026-10-14) | Now that an ask-tool question shows on the site, presence no longer decides whether a request is lost; what the request asks decides what its answer is, an instruction or a recorded decision (owner decision 2026-10-14) |
 | **Fall back to the other runtime's CLI** | Try codex when claude is missing, or the reverse | Hides a missing runtime and changes which model judges; the entry names the runtime instead |
 
 ## Prior art
@@ -175,5 +188,5 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 
 > What is still unresolved?
 
-1. **An unattended ask tool:** the agent's judgement of a "clear reason" is the only guard against a question that waits forever in a session nobody watches. If agents misjudge it, the rule narrows item 3.
+1. **A decision asked as a question:** the judge does not check the kind, so a decision asked with the ask tool is recorded only when the agent records the answer with `--confirmed`. If agents misjudge the kind, the judge could flag a decision in an ask-tool question.
 2. **Sync and async requests:** a request's kind (question, decision, action) says what the owner gives; its timing says who waits. A sync request is one a session waits on now: light in form, tied to that session, closed by the first answer in chat or on the site. An async request is one the session moves on from, answered later by whichever session takes the reply. The axes are independent: an action can be sync ("log in to `gh`, then I continue"), and a decision can be asked while the owner is in the chat. Not built: kept as a lens for when timing, not kind, has to drive what the site shows or how a reply is delivered (sprint pm-harness-118).

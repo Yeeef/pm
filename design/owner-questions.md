@@ -16,7 +16,7 @@ covers:
 
 > What are we solving, and why now?
 
-- The request rule lets an agent ask the owner with its runtime's ask tool (AskUserQuestion in Claude Code, `request_user_input_async` in Codex) when the owner is plainly in the chat ([Owner-request Stop hook](owner-request-hook.md), One rule). Such a question lived only in the session: an owner who stepped away never saw it on the site, and the session waited with no trace in pm.
+- The request rule sends a question that steers the session through its runtime's ask tool (AskUserQuestion in Claude Code, `request_user_input_async` in Codex) ([Owner-request Stop hook](owner-request-hook.md), One rule). Such a question lived only in the session: an owner who stepped away never saw it on the site, and the session waited with no trace in pm.
 - A question is not a decision or an action. It asks the owner to steer one session (what to do next, confirm a scope, clarify intent), and its answer is an instruction to that session, not a ruling to record (project decision 2026-10-14: three request kinds). Raising it as a decision need would demand a decision record for every answer.
 - An ask tool has two surfaces once pm mirrors it: the session's own (Claude Code's dialog, Codex's chat) and the site's card. Two answers to one question must not both steer the session.
 
@@ -36,7 +36,7 @@ Non-goals:
 
 - Codex's blocking `request_user_input` (Plan mode): not raised (Open questions).
 - Exactly-once across the two surfaces: two accepted windows can let both answers through or record the losing one (First answer wins).
-- A subagent's question: Claude Code gives subagents no AskUserQuestion; a Claude Code call with an `agent_id` is stepped over.
+- A subagent's question: Claude Code gives subagents no AskUserQuestion; a Claude Code call with an `agent_id` is stepped over. With no ask tool, the request rule sends a question as a decision need.
 - Sync versus async timing as a property of every request: a lens, not built ([Owner-request Stop hook](owner-request-hook.md), Open question 2).
 
 ## Constraints and key facts
@@ -90,7 +90,7 @@ Other constraints:
 
 | | Question | Decision | Action |
 |---|---|---|---|
-| Asks the owner to | steer one session: what to do next, confirm a scope, clarify intent | rule a project's or sprint's outcome | do a step only the owner can do |
+| Asks the owner to | steer one session: what to do next, confirm a scope or plan, clarify what the owner meant | rule a project's or sprint's outcome that later sessions must follow: a design choice, a scope change, a trade-off | do a step only the owner can do |
 | Raised by | pm, from the runtime's ask tool (`pm hook ask`) | the agent, `pm decision need` | the agent, `pm action need` (`--pr` for a review) |
 | Parent | the newest open task its session holds, else none | a sprint or task | a sprint or task |
 | The answer is | an instruction to the session that asked | a decision the agent records (`pm decision add --need`) or closes as no rule | evidence the agent checks (`pm action done`) |
@@ -98,6 +98,9 @@ Other constraints:
 | Closed by | pm, with the first answer | the agent | the agent |
 | Lives | while its session can take the answer (Closing) | until answered | until done |
 
+- The agent picks the kind by what it asks, not by whether the owner is in the chat (owner decision 2026-10-14), and splits a mixed ask. "Do you want me to open a sprint for it?" is a question; "should interactive mode also turn off the uncommitted-records check?" is a decision, since it changes what the sprint builds.
+- With no ask tool (`claude -p`, a subagent), a question goes as a decision need: its options and default let the session go on, it shows on the site, and `pm decision close` closes an answer that sets no rule. An action need does not fit: answering is not a step the owner does.
+- The owner-request hook checks that an ask reaches the owner, not its kind: a decision asked with the ask tool passes ([Owner-request Stop hook](owner-request-hook.md), One rule).
 - A question's answer records nothing in the records. If it rules the work, the agent records a decision with `--confirmed`.
 - The owner sees it on the site under "Sessions ask you", above the decisions, and in `pm show` (Answering on the site).
 
@@ -283,7 +286,7 @@ The owner-request Stop hook ([Owner-request Stop hook](owner-request-hook.md), T
 | Option | Why not |
 |---|---|
 | A one-way mirror: the site shows the question, only the chat answers | An owner away from the terminal could see the question and not answer it (owner decision 2026-10-13) |
-| Always raise a need instead of the ask tool | Brings back the sprint-or-task overhead the ask tool exists to avoid while the owner is in the chat, and a need does not stop the session's turn for an answer |
+| Always raise a need instead of the ask tool | Brings back the sprint-or-task overhead for a question that only steers the session, and a need does not stop the session's turn for an answer |
 | A question as a decision need | A decision rules a project's or sprint's outcome and is recorded; a question steers one session, so every answer would need a decision record or a no-rule close (owner decision 2026-10-14) |
 | Sync and async as request kinds | Timing is independent of kind (a sync action exists too); kept as a lens on the [Owner-request Stop hook](owner-request-hook.md) page, not built |
 | Claude Code's Remote Control bridge, which races the dialog | Needs the claude.ai bridge; read from Claude Code's strings, not run |
