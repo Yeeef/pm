@@ -77,6 +77,10 @@ Owner chose this in chat over tuning concurrency: both jobs take 190-300 s on a 
   about 120-175 s with setup even with ideal ordering. Cost with 5 votes:
   check $0.41-0.46 (the $0.27 baseline was 3-vote), cases $0.66-0.73.
 
+- PR #97 (changes the grader and AGENTS.md): check 38 s in diff mode; changed,
+  full and cases skipped; slowest other check build-test (darwin-arm64) 2m9s;
+  all 15 checks green (gh pr checks 97).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
