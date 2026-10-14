@@ -233,6 +233,17 @@ def test_the_os_lists_name_each_test_of_their_set_and_refuse_a_test_in_no_row_or
         assert named in res.stderr, named
     assert not os_tests(root, "names").stdout  # nothing printed while a test is unclassified
 
+    # every form go test finds (an unnamed or wrapped parameter), none it does not (Testlower, TestMain), and a file go
+    # builds only on some systems refused
+    (tmp_path / "c").mkdir()
+    (tmp_path / "c" / "y_test.go").write_text("func TestFour(*testing.T) {}\nfunc TestFive(\n\tt *testing.T,\n) {}\n"
+                                              "func Testlower(t *testing.T) {}\n")
+    root = module("a * any x\nb * any x\nc TestFive os x\nc TestFour any x\n")
+    assert os_tests(root, "names", "--os").stdout.strip() == "TestFive"
+    (tmp_path / "c" / "z_linux_test.go").write_text("func TestSix(t *testing.T) {}\n")
+    res = os_tests(root, "check")
+    assert res.returncode == 1 and "c/z_linux_test.go builds only on some systems" in res.stderr
+
 
 def test_go_changes_skips_the_go_jobs_only_for_docs_and_harness_python_that_no_go_file_reads():
     go_files = {"internal/a/a_test.go": 'x := filepath.Abs("../../tests/fake_x.py")\n'

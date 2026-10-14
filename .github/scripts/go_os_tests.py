@@ -5,8 +5,8 @@
     go_os_tests.py packages [--os] [--but DIR]
     go_os_tests.py names [--os] [--package DIR | --but DIR] [--only REGEX] [--skip REGEX] [--anchored]
 
-The tests are the top-level `func TestX(t *testing.T)` of every *_test.go in the module (none carries a build
-constraint, which check refuses). check fails, naming each, on a test in no row of go-os-tests.txt or in two, and on a
+The tests are the top-level `func TestX(t *testing.T)` of every *_test.go in the module (none builds only on some
+systems, which every command refuses). check fails, naming each, on a test in no row of go-os-tests.txt or in two, and on a
 row that names no test or package. packages prints the package dirs, as go test takes them, that hold a test of the
 set; names prints the set's test names joined by `|`, as go_shards.py's --run takes them (or `^(…)$` with --anchored,
 as go test's -run takes them). --os keeps the os tests (else every test); --package keeps one package's, --but leaves
@@ -23,7 +23,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-TEST = re.compile(r"^func (Test\w+)\(\w+ \*testing\.T\)", re.M)
+# A top-level test as go test finds one: Test, then no lower-case letter, taking one *testing.T, its parameter named
+# or not, on one line or several.
+TEST = re.compile(r"^func (Test(?![a-z])\w*)\(\s*(?:\w+\s+)?\*testing\.T\s*,?\s*\)", re.M)
+# A file go test builds only on some systems: a build constraint, or a GOOS or GOARCH suffix on its name.
+CONSTRAINED = re.compile(r"^//go:build|^// \+build", re.M)
+SUFFIX = re.compile(r"_(aix|android|darwin|dragonfly|freebsd|illumos|ios|js|linux|netbsd|openbsd|plan9|solaris|wasip1|"
+                    r"windows|386|amd64|arm|arm64|loong64|mips\w*|ppc64\w*|riscv64|s390x|wasm)_test\.go$")
 SKIP_DIRS = {"testdata", "vendor", "node_modules"}
 
 
@@ -35,8 +41,8 @@ def module_tests(root: Path) -> dict[str, list[str]]:
         if any(p.startswith(".") or p in SKIP_DIRS for p in rel.parts[:-1]):
             continue
         text = f.read_text()
-        if re.search(r"^//go:build", text, re.M):
-            sys.exit(f"go_os_tests: {rel} has a build constraint, which this list cannot follow")
+        if CONSTRAINED.search(text) or SUFFIX.search(f.name):
+            sys.exit(f"go_os_tests: {rel} builds only on some systems, which this list cannot follow")
         pkg = str(rel.parent) if rel.parent != Path(".") else "."
         tests.setdefault(pkg, []).extend(TEST.findall(text))
     return {p: sorted(t) for p, t in tests.items() if t}
