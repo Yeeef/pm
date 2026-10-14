@@ -13,7 +13,7 @@ import (
 // America/New_York: a reply saving, one sent and not delivered, one failed whose text
 // and id go back in the box, escaped, and one sent with no known delivery; a question's answer form, and one whose
 // answer failed, its text above the form; then the status 13 s behind. -update rewrites it.
-func TestFillRepliesAndStatus(t *testing.T) {
+func TestGoldenFillRepliesAndStatus(t *testing.T) {
 	loc, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		t.Fatal("no time zone data:", err)

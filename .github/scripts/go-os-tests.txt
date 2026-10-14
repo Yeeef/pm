@@ -113,7 +113,7 @@ internal/site      TestPagesEqualTheGoldenPages                                 
 internal/site      TestADesignPageSaysWhyItsCoveredCodeWasNotChecked                                  os  same git store fixture plus git update-ref
 internal/site      TestCheckRefusesEachBrokenRecord                                                   os  records.Read and ReadSummaries on edited temp-dir copies of the constructs store (realpath)
 internal/site      TestCodeChangedLeavesOutTheMergesOfSprintsThatUpdatedOrWaivedThePage               any in-memory commits and records
-internal/site      TestFillRepliesAndStatus                                                           any HTML template fill compared with testdata
+internal/site      TestGoldenFillRepliesAndStatus                                                           any HTML template fill compared with testdata
 internal/site      TestAReplyToASessionWithNoInboxWaitsForIt                                          any HTML text
 internal/site      TestAQuestionsSlotBecomesTheFormItsInputsPost                                      any HTML text replacement in memory
 internal/sync      TestARunRecordsEachStepAndFlagsAFailure                                            os  the push lock is syscall.Flock LOCK_NB; the ASecondRunSkipsWhileOneHoldsTheLock subtest depends on it
