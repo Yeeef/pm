@@ -68,6 +68,12 @@ None yet.
   #62, #80, #81, #83, #85, which set the 5 slowest walls (4.2-6.4 min). macOS
   race job run median 100 s before #81 -> 47 s over #84-#88.
 
+- Test counts at 8ad2720 vs fe05966: Go top-level tests 89 -> 155 (152 pass, 3
+  skip), subtests run 103 -> 121; pytest collected 151 -> 359: light 114 ->
+  296 (135 pass, 161 skipped: the 148 owner-request live cases and 13
+  AGENTS.md grader live cases), integration 37 -> 63 (12 of them the parity
+  live eval).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
