@@ -55,7 +55,11 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- 24 candidate rows (about 29 benchmarks) surveyed, each with a source link.
+  Only SWE-Marathon (20 tasks, 2-10 h agent limit, Apache-2.0, Claude Code and
+  Codex built in through Harbor) has tasks that outlast one context window and
+  one session on both runtimes; its paper reports 31.4% timeouts, 7.6%
+  premature stops and compaction correlated with failure.
 
 ## Delivery report
 
