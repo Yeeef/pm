@@ -1,6 +1,6 @@
 ---
 type: sprint
-title: Move this repo's pm pin to 0.10.0
+title: Move this repo's pm pin to 0.11.0
 bead: yeeef-agents-9va.133
 ---
 
@@ -45,7 +45,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-15}
+Renamed the sprint from "Move this repo's pm pin to 0.10.0" to "Move this repo's pm pin to 0.11.0": 0.11.0 (PR #90, replies by push alone) released while the 0.10.0 pin move waited for CI.
+Moving straight to 0.11.0 includes sprint 118's 0.10.0 and saves a second pin move.
+:::
 
 ## Findings
 
