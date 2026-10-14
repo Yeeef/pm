@@ -99,6 +99,12 @@ None yet.
   (test_a_hook_stopped_mid_judge_takes_its_judge_with_it[SIGTERM]: exit 143,
   not 1), because the build's SIGTERM patch exits first.
 
+- Lint backlog (ratcheted linters, whole tree) 481 -> 354: errcheck 364 ->
+  311, gocognit 33 -> 10, funlen 36 -> 12, gocyclo 26 -> 0 (gocyclo now gates
+  every line), reassign 19 -> 19, file length 3 -> 2. Functions over gocyclo
+  30 or gocognit 40: 35 -> 10 (non-test 21 -> 4). //nolint directives 20 ->
+  49, 25 of them errcheck. make lint exits 0.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
