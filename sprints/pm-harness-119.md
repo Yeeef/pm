@@ -16,11 +16,11 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 > details go in a design page.
 
 **In:**
-- The owner's prompt `pm interactive` or `pm autopilot` (the whole prompt): `pm hook inbox` on UserPromptSubmit writes or removes a mode file under the main checkout's `.pm/run/sessions/<session-id>`, using the hook input's `session_id`. No CLI command changes the mode, so a blocked agent cannot switch the judge off itself.
+- The commands `pm interactive` and `pm autopilot`: they write or remove a mode file under the main checkout's `.pm/run/sessions/<session-id>`, the session from the environment, and refuse with none. An agent runs them when the owner asks; nothing enforces it (owner decision). While the file exists, `pm hook inbox` adds a line saying so to each prompt.
 - `pm hook owner-request` reads the hook input's `session_id` and passes the stop through when that session is interactive. Sessions start in autopilot.
 - `pm hook stop` (the uncommitted-records check) stays on in both modes.
 - Mode files of sessions that are not live: removed by `pm clean`.
-- The rule in its three texts, edited in one commit: `prime.md`, the judge prompt and the block reasons. Labelled cases where the rule moves.
+- The rule: `prime.md` tells agents to run `pm interactive` when the owner asks for it. The judge prompt and the block reasons stay: the judge does not run in interactive mode, so no labelled case moves.
 - Both runtimes: Claude Code and Codex.
 
 **Out:**
@@ -32,17 +32,18 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 > What evidence will show the goal is met?
 
 - `test_owner_request_hook.py`: an interactive session's chat ask passes the stop; the same ask in another session, in an autopilot session, or after `pm autopilot` is blocked.
-- `test_hooks.py`: the prompt `pm interactive` / `pm autopilot` on UserPromptSubmit writes / removes the session's mode file, on both runtimes' input; any other prompt, one that merely contains the words included, changes nothing.
+- `test_pm.py`: `pm interactive` / `pm autopilot` write / remove the session's mode file, and refuse with no session id.
+- `test_hooks.py`: `pm hook inbox` adds the interactive-mode line only while the session is interactive, on both runtimes' input.
 - `test_clean.py`: `pm clean` removes a dead session's mode file and keeps a live one's.
-- Live check, in a scratch clone: a `claude -p` session given the prompt `pm interactive`, then resumed with a prompt that makes it ask in chat, is not blocked; after the prompt `pm autopilot`, the same ask is blocked.
+- Live check, in a scratch clone: a `claude -p` session told to run `pm interactive`, then resumed with a prompt that makes it ask in chat, is not blocked; after `pm autopilot`, the same ask is blocked.
 - PR on main.
 
 ## Design pages
 
 > Where is the detail?
 
-- [Owner-request Stop hook](../design/owner-request-hook.md): Interactive mode, its prompts, mode file and checks; the UserPromptSubmit block measured on both runtimes; the mode read from the transcript, a `pm interactive` command and an unblocked mode prompt as alternatives not chosen (covers `internal/session/mode*.go`).
-- [Agent lifecycle](../design/agent-lifecycle.md): the UserPromptSubmit row of the hooks table, and the Stop check off in interactive mode (covers `prime.md`, `internal/hooks/prime*.go`, `internal/hooks/stop*.go`).
+- [Owner-request Stop hook](../design/owner-request-hook.md): Interactive mode, its commands, mode file and checks; the prompt keyword and the mode read from the transcript as alternatives not chosen (covers `internal/session/mode*.go`, `internal/cli/mode.go`).
+- [Agent lifecycle](../design/agent-lifecycle.md): the UserPromptSubmit row of the hooks table (the interactive-mode line), and the Stop check off in interactive mode (covers `prime.md`, `internal/hooks/prime*.go`, `internal/hooks/stop*.go`).
 - [pm CLI](../design/pm-cli.md): the same in its hooks table (covers `internal/cli/commands.go`, its help golden).
 - [Session claims](../design/session-claims.md): `pm clean` removing the mode file of a session not live (covers `internal/cli/clean.go`, `internal/session/**`).
 
