@@ -29,6 +29,27 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.11.0] - 2026-10-14
+
+An owner's reply reaches the session that asked by the pm service's push alone, with `pm show`'s flag and `pm reply
+read` for a session it did not reach; `pm reply wait` and the UserPromptSubmit hook `pm hook inbox` are gone.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.11.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.11.0`, then commit what it changes and merge it, as an ordinary PR.
+
+### Removed
+
+- `pm reply wait <id>`. In the transcripts on the owner's machine it never delivered a reply that the push had not
+  delivered already. A raising command now names the push, or, for a session with no inbox, the `pm show` flag and
+  `pm reply read <id>`.
+- `pm hook inbox`, the UserPromptSubmit hook in Claude Code and Codex. `pm upgrade` to this version takes it out of
+  `.claude/settings.json` and `.codex/hooks.json`, and so does `pm init` in a repo without `.pm/config.toml`; `pm init`
+  in an installed repo, session start's included, leaves those files alone. Your own UserPromptSubmit hooks stay.
+  `pm doctor` reports a file that still holds it.
+
 ## [0.10.0] - 2026-10-14
 
 A question an agent asks with its runtime's ask tool shows on the owner's site too, where the owner can answer it as
@@ -900,6 +921,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.11.0]: https://github.com/Yeeef/pm/compare/pm-v0.10.0...pm-v0.11.0
 [0.10.0]: https://github.com/Yeeef/pm/compare/pm-v0.9.1...pm-v0.10.0
 [0.9.1]: https://github.com/Yeeef/pm/compare/pm-v0.9.0...pm-v0.9.1
 [0.9.0]: https://github.com/Yeeef/pm/compare/pm-v0.8.8...pm-v0.9.0
