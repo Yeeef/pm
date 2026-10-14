@@ -261,6 +261,8 @@ PR #80 changes only doc comments and AGENTS.md citations in the files this page 
 
 done: AGENTS.md is an 11.7 KB map that Claude Code, Codex and Grok Build read whole, and an agent grades it against a rubric on every PR, signed in through workload identity federation with no stored API key (PR #80).
 
+Merged as 8af66d6 (PR #80).
+
 - AGENTS.md went from 44,134 bytes and 363 lines (Codex read 240) to 11,738 bytes; the Layout table moved into Go package doc comments, test narration into the tests' module docstrings, the release procedure into `release/README.md`.
 - `tests/test_agents_md.py` holds the 20,480-byte cap and the `CLAUDE.md` link.
 - `tests/agents_md/` holds the rubric (8 criteria), the runner (`make agents-md-check`: full mode on a PR that changes AGENTS.md, diff mode on every other PR) and 13 labelled cases (`make test-live-agents-md`); full mode votes 3 calls per part and fails a passage only when 2 calls agree on it.
