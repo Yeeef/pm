@@ -93,6 +93,19 @@ None yet.
   push runs at fedc348, 5b48d14, d318ee3 and 8ad2720 ran the full suite and
   passed.
 
+- What is left per PR: a job with nothing selected still costs 18-24 s on
+  Linux and 41-47 s on macOS (checkout, Go, cache restore and the select step,
+  which needs the module cache for go list -deps), 110-130 s of the 190-218 s.
+  A selection job ahead of the test jobs could skip them whole but would add
+  its own setup to every PR's wall. Adding a Go test edits go-os-tests.txt
+  (and an internal/work test, work-test-seconds.txt), which the selector
+  cannot place, so such a PR runs every package; mapping each row to its
+  package would place them. Review's weak points, none failing today:
+  SOURCE_MARK misses a test reading source through filepath.Glob("*.go") (a
+  glob mark flagged internal/records' covers patterns, so it was not added),
+  and a NO_GO file read through a computed path selects nothing, as
+  go_changes.py's skip already allowed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
