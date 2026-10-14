@@ -13,7 +13,11 @@ a line to $FAKE_CODEX_APP_LOG.
 the files there, its model instructions file's text, $CODEX_HOME and its pid to $FAKE_CODEX_LOG as one JSON line,
 prints a line of progress, sleeps $FAKE_CODEX_SLEEP seconds when set, then writes $FAKE_CODEX_OUTPUT when it is set,
 else "Summary <n>." (n counting its calls), to its --output-last-message file; or, when $FAKE_CODEX_FAIL is set, fails
-with that text on stderr."""
+with that text on stderr.
+
+`codex queue --thread T --message M`, which the pm service runs to hand a Codex session the owner's answer: appends
+{"queue": its arguments, "codex_home": $CODEX_HOME} to $FAKE_CODEX_LOG as one JSON line and says it queued the message
+for thread T, as codex 0.154 does."""
 
 import json
 import os
@@ -46,8 +50,14 @@ if sys.argv[1:2] == ["exec"]:
     out = args[args.index("--output-last-message") + 1]
     Path(out).write_text(os.environ.get("FAKE_CODEX_OUTPUT") or f"Summary {len(Path(log).read_text().splitlines())}.")
     sys.exit(0)
+if sys.argv[1:2] == ["queue"]:
+    args = sys.argv[2:]
+    with open(os.environ["FAKE_CODEX_LOG"], "a") as f:
+        f.write(json.dumps({"queue": args, "codex_home": os.environ.get("CODEX_HOME")}) + "\n")
+    print(f"Queued message 01a1-q for thread {args[args.index('--thread') + 1]}.")
+    sys.exit(0)
 if sys.argv[1:] != ["app-server"]:
-    sys.exit(f"fake codex: only --version, app-server and exec, not {sys.argv[1:]}")
+    sys.exit(f"fake codex: only --version, app-server, exec and queue, not {sys.argv[1:]}")
 if os.environ.get("FAKE_CODEX_APP_LOG"):
     with open(os.environ["FAKE_CODEX_APP_LOG"], "a") as f:
         f.write(json.dumps({"cwd": os.getcwd()}) + "\n")

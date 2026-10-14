@@ -17,7 +17,7 @@ type fakePending struct {
 	out       *bytes.Buffer
 }
 
-func (f *fakePending) read(dir, session string) ([]string, func() error, error) {
+func (f *fakePending) read(dir, session, prompt string) ([]string, func() error, error) {
 	if f.readErr != nil {
 		return nil, nil, f.readErr
 	}

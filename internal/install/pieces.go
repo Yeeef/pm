@@ -201,7 +201,7 @@ func claudeHooks() entries {
 		return out
 	}
 	return entries{
-		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "Stop"},
+		events: []string{"SessionStart", "SubagentStart", "UserPromptSubmit", "PermissionRequest", "Stop"},
 		groups: map[string]func() *object{
 			"SessionStart": func() *object {
 				return obj("hooks", append(rules(30), h("pm prime --state --hook-json", 30)), "matcher", "")
@@ -211,6 +211,9 @@ func claudeHooks() entries {
 			},
 			"UserPromptSubmit": func() *object {
 				return obj("hooks", []any{h("pm hook inbox || exit 1", 10)})
+			},
+			"PermissionRequest": func() *object { // beside the question's dialog, up to a day for the owner's answer
+				return obj("hooks", []any{h("pm hook ask --runtime claude || exit 1", 86400)}, "matcher", "AskUserQuestion")
 			},
 			"Stop": func() *object {
 				return obj("hooks", []any{h("pm hook owner-request --runtime claude || exit 1", 30), h("pm hook stop || exit 1", 10)})
@@ -222,7 +225,9 @@ func claudeHooks() entries {
 // codexHooks is pm's entries in .codex/hooks.json. Codex's SessionStart matcher is a pattern over its sources, which
 // name each one: startup, resume, clear and compact. Its SubagentStop runs pm hook stop on the subagent's own rollout:
 // Codex keeps a subagent's prompt from its parent's rollout (encrypted), so the parent's Stop cannot see what the
-// subagent was asked to write, as Claude Code's parent transcript shows it.
+// subagent was asked to write, as Claude Code's parent transcript shows it. Its Stop runs pm hook ask first, which
+// raises the turn's request_user_input_async questions (Claude Code raises AskUserQuestion's at PermissionRequest),
+// with time for a question under a task, whose id the remote mints.
 func codexHooks() entries {
 	h := func(command, status string, timeout int) any {
 		return obj("command", command, "statusMessage", status, "type", "command", "timeout", timeout)
@@ -249,7 +254,8 @@ func codexHooks() entries {
 				return obj("hooks", []any{h("pm hook inbox || exit 1", "Checking for the owner's replies", 10)})
 			},
 			"Stop": func() *object {
-				return obj("hooks", []any{h("pm hook owner-request --runtime codex || exit 1", "Checking for owner requests asked only in chat", 45),
+				return obj("hooks", []any{h("pm hook ask --runtime codex || exit 1", "Raising the questions asked with the ask tool", 30),
+					h("pm hook owner-request --runtime codex || exit 1", "Checking for owner requests asked only in chat", 45),
 					h("pm hook stop || exit 1", "Checking for uncommitted records", 10)})
 			},
 			"SubagentStop": func() *object {

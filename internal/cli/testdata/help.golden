@@ -810,13 +810,14 @@ options:
   --hook-json  read the SessionStart or SubagentStart input on stdin and print the hook's JSON envelope, as Claude Code and Codex read it
 ===== pm hook --help
 usage: pm hook [-h]
-               {stop,owner-request,inbox,git-post-checkout,git-pre-commit} ...
+               {stop,owner-request,ask,inbox,git-post-checkout,git-pre-commit} ...
 
 positional arguments:
-  {stop,owner-request,inbox,git-post-checkout,git-pre-commit}
+  {stop,owner-request,ask,inbox,git-post-checkout,git-pre-commit}
     stop                Stop: block once while records this session's tool calls name are uncommitted in the store, leaving out a record that only a still-running subagent's prompt names
     owner-request       Stop: block once while the reply asks the owner for something no open need or action of this session covers
-    inbox               UserPromptSubmit: hand this session the owner's replies that did not reach it (Codex has no push) as context beside the prompt, then mark them delivered
+    ask                 PermissionRequest of AskUserQuestion (Claude Code), first at Stop (Codex): raise the session's ask-tool question as a question need the owner can answer on the site too
+    inbox               UserPromptSubmit: hand this session the owner's replies that did not reach it (Codex has no push) as context beside the prompt, then mark them delivered, and close the session's open Codex questions (pm hook ask): with the reply handed over, else with the prompt, the owner's answer in the chat
     git-post-checkout   git post-checkout (.pm/hooks/post-checkout): in a new worktree, run pm init's clone and worktree half, all but the pm service
     git-pre-commit      retired: does nothing; an earlier pm's section in .pm/hooks/pre-commit runs it until pm upgrade removes that section
 
@@ -836,6 +837,15 @@ options:
   -h, --help            show this help message and exit
   --runtime {claude,codex}
                         the session's runtime, which the judge runs on; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json (default: claude, as an entry written before this flag)
+===== pm hook ask --help
+usage: pm hook ask [-h] --runtime {claude,codex}
+
+Raise the session's ask-tool question as a question need under the newest open task the session holds (else none), so the owner can answer it on the site as well as in the session; the first answer closes the need. Claude Code runs it on PermissionRequest for AskUserQuestion, beside the question's dialog, for up to a day: it closes the need with the dialog's answer once the transcript holds it (dismissed when the owner rejects the dialog), or, on a site reply, closes it as answered on the site and answers the tool with the reply, one "<question>: <answer>" line per question (an answer naming an option's label is that option; a reply with no such line answers every question whole); a subagent's call steps aside. Codex runs it first at Stop: it raises each request_user_input_async question of the turn once, by its call id; the pm service queues the site's answer into the session unless the owner answered in the chat first, and pm hook inbox closes the question with the prompt the owner typed. It fails open: on its own error it says why on stderr, prints nothing and exits 0.
+
+options:
+  -h, --help            show this help message and exit
+  --runtime {claude,codex}
+                        the session's runtime; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json
 ===== pm hook inbox --help
 usage: pm hook inbox [-h]
 

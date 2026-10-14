@@ -6,6 +6,7 @@ which test_init_bootstraps_a_brand_new_repo checks."""
 
 from __future__ import annotations
 
+import datetime
 import json
 import re
 import shutil
@@ -16,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, hook_payload, nouns, \
-    rules, stop_services, write_config, VERSION
+    rules, stop_services, wait_for, write_config, VERSION
 
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
@@ -539,7 +540,7 @@ def test_a_codex_sessions_start_names_the_pm_hooks_codex_skips(repo, tmp_path):
     codex_home.mkdir(exist_ok=True)
     (codex_home / "config.toml").write_text("# trust as the user left it\n")
     trust = tmp_path / "trust.json"
-    trust.write_text(json.dumps({"stop:0:0": "modified"}))  # the judge's entry changed since the user trusted it
+    trust.write_text(json.dumps({"stop:0:1": "modified"}))  # the judge's entry changed since the user trusted it
     env = dict(repo.env, FAKE_CODEX_TRUST=str(trust))
     app_log = Path(repo.env["FAKE_CODEX_APP_LOG"])
     payload = hook_payload("codex", "SessionStart", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"))
@@ -566,3 +567,154 @@ def test_a_codex_sessions_start_names_the_pm_hooks_codex_skips(repo, tmp_path):
     (codex_home / "config.toml").write_text("# trust as the user left it\n[hooks.state]\n")
     assert not start("codex").startswith("warning: this Codex session") and calls() == before + 2
     assert not start("claude").startswith("warning: this Codex session") and calls() == before + 2
+
+
+# ---------------------------------------------------------------- ask-tool questions
+
+ASK = [*PM, "hook", "ask", "--runtime"]
+COLOR = {"questions": [{"question": "Which color?", "header": "Color", "multiSelect": False,
+                        "options": [{"label": "Red", "description": "warm"}, {"label": "Blue", "description": "cool"}]}]}
+
+
+def held_task(repo, session: str) -> None:
+    """repo-demo.1.3, a task `session` holds."""
+    repo.add_issue({"id": "repo-demo.1.3", "title": "Paint it", "status": "in_progress", "issue_type": "task",
+                    "parent": "repo-demo.1", "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z",
+                    "started_at": "2026-10-01T12:00:00Z",
+                    "metadata": {"claimed_by": session, "claimed_at": "2026-10-01T12:00:00Z"}})
+
+
+def questions(repo) -> dict[str, dict]:
+    return {i: it for i, it in repo.items().items() if (it.get("need") or {}).get("kind") == "question"}
+
+
+def ask_dialog(repo, transcript: Path, **extra) -> subprocess.Popen:
+    """pm hook ask, as Claude Code starts it beside an AskUserQuestion dialog: the PermissionRequest input on stdin,
+    left running."""
+    payload = dict(hook_payload("claude", "PermissionRequest", session=ME, cwd=str(repo.root),
+                                transcript=str(transcript), tool_input=COLOR), **extra)
+    (transcript.parent / "input.json").write_text(json.dumps(payload))
+    with (transcript.parent / "input.json").open() as stdin:
+        return subprocess.Popen([*ASK, "claude"], stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                env=repo.env, cwd=repo.root, text=True)
+
+
+def dialog_closed(transcript: Path, answer: str | None) -> None:
+    """What Claude Code appends once the dialog closes: the call, then its result; answer None rejects it (Esc)."""
+    use = {"type": "assistant", "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "id": "toolu_1", "name": "AskUserQuestion", "input": COLOR}]}}
+    result = {"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_1", "content": f'"Which color?"="{answer}"'}]},
+              "toolUseResult": {"questions": COLOR["questions"], "answers": {"Which color?": answer}}}
+    if answer is None:
+        result = {"type": "user", "message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "toolu_1", "content": "User rejected tool use", "is_error": True}]},
+                  "toolUseResult": "User rejected tool use", "toolDenialKind": "user-rejected"}
+    with transcript.open("a") as f:
+        f.write(json.dumps(use) + "\n" + json.dumps(result) + "\n")
+
+
+def test_a_claude_question_answered_on_the_site_answers_the_dialog(repo, tmp_path):
+    """The hook raises the AskUserQuestion call as a question under the task the session holds and waits; the owner's
+    reply (pm reply add writes it as the site does) closes it as answered on the site, delivered, and the hook answers
+    the tool with it, the option's label for the owner's text."""
+    held_task(repo, ME)
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(json.dumps({"type": "user", "message": {"role": "user", "content": "go"}}) + "\n")
+    proc = ask_dialog(repo, transcript)
+    try:
+        (nid, q), = wait_for(lambda: questions(repo).items(), "the question raised")
+        assert q["parent"] == "repo-demo.1.3" and q["status"] == "open" and q["title"] == f"Session {ME} asks: Which color?"
+        assert repo.pm("reply", "add", nid, text="Which color?: blue").returncode == 0
+        out, err = proc.communicate(timeout=30)
+    finally:
+        proc.kill()
+    assert proc.returncode == 0 and err == "", err
+    decision = json.loads(out)["hookSpecificOutput"]
+    assert decision == {"hookEventName": "PermissionRequest", "decision": {
+        "behavior": "allow", "updatedInput": dict(COLOR, answers={"Which color?": "Blue"})}}
+    q = repo.items()[nid]
+    assert (q["status"], q["resolution"], q["close_reason"], q["need"]["delivered"]) == \
+           ("closed", "answered", "answered on the site", 1)
+
+
+@pytest.mark.parametrize("answer", ["Red", None], ids=["answered", "rejected"])
+def test_a_claude_question_answered_in_the_dialog_closes_with_that_answer(repo, tmp_path, answer):
+    """The dialog's answer, once the transcript holds it, closes the question with it, or as dismissed when the owner
+    rejected the dialog; the hook prints nothing, so the dialog's answer stands."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(json.dumps({"type": "user", "message": {"role": "user", "content": "go"}}) + "\n")
+    proc = ask_dialog(repo, transcript)
+    try:
+        (nid, q), = wait_for(lambda: questions(repo).items(), "the question raised")
+        assert "parent" not in q or not q["parent"], "a session that holds no task: no parent"
+        dialog_closed(transcript, answer)
+        out, err = proc.communicate(timeout=30)
+    finally:
+        proc.kill()
+    assert proc.returncode == 0 and out == "" and err == "", err
+    q = repo.items()[nid]
+    if answer:
+        assert (q["status"], q["resolution"]) == ("closed", "answered")
+        assert q["comments"][-1]["text"] == "Which color?: Red"
+    else:
+        assert (q["status"], q["resolution"], q["close_reason"]) == ("closed", "dismissed", "declined in the session")
+
+
+def test_ask_steps_aside_for_a_subagent_or_another_tool(repo, tmp_path):
+    """No dialog the owner sees: nothing raised, nothing printed, at once."""
+    repo.mark()
+    for extra in ({"agent_id": "a1", "agent_type": "general-purpose"}, {"tool_name": "Bash"}):
+        payload = dict(hook_payload("claude", "PermissionRequest", session=ME, cwd=str(repo.root),
+                                    transcript=str(tmp_path / "t"), tool_input=COLOR), **extra)
+        res = run([*ASK, "claude"], payload, repo.env, repo.root)
+        assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+    assert repo.unchanged()
+
+
+def codex_ask_rollout(repo, *typed: str) -> Path:
+    """ROOT's rollout under the test's CODEX_HOME, as Codex 0.154 writes it: a turn that asks with
+    request_user_input_async (returning at once), then each message the owner typed."""
+    ms = int(ROOT[:8] + ROOT[9:13], 16)  # a UUIDv7's start, which names the rollout's date directory
+    day = datetime.datetime.fromtimestamp(ms / 1000, datetime.UTC).strftime("%Y/%m/%d")
+    path = Path(repo.env["CODEX_HOME"]) / "sessions" / day / f"rollout-2026-10-11T19-07-16-{ROOT}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    args = json.dumps({"questions": [{"title": "Red or blue?", "options": ["Red", "Blue"]}]})
+    lines = [{"type": "session_meta", "payload": {"id": ROOT, "session_id": ROOT, "cwd": str(repo.root)}},
+             {"type": "turn_context", "payload": {"turn_id": "t1", "cwd": str(repo.root)}},
+             {"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input_async",
+                                                   "arguments": args, "call_id": "call_4f11"}},
+             {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "call_4f11",
+                                                   "output": '{"accepted":true}'}}]
+    lines += [{"type": "event_msg", "payload": {"type": "item_completed", "item": {
+        "type": "UserMessage", "content": [{"type": "text", "text": t}]}}} for t in typed]
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    return path
+
+
+def codex_stop_asks(repo) -> str:
+    """pm hook ask at a Codex Stop of ROOT's turn: the id of the one question it raised."""
+    path = codex_ask_rollout(repo)
+    for _ in range(2):  # a later stop of the turn raises nothing again
+        res = run([*ASK, "codex"], hook_payload("codex", "Stop", session=ROOT, cwd=str(repo.root),
+                                                transcript=str(path), reply="Asked."), repo.env, repo.root)
+        assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+    (nid, q), = questions(repo).items()
+    assert q["status"] == "open" and q["need"]["raised_by"]["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}"
+    assert q["need"]["ask"] == {"call": "call_4f11", "questions": [
+        {"text": "Red or blue?", "header": "", "multi": False,
+         "options": [{"label": "Red", "detail": ""}, {"label": "Blue", "detail": ""}]}]}
+    return nid
+
+
+def test_codex_stop_raises_the_async_question_once_and_the_chat_answer_closes_it(repo):
+    """Codex's ask tool returns at once: the Stop raises its question, once by its call id, under the rollout's
+    CODEX_HOME, which the service queues a site answer under; the owner's next prompt, typed in the session, closes it
+    as the answer (pm hook inbox)."""
+    nid = codex_stop_asks(repo)
+    payload = hook_payload("codex", "UserPromptSubmit", session=ROOT, cwd=str(repo.root), transcript="/t",
+                           prompt="Blue, please")
+    res = run(INBOX, payload, repo.env, repo.root)
+    assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+    q = repo.items()[nid]
+    assert (q["status"], q["resolution"], q["comments"][-1]["text"]) == ("closed", "answered", "Blue, please")

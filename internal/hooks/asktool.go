@@ -43,20 +43,44 @@ type transcriptLine struct {
 		Type      string `json:"type"`
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`
+		CallID    string `json:"call_id"`
 	} `json:"payload"`
 }
 
 // ToolAsks is the questions the session asked with its ask tool in its last turn, read from its transcript (a Claude
 // Code session's JSONL or a Codex rollout): the calls after the turn's start, which is the last prompt of the user in
 // Claude Code and the last turn_context in Codex. None when the transcript cannot be read: then every ask is judged.
-// Lines that cannot start a turn or hold an ask call are not parsed.
 func ToolAsks(transcript string) []string {
+	var out []string
+	for _, c := range turnAskCalls(transcript) {
+		var args struct{ Questions []toolQuestion }
+		if json.Unmarshal(c.input, &args) != nil {
+			continue
+		}
+		for _, q := range args.Questions {
+			if t := q.text(); t != "" {
+				out = append(out, t)
+			}
+		}
+	}
+	return out
+}
+
+// askCall is one ask tool call: the tool's name, its call id (Codex's call_id; "" in Claude Code) and its input.
+type askCall struct {
+	name, call string
+	input      json.RawMessage
+}
+
+// turnAskCalls is the ask tool calls of the transcript's last turn, in order; none when it cannot be read. Lines that
+// cannot start a turn or hold an ask call are not parsed.
+func turnAskCalls(transcript string) []askCall {
 	f, err := os.Open(transcript)
 	if err != nil {
 		return nil
 	}
 	defer f.Close() //nolint:errcheck // read only
-	var asks []string
+	var calls []askCall
 	r := bufio.NewReader(f)
 	for {
 		line, err := r.ReadString('\n')
@@ -65,16 +89,16 @@ func ToolAsks(transcript string) []string {
 			var e transcriptLine
 			if json.Unmarshal([]byte(line), &e) == nil {
 				if turnStart(e) {
-					asks = nil
+					calls = nil
 				}
-				asks = append(asks, toolCallAsks(e)...)
+				calls = append(calls, askCallsOn(e)...)
 			}
 		}
 		if err != nil {
 			if err != io.EOF {
 				return nil
 			}
-			return asks
+			return calls
 		}
 	}
 }
@@ -109,9 +133,8 @@ func turnStart(e transcriptLine) bool {
 	return false
 }
 
-// toolCallAsks is the questions of the ask tool calls on the line.
-func toolCallAsks(e transcriptLine) []string {
-	var inputs []json.RawMessage
+// askCallsOn is the ask tool calls on the line.
+func askCallsOn(e transcriptLine) []askCall {
 	switch {
 	case e.Type == "assistant":
 		var blocks []struct {
@@ -121,25 +144,15 @@ func toolCallAsks(e transcriptLine) []string {
 		if json.Unmarshal(e.Message.Content, &blocks) != nil {
 			return nil
 		}
+		var out []askCall
 		for _, b := range blocks {
 			if b.Type == "tool_use" && askTools[b.Name] {
-				inputs = append(inputs, b.Input)
+				out = append(out, askCall{name: b.Name, input: b.Input})
 			}
 		}
+		return out
 	case e.Type == "response_item" && e.Payload.Type == "function_call" && askTools[e.Payload.Name]:
-		inputs = append(inputs, json.RawMessage(e.Payload.Arguments))
+		return []askCall{{e.Payload.Name, e.Payload.CallID, json.RawMessage(e.Payload.Arguments)}}
 	}
-	var out []string
-	for _, in := range inputs {
-		var args struct{ Questions []toolQuestion }
-		if json.Unmarshal(in, &args) != nil {
-			continue
-		}
-		for _, q := range args.Questions {
-			if t := q.text(); t != "" {
-				out = append(out, t)
-			}
-		}
-	}
-	return out
+	return nil
 }

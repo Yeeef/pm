@@ -126,7 +126,9 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 	case "hook stop":
 		return hooks.HookStop(stdin, stdout, stderr)
 	case "hook inbox":
-		return hooks.HookInbox(here, pendingReplies, stdin, stdout, stderr)
+		return hooks.HookInbox(here, hooks.SessionReplies, stdin, stdout, stderr)
+	case "hook ask":
+		return hooks.HookAsk(here, ask.Runtime(p.Get("runtime")), hooks.DialStore, stdin, stdout, stderr)
 	case "hook owner-request":
 		return runOwnerHook(p, here, stdin, stdout, stderr)
 	case "service install", "service status", "service restart", "service stop", "service logs", "service run":
@@ -196,7 +198,7 @@ func runOwnerHook(p *Parsed, here string, stdin io.Reader, stdout, stderr io.Wri
 	if runtime == "" {
 		runtime = ask.Claude // an entry written before --runtime existed ran the claude judge
 	}
-	if code, err := hooks.HookOwnerRequest(here, runtime, openRequests, stdin, stdout, stderr); err != nil || code == 0 {
+	if code, err := hooks.HookOwnerRequest(here, runtime, hooks.OpenNeeds, stdin, stdout, stderr); err != nil || code == 0 {
 		return err
 	} else {
 		return &exitCode{code}
