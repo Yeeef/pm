@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T11:11:21+00:00",
- "digest": "7138b1a41e68f4ab",
+ "generated_at": "2026-10-14T11:31:41+00:00",
+ "digest": "0443c841da5e065b",
  "model": "claude-haiku-5-5",
- "text": "- **Command-line code layout:** The command-line code now splits by noun. The leftover Python-port code is deleted, including the argument parser emulation.\n- **Agent instructions:** AGENTS.md is now a short map, under the size cap, and every agent runtime reads it in full. A size test and an agent evaluation run in CI on every pull request.\n- **Test and CI speed:** Docs-only pull requests now skip the Go test matrix and pass merge-ready. Median check time is still above the target.\n- **Sprint close rule:** A sprint close now checks only the covers patterns it added or changed while open. Another session's older pending pattern no longer blocks the close."
+ "text": "- **Command-line code restructured:** The command-line code is now split by noun. The leftover code from the Python port is removed. Every function is under the complexity limit.\n- **Agent guidance and checks:** AGENTS.md is now a short map under the size cap. Three agent runtimes read it in full. An agent grades it against a rubric on every pull request. CI authenticates with workload identity federation. No API key is stored.\n- **Sprint close rules:** A sprint close now checks only the coverage patterns it added or changed. An older pending pattern from another session no longer blocks it. `pm check` states this close rule in its waiting line and help text.\n- **CI run time:** Each pull request now starts fewer macOS jobs. A docs-only pull request skips the Go test matrix. The median run time is still above the target. Go test work on macOS is lower after the item model split and a cheaper test seed."
 }
