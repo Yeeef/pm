@@ -139,6 +139,11 @@ The Codex ask hook runs on PostToolUse of request_user_input_async, taking the c
 PostToolUse fires on the call itself with its id, so the question is raised the moment it is asked, whether or not the turn goes on, with no rollout scan to find it; Stop was chosen before the experiment showed Codex runs tool hooks for the ask tools.
 :::
 
+::: decision {source=agent date=2026-10-14}
+A Codex question answered in chat is closed by the service alone (its rollout check at sweep and before any queue), not by pm hook inbox.
+PR #90 (pm-quality sprint 34) removes pm hook inbox; the service already reads the rollout before it queues a site answer, so first-wins holds without the inbox hook, and this PR stops depending on which of the two merges first.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
