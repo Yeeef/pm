@@ -8,7 +8,7 @@ bead: yeeef-agents-9va.128
 
 > What should be true when this sprint ends, and why now?
 
-An agent's ask-tool question (Claude Code's AskUserQuestion, Codex's request_user_input_async) shows on the owner's site as a request the owner can answer there or in the session's chat; the first answer reaches the session and the other surface closes. Now: the Stop hook steers agents to the ask tool when the owner is in the chat, but the question is invisible on the site, so an owner who stepped away never sees it and the session waits with no trace.
+An agent's ask-tool question (Claude Code's AskUserQuestion, Codex's request_user_input_async) shows on the owner's site as a request the owner can answer there or in the session's chat; the first answer reaches the session and the other surface closes. pm's rules also tell agents which kind of request they are making, so they choose the right tool: a question steers this session and goes through the ask tool; a decision rules a project's or sprint's outcome and is a decision need; a step only the owner can do is an action need. Now: the Stop hook steers agents to the ask tool when the owner is in the chat, but the question is invisible on the site, so an owner who stepped away never sees it and the session waits with no trace.
 
 ## Scope
 
@@ -32,6 +32,7 @@ An agent's ask-tool question (Claude Code's AskUserQuestion, Codex's request_use
 > What evidence will show the goal is met?
 
 - A live check in a scratch clone, each runtime in a TUI under a pty: an ask-tool question shows on the site; answered on the site, the session continues with that answer and the need closes; answered in chat, the need closes with the chat answer and no site reply is delivered later.
+- The request rule in its three texts (`prime.md`, the judge prompt, the block reasons) says which tool fits which kind, with labelled judge cases for the cases it moves; `make test-live` gives every case's verdict on every run on both runtimes.
 - `make test` and the PR's CI are green, with harness tests for both races and both runtimes.
 
 ## Design pages
