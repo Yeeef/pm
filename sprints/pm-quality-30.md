@@ -81,6 +81,12 @@ Owner chose this in chat over tuning concurrency: both jobs take 190-300 s on a 
   full and cases skipped; slowest other check build-test (darwin-arm64) 2m9s;
   all 15 checks green (gh pr checks 97).
 
+- First on-demand daily run on main (run 38651109517, 9aed332): changed 7 s
+  found no earlier success and ran everything; full failed in 94 s and cases
+  in 167 s, every call 'Token exchange failed with status 401 ...
+  authentication_error'. The federation rule does not admit main's OIDC
+  subject (repo:Yeeef/pm:ref:refs/heads/main); PR runs still authenticate.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
