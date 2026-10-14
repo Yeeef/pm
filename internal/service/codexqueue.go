@@ -82,8 +82,8 @@ func CodexDrift(main string) string {
 		return ""
 	}
 	if _, why := CodexOn(path); why != "" {
-		return fmt.Sprintf("%s, so owner replies cannot be queued into Codex sessions (they wait for their next "+
-			"prompt); install codex %s or later and run pm service install from a shell where it is on PATH", why,
+		return fmt.Sprintf("%s, so owner replies cannot be queued into Codex sessions (pm show flags them "+
+			"instead); install codex %s or later and run pm service install from a shell where it is on PATH", why,
 			CodexQueueSince)
 	}
 	return ""

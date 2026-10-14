@@ -183,3 +183,98 @@ func TestAnEarlierPmsCodexHooksAreRewritten(t *testing.T) {
 		t.Errorf("pm 0.6's file has every hook pm init writes: %v %v", there, err)
 	}
 }
+
+// TestAnEarlierPmsInboxHookIsTakenOut: the UserPromptSubmit hook pm hook inbox, which pm 0.9 wrote in both runtimes'
+// files and this pm no longer has, is missing-or-stale for pm init (which then writes the piece), drift for pm doctor,
+// and taken out by pm init and pm upgrade alike; the user's own UserPromptSubmit hook stays, pm's own group there
+// (Codex's pm hook ask) is written after it, and an event that held only pm's hook and gets none from this pm goes
+// (Claude Code's).
+func TestAnEarlierPmsInboxHookIsTakenOut(t *testing.T) {
+	user := obj("hooks", []any{obj("command", "./mine.sh", "type", "command")})
+	inbox := obj("hooks", []any{obj("command", "pm hook inbox || exit 1", "type", "command", "timeout", 10)})
+	for _, p := range Pieces(goldenSettings[0]) {
+		if p.Rel != ".claude/settings.json" && p.Rel != ".codex/hooks.json" {
+			continue
+		}
+		now, err := p.Apply(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(now, "pm hook inbox") {
+			t.Fatalf("%s: this pm still writes pm hook inbox", p.Rel)
+		}
+		pms := promptGroups(t, now) // what this pm writes at UserPromptSubmit, if anything
+		inboxTakenOut(t, p, "beside the user's own hook", withPrompt(t, now, user, inbox),
+			withPrompt(t, now, append([]any{user}, pms...)...))
+		inboxTakenOut(t, p, "alone at its event", withPrompt(t, now, inbox), now)
+	}
+}
+
+// promptGroups is the file's UserPromptSubmit groups; nil when it has none.
+func promptGroups(t *testing.T, text string) []any {
+	t.Helper()
+	v, err := parseJSON(text)
+	o, ok := v.(*object)
+	if err != nil || !ok {
+		t.Fatalf("not a JSON object (%v): %s", err, text)
+	}
+	events, ok := o.Get("hooks").(*object)
+	if !ok {
+		t.Fatalf("no hooks: %s", text)
+	}
+	groups, _ := events.Get("UserPromptSubmit").([]any)
+	return groups
+}
+
+// withPrompt is the settings text with groups at UserPromptSubmit.
+func withPrompt(t *testing.T, text string, groups ...any) string {
+	t.Helper()
+	v, err := parseJSON(text)
+	o, ok := v.(*object)
+	if err != nil || !ok {
+		t.Fatalf("not a JSON object (%v): %s", err, text)
+	}
+	events, ok := o.Get("hooks").(*object)
+	if !ok {
+		t.Fatalf("no hooks: %s", text)
+	}
+	events.Set("UserPromptSubmit", groups)
+	return DumpJSON(o)
+}
+
+// inboxTakenOut checks the piece's file as old: pm init writes it, pm doctor reports it, and pm init and pm upgrade
+// both make it want.
+func inboxTakenOut(t *testing.T, p Piece, name, old, want string) {
+	t.Helper()
+	if there, err := p.Present(&old); err != nil || there {
+		t.Errorf("%s, %s: pm init takes the piece as present: %v %v", p.Rel, name, there, err)
+	}
+	top := t.TempDir()
+	path := filepath.Join(top, p.Rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lines, err := Drift(top, goldenSettings[0])
+	said := p.Rel + ": pm's part differs from what pm " + buildinfo.Version + " writes"
+	if err != nil || !strings.Contains("\n"+strings.Join(lines, "\n")+"\n", "\n"+said+"\n") {
+		t.Errorf("%s, %s: pm doctor does not report it: %q %v", p.Rel, name, lines, err)
+	}
+	for cmd, run := range map[string]func(string, Settings) ([]Planned, error){"init": Plan, "upgrade": Rewrite} {
+		planned, err := run(top, goldenSettings[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := ""
+		for _, pl := range planned {
+			if pl.Piece.Rel == p.Rel {
+				got = pl.New
+			}
+		}
+		if got != want {
+			t.Errorf("%s, %s: pm %s writes\n%s\nwant\n%s", p.Rel, name, cmd, got, want)
+		}
+	}
+}

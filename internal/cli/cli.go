@@ -125,8 +125,6 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return runPrime(p, stdin, stdout)
 	case "hook stop":
 		return hooks.HookStop(stdin, stdout, stderr)
-	case "hook inbox":
-		return hooks.HookInbox(here, hooks.PendingReplies, stdin, stdout, stderr)
 	case "hook ask":
 		return hooks.HookAsk(here, ask.Runtime(p.Get("runtime")), hooks.DialStore, stdin, stdout, stderr)
 	case "hook owner-request":
