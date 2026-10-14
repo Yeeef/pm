@@ -91,6 +91,11 @@ The design page records-store stays as it is for this sprint's code changes.
 stop.go only gains mainOf, which StoreOf now uses to find the store; where the store is and how it is found stay as the page says
 :::
 
+::: decision {source=owner date=2026-10-14}
+The request rule leaves prime.md. The session-start state hook (startup, resume, clear, compact) prints the rule for the session mode, and pm interactive and pm autopilot print the rule of the mode they set. The per-prompt inbox line goes.
+A static rule in prime.md contradicts interactive mode; printing the rule per mode at session start, after a compaction and at the switch keeps the agent on the rule that applies, without a line on every prompt.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
