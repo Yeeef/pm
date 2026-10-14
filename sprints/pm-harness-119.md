@@ -104,6 +104,11 @@ A SessionEnd hook (Claude Code and Codex) removes the session mode file. pm clea
 An ended session cleans up after itself structurally; the one-day window keeps pm clean from resetting an interactive session the owner stepped away from.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The request rule for the session mode is printed by its own SessionStart hook entry, not inside the state hook.
+Review of dbf3f41: the state hook prints nothing when init, where or show fail or when it hits its 30 s timeout, so the rule, which prime.md delivered before this sprint, would be lost; a small hook that reads only the mode file keeps it.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
