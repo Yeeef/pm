@@ -114,7 +114,7 @@ The rule, as all three texts state it:
 | Entry | PermissionRequest, matcher `AskUserQuestion`, `pm hook ask --runtime claude \|\| exit 1`, timeout 86,400 s | Stop, first: `pm hook ask --runtime codex \|\| exit 1`, 30 s |
 | When it raises | at the call: Claude Code runs the hook beside the question's dialog, without waiting for it | at turn end: `request_user_input_async` returns at once, so the hook raises each such call of the turn once, by its `call_id` |
 | Key | `prompt_id` with a hash of the tool input (the hook input has no tool-use id) | `call_id` |
-| Chat answer | the transcript's tool result: the answer closes the need; a rejected dialog dismisses it | the first user message after the call: `pm hook inbox` and the service's sweep close the need with it |
+| Chat answer | the transcript's tool result: the answer closes the need; a rejected dialog dismisses it | the first user message after the call: the service's check before queueing and its sweep close the need with it |
 | Site answer | the hook, which polls every second, closes the need and prints `allow` with `updatedInput.answers`, which closes the dialog | the service queues it with `codex queue` |
 | A subagent's call | steps aside | not raised (a subagent's Stop is SubagentStop) |
 
@@ -149,7 +149,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 - One judge prompt serves both runtimes, and every labelled case must pass on each.
 - `pm doctor` does not check either judge's CLI: a session's judge runs on its own runtime, which runs only where it is installed.
 - A Codex subagent's SubagentStop runs only `pm hook stop`; the owner-request check never judges a subagent's report (Non-goals).
-- The Stop entry runs only the two checks, after, in Codex, `pm hook ask`, which raises the turn's ask-tool questions first so the judge reads them as open needs. `pm hook inbox`, which hands over the owner's replies, runs at UserPromptSubmit, never at Stop: an inbox block at Stop forces a continuation that ends with `stop_hook_active`, so this hook would pass the very turn that acts on the reply ([Reply delivery](../design/reply-delivery.md)).
+- The Stop entry runs only the two checks, after, in Codex, `pm hook ask`, which raises the turn's ask-tool questions first so the judge reads them as open needs.
 
 ### How it is checked
 

@@ -70,7 +70,7 @@ the session that raised the request on its own.
 - A process `pm` itself detaches wakes nobody: only a command or hook the
   session's runtime owns can.
 - On 2026-10-05 the main session raised the PR #29 review and never started
-  `pm reply wait`; a waiter the agent must remember gets forgotten.
+  a waiter for the reply; a waiter the agent must remember gets forgotten.
 - `pm` of older checkouts reads every issue: a new label or metadata key must
   not change what it shows or checks. It reads `metadata.review` only, and
   labels `human`, `action` and `no-decision` only.
@@ -112,7 +112,8 @@ the session's id, and its inbox: for a Claude Code session its socket,
 `{"inbox": "<path>"}`, from `CLAUDE_CODE_MESSAGING_SOCKET` (never the inbox's
 token); for a Codex session its CODEX_HOME, `codex-queue:<CODEX_HOME>`, never
 the Claude Code socket it inherits. The command's output says how the reply
-will be pushed or queued, and how to wait for it (`pm reply wait <id>`).
+will be pushed or queued, or, for a session with no inbox, that `pm show`
+flags it and `pm reply read <id>` prints it.
 
 ### Replying: the form and the POST
 Every awaiting card carries an invisible slot, `<!--pm-reply ID KIND-->`. On each
@@ -153,7 +154,7 @@ A question need ([Work store](../design/work-store.md), Data model) shows in its
 Both kinds store the reply the same way: a Beads comment with author
 `owner (site reply)`, one Beads write. The comment ends in a marker line,
 `<!-- pm-reply <reply id> -->`, which the server checks before writing so a
-reply is stored once, and which delivery strips before printing. The issue stays open. A reply waits
+reply is stored once, and which delivery strips before printing. The issue stays open. A reply is held
 for the agent while the request has more site replies (comments by
 `owner (site reply)`; pm's and agents' own comments are no replies) than its
 stored `picked_up` count, and the card then marks it not delivered. The agent
@@ -170,8 +171,8 @@ replies (comments by `owner (site reply)`) count, never pm's own or an agent's
 comments. A reply it cannot push waits: the card says the session is not
 running, `pm show` flags it, and `pm reply read <id>` prints it and marks it
 delivered. A Codex session gets it queued with `codex queue`, which starts a
-turn when the session is idle; a session with no inbox gets it from
-`pm reply wait <id>` within its turn or from `pm hook inbox` at its next prompt. Closing a request
+turn when the session is idle; a session with no inbox sees it flagged by
+`pm show` and reads it with `pm reply read <id>`. Closing a request
 through pm refuses while it holds one. The full
 design, with the failures it replaced and the alternatives, is
 [Reply delivery](../design/reply-delivery.md).
@@ -235,16 +236,16 @@ neither the store-path nor the build header.
 | Choice | Option | Cost | Taken |
 |---|---|---|---|
 | Storage, decision | `bd human respond`: closes the need with the answer | Breaks every render until the agent records the decision | No |
-| Storage, decision | One comment; a reply waits while its site replies outnumber `picked_up`; the agent closes | One write | Yes |
+| Storage, decision | One comment; a reply is undelivered while its site replies outnumber `picked_up`; the agent closes | One write | Yes |
 | Storage, action | Close it with the evidence as reason | The agent never checks the evidence | No |
 | Delivery | A message into the session | No CLI for it; `claude --bg --resume` copies a running session | No |
-| Delivery | SessionStart or UserPromptSubmit hook listing replies | Never wakes an idle session; a store read on every prompt | Not as the main route; UserPromptSubmit (`pm hook inbox`) is the route for a session with no inbox, see [Reply delivery](../design/reply-delivery.md) |
-| Delivery | Stop hook that blocks while a reply waits | Only at the end of a turn; an idle session never stops again | No |
-| Delivery | `pm reply wait` in the background, started by the agent, plus `pm show` | The agent must remember; on 2026-10-05 it did not | Not as the main route; `pm reply wait <id>` is how a session with no inbox waits within its turn |
+| Delivery | SessionStart or UserPromptSubmit hook listing replies | Never wakes an idle session; a store read on every prompt | No; a UserPromptSubmit hook shipped as the route for a session with no inbox and was removed, as it delivered no reply the push had not, see [Reply delivery](../design/reply-delivery.md) |
+| Delivery | Stop hook that blocks while a reply is undelivered | Only at the end of a turn; an idle session never stops again | No |
+| Delivery | A reply-wait command in the background, started by the agent, plus `pm show` | The agent must remember; on 2026-10-05 it did not | No; it shipped as the in-turn wait for a session with no inbox and was removed, as it delivered no reply the push had not, see [Reply delivery](../design/reply-delivery.md) |
 | Delivery | The raising command blocks until the answer (or `--wait` by default), run in the background | The agent must still remember to background it; run in the foreground it blocks the turn | No |
 | Delivery | A PostToolUse hook that tells the agent to start the waiter | Still relies on the agent acting on a hint | No |
 | Delivery | A detached waiter process started by `pm` | Its exit wakes nobody; the runtime does not own it | No |
-| Delivery | PostToolUse `asyncRewake` hook runs `pm reply wait`, plus `pm show` | Claude Code only; the wait dies with the session and at the 7-day timeout; lost replies on 2026-10-06 | No; replaced by push, see [Reply delivery](../design/reply-delivery.md) |
+| Delivery | PostToolUse `asyncRewake` hook runs the reply-wait command, plus `pm show` | Claude Code only; the wait dies with the session and at the 7-day timeout; lost replies on 2026-10-06 | No; replaced by push, see [Reply delivery](../design/reply-delivery.md) |
 | Waiting | Wait on the change signal (the Dolt store fingerprint `pm serve` watches) instead of polling | Not chosen: the owner judged the polling design fine | No |
 | Waiting | The server notifies the waiter when it stores a reply | Not chosen: the owner judged the polling design fine | No |
 | Waiting | A cross-session message to the session that asked | Needs Claude Code's session inbox (2.1.224+) | Yes, see [Reply delivery](../design/reply-delivery.md) |

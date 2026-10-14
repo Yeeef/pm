@@ -134,9 +134,9 @@ The review's text links each design page covering the changed code. The review i
 blocks its close. The sprint page renders the sprint's own open needs in the
 generated "Sessions ask you", "Decisions await you" and "Actions await you"
 sections; the review
-card (PR link, focus, reply box) is what shows the sprint awaits a merge. In
-Claude Code a PostToolUse hook runs `pm reply wait` in the background and
-wakes the agent on an owner reply or when the PR merges to main; the wake for
+card (PR link, focus, reply box) is what shows the sprint awaits a merge. The
+pm service pushes an owner reply, and the PR's merge to main, into the session
+that raised the review ([Reply delivery](reply-delivery.md)); the message for
 a merged review tells the agent to fast-forward the main checkout with
 `git -C <main checkout> pull --ff-only origin main`.
 

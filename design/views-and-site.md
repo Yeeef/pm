@@ -73,7 +73,7 @@ flowchart LR
   subgraph agents["Agent sessions"]
     pmcli["pm CLI<br/>(writes records, raises requests)"]
     bdcli["bd CLI"]
-    hook["reply-wait hook<br/>(pm reply wait)"]
+    inbox["session inbox<br/>(socket, or codex queue)"]
   end
   subgraph data["Shared data, one per clone"]
     store[".records<br/>records branch (git)"]
@@ -89,7 +89,6 @@ flowchart LR
   pmcli --> store
   pmcli --> dolt
   bdcli --> dolt
-  hook -. "polls the request" .-> dolt
   store --> refresh
   dolt --> refresh
   refresh --> snap
@@ -97,6 +96,7 @@ flowchart LR
   handler <--> browser
   handler --> writer
   writer --> dolt
+  writer -. "pushes the reply" .-> inbox
   store --> render["make render<br/>(check before commits)"]
   dolt --> render
 ```
@@ -257,20 +257,18 @@ sequenceDiagram
   participant W as reply write thread
   participant D as Beads
   participant A as Agent session (idle)
-  participant K as reply-wait hook
   A->>D: pm decision need (raises the request)
-  A->>K: hook starts pm reply wait, agent goes idle
+  A->>A: goes idle
   O->>H: POST /reply "A"
   H-->>O: 303 at once, card shows "Saving your reply…"
   H->>W: queue the reply
   W->>D: bd comments add (owner, site reply)
   W-->>H: written, card shows "Reply sent."
-  K->>D: poll: new owner comment?
-  K-->>A: wake the session with the reply (exit 2)
+  W-->>A: push the reply into the session's inbox; the idle session starts a turn
   A->>D: pm decision add --need (records it, closes the request)
 ```
 
-*Reading:* the owner's click returns at once, the write happens behind it, and the waiting agent is woken by its own hook rather than by anything the site does.
+*Reading:* the owner's click returns at once, the write happens behind it, and the waiting agent is woken by the push into its inbox ([Reply delivery](reply-delivery.md)), with nothing typed.
 
 ```mermaid
 stateDiagram-v2

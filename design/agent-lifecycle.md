@@ -70,8 +70,8 @@ step; the sprint-level flow is [Sprint lifecycle](sprint-lifecycle.md).
 - Claude Code binds a per-session inbox socket and exports its path to every
   command as `CLAUDE_CODE_MESSAGING_SOCKET`; a line written to it starts a
   new turn in an idle session and is read between tool calls in a busy one
-  ([Reply delivery](reply-delivery.md)). Codex has no such inbox, so a
-  Codex session gets a reply through `pm reply wait` or at its next prompt.
+  ([Reply delivery](reply-delivery.md)). Codex has no such inbox; the pm
+  service queues a reply into a Codex session with `codex queue` instead.
 
 ## Design
 
@@ -90,7 +90,7 @@ stateDiagram-v2
   Work --> Work: findings and decisions via pm
   Work --> Ask: owner input needed
   Ask --> Work: raise need, continue other work
-  Work --> Answer: reply pushed, waited for, or at the next prompt
+  Work --> Answer: reply pushed, or flagged by pm show and read
   Answer --> Work: record decision or close action
   Work --> Close: pm task close
   Close --> Orient: more ready work
@@ -109,7 +109,6 @@ The hooks behind it, by runtime:
 |---|---|---|---|
 | SessionStart | `pm prime --rules N` per chunk, then `pm prime --state` | the same, matcher `startup\|resume\|clear\|compact` | The rules, then `pm init --session-start`, `pm where` and the `pm show --refresh-inbox` snapshot, which first points this session's open requests at its current inbox (clears it in Codex) |
 | SubagentStart | the rules chunks, then `pm prime --subagent` | the same | The rules and pm's git rule for agents |
-| UserPromptSubmit | `pm hook inbox` | the same | The owner's replies not yet delivered to this session, as context; in Codex it also closes the session's open questions, with the reply it hands over, else with the prompt, the owner's answer in the chat |
 | PermissionRequest, matcher `AskUserQuestion` | `pm hook ask --runtime claude` (up to a day, beside the question's dialog) | none | Raises the ask-tool question as a question need the owner can answer on the site too; the first answer, the dialog's or the site's, closes it and reaches the session |
 | Stop | none | `pm hook ask --runtime codex`, first (30 s) | Raises the turn's `request_user_input_async` questions as question needs, each once by its call id |
 | Stop | `pm hook owner-request --runtime claude` (judge: Haiku through `claude -p`, 30 s) | `pm hook owner-request --runtime codex` (judge: a small Codex model through `codex exec`, 45 s) | Blocks a reply that asks the owner only in chat; the judge runs on the session's own runtime |
@@ -280,7 +279,7 @@ a Claude Code session's socket, never the inbox's token, since the store
 syncs to the remote; a Codex session's CODEX_HOME, under which the pm service
 runs `codex queue`, never a socket it inherits from a Claude Code session
 that started it. Nothing is started:
-no process waits for the answer unless the agent runs `pm reply wait`.
+no process waits for the answer; the pm service delivers it.
 
 ```mermaid
 sequenceDiagram
@@ -310,9 +309,9 @@ run.
   delivery is tolerated; a lost one is not.
 - **A Codex session** gets the reply queued with `codex queue` under its
   CODEX_HOME while it is live; an idle TUI starts a turn on it.
-- **A session with no inbox** waits within its turn with
-  `pm reply wait ID`, or gets the reply at its next prompt from
-  `pm hook inbox`; a session whose push failed gets it there too.
+- **A session with no inbox** gets no push: `pm show` flags the request,
+  and `pm reply read ID` prints the reply; a session whose push failed sees
+  the same flag until the sweep delivers it.
 - **A session that cannot be reached** (it ended, or its inbox is on another
   machine than the service) keeps the reply undelivered: `pm show`, and so
   the next session's start, flags the request, and `pm reply read ID` prints
@@ -378,8 +377,11 @@ Closing a task stamps its commit; two Stop hooks each block once, and on
 - **Raw `bd update --claim`:** records no session and checks no holder;
   wrapping or blocking it was not chosen, so the rules require
   `pm task claim` ([Session claims](session-claims.md)).
-- **The agent starting its own reply waiter (`pm reply wait`):** it
-  depended on the agent remembering.
+- **The agent waiting for the reply itself** (a blocking wait command
+  within its turn), and a UserPromptSubmit hook handing the reply over at
+  the next prompt: the wait depended on the agent remembering, and neither
+  delivered a reply the push had not; both are weighed in
+  [Reply delivery](reply-delivery.md).
 - **A PostToolUse hook starting the waiter (`reply_wait_hook.py`,
   `asyncRewake`):** it learned the ids from the raising command's printed
   output and woke the session only by exiting, so it lost replies when the
