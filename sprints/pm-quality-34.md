@@ -76,6 +76,12 @@ pm init plans repo files only without .pm/config.toml (internal/cli/setup/init.g
   23, 2 agreed of 33 calls; the earlier run had 0 findings of 33). Sprint 33
   owns this flake.
 
+- A third AGENTS.md check run (38630236956, attempt 2) failed non_inferable on
+  lines 73-75 (the go-os-tests bullet), also unchanged. Because the PR edits
+  CLAUDE.md the check runs in full mode over the whole file, and each run
+  flagged different unchanged lines (24-25, 23, 73-75): evidence for sprint 33
+  that the full-mode verdict is not stable.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
