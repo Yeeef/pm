@@ -51,7 +51,11 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-14}
+On macOS the 9 RACE_TESTS run only under -race; Linux keeps both runs
+They are 47% of internal/work macOS CPU, about 20 s per PR; a non-race-only macOS bug is unlikely and Linux still runs them both ways
+Answers `pm-d2k5.31.4`.
+:::
 
 ## Findings
 
