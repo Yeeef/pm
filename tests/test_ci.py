@@ -190,6 +190,61 @@ go_changes = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(go_changes)
 
 
+OS_TESTS = PM_DIR / ".github/scripts/go_os_tests.py"
+
+
+def os_tests(root: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run([sys.executable, str(OS_TESTS), "--root", str(root), *args], capture_output=True, text=True,
+                          check=False)
+
+
+def test_every_go_test_is_classified_by_os_once():
+    res = os_tests(PM_DIR, "check")
+    assert res.returncode == 0, res.stderr
+
+
+def test_the_os_lists_name_each_test_of_their_set_and_refuse_a_test_in_no_row_or_two(tmp_path):
+    def module(listing: str) -> Path:
+        for pkg, tests in {"a": ["TestOne", "TestOneMore", "TestTwo"], "b": ["TestTwo", "TestThree"]}.items():
+            (tmp_path / pkg).mkdir(exist_ok=True)
+            (tmp_path / pkg / "x_test.go").write_text("".join(f"func {t}(t *testing.T) {{}}\n" for t in tests)
+                                                      + "func TestMain(m *testing.M) {}\n")
+        (tmp_path / ".github/scripts").mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".github/scripts/go-os-tests.txt").write_text("# c\n" + listing)
+        return tmp_path
+
+    root = module("a TestOne os x\na TestOneMore any x\na TestTwo any x\nb * os x\n")
+    assert os_tests(root, "check").returncode == 0
+    assert os_tests(root, "packages", "--os").stdout.split() == ["./a", "./b"]
+    assert os_tests(root, "names", "--os", "--package", "b").stdout.strip() == "TestThree|TestTwo"
+    assert os_tests(root, "names", "--package", "b", "--skip", "Two").stdout.strip() == "TestThree"
+    assert os_tests(root, "names", "--os", "--package", "b", "--only", "Two").stdout.strip() == "TestTwo"
+    # as substrings TestOne also picks TestOneMore, an any test; anchored, a's any TestTwo shares b's os name
+    for args in (["--package", "a"], ["--anchored"]):
+        res = os_tests(root, "names", "--os", *args)
+        assert res.returncode == 1 and "outside the set" in res.stderr, res
+    assert os_tests(root, "names", "--os", "--anchored", "--but", "a").stdout.strip() == "^(TestThree|TestTwo)$"
+
+    root = module("a TestOne os x\na TestTwo any x\na TestTwo os x\nb TestNone os x\nc * any x\n")
+    res = os_tests(root, "check")
+    assert res.returncode == 1
+    for named in ("a TestOneMore: in 0 rows", "a TestTwo: in 2 rows", "b TestNone: no such top-level test",
+                  "b TestThree: in 0 rows", "b TestTwo: in 0 rows", "c *: no package with tests"):
+        assert named in res.stderr, named
+    assert not os_tests(root, "names").stdout  # nothing printed while a test is unclassified
+
+    # every form go test finds (an unnamed or wrapped parameter), none it does not (Testlower, TestMain), and a file go
+    # builds only on some systems refused
+    (tmp_path / "c").mkdir()
+    (tmp_path / "c" / "y_test.go").write_text("func TestFour(*testing.T) {}\nfunc TestFive(\n\tt *testing.T,\n) {}\n"
+                                              "func Testlower(t *testing.T) {}\n")
+    root = module("a * any x\nb * any x\nc TestFive os x\nc TestFour any x\n")
+    assert os_tests(root, "names", "--os").stdout.strip() == "TestFive"
+    (tmp_path / "c" / "z_linux_test.go").write_text("func TestSix(t *testing.T) {}\n")
+    res = os_tests(root, "check")
+    assert res.returncode == 1 and "c/z_linux_test.go builds only on some systems" in res.stderr
+
+
 def test_go_changes_skips_the_go_jobs_only_for_docs_and_harness_python_that_no_go_file_reads():
     go_files = {"internal/a/a_test.go": 'x := filepath.Abs("../../tests/fake_x.py")\n'
                                         'y := filepath.Join("..", "..", "AGENTS.md")\n',

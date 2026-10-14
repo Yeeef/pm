@@ -70,6 +70,9 @@ hold it).
   PR; never hand-edit one to make a test pass.
 - **After adding or renaming an `internal/work` test, run `make go-test-work UPDATE=1`**: it measures and rewrites
   `.github/scripts/work-test-seconds.txt`, which must name every test and no other, or `go-test-work` fails.
+- **After adding or renaming a Go test, classify it in `.github/scripts/go-os-tests.txt`**: `os` when its behaviour can
+  differ by OS (with the evidence: process groups, flock, unix sockets, symlinks, file modes, service units, the Dolt
+  engine on disk), else `any`. A PR runs only the `os` tests on macOS; `make go-os-check` fails on an unclassified test.
 - A lint finding is fixed, or kept with `//nolint:<linter> // <why>` (`# noqa: <code> — <why>` in Python). A function
   or file past a cap (`.golangci.yml`, `size_test.go`) is split along a seam.
 
