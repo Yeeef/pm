@@ -256,6 +256,13 @@ Claude Code takes a PermissionRequest answer only from the hook process's stdout
   go-os-tests bullet) a restatement of a doc comment. At about 20% per run the
   job fails often on any PR.
 
+- The Claude ask hook now holds one GET /need on the service's unix socket
+  <main>/.pm/run/wait.sock instead of dialing the store each second (ec2feb0):
+  idle, 1 call and 0 store dials (fake); woken 24 ms after a site reply's POST
+  with the service's periodic look set to 1 h; a close elsewhere wakes it
+  within 1 s (ServeCheck). Live ask scenarios 4/4; Claude site-answer latency
+  0.5 s (was 1.0 s).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
