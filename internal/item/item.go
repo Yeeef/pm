@@ -59,7 +59,7 @@ const (
 
 // Item is one unit in the work store. Timestamps are UTC and whole seconds (YYYY-MM-DDTHH:MM:SSZ). A field that does
 // not apply is zero: Number on all but sprints, Need on all but needs, Holder on an item nobody holds, the close
-// fields on an open item; pm export writes each as null (export.go).
+// fields on an open item; pm export writes each as null (work's export.go).
 type Item struct {
 	ID          string     `json:"id"` // minted at create, never changes; <prefix>-<root>(.<n>)*
 	Type        Type       `json:"type"`

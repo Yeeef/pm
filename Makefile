@@ -103,7 +103,8 @@ RACE_TESTS := Racing|Migrating|OutsideTheLock|Outlasting|WriteLock|PmLock|ASecon
 # Build, the gofmt check, go vet and the Go tests (with the same tag: the embedded Dolt needs it), and the pm service
 # and the work store's concurrency tests (RACE_TESTS) again under -race, all at once: no part reads another's output,
 # and one after another they left most cores waiting (35 s against 20 s on 32 cores). pm-go.yml runs the parts as
-# parallel jobs: go-build, go-fmt, go-vet and go-test-but-work; go-test-work; go-test-race.
+# parallel jobs: go-build, go-fmt, go-vet and go-test-but-work; go-test-work; go-test-race. Measure WORK_SECONDS with
+# make go-test-work UPDATE=1 alone, not through test-go, whose other parts would slow the tests it times.
 test-go:
 	$(MAKE) -j go-build go-fmt go-vet go-test-but-work go-test-work go-test-race
 

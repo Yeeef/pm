@@ -690,14 +690,20 @@ func checkSyncWithoutARemoteFails(t *testing.T) {
 	}
 }
 
-func checkSyncPushesUnderPmsOwnRefOnly(t *testing.T, x *pair) {
+// remoteRefsArePms fails unless the remote holds pm's ref and none of Dolt's own.
+func remoteRefsArePms(t *testing.T, bare string) {
 	t.Helper()
-	x.on(t)
-	refs := gitRun(t, x.bare, "for-each-ref", "--format=%(refname)")
+	refs := gitRun(t, bare, "for-each-ref", "--format=%(refname)")
 	if !strings.Contains(refs, RemoteRef+"\n") || strings.Contains(refs, "refs/dolt/data") ||
 		strings.Contains(refs, "__dolt_remote_info__") {
 		t.Fatalf("remote refs:\n%s", refs)
 	}
+}
+
+func checkSyncPushesUnderPmsOwnRefOnly(t *testing.T, x *pair) {
+	t.Helper()
+	x.on(t)
+	remoteRefsArePms(t, x.bare)
 	if got := x.b.items(); !reflect.DeepEqual(got, x.a.items()) || len(got) != 5 {
 		t.Fatalf("the clone has %d items", len(got))
 	}
@@ -737,6 +743,7 @@ func checkCreateConcurrentChildMintsGetDistinctIDs(t *testing.T, x *pair) {
 	if len(items) != 9 {
 		t.Fatalf("%d items", len(items))
 	}
+	remoteRefsArePms(t, x.bare) // the compare-and-swap pushes (pm-cas to main) leave no ref of Dolt's either
 }
 
 func checkCreatePushTimeout(t *testing.T, source *pair) {
