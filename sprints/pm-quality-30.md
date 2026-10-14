@@ -89,10 +89,17 @@ Owner chose this in chat over tuning concurrency: both jobs take 190-300 s on a 
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the agents md jobs no longer set a PR's CI time; per the owner's decision, PRs grade AGENTS.md in diff mode and the full grading and labelled cases run daily on main when AGENTS.md or the grader changed.
+
+- PR #97: `check` runs diff mode on every PR; the new `changed`, `full` and `cases` jobs run on a daily schedule and on demand.
+- Measured why tuning could not meet the target: the slowest `consistent` call (102-154 s) is the floor of a full-mode run.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| `check` and `cases` within the slowest other check on a PR changing the grader and AGENTS.md | met | PR #97: check 38 s, cases skipped; slowest other check build-test (darwin-arm64) 2m9s |
+| Calibration 13/13 in CI and locally; a clean full run; cost within 10% of PR #80's | changed by the owner's decision | The calibration and full run move to the daily job; its first run is checked after merge with `gh workflow run agents-md.yml`. No live run was made in this sprint. Cost: full check with 5 votes is $0.41-0.46 (the $0.27 baseline was 3-vote), cases $0.66-0.73; the daily job runs only on a change |
+| `make test`, `make lint`, PR CI green | met | make test: 147 passed, 169 skipped; make lint: 0 issues; actionlint: no findings; PR #97: all checks green |
