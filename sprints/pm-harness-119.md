@@ -86,6 +86,11 @@ Ship the shell commands pm interactive and pm autopilot, which create and remove
 Any file-based mode can be set by an agent whichever way it is meant to be set, so a prompt keyword buys no protection; reading the transcript would protect it but costs a scan per stop (0.1 s for grep over a 410 MB transcript, warm). The owner chose the simplest design.
 :::
 
+::: decision {source=agent date=2026-10-14}
+The design page records-store stays as it is for this sprint's code changes.
+stop.go only gains mainOf, which StoreOf now uses to find the store; where the store is and how it is found stay as the page says
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
