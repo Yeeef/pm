@@ -325,7 +325,7 @@ def parse(call: Call, out: str, agents_md: str) -> tuple[list[dict], str, float]
             continue
         if not f["evidence"].strip() or not normal(f["quote"]):
             return findings, f"a finding without its quote or evidence: {f!r}", cost
-        if (lines := quote_lines(f["quote"], agents_md)) is None:
+        if not (lines := quote_lines(f["quote"], agents_md)):  # None, or [] for a quote of ellipses alone
             return findings, f"a finding quotes text that is not in AGENTS.md: {f['quote']!r}", cost
         f["lines"] = lines
     return findings, "", cost

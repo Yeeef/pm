@@ -88,11 +88,11 @@ and `service.go` the operations that run in the service."""
 DETAIL = """### The work store's host
 
 The host (`internal/work/host.go`) is the Dolt engine that `pm service run` holds open and serves on
-`<main>/.pm/run/work.sock`: at start it removes a socket a crash left, listens with mode 0600, and registers the stored
-procedures below. Every command's client (`work.Dial` in `dolt.go`) holds one connection to the socket for the
+`<main>/.pm/run/work.sock`: at start it removes a socket a crash left, listens with mode 0600, and registers the SQL
+function `pm_version()` and the stored procedures below. Every command's client (`work.Dial` in `dolt.go`) holds one connection to the socket for the
 command's life and closes it at exit; the service's own loops (sync, gc, the change mark) dial the same socket.
 
-| Procedure | Arguments | Bound | Does |
+| Name | Arguments | Bound | Does |
 |---|---|---|---|
 | `pm_version()` | none | none | Returns the service's build, for the version handshake `work.Dial` makes before any query; answers only once the schema is current |
 | `pm_lock(ms, pid, what)` | the wait in milliseconds, the client's pid, the write it makes | `ms` | Takes the store's fair write lock (`lock.go`) for the calling connection; every write a command makes takes it first |

@@ -116,6 +116,7 @@ def test_an_answer_is_taken_only_when_well_formed():
         "malformed finding": answer([{"quote": "q"}]),
         "without its quote or evidence": answer([{**ok, "evidence": " "}]),
         "not in AGENTS.md": answer([{**ok, "quote": "make lint runs go-build"}]),
+        "is not in AGENTS.md: '…'": answer([{**ok, "quote": "…"}]),  # no lines: it would agree with complete's
     }
     for why, out in refused.items():
         assert why in evaluate.parse(call(), out, text)[1], why
