@@ -8,6 +8,7 @@ covers:
   - "internal/item/ask.go"
   - "internal/item/answer*.go"
   - "internal/service/question*.go"
+  - "internal/service/wait*.go"
   - "internal/session/codexchat*.go"
   - "internal/cli/question_test.go"
 ---
@@ -145,6 +146,7 @@ sequenceDiagram
   participant D as Dialog in the TUI
   participant A as Claude Code session
   participant H as pm hook ask
+  participant S as pm service (site, wait socket)
   participant W as Work store, through the pm service
   A->>D: AskUserQuestion
   par within 1 ms
@@ -153,12 +155,14 @@ sequenceDiagram
     A->>H: PermissionRequest (prompt_id, tool_input)
     H->>W: create the question need
   end
-  loop every second
+  H->>S: GET /need?id= on the wait socket, held open
+  loop every second, no dial
     H->>H: the transcript's new lines: the call's tool_result?
-    H->>W: the need: a site reply?
   end
   alt the owner answers on the site first
-    O->>W: picks on the card, POST, stored as a reply
+    O->>S: picks on the card, POST
+    S->>W: the writer stores it as a reply
+    S->>H: the snapshot shows a reply waiting: 200
     H->>H: the transcript once more: still no tool_result
     H->>W: close as answered on the site, mark delivered
     H->>A: allow, updatedInput.answers
@@ -168,11 +172,26 @@ sequenceDiagram
     D->>A: tool_result with the answers, or a rejection
     H->>H: reads it from the transcript
     H->>W: close with the chat answer (Esc: dismissed, declined)
+    H->>S: hangs up the wait
     H->>H: exits
   end
 ```
 
-Reading: the hook is the only path into the dialog; it reads both surfaces every second, and whichever closes the need first is the answer the session gets. The service never pushes a Claude Code question's reply into the messaging socket.
+Reading: the hook is the only path into the dialog; it reads the transcript every second and holds one call to the service for the site, and whichever closes the need first is the answer the session gets. The service never pushes a Claude Code question's reply into the messaging socket.
+
+### How the Claude Code hook waits for the site
+
+The hook holds one HTTP call on the pm service's wait socket, `<main checkout>/.pm/run/wait.sock` (mode 0600, no longer than `work.sock`, so it fits wherever the work store's socket does), and reaches the work store only when that call answers.
+
+| Part | What it does |
+|---|---|
+| The call | `GET /need?id=<need>`: answered 200 once the service's snapshot shows the need with a site reply waiting or closed; a need not in the snapshot yet (raised since its last look) is waited for |
+| What wakes it | every snapshot the refresher stores wakes every waiter. The writer pokes the refresher right after it stores a site reply, so that reply answers the call at once; a close any command makes reaches it at the service's next look (every 1 s, the look the site's pages already take) |
+| Cost while idle | one connection per open question and no store read; the service reads the store once per look for all waiters together. It was one dial, handshake and read per question per second (86,400 a day) |
+| After the call answers | the hook reads the transcript, then the need, as before (a dialog answer that came meanwhile wins), and closes the need |
+| A failed call | the service down, restarting or stopping (it answers 503, or the socket refuses): the hook calls again after 1, 2, 4, then 5 s, never sooner than a second. An answer the store does not confirm counts as a failure too. The dialog stays usable throughout, and the first failure is said on stderr when the hook ends |
+| Ending it | the hook's return (an answer in the transcript, a close, or a signal) cancels the call; the service drops the wait |
+| Long-poll bound | none: the call lives until the need moves, the hook hangs up or the service stops. A unix socket reports the service's exit at once, so no timeout is needed to notice it |
 
 ### Codex: one question end to end
 
@@ -227,7 +246,7 @@ The question's card ([Replies on the site](site-replies.md)) shows in "Sessions 
 |---|---|---|
 | Where the owner answers | the dialog: an option, Other, or Esc | the chat: the pick list while the turn runs, else a typed message |
 | How pm learns it | the hook reads the call's `tool_result` from the transcript: `toolUseResult.answers`, or `is_error` on Esc | the service reads the session's rollouts for the first user message after the call's `call_id` (`ChatAfterCall`), leaving out what the service relayed (a text starting `pm: `, or a site answer of one of the session's needs) |
-| When | every second while the hook waits, and once more when the hook is stopped | at every sweep (start, every 60 s, and whenever the store moves) and right before queueing a site answer |
+| When | the transcript every second while the hook waits (a file read, no dial), and once more when the hook is stopped | at every sweep (start, every 60 s, and whenever the store moves) and right before queueing a site answer |
 | What the need records | the answer as `<question>: <answer>` lines, by the session; Esc dismisses it as "declined in the session" | the typed message, by the service |
 
 A chat answer is stored as the need's answer comment. A site reply the need held when the chat answer closed it lost the race: it counts as delivered, with the note "answered in chat first; the site's reply did not reach the session".
@@ -295,6 +314,10 @@ The owner-request Stop hook ([Owner-request Stop hook](owner-request-hook.md), T
 | Dismissing a Codex question when its session looks idle | An idle TUI waiting on the owner looks the same as an ended session, and `codex queue` still delivers when the thread next loads; a stale question costs one card the owner can dismiss |
 | Pushing a Claude Code question's site answer into the messaging socket | Lands as a separate user turn after the dialog was answered some other way; only the hook closes the open dialog with the answer |
 | Closing a Codex chat answer in a UserPromptSubmit hook | The service already reads the rollout before any queue and at its sweep, so the hook adds a second closer and nothing first-wins needs |
+| The Claude Code hook reading the need every second | One dial, handshake and read per open question per second, 86,400 a day, and up to a second's delay on a site answer |
+| A blocking SQL procedure on the work store's socket (`pm_wait_need`) | Writes reach the store as plain SQL from every client, so the host would still have to poll the change mark; and the work package sits at its size cap |
+| The wait on the site's TCP port | The hook would have to find the port (`$PORT`, the unit file, a free port in tests), and the endpoint would face the tunnel; a unix socket beside `work.sock` needs neither |
+| A long-poll with a timeout, called again | Bounds nothing a unix socket does not already report: the service's exit ends the call at once |
 | A lock or retraction to close the two windows | Claude Code offers no way to take back a hook answer printed; pm has no hold on Codex's queue |
 
 ## Prior art
