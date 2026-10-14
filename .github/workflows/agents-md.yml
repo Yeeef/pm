@@ -1,9 +1,10 @@
 # AGENTS.md graded against tests/agents_md/rubric.md on every pull request (make agents-md-check): every criterion on
-# the whole file when the PR changes AGENTS.md, else whether the PR's diff makes an AGENTS.md claim false or adds a rule
-# it lacks. No paths filter, so release/merge_ready.py requires its check on every PR. claude -p reaches the Anthropic
-# API through workload identity federation: a GitHub OIDC token (id-token: write) that tests/agents_md/evaluate.py
-# writes fresh to ANTHROPIC_IDENTITY_TOKEN_FILE before each call; no API key is stored. A PR that changes the
-# evaluation itself also runs its labelled cases once (make test-live-agents-md).
+# the whole file when the PR changes AGENTS.md or the grader (evaluate.py's GRADER: tests/agents_md/, the live test,
+# this workflow), else whether the PR's diff makes an AGENTS.md claim false or adds a rule it lacks. No paths filter,
+# so release/merge_ready.py requires its check on every PR. claude -p reaches the Anthropic API through workload
+# identity federation: a GitHub OIDC token (id-token: write) that tests/agents_md/evaluate.py writes fresh to
+# ANTHROPIC_IDENTITY_TOKEN_FILE before each call; no API key is stored. A PR that changes the evaluation itself also
+# runs its labelled cases once (make test-live-agents-md).
 name: agents md
 
 on:

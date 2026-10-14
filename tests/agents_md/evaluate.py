@@ -3,7 +3,7 @@
 
     evaluate.py --mode full                        every criterion on the whole file
     evaluate.py --mode diff --base origin/main     accurate and complete, against the diff since the merge base
-    evaluate.py --mode auto --base origin/main     full when that diff changes AGENTS.md, else diff
+    evaluate.py --mode auto --base origin/main     full when that diff changes AGENTS.md or the grader, else diff
 
 Each check is one `claude -p` call from the checkout root, with the read-only tools alone (Read, Grep, Glob), no
 settings, hooks, CLAUDE.md or MCP servers, and a JSON schema for its answer. Each part is graded by VOTES (3) calls:
@@ -58,6 +58,9 @@ CHUNK = 60_000  # characters of diff per diff-mode call
 # Diff paths no AGENTS.md claim rests on: generated expectations and lock files.
 DIFF_EXCLUDE = (":(exclude)**/testdata/**", ":(exclude)uv.lock", ":(exclude)go.sum",
                 ":(exclude).github/scripts/work-test-seconds.txt")
+# The grader: a diff that changes it grades in full mode, since a changed grader must still pass the real AGENTS.md;
+# agents-md.yml's cases job runs on the same paths.
+GRADER = ("tests/agents_md/", "tests/test_agents_md_live.py", ".github/workflows/agents-md.yml")
 TOOLS = "Read,Grep,Glob"
 CREDENTIALS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
 AUDIENCE = "https://api.anthropic.com"
@@ -443,7 +446,7 @@ def plan(mode: str, root: Path, agents_md_path: Path, base: str | None,
             raise SystemExit(f"evaluate.py: --mode {mode} needs --base")
         diff, names = pr_diff(root, base)
         if mode == "auto":
-            mode = "full" if "AGENTS.md" in names else "diff"
+            mode = "full" if any(n == "AGENTS.md" or n.startswith(GRADER) for n in names) else "diff"
     if mode == "full":
         return mode, agents_md, full_calls(agents_md, root, criteria)
     return mode, agents_md, diff_calls(agents_md, diff) if diff.strip() else []

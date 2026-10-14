@@ -70,7 +70,7 @@ def test_a_file_over_the_chunk_size_is_cut_at_its_hunks_each_under_its_header():
     assert evaluate.chunks(header + hunk[0], size=10) == [header + hunk[0]]  # one hunk over the size: whole
 
 
-def test_auto_mode_is_full_when_the_diff_changes_agents_md_and_diff_otherwise(tmp_path):
+def test_auto_mode_is_full_when_the_diff_changes_agents_md_or_the_grader_and_diff_otherwise(tmp_path):
     case = cases.CASES["diff_neutral"]
     base = cases.materialize(case, CHECKOUT, tmp_path)
     mode, _, calls = evaluate.plan("auto", tmp_path, tmp_path / "AGENTS.md", base, evaluate.CRITERIA)
@@ -81,6 +81,13 @@ def test_auto_mode_is_full_when_the_diff_changes_agents_md_and_diff_otherwise(tm
     assert mode == "full" and {c.criterion for c in calls} == set(evaluate.CRITERIA)
     mode, _, calls = evaluate.plan("diff", tmp_path, tmp_path / "AGENTS.md", "HEAD", evaluate.CRITERIA)
     assert (mode, calls) == ("diff", [])  # nothing changed: no call
+    for path in ("tests/agents_md/rubric.md", "tests/test_agents_md_live.py", ".github/workflows/agents-md.yml"):
+        root = tmp_path / path.replace("/", "_")
+        base = cases.materialize(cases.CASES["clean"], CHECKOUT, root)
+        (root / path).write_text((root / path).read_text() + "\n# changed\n")
+        cases.git(root, "commit", "-qam", "grader")
+        mode, _, calls = evaluate.plan("auto", root, root / "AGENTS.md", base, evaluate.CRITERIA)
+        assert mode == "full" and {c.criterion for c in calls} == set(evaluate.CRITERIA), path
 
 
 def test_an_answer_is_taken_only_when_well_formed():
