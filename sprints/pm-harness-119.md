@@ -61,6 +61,11 @@ The mode is set per session by pm interactive and pm autopilot, stored local to 
 Hooks are configured per project, so the hook itself must read a per-session flag; a missing or stale flag must fall back to the strict default.
 :::
 
+::: decision {source=owner date=2026-10-14}
+Only the owner sets the mode: a prompt that is exactly pm interactive or pm autopilot, caught by the UserPromptSubmit hook. pm has no CLI command that changes the mode.
+A shell command would let a blocked agent switch the judge off itself; only the owner can submit a prompt, so the UserPromptSubmit hook cannot be triggered by an agent.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
