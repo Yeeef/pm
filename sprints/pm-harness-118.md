@@ -127,6 +127,19 @@ The hook is what closes the open dialog with the answer; a socket push would lan
   app-server --listen unix:// and TUI --remote; untested whether a pending
   request reaches that client.
 
+- Claude Code 2.1.296, pty runs: a subagent cannot call AskUserQuestion (3
+  cases: background, model-passed foreground,
+  CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1; ToolSearch found no such tool), so
+  the PermissionRequest hook only ever races a main-session dialog. There the
+  hook and the dialog start within 1 ms; a hook sleeping 20 s does not delay
+  the dialog; a hook timeout of 86400 is accepted (schema has no max). Hook
+  stdin has no tool_use_id (session_id, transcript_path, prompt_id,
+  permission_mode, tool_name, tool_input, ...). The tool_use and tool_result
+  lines reach the transcript together about 5 ms after the dialog closes:
+  toolUseResult.answers on an answer, is_error with toolDenialKind
+  user-rejected on Esc. A hook failing or printing nothing leaves the dialog
+  usable.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
