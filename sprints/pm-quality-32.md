@@ -78,6 +78,21 @@ None yet.
   worktest besides itself, so a change to site, records, store, design, hooks,
   install, service, cli, ask, session or sync never runs it.
 
+- Done-when samples (pm go jobs from the jobs API; compute = the 5 jobs'
+  runner seconds; suite = the make step; wall = pm go's first job created to
+  last done). Main's latest full run (8ad2720, push): 380 s compute, suites
+  macOS 59 + 62 = 121 s and Linux 26 + 30 + 24 = 80 s, wall 139 s (5b48d14:
+  438 s, 136 s, 92 s, 150 s; #85, a full PR run without cache saves: 374 s,
+  134 s, 80 s, 138 s). #86 (internal/records, 9 of 17 packages selected): 210
+  s compute (-45%), macOS suites 35 + 2 s, Linux 27 + 0 + 0 s, wall 80 s. #87
+  (internal/hooks, 6 of 17): 218 s (-43%), 44 + 2 s, 24 + 0 + 0 s, wall 103 s.
+  #88 (internal/site tests, 3 of 17): 190 s (-50%), 22 + 2 s, 16 + 0 + 0 s,
+  wall 74 s. In all three the work job and both race jobs logged internal/work
+  is not selected and no internal/work test ran on either OS. #85 changed
+  internal/work and the CI files: 17 of 17 selected, the full set ran. Main's
+  push runs at fedc348, 5b48d14, d318ee3 and 8ad2720 ran the full suite and
+  passed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
