@@ -10,7 +10,8 @@ import (
 // its base, ours and theirs, and the working row keeps ours whole. mergeItem resolves one such row field by field: a
 // field only one side changed from the base takes that side's value; a field both sides changed takes the table's
 // rule; a rule that names no winner fails hard, naming the item and the field. Lists (labels, blocked_by, comments,
-// review targets) are rows of their own tables, which Dolt merges; mergeItem sees the items row only.
+// review targets, a question's questions and options) are rows of their own tables, which Dolt merges; mergeItem sees
+// the items row only.
 
 // Override is a claim the merge dropped: two clones claimed one item, and the later claim won.
 type Override struct {
@@ -69,11 +70,12 @@ func holderOf(it *Item) Holder {
 	return *it.Holder
 }
 
-// needFields is a need's scalar columns, each merged as "other scalars" except delivered.
+// needFields is a need's scalar columns, each merged as "other scalars" except delivered and ask_call.
 type needFields struct {
 	kind                             NeedKind
 	raised                           RaisedBy
 	pr, focus, merged, mergeReported string
+	askCall                          string
 }
 
 func needOf(it *Item) needFields {
@@ -88,6 +90,9 @@ func needOf(it *Item) needFields {
 	}
 	if r := n.Review; r != nil {
 		f.pr, f.focus, f.merged, f.mergeReported = r.PR, r.Focus, r.Merged, r.MergeReported
+	}
+	if a := n.Ask; a != nil {
+		f.askCall = a.Call
 	}
 	return f
 }
@@ -301,7 +306,8 @@ func mergeHolder(b, o, t, m *Item) (*Override, error) {
 	return over, nil
 }
 
-// mergeNeed merges a need's scalar columns: delivered takes the max, the rest the later updated_at.
+// mergeNeed merges a need's scalar columns: delivered takes the max, ask_call (written once) never differs, the rest
+// the later updated_at.
 func mergeNeed(id string, b, o, t *Item) (*NeedInfo, error) {
 	m := cloneItem(*o).Need
 	bn := needOf(b)
@@ -335,6 +341,13 @@ func mergeNeed(id string, b, o, t *Item) (*NeedInfo, error) {
 		m.Delivered = v
 	} else {
 		m.Delivered = max(od, td)
+	}
+	if m.Ask = nil; m.Kind == Question {
+		call, ok := three(bn.askCall, on.askCall, tn.askCall)
+		if !ok {
+			return nil, conflictError(id, "ask_call", "both sides changed it; a question's ask is written once")
+		}
+		m.Ask = &AskInfo{Call: call, Questions: []AskQuestion{}}
 	}
 	if m.Kind != Review {
 		m.Review = nil

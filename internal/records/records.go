@@ -51,8 +51,8 @@ var GeneratedBody = map[string][]string{"project": {"Progress"}, "sprint": {"Pro
 // under the generated content.
 var GeneratedHeadings = map[string][]string{
 	"project": {"Docs", "Postmortems"},
-	"sprint":  {"Decisions await you", "Actions await you", "Docs", "Postmortems"},
-	"day":     {"Decisions await you", "Actions await you", "Sprints", "Docs"},
+	"sprint":  {"Sessions ask you", "Decisions await you", "Actions await you", "Docs", "Postmortems"},
+	"day":     {"Sessions ask you", "Decisions await you", "Actions await you", "Sprints", "Docs"},
 }
 
 const (

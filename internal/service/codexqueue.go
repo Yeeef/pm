@@ -100,8 +100,7 @@ func CodexDrift(main string) string {
 func queueCodex(home, thread, text string) string {
 	codex, why := CodexUsable()
 	if why != "" {
-		return "no codex: " + why + ", so the reply cannot be queued into the Codex session; install codex " +
-			CodexQueueSince + " or later and run pm service install from a shell where it is on PATH"
+		return noCodex(why)
 	}
 	args := []string{"queue", "--thread", thread, "--message", text}
 	sock := filepath.Join(home, "app-server-control", "app-server-control.sock")
@@ -134,6 +133,12 @@ func queueCodex(home, thread, text string) string {
 		return "failed: codex queue said: " + said
 	}
 	return ""
+}
+
+// noCodex is PushInbox's reason when codex cannot queue a reply: why, as CodexUsable says it.
+func noCodex(why string) string {
+	return "no codex: " + why + ", so the reply cannot be queued into the Codex session; install codex " +
+		CodexQueueSince + " or later and run pm service install from a shell where it is on PATH"
 }
 
 var queued = regexp.MustCompile(`^Queued message \S+ for thread (\S+?)\.?$`)

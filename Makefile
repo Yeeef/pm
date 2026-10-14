@@ -36,7 +36,7 @@ test-live: go-build
 # PM_PARITY_CODEX_SANDBOX sets Codex's mode: approve-for-me (what a Codex user runs, like Claude Code's auto mode) or
 # a sandbox mode with no approvals (default workspace-write; danger-full-access where bubblewrap cannot start).
 test-live-parity: go-build
-	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 12 -rA -k agent_parity_live $(ARGS)
+	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 15 -rA -k agent_parity_live $(ARGS)
 
 # Grade AGENTS.md against tests/agents_md/rubric.md with claude -p reading the checkout (tests/agents_md/evaluate.py):
 # MODE=full checks every criterion on the whole file, MODE=diff checks that the diff since BASE makes no AGENTS.md

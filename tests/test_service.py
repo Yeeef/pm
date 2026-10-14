@@ -4,15 +4,18 @@
 from __future__ import annotations
 
 import http.server
+import json
 import re
 import socket
 import subprocess
 import threading
 import urllib.request
+from pathlib import Path
 
 import pytest
 
-from conftest import PM, VERSION, stop_services, write_config
+from conftest import PM, VERSION, stop_services, wait_for, write_config
+from test_hooks import ROOT, codex_asks, codex_types
 
 
 def service_run(repo, port: str) -> tuple[subprocess.Popen, int]:
@@ -103,3 +106,28 @@ def test_service_stops_once_the_pin_moves(repo):
         srv.kill()
     assert srv.returncode == 1
     assert f"now pins pm 9.9.9, but this service runs pm {VERSION}; stopping" in out, out
+
+
+@pytest.mark.parametrize("typed", [False, True], ids=["queued", "answered-in-chat-first"])
+def test_the_service_queues_a_codex_questions_site_answer_unless_the_chat_answered_first(repo, typed):
+    """A Codex session's question, raised at its PostToolUse: the owner's site answer (pm reply add writes it as the
+    site does) closes it as answered on the site, then is queued into the session alone and marked delivered; when the
+    owner typed an answer first (UserPromptSubmit closed the question with it), the site's reply is refused as closed
+    and nothing is queued."""
+    nid = codex_asks(repo)
+    if typed:
+        codex_types(repo, "Red")
+        assert repo.pm("reply", "add", nid, text="Red or blue?: Blue").returncode != 0
+        q = repo.items()[nid]
+    else:
+        assert repo.pm("reply", "add", nid, text="Red or blue?: Blue").returncode == 0
+        q = wait_for(lambda: (it := repo.items()[nid])["status"] == "closed" and it["need"]["delivered"] and it,
+                     "the question closed, its reply delivered")
+    log = Path(repo.env["FAKE_CODEX_LOG"])
+    queued = [e["queue"] for e in map(json.loads, log.read_text().splitlines()) if "queue" in e] if log.exists() else []
+    assert q["resolution"] == "answered"
+    if typed:
+        assert queued == [] and q["comments"][-1]["text"] == "Red" and q["need"]["delivered"] == 0
+    else:
+        assert q["close_reason"] == "answered on the site" and q["need"]["delivered"] == 1
+        assert queued == [["--thread", ROOT, "--message", "Red or blue?: Blue"]]

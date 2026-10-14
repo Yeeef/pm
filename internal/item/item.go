@@ -47,6 +47,7 @@ const (
 	Decision NeedKind = "decision"
 	Action   NeedKind = "action"
 	Review   NeedKind = "review"
+	Question NeedKind = "question" // a session's ask-tool call: its answer steers that session and records no decision
 )
 
 // CommentKind is reply (the owner's answer, counted against Need.Delivered) or note (anything else).
@@ -105,6 +106,31 @@ type NeedInfo struct {
 	RaisedBy  *RaisedBy   `json:"raised_by,omitempty"` // nil when no session raised it
 	Delivered int         `json:"delivered"`           // owner replies that reached RaisedBy.Session
 	Review    *ReviewInfo `json:"review,omitempty"`    // kind review only
+	Ask       *AskInfo    `json:"ask,omitempty"`       // kind question only
+}
+
+// AskInfo is a question need's ask: the key of the ask-tool call that asked it and its questions, in the order asked.
+// It is written once, when the need is raised.
+type AskInfo struct {
+	// Call is an opaque key the raiser picks, stable for one call, at most 128 bytes: for Claude Code, whose hook input
+	// carries no tool_use id, the prompt_id with a hash of the tool input; for Codex, the call_id.
+	Call      string        `json:"call"`
+	Questions []AskQuestion `json:"questions"`
+}
+
+// AskQuestion is one question of an ask: its text, its short header, whether the owner may pick more than one option,
+// and its options, in order (none for a free-text question).
+type AskQuestion struct {
+	Text    string      `json:"text"`
+	Header  string      `json:"header"`
+	Multi   bool        `json:"multi"`
+	Options []AskOption `json:"options"`
+}
+
+// AskOption is one option of a question: its label and what it means.
+type AskOption struct {
+	Label  string `json:"label"`
+	Detail string `json:"detail"`
 }
 
 // RaisedBy is the session that raised a need and where its owner replies are delivered.

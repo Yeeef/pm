@@ -67,6 +67,7 @@ type exportNeed struct {
 	RaisedBy  *exportRaised `json:"raised_by"`
 	Delivered int           `json:"delivered"`
 	Review    *exportReview `json:"review"`
+	Ask       *AskInfo      `json:"ask"`
 }
 
 type exportRaised struct {
@@ -135,6 +136,7 @@ func exported(it *Item) exportItem {
 			e.Need.Review = &exportReview{PR: r.PR, Sprints: listOf(r.Sprints), Designs: listOf(r.Designs),
 				Focus: r.Focus, Merged: orNull(r.Merged), MergeReported: orNull(r.MergeReported)}
 		}
+		e.Need.Ask = n.Ask // a loaded ask's lists are never nil
 	}
 	return e
 }

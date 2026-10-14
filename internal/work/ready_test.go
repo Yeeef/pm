@@ -25,7 +25,22 @@ func item(id string, typ Type, parent string, opts ...func(*Item)) Item {
 	return it
 }
 
-func closed(it *Item)                     { it.Status, it.Resolution, it.ClosedAt = Closed, Done, at }
+func closed(it *Item) { it.Status, it.Resolution, it.ClosedAt = Closed, Done, at }
+
+// askOf is an ask of two questions: a single choice of two options, and a multiple choice of three.
+func askOf() *AskInfo {
+	return &AskInfo{Call: "toolu_01", Questions: []AskQuestion{
+		{Text: "Ship it today?", Header: "Ship", Options: []AskOption{{Label: "Yes", Detail: "merge now"},
+			{Label: "No", Detail: "wait for CI"}}},
+		{Text: "Which checks?", Header: "Checks", Multi: true, Options: []AskOption{{Label: "lint"},
+			{Label: "go", Detail: "the Go tests"}, {Label: "py", Detail: "the harness"}}},
+	}}
+}
+
+// question makes a need a question a session raised.
+func question(it *Item) {
+	it.Need = &NeedInfo{Kind: Question, RaisedBy: &RaisedBy{Session: "s-ask"}, Ask: askOf()}
+}
 func number(n int) func(*Item)            { return func(it *Item) { it.Number = n } }
 func blockedBy(ids ...string) func(*Item) { return func(it *Item) { it.BlockedBy = ids } }
 func heldBy(s string) func(*Item) {

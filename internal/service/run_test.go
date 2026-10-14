@@ -54,6 +54,18 @@ func fakeBin(t *testing.T, scripts map[string]string) string {
 const fakeGH = `[ -n "$FAKE_GH_FAIL" ] && { echo "$FAKE_GH_FAIL" >&2; exit 1; }
 if [ -n "$FAKE_GH_JSON" ]; then echo "$FAKE_GH_JSON"; else echo '{"state":"OPEN"}'; fi`
 
+// shortTemp is a new directory under a short temp root, removed at the test's end: a main checkout's wait socket
+// (WaitSock) must fit the kernel's limit, which t.TempDir() on macOS overruns.
+func shortTemp(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "pm") //nolint:usetesting // short: the wait socket must fit the kernel's limit
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) }) //nolint:errcheck // a temp dir left behind fails nothing
+	return dir
+}
+
 func quick(t *testing.T) {
 	t.Helper()
 	saved := []time.Duration{ServeCheck, MergePoll}
@@ -73,7 +85,7 @@ func serveEvery(t *testing.T, w *fakeWork, main string, mergePoll time.Duration,
 	quick(t)
 	MergePoll = mergePoll
 	if main == "" {
-		main = t.TempDir()
+		main = shortTemp(t)
 		fakeBin(t, map[string]string{"gh": fakeGH})
 	}
 	for _, d := range []string{".pm/store/records", ".git"} {
@@ -567,7 +579,7 @@ func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *tes
 		}
 		return w.Open()
 	}
-	main := t.TempDir()
+	main := shortTemp(t)
 	fakeBin(t, map[string]string{"gh": fakeGH})
 	quick(t)
 	os.MkdirAll(filepath.Join(main, ".pm/store/records"), 0o755)
@@ -596,7 +608,7 @@ func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *tes
 }
 
 func TestAPendingSpoolIsStoredAtStartOnce(t *testing.T) {
-	main := t.TempDir()
+	main := shortTemp(t)
 	fakeBin(t, map[string]string{"gh": fakeGH})
 	os.MkdirAll(filepath.Join(main, ".git"), 0o755)
 	spool := filepath.Join(main, ".git", SpoolName)
@@ -655,7 +667,7 @@ func TestAReplyAnyCommandStoresIsPushedOnceTheStoreMoves(t *testing.T) {
 func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {
 	t.Run("AMergeNotOnMainYetIsNotReported", func(t *testing.T) {
 		fakeBin(t, map[string]string{"gh": `echo '{"state":"MERGED","mergeCommit":{"oid":"0123456789abcdef0123456789abcdef01234567"}}'`})
-		main := t.TempDir()
+		main := shortTemp(t)
 		if out, err := exec.Command("git", "init", "-q", main).CombinedOutput(); err != nil {
 			t.Fatal(err, string(out))
 		}
@@ -668,7 +680,7 @@ func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {
 			t.Fatal("a merge not seen on main was stored")
 		}
 	})
-	main := t.TempDir()
+	main := shortTemp(t)
 	fakeBin(t, map[string]string{"gh": fakeGH})
 	origin := filepath.Join(t.TempDir(), "origin.git")
 	git := func(dir string, args ...string) string {
@@ -758,7 +770,7 @@ func TestSyncStepsSyncTheStoreSummarizeAndPushTheRecords(t *testing.T) {
 }
 
 func TestGCRunsWhenDueAndRecordsTheSizes(t *testing.T) {
-	main := t.TempDir()
+	main := shortTemp(t)
 	if err := os.WriteFile(filepath.Join(main, "chunk"), make([]byte, 2_500_000), 0o644); err != nil {
 		t.Fatal(err)
 	}

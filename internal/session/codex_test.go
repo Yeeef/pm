@@ -193,3 +193,14 @@ func TestCodexHooksRanReadsTheRolloutUpToTheFirstPrompt(t *testing.T) {
 		t.Error("a thread with no rollout: known")
 	}
 }
+
+// TestCodexHomeOfRolloutIsTheHomeItsPathLiesUnder: a rollout's path names its CODEX_HOME; another path names none.
+func TestCodexHomeOfRolloutIsTheHomeItsPathLiesUnder(t *testing.T) {
+	home, ok := CodexHomeOfRollout("/h/.codex/sessions/2026/10/14/rollout-2026-10-14T10-00-00-x.jsonl")
+	if !ok || home != "/h/.codex" {
+		t.Errorf("home of a rollout: %q %v", home, ok)
+	}
+	if _, ok := CodexHomeOfRollout("/tmp/t.jsonl"); ok {
+		t.Error("a path that is no rollout's names a home")
+	}
+}

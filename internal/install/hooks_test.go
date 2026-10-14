@@ -25,6 +25,17 @@ var runtimeDifferences = map[runtimeDifference]string{
 		"(encrypted), so the parent's Stop cannot tell which records the subagent was asked to write; pm hook stop " +
 		"reads the subagent's own rollout at its SubagentStop instead. Claude Code's parent transcript holds the " +
 		"prompt, which pm hook stop reads at the parent's Stop",
+	{"PermissionRequest", "commands"}: "Claude Code only: AskUserQuestion waits for its dialog's answer, and its " +
+		"PermissionRequest hook runs beside the dialog, so pm hook ask raises the question there and waits for the " +
+		"site's answer. Codex's request_user_input_async returns at once and asks no permission; pm hook ask raises " +
+		"it at its PostToolUse",
+	{"PermissionRequest", "matcher"}: "Claude Code only: its group matches AskUserQuestion alone",
+	{"PostToolUse", "matcher"}: "both run pm hook ask on their ask tool: Claude Code's AskUserQuestion, whose " +
+		"PostToolUse carries the dialog's answer and closes the question with it; Codex's request_user_input_async, " +
+		"whose PostToolUse raises the question by its call id (tool_use_id)",
+	{"UserPromptSubmit", "commands"}: "Codex only: request_user_input_async returns at once, and the owner's next " +
+		"message is its chat answer, so pm hook ask closes the session's open questions with the prompt; Claude " +
+		"Code's dialog answer comes at AskUserQuestion's PostToolUse",
 }
 
 // ownRuntime is the one part of a command that differs by design and is no runtimeDifferences entry, so that the rest

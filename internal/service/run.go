@@ -29,6 +29,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/item"
 	"github.com/Yeeef/pm/internal/session"
 	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
@@ -165,6 +166,8 @@ type server struct {
 	logMu                 gosync.Mutex
 	gh                    bool
 	access                accessKeys // the Access team's signing keys, fetched on first use
+	movedMu               gosync.Mutex
+	moved                 chan struct{} // closed when the next snapshot is stored: the waits look again (wait.go)
 }
 
 func (s *server) logf(format string, a ...any) {
@@ -225,10 +228,11 @@ func (s *server) poke() {
 // against the snapshot, spooled before the POST is answered, and stored by the writer, which retries a failed write
 // with backoff and then pushes the reply into the raising session's inbox. The merge watch, at start and every
 // MergePoll, hands reviews' merges to main to the writer, then has it sweep the open needs for anything their running
-// session has not received. Every look reads the pin again: once it pins another version, Run returns that error.
-// Run returns only once every goroutine it started has ended, so a stopped service never touches the work store (the
-// caller closes the store's host next): it tells them to stop, waits for the requests under way, then for each loop to
-// finish what it was doing (a sync or gc under way runs to its end or its timeout, as the host's statement does).
+// session has not received. Each snapshot stored wakes the waits on the wait socket (wait.go). Every look reads the
+// pin again: once it pins another version, Run returns that error. Run returns only once every goroutine it started
+// has ended, so a stopped service never touches the work store (the caller closes the store's host next): it tells
+// them to stop, waits for the requests under way, then for each loop to finish what it was doing (a sync or gc under
+// way runs to its end or its timeout, as the host's statement does).
 func Run(d Deps) error {
 	if d.Open == nil || d.Mark == nil || d.Sync == nil || d.GC == nil || d.Site == nil || d.Summarize == nil || d.Out == nil || d.Log == nil ||
 		d.Main == "" || d.Records == "" || d.Spool == "" || d.Pin == "" || d.WorkDir == "" {
@@ -241,7 +245,7 @@ func Run(d Deps) error {
 	s := &server{d: d, texts: Texts{d.Main, d.Remote, d.MainBranch}, token: base64.RawURLEncoding.EncodeToString(tok),
 		replies: map[string]Reply{}, merges: map[string]bool{}, swept: map[string]sweepState{},
 		queue: make(chan job, 1024), sweepDue: make(chan struct{}, 1), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
-		serveCheck: ServeCheck, mergePoll: MergePoll}
+		serveCheck: ServeCheck, mergePoll: MergePoll, moved: make(chan struct{})}
 	ctx, stop := context.WithCancel(context.Background())
 	s.stop, s.done = stop, ctx.Done()
 	defer s.stop()
@@ -252,11 +256,15 @@ func Run(d Deps) error {
 		return err
 	}
 	srv := &http.Server{Handler: s, ReadHeaderTimeout: 30 * time.Second}
-	s.snap.Store(s.refresh(nil)) // the first load has data to serve
+	s.setSnap(s.refresh(nil)) // the first load has data to serve
 	pending, err := Pending(d.Spool)
 	if err != nil {
 		ln.Close()
 		return err
+	}
+	waits, err := s.serveWaits()
+	if err != nil {
+		return errors.Join(err, ln.Close())
 	}
 	s.spawn(s.writer)           // before the pending replies are queued, so any number of them fits
 	for _, e := range pending { // replies a crash or kill left pending
@@ -279,6 +287,7 @@ func Run(d Deps) error {
 	err = srv.Serve(ln)
 	s.stop()
 	_ = srv.Shutdown(context.Background()) // the requests under way end; the refresher already shut it down on a pin move
+	_ = waits.Close()                      //nolint:errcheck // the waits end on the stop; their callers call again
 	s.wg.Wait()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
@@ -343,7 +352,7 @@ func (s *server) refresher(srv *http.Server) {
 		}
 		old := s.snap.Load()
 		next := s.refresh(old)
-		s.snap.Store(next)
+		s.setSnap(next)
 		// a reply any command stored (pm reply add, not the site's form, which pushes its own) is pushed once the
 		// store moves, not at the ticker's next sweep a MergePoll later
 		if old != nil && !next.readFailed && next.fp != old.fp {
@@ -697,7 +706,8 @@ func (s *server) siteURL() string {
 }
 
 // check checks the owner's reply against the snapshot's items, so the check reads nothing: the status, then on
-// success (303) the need's id and the reply's text, else why it was refused and "".
+// success (303) the need's id and the reply's text (a question's made from its card's fields, item.AnswerText), else
+// why it was refused and "".
 func (s *server) check(form url.Values, items map[string]*work.Item) (int, string, string) {
 	if subtle.ConstantTimeCompare([]byte(form.Get("token")), []byte(s.token)) != 1 {
 		return 403, "refused: the reply carries no valid token; reload the page (the server may have restarted) and " +
@@ -715,6 +725,13 @@ func (s *server) check(form url.Values, items map[string]*work.Item) (int, strin
 			why = "no reason"
 		}
 		return 400, fmt.Sprintf("refused: %s is already closed (%s)", id, why), ""
+	}
+	if n.Need != nil && n.Need.Ask != nil { // a question's card posts a field per question, not a text
+		answer, err := item.AnswerText(*n.Need.Ask, form)
+		if err != nil {
+			return 400, "refused: " + err.Error(), ""
+		}
+		text = answer
 	}
 	if text == "" {
 		return 400, "refused: the reply is empty", ""
@@ -834,15 +851,30 @@ func (s *server) writeReply(j job) {
 }
 
 // sweep, on the writer: push again what an open need's session has not received (a push that failed, or a crash
-// between storing a reply and pushing it). A session that is gone costs a stat per look: a need whose push found it
+// between storing a reply and pushing it), and a Codex question's site answer whose queue failed once the question
+// closed (Unqueued). A session that is gone costs a stat per look: a need whose push found it
 // not running is skipped until its inbox path appears or changes. It logs only a change.
 func (s *server) sweep() {
 	snap := s.snap.Load()
 	for _, n := range snap.order {
-		if n.Status == work.Closed || n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Inbox == "" {
+		if n.Status != work.Closed && IsQuestion(n) {
+			did, err := s.settleQuestion(n)
+			if err != nil {
+				did = "failed: " + err.Error()
+			}
+			if did != "" {
+				s.logf("question %s (sweep): %s", n.ID, did)
+				continue
+			}
+			if _, codex := CodexQuestion(n); !codex {
+				continue // a Claude Code session's question takes its answer through its hook
+			}
+		}
+		if n.Status == work.Closed && !Unqueued(n) || n.Need == nil || n.Need.RaisedBy == nil ||
+			n.Need.RaisedBy.Inbox == "" {
 			continue
 		}
-		if !ReplyWaiting(n) && MergeWaiting(n) == "" {
+		if !ReplyWaiting(n) && MergeWaiting(n) == "" && !Unqueued(n) {
 			continue
 		}
 		key, ok := inboxKey(n.Need.RaisedBy)

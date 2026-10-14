@@ -89,6 +89,8 @@ func TestMergeOtherScalarsTheLaterUpdatedAt(t *testing.T) {
 	t.Run("MergeUpdatedAtTheLatest", checkMergeUpdatedAtTheLatest)
 
 	t.Run("MergeDeliveredTheMax", checkMergeDeliveredTheMax)
+
+	t.Run("MergeAQuestionKeepsItsAskCall", checkMergeAQuestionKeepsItsAskCall)
 }
 
 func checkMergeAFieldOneSideChangedTakesThatSide(t *testing.T) {
@@ -236,4 +238,20 @@ func checkMergeDeliveredTheMax(t *testing.T) {
 	if m, _ := merged(t, b, o, th); m.Need.Delivered != 3 {
 		t.Fatalf("%+v", m.Need)
 	}
+}
+
+func checkMergeAQuestionKeepsItsAskCall(t *testing.T) {
+	b, o, th := sides(5, 6)
+	for _, it := range []*Item{&b, &o, &th} {
+		it.Type, it.Need = Need, &NeedInfo{Kind: Question, RaisedBy: &RaisedBy{Session: "s1"},
+			Ask: &AskInfo{Call: "toolu_01", Questions: []AskQuestion{}}}
+	}
+	o.Status, o.Resolution, o.ClosedAt = Closed, Answered, sec(5) // one side closes it, the other counts a delivery
+	th.Need.Delivered = 1
+	m, _ := merged(t, b, o, th)
+	if m.Status != Closed || m.Need.Delivered != 1 || m.Need.Ask == nil || m.Need.Ask.Call != "toolu_01" {
+		t.Fatalf("%+v %+v", m, m.Need)
+	}
+	o.Need.Ask.Call, th.Need.Ask.Call = "call_a", "call_b" // written once: two values have no rule
+	refused(t, b, o, th, "ask_call")
 }

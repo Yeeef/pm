@@ -80,14 +80,24 @@ const replyForm = `<form class="reply" method="post" action="/reply" data-text="
 var replyHints = map[string]string{"decision": "Your answer: the option you choose, or what you want instead",
 	"action": "The evidence that it is done: a command's output, a link"}
 
-var slotRE = regexp.MustCompile(`<!--pm-reply (\S+) (decision|action)-->`)
+// The form a question's slot becomes: it holds no text of its own but posts the card's inputs, which name it in
+// their form attribute; the pm service makes the reply from them (item.AnswerText). Its reply id is new unless the
+// answer is the one the id was made for.
+const askForm = `<form class="reply" id="reply-%[2]s" method="post" action="/reply" data-text="" onsubmit="` +
+	`const t = new URLSearchParams([...new FormData(this)].filter(([k]) => /^q\d/.test(k))).toString(), ` +
+	`r = this.elements.rid; if (!r.value || this.dataset.text !== t) { r.value = crypto.randomUUID(); ` +
+	`this.dataset.text = t; }"><input type="hidden" name="token" value="%[1]s"><input type="hidden" name="id" ` +
+	`value="%[2]s"><input type="hidden" name="rid" value=""><button type="submit">Send answer</button></form>`
+
+var slotRE = regexp.MustCompile(`<!--pm-reply (\S+) (decision|action|question)-->`)
 
 // pyEscape is Python's html.escape: quotes too, the single one as &#x27;.
 var pyEscape = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&#x27;").Replace
 
 // FillReplies is page with each card's reply slot replaced by its form, carrying token for the POST. replies holds
 // the replies still on their way to the work store, by need id: each shows with its text above its card's form, and a
-// failed one puts its text back in the box with its reply id, so sending it again unchanged stores it once.
+// failed one puts its text back in the box with its reply id, so sending it again unchanged stores it once. A question's
+// slot becomes the form its card's inputs post (askForm); a failed answer there shows its text above it.
 func FillReplies(page, token string, replies map[string]Reply) string {
 	return slotRE.ReplaceAllStringFunc(page, func(m string) string {
 		g := slotRE.FindStringSubmatch(m)
@@ -99,15 +109,21 @@ func FillReplies(page, token string, replies map[string]Reply) string {
 				said = NotDelivered
 			}
 			text := mustRender(commentMD, r.Text)
-			switch r.State {
-			case "saving":
+			switch {
+			case r.State == "saving":
 				note = `<div class="reply-item"><p class="k replied">Saving your reply…</p>` + text + `</div>`
-			case "sent":
+			case r.State == "sent":
 				note = `<div class="reply-item"><p class="k replied">Reply saved; ` + said + `.</p>` + text + `</div>`
-			case "failed":
+			case r.State == "failed" && g[2] == "question": // its inputs cannot take the text back; the service retries it
+				note = `<div class="reply-item"><p class="k failed">Your answer was not stored yet: ` + pyEscape(r.Error) +
+					` The pm service tries it again.</p>` + text + `</div>`
+			case r.State == "failed":
 				note = `<p class="k failed">Your reply was not stored: ` + pyEscape(r.Error) + ` Its text is back in ` +
 					`the box; send it again.</p>`
 			}
+		}
+		if g[2] == "question" {
+			return note + fmt.Sprintf(askForm, pyEscape(token), g[1])
 		}
 		text, rid := "", ""
 		if ok && r.State == "failed" {
@@ -124,12 +140,13 @@ const ServeBehind = 10
 // never reloads by itself (owner decision: auto reloads flash the page) but shows a sticky "Newer data: reload" banner
 // the owner clicks. That reload keeps the reader where they were: it saves the scroll position and drops the URL's
 // #fragment (a reply's redirect to its card), which would otherwise re-jump on every reload. It asks first when a
-// reply box holds unsent text, which a reload would discard.
+// reply box holds unsent text or a question card an unsent pick, which a reload would discard.
 var statusScript = `(() => {
 const el = document.currentScript.previousElementSibling, behind = ` + fmt.Sprint(ServeBehind) + `, key = "pm-scroll:" + location.pathname;
 let newer = false, gone = false;
 function reload() {
-  const draft = [...document.querySelectorAll("textarea")].some(t => t.value.trim());
+  const draft = [...document.querySelectorAll("textarea, input[type=text]")].some(t => t.value.trim()) ||
+    !!document.querySelector("input[form]:checked");
   if (draft && !confirm("Reload and discard the reply you have not sent?")) return;
   try { sessionStorage.setItem(key, String(scrollY)); } catch (e) {}
   if (location.hash) history.replaceState(null, "", location.pathname + location.search);

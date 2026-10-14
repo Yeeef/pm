@@ -1,5 +1,5 @@
 {
-  "about": "Hook inputs as Claude Code 2.1.296 and Codex 0.154.0 sent them (captured 2026-10-11), every key kept; the values pm reads are placeholders a test fills in: {session}, {cwd}, {transcript}, {reply}, {agent_transcript}, {prompt}. Codex's SubagentStop was not captured: it is built from Codex 0.154's subagent-stop.command.input schema, every required key, with values like its Stop's. Claude Code's UserPromptSubmit was not captured either: it is built from the keys every Claude Code hook input has, as its Stop sent them, and prompt.",
+  "about": "Hook inputs as Claude Code 2.1.296 and Codex 0.154.0 sent them (captured 2026-10-11), every key kept; the values pm reads are placeholders a test fills in: {session}, {cwd}, {transcript}, {reply}, {agent_transcript}, {prompt}, {tool_input}. Codex's SubagentStop was not captured: it is built from Codex 0.154's subagent-stop.command.input schema, every required key, with values like its Stop's. Claude Code's UserPromptSubmit was not captured either: it is built from the keys every Claude Code hook input has, as its Stop sent them, and prompt. Claude Code's PermissionRequest and PostToolUse were captured from Claude Code 2.1.296 on 2026-10-14, for AskUserQuestion; {prompt_id} is the prompt's id, which keys the call, and PostToolUse's tool_input and tool_response are one object, {tool_response}: the questions, the answers by question text, and annotations. Codex's PostToolUse was captured from Codex 0.162.1 on 2026-10-14 in its TUI, for request_user_input_async; {tool} and {call} are its tool_name and tool_use_id.",
   "claude": {
     "SessionStart": {
       "session_id": "{session}",
@@ -25,6 +25,36 @@
       "permission_mode": "auto",
       "hook_event_name": "UserPromptSubmit",
       "prompt": "{prompt}"
+    },
+    "PermissionRequest": {
+      "session_id": "{session}",
+      "transcript_path": "{transcript}",
+      "cwd": "{cwd}",
+      "prompt_id": "{prompt_id}",
+      "permission_mode": "default",
+      "effort": {
+        "level": "medium"
+      },
+      "hook_event_name": "PermissionRequest",
+      "tool_name": "AskUserQuestion",
+      "tool_input": "{tool_input}"
+    },
+    "PostToolUse": {
+      "session_id": "{session}",
+      "transcript_path": "{transcript}",
+      "cwd": "{cwd}",
+      "scratchpad_dir": "/tmp/claude-1000/-tmp-proj/63769842-7f40-4b29-b84b-f032d8ad9cf9/scratchpad",
+      "prompt_id": "{prompt_id}",
+      "permission_mode": "default",
+      "effort": {
+        "level": "medium"
+      },
+      "hook_event_name": "PostToolUse",
+      "tool_name": "AskUserQuestion",
+      "tool_input": "{tool_response}",
+      "tool_response": "{tool_response}",
+      "tool_use_id": "toolu_015hnvv6TtZypF9MyoZ9EamU",
+      "duration_ms": 1
     },
     "Stop": {
       "session_id": "{session}",
@@ -72,6 +102,19 @@
       "model": "gpt-6-astra",
       "permission_mode": "bypassPermissions",
       "prompt": "{prompt}"
+    },
+    "PostToolUse": {
+      "session_id": "{session}",
+      "turn_id": "01a13bd6-f49a-7890-8570-bea6ac6db4ff",
+      "transcript_path": "{transcript}",
+      "cwd": "{cwd}",
+      "hook_event_name": "PostToolUse",
+      "model": "gpt-6.1-sol",
+      "permission_mode": "default",
+      "tool_name": "{tool}",
+      "tool_input": "{tool_input}",
+      "tool_response": "{\"accepted\":true}",
+      "tool_use_id": "{call}"
     },
     "Stop": {
       "session_id": "{session}",

@@ -6,17 +6,19 @@ which test_init_bootstraps_a_brand_new_repo checks."""
 
 from __future__ import annotations
 
+import datetime
 import json
 import re
 import shutil
 import socket
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
 from conftest import CAP, MACHINERY, PM, RULE_STARTS, SUBAGENT_RULE, chunks, head, help_tree, hook_payload, nouns, \
-    rules, stop_services, write_config, VERSION
+    rules, stop_services, wait_for, write_config, VERSION
 
 STATE = [*PM, "prime", "--state", "--hook-json"]
 SUBAGENT = [*PM, "prime", "--subagent", "--hook-json"]
@@ -566,3 +568,188 @@ def test_a_codex_sessions_start_names_the_pm_hooks_codex_skips(repo, tmp_path):
     (codex_home / "config.toml").write_text("# trust as the user left it\n[hooks.state]\n")
     assert not start("codex").startswith("warning: this Codex session") and calls() == before + 2
     assert not start("claude").startswith("warning: this Codex session") and calls() == before + 2
+
+
+# ---------------------------------------------------------------- ask-tool questions
+
+ASK = [*PM, "hook", "ask", "--runtime"]
+COLOR = {"questions": [{"question": "Which color?", "header": "Color", "multiSelect": False,
+                        "options": [{"label": "Red", "description": "warm"}, {"label": "Blue", "description": "cool"}]}]}
+
+
+def held_task(repo, session: str) -> None:
+    """repo-demo.1.3, a task `session` holds."""
+    repo.add_issue({"id": "repo-demo.1.3", "title": "Paint it", "status": "in_progress", "issue_type": "task",
+                    "parent": "repo-demo.1", "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z",
+                    "started_at": "2026-10-01T12:00:00Z",
+                    "metadata": {"claimed_by": session, "claimed_at": "2026-10-01T12:00:00Z"}})
+
+
+def questions(repo) -> dict[str, dict]:
+    return {i: it for i, it in repo.items().items() if (it.get("need") or {}).get("kind") == "question"}
+
+
+PROMPT_ID = "d45f14df-4aa7-4792-9e88-0fa538f56795"
+
+
+def ask_dialog(repo, transcript: Path, **extra) -> subprocess.Popen:
+    """pm hook ask, as Claude Code starts it beside an AskUserQuestion dialog: the PermissionRequest input on stdin,
+    left running."""
+    payload = dict(hook_payload("claude", "PermissionRequest", session=ME, cwd=str(repo.root),
+                                transcript=str(transcript), prompt_id=PROMPT_ID, tool_input=COLOR), **extra)
+    (transcript.parent / "input.json").write_text(json.dumps(payload))
+    with (transcript.parent / "input.json").open() as stdin:
+        return subprocess.Popen([*ASK, "claude"], stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                env=repo.env, cwd=repo.root, text=True)
+
+
+def dialog_answered(repo, transcript: Path, answer: str) -> subprocess.CompletedProcess:
+    """pm hook ask at AskUserQuestion's PostToolUse, as Claude Code runs it once the owner picked answer in the
+    dialog: tool_input and tool_response both hold the questions with the answers."""
+    response = dict(COLOR, answers={"Which color?": answer}, annotations={})
+    return run([*ASK, "claude"], hook_payload("claude", "PostToolUse", session=ME, cwd=str(repo.root),
+                                              transcript=str(transcript), prompt_id=PROMPT_ID,
+                                              tool_response=response), repo.env, repo.root)
+
+
+def test_a_claude_question_answered_on_the_site_answers_the_dialog(repo, tmp_path):
+    """The hook raises the AskUserQuestion call as a question under the task the session holds and waits; the owner's
+    reply (pm reply add writes it as the site does) closes it as answered on the site, delivered, and the hook answers
+    the tool with it, the option's label for the owner's text. The tool's PostToolUse then leaves it as it is."""
+    held_task(repo, ME)
+    transcript = tmp_path / "t.jsonl"
+    proc = ask_dialog(repo, transcript)
+    try:
+        (nid, q), = wait_for(lambda: questions(repo).items(), "the question raised")
+        assert q["parent"] == "repo-demo.1.3" and q["status"] == "open" and q["title"] == f"Session {ME} asks: Which color?"
+        assert repo.pm("reply", "add", nid, text="Which color?: blue").returncode == 0
+        out, err = proc.communicate(timeout=30)
+    finally:
+        proc.kill()
+    assert proc.returncode == 0 and err == "", err
+    decision = json.loads(out)["hookSpecificOutput"]
+    assert decision == {"hookEventName": "PermissionRequest", "decision": {
+        "behavior": "allow", "updatedInput": dict(COLOR, answers={"Which color?": "Blue"})}}
+    res = dialog_answered(repo, transcript, "Blue")
+    assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+    q = repo.items()[nid]
+    assert (q["status"], q["resolution"], q["close_reason"], q["need"]["delivered"]) == \
+           ("closed", "answered", "answered on the site", 1)
+
+
+def test_a_claude_question_answered_in_the_dialog_closes_at_post_tool_use(repo, tmp_path):
+    """The dialog's answer reaches pm at the tool's PostToolUse, which closes the question with it; the waiting hook
+    then exits printing nothing, so the dialog's answer stands. No transcript is read: there is none."""
+    transcript = tmp_path / "t.jsonl"
+    proc = ask_dialog(repo, transcript)
+    try:
+        (nid, q), = wait_for(lambda: questions(repo).items(), "the question raised")
+        assert "parent" not in q or not q["parent"], "a session that holds no task: no parent"
+        res = dialog_answered(repo, transcript, "Red")
+        assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+        out, err = proc.communicate(timeout=30)
+    finally:
+        proc.kill()
+    assert proc.returncode == 0 and out == "" and err == "", err
+    q = repo.items()[nid]
+    assert (q["status"], q["resolution"], q["comments"][-1]["text"]) == ("closed", "answered", "Which color?: Red")
+    assert not transcript.exists()
+
+
+def test_a_claude_question_the_session_stops_waiting_on_is_dismissed(repo, tmp_path):
+    """Esc fires no hook, but Claude Code sends the waiting hook SIGTERM, as it does when the session stops: the
+    question closes as dismissed well within the 1.2 s before Claude Code kills the hook."""
+    proc = ask_dialog(repo, tmp_path / "t.jsonl")
+    try:
+        (nid, _), = wait_for(lambda: questions(repo).items(), "the question raised")
+        start = time.monotonic()
+        proc.terminate()
+        out, err = proc.communicate(timeout=30)
+        took = time.monotonic() - start
+    finally:
+        proc.kill()
+    assert proc.returncode == 0 and out == "" and err == "", err
+    assert took < 1.0, f"the hook took {took:.2f}s to close the question and exit"
+    q = repo.items()[nid]
+    assert (q["status"], q["resolution"], q["close_reason"]) == \
+           ("closed", "dismissed", "the session stopped waiting for the answer: Esc in the dialog, or the session ended")
+
+
+def test_ask_steps_aside_for_a_subagent_or_another_tool(repo, tmp_path):
+    """No dialog the owner sees: nothing raised, nothing printed, at once."""
+    repo.mark()
+    for extra in ({"agent_id": "a1", "agent_type": "general-purpose"}, {"tool_name": "Bash"}):
+        payload = dict(hook_payload("claude", "PermissionRequest", session=ME, cwd=str(repo.root),
+                                    transcript=str(tmp_path / "t"), prompt_id=PROMPT_ID, tool_input=COLOR), **extra)
+        res = run([*ASK, "claude"], payload, repo.env, repo.root)
+        assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+    assert repo.unchanged()
+
+
+def codex_ask_rollout(repo) -> Path:
+    """ROOT's rollout under the test's CODEX_HOME, as Codex 0.154 writes it: a turn that asks with
+    request_user_input_async (returning at once). pm reads only its path, which names the CODEX_HOME."""
+    ms = int(ROOT[:8] + ROOT[9:13], 16)  # a UUIDv7's start, which names the rollout's date directory
+    day = datetime.datetime.fromtimestamp(ms / 1000, datetime.UTC).strftime("%Y/%m/%d")
+    path = Path(repo.env["CODEX_HOME"]) / "sessions" / day / f"rollout-2026-10-11T19-07-16-{ROOT}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    args = json.dumps({"questions": [{"title": "Red or blue?", "options": ["Red", "Blue"]}]})
+    lines = [{"type": "session_meta", "payload": {"id": ROOT, "session_id": ROOT, "cwd": str(repo.root)}},
+             {"type": "turn_context", "payload": {"turn_id": "t1", "cwd": str(repo.root)}},
+             {"type": "response_item", "payload": {"type": "function_call", "name": "request_user_input_async",
+                                                   "arguments": args, "call_id": "call_4f11"}},
+             {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "call_4f11",
+                                                   "output": '{"accepted":true}'}}]
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    return path
+
+
+def codex_asks(repo) -> str:
+    """pm hook ask at Codex's PostToolUse of ROOT's request_user_input_async call: the id of the one question it
+    raised."""
+    path = codex_ask_rollout(repo)
+    tool_input = {"questions": [{"title": "Red or blue?", "options": ["Red", "Blue"]}]}
+    for _ in range(2):  # the same call again raises nothing
+        res = run([*ASK, "codex"], hook_payload("codex", "PostToolUse", session=ROOT, cwd=str(repo.root),
+                                                transcript=str(path), tool="request_user_input_async",
+                                                tool_input=tool_input, call="call_4f11"), repo.env, repo.root)
+        assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+    (nid, q), = questions(repo).items()
+    assert q["need"]["raised_by"]["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}"
+    assert q["need"]["ask"] == {"call": "call_4f11", "questions": [
+        {"text": "Red or blue?", "header": "", "multi": False,
+         "options": [{"label": "Red", "detail": ""}, {"label": "Blue", "detail": ""}]}]}
+    return nid
+
+
+def codex_types(repo, prompt: str) -> None:
+    """pm hook ask at Codex's UserPromptSubmit, as ROOT's owner sends prompt."""
+    res = run([*ASK, "codex"], hook_payload("codex", "UserPromptSubmit", session=ROOT, cwd=str(repo.root),
+                                            transcript=str(codex_ask_rollout(repo)), prompt=prompt), repo.env,
+              repo.root)
+    assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+
+
+def test_codex_post_tool_use_raises_the_async_question_once(repo):
+    """Codex's ask tool returns at once: its PostToolUse raises the question, once by its call id (tool_use_id), under
+    the rollout's CODEX_HOME, which the service queues a site answer under; another tool's PostToolUse raises none."""
+    path = codex_ask_rollout(repo)
+    for tool in ["Bash", "request_user_input"]:
+        res = run([*ASK, "codex"], hook_payload("codex", "PostToolUse", session=ROOT, cwd=str(repo.root),
+                                                transcript=str(path), tool=tool, tool_input={"command": "ls"},
+                                                call="call_9"), repo.env, repo.root)
+        assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+    assert questions(repo) == {}
+    nid = codex_asks(repo)
+    assert repo.items()[nid]["status"] == "open"
+
+
+def test_codex_user_prompt_submit_closes_the_open_question_with_the_prompt(repo):
+    """The owner's next prompt is the chat answer to the session's open question: its UserPromptSubmit closes it with
+    that text, by the session, and the next prompt finds nothing open."""
+    nid = codex_asks(repo)
+    codex_types(repo, "Red, thanks")
+    q = repo.items()[nid]
+    assert (q["status"], q["resolution"], q["comments"][-1]["text"]) == ("closed", "answered", "Red, thanks")
+    codex_types(repo, "and another thing")
+    assert repo.items()[nid]["comments"] == q["comments"]

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -194,4 +195,15 @@ func CodexHooksRan(session string) (ran, known bool) {
 			}
 		}
 	}
+}
+
+var rolloutPath = regexp.MustCompile(`/sessions/\d{4}/\d\d/\d\d/rollout-[^/]+\.jsonl$`)
+
+// CodexHomeOfRollout is the CODEX_HOME a rollout's path lies under (<home>/sessions/YYYY/MM/DD/rollout-….jsonl), and
+// whether it lies under one. It reads the path alone, not the file.
+func CodexHomeOfRollout(path string) (string, bool) {
+	if !rolloutPath.MatchString(filepath.ToSlash(path)) {
+		return "", false
+	}
+	return filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(path))))), true
 }

@@ -28,10 +28,13 @@ var (
 	GHTimeout   = 60 * time.Second // a gh or git call of the merge watch, before it counts as not merged yet
 )
 
-// kindWord is what a need waits for as its messages name it: an action (a review is one) or a decision.
+// kindWord is what a need waits for as its messages name it: an action (a review is one), a question or a decision.
 func kindWord(n *work.Item) string {
 	if n.Need != nil && (n.Need.Kind == work.Action || n.Need.Kind == work.Review) {
 		return "action"
+	}
+	if n.Need != nil && n.Need.Kind == work.Question {
+		return "question"
 	}
 	return "decision"
 }
@@ -113,6 +116,8 @@ func (t Texts) replyText(n *work.Item, replies []work.Comment) string {
 	switch {
 	case n.Status == work.Closed:
 		next = "it is closed already; check the reply is handled"
+	case k == "question":
+		next = "it answers the question you asked; go on with it (an answer to a question records no decision)"
 	case k == "decision":
 		next = fmt.Sprintf("record the answer: pm decision add --need %s --level … --decision '<the answer>' "+
 			"--reason '<why>' if it sets a rule, else pm decision close %s --reason \"<why it sets no rule>\" "+
@@ -276,12 +281,9 @@ var (
 	CodexLive   = session.CodexLive
 )
 
-// PushInbox hands text, as one user message, to the session that raised the need, only on the machine that stored its
-// inbox: written into a Claude Code session's inbox socket, connecting only once the line is ready, or queued into a
-// live Codex session with codex queue (queueCodex). "" once handed over; else why not: "no push: …" (a live session
-// that stores no inbox: the reply waits for it), "no codex: …" (codex is not on the service's PATH), "not running: …"
-// (no session, or one whose transcript has ended, another machine, the socket gone or refusing) or "failed: …".
-func PushInbox(n *work.Item, text string) string {
+// pushBlocked is why no push can reach the session that raised n, from what is known before one is tried (PushInbox's
+// reasons but "failed: …"); "" when one may.
+func pushBlocked(n *work.Item) string {
 	if n.Need == nil || n.Need.RaisedBy == nil || n.Need.RaisedBy.Session == "" {
 		return "not running: the request names no session"
 	}
@@ -304,6 +306,24 @@ func PushInbox(n *work.Item, text string) string {
 		if !CodexLive(home, rb.Session) {
 			return "not running: the session that asked has ended"
 		}
+		if _, why := CodexUsable(); why != "" {
+			return noCodex(why)
+		}
+	}
+	return ""
+}
+
+// PushInbox hands text, as one user message, to the session that raised the need, only on the machine that stored its
+// inbox: written into a Claude Code session's inbox socket, connecting only once the line is ready, or queued into a
+// live Codex session with codex queue (queueCodex). "" once handed over; else why not: "no push: …" (a live session
+// that stores no inbox: the reply waits for it), "no codex: …" (codex is not on the service's PATH), "not running: …"
+// (no session, or one whose transcript has ended, another machine, the socket gone or refusing) or "failed: …".
+func PushInbox(n *work.Item, text string) string {
+	if why := pushBlocked(n); why != "" {
+		return why
+	}
+	rb := n.Need.RaisedBy
+	if home, codex := session.CodexHomeOf(rb.Inbox); codex {
 		return queueCodex(home, rb.Session, text)
 	}
 	message := struct {
@@ -347,6 +367,12 @@ func (s *server) pushUndelivered(id string) (string, error) {
 		return err
 	}); err != nil {
 		return "", err
+	}
+	if IsQuestion(&n) {
+		if !ReplyWaiting(&n) && !Unqueued(&n) {
+			return "nothing to deliver", nil
+		}
+		return s.deliverQuestion(&n)
 	}
 	text, mark := s.texts.Undelivered(&n)
 	if text == "" {

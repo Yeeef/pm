@@ -217,7 +217,7 @@ func TestServiceInstallStatusRestartAndLogsEndToEnd(t *testing.T) {
 		t.Skip("the fake supervisor needs python3")
 	}
 	sched, _ := filepath.Abs("../../tests/fake_sched.py")
-	tmp := t.TempDir()
+	tmp := shortTemp(t)
 	main := filepath.Join(tmp, "main")
 	os.MkdirAll(filepath.Join(main, ".pm/store/records"), 0o755)
 	os.MkdirAll(filepath.Join(main, ".git"), 0o755)

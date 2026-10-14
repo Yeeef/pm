@@ -1,5 +1,7 @@
 package work
 
+import model "github.com/Yeeef/pm/internal/item"
+
 // Store is the work store as pm's commands, site and service use it: one store per clone, which the pm service holds;
 // a command reaches it with one connection to the service's socket, closed at exit. Every write is one transaction that lands whole or not at all, checks
 // the item invariants (the type's fields present, closed means no holder, the tree rules) and fails hard naming the
@@ -62,6 +64,14 @@ type New struct {
 	Description string
 	Labels      []string
 	Need        *NeedInfo // for Type Need only
+}
+
+// NewQuestion is the New of a question need: a session's ask-tool call, raised by that session under parent (the
+// newest open task it holds), or under none when it holds none, with item.QuestionTitle and item.QuestionText. Create
+// writes it; Close with Dismissed, or Answer, closes it, and the second of two closes fails with ErrClosed.
+func NewQuestion(parent string, by RaisedBy, ask AskInfo) New {
+	return New{Type: Need, Parent: parent, Title: model.QuestionTitle(by.Session, ask),
+		Description: model.QuestionText(ask), Need: &NeedInfo{Kind: Question, RaisedBy: &by, Ask: &ask}}
 }
 
 // NeedUpdate is the need fields the pm service and pm reply read move.

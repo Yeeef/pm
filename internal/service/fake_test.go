@@ -212,13 +212,38 @@ func (s *fakeStore) Shutdown() error {
 
 var errUnused = errors.New("not used by the service")
 
-func (s *fakeStore) Needs(string) ([]work.Item, error)                   { return nil, errUnused }
-func (s *fakeStore) Create(work.New) (work.Item, error)                  { return work.Item{}, errUnused }
-func (s *fakeStore) Edit(string, *string, *string) error                 { return errUnused }
-func (s *fakeStore) Close(string, string, work.Resolution, string) error { return errUnused }
-func (s *fakeStore) SetResolution(string, work.Resolution) error         { return errUnused }
-func (s *fakeStore) SetCloseReason(string, string) error                 { return errUnused }
-func (s *fakeStore) Move(string, string) error                           { return errUnused }
+// Close closes an open item; a closed one fails with work.ErrClosed, as the store's Close does.
+func (s *fakeStore) Close(id, reason string, r work.Resolution, session string) error {
+	defer s.lock()()
+	it := s.w.items[id]
+	if it.Status == work.Closed {
+		return fmt.Errorf("work store: %s %w", id, work.ErrClosed)
+	}
+	it.Status, it.CloseReason, it.Resolution, it.ClosedBy, it.ClosedAt = work.Closed, reason, r, session, at.Add(time.Hour)
+	s.w.fp++
+	return nil
+}
+
+// Answer records the answer as a reply and closes the need, stamped with the close, as the store's Answer does.
+func (s *fakeStore) Answer(id, text, session string) error {
+	defer s.lock()()
+	it := s.w.items[id]
+	if it.Status == work.Closed {
+		return fmt.Errorf("work store: %s %w", id, work.ErrClosed)
+	}
+	when := at.Add(time.Hour)
+	it.Comments = append(it.Comments, work.Comment{ID: "answer", Kind: work.Reply, Author: "owner", Text: text, CreatedAt: when})
+	it.Status, it.CloseReason, it.Resolution, it.ClosedBy, it.ClosedAt = work.Closed, "Responded", work.Answered, session, when
+	s.w.fp++
+	return nil
+}
+
+func (s *fakeStore) Needs(string) ([]work.Item, error)           { return nil, errUnused }
+func (s *fakeStore) Create(work.New) (work.Item, error)          { return work.Item{}, errUnused }
+func (s *fakeStore) Edit(string, *string, *string) error         { return errUnused }
+func (s *fakeStore) SetResolution(string, work.Resolution) error { return errUnused }
+func (s *fakeStore) SetCloseReason(string, string) error         { return errUnused }
+func (s *fakeStore) Move(string, string) error                   { return errUnused }
 func (s *fakeStore) MoveSprint(string, string, string) (work.Item, error) {
 	return work.Item{}, errUnused
 }
@@ -226,7 +251,6 @@ func (s *fakeStore) Claim(string, work.Holder, func(string) bool) error { return
 func (s *fakeStore) Release(string, string) error                       { return errUnused }
 func (s *fakeStore) DepAdd(string, string) error                        { return errUnused }
 func (s *fakeStore) DepRemove(string, string) error                     { return errUnused }
-func (s *fakeStore) Answer(string, string, string) error                { return errUnused }
 
 // fakeSite renders one page per item (items/<id>.html) and an index with a nav, a reply slot per open need and the
 // status slot; FillReplies and FillStatus write what they were given, so a test reads it back.
@@ -265,7 +289,7 @@ func (f *fakeSite) FillStatus(page string, asOf time.Time, digest string, now ti
 	return strings.Replace(page, StatusSlot, "[status "+digest+"]", 1)
 }
 
-var slot = regexp.MustCompile(`<!--pm-reply (\S+) (decision|action)-->`)
+var slot = regexp.MustCompile(`<!--pm-reply (\S+) (decision|action|question)-->`)
 
 type fakePages []work.Item
 

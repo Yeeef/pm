@@ -32,6 +32,9 @@ type (
 	NeedInfo    = model.NeedInfo
 	RaisedBy    = model.RaisedBy
 	ReviewInfo  = model.ReviewInfo
+	AskInfo     = model.AskInfo
+	AskQuestion = model.AskQuestion
+	AskOption   = model.AskOption
 	Comment     = model.Comment
 	SprintMove  = model.SprintMove
 )
@@ -53,6 +56,7 @@ const (
 	Decision = model.Decision
 	Action   = model.Action
 	Review   = model.Review
+	Question = model.Question
 
 	Reply = model.Reply
 	Note  = model.Note
