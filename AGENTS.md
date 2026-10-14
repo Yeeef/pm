@@ -110,6 +110,10 @@ ran against main as main was then, so two PRs that pass alone can break main tog
   `TestClaudeAndCodexRunTheSameHooks` fails on a difference `runtimeDifferences` gives no reason for.
 - Hooks fail open on their own errors, the owner-request judge's exit 1 included (`internal/hooks`' package doc).
   Keep `pm hook inbox` on UserPromptSubmit alone, never on Stop (`internal/hooks/inbox.go` says why).
+- **Read a session's transcript (Claude Code's JSONL, Codex's rollout) only when nothing else gives the fact**: first
+  look for a hook event that fires on it, a field of a hook's input, or a runtime command or API, and check in a live
+  session that it fires. A transcript is an undocumented format read by polling; an event is neither. Say in the code
+  why no event serves where a transcript is read.
 
 ## pm init
 
