@@ -115,6 +115,34 @@ Owner chose it in chat over a local-only eval with a calibration stamp: grader c
   Clean full mode over G1 and cases together: 13/15 pass, both misses
   non_inferable. Spend $9.54.
 
+- After the 3-of-5 vote (branch agents-md-stable's evaluate.py, haiku, 10 runs
+  each, same method as the baseline). Expected verdicts before -> after: G1
+  full mode on main's AGENTS.md (unchanged since 8ad2720) 9/10 -> 9/10 pass;
+  G2 diff PR #85 10/10 -> 10/10; G3 diff PR #83 9/10 -> 10/10; G4 diff of
+  main's last 10 merges (8ad2720~10..8ad2720, PRs #81-#88, 3 chunks; PR #81
+  alone is one 41 KB chunk, 9/9 pass) new, 10/10 pass; B1 planted
+  accurate_wrong_behaviour (accurate only, branch's case text) 10/10 -> 10/10
+  fail, 5/5 calls on its section agreeing every run; B2 diff_renamed_target
+  10/10 -> 10/10 fail. G1 per criterion, calls with findings / calls (agreed):
+  non_inferable 13/30 (2) -> 28/50 (3), accurate 2/330 -> 3/550 (0), map 2/30
+  -> 1/50, consistent 2/30 -> 1/50, the rest 0. G1's one failure (run 6):
+  calls 1, 3 and 5 of 5 flagged the Map row 'internal/session, internal/sync |
+  Which session runs pm and which are live; the push steps' (line 24) as
+  restating the packages' doc comments; judged noise, since the map criterion
+  passes one line per area and the rubric passes a passage read either way.
+  non_inferable's noise is not scattered: it has hot lines flagged by 12-14%
+  of calls (20, 24, 75-76, 106-107, 135 at 6-7/50), where 3 of 5 still stands
+  about 2% of the time per line, so about 1 clean full run in 10 can still
+  fail on it; 10 runs cannot tell before from after there. Cost and wall per
+  run before -> after (median): G1 $0.34/196 s -> $0.56/229 s (52 -> 90 calls,
+  max 260 s); G2 $0.004/18 s -> $0.024/24 s; G3 $0.005/17 s -> $0.017/19 s; G4
+  $0.105/50 s (30 calls); B1 $0.20/60 s -> $0.32/80 s; B2 $0.002/11 s ->
+  $0.011/14 s. Labelled cases, PM_LIVE_RUNS=3, clean included: 39/39 (780
+  calls, 953 s, $4.08): clean 3/3 pass (90 calls, $0.60/run), every planted
+  case 3/3 fail, diff_neutral 3/3 pass. The check job's worst case is now 90
+  calls, 16 at a time, 240 s each: 24 min, so its timeout went from 20 to 30
+  min. Spend about $15.2.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
