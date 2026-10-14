@@ -96,6 +96,11 @@ The request rule leaves prime.md. The session-start state hook (startup, resume,
 A static rule in prime.md contradicts interactive mode; printing the rule per mode at session start, after a compaction and at the switch keeps the agent on the rule that applies, without a line on every prompt.
 :::
 
+::: decision {source=owner date=2026-10-14}
+A SessionEnd hook (Claude Code and Codex) removes the session mode file. pm clean stays as the backstop for sessions that crashed, removing a mode file only when its session has been idle for a day, not the 30 min used for worktrees.
+An ended session cleans up after itself structurally; the one-day window keeps pm clean from resetting an interactive session the owner stepped away from.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
