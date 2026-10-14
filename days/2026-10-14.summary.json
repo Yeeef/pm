@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T08:20:18+00:00",
- "digest": "5487f17b48f23891",
+ "generated_at": "2026-10-14T08:30:41+00:00",
+ "digest": "7b20e4efd54d52a8",
  "model": "claude-haiku-5-5",
- "text": "- **Agent guidance map:** AGENTS.md is now a short map under its size cap, held by a test. CI runs its evaluation on every pull request.\n- **CI wait time:** Pull requests start fewer macOS jobs, and docs-only changes skip the Go test matrix. The median run still takes longer than the goal, because the macOS runner has limited cores.\n- **Command-line code layout:** The command-line code is split by noun, and the Python-port leftovers are gone. Every function now stays under the complexity limit.\n- **Sprint close rule:** `pm sprint close` now checks only the covers patterns a sprint added or changed while open. Another session's older pending pattern no longer blocks it."
+ "text": "- **Agent guidance map:** AGENTS.md is now a short map that every agent reads in full. Checks hold its size, and an agent evaluation runs on every pull request.\n- **Command-line code restructured:** The command-line code is split by noun, and every function stays under a set complexity limit. Python-port leftovers, including the argument parser emulation, are deleted.\n- **Test and CI speed:** Go tests do less work on macOS, but the run-time target is not met. Pull requests now start at most two macOS jobs, and docs-only changes skip the Go matrix.\n- **Sprint close rules:** `pm sprint close` now checks only the covers patterns that a sprint added or changed while open. Another session's older pending pattern no longer blocks a close."
 }
