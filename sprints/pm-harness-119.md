@@ -163,6 +163,15 @@ Review of dbf3f41: the state hook prints nothing when init, where or show fail o
   the rules chunks. Fix: new entries go after existing ones, with a test that
   main's entries stay a prefix of each group.
 
+- Live check on the rebased head a13a7d2 (scratch clone, Haiku, codex-cli
+  0.162.1): 4 passed in 111.79 s. (1) claude -p, pm interactive, then the ask:
+  no block, file gone after the run, and the request rule came as its own
+  SessionStart hook_response, separate from the state hook. (2) pm autopilot
+  then the ask: blocked. (3) TUI: !pm interactive; after /compact the
+  SessionStart context held the interactive header; the ask was not blocked;
+  /exit removed the file. (4) codex exec, pm interactive, then the ask: no
+  block, file gone after exit.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
