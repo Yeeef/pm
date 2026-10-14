@@ -180,9 +180,8 @@ left out.
 
 ### Retired pieces
 
-`pm doctor` reports these where a repo still has them; `pm init`, `pm upgrade` and
-`pm uninstall` remove the tracked files (and `.pm/hooks` once empty) and unset the hooks path, and `pm init` turns
-the sparse checkout off:
+`pm doctor` reports these where a repo still has them; `pm upgrade` (and `pm uninstall`) removes the tracked files
+(and `.pm/hooks` once empty), `pm init` turns the sparse checkout off, and all three unset the hooks path:
 
 | Piece | What it did |
 |---|---|

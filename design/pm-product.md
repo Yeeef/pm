@@ -142,7 +142,7 @@ One supervised background process per clone serves the site and pushes Beads dat
 
 pm installs no git hook and leaves `core.hooksPath` to the repo (owner decision, 2026-10-14). The session-start hook runs `pm init --session-start` in every worktree an agent works in, so a new worktree is set up there; a worktree used without an agent session needs `pm init` by hand.
 
-An earlier pm kept a `post-checkout` hook in `.pm/hooks`, a one-line section between `# --- BEGIN PM v<X> ---` and `# --- END PM ---` markers running `pm hook git-post-checkout "$@"`, and pointed `core.hooksPath` there. It is a retired piece: `pm init`, `pm upgrade` and `pm uninstall` remove the section (the file and `.pm/hooks` when nothing else is left) and unset `core.hooksPath` when it names `.pm/hooks`; `pm doctor` names a leftover. `pm hook git-post-checkout` does nothing, for the hook files older pins still run.
+An earlier pm kept a `post-checkout` hook in `.pm/hooks`, a one-line section between `# --- BEGIN PM v<X> ---` and `# --- END PM ---` markers running `pm hook git-post-checkout "$@"`, and pointed `core.hooksPath` there. It is a retired piece: `pm upgrade` and `pm uninstall` remove the section (the file and `.pm/hooks` when nothing else is left), and `pm init` (at every session start too), `pm upgrade` and `pm uninstall` unset `core.hooksPath` when it names `.pm/hooks`; `pm doctor` names a leftover. `pm hook git-post-checkout` does nothing, for the hook files older pins still run.
 
 ### Version pin
 

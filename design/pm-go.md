@@ -315,7 +315,7 @@ A command never restarts the service: parallel commands would restart it many ti
 | Scope | Piece |
 |---|---|
 | Machine | `pm` in the bin dir; the `pins/` cache; the service unit running `<abs path of the bin-dir pm> service run`; Codex `writable_roots` including `.pm/store/work` |
-| Repo (tracked) | `.pm/config.toml`, `README.md`, `.gitignore`; pm's hook entries; `.codex/rules/pm.rules`; `.gitignore` block. pm installs no git hook: `pm init` and `pm upgrade` remove an earlier pm's `.pm/hooks/post-checkout` section and unset a `core.hooksPath` naming `.pm/hooks` |
+| Repo (tracked) | `.pm/config.toml`, `README.md`, `.gitignore`; pm's hook entries; `.codex/rules/pm.rules`; `.gitignore` block. pm installs no git hook: `pm upgrade` removes an earlier pm's `.pm/hooks/post-checkout` section, and `pm init` and `pm upgrade` unset a `core.hooksPath` naming `.pm/hooks` |
 | Clone | `records` store; the work store at `<main>/.pm/store/work`, cloned from the remote, or created and pushed when the remote has none; the `records/` link |
 
 `pm init` keeps its shape: a repo half on first install, and a clone and worktree half on every run, including `--session-start`.
