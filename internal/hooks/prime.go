@@ -13,8 +13,8 @@
 // stop (uncommitted records), ownerrequest.go pm hook owner-request (the judge on the session's runtime, --runtime
 // claude or codex, through internal/ask), asktool.go the runtimes' ask tools the judge lets through, inbox.go pm hook
 // inbox (UserPromptSubmit, never Stop), ask.go pm hook ask (a session's ask-tool question raised as a question need:
-// Claude Code's PermissionRequest of AskUserQuestion, waiting beside the dialog for the first answer; first at Codex's
-// Stop), store.go the hooks' reads and writes of the work store.
+// Claude Code's PermissionRequest of AskUserQuestion, waiting beside the dialog for the first answer; Codex's
+// PostToolUse of request_user_input_async), store.go the hooks' reads and writes of the work store.
 package hooks
 
 import (

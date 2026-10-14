@@ -38,10 +38,10 @@ CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
              "PermissionRequest": ["pm hook ask --runtime claude || exit 1"],
              "Stop": ["pm hook owner-request --runtime claude || exit 1", "pm hook stop || exit 1"]}
 # Codex's are Claude Code's, but for the judge, which runs on each session's own runtime, and the ask-tool question,
-# which Codex's hook raises first at Stop, since its ask tool asks no permission
+# which Codex's hook raises at the ask tool's PostToolUse, since its ask tool returns at once and asks no permission
 CODEX_PM = {e: c for e, c in CLAUDE_PM.items() if e != "PermissionRequest"} | {
-    "Stop": ["pm hook ask --runtime codex || exit 1", "pm hook owner-request --runtime codex || exit 1",
-             "pm hook stop || exit 1"]}
+    "PostToolUse": ["pm hook ask --runtime codex || exit 1"],
+    "Stop": ["pm hook owner-request --runtime codex || exit 1", "pm hook stop || exit 1"]}
 
 
 def section(name: str) -> str:

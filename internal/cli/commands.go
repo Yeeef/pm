@@ -687,15 +687,15 @@ var tree = &command{
 				},
 				{
 					Name:        "ask",
-					Help:        "PermissionRequest of AskUserQuestion (Claude Code), first at Stop (Codex): raise the session's ask-tool question as a question need the owner can answer on the site too",
-					Description: "Raise the session's ask-tool question as a question need under the newest open task the session holds (else none), so the owner can answer it on the site as well as in the session; the first answer closes the need. Claude Code runs it on PermissionRequest for AskUserQuestion, beside the question's dialog, for up to a day: it closes the need with the dialog's answer once the transcript holds it (dismissed when the owner rejects the dialog), or, on a site reply, closes it as answered on the site and answers the tool with the reply, one \"<question>: <answer>\" line per question (an answer naming an option's label is that option; a reply with no such line answers every question whole); a subagent's call steps aside. Codex runs it first at Stop: it raises each request_user_input_async question of the turn once, by its call id; the pm service queues the site's answer into the session unless the owner answered in the chat first, and pm hook inbox closes the question with the prompt the owner typed. It fails open: on its own error it says why on stderr, prints nothing and exits 0.",
+					Help:        "PermissionRequest of AskUserQuestion (Claude Code), PostToolUse of request_user_input_async (Codex): raise the session's ask-tool question as a question need the owner can answer on the site too",
+					Description: "Raise the session's ask-tool question as a question need under the newest open task the session holds (else none), so the owner can answer it on the site as well as in the session; the first answer closes the need. Claude Code runs it on PermissionRequest for AskUserQuestion, beside the question's dialog, for up to a day: it closes the need with the dialog's answer once the transcript holds it (dismissed when the owner rejects the dialog), or, on a site reply, closes it as answered on the site and answers the tool with the reply, one \"<question>: <answer>\" line per question (an answer naming an option's label is that option; a reply with no such line answers every question whole); a subagent's call steps aside. Codex runs it on PostToolUse of request_user_input_async, which returns at once: it raises the question once, by its call id (tool_use_id), and steps aside for any other tool; the pm service queues the site's answer into the session unless the owner answered in the chat first, and closes the question with that chat answer once the session's rollout shows it. It fails open: on its own error it says why on stderr, prints nothing and exits 0.",
 					Args: []arg{
 						{Flags: []string{"--runtime"}, Dest: "runtime", Choices: ask.Runtimes, Required: true, Kind: value, Help: "the session's runtime; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json"},
 					},
 				},
 				{
 					Name: "inbox",
-					Help: "UserPromptSubmit: hand this session the owner's replies that did not reach it (Codex has no push) as context beside the prompt, then mark them delivered, and close the session's open Codex questions (pm hook ask): with the reply handed over, else with the prompt, the owner's answer in the chat",
+					Help: "UserPromptSubmit: hand this session the owner's replies that did not reach it (Codex has no push) as context beside the prompt, then mark them delivered",
 				},
 				{
 					Name: "git-post-checkout",

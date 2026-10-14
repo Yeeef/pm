@@ -14,10 +14,9 @@ import (
 	"strings"
 )
 
-// Pending is the session's undelivered replies, each as the push writes it, and deliver, which marks them delivered,
-// closes the session's open Codex questions with them or with prompt (SessionReplies), and lets go of the store; dir
-// is where the hook runs. deliver is nil when err is set.
-type Pending func(dir, session, prompt string) (texts []string, deliver func() error, err error)
+// Pending is the session's undelivered replies, each as the push writes it, and deliver, which marks them delivered
+// and lets go of the store; dir is where the hook runs. deliver is nil when err is set.
+type Pending func(dir, session string) (texts []string, deliver func() error, err error)
 
 // HookInbox is pm hook inbox. here is the process's directory.
 func HookInbox(here string, pending Pending, stdin io.Reader, stdout, stderr io.Writer) error {
@@ -37,8 +36,7 @@ func HookInbox(here string, pending Pending, stdin io.Reader, stdout, stderr io.
 	if cwd, ok := event["cwd"].(string); ok && cwd != "" {
 		dir = cwd
 	}
-	prompt, _ := event["prompt"].(string) //nolint:errcheck // no prompt: no chat answer to a question
-	texts, deliver, err := pending(dir, session, prompt)
+	texts, deliver, err := pending(dir, session)
 	if err != nil {
 		fmt.Fprintf(stderr, "pm hook inbox: reading this session's replies failed (%s); no reply handed over\n",
 			words(err.Error()))

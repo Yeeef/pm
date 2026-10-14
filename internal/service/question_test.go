@@ -154,3 +154,32 @@ func TestWhatTheServiceQueuedIsNoChatAnswer(t *testing.T) {
 		t.Errorf("the answer typed after a queued one: %q %v", got, ok)
 	}
 }
+
+// TestTheSweepClosesACodexQuestionAnsweredInTheChat: with no site answer, the sweep leaves an open Codex question
+// alone until its rollout shows what the owner typed after the call, then closes it with that answer, queueing
+// nothing.
+func TestTheSweepClosesACodexQuestionAnsweredInTheChat(t *testing.T) {
+	home := codexHome(t)
+	n := question(rootThread, session.CodexInbox(home))
+	n.Comments = nil
+	w := newFakeWork(n)
+	s := bareServer(w)
+	s.swept = map[string]sweepState{}
+	s.snap.Store(&snapshot{order: []*work.Item{&n}})
+	log := fakeCodex(t, "0.154.0", rootThread)
+	rollout(t, home)
+	s.sweep()
+	if got := w.item(n.ID); got.Status != work.Open {
+		t.Fatalf("nothing typed yet: %+v", got)
+	}
+	rollout(t, home, "Blue, thanks")
+	s.sweep()
+	got := w.item(n.ID)
+	if got.Status != work.Closed || got.Resolution != work.Answered || len(got.Comments) != 1 ||
+		got.Comments[0].Text != "Blue, thanks" {
+		t.Errorf("answered in the chat: %+v", got)
+	}
+	if _, err := os.Stat(log); err == nil {
+		t.Error("codex was run for a question answered in the chat")
+	}
+}

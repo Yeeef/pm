@@ -28,11 +28,12 @@ var runtimeDifferences = map[runtimeDifference]string{
 	{"PermissionRequest", "commands"}: "Claude Code only: AskUserQuestion waits for its dialog's answer, and its " +
 		"PermissionRequest hook runs beside the dialog, so pm hook ask raises the question there and waits for the " +
 		"first answer, the dialog's or the site's. Codex's request_user_input_async returns at once and asks no " +
-		"permission; pm hook ask raises it at the Stop",
+		"permission; pm hook ask raises it at its PostToolUse",
 	{"PermissionRequest", "matcher"}: "Claude Code only: its group matches AskUserQuestion alone",
-	{"Stop", "commands"}: "Codex only: pm hook ask first, which raises the turn's request_user_input_async " +
-		"questions before the owner-request judge reads the open needs; Claude Code raises AskUserQuestion's at " +
-		"PermissionRequest",
+	{"PostToolUse", "commands"}: "Codex only: request_user_input_async returns at once and asks no permission, so " +
+		"pm hook ask raises its question once the call is made, by its call id (tool_use_id); Claude Code raises " +
+		"AskUserQuestion's at PermissionRequest, beside the dialog",
+	{"PostToolUse", "matcher"}: "Codex only: its group matches request_user_input_async alone",
 }
 
 // ownRuntime is the one part of a command that differs by design and is no runtimeDifferences entry, so that the rest

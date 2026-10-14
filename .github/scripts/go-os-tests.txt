@@ -98,6 +98,7 @@ internal/service   TestAReplyToAQuestionTellsTheSessionToGoOnWithIt             
 internal/service   TestACodexQuestionGetsTheSitesAnswerQueuedUnlessTheChatAnsweredFirst               os  codex queue exec under Setpgid/kill(-pgid), rollout files under a CODEX_HOME
 internal/service   TestAClaudeQuestionIsNeverPushedAndEndsWithItsSession                              os  a unix socket listened on and closed; inboxKey stats it through syscall.Stat_t
 internal/service   TestWhatTheServiceQueuedIsNoChatAnswer                                             any rollout files under a temp CODEX_HOME, read in memory
+internal/service   TestTheSweepClosesACodexQuestionAnsweredInTheChat                                  any rollout files under a temp CODEX_HOME, read in memory; no codex run
 internal/session   TestSessionOfIsTheSetOneOrTheInnermostRuntimesWhenBothAre                          any injected innermost
 internal/session   TestInnermostRuntimeIsTheNearestClaudeCodeOrCodexAncestor                          any injected procInfo
 internal/session   TestReadProcReadsAProcesssParentAndArgv0                                           os  /proc/<pid>/stat on Linux, `ps -o ppid=,comm=` on macOS

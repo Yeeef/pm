@@ -440,43 +440,49 @@ func TestAClaudeQuestionTakesTheDialogsAnswerOrEnds(t *testing.T) {
 	}
 }
 
-// TestCodexStopRaisesEachAsyncQuestionOnce: request_user_input_async's questions of the stopping turn, options as
-// labels, under the rollout's CODEX_HOME; a later stop of the turn raises none again; a blocking request_user_input,
-// answered before the turn goes on, raises nothing.
-func TestCodexStopRaisesEachAsyncQuestionOnce(t *testing.T) {
+// codexPostToolUse is the PostToolUse input Codex 0.162.1 sent for a request_user_input_async call (captured
+// 2026-10-14 in its TUI), every key kept, with the transcript path a test's.
+const codexPostToolUse = `{"session_id": "01a13bd6-f478-73e2-b37d-8485a2e11c09", ` +
+	`"turn_id": "01a13bd6-f49a-7890-8570-bea6ac6db4ff", "transcript_path": %q, "cwd": "/r", ` +
+	`"hook_event_name": "PostToolUse", "model": "gpt-6.1-sol", "permission_mode": "default", ` +
+	`"tool_name": %q, "tool_input": {"questions": [{"title": "Red or blue?", "options": ["Red", "Blue"]}]}, ` +
+	`"tool_response": "{\"accepted\":true}", "tool_use_id": "call_4bc62352c7ef4ed2aa545bfc42dbfa71"}`
+
+// TestCodexPostToolUseRaisesTheAsyncQuestionOnce: request_user_input_async's question, options as labels, by its
+// tool_use_id, under the rollout's CODEX_HOME; the same call again raises none; another tool steps aside.
+func TestCodexPostToolUseRaisesTheAsyncQuestionOnce(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "sessions", "2026", "10", "14")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "rollout-2026-10-14T10-00-00-01a12bee-db2f-7050-ba39-116b615a19b8.jsonl")
-	lines := strings.Join([]string{`{"type":"turn_context","payload":{"cwd":"/r"}}`,
-		`{"type":"response_item","payload":{"type":"function_call","name":"request_user_input_async",` +
-			`"arguments":"{\"questions\":[{\"title\":\"Red or blue?\",\"options\":[\"Red\",\"Blue\"]}]}","call_id":"call_1"}}`,
-		`{"type":"response_item","payload":{"type":"function_call","name":"request_user_input",` +
-			`"arguments":"{\"questions\":[{\"id\":\"q\",\"header\":\"Cache\",\"question\":\"Disk?\",\"options\":[]}]}","call_id":"call_2"}}`,
-	}, "\n") + "\n"
-	if err := os.WriteFile(path, []byte(lines), 0o644); err != nil {
+	path := filepath.Join(dir, "rollout-2026-10-14T21-15-05-01a13bd6-f478-73e2-b37d-8485a2e11c09.jsonl")
+	if err := os.WriteFile(path, []byte(`{"type":"turn_context","payload":{"cwd":"/r"}}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	st := newAskStore()
-	in := fmt.Sprintf(`{"hook_event_name":"Stop","session_id":"01a12bee-db2f-7050-ba39-116b615a19b8",`+
-		`"transcript_path":%q,"cwd":"/r"}`, path)
-	for range 2 {
+	for _, tool := range []string{"request_user_input_async", "request_user_input_async", "request_user_input", "Bash"} {
 		var out, errb bytes.Buffer
+		in := fmt.Sprintf(codexPostToolUse, path, tool)
 		if err := HookAsk("/here", ask.Codex, st.open, strings.NewReader(in), &out, &errb); err != nil ||
 			out.Len() != 0 || errb.Len() != 0 {
-			t.Fatalf("%v, out %q, stderr %q", err, out.String(), errb.String())
+			t.Fatalf("%s: %v, out %q, stderr %q", tool, err, out.String(), errb.String())
 		}
 	}
-	needs, err := st.Needs("01a12bee-db2f-7050-ba39-116b615a19b8")
-	if err != nil || len(needs) != 1 {
-		t.Fatalf("raised %d questions (%v)", len(needs), err)
+	needs, err := st.Needs("01a13bd6-f478-73e2-b37d-8485a2e11c09")
+	if err != nil || len(needs) != 1 || st.opens != 2 {
+		t.Fatalf("raised %d questions, store opened %d times (%v)", len(needs), st.opens, err)
 	}
 	n := needs[0]
-	want := work.AskInfo{Call: "call_1", Questions: []work.AskQuestion{{Text: "Red or blue?",
-		Options: []work.AskOption{{Label: "Red"}, {Label: "Blue"}}}}}
+	want := work.AskInfo{Call: "call_4bc62352c7ef4ed2aa545bfc42dbfa71", Questions: []work.AskQuestion{{
+		Text: "Red or blue?", Options: []work.AskOption{{Label: "Red"}, {Label: "Blue"}}}}}
 	if !reflect.DeepEqual(*n.Need.Ask, want) || n.Need.RaisedBy.Inbox != "codex-queue:"+home || n.Parent != "" {
 		t.Errorf("raised %+v under %q, inbox %q", *n.Need.Ask, n.Parent, n.Need.RaisedBy.Inbox)
+	}
+	var out, errb bytes.Buffer // fails open: one line on stderr, nothing raised
+	in := `{"hook_event_name":"PostToolUse","tool_name":"request_user_input_async","session_id":"s"}`
+	if err := HookAsk("/here", ask.Codex, st.open, strings.NewReader(in), &out, &errb); err != nil || out.Len() != 0 ||
+		!strings.HasPrefix(errb.String(), "pm hook ask: the hook input has no") {
+		t.Errorf("no call id: %v, out %q, stderr %q", err, out.String(), errb.String())
 	}
 }

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from conftest import PM, VERSION, stop_services, wait_for, write_config
-from test_hooks import ROOT, codex_ask_rollout, codex_stop_asks
+from test_hooks import ROOT, codex_ask_rollout, codex_asks
 
 
 def service_run(repo, port: str) -> tuple[subprocess.Popen, int]:
@@ -110,11 +110,11 @@ def test_service_stops_once_the_pin_moves(repo):
 
 @pytest.mark.parametrize("typed", [False, True], ids=["queued", "answered-in-chat-first"])
 def test_the_service_queues_a_codex_questions_site_answer_unless_the_chat_answered_first(repo, typed):
-    """A Codex session's question, raised at its Stop: the owner's site answer (pm reply add writes it as the site
-    does) is queued into the session alone and closes it as answered on the site, delivered; when the rollout shows the
+    """A Codex session's question, raised at its PostToolUse: the owner's site answer (pm reply add writes it as the
+    site does) is queued into the session alone and closes it as answered on the site, delivered; when the rollout shows the
     owner typed an answer after the question, that answer closes it, nothing is queued, and the site's reply counts as
     delivered."""
-    nid = codex_stop_asks(repo)
+    nid = codex_asks(repo)
     if typed:
         codex_ask_rollout(repo, "Red")
     assert repo.pm("reply", "add", nid, text="Red or blue?: Blue").returncode == 0
@@ -128,3 +128,12 @@ def test_the_service_queues_a_codex_questions_site_answer_unless_the_chat_answer
     else:
         assert q["close_reason"] == "answered on the site"
         assert queued == [["--thread", ROOT, "--message", "Red or blue?: Blue"]]
+
+
+def test_the_service_closes_a_codex_question_the_owner_answered_in_the_chat(repo):
+    """No site answer: the service's sweep (here the one the question's own write starts) reads the rollout and
+    closes the question with what the owner typed after it, queueing nothing."""
+    nid = codex_asks(repo, "Red, thanks")
+    q = wait_for(lambda: (it := repo.items()[nid])["status"] == "closed" and it, "the question closed")
+    assert (q["resolution"], q["comments"][-1]["text"]) == ("answered", "Red, thanks")
+    assert not Path(repo.env["FAKE_CODEX_LOG"]).exists()

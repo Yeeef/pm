@@ -540,7 +540,7 @@ def test_a_codex_sessions_start_names_the_pm_hooks_codex_skips(repo, tmp_path):
     codex_home.mkdir(exist_ok=True)
     (codex_home / "config.toml").write_text("# trust as the user left it\n")
     trust = tmp_path / "trust.json"
-    trust.write_text(json.dumps({"stop:0:1": "modified"}))  # the judge's entry changed since the user trusted it
+    trust.write_text(json.dumps({"stop:0:0": "modified"}))  # the judge's entry changed since the user trusted it
     env = dict(repo.env, FAKE_CODEX_TRUST=str(trust))
     app_log = Path(repo.env["FAKE_CODEX_APP_LOG"])
     payload = hook_payload("codex", "SessionStart", session=ME, cwd=str(repo.root), transcript=str(tmp_path / "t"))
@@ -692,29 +692,33 @@ def codex_ask_rollout(repo, *typed: str) -> Path:
     return path
 
 
-def codex_stop_asks(repo) -> str:
-    """pm hook ask at a Codex Stop of ROOT's turn: the id of the one question it raised."""
-    path = codex_ask_rollout(repo)
-    for _ in range(2):  # a later stop of the turn raises nothing again
-        res = run([*ASK, "codex"], hook_payload("codex", "Stop", session=ROOT, cwd=str(repo.root),
-                                                transcript=str(path), reply="Asked."), repo.env, repo.root)
+def codex_asks(repo, *typed: str) -> str:
+    """pm hook ask at Codex's PostToolUse of ROOT's request_user_input_async call, with each message the owner typed
+    after it in the rollout: the id of the one question it raised."""
+    path = codex_ask_rollout(repo, *typed)
+    tool_input = {"questions": [{"title": "Red or blue?", "options": ["Red", "Blue"]}]}
+    for _ in range(2):  # the same call again raises nothing
+        res = run([*ASK, "codex"], hook_payload("codex", "PostToolUse", session=ROOT, cwd=str(repo.root),
+                                                transcript=str(path), tool="request_user_input_async",
+                                                tool_input=tool_input, call="call_4f11"), repo.env, repo.root)
         assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
     (nid, q), = questions(repo).items()
-    assert q["status"] == "open" and q["need"]["raised_by"]["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}"
+    assert q["need"]["raised_by"]["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}"
     assert q["need"]["ask"] == {"call": "call_4f11", "questions": [
         {"text": "Red or blue?", "header": "", "multi": False,
          "options": [{"label": "Red", "detail": ""}, {"label": "Blue", "detail": ""}]}]}
     return nid
 
 
-def test_codex_stop_raises_the_async_question_once_and_the_chat_answer_closes_it(repo):
-    """Codex's ask tool returns at once: the Stop raises its question, once by its call id, under the rollout's
-    CODEX_HOME, which the service queues a site answer under; the owner's next prompt, typed in the session, closes it
-    as the answer (pm hook inbox)."""
-    nid = codex_stop_asks(repo)
-    payload = hook_payload("codex", "UserPromptSubmit", session=ROOT, cwd=str(repo.root), transcript="/t",
-                           prompt="Blue, please")
-    res = run(INBOX, payload, repo.env, repo.root)
-    assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
-    q = repo.items()[nid]
-    assert (q["status"], q["resolution"], q["comments"][-1]["text"]) == ("closed", "answered", "Blue, please")
+def test_codex_post_tool_use_raises_the_async_question_once(repo):
+    """Codex's ask tool returns at once: its PostToolUse raises the question, once by its call id (tool_use_id), under
+    the rollout's CODEX_HOME, which the service queues a site answer under; another tool's PostToolUse raises none."""
+    path = codex_ask_rollout(repo)
+    for tool in ["Bash", "request_user_input"]:
+        res = run([*ASK, "codex"], hook_payload("codex", "PostToolUse", session=ROOT, cwd=str(repo.root),
+                                                transcript=str(path), tool=tool, tool_input={"command": "ls"},
+                                                call="call_9"), repo.env, repo.root)
+        assert res.returncode == 0 and res.stdout == res.stderr == "", res.stderr
+    assert questions(repo) == {}
+    nid = codex_asks(repo)
+    assert repo.items()[nid]["status"] == "open"

@@ -11,8 +11,10 @@ import (
 // A question need is a session's ask-tool call (work.NewQuestion), which the owner may answer in the session or on
 // the site. The site's answer reaches the session one way per runtime: a Claude Code session's through pm hook ask,
 // its PermissionRequest hook, which waits beside the question's dialog, so the service never pushes it; a Codex
-// session's through codex queue, unless the rollout shows the owner answered in the chat first. Of two answers, the
-// first to close the need wins: a close of a closed need fails with work.ErrClosed.
+// session's through codex queue, unless the rollout shows the owner answered in the chat first. A Codex question
+// answered in the chat is closed by the service alone, from the session's rollouts: before any queue, and at each
+// sweep (every MergePoll, and whenever the work store moves). Of two answers, the first to close the need wins: a
+// close of a closed need fails with work.ErrClosed.
 
 // Close reasons of a question need.
 const (
@@ -152,7 +154,7 @@ func (s *server) deliverQuestion(n *work.Item) (string, error) {
 		return why, nil
 	}
 	err := s.withStore("delivered "+n.ID, func(st work.Store) error { return AnswerOnSite(st, n, "") })
-	if err != nil && !errors.Is(err, work.ErrClosed) { // closed meanwhile by the session's own prompt: delivered still
+	if err != nil && !errors.Is(err, work.ErrClosed) { // closed meanwhile: delivered still
 		return "", err
 	}
 	return "delivered", nil

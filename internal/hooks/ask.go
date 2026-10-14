@@ -6,9 +6,9 @@ package hooks
 // transcript shows the tool's result, or its rejection) or the site's (a reply on the need), and closes the need with
 // it; on the site's it prints the decision that answers the tool, which closes the dialog. Of two answers the first to
 // close the need wins (work.ErrClosed). A subagent's call, or another tool's, is no dialog the owner sees: it steps
-// aside. Codex (--runtime codex) runs it first at Stop: request_user_input_async returns at once, so the hook raises
-// each such question of the turn once, by its call id; the pm service queues the site's answer into the session, and
-// pm hook inbox closes the question with an answer typed in the chat. It fails open: on its own error it says why on
+// aside. Codex (--runtime codex) runs it on PostToolUse of request_user_input_async, which returns at once: the hook
+// raises the question once, by its call id, and returns; the pm service queues the site's answer into the session, or
+// closes the question with the answer the owner typed in the chat once the session's rollout shows it. It fails open: on its own error it says why on
 // stderr, prints nothing and exits 0, so the dialog stays usable.
 
 import (
@@ -428,35 +428,30 @@ func optionsOf(q work.AskQuestion, answer string) string {
 
 // ---------------------------------------------------------------- Codex
 
-// askCodex raises each request_user_input_async question of the stopping turn that is not a need of the session yet.
+// askCodex raises the request_user_input_async call the PostToolUse event reports, by its call id (tool_use_id, the
+// rollout's call_id); another tool steps aside. A blocking request_user_input is answered in the session before the
+// turn goes on, so it raises nothing.
 func askCodex(event Event, dir string, open OpenStore) error {
-	if event["hook_event_name"] != "Stop" {
+	if event["hook_event_name"] != "PostToolUse" || event["tool_name"] != "request_user_input_async" {
 		return nil
 	}
 	sid, _ := event["session_id"].(string)             //nolint:errcheck // checked below
 	transcript, _ := event["transcript_path"].(string) //nolint:errcheck // checked below
-	if sid == "" || transcript == "" {
-		return errors.New("the hook input has no session_id or transcript_path")
+	call, _ := event["tool_use_id"].(string)           //nolint:errcheck // checked below
+	input, ok := event["tool_input"].(map[string]any)
+	if sid == "" || transcript == "" || call == "" || !ok {
+		return errors.New("the hook input has no session_id, transcript_path, tool_use_id or tool_input")
 	}
-	var asks []work.AskInfo
-	var errs []error
-	for _, c := range turnAskCalls(transcript) {
-		if c.name != "request_user_input_async" || c.call == "" {
-			continue // a blocking request_user_input is answered in the session before the turn goes on
-		}
-		info, err := askOf(c.input, c.call)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		asks = append(asks, info)
+	raw, err := json.Marshal(input)
+	if err != nil {
+		return err
 	}
-	if len(asks) == 0 {
-		return errors.Join(errs...)
+	info, err := askOf(raw, call)
+	if err != nil {
+		return err
 	}
 	home, ok := session.CodexHomeOfRollout(transcript) // Codex runs hooks without its CODEX_* variables
 	if !ok {
-		var err error
 		if home, err = filepath.Abs(session.CodexHome()); err != nil {
 			return err
 		}
@@ -465,14 +460,15 @@ func askCodex(event Event, dir string, open OpenStore) error {
 	if err != nil {
 		return err
 	}
-	_, err = raise(open, dir, work.RaisedBy{Session: sid, Inbox: session.CodexInbox(home), Host: host}, asks, true)
-	return errors.Join(append(errs, err)...)
+	_, err = raise(open, dir, work.RaisedBy{Session: sid, Inbox: session.CodexInbox(home), Host: host},
+		[]work.AskInfo{info}, true)
+	return err
 }
 
 // ---------------------------------------------------------------- both
 
 // raise creates a question need for each ask whose call is no open need of the session (with once, no need at all:
-// Codex's Stop sees a call again at each later stop of the turn), under the newest open task the session holds (none
+// a Codex call is raised once, whatever became of its need), under the newest open task the session holds (none
 // when it holds none); the ids of the needs, in order.
 func raise(open OpenStore, dir string, by work.RaisedBy, asks []work.AskInfo, once bool) (ids []string, err error) {
 	st, err := open(dir)

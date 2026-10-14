@@ -396,8 +396,8 @@ user (not in plain text, and not as a pm need): "Should the parity doc name the 
 Red and Blue. After asking, do not wait or poll: end your turn. When my answer reaches you, reply with one line: chose \
 <the color>."""
 # how the owner answers in the TUI's chat: Claude Code's dialog shows the pick list, and the owner picks the second
-# option, Blue; Codex's request_user_input_async returns at once, and its TUI offers the pick list ("shift + ← to
-# answer") only while the turn runs, so once the turn ended (and its Stop hook raised the question) the owner types
+# option, Blue; Codex's request_user_input_async returns at once (its PostToolUse hook raised the question), and its
+# TUI offers the pick list ("shift + ← to answer") only while the turn runs, so once the turn ended the owner types
 # the answer into the composer
 ASK_CHAT = {"claude": [b"\x1b[B", b"\r"], "codex": [b"B", b"l", b"u", b"e", b"\r"]}
 
@@ -467,7 +467,8 @@ def ask_and_answer(clone: Clone, runtime: str, name: str, on: str) -> tuple[Run,
     site's card, the owner (this test) picks Blue: `on` "chat", at the TUI's keyboard; "site", posting the card's form.
     Then it waits for the session to take the answer in and reply, and for the need to close. What it saw by name:
     need (the question as it was open), page (the site's overview then), posted (a site answer's status and body),
-    took (seconds from the owner's answer to the session taking it in), stale (a site answer posted from the card once
+    took (seconds from the owner's answer to the session taking it in), closed (seconds from it to the need closed, or
+    to the deadline), stale (a site answer posted from the card once
     the chat answer closed the question)."""
     clone.seed(1)
     tui = Tui(clone, runtime, name, ASK_PROMPT)
@@ -501,6 +502,7 @@ def ask_and_answer(clone: Clone, runtime: str, name: str, on: str) -> tuple[Run,
         while time.monotonic() < deadline and \
                 clone.items().get(seen["need"]["id"], {}).get("status") != "closed":
             time.sleep(1)  # noqa: TID251 — the poll interval over the work store, under its deadline
+        seen["closed"] = time.monotonic() - answered
         if on == "chat":  # the owner's site tab still shows the card: an answer sent from it must reach nobody
             while time.monotonic() < deadline and card_option(site(clone), seen["need"]["id"], "red") is not None:
                 time.sleep(1)  # noqa: TID251 — the service's snapshot taking the close in, under its deadline
@@ -555,7 +557,8 @@ def test_an_ask_tool_question_answered_in_chat_closes_with_the_chat_answer(clone
     check(re.search(r"chose\W+blue", run.text(), re.I), f"{run.name}: the session never replied with the pick")
     replies = [c for c in need.get("comments", []) if c["kind"] == "reply"]
     print(f"ask tool {runtime}: the question closed {need.get('status')}/{need.get('resolution')} "
-          f"({need.get('close_reason')}) with {[c['text'] for c in replies]}")
+          f"({need.get('close_reason')}) {seen.get('closed', 0):.1f}s after the answer, with "
+          f"{[c['text'] for c in replies]}")
     check((need.get("status"), need.get("resolution"), need.get("close_reason")) == ("closed", "answered", "Responded"),
           f"{run.name}: the question is {need.get('status')}/{need.get('resolution')} ({need.get('close_reason')}), "
           f"not closed/answered with the chat answer")

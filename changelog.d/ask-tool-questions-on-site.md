@@ -7,7 +7,7 @@ well as in the session's chat; the first answer reaches the session.
    this release opens it, and the store syncs through the remote, so a clone still on an older pm fails its sync with
    "the remote's schema is version 4, newer than this pm's 3: run pm upgrade" until its main checkout has the new pin.
 2. Where Codex works in the repo, open Codex in the main checkout and trust pm's hooks again in `/hooks`: `pm upgrade`
-   changed the Stop entry in `.codex/hooks.json`, and Codex skips a changed hook until it is trusted. `pm doctor`
+   adds a PostToolUse entry to `.codex/hooks.json`, and Codex skips a new hook until it is trusted. `pm doctor`
    names any of pm's hooks Codex would skip.
 
 ### Added
@@ -22,7 +22,7 @@ well as in the session's chat; the first answer reaches the session.
   site.
 - `pm hook ask --runtime claude|codex`, which raises the questions. `pm upgrade` writes it into `.claude/settings.json`
   as a PermissionRequest hook on AskUserQuestion (timeout one day, so the owner can answer from the site for that
-  long), and into `.codex/hooks.json` as the first Stop hook.
+  long), and into `.codex/hooks.json` as a PostToolUse hook on `request_user_input_async`.
 - A question's answer steers the session that asked and records no decision: `pm decision add --need`,
   `pm decision close`, `pm action done` and `pm need edit` refuse a question and name `pm need dismiss`, which closes a
   stale one.

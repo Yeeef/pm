@@ -568,7 +568,7 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
         return subprocess.run([*PM, *args], cwd=new_repo, env=dict(env(tmp_path), **extra), capture_output=True,
                               text=True, check=False)
 
-    trust.write_text(json.dumps({"stop:0:2": "untrusted", "user_prompt_submit:0:0": "modified"}))
+    trust.write_text(json.dumps({"stop:0:1": "untrusted", "user_prompt_submit:0:0": "modified"}))
     res = run("doctor", FAKE_CODEX_TRUST=str(trust))
     assert res.returncode == 1, res.stdout + res.stderr
     lines = res.stdout.splitlines()
