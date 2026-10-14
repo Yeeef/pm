@@ -310,7 +310,9 @@ def test_main_exits_1_on_a_finding_and_writes_every_call_to_out(fake_claude, tmp
     assert evaluate.main(argv) == 1
     got = json.loads(out.read_text())
     assert got["verdicts"] == {"map": "fail", "actionable": "fail"} and len(got["calls"]) == 6
-    assert "map            fail" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "map            fail" in out and "map, actionable failed on findings a majority of calls agreed on" in out
+    assert "A rerun will not change agreed findings." in out and "A rerun may help" not in out
     with pytest.raises(SystemExit):
         evaluate.main(["--criteria", "bogus"])
     with pytest.raises(SystemExit, match="needs --base"):
@@ -346,6 +348,8 @@ def test_a_judgement_criterion_fails_when_two_of_its_three_calls_quote_overlappi
     assert out.count("outvoted:") == 1 and f"outvoted: {there!r}" in out
     code, out = run(answer([]), answer([]), "oops")  # a malformed answer is no vote
     assert code == 1 and "error: not JSON" in out
+    assert "agents-md: map: a call gave no answer" in out and "A rerun may help." in out
+    assert "A rerun will not change" not in out
 
 
 def test_diff_mode_fails_only_on_a_passage_a_majority_of_a_chunks_calls_agree_on(fake_claude, tmp_path, monkeypatch,

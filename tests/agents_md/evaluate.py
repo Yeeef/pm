@@ -19,7 +19,8 @@ on an agreed finding. A complete finding names a missing rule and quotes nothing
 findings agree, and complete fails a part when a majority of its calls each report a missing rule. A criterion fails
 when one of its parts fails. A malformed answer, a failed or a timed-out call is no vote: it fails the run. The run
 exits 1 on a failed criterion or any such call. It prints a table with every call's findings, a finding no majority
-agrees with marked outvoted, and writes every call's answer (each finding with its lines), seconds and cost to --out.
+agrees with marked outvoted, then a line on what to do: fix AGENTS.md as agreed findings say, since a rerun gives them
+again; rerun after an error. It writes every call's answer (each finding with its lines), seconds and cost to --out.
 
 In GitHub Actions (ACTIONS_ID_TOKEN_REQUEST_URL set) each call first writes a fresh GitHub OIDC token for the Anthropic
 API to a file of its own beside $ANTHROPIC_IDENTITY_TOKEN_FILE, for Claude Code's workload identity federation, and the
@@ -428,6 +429,19 @@ def report(results: list[Result]) -> str:
     return "\n".join(lines)
 
 
+def advice(verdict: dict[str, str]) -> list[str]:
+    """What the author does about a failed run: agreed findings stand on a rerun, a call that gave no answer may not."""
+    out = []
+    if failed := [c for c, v in verdict.items() if v == "fail"]:
+        out.append(f"agents-md: {', '.join(failed)} failed on findings a majority of calls agreed on: fix AGENTS.md as "
+                   "they say (cut text that restates what the code, a test or a lint already says; correct a false "
+                   "claim; add a missing rule). A rerun will not change agreed findings.")
+    if errored := [c for c, v in verdict.items() if v == "error"]:
+        out.append(f"agents-md: {', '.join(errored)}: a call gave no answer (an error or a timeout, above), so the run "
+                   "has no verdict there. A rerun may help.")
+    return out
+
+
 def span(f: dict) -> str:
     """A finding's lines, as the table prints them."""
     ls = f.get("lines")
@@ -478,6 +492,8 @@ def main(argv: list[str] | None = None) -> int:
     results = run_calls(calls, a.model, root, agents_md, a.jobs, a.timeout)
     cost = sum(r.cost_usd for r in results)
     print(report(results))
+    for line in advice(verdicts(results)):
+        print(line)
     print(f"agents-md: {time.monotonic() - start:.0f}s, ${cost:.3f}")
     if a.out:
         a.out.parent.mkdir(parents=True, exist_ok=True)
