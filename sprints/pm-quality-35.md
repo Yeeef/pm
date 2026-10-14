@@ -48,7 +48,17 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Generator fixes for 8ad2720 (method unchanged): (1) trend_commits matched
+  only "… (pm-quality sprint N) (#PR)" subjects and dropped sprints 22, 26, 27
+  and 28, whose subjects start "pm-quality sprint N: …"; it now takes the
+  sprint number anywhere and the PR from the trailing (#N): 24 commits instead
+  of 17. (2) runtime read test-go's parts from "test-go: a b", but test-go is
+  now a "$(MAKE) -j a b" recipe: it reads either. (3) The CI figure marked #48
+  #43 #44 #53, none of them in the new window: it marks #71 #81 #83 #85 (the
+  CI sprints' merges) and builds its caption from the marks. (4) Drawing only:
+  the trend figure goes one column when it has over 13 commits (24 x labels
+  overlapped in a half width), and the CI figure skips a date label that would
+  overlap the next.
 
 ## Delivery report
 
