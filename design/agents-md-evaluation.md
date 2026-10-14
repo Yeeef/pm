@@ -69,7 +69,7 @@ one `## <id>` section per criterion.
 | Criterion | Fails on |
 |---|---|
 | `accurate` | A claim about pm (code, Make targets, files, flags, environment variables, tests, CI, numbers) the checkout refutes |
-| `non_inferable` | A passage that restates the code, its doc comments or docstrings, the Makefile or a `--help` text |
+| `non_inferable` | A passage that restates the code, its doc comments or docstrings, the Makefile or a `--help` text; a Map row's one-line summary that points at its detail passes |
 | `map` | Detail at a package doc's depth where a line and a pointer would do |
 | `no_copies` | A copy of `prime.md` or the `CHANGELOG.md` preamble |
 | `actionable` | A "don't" without the "do"; a directive with no command or check |
