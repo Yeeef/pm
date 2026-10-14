@@ -104,6 +104,15 @@ stop.go only gains mainOf, which StoreOf now uses to find the store; where the s
   owner-request then exited 0 on a chat ask without calling the judge. A file
   the agent can write cannot carry a mode only the owner may set.
 
+- Fresh-context review of the final diff (3 commits, shell commands plus mode
+  file): no correctness findings. The same session id resolves on both sides
+  (session.Current vs. the hook input's session_id, Claude Code and Codex
+  root), and the same main checkout from a worktree. A bad id is refused, and
+  an unsafe one reads as autopilot. Two judgment calls, both falling back to
+  the strict default or visible: a mode file outlives its session until pm
+  clean --apply, which the inbox context line makes visible on resume; and pm
+  clean --apply resets an interactive session idle over 30 min.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
