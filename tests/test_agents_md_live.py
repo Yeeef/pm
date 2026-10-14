@@ -31,7 +31,7 @@ RUNS = int(os.environ.get("PM_LIVE_RUNS", "3"))
 WORKERS = int(os.environ.get("PM_AGENTS_MD_JOBS", "16"))
 MODELS = os.environ.get("PM_AGENTS_MD_MODELS", evaluate.MODEL).split()
 # PM_AGENTS_MD_CASES (names, space-separated) runs only those cases, while iterating on one; PM_AGENTS_MD_SKIP leaves
-# those out (CI skips the clean case, which its check job's full-mode run repeats)
+# those out (CI skips the clean case, which its full job's run repeats)
 CASES = {n: c for n, c in cases.CASES.items() if n in os.environ.get("PM_AGENTS_MD_CASES", n).split()
          and n not in os.environ.get("PM_AGENTS_MD_SKIP", "").split()}
 

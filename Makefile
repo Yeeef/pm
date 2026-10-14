@@ -41,8 +41,9 @@ test-live-parity: go-build
 # Grade AGENTS.md against tests/agents_md/rubric.md with claude -p reading the checkout (tests/agents_md/evaluate.py):
 # MODE=full checks every criterion on the whole file, MODE=diff checks that the diff since BASE makes no AGENTS.md
 # claim false and adds no rule it lacks, MODE=auto (the default) is full when that diff changes AGENTS.md or the grader
-# (evaluate.py's GRADER). Each call runs with the user's claude login (in CI: workload identity federation,
-# agents-md.yml); the answers go to .go/.
+# (evaluate.py's GRADER), else diff. CI runs MODE=diff on every PR, and MODE=full with test-live-agents-md daily when
+# AGENTS.md or the grader changed (agents-md.yml). Each call runs with the user's claude login (in CI: workload
+# identity federation); the answers go to .go/.
 BASE ?= origin/main
 MODE ?= auto
 agents-md-check:

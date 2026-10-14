@@ -1,6 +1,6 @@
 """The AGENTS.md evaluation's own logic, offline: the rubric and the calls each mode makes, the answers it takes and
 refuses, the lines a quote is on, the vote on lines, the credentials a call runs with, a call's timeout, the
-labelled cases' edits, and the paths that run the cases job. A fake `claude` stands in for the model;
+labelled cases' edits, and the paths that start the daily full run. A fake `claude` stands in for the model;
 tests/test_agents_md_live.py runs the real one."""
 
 from __future__ import annotations
@@ -92,18 +92,18 @@ def test_auto_mode_is_full_when_the_diff_changes_agents_md_or_the_grader_and_dif
         assert mode == "full" and {c.criterion for c in calls} == set(evaluate.CRITERIA), path
 
 
-def test_the_cases_job_runs_on_a_change_to_the_grader_alone():
-    """agents-md.yml's cases job decides with a grep of its own: it must be evaluate.GRADER's paths, each directory
-    with what is under it and each file exactly, as evaluate.grader matches them."""
+def test_the_daily_run_grades_on_a_change_to_agents_md_or_the_grader_alone():
+    """agents-md.yml's daily run decides with a grep of its own: it must be AGENTS.md and evaluate.GRADER's paths, each
+    directory with what is under it and each file exactly, as evaluate.grader matches them."""
     yml = (CHECKOUT / ".github/workflows/agents-md.yml").read_text()
     grep = re.search(r"grep -qE '([^']+)'", yml)
-    assert grep, "the cases job's grep is gone"
-    want = "|".join(p.replace(".", r"\.") + ("" if p.endswith("/") else "$") for p in evaluate.GRADER)
+    assert grep, "the daily run's grep is gone"
+    want = "|".join(p.replace(".", r"\.") + ("" if p.endswith("/") else "$") for p in ("AGENTS.md", *evaluate.GRADER))
     assert grep[1] == f"^({want})"
-    graded = [p + "x.py" if p.endswith("/") else p for p in evaluate.GRADER]
-    for path in [*graded, "tests/conftest.py", "tests/run.py", "Makefile", "AGENTS.md", "tests/test_agents_md_eval.py",
+    graded = ["AGENTS.md", *(p + "x.py" if p.endswith("/") else p for p in evaluate.GRADER)]
+    for path in [*graded, "tests/conftest.py", "tests/run.py", "Makefile", "CLAUDE.md", "tests/test_agents_md_eval.py",
                  "tests/agents_md_x.py", ".github/workflows/agents-md.yml.bak", "tests/test_agents_md_live.pyc"]:
-        assert bool(re.search(grep[1], path)) == evaluate.grader(path) == (path in graded), path
+        assert bool(re.search(grep[1], path)) == (path == "AGENTS.md" or evaluate.grader(path)) == (path in graded), path
 
 
 def test_an_answer_is_taken_only_when_well_formed():
