@@ -80,7 +80,13 @@ prime.md gains one sentence on interactive mode and prime.go only its file map; 
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Review of the first build (mode file under .pm/run/sessions, set by pm hook
+  inbox): an agent can switch interactive mode on by itself in three ways:
+  piping a forged UserPromptSubmit event into pm hook inbox, touching the mode
+  file, or pointing the Stop hook's cwd at a scratch repo holding one.
+  Reproduced with .go/pm: the forged event wrote the file, and pm hook
+  owner-request then exited 0 on a chat ask without calling the judge. A file
+  the agent can write cannot carry a mode only the owner may set.
 
 ## Delivery report
 
