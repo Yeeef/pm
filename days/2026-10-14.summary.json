@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T21:39:15+00:00",
- "digest": "51e08ddda1f0bb7d",
+ "generated_at": "2026-10-14T21:49:40+00:00",
+ "digest": "c5826f1cd1635b59",
  "model": "claude-haiku-5-5",
- "text": "- **Long-horizon benchmark survey:** The team wrote a shortlist of agent benchmarks that could measure pm. The shortlist sets up the first test of whether pm helps long-horizon task performance.\n- **Ask questions on the site:** Agent questions can now be answered on the site as well as in chat, and the first answer wins. Claude and Codex both raise these questions, and the site shows each question with its options and a free-text field.\n- **Interactive and autopilot modes:** The owner-request judge now checks the session mode, set by `pm interactive` or `pm autopilot`. The Claude ask hook waits on one blocking service call instead of polling each second.\n- **macOS CI speed:** Go tests now run less work per pull request. A pull request runs only the Go tests its changed files can affect. The median wall time is still above the target."
+ "text": "- **Owner questions on the site:** Agents now ask the owner questions through the ask tool, and the owner can answer on the site or in chat. The first answer wins, and each question shows its options and a free-text field.\n- **Agent and repo behaviour:** Agents open owner-requested projects, sprints and tasks without asking leave. pm no longer installs a git hook, and the owner-request check now reads a per-session mode set by `pm interactive` or `pm autopilot`.\n- **Test and CI speed:** `make test-go` passes on every run now that a fixed test port clash is fixed. Pull requests run only the Go tests that their changed files can affect.\n- **Benchmark and record planning:** A survey of long-horizon agent benchmarks was written, and a choice of the first benchmark was raised to the owner. A design page for per-sprint record drafts was also written and reviewed."
 }
