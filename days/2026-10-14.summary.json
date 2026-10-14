@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T20:16:01+00:00",
- "digest": "1901f18319902c88",
+ "generated_at": "2026-10-14T20:26:14+00:00",
+ "digest": "a5ccc3d2b3127986",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions and replies:** Agent questions now appear on the site with their options. The first answer, from the site or from chat, is used. Owner replies now reach a session by push, and the wait command and inbox hook are removed.\n- **Agent guidance file:** AGENTS.md is now a short map that Claude Code, Codex and Grok Build read in full. Each pull request now runs an agent check on it, signed in without a stored API key.\n- **Test and CI speed:** Pull requests now run only the Go test packages that their changed files can affect. Go test compute on macOS fell for each pull request, and main still runs all Go tests on macOS.\n- **Benchmark study:** A new project opened to measure whether pm helps long-horizon agent tasks on public benchmarks. A survey of candidate benchmarks was written, and the first benchmark choice was raised to the owner."
+ "text": "- **Long-horizon benchmark survey:** The team wrote a shortlist of long-horizon agent benchmarks for measuring pm. A new project, pm-eval, was opened to hold this work.\n- **Ask questions on the site:** Agents can now ask questions that owners answer on the site or in chat, and the first answer wins. Claude, Codex and the site each gained this path, and the design pages were updated to match.\n- **Agent guidance file held by checks:** The AGENTS.md file is now a short map that Claude Code, Codex and Grok Build all read whole. A CI check now grades it on every PR, using workload identity federation without a stored API key.\n- **Faster and smaller test runs:** The sprint for CI speed closed as partial. Each PR now runs fewer macOS jobs, and a docs-only PR skips the Go matrix. The median PR wall time fell from 163 to 130 seconds, short of the target."
 }
