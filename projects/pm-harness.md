@@ -599,6 +599,11 @@ pm releases on every merge to main that leaves changelog.d entries, with no owne
 Owner, in chat 2026-10-13: releases by policy, not courtesy; every merge; a version number that tells whether a pin move needs action, since releases now come often.
 :::
 
+::: decision {source=owner date=2026-10-14}
+Owner requests keep three kinds: a question (steers one session; its answer is an instruction to that session and is not recorded), a decision (rules a project or sprint outcome and becomes a recorded decision) and an action (a step only the owner can do). Sync versus async timing is documented as a lens on the owner-request-hook design page, not built.
+Owner in chat, 2026-10-14: a decision is for a project or sprint outcome, not a session-wide instruction, so a question is not a decision; timing is worth keeping in mind but does not replace the kinds.
+:::
+
 ## Design pages
 
 > Where is the detail?
