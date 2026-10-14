@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T22:10:34+00:00",
- "digest": "20e544d83e916afd",
+ "generated_at": "2026-10-14T23:28:00+00:00",
+ "digest": "c10f4778544a3f66",
  "model": "claude-haiku-5-5",
- "text": "- **Owner answers on the site:** The owner can now answer agent questions on the site or in chat. The first answer wins. The question card shows the options and a free-text field. A site reply reaches a waiting Claude Code session in under a second.\n- **Owner request rules:** Agents now open the projects, sprints and tasks the owner asks for without asking leave. The owner-request judge blocks needless leave requests. Interactive and autopilot modes control when the owner-request judge applies.\n- **CI speed and tooling:** A pull request runs only the Go tests that its changed files can affect. A docs-only change skips the Go tests. The median pull request check still misses its time target. A test fix makes the Go test target pass on every run. pm no longer installs a git hook or sets the hooks path.\n- **Research and design records:** The survey of long-horizon agent benchmarks is written. It gives a shortlist for a with-pm comparison. The record layer design pages match the current code. A design page for per-sprint record drafts was written and reviewed."
+ "text": "- **Owner questions and replies:** Agents ask owner questions through the ask tool, and the owner answers on the site. Replies now reach a session by push, and the first answer wins.\n- **Test and CI speed:** A pull request now runs only the Go tests its changed files can affect. Go test compute on macOS fell by almost half on sampled pull requests.\n- **Repo hooks and settings:** Claude Code's auto memory is now off in this repo. pm no longer installs a git hook or owns the hooks path.\n- **Benchmark research:** A survey doc now shortlists long-horizon agent benchmarks for measuring pm. A request asked the owner to choose the first benchmark."
 }
