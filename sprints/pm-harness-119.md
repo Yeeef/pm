@@ -16,10 +16,10 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 > details go in a design page.
 
 **In:**
-- `pm interactive` and `pm autopilot`: they write and remove a mode file under `.pm/run/sessions/<session-id>`, using the session id from the environment (`internal/session`). They refuse when no session id resolves.
+- The owner's prompt `pm interactive` or `pm autopilot` (the whole prompt): `pm hook inbox` on UserPromptSubmit writes or removes a mode file under the main checkout's `.pm/run/sessions/<session-id>`, using the hook input's `session_id`. No CLI command changes the mode, so a blocked agent cannot switch the judge off itself.
 - `pm hook owner-request` reads the hook input's `session_id` and passes the stop through when that session is interactive. Sessions start in autopilot.
 - `pm hook stop` (the uncommitted-records check) stays on in both modes.
-- Mode files of dead sessions: ignored by the hook and removed by `pm clean`.
+- Mode files of sessions that are not live: removed by `pm clean`.
 - The rule in its three texts, edited in one commit: `prime.md`, the judge prompt and the block reasons. Labelled cases where the rule moves.
 - Both runtimes: Claude Code and Codex.
 
@@ -31,9 +31,10 @@ A session the owner is chatting in can turn off the owner-request Stop hook for 
 
 > What evidence will show the goal is met?
 
-- `test_owner_request_hook.py`: an interactive session's chat ask passes the stop; the same ask in another session, in an autopilot session, or after `pm autopilot` is blocked. A dead session's mode file is ignored.
-- `test_pm.py`: `pm interactive` and `pm autopilot` write and remove the file, and refuse with no session id.
-- Live check: a `claude -p` session runs `pm interactive`, asks in chat, and is not blocked; after `pm autopilot`, the same ask is blocked.
+- `test_owner_request_hook.py`: an interactive session's chat ask passes the stop; the same ask in another session, in an autopilot session, or after `pm autopilot` is blocked.
+- `test_hooks.py`: the prompt `pm interactive` / `pm autopilot` on UserPromptSubmit writes / removes the session's mode file, on both runtimes' input; any other prompt, one that merely contains the words included, changes nothing.
+- `test_clean.py`: `pm clean` removes a dead session's mode file and keeps a live one's.
+- Live check, in a scratch clone: a `claude -p` session given the prompt `pm interactive`, then resumed with a prompt that makes it ask in chat, is not blocked; after the prompt `pm autopilot`, the same ask is blocked.
 - PR on main.
 
 ## Design pages
