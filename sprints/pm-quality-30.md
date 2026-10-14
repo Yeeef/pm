@@ -48,7 +48,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-14}
+Sprint 30 (CI time) runs after sprint 33 (stable verdicts).
+Both change tests/agents_md/evaluate.py and agents-md.yml, and 33 fixes (vote in diff mode, cases off unrelated PRs, no clean-case repeat of check) also cut the time 30 measures; 30 then measures what remains.
+:::
 
 ## Findings
 
