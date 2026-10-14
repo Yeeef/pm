@@ -290,6 +290,9 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 			"design/parser: no project record found"},
 		{"uncited-need", nil, []string{uncited},
 			`need demo.1.9 (Pick a parser) is closed but no decision cites it; record the owner's answer with pm decision add --need demo.1.9, or, if the answer sets no rule, close it with pm decision close demo.1.9 --reason "<why>"`},
+		{"uncited-question", nil, []string{strings.Replace(uncited, `"kind": "decision", "raised_by": null`,
+			`"kind": "question", "raised_by": {"session": "s1", "inbox": null, "host": null}`, 1)},
+			"no error"}, // a question's answer steers its session and sets no rule a decision cites
 		{"bad-summary", map[string]string{"days/2026-10-01.summary.json": `{"date": "2026-10-02", "generated_at": "x", "digest": "d", "text": "t"}`}, nil,
 			"days/2026-10-01.summary.json: its date is \"2026-10-02\", not the date in its name"},
 		{"summary-not-object", map[string]string{"days/2026-10-01.summary.json": "[1]"}, nil,

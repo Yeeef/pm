@@ -15,17 +15,23 @@ const QuestionTitleCut = 120
 // QuestionTitle is a question need's title: "Session <the first 8 characters of the session id> asks: <the first
 // question>", the question on one line and cut at QuestionTitleCut characters.
 func QuestionTitle(session string, ask AskInfo) string {
-	if r := []rune(session); len(r) > 8 {
-		session = string(r[:8])
-	}
+	session = ShortSession(session)
 	first := ""
 	if len(ask.Questions) > 0 {
-		first = strings.Join(strings.Fields(ask.Questions[0].Text), " ")
+		first = oneLine(ask.Questions[0].Text)
 	}
 	if r := []rune(first); len(r) > QuestionTitleCut {
 		first = string(r[:QuestionTitleCut-1]) + "…"
 	}
 	return "Session " + session + " asks: " + first
+}
+
+// ShortSession is the first 8 characters of a session id, as a question names its session to the owner.
+func ShortSession(session string) string {
+	if r := []rune(session); len(r) > 8 {
+		return string(r[:8])
+	}
+	return session
 }
 
 // QuestionText is a question need's description, in Markdown: each question with its header and its options as a

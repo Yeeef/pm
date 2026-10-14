@@ -29,6 +29,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/item"
 	"github.com/Yeeef/pm/internal/session"
 	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
@@ -697,7 +698,8 @@ func (s *server) siteURL() string {
 }
 
 // check checks the owner's reply against the snapshot's items, so the check reads nothing: the status, then on
-// success (303) the need's id and the reply's text, else why it was refused and "".
+// success (303) the need's id and the reply's text (a question's made from its card's fields, item.AnswerText), else
+// why it was refused and "".
 func (s *server) check(form url.Values, items map[string]*work.Item) (int, string, string) {
 	if subtle.ConstantTimeCompare([]byte(form.Get("token")), []byte(s.token)) != 1 {
 		return 403, "refused: the reply carries no valid token; reload the page (the server may have restarted) and " +
@@ -715,6 +717,13 @@ func (s *server) check(form url.Values, items map[string]*work.Item) (int, strin
 			why = "no reason"
 		}
 		return 400, fmt.Sprintf("refused: %s is already closed (%s)", id, why), ""
+	}
+	if n.Need != nil && n.Need.Ask != nil { // a question's card posts a field per question, not a text
+		answer, err := item.AnswerText(*n.Need.Ask, form)
+		if err != nil {
+			return 400, "refused: " + err.Error(), ""
+		}
+		text = answer
 	}
 	if text == "" {
 		return 400, "refused: the reply is empty", ""
