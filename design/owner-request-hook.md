@@ -169,3 +169,4 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 > What is still unresolved?
 
 1. **An unattended ask tool:** the agent's judgement of a "clear reason" is the only guard against a question that waits forever in a session nobody watches. If agents misjudge it, the rule narrows item 3.
+2. **Sync and async requests:** a request's kind (question, decision, action) says what the owner gives; its timing says who waits. A sync request is one a session waits on now: light in form, tied to that session, closed by the first answer in chat or on the site. An async request is one the session moves on from, answered later by whichever session takes the reply. The axes are independent: an action can be sync ("log in to `gh`, then I continue"), and a decision can be asked while the owner is in the chat. Not built: kept as a lens for when timing, not kind, has to drive what the site shows or how a reply is delivered (sprint pm-harness-118).
