@@ -61,7 +61,23 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Triage of the 6 failed agents md runs and PR #85's 3 attempts (2026-10-14,
+  job logs): (1) 38478854312 agents-md-map: token exchange 401, the shared
+  token file race fixed in PR #80; (2) 38479772413 agents-md-map: a real
+  AGENTS.md defect, fixed in PR #80; (3) 38527207760 refactor/cli-nouns and
+  (4) 38530785297 cheaper-tests: check in full mode failed non_inferable (and
+  map in 3) with 3 of 3 calls agreeing, on new AGENTS.md text that restates a
+  rule a test enforces (e.g. the doc_test.go func-comment rule): consistent
+  verdicts on the PR's own edit, not rerun noise; (5) 38532391506
+  cheaper-tests: accurate 2 agreed plus cases' clean case non_inferable; (6)
+  38567955117 ask-tool-on-site: diff mode, where each chunk gets one unvoted
+  call (5 chunks, 10 calls), so one finding fails the run. PR #85
+  (test-select): check passed on all 3 attempts; cases failed attempts 1 and
+  2: planted map_detail passed (grader false negative) both times, and the
+  clean case failed non_inferable once. Rerun noise is in cases and in diff
+  mode's single calls; the clean case grades the branch's own AGENTS.md, so it
+  repeats check's verdict on an AGENTS.md edit; cases now runs on every PR
+  touching tests/conftest.py, tests/run.py or the Makefile.
 
 ## Delivery report
 
