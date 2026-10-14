@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-14T22:31:11+00:00",
- "digest": "5e3006bde8685e99",
+ "generated_at": "2026-10-14T22:41:31+00:00",
+ "digest": "d0e2afff9c0998fb",
  "model": "claude-haiku-5-5",
- "text": "- **Ask-tool question closing:** A question can now be answered on the site or in chat. The first answer wins. Questions now close from hook events, not from transcript or rollout reads.\n- **Git hook retirement:** pm installs no git hook and no longer sets the hooks path. Session start prepares each new worktree instead.\n- **AGENTS.md check stability:** The AGENTS.md check now gives the same verdict on every rerun. Every known-good input passed, and every known-bad input failed, on each rerun.\n- **Subagent question ownership:** A question from a subagent now belongs to its parent agent. The owner-request rule now has its own session-start hook."
+ "text": "- **Owner questions on site:** Ask-tool questions now accept answers on the site as well as in chat. The first answer wins, and a hook event closes each question.\n- **Stable AGENTS.md verdicts:** The check now gives the same verdict on every rerun. Known-good inputs always passed, and known-bad inputs always failed.\n- **Agent and hook setup:** This repo turns off Claude Code's auto memory. Pm no longer installs a git hook or sets `core.hooksPath`; new worktrees get set up at session start.\n- **Go test reliability:** `make test-go` now passes on every run. The service end-to-end test gets a free port from the kernel, not a shared one."
 }
