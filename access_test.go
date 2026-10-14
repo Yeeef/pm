@@ -1,4 +1,4 @@
-package work
+package pm
 
 import (
 	"go/ast"
@@ -16,11 +16,13 @@ import (
 // host. Over every non-test Go file in the module: every call into dolthub/driver (its LoadMultiEnvFromDir, its
 // NewConnector) and into Dolt's engine package (NewSqlEngine) is in host.go alone, and the calls of NewHost are in pm
 // service run (internal/cli/serve.go) and the test helper worktest. A new direct open fails this test, so it fails CI.
+// It is the root package's, whose tests read every package's files, so a pull request that changes any package runs
+// it (.github/scripts/go_changes.py select) without internal/work's tests.
 func TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt(t *testing.T) {
 	engines := map[string]bool{"github.com/dolthub/driver/v2": true,
 		"github.com/dolthub/dolt/go/cmd/dolt/commands/engine": true}
 	got := map[string][]string{} // call -> the files that make it
-	root := filepath.Join("..", "..")
+	root := "."
 	files, err := moduleGoFiles(root)
 	if err != nil {
 		t.Fatal(err)
