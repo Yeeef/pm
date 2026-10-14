@@ -33,7 +33,6 @@ GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to 
 RULES = [f"pm prime --rules {n} --hook-json" for n in range(1, len(RULE_STARTS) + 1)]  # one hook per rules chunk
 CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
              "SubagentStart": [*RULES, "pm prime --subagent --hook-json"],
-             "UserPromptSubmit": ["pm hook inbox || exit 1"],
              "PermissionRequest": ["pm hook ask --runtime claude || exit 1"],
              "PostToolUse": ["pm hook ask --runtime claude || exit 1"],
              "Stop": ["pm hook owner-request --runtime claude || exit 1", "pm hook stop || exit 1"]}
@@ -41,7 +40,7 @@ CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
 # ask tool returns at once and asks no permission, so its question is raised at the tool's PostToolUse, and the owner's
 # next prompt answers it (UserPromptSubmit)
 CODEX_PM = {e: c for e, c in CLAUDE_PM.items() if e != "PermissionRequest"} | {
-    "UserPromptSubmit": ["pm hook inbox || exit 1", "pm hook ask --runtime codex || exit 1"],
+    "UserPromptSubmit": ["pm hook ask --runtime codex || exit 1"],
     "PostToolUse": ["pm hook ask --runtime codex || exit 1"],
     "Stop": ["pm hook owner-request --runtime codex || exit 1", "pm hook stop || exit 1"]}
 
@@ -185,6 +184,28 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     res = subprocess.run(["git", "commit", "-qm", "code"], cwd=wt, env=env(tmp_path), capture_output=True, text=True,
                          check=False)
     assert res.returncode == 0, res.stderr
+
+
+def test_init_takes_out_an_earlier_pms_inbox_hook(new_repo: Path):
+    """The files an earlier pm wrote: every hook this pm writes but at UserPromptSubmit, where they hold
+    `pm hook inbox`, which this pm no longer has. pm init takes that one out, keeps the user's own hook at that event,
+    drops Claude Code's event where pm's hook was alone, and writes Codex's pm hook ask there."""
+    old = {"command": "pm hook inbox || exit 1", "type": "command", "timeout": 10}
+    mine = {"command": "./mine.sh", "type": "command"}
+    codex_pm = dict(CODEX_PM, SubagentStop=["pm hook stop || exit 1"])
+    for rel, pms, groups in ((".claude/settings.json", CLAUDE_PM, [{"hooks": [mine]}, {"hooks": [old]}]),
+                             (".codex/hooks.json", codex_pm, [{"hooks": [old]}])):
+        hooks = {e: [{"hooks": [{"command": c, "type": "command"} for c in cs]}] for e, cs in pms.items()}
+        (new_repo / rel).parent.mkdir()
+        (new_repo / rel).write_text(json.dumps({"hooks": dict(hooks, UserPromptSubmit=groups)}, indent=2) + "\n")
+    res = pm(new_repo, "init")
+    assert res.returncode == 0, res.stderr
+    claude = json.loads((new_repo / ".claude/settings.json").read_text())
+    codex = json.loads((new_repo / ".codex/hooks.json").read_text())
+    assert "pm hook inbox" not in json.dumps(claude) + json.dumps(codex)
+    assert commands(claude, "UserPromptSubmit") == ["./mine.sh"]
+    assert all(commands(claude, e) == c for e, c in CLAUDE_PM.items())
+    assert all(commands(codex, e) == c for e, c in codex_pm.items())
 
 
 USER_SETTINGS = {"permissions": {"allow": ["Bash(ls:*)"]},

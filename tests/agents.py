@@ -209,27 +209,6 @@ class Run:
                 return str(e.get("result") or e.get("subtype"))
         return ""
 
-    def prompt_contexts(self) -> list[str]:
-        """What the UserPromptSubmit hooks added to the session's prompts, as the runtime recorded it: Claude Code's
-        hook_additional_context attachments of that event; Codex's developer messages that follow a prompt of the
-        user's (session-start context comes before the first one)."""
-        out, prompted = [], False
-        for e in self.entries:
-            if self.runtime == "claude":
-                a = e.get("attachment") or {}
-                if a.get("type") == "hook_additional_context" and a.get("hookEvent") == "UserPromptSubmit":
-                    out.extend(a.get("content") or [])
-            else:
-                p = e.get("payload") or {}
-                if e.get("type") != "response_item" or p.get("type") != "message":
-                    continue
-                texts = [c.get("text", "") for c in p.get("content", []) if isinstance(c, dict)]
-                if p.get("role") == "user" and any(t and not t.startswith("<") for t in texts):
-                    prompted = True
-                elif p.get("role") == "developer" and prompted:
-                    out.extend(texts)
-        return out
-
     def reached_by(self, text: str) -> list[str]:
         """How `text` reached the session: "pushed" for a message Claude Code's inbox took in, "queued" for one codex
         queue put on a Codex thread, each a turn's input; "hook" for a hook's context; else each command whose output

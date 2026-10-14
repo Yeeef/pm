@@ -225,15 +225,6 @@ var tree = &command{
 					},
 				},
 				{
-					Name:        "wait",
-					Help:        "wait for the owner's reply to a need, then print it as pm reply read does",
-					Description: "Block until the open need has a site reply (or its review a merged PR) that has not reached a session, then print it with what to do next and mark it delivered, as pm reply read does. For a session the pm service cannot push replies into (Codex, or no inbox): run it after raising the need, in the background where the runtime allows. Refuses an id that is not a need, a need that closes without a reply, and, at --timeout, says the need is still open.",
-					Args: []arg{
-						{Dest: "id", Required: true, Kind: value, Help: "a decision need, action or review"},
-						{Flags: []string{"--timeout"}, Dest: "timeout", Metavar: []string{"DURATION"}, Kind: value, Def: "30m", Help: "how long to wait, as 30m, 90s or 2h (default 30m)"},
-					},
-				},
-				{
 					Name: "add",
 					Help: "the owner's answer to an open need, at a shell, as a reply on the site writes; the answer with --text",
 					Store: &storeCommand{
@@ -692,10 +683,6 @@ var tree = &command{
 					Args: []arg{
 						{Flags: []string{"--runtime"}, Dest: "runtime", Choices: ask.Runtimes, Required: true, Kind: value, Help: "the session's runtime; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json"},
 					},
-				},
-				{
-					Name: "inbox",
-					Help: "UserPromptSubmit: hand this session the owner's replies that did not reach it (Codex has no push) as context beside the prompt, then mark them delivered",
 				},
 				{
 					Name: "git-post-checkout",

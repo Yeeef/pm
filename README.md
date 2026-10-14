@@ -167,9 +167,9 @@ Codex skips others of pm's hooks (after a `pm upgrade` changed one you had trust
 
 The pm service delivers an owner's reply into a live Codex session with `codex queue` (codex 0.149.0 or later on the
 service's PATH: run `pm service install` from a shell where it is), and an idle session starts a turn on it, as a
-Claude Code session does with its push; within a turn, `pm reply wait <id>` waits for it. Codex runs a command it
-cannot split into plain commands, such as one fed a heredoc, inside its sandbox, where pm may not reach its service:
-give such a body with `--text-file PATH` or `--text="…"`.
+Claude Code session does with its push; a reply that reached no session is flagged by `pm show`, and `pm reply read`
+prints it. Codex runs a command it cannot split into plain commands, such as one fed a heredoc, inside its sandbox,
+where pm may not reach its service: give such a body with `--text-file PATH` or `--text="…"`.
 
 ## Docs
 

@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // noteAuthor is who a note pm writes is by: this session, else the owner at a shell.
@@ -154,35 +153,4 @@ func cmdReplyRead(e *env, p *Parsed) (string, error) {
 		return "nothing undelivered on " + what, nil
 	}
 	return strings.Join(out, "\n"), nil
-}
-
-// ---------------------------------------------------------------- pm reply wait
-
-// cmdReplyWait is pm reply wait: block until the need has a new reply, then print it: what has not reached a session
-// (a reply, or its review's merge) marked delivered, as pm reply read does, else the replies stamped since the wait
-// began, which a push or pm hook inbox delivered meanwhile. A reply delivered before the wait is no new reply: an
-// agent that asks again after "not yet" waits for the next one. It refuses at the timeout, and for a need closed with
-// no new reply.
-func cmdReplyWait(e *env, p *Parsed) (string, error) {
-	id, given := p.Get("id"), p.Get("timeout")
-	if given == "" {
-		given = "30m"
-	}
-	timeout, err := time.ParseDuration(given)
-	if err != nil || timeout <= 0 {
-		return "", refuse("--timeout %s is not a duration such as 30m or 90s", given)
-	}
-	if _, err := store.CodeRoot(e.here, e.records); err != nil {
-		return "", err
-	}
-	cfg, err := config.Load(e.here)
-	if err != nil {
-		return "", err
-	}
-	ws, err := e.work()
-	if err != nil {
-		return "", err
-	}
-	texts := service.Texts{Main: store.MainOf(e.records), Remote: cfg.Remote, MainBranch: cfg.MainBranch}
-	return texts.WaitReply(ws, id, timeout, time.Now())
 }
