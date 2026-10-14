@@ -145,6 +145,11 @@ A Codex question answered in chat is closed by the service alone (its rollout ch
 PR #90 (pm-quality sprint 34) removes pm hook inbox; the service already reads the rollout before it queues a site answer, so first-wins holds without the inbox hook, and this PR stops depending on which of the two merges first.
 :::
 
+::: decision {source=owner date=2026-10-14}
+Scope adds: pm's rules tell agents which tool fits by what they ask, not by whether the owner is in the chat. A question (steer this session: what to do next, confirm a scope, clarify intent) goes through the ask tool; a decision (a ruling on a project or sprint outcome that later sessions follow) is a decision need; a step only the owner can do is an action need.
+Owner in chat, 2026-10-14: the goal must make clear to pm agents what a decision is and what a question is, so they choose the right tool; now that a question also shows on the site, the owner being in the chat no longer decides it.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
