@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T12:54:37+00:00",
- "digest": "591f2c8eaaf17fa4",
+ "generated_at": "2026-10-14T13:05:07+00:00",
+ "digest": "922d0a220346322c",
  "model": "claude-haiku-5-5",
- "text": "- **Agent questions on site:** Agent questions now show on the site with their options. The first answer, from the site or from chat, wins.\n- **Faster pull request checks:** Each pull request now runs only the Go tests its changes can affect, and macOS compute fell sharply. Check time for code changes fell but did not reach its goal.\n- **Agent guidance and checks:** AGENTS.md is now a map under a size cap that agents read in full. Agents now open project work for owner requests without asking leave.\n- **Sprint close and cleanup:** `pm sprint close` now checks only the patterns its sprint added or changed. The project removed the Python-port leftovers and split its command-line code by noun."
+ "text": "- **Ask-tool questions on the site:** The owner can now answer ask-tool questions on the site, as well as in chat. The first answer wins.\n- **Faster PR checks:** A PR now runs only the Go tests that its changed files can affect. On the non-store PRs measured, Go compute fell by close to half, but check time still misses its target.\n- **Agent rules and guidance:** AGENTS.md is now a compact map, and CI grades it on every PR. Agents no longer ask leave before they open work the owner requested.\n- **Code cleanup and fixes:** The CLI code is split by noun, and the Python-port leftovers are removed. Unchecked errors in the hooks and site code are now handled."
 }
