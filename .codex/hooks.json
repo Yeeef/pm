@@ -83,12 +83,6 @@
       {
         "hooks": [
           {
-            "command": "pm hook inbox || exit 1",
-            "statusMessage": "Checking for the owner's replies",
-            "type": "command",
-            "timeout": 10
-          },
-          {
             "command": "pm hook ask --runtime codex || exit 1",
             "statusMessage": "Closing the questions this prompt answers",
             "type": "command",

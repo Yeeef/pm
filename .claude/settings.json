@@ -70,17 +70,6 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "command": "pm hook inbox || exit 1",
-            "type": "command",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "PermissionRequest": [
       {
         "hooks": [
