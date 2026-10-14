@@ -60,6 +60,14 @@ None yet.
   overlapped in a half width), and the CI figure skips a date label that would
   overlap the next.
 
+- CI wall per PR (push to last check, first attempt): median 2.9 -> 1.7 min
+  over the last 5 merged PRs (#53 -> #84-#88) and 4.0 -> 2.3 min over the last
+  30 (#57-#88). macOS queue is no longer the tail: median 8 s, p90 26 s, max
+  101 s over all 30 PRs (was 170-309 s at p90 per macOS job). The tail is now
+  the agents md / cases job (the AGENTS.md grader, model calls): 246-306 s on
+  #62, #80, #81, #83, #85, which set the 5 slowest walls (4.2-6.4 min). macOS
+  race job run median 100 s before #81 -> 47 s over #84-#88.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
