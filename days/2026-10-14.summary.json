@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T07:08:34+00:00",
- "digest": "b491b76d0b13317d",
+ "generated_at": "2026-10-14T07:18:52+00:00",
+ "digest": "83b4b0002d387189",
  "model": "claude-haiku-5-5",
- "text": "- **CI speed and runners:** Vet and golden checks now run on Linux only. Each pull request starts at most two macOS jobs. Docs-only pull requests skip the Go test matrix and pass merge-ready. The median wall time did not reach the goal, because macOS runner capacity limits speed. A lock-free records read no longer passes while git rewrites the store. Work started to make the agent guidance jobs finish within the other checks.\n- **Agent guidance map:** The AGENTS.md file is now a short map under its size limit. Narration moved next to the code it describes. A new evaluation runner tests the file, and CI runs it on every pull request. The owner reviewed and merged this work.\n- **Sprint close rules:** A sprint close now checks only the coverage patterns that sprint added or changed. Another session's older pending pattern no longer blocks it. The pm check waiting line and help text state this rule. The owner reviewed and merged this change."
+ "text": "- **Agent guidance map:** AGENTS.md is now a short map that stays under its size cap, held by a test. Every PR now runs the AGENTS.md evaluation in CI.\n- **macOS CI speed:** Each PR now starts at most two macOS jobs, and docs-only PRs skip the Go matrix. The median CI wall time still missed its target, so the sprint closed as partial.\n- **Sprint close checks:** `pm sprint close` now holds a sprint only to the covers patterns it added or changed while open. Another session's older pending pattern no longer blocks a close.\n- **Records store reads:** The service's lock-free records read no longer stalls while git rewrites the store worktree."
 }
