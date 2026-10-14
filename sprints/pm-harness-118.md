@@ -94,6 +94,11 @@ An open question's parent is the newest open task its session holds, else none; 
 A question steers one session, which may hold no task (a chat with no sprint, as when the ask tool was first allowed); forcing a parent would bring back the sprint-or-task overhead the ask tool exists to avoid.
 :::
 
+::: decision {source=agent date=2026-10-14}
+A Claude question's site answer reaches the session only through its PermissionRequest hook, never the messaging-socket push; a Codex question's goes through codex queue only after the rollout shows no user message since the question.
+The hook is what closes the open dialog with the answer; a socket push would land as a separate user turn after the dialog is answered some other way. Codex has no dialog to close, so the rollout check is the first-wins guard.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
