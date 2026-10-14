@@ -156,6 +156,11 @@ The Claude ask hook waits for a site answer on one blocking call to the pm servi
 Claude Code takes a PermissionRequest answer only from the hook process's stdout, so the process must live while the dialog is open; but its 1 s poll dialed the service, handshook and read the need about 86,400 times a day per open question, while the service already learns of a reply the moment it is stored.
 :::
 
+::: decision {source=agent date=2026-10-14}
+No transcript or rollout read for questions: a Claude chat answer closes the question from a PostToolUse hook on AskUserQuestion; Esc or a stopped session closes it as dismissed from the SIGTERM Claude Code sends the waiting hook; a Codex chat answer closes it from a UserPromptSubmit hook with the typed prompt; the service closes a question before it queues a site answer, so the close decides which answer wins.
+Project rule (2026-10-14): a transcript is read only when no event gives the fact; the experiments show an event for every ending (PostToolUse, SIGTERM, UserPromptSubmit).
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
