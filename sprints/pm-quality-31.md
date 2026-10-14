@@ -183,6 +183,152 @@ The pm-quality project decision of 2026-10-14 (owner) revises macOS on every PR:
   (19-28 s). #84 also cut TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers
   from 3.0 to 0.3 s by waiting out 0.1 s probes.
 
+::: result {title="Go tests by OS dependence"}
+| Package | Test | Class | Evidence |
+|---|---|---|---|
+| . | all | any | assets_test.go:TestAssetsBuildWithNoEntryFiles runs `go build` on copied embed files and size_test.go:TestPackagesStayUnderTheSizeCap counts lines; neither touches an OS-specific API |
+| internal/ask | all | os | every Ask call goes through proc.Run with Group:true (Setpgid plus kill(-pgid)) on /bin/sh fakes; TestATimeoutKillsTheWholeCall checks the group kill with syscall.Kill(pid,0) |
+| internal/cli/parse | all | any | parse_test.go:TestArgumentChecks only parses argv in memory |
+| internal/config | all | any | config_test.go:TestConfigTextKeepsEveryKey round-trips TOML text and compares the two reads; the git init only makes the temp dir a repo |
+| internal/design | all | any | Check and Waivers are pure; MainFiles, MergeFiles and Own run git plumbing (ls-tree, rev-list, diff --name-only, log) and compare repo-relative names only, with no absolute paths, realpath or locks |
+| internal/hooks | all | any | chunking, transcript JSONL parsing, hook JSON I/O, and a /bin/sh fake Self read through proc.Run without process groups (prime_test.go:fakeSelf) |
+| internal/item | all | any | item_test.go:TestTheItemReadersLinkNoDolt only checks `go list` deps |
+| internal/store | all | os | every test uses store.Lock (syscall.Flock), clone() with filepath.EvalSymlinks on a temp dir, git subprocesses, or os.Chmod(p, 0) (TestApplyNeverOverwritesARecordItCannotRead) |
+| internal/cli | TestEveryFuncDocStartsWithItsName | any | parses Go source docs |
+| internal/cli | TestEveryCommandPmRunsIsListedInHelp | any | renders --help text from the command tree |
+| internal/cli | TestAnAbbreviatedOptionIsRefused | any | the argv parser refuses before any store or repo access |
+| internal/cli | TestDayActivityHoldsOnlyThatDaysEvents | os | git commits in t.TempDir read through records.Read (EvalSymlinks realpath) and git dates |
+| internal/cli | TestHelpTextsEqualTheGolden | any | compares help text with the golden file |
+| internal/cli | TestStampAndTextsSurviveGitRewritingTheRecordsMidWalk | os | git checkout unlinks and rewrites files while records.Texts walks them (unlink/readdir race, EvalSymlinks) |
+| internal/cli | TestLoadNeverPassesARecordSetMissingAFileGitRewrote | os | git rewrite race, records lock, worktest.ServeAt (Dolt on a unix socket), EvalSymlinks on MkdirTemp |
+| internal/cli | TestSessionInboxIsTheRuntimesOwn | any | env vars only; innermost is never reached |
+| internal/cli | TestAnAmbiguousSessionRefusesEveryCommand | any | innermost is stubbed; the refusal comes before any I/O |
+| internal/cli | TestTaskReadyListsReadyTasksInOrder | os | newFixture: Dolt host on a unix socket |
+| internal/cli | TestTaskEdit | os | newFixture: Dolt host on a unix socket |
+| internal/cli | TestTaskRelease | os | newFixture: Dolt host on a unix socket |
+| internal/cli | TestDepAddAndRm | os | newFixture: Dolt host on a unix socket |
+| internal/cli | TestSyncCommand | os | newFixture plus a bare git remote that Dolt syncs through |
+| internal/cli | TestShowIDPrintsTheItemItsHolderBlockersChildrenNeedsAndComments | os | newFixture: Dolt host on a unix socket |
+| internal/cli | TestTaskAddParentAddsASubTaskUnderAnOpenTask | os | newFixture: Dolt host on a unix socket |
+| internal/cli | TestWrapFillPutsALongWordOnItsOwnLine | any | text wrapping |
+| internal/install | TestCodexTrustNamesPmsHooksCodexSkips | os | CodexTrust runs codex under Setpgid with a kill(-pgid) cancel |
+| internal/install | TestCodexTrustSaysWhyItWasNotCheckedAndIsBounded | os | the timeout kills a sleeping codex process group |
+| internal/install | TestCodexTrustAgainstRealCodex | os | real codex binary; EvalSymlinks realpath used as the trusted project key |
+| internal/install | TestPiecesEqualTheGoldenResults | any | piece text Apply/Remove/Drift on plain files, compared with the JSON golden |
+| internal/install | TestEachRuntimesJudgeRunsOnThatRuntime | any | hook-entry text |
+| internal/install | TestClaudeAndCodexRunTheSameHooks | any | hook-entry text |
+| internal/install | TestAnEarlierPmsCodexHooksAreRewritten | any | JSON piece Drift/Rewrite on plain files |
+| internal/install | TestDumpJSONKeepsASettingsFileByteForByte | any | JSON serialization |
+| internal/install | TestTOMLStringReadsBack | any | TOML string quoting |
+| internal/install | TestPrunePinsRemovesTheBinaryOfEachPinNoCheckoutPinsAndKeepsItsSha256 | os | XDG_DATA_HOME pin dirs plus git worktree paths with newlines |
+| internal/install | TestPrunePinsPrunesNoneWhenWhatAClonePinsCannotBeRead | os | same XDG and git worktree fixture |
+| internal/install | TestCodexRulesAllowPmAlone | any | codex execpolicy check on a rules text (skipped without codex) |
+| internal/install | TestCodexRulesAreAPieceDoctorUpgradeAndUninstallKnow | any | piece text written and read back |
+| internal/install | TestSetupWorkCreatesPushesAndClones | os | work.NewHost (Dolt on a unix socket) plus a bare git remote |
+| internal/install | TestSetupWorkRefusesAFork | os | work.NewHost (Dolt on a unix socket) plus a bare git remote |
+| internal/install | TestInstallBinary | os | os.Executable copy, 0755 Perm check, symlink replacement |
+| internal/install | TestExcludeRoundTrip | any | exclude file text round trip |
+| internal/install | TestRewriteTakesOutBeadsPieces | os | AGENTS.md symlink kept (isLink), hook files' 0755 Perm checked |
+| internal/install | TestHooksPathMovesOffBeads | os | git worktree add and core.hooksPath compared with absolute temp paths |
+| internal/install | TestABeadsFileIsNoBeads | os | os.Chmod(0) expects ErrPermission; skipped as root |
+| internal/launch | TestGuidesPrintsEachCrossedReleasesGuideOldestFirst | any | changelog text |
+| internal/launch | TestGuidesFailWhenACrossedReleaseHasNoGuide | any | changelog text |
+| internal/launch | TestEmbeddedNotesGiveEveryReleaseAGuide | any | embedded text |
+| internal/launch | TestGuidesWithNoEntryFilesGiveTheTwoSteps | any | changelog text |
+| internal/launch | TestNewerComparesVersionsAndAPreReleaseWithItsRelease | any | version comparison |
+| internal/launch | TestADownloadThatFailsWithNoTokenIsTriedThroughTheAPIWithOne | os | XDG_DATA_HOME pins dir, tarball install with modes, exec of the pinned binary |
+| internal/launch | TestMarkersAreThoseScrubTookAndNoneUnlaunched | os | re-execs os.Args[0] in a git repo and reads environment markers across exec |
+| internal/launch | TestAGoPinIsDownloadedOnceThenExecdWithTheMarks | os | exec of the downloaded pin, "Exec format error", 0755 Perm, symlink tar entry |
+| internal/records | TestMatchReadsDoublestarGlobs | any | glob matching |
+| internal/records | TestCoversIsADesignPagesListOfPatterns | any | header parsing |
+| internal/records | TestHeaderValuesTypeAsPyyamlDoes | any | YAML typing compared with expected.json |
+| internal/records | TestReadSummariesLeavesOutASummaryGoneWhenRead | os | dangling os.Symlink treated as gone |
+| internal/service | TestPmInitKeepsTheUnitsPATH | os | launchd/systemd unit files, PlatformKind, fake launchctl/systemctl |
+| internal/service | TestUninstallStopsAndRemovesTheUnit | os | service units and supervisor calls |
+| internal/service | TestAServiceOnMainsPinIsNotStaleFromACheckoutOffIt | os | unit and service lifecycle fixture |
+| internal/service | TestServiceInstallStatusRestartAndLogsEndToEnd | os | unit install, supervisor and log paths |
+| internal/service | TestStopDisablesTheUnitAndHoldsUntilRestartOrInstall | os | systemd and launchd stop paths, socket still answering |
+| internal/service | TestASupervisorThatDoesNotAnswerIsNoStop | os | systemctl is-enabled semantics |
+| internal/service | TestAReplyIsQueuedIntoALiveCodexSession | os | codex queue exec under Setpgid/kill(-pgid) |
+| internal/service | TestTheServiceQueuesAReplyIntoACodexSessionAndMarksItDelivered | os | serveEvery (service.Run: TCP listen, flock) plus a Setpgid codex exec |
+| internal/service | TestThePublicHostNeedsACloudflareAccessTokenThatVerifies | any | access handler on httptest |
+| internal/service | TestThePublicHostIsRefusedWhenTheTeamKeysCannotBeFetched | any | access handler on httptest |
+| internal/service | TestWithoutTheAccessKeysEveryPublicRequestIsRefusedNamingThem | any | access handler on httptest |
+| internal/service | TestLocalhostIsServedAsBeforeAndAnEdgeForwardedRequestNeedsTheTokenWhateverItsHost | any | access handler on httptest |
+| internal/service | TestTheServiceChecksAccessOnEveryRequestAndARefusalNamesNoStore | os | serve(): service.Run with TCP listen and flock |
+| internal/service | TestInboxMarksWithinOneBudget | any | MarkWithin on a fake store with an injected clock |
+| internal/service | TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers | os | PlatformKind unit file, UnitBytes for launchd/systemd, TCP port held |
+| internal/service | TestServesPagesStyleAndVersionWithTheStoreAndVersionHeaders | os | serve(): service.Run with TCP listen and flock |
+| internal/service | TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt | os | serve() plus os.Symlink escapes refused by os.Root |
+| internal/service | TestAReplyIsSpooledStoredOnceAndPushedIntoTheSessionsInbox | os | flocked spool plus a unix-socket inbox in /tmp |
+| internal/service | TestAReplyIsRefusedWithItsReason | os | serve(): service.Run with flock and TCP |
+| internal/service | TestAPartialReadIsRepeatedUnderTheLockAndServedThere | os | records flock (LOCK_SH) inside service.Run |
+| internal/service | TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused | os | serve() plus a flocked spool |
+| internal/service | TestAPendingSpoolIsStoredAtStartOnce | os | flocked spool at start |
+| internal/service | TestTheSweepDeliversWhatAFailedPushLeftAndSkipsAGoneSession | os | unix-socket inbox and a gone .sock (ENOENT/ECONNREFUSED) |
+| internal/service | TestAReplyAnyCommandStoresIsPushedOnceTheStoreMoves | os | serve() plus a unix-socket inbox |
+| internal/service | TestAMergeToMainIsStoredAndPushedOnce | os | serve() plus git init and a bare origin |
+| internal/service | TestRunReturnsOnlyOnceTheGoroutinesItStartedEnded | os | serve(): service.Run TCP listen and the pin-file rename watch |
+| internal/service | TestSyncStepsSyncTheStoreSummarizeAndPushTheRecords | any | fake work; the records step's result is not asserted |
+| internal/service | TestGCRunsWhenDueAndRecordsTheSizes | any | logical file sizes (dirSize) and a JSON state file |
+| internal/service | TestSweepsCoalesceAndNeverTakeAReplysPlace | any | channel logic |
+| internal/service | TestSinceIsTheRepliesFromTheWaitsSecond | any | time filtering |
+| internal/service | TestAPushToASessionWithNoInboxWaitsForItWhileItLives | any | SessionLive stubbed, no inbox |
+| internal/session | TestSessionOfIsTheSetOneOrTheInnermostRuntimesWhenBothAre | any | injected innermost |
+| internal/session | TestInnermostRuntimeIsTheNearestClaudeCodeOrCodexAncestor | any | injected procInfo |
+| internal/session | TestReadProcReadsAProcesssParentAndArgv0 | os | /proc/<pid>/stat on Linux, `ps -o ppid=,comm=` on macOS |
+| internal/session | TestUUID7StartIsTheMillisecondsItsFirst48BitsHold | any | bit arithmetic |
+| internal/session | TestCodexRootMapsASubagentThreadToItsRootThread | any | rollout JSONL files under CODEX_HOME |
+| internal/session | TestCurrentSessionOfACodexSubagentIsItsRootThread | any | env plus rollout files |
+| internal/session | TestCodexRolloutsReadsOnlyTheDatesAThreadCanHaveStarted | any | dated rollout directory reads |
+| internal/session | TestCodexLiveLooksUnderTheHomeItIsGiven | any | rollout mtime within LiveWindow |
+| internal/session | TestCodexHooksRanReadsTheRolloutUpToTheFirstPrompt | any | rollout parsing |
+| internal/site | TestMermaidLoadsOneExactVersionAtNaturalWidth | any | rendered HTML strings |
+| internal/site | TestPagesEqualTheGoldenPages | os | git fast-import store in TempDir read through records.Read (EvalSymlinks) with git dates |
+| internal/site | TestADesignPageSaysWhyItsCoveredCodeWasNotChecked | os | same git store fixture plus git update-ref |
+| internal/site | TestCheckRefusesEachBrokenRecord | os | records.Read and ReadSummaries on edited temp-dir copies of the constructs store (realpath) |
+| internal/site | TestCodeChangedLeavesOutTheMergesOfSprintsThatUpdatedOrWaivedThePage | any | in-memory commits and records |
+| internal/site | TestFillRepliesAndStatus | any | HTML template fill compared with testdata |
+| internal/site | TestAReplyToASessionWithNoInboxWaitsForIt | any | HTML text |
+| internal/sync | TestARunRecordsEachStepAndFlagsAFailure | os | the push lock is syscall.Flock LOCK_NB; the ASecondRunSkipsWhileOneHoldsTheLock subtest depends on it |
+| internal/sync | TestANeverSuccessfulPushIsOverdueFromTheInstall | any | JSON state file and an injected clock |
+| internal/sync | TestPushRecordsPushesRebasesAndReports | os | git clone/push/rebase under a store flock, with process-group kill in Run |
+| internal/work | TestOnlyTheHostOpensTheStoreAndOnlyTheServiceStartsIt | any | AST scan of the module and a file walk |
+| internal/work | TestBenchLoad | os | Dolt store host (skipped without PM_BENCH_STORE) |
+| internal/work | TestBenchWriters | os | Dolt store host with concurrent writers (skipped without PM_BENCH_STORE) |
+| internal/work | TestCheckRefusesEachImpossibleState | any | FromBD plus invariant checks in memory |
+| internal/work | TestAWriteRacingOneOutsideTheLockFailsHard | os | embedded Dolt writes through the host |
+| internal/work | TestDialNamesASocketTheSystemRefuses | os | unix socket dial errors and the sun_path limit |
+| internal/work | TestDeliveredIsNeverLowered | os | serve(): Dolt on a unix socket |
+| internal/work | TestClaimIsACompareAndSet | os | serve(): Dolt on a unix socket |
+| internal/work | TestCommentsKeepTheirOrderWithinASecond | os | serve(): Dolt on a unix socket |
+| internal/work | TestFromExportRefusesALineThatIsNotAnItem | os | serve(): Dolt import and commits |
+| internal/work | TestImportFailsHardOnWhatItCannotMap | any | bd export parsing from testdata |
+| internal/work | TestAWriteLockWaitEndsAtItsBoundOrItsStatement | any | in-memory writeLock with injected liveness |
+| internal/work | TestASecondLockOnAConnectionAndAnUnlockWithoutItAreRefused | any | in-memory writeLock |
+| internal/work | TestPmLockThroughTheHost | os | serve(): pm_lock over the Dolt host socket, dropped connections |
+| internal/work | TestMergeOtherScalarsTheLaterUpdatedAt | any | pure three-way row merge |
+| internal/work | TestAnOperationOutlastingItsBoundFreesTheSlotAndAWaiterGivesUp | os | Dolt host; the git that Dolt runs is killed at the bound |
+| internal/work | TestPullRacingLocalWriters | os | two Dolt clones, a git remote, concurrency |
+| internal/work | TestCreateRacingALocalWriter | os | Dolt plus a git remote, CAS |
+| internal/work | TestTwoClonesMigratingOnTheirOwnMerge | os | two Dolt clones merging |
+| internal/work | TestRoundTripOfTheFixture | os | serve(): Dolt import and export |
+| internal/work | TestRoundTripOfARealExport | os | serve(): Dolt import (skipped without PM_BD_EXPORT) |
+| internal/work | TestDoltHoldsTheJournalPruneFix | os | Dolt journal and GC on disk |
+| internal/work | TestACollectionRacingItsOwnVisitsReturnsOnceEachEnds | os | Dolt GC racing visits |
+| internal/work | TestSyncTwoClonesConcurrentEditsMergePerTheTable | os | two hosted Dolt clones through a bare git remote |
+| internal/work | TestSyncTwoClonesMergeListFieldsPerEntry | os | two hosted Dolt clones through a bare git remote |
+| internal/work | TestSyncTwoClonesCloseBeatsClaimAndACreateGivesUp | os | two hosted Dolt clones through a bare git remote |
+| internal/work | TestSyncTwoClonesMoveSprintKeepsTheOtherClonesWrites | os | two hosted Dolt clones through a bare git remote |
+| internal/work | TestCreatePushTimeout | os | Dolt push to the remote with a timeout kill |
+| internal/work | TestSyncFailsHardOnAddAddAndACycle | os | Dolt sync through a git remote |
+| internal/work | TestSyncFailsHardOnAnUnsettledConflictAndABrokenRemoteHead | os | Dolt sync through a git remote |
+| internal/work | TestCreateRefusesWithTheRemoteUnreachable | os | Dolt host plus an unreachable git remote |
+| internal/work | TestAServiceOnAnotherVersionIsRefused | os | NewHost/Dial over a unix socket, sun_path length refusal |
+
+os: its behaviour can differ by OS, so a PR runs it on macOS; any: Linux on each PR, macOS after merge.
+:::
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
@@ -191,26 +337,19 @@ The pm-quality project decision of 2026-10-14 (owner) revises macOS on every PR:
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: the Go tests do measurably less work on macOS (internal/work's shards use 27% less CPU, and 4 test binaries stop linking Dolt), but macOS CI compute per PR did not halve; it stayed about 160 s.
+partial: macOS Go compute per PR fell 20% (median 163 to 130 s) and a code PR's wall fell 16% (138 to 116 s), short of the 55 s and 100 s targets; the Go tests do less work, and a PR runs on macOS only the tests whose behaviour can differ by OS.
 
-- #81: the item model moves to internal/item, which links no Dolt, so records, store, design and site test without Dolt. TestTheItemReadersLinkNoDolt holds this.
-- #81: newPair seeds locally and pushes once (241 to about 70 git calls per pair). The compare-and-swap refs check moved onto the concurrent-mints case.
-- #81: make test-go runs its parts at once.
-- #82: internal/work's test seconds were remeasured.
-- Open: decision need "Run the 9 race tests on macOS only under -race?", the largest lever left (58.9 s of internal/work's 125.4 s of macOS CPU).
+- #81: the item model moved to internal/item, which links no Dolt, so 4 test binaries stopped linking Dolt; newPair seeds locally (241 to about 70 git calls); make test-go runs its parts at once.
+- #82: internal/work's test seconds remeasured.
+- #83: go-os-tests.txt classifies all 155 Go tests (85 os). A PR's macOS jobs run the darwin build and the os tests; a push to main runs every test on macOS; macOS runs RACE_TESTS only under -race (owner decisions). go-os-check holds every test to one row.
+- #84: the port check test waits out 0.1 s probes (3.0 to 0.3 s).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- macOS Go compute (build and test steps of the two macOS jobs, summed) ≤ ~55 s, median of 3 PRs: **not met**.
-  - Samples: #81 248 s, #82 166 s, #82's rerun on main's new cache 160 s.
-  - Before: 148-181 s over 13 runs, median 163 s.
-  - The frame's 96-98 s baseline was the build-test step alone. That step went from 89-113 s to 102-108 s, or 178 s on a slow runner.
-  - Only 2 PRs and 1 rerun were sampled (see Findings).
-- A code PR's median wall to the last check ≤ ~100 s: **not met**. #81 249 s (the agents-md job last), #82 164 s, #82's Go rerun 145 s; 138 s before.
-- The per-OS test lists are identical before and after: **met**, apart from the added guard test.
-  - go test -v at main and at the head ran in one CI run per job.
-  - macOS: 183/184, 92/92, 39/39 and 16/16 results. Linux: the same counts.
-- `make test-go` local wall time reported: **met**. 35.5-35.8 s at main (3 runs); 33.9-34.8 s with #81's test changes; 19.6-19.8 s with the parts run at once (32 cores).
-- `make lint`, `make test` (129 passed) and `make test-go` passed locally. CI was green on #81 and #82, each merged through merge_ready.py's command.
+- macOS Go compute (the build and test steps of the two macOS jobs, summed) ≤ ~55 s, median of 3 PRs: not met, 130 s. Samples on code PRs run on the new layout: #83 130 s, #84 122 s, #69 132 s (Findings). Before: 148-181 s over 13 runs, median 163 s; the frame's 96-98 s was the build-test step alone, which is now 63-70 s on a PR.
+- A code PR's median wall time to the last check ≤ ~100 s over 3 PRs: not met, 116 s. #83 269 s (its agents-md job, run for its AGENTS.md change, was last), #84 109 s, #69 116 s; 138 s before.
+- The per-OS lists of tests run (Linux identical; the main-push macOS run full): met. Linux runs the same targets, which select all 155 tests, as before. Main's push run on ad5659f ran every package, 23 internal/work tests, and the 9 RACE_TESTS plus internal/service under -race, and passed. A PR's macOS list equals the 85 os tests (checked locally with -v for each mode). Before #83, #81's lists at main and head were identical but for the added guard test.
+- make test-go local wall time reported: 35.5-35.8 s before (3 runs); 19.6-19.8 s after (32 cores).
+- make lint, make test and make test-go passed locally for each PR. CI was green on #81-#84, and each was merged by merge_ready.py's printed command after a fresh-context review.
