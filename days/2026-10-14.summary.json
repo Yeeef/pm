@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T18:17:07+00:00",
- "digest": "119186bb08424c89",
+ "generated_at": "2026-10-14T18:27:25+00:00",
+ "digest": "dff8f56cd66164ca",
  "model": "claude-haiku-5-5",
- "text": "- **Site answers to agent questions:** Claude and Codex agents now raise questions on the site, as well as in chat. The first answer wins, and the site shows each question with its options and a free-text field.\n- **Faster CI and Go tests:** Each pull request starts at most two macOS jobs and runs only the Go tests its changes can affect. macOS test compute fell by about a fifth. Wall time stayed above the targets.\n- **Agent guide and code cleanup:** The agent guide is now a short map that every runtime reads in full. A check grades it on each pull request, and the old Python-port code is gone.\n- **Agent work without leave:** Agents open a project, sprint or task for an owner request without asking leave first."
+ "text": "- **Site answers to agent questions:** Agent questions now appear on the site with their options and a free-text field. The owner can answer on the site or in chat. The answer that arrives first is used. Both Claude Code and Codex now support this.\n- **Faster pull request checks:** Pull requests run only the Go tests that their changed files can affect. MacOS Go compute on three non-store pull requests fell by about half. The median check time still misses the goal. Main still runs every Go test.\n- **Agent guidance and checks:** AGENTS.md is now a short map that Claude Code, Codex and Grok Build read in full. An agent grades it against a rubric on every pull request. `pm sprint close` now holds a sprint only to the patterns it added or changed while open.\n- **Long-horizon benchmark survey:** The pm-eval project opened to test whether pm improves long-horizon task performance on public benchmarks. The survey of candidate benchmarks finished, and its shortlist is written in a doc."
 }
