@@ -1080,7 +1080,7 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
     # the remote had no work store, so pm init made it and pushed it
     assert git_in(clone, "ls-remote", "origin", "refs/pm/work").strip()
     assert f"created the work store at {clone}/.pm/store/work and pushed it to origin's refs/pm/work" in res.stdout
-    assert git_in(clone, "config", "core.hooksPath").strip() == str(clone / ".pm/hooks")
+    assert git_in(clone, "config", "--get", "--default=", "core.hooksPath") == "\n", "pm installs no git hook"
     assert git_in(clone / ".pm/store/records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "records"
     assert (clone / "records").is_symlink() and (clone / "records/sprints/demo-1.md").read_text() == "one\n"
     assert git_in(clone, "status", "--porcelain") == ""

@@ -1,12 +1,13 @@
 package install
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/store"
@@ -361,87 +362,69 @@ func Unsparse(top string) error {
 	return nil
 }
 
-// HooksDir is where the clone's git hooks live: pm's own .pm/hooks in the main checkout.
-func HooksDir(main string) string { return filepath.Join(main, filepath.FromSlash(HooksRel)) }
-
-// beadsHooksDir is Beads' hook directory, where Python pm 0.1.x pointed core.hooksPath; pm init and pm upgrade move it.
-func beadsHooksDir(dir string) string { return filepath.Join(dir, ".beads", "hooks") }
-
-// hooksPathIs is whether core.hooksPath, as set in top, names dir under this worktree or the main checkout.
-func hooksPathIs(top, main, current string, dir func(string) string) bool {
-	at := Resolve(join(top, current))
-	return at == Resolve(dir(top)) || at == Resolve(dir(main))
+// localHooksPath is core.hooksPath as the clone's own config sets it ("" when unset).
+func localHooksPath(main string) (string, error) {
+	return Git(main, "config", "--local", "--get", "--default=", "core.hooksPath")
 }
 
-// CheckHooksPath refuses a core.hooksPath other than .pm/hooks (relative, or this worktree's or the main checkout's
-// absolute path); unset is fine, as pm init sets it, and so is Beads' .beads/hooks, which pm init moves to .pm/hooks.
-func CheckHooksPath(top, main string) error {
-	current, err := GitConfig(top, "core.hooksPath")
-	if err != nil || current == "" {
-		return err
+// pmHooksPath is whether a core.hooksPath value is pm's alone: it names pm's retired hook directory .pm/hooks
+// (relative, or under any checkout, as an earlier pm set the main checkout's absolute path), and that directory, read
+// from the main checkout, holds no hook of the user's: each file in it is empty, or a shebang, once pm's section is
+// out. A user who kept hooks of their own there (an earlier pm's doctor said to) keeps the path, and so their hooks.
+func pmHooksPath(main, value string) (bool, error) {
+	p := filepath.ToSlash(filepath.Clean(value))
+	if value == "" || (p != HooksRel && !strings.HasSuffix(p, "/"+HooksRel)) {
+		return false, nil
 	}
-	if !hooksPathIs(top, main, current, HooksDir) && !hooksPathIs(top, main, current, beadsHooksDir) {
-		return refuse("core.hooksPath is %s, not .pm/hooks; pm's git hooks live in its own hook files, so pm init "+
-			"works only with pm's hooks path (other hook managers are not supported)", current)
+	dir := value
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(main, dir)
 	}
-	return nil
-}
-
-// join is Python's Path / p: p itself when it is absolute.
-func join(base, p string) string {
-	if filepath.IsAbs(p) {
-		return p
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
 	}
-	return filepath.Join(base, p)
-}
-
-// hooksReady is whether the main checkout holds pm's hook files in .pm/hooks. core.hooksPath is the clone's, so it
-// moves there only then: a pin moved in another worktree, or a worktree pinned to Go pm while main still pins Python
-// pm, would otherwise point every worktree at hooks that are not there, and git would run none.
-func hooksReady(main string) bool {
-	for _, name := range GitHooks {
-		if !executable(filepath.Join(HooksDir(main), name)) {
-			return false
+	if err != nil {
+		return false, err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			return false, nil
+		}
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return false, err
+		}
+		if rest := section.ReplaceAllString(string(b), ""); rest != "" && rest != shebang {
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
 }
 
-func executable(path string) bool {
-	st, err := os.Stat(path)
-	return err == nil && st.Mode().IsRegular() && st.Mode()&0o111 != 0
-}
-
-// SetupHooksPath points core.hooksPath at the main checkout's .pm/hooks when it is unset, names another checkout's, or
-// names Beads' .beads/hooks, where Python pm 0.1.x had bd hooks install point it; the hook files there stay. It leaves
-// Beads' path, whose files hold pm's section too, until the main checkout holds pm's hook files (hooksReady).
-func SetupHooksPath(main string) (string, error) {
-	current, err := GitConfig(main, "core.hooksPath")
+// RetireHooksPath unsets the clone's core.hooksPath where an earlier pm pointed it at its .pm/hooks and nothing but
+// pm's sections is there (HooksWhy); one naming another directory, or holding hooks of the user's, stays. "" when
+// nothing changed.
+func RetireHooksPath(main string) (string, error) {
+	current, err := localHooksPath(main)
 	if err != nil {
 		return "", err
 	}
-	hooks := HooksDir(main)
-	if current != "" && Resolve(join(main, current)) == Resolve(hooks) {
-		return "", nil
-	}
-	if current != "" && hooksPathIs(main, main, current, beadsHooksDir) && !hooksReady(main) {
-		return "", nil // Beads' hooks run pm's section until main has its own
-	}
-	if _, err := Git(main, "config", "core.hooksPath", hooks); err != nil {
+	if pm, err := pmHooksPath(main, current); err != nil || !pm {
 		return "", err
 	}
-	if current != "" && hooksPathIs(main, main, current, beadsHooksDir) {
-		return fmt.Sprintf("moved the git hooks off Beads' %s: core.hooksPath=%s", current, hooks), nil
+	if _, err := Git(main, "config", "--local", "--unset", "core.hooksPath"); err != nil {
+		return "", err
 	}
-	return "installed the git hooks: core.hooksPath=" + hooks, nil
+	return fmt.Sprintf("unset core.hooksPath=%s, %s", current, HooksWhy), nil
 }
 
 // ---------------------------------------------------------------- the clone's and the worktree's setup
 
-// SetupClone makes the clone and this worktree ready, the part of pm init's clone half that the post-checkout hook
-// runs too: set the git hooks path, check out the records store if it is missing, link this worktree's records/ to
-// it, and let Codex's sandbox write both stores and commit. pm init then brings the pm service up and has it attach
-// the work store (SetupWork), which the service alone opens.
+// SetupClone makes the clone and this worktree ready, pm init's clone half, which session start runs in each new
+// worktree: unset an earlier pm's git hooks path, check out the records store if it is missing, link this worktree's
+// records/ to it, and let Codex's sandbox write both stores and commit. pm init then brings the pm service up and has
+// it attach the work store (SetupWork), which the service alone opens.
 func SetupClone(cwd, remote string) (string, error) {
 	records, err := store.PathOf(cwd)
 	if err != nil {
@@ -452,14 +435,11 @@ func SetupClone(cwd, remote string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := CheckHooksPath(top, main); err != nil {
-		return "", err
-	}
 	if err := RefuseLegacyStore(main, records); err != nil {
 		return "", err
 	}
 	var out []string
-	if said, err := SetupHooksPath(main); err != nil {
+	if said, err := RetireHooksPath(main); err != nil {
 		return "", err
 	} else if said != "" {
 		out = append(out, said)
@@ -545,27 +525,14 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 		out = append(out, fmt.Sprintf("records copy: %s tracks records/, a copy no branch keeps now; untrack it with git "+
 			"rm -r -q --cached --sparse --ignore-unmatch records and commit, or merge the main branch once it has", top))
 	}
-	hp, err := GitConfig(main, "core.hooksPath")
+	hp, err := localHooksPath(main)
 	if err != nil {
 		return nil, err
 	}
-	if hp == "" || Resolve(join(main, hp)) != Resolve(HooksDir(main)) {
-		fix, shown := "run pm init", "unset"
-		switch {
-		case hp == "":
-		case hooksPathIs(main, main, hp, beadsHooksDir):
-			shown = hp + " (Beads' hooks)"
-			fix = "run pm upgrade --to " + buildinfo.Version + " to move it"
-			if !hooksReady(main) && Resolve(top) != Resolve(main) { // pm upgrade in main writes them, then moves it
-				fix = "the main checkout " + main + " has no pm hooks in .pm/hooks yet; once it pins Go pm (merge the " +
-					"pin, then pull main there), run pm init there to move it"
-			}
-		default:
-			shown = hp
-			fix = "pm works only with its own hooks path: move any hooks there into .pm/hooks (outside pm's marked " +
-				"sections), run git config --unset core.hooksPath, then pm init"
-		}
-		out = append(out, fmt.Sprintf("hooks path: core.hooksPath is %s, not .pm/hooks; %s", shown, fix))
+	if pm, err := pmHooksPath(main, hp); err != nil {
+		return nil, err
+	} else if pm {
+		out = append(out, fmt.Sprintf("hooks path: core.hooksPath is %s, %s; run pm init to unset it", hp, HooksWhy))
 	}
 	work, err := WorkDrift(main, remote)
 	if err != nil {

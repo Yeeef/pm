@@ -262,6 +262,8 @@ func results(t *testing.T) golden {
 			if tree == 3 {
 				files[HooksRel+"/pre-commit"] = beadsHook + "# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || " +
 					"exit $?\n# --- END PM ---\n\n# mine\necho done\n"
+				files[HooksRel+"/post-checkout"] = "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.1 ---\n" +
+					"pm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
 				files[".github/workflows/pm-records-copy.yml"] = "name: Copy records to main\n"
 				files[".github/workflows/pm-records-guard.yml"] = "name: Records guard\n"
 			}

@@ -17,7 +17,7 @@ import pytest
 
 from conftest import PM, VERSION, stop_services
 from test_init import (BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, HOOKS, PM_FILES, USER_CODEX,  # noqa: F401
-                       USER_SETTINGS, brand_new_repo, commands, env, existing, git, new_repo, pm, pm_free, section, snapshot)
+                       USER_SETTINGS, brand_new_repo, commands, env, existing, git, new_repo, pm, pm_free, snapshot)
 
 pytestmark = pytest.mark.integration  # each test runs pm init in a fresh repo with a remote and starts its service
 
@@ -33,9 +33,12 @@ CLONE_ROOTS = 5
 MINE = "\n# mine\necho done\n"  # the existing repo's own lines after Beads' section in its hook files
 
 
-def hook_file(name: str) -> str:
-    """pm's git hook file in the existing repo: pm's own file holds its section alone, and Beads' stays as it was."""
-    return "#!/usr/bin/env sh\n" + section(name)
+def old_hook_file(name: str, version: str) -> str:
+    """An earlier pm's git hook file, which held its section alone."""
+    return f'#!/usr/bin/env sh\n# --- BEGIN PM v{version} ---\npm hook git-{name} "$@" || exit $?\n# --- END PM ---\n'
+
+
+HOOKS_RETIRED = "retired with pm's git hooks, as session start sets each new worktree up"
 
 
 def without_bd(data: dict) -> dict:
@@ -97,8 +100,8 @@ REPO_CHANGES = {
                          "records/ copy"),
     "hook entry": (lambda r: edit(r / ".claude/settings.json", '"pm hook stop || exit 1"', '"pm hook stop"'),
                    ".claude/settings.json: pm's part differs"),
-    "git hook section": (lambda r: edit(r / f"{HOOKS}/post-checkout", "pm hook git-post-checkout", "pm hook git-x"),
-                         f"{HOOKS}/post-checkout: pm's part differs"),
+    "retired git hook": (lambda r: write(r / f"{HOOKS}/post-checkout", old_hook_file("post-checkout", "0.9.1")),
+                         f"{HOOKS}/post-checkout: an earlier pm's file, {HOOKS_RETIRED}"),
     "gitignore block": (lambda r: edit(r / ".gitignore", "/records\n", "/records/\n"),
                         ".gitignore: pm's part differs"),
 }
@@ -123,6 +126,7 @@ def test_doctor_reports_each_changed_repo_piece_and_upgrade_restores_it(new_repo
     res = pm(new_repo, "upgrade")
     assert res.returncode == 0 and "pin stays" in res.stdout, res.stderr
     assert not (new_repo / ".github/workflows/pm-records-copy.yml").exists()
+    assert not (new_repo / HOOKS).exists(), "the retired hook file goes, and its directory with it"
     assert doctor(new_repo)[0] == 0
 
     # folded: test_a_beads_file_is_no_beads_for_doctor_and_upgrade
@@ -149,8 +153,8 @@ SETUP_CHANGES = {  # each hand-made change to the clone's setup and the start of
     "records link": (lambda r, tmp: (r / "records").unlink(), "records link: "),
     "sparse checkout": (lambda r, tmp: git(r, "sparse-checkout", "set", "--no-cone", "/*", "!/records/"),
                         "sparse checkout: "),
-    "hooks path": (lambda r, tmp: git(r, "config", "core.hooksPath", ".git/hooks"),
-                   "hooks path: core.hooksPath is .git/hooks, not .pm/hooks; pm works only with its own hooks path"),
+    "hooks path": (lambda r, tmp: git(r, "config", "core.hooksPath", str(r / HOOKS)),
+                   "hooks path: core.hooksPath is "),  # its line names the path: TestRetireHooksPath has the text
     "service": (lambda r, tmp: [p.unlink() for p in sched_units(tmp)], "service: not installed"),
     "codex roots": (lambda r, tmp: (tmp / "codex/config.toml").write_text(CODEX_USER), "codex: "),
     "git exclude": (lambda r, tmp: edit(r / ".git/info/exclude", "/.pm/run/\n", ""), "git exclude: "),
@@ -164,7 +168,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     res = pm(existing, "init")
     assert res.returncode == 0, res.stderr
     assert f"git add -- {' '.join(PM_FILES)} && " in res.stdout, res.stdout
-    assert (existing / f"{HOOKS}/post-checkout").read_text() == hook_file("post-checkout")
+    assert not (existing / HOOKS).exists(), "pm installs no git hook"
     for name in ("post-checkout", "pre-commit"):
         assert (existing / f".beads/hooks/{name}").read_text() == BEADS_HOOK + MINE, "Beads' hook files stay"
     for rel, user in ((".claude/settings.json", USER_SETTINGS), (".codex/hooks.json", USER_CODEX)):
@@ -183,10 +187,13 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
 
     git(existing, "add", "-A")
     git(existing, "commit", "-qm", "Install pm")
-    # the repo as an older pm left it: an older pin and an older section in a Beads hook
+    # the repo as an older pm left it: an older pin, its post-checkout hook file and core.hooksPath naming it
     edit(existing / ".pm/config.toml", f'version = "{VERSION}"', 'version = "0.2.0"')
-    edit(existing / f"{HOOKS}/post-checkout", f"BEGIN PM v{VERSION}", "BEGIN PM v0.2.0")
-    git(existing, "commit", "--no-verify", "-qam", "pm 0.2.0")
+    write(existing / f"{HOOKS}/post-checkout", old_hook_file("post-checkout", "0.2.0"))
+    (existing / f"{HOOKS}/post-checkout").chmod(0o755)
+    git(existing, "add", "-A")
+    git(existing, "commit", "--no-verify", "-qm", "pm 0.2.0")
+    git(existing, "config", "core.hooksPath", str(existing / HOOKS))
     def launched(pin: str, *args: str) -> subprocess.CompletedProcess:  # as the installed pm launches `pin`, whose
         # release here builds this pm: test_launch.py has the launch itself, which would reach GitHub
         return subprocess.run([*PM, *args], cwd=existing, env=dict(env(existing.parent), PM_LAUNCHED=pin),
@@ -200,12 +207,14 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     res = pm(existing, "upgrade")
     assert res.returncode == 0, res.stderr
     assert f"moved the pin from 0.2.0 to {VERSION}" in res.stdout
+    assert f"removed {HOOKS}/post-checkout, {HOOKS_RETIRED}" in res.stdout
+    assert f"unset core.hooksPath={existing / HOOKS}, {HOOKS_RETIRED}" in res.stdout
     assert f"git add -- .pm/config.toml {HOOKS}/post-checkout && " in res.stdout
     assert git(existing, "rev-parse", "HEAD") == head, "pm upgrade commits nothing"
     assert tomllib.loads((existing / ".pm/config.toml").read_text())["version"] == VERSION
-    assert (existing / f"{HOOKS}/post-checkout").read_text() == hook_file("post-checkout")
-    changed = sorted([f"{HOOKS}/post-checkout", ".pm/config.toml"])
-    assert git(existing, "status", "--porcelain").split() == ["M", changed[0], "M", changed[1]]
+    assert not (existing / HOOKS).exists()
+    assert git(existing, "config", "--get", "--default=", "core.hooksPath") == "\n"
+    assert git(existing, "status", "--porcelain").split() == ["M", ".pm/config.toml", "D", f"{HOOKS}/post-checkout"]
     after = snapshot(existing)
     assert all(after[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
     again = pm(existing, "upgrade")
@@ -219,16 +228,14 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     git(existing, "checkout", "-q", "-b", "changed")
     settings = existing / ".claude/settings.json"
     edit(settings, '"pm hook stop || exit 1"', '"pm hook stop"')
-    (existing / f"{HOOKS}/post-checkout").unlink()
     git(existing, "commit", "-qam", "change pm's pieces")
     changed = settings.read_bytes()
     res = pm(existing, "init")
     assert res.returncode == 0, res.stderr
-    assert settings.read_bytes() == changed and not (existing / f"{HOOKS}/post-checkout").exists()
+    assert settings.read_bytes() == changed
     assert git(existing, "status", "--porcelain") == "" and "git add" not in res.stdout, res.stdout
     code, lines = doctor(existing)
-    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
-                                          f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
+    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs"]), lines
     assert all(line.endswith(f"run pm upgrade --to {VERSION} to rewrite it") for line in lines), lines
     # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
     res = pm(existing, "init", "--site-url", "pm.example.com")
@@ -244,8 +251,7 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     with (existing / ".pm/config.toml").open("a") as f:
         f.write('access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
     code, lines = doctor(existing)
-    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs",
-                                          f"repo: {HOOKS}/post-checkout: pm's part is missing"]), lines
+    assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs"]), lines
 
 
 OLD_PRE_COMMIT = '#!/usr/bin/env sh\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit "$@" || exit $?\n# --- END PM ---\n'
@@ -317,8 +323,8 @@ def test_upgrade_retires_the_main_branchs_records_copy(new_repo: Path, tmp_path:
 
 
 def install_everywhere(repo: Path, tmp: Path) -> Path:
-    """Codex and Claude Code in use with config of their own, pm installed, and a second worktree set up by the
-    post-checkout hook."""
+    """Codex and Claude Code in use with config of their own, pm installed, and a second worktree set up by session
+    start's pm init."""
     (tmp / "codex").mkdir()
     (tmp / "codex/config.toml").write_text(CODEX_USER)
     (tmp / "claude").mkdir()
@@ -329,9 +335,9 @@ def install_everywhere(repo: Path, tmp: Path) -> Path:
     git(repo, "add", "-A")
     git(repo, "commit", "-qm", "Install pm")
     wt = tmp / "wt"
-    res = subprocess.run(["git", "worktree", "add", "-q", "-b", "feature", str(wt)], cwd=repo, env=env(tmp),
-                         capture_output=True, text=True, check=False)
-    assert res.returncode == 0 and (wt / "records").is_symlink(), res.stderr
+    git(repo, "worktree", "add", "-q", "-b", "feature", str(wt))
+    res = pm(wt, "init", "--session-start")
+    assert res.returncode == 0 and (wt / "records").is_symlink(), res.stdout + res.stderr
     assert doctor(repo)[0] == 0 and doctor(wt)[0] == 0
     return wt
 

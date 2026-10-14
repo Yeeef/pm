@@ -334,105 +334,6 @@
   },
   {
    "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": null,
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "",
-   "present": "false",
-   "apply": "# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/bin/sh\necho mine",
-   "present": "false",
-   "apply": "#!/bin/sh\necho mine\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/bin/sh\necho mine",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\nmine\n",
-   "present": "true",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\nmine\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\nmine\n",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part differs from what pm 0.9.9 writes"
-   ]
-  },
-  {
-   "settings": 0,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\nno end\n",
-   "present": "true",
-   "apply": "error: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
-   "remove": "error: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
-   "drift": [
-    ".pm/hooks/post-checkout: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand"
-   ]
-  },
-  {
-   "settings": 0,
    "rel": ".gitignore",
    "text": null,
    "present": "false",
@@ -831,105 +732,6 @@
   },
   {
    "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": null,
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "",
-   "present": "false",
-   "apply": "# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": null,
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
-   "present": "false",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/bin/sh\necho mine",
-   "present": "false",
-   "apply": "#!/bin/sh\necho mine\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
-   "remove": "#!/bin/sh\necho mine",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part is missing"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\nmine\n",
-   "present": "true",
-   "apply": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\nmine\n",
-   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\nmine\n",
-   "drift": [
-    ".pm/hooks/post-checkout: pm's part differs from what pm 0.9.9 writes"
-   ]
-  },
-  {
-   "settings": 1,
-   "rel": ".pm/hooks/post-checkout",
-   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\nno end\n",
-   "present": "true",
-   "apply": "error: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
-   "remove": "error: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
-   "drift": [
-    ".pm/hooks/post-checkout: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand"
-   ]
-  },
-  {
-   "settings": 1,
    "rel": ".gitignore",
    "text": null,
    "present": "false",
@@ -1097,6 +899,64 @@
    "drift": [
     ".pm/hooks/pre-commit: .pm/hooks/pre-commit has a pm begin marker without its end marker (# --- END PM ---); fix it by hand"
    ]
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": null,
+   "remove": null,
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": "",
+   "remove": null,
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": "#!/usr/bin/env sh\n",
+   "remove": null,
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
+   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n",
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
+   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n",
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
+   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---",
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": "#!/bin/sh\necho mine",
+   "remove": "#!/bin/sh\necho mine",
+   "drift": []
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\nmine\n",
+   "remove": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\nmine\n",
+   "drift": [
+    ".pm/hooks/post-checkout: an earlier pm's section, retired with pm's git hooks, as session start sets each new worktree up; pm 0.9.9 removes it"
+   ]
+  },
+  {
+   "rel": ".pm/hooks/post-checkout",
+   "text": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.0.1 ---\nno end\n",
+   "remove": "error: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand",
+   "drift": [
+    ".pm/hooks/post-checkout: .pm/hooks/post-checkout has a pm begin marker without its end marker (# --- END PM ---); fix it by hand"
+   ]
   }
  ],
  "trees": [
@@ -1131,10 +991,6 @@
     [
      ".pm/config.toml",
      "version = \"0.9.9\"   # the pm version every session must run\nremote = \"origin\"\nmain_branch = \"main\"\nport = 8123         # the site port; the PORT environment variable overrides it for one run\n"
-    ],
-    [
-     ".pm/hooks/post-checkout",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "drift": [
@@ -1144,7 +1000,6 @@
     ".claude/settings.json: pm's part is missing",
     ".codex/hooks.json: pm's part is missing",
     ".codex/rules/pm.rules: pm's part is missing",
-    ".pm/hooks/post-checkout: pm's part is missing",
     ".gitignore: pm's part is missing"
    ],
    "rewrite": [
@@ -1175,10 +1030,6 @@
     [
      ".pm/config.toml",
      "version = \"0.9.9\"   # the pm version every session must run\nremote = \"origin\"\nmain_branch = \"main\"\nport = 8123         # the site port; the PORT environment variable overrides it for one run\n"
-    ],
-    [
-     ".pm/hooks/post-checkout",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "removals": []
@@ -1215,10 +1066,6 @@
     [
      ".pm/config.toml",
      "version = \"0.9.9\"   # the pm version every session must run\nremote = \"origin\"\nmain_branch = \"main\"\nport = 8123         # the site port; the PORT environment variable overrides it for one run\n"
-    ],
-    [
-     ".pm/hooks/post-checkout",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "drift": [
@@ -1229,7 +1076,6 @@
     ".claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm 0.9.9 removes",
     ".codex/hooks.json: pm's part is missing",
     ".codex/rules/pm.rules: pm's part is missing",
-    ".pm/hooks/post-checkout: pm's part is missing",
     ".gitignore: pm's part is missing"
    ],
    "rewrite": [
@@ -1260,10 +1106,6 @@
     [
      ".pm/config.toml",
      "version = \"0.9.9\"   # the pm version every session must run\nremote = \"origin\"\nmain_branch = \"main\"\nport = 8123         # the site port; the PORT environment variable overrides it for one run\n"
-    ],
-    [
-     ".pm/hooks/post-checkout",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "removals": [
@@ -1287,7 +1129,6 @@
     ".pm/.gitignore": "store/\nrun/\n",
     ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
     ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"origin\"\nmain_branch = \"main\"\nport = 8123         # the site port; the PORT environment variable overrides it for one run\n",
-    ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
     ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
    },
    "plan": [],
@@ -1319,10 +1160,6 @@
      null
     ],
     [
-     ".pm/hooks/post-checkout",
-     null
-    ],
-    [
      ".gitignore",
      "*.log\nbuild/\n"
     ]
@@ -1340,7 +1177,7 @@
     ".pm/.gitignore": "store/\nrun/\n",
     ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
     ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"origin\"\nmain_branch = \"main\"\nport = 8123         # the site port; the PORT environment variable overrides it for one run\n",
-    ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
+    ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.1 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
     ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
    },
    "plan": [
@@ -1353,6 +1190,10 @@
      "(file removed)"
     ],
     [
+     ".pm/hooks/post-checkout",
+     "(file removed)"
+    ],
+    [
      ".pm/hooks/pre-commit",
      "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
     ]
@@ -1360,7 +1201,8 @@
    "drift": [
     ".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it",
     ".github/workflows/pm-records-guard.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it",
-    ".pm/hooks/pre-commit: an earlier pm's section, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+    ".pm/hooks/pre-commit: an earlier pm's section, retired with the main branch's records/ copy; pm 0.9.9 removes it",
+    ".pm/hooks/post-checkout: an earlier pm's file, retired with pm's git hooks, as session start sets each new worktree up; pm 0.9.9 removes it"
    ],
    "rewrite": [
     [
@@ -1369,6 +1211,10 @@
     ],
     [
      ".github/workflows/pm-records-guard.yml",
+     "(file removed)"
+    ],
+    [
+     ".pm/hooks/post-checkout",
      "(file removed)"
     ],
     [
@@ -1402,10 +1248,6 @@
      null
     ],
     [
-     ".pm/hooks/post-checkout",
-     null
-    ],
-    [
      ".gitignore",
      "*.log\nbuild/\n"
     ],
@@ -1420,6 +1262,10 @@
     [
      ".pm/hooks/pre-commit",
      "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
+    ],
+    [
+     ".pm/hooks/post-checkout",
+     null
     ]
    ]
   },
@@ -1454,10 +1300,6 @@
     [
      ".pm/config.toml",
      "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\nsummary_runtime = \"codex\"\ndesign_sources = [\"internal/**\", \"prime.md\"]\n"
-    ],
-    [
-     ".pm/hooks/post-checkout",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "drift": [
@@ -1467,7 +1309,6 @@
     ".claude/settings.json: pm's part is missing",
     ".codex/hooks.json: pm's part is missing",
     ".codex/rules/pm.rules: pm's part is missing",
-    ".pm/hooks/post-checkout: pm's part is missing",
     ".gitignore: pm's part is missing"
    ],
    "rewrite": [
@@ -1498,10 +1339,6 @@
     [
      ".pm/config.toml",
      "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\nsummary_runtime = \"codex\"\ndesign_sources = [\"internal/**\", \"prime.md\"]\n"
-    ],
-    [
-     ".pm/hooks/post-checkout",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "removals": []
@@ -1538,10 +1375,6 @@
     [
      ".pm/config.toml",
      "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\nsummary_runtime = \"codex\"\ndesign_sources = [\"internal/**\", \"prime.md\"]\n"
-    ],
-    [
-     ".pm/hooks/post-checkout",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "drift": [
@@ -1552,7 +1385,6 @@
     ".claude/settings.json: holds Beads' hook entries (bd prime --hook-json), which pm 0.9.9 removes",
     ".codex/hooks.json: pm's part is missing",
     ".codex/rules/pm.rules: pm's part is missing",
-    ".pm/hooks/post-checkout: pm's part is missing",
     ".gitignore: pm's part is missing"
    ],
    "rewrite": [
@@ -1583,10 +1415,6 @@
     [
      ".pm/config.toml",
      "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\nsummary_runtime = \"codex\"\ndesign_sources = [\"internal/**\", \"prime.md\"]\n"
-    ],
-    [
-     ".pm/hooks/post-checkout",
-     "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n"
     ]
    ],
    "removals": [
@@ -1610,7 +1438,6 @@
     ".pm/.gitignore": "store/\nrun/\n",
     ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
     ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\nsummary_runtime = \"codex\"\ndesign_sources = [\"internal/**\", \"prime.md\"]\n",
-    ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
     ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
    },
    "plan": [],
@@ -1642,10 +1469,6 @@
      null
     ],
     [
-     ".pm/hooks/post-checkout",
-     null
-    ],
-    [
      ".gitignore",
      "*.log\nbuild/\n"
     ]
@@ -1663,7 +1486,7 @@
     ".pm/.gitignore": "store/\nrun/\n",
     ".pm/README.md": "# pm\n\nThis repo uses pm: the work store holds the work, Markdown records hold the context, and pm writes both and serves\nthem as a site.\n\n- Install the pinned version (`version` in `config.toml`):\n  `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v\u003cversion\u003e/install.sh | sh`, then run `pm init`\n  in each clone.\n- The work store is a Dolt database each clone keeps at `.pm/store/work`; pm syncs it through the remote's\n  `refs/pm/work`.\n- Records live on the `records` branch. Each clone checks it out once at `.pm/store/records`, and each worktree reads\n  it through `records/`, a git-ignored link; no other branch tracks `records/`.\n- Agents get pm's rules and the project's state from hooks (`pm prime`, `pm hook \u003cname\u003e`); run `pm --help` for the\n  commands.\n- `store/` and `run/` here are per clone and git-ignored; `config.toml`, this file and `.gitignore` are tracked.\n",
     ".pm/config.toml": "version = \"0.9.9\"   # the pm version every session must run\nremote = \"upstream\"\nmain_branch = \"trunk\"\nport = 8000         # the site port; the PORT environment variable overrides it for one run\nsite_url = \"https://pm.example.com\"\naccess_team = \"team.cloudflareaccess.com\"\naccess_aud = \"aud-tag\"\nsummary_runtime = \"codex\"\ndesign_sources = [\"internal/**\", \"prime.md\"]\n",
-    ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.9 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
+    ".pm/hooks/post-checkout": "#!/usr/bin/env sh\n# --- BEGIN PM v0.9.1 ---\npm hook git-post-checkout \"$@\" || exit $?\n# --- END PM ---\n",
     ".pm/hooks/pre-commit": "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit \"$@\" || exit $?\n# --- END PM ---\n\n# mine\necho done\n"
    },
    "plan": [
@@ -1676,6 +1499,10 @@
      "(file removed)"
     ],
     [
+     ".pm/hooks/post-checkout",
+     "(file removed)"
+    ],
+    [
      ".pm/hooks/pre-commit",
      "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
     ]
@@ -1683,7 +1510,8 @@
    "drift": [
     ".github/workflows/pm-records-copy.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it",
     ".github/workflows/pm-records-guard.yml: an earlier pm's file, retired with the main branch's records/ copy; pm 0.9.9 removes it",
-    ".pm/hooks/pre-commit: an earlier pm's section, retired with the main branch's records/ copy; pm 0.9.9 removes it"
+    ".pm/hooks/pre-commit: an earlier pm's section, retired with the main branch's records/ copy; pm 0.9.9 removes it",
+    ".pm/hooks/post-checkout: an earlier pm's file, retired with pm's git hooks, as session start sets each new worktree up; pm 0.9.9 removes it"
    ],
    "rewrite": [
     [
@@ -1692,6 +1520,10 @@
     ],
     [
      ".github/workflows/pm-records-guard.yml",
+     "(file removed)"
+    ],
+    [
+     ".pm/hooks/post-checkout",
      "(file removed)"
     ],
     [
@@ -1725,10 +1557,6 @@
      null
     ],
     [
-     ".pm/hooks/post-checkout",
-     null
-    ],
-    [
      ".gitignore",
      "*.log\nbuild/\n"
     ],
@@ -1743,6 +1571,10 @@
     [
      ".pm/hooks/pre-commit",
      "#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# beads' part\n# --- END BEADS INTEGRATION v1.3.1 ---\n\n# mine\necho done\n"
+    ],
+    [
+     ".pm/hooks/post-checkout",
+     null
     ]
    ]
   }

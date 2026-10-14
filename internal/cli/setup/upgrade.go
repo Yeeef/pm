@@ -13,10 +13,10 @@ import (
 	"strings"
 )
 
-// Upgrade is pm upgrade: print the upgrade guide of each release the move crosses, then move the pin to the running
-// pm, rewrite every managed piece as it writes them, take out Beads' pieces and the retired ones, point core.hooksPath
-// at pm's hooks and prune the pins no checkout on the machine pins; commits nothing, and names the untracking of a
-// records/ copy the branch still tracks. Without --to it never moves a pin down.
+// Upgrade is pm upgrade: print the upgrade guide of each release the move crosses, then move the pin to the running pm,
+// rewrite every managed piece as it writes them, take out Beads' pieces and the retired ones, unset a core.hooksPath at
+// an earlier pm's .pm/hooks and prune the pins no checkout on the machine pins; commits nothing, and names the
+// untracking of a records/ copy the branch still tracks. Without --to it never moves a pin down.
 func Upgrade(p Arguments, here string, stdout io.Writer) error {
 	to := p.Get("to")
 	if to == "" {
@@ -49,9 +49,6 @@ func Upgrade(p Arguments, here string, stdout io.Writer) error {
 	if err := install.RefuseLegacy(top, main, true); err != nil {
 		return err
 	}
-	if err := install.CheckHooksPath(top, main); err != nil {
-		return err
-	}
 	// read before any write, so a worktree git cannot read refuses the upgrade before it changes anything
 	stranded, err := strandedWorktrees(top, main, records, c.MainBranch)
 	if err != nil {
@@ -70,8 +67,8 @@ func Upgrade(p Arguments, here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// pm's hook files live in .pm/hooks: a clone Python pm set up points core.hooksPath at Beads' .beads/hooks
-	hooksPath, err := install.SetupHooksPath(main)
+	// pm's git hooks are retired: an earlier pm pointed core.hooksPath at its .pm/hooks
+	hooksPath, err := install.RetireHooksPath(main)
 	if err != nil {
 		return err
 	}
