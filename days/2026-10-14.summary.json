@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T21:29:04+00:00",
- "digest": "73638e83ef5df273",
+ "generated_at": "2026-10-14T21:39:15+00:00",
+ "digest": "51e08ddda1f0bb7d",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions and replies:** The owner can answer an agent's question on the site or in chat, and the first answer wins. Owner replies now reach a session by push alone.\n- **Agent modes and leave:** A session's interactive or autopilot mode now gates the owner-request judge. Agents open a project, sprint or task the owner asked for without asking leave.\n- **Pull request checks:** Each pull request now runs only the Go tests its changed files can affect. The AGENTS.md file is now a size-capped map, graded on every pull request.\n- **Design and code layout:** The record layer design page now covers per-sprint drafts, published at merge. The command code is split by noun, and old Python-port leftovers are gone."
+ "text": "- **Long-horizon benchmark survey:** The team wrote a shortlist of agent benchmarks that could measure pm. The shortlist sets up the first test of whether pm helps long-horizon task performance.\n- **Ask questions on the site:** Agent questions can now be answered on the site as well as in chat, and the first answer wins. Claude and Codex both raise these questions, and the site shows each question with its options and a free-text field.\n- **Interactive and autopilot modes:** The owner-request judge now checks the session mode, set by `pm interactive` or `pm autopilot`. The Claude ask hook waits on one blocking service call instead of polling each second.\n- **macOS CI speed:** Go tests now run less work per pull request. A pull request runs only the Go tests its changed files can affect. The median wall time is still above the target."
 }
