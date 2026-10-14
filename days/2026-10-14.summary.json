@@ -1,7 +1,7 @@
 {
  "date": "2026-10-14",
- "generated_at": "2026-10-14T08:09:53+00:00",
- "digest": "b00044d050bb31bf",
+ "generated_at": "2026-10-14T08:20:18+00:00",
+ "digest": "5487f17b48f23891",
  "model": "claude-haiku-5-5",
- "text": "- **Continuous integration speed:** Docs-only pull requests now skip the Go test matrix and pass. Median run time is still above the goal, because the macOS runners have few cores.\n- **Code structure:** The command-line code is split by noun, and every function is under the complexity limit. The code removes Python-port leftovers, including the old JSON package and the argument-parser emulation.\n- **Sprint close and checks:** Sprint close now checks only coverage patterns that the sprint added or changed while open. Another session's older pending pattern no longer blocks it.\n- **AGENTS.md guide:** AGENTS.md is now a short map under its size cap, and a size test guards it. An evaluation of the file runs in continuous integration on every pull request."
+ "text": "- **Agent guidance map:** AGENTS.md is now a short map under its size cap, held by a test. CI runs its evaluation on every pull request.\n- **CI wait time:** Pull requests start fewer macOS jobs, and docs-only changes skip the Go test matrix. The median run still takes longer than the goal, because the macOS runner has limited cores.\n- **Command-line code layout:** The command-line code is split by noun, and the Python-port leftovers are gone. Every function now stays under the complexity limit.\n- **Sprint close rule:** `pm sprint close` now checks only the covers patterns a sprint added or changed while open. Another session's older pending pattern no longer blocks it."
 }
