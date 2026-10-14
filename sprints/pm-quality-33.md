@@ -54,7 +54,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-14}
+The agents md cases job stays in CI, simplified: planted and diff cases only (no clean case), only on PRs that change the grader.
+Owner chose it in chat over a local-only eval with a calibration stamp: grader changes stay checked automatically in CI; the planted cases gave their verdict 5/5 locally after their defects were made unambiguous.
+:::
 
 ## Findings
 
