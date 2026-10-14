@@ -131,7 +131,7 @@ A question need is a need of kind `question` ([Work store](work-store.md), Data 
 | | Claude Code | Codex |
 |---|---|---|
 | Raises at | `.claude/settings.json`, PermissionRequest, matcher `AskUserQuestion`, timeout 86,400 s: at the call, beside the dialog, which shows at once | `.codex/hooks.json`, PostToolUse, matcher `request_user_input_async`, timeout 30 s: right after the call returns `{accepted: true}`; the turn goes on or ends |
-| Closes a chat answer at | PostToolUse, matcher `AskUserQuestion`, timeout 10 s | UserPromptSubmit, timeout 10 s, beside `pm hook inbox` |
+| Closes a chat answer at | PostToolUse, matcher `AskUserQuestion`, timeout 10 s | UserPromptSubmit, timeout 10 s |
 | Key | `prompt_id` with the questions' hash | `tool_use_id` |
 | Raised once | a call that is an open need of the session is not raised again | a call that is a need of the session, open or closed, is not raised again |
 | Then | waits for a site answer or a close (below), up to its 24 h timeout | exits; the pm service carries the site's answer |
