@@ -79,6 +79,17 @@ None yet.
   70.5 -> 20.5 s (load 10.1; second run 19.7 s at 5.7). go-test-work 27.7 ->
   12.6 s; make test-go keeps 4.3 cores busy (was 1.3).
 
+- make test-go fails intermittently at 8ad2720: 4 of 7 runs of
+  GOFLAGS=-count=1 make test-go exited 2, each on
+  TestServiceInstallStatusRestartAndLogsEndToEnd in go-test-race-service
+  (lifecycle_test.go:249, ":8002 is held by another store", a different
+  TestServiceInstallStatusRestartAndLogsEndToEnd temp store each time). make
+  test-go runs the service tests twice at once (go-test-but-work and
+  go-test-race-service under -j); CI runs them in separate jobs. Six runs of
+  go-test-race-service alone and three runs of the test in two concurrent
+  copies all passed, so the trigger is not fully established. Not fixed here
+  (sprint scope Out).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
