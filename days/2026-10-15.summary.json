@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T08:00:48+00:00",
- "digest": "d51e1a4c9e3b5d4b",
+ "generated_at": "2026-10-15T09:01:07+00:00",
+ "digest": "49ed84bcedbe98c9",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions:** An ask-tool question can now be answered on the site or in chat, and the first answer wins. Questions now close only from hook events, and pm no longer reads transcripts or rollouts for them.\n- **CI and test stability:** The AGENTS.md check grades diffs on pull requests and runs in full daily on main. Reruns now give the same verdict, and the Go test suite passes on every run.\n- **pm setup:** This repo now runs a newer pm release, and Claude Code auto memory is off here. pm no longer installs a git hook or owns `core.hooksPath`; new worktrees are set up at session start.\n- **Record layer:** The record-layer design is agreed, and the owner chose Model A. Work started on the published view and per-version pages on the site."
+ "text": "- **Owner questions:** An ask-tool question can now be answered on the site or in chat. The first answer is used. Questions now close from hook events, so transcript and rollout reads are gone. Owner replies reach a session by push alone.\n- **Record layer site:** The site now renders the records branch, including published images. Each draft has its own page with a full render. Section diffs and draft-to-draft comparison are available. A broken draft fails only its own version.\n- **CI check stability:** The AGENTS.md check gives the same verdict on repeated runs. Pull requests now grade in diff mode, and full grading runs daily on main. macOS Go jobs run once a day, not on each pull request.\n- **Repo setup:** The repo's pm pin moved to the newer release, and the store was synced. Claude Code auto memory is now off in this repo. pm no longer installs a git hook or owns the hooks path."
 }
