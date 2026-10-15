@@ -105,10 +105,18 @@ Rewriting a live workspace tree or index would write another worktree files, whi
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: design-page edits stay drafts until `pm sprint close` publishes them in one `records` commit with the sprint's code on main, and `--discard` drops a draft with its reason recorded.
+
+- `pm commit` keeps a design page in the workspace's draft commit, tagged with one sprint; the tag survives a rename on `records`; a follow conflict keeps a mark that holds the close.
+- `pm sprint close` publishes every page drafted for the sprint, from every workspace and `drafts/*` branch, after its existing checks; an overlap or a conflict mark refuses it and changes nothing; a rerun is safe; `--discard` is durable.
+- Covers: published patterns are held to main and wait only on a draft that drops the lost one; the waiting list and the close's covers hold retired.
+- `pm where` lists `drafts/` branches whose worktree is gone.
+- One unreadable workspace fails only its own operations; elsewhere it is a named warning.
 
 ### Against "Done when"
 
-> Each item, met or not, with its evidence (a page, a command, a number).
-
-Not closed yet.
+- Drafts in two worktrees: the published page is unchanged until the close, then both drafts publish in one `records` commit: met. Go tests in `internal/cli/sprint_publish_test.go` and `internal/store`; live check: before the close `records` and the site held neither edit, the close took 0.58 s and made exactly 1 commit holding both, the site showed them 2 s later (Findings).
+- A page another sprint published first refuses the close naming that commit; after resolve and commit the close passes: met. Go test.
+- `--discard` drops the draft and records the sprint decision: met. Go tests, including a rerun after a failed drop.
+- `pm where` lists a `drafts/` branch whose worktree is gone: met. Go test in `internal/store`.
+- CI green, merged through `make merge-ready`: see the stamp below. Three fresh-context reviews; every correctness finding fixed with a test; cross-clone drafts left to step 5 and named in the design page's Failure modes.
