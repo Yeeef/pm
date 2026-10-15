@@ -1,7 +1,7 @@
 {
  "date": "2026-10-16",
- "generated_at": "2026-10-15T23:20:56+00:00",
- "digest": "edb95c86194ff061",
+ "generated_at": "2026-10-15T23:31:13+00:00",
+ "digest": "58ace92855c45def",
  "model": "claude-haiku-5-5",
- "text": "- **Simpler pm command surface:** A command audit ranked the possible simplifications. The help output now hides machinery commands behind a separate flag.\n- **Design pages publish at sprint close:** Design page edits now publish in a single records commit at sprint close. A discarded draft keeps its recorded reason.\n- **Docs and link checks:** Docs now render math and MDX diagrams. The check command refuses dead record links and JSX in raw HTML.\n- **Drafts across clones:** Work started on per-clone draft refs for push, fetch and list. The record-drafts design page now describes the built state."
+ "text": "- **Record publishing at close:** Design pages now stay as drafts until the sprint closes, then publish in one records commit. Conflicts hold the close, and a discarded draft keeps its reason on record.\n- **Command surface simplification:** An audit doc now measures the command surface and ranks the simplifications. Help hides machinery commands, `task close` requires a reason, and `show --record` alone prints an outline.\n- **Docs site rendering and checks:** Docs now typeset TeX math, resolve links by slug, and list every doc in an index. `pm check` refuses dead record links and JSX in raw HTML."
 }
