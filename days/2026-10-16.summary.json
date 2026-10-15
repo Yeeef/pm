@@ -1,7 +1,7 @@
 {
  "date": "2026-10-16",
- "generated_at": "2026-10-15T23:10:39+00:00",
- "digest": "37ca87eba350c846",
+ "generated_at": "2026-10-15T23:20:56+00:00",
+ "digest": "edb95c86194ff061",
  "model": "claude-haiku-5-5",
- "text": "- **Command surface simplified:** A usage audit ranked simplifications for the pm command surface. pm now has one help renderer, and `pm --help` hides machinery commands. `show --record` alone prints the record outline. `task close` requires a reason. The prime guide is shorter, and its refusal lists moved to `--help`.\n- **Design pages publish at close:** Design-page edits now stay as drafts until a sprint closes. The close publishes them in one commit with the sprint's code. A discard drops a draft and records its reason. Conflict marks hold the close. Work on per-clone draft refs started.\n- **Docs site rendering:** Docs now typeset TeX math. Links between docs resolve by slug, and a docs index lists every doc. `pm check` refuses dead record links and raw JSX in HTML. A harness record now points its feedback links at the renamed doc."
+ "text": "- **Simpler pm command surface:** A command audit ranked the possible simplifications. The help output now hides machinery commands behind a separate flag.\n- **Design pages publish at sprint close:** Design page edits now publish in a single records commit at sprint close. A discarded draft keeps its recorded reason.\n- **Docs and link checks:** Docs now render math and MDX diagrams. The check command refuses dead record links and JSX in raw HTML.\n- **Drafts across clones:** Work started on per-clone draft refs for push, fetch and list. The record-drafts design page now describes the built state."
 }
