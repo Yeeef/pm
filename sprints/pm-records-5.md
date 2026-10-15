@@ -39,7 +39,7 @@ A design page's edits reach the published records only when its sprint closes, w
 
 > Where is the detail?
 
-None yet.
+- [Record drafts and publishing](../design/record-drafts.md): Publish at sprint close, Covers, Increments 3 and 4
 
 ## Progress
 
