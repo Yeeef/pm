@@ -36,7 +36,8 @@ An agent can rename a design page or a doc, its slug, its title or both, in one 
 
 > Where is the detail?
 
-None yet.
+- [pm CLI](../design/pm-cli.md): the `pm design rename` and `pm doc rename` rows of Commands.
+- [Record layer](../design/record-layer.md): The design page, how a rename keeps links whole.
 
 ## Progress
 

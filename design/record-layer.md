@@ -160,7 +160,10 @@ the one focused page it needs instead of hunting through a long one.
 
 Every design page has the same sections, in this order, so every design reads
 the same way and agents know where things go. `pm design new` creates a page
-with all of them, each holding its prompt line and "None yet.".
+with all of them, each holding its prompt line and "None yet.". `pm design
+rename` and `pm doc rename` move a page or a doc to a new slug or title and
+rewrite every record's Markdown links to it, and a page's waivers, in the same
+commit (`records.Rename`), so no link names a record that is gone.
 
 | Section | Prompt line | Required |
 |---|---|---|
