@@ -72,6 +72,11 @@ The design page site-replies stays as it is for this sprint's code changes.
 serve.go's change is the drafts source and its stamp; who may reach the site and how replies are served are unchanged
 :::
 
+::: decision {source=agent date=2026-10-15}
+The Stop hook check of the session own workspace moves from step 3 into this sprint.
+Without it a worktree session edits records the Stop hook no longer sees, so this PR would drop a check that exists today; in a workspace the check is simpler than the transcript match it replaces there.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
