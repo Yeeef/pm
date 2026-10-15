@@ -75,6 +75,11 @@ The close drops a published page from a live workspace by removing its sprint li
 Rewriting a live workspace tree or index would write another worktree files, which follow never does; an untagged page is ignored by the site, pm clean and the gate until then.
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page session-claims stays as it is for this sprint's code changes.
+agent.go only carries the command's stderr into repo so a write can print a warning about an unreadable workspace; claims, holders and liveness are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
