@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T21:48:05+00:00",
- "digest": "dd68e4a060c5825a",
+ "generated_at": "2026-10-15T21:58:30+00:00",
+ "digest": "1d6e6e405b32b544",
  "model": "claude-haiku-5-5",
- "text": "- **Record layer workspaces:** Each code worktree now has its own records workspace, and `pm commit` publishes its journals. The site shows each record's published version beside every draft.\n- **Owner questions:** Owners can now answer ask-tool questions on the site or in chat. The first answer wins, and question endings reach pm through hook events.\n- **CI and checks:** The AGENTS.md check gives the same verdict on every rerun. Pull requests run that check in diff mode, and macOS Go jobs run once a day.\n- **Docs rendering:** Docs now typeset math with KaTeX and render raw HTML and SVG diagrams. Doc links resolve by slug, and a new docs index lists the docs."
+ "text": "- **Owner questions and replies:** Ask-tool questions can now be answered on the site or in chat, and the first answer wins. Owner replies reach a session by push alone.\n- **Records workspaces and versions:** Each worktree now edits records in its own workspace, and pm commit publishes them. The site shows each workspace and draft as a labelled version.\n- **Docs rendering:** Docs now typeset math with KaTeX, render SVG diagrams, and resolve links by slug. MDX is no longer supported, and a docs index lists every note.\n- **CI and checks:** The AGENTS.md check gives the same verdict on every rerun, and its jobs take less time. The macOS Go jobs now run once a day, not on every PR and push."
 }
