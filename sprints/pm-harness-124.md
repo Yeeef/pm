@@ -58,6 +58,10 @@ None yet.
   (go-os-tests.txt, go_os_tests.py, go-os-check) is removed: 8 files changed,
   +121 -475 lines. No macOS run has happened under the new schedule yet.
 
+- First macOS run on main after the merge (gh workflow run pm-go.yml --ref
+  main, run 38813318122 on 899bd3c): build-test (darwin-arm64) passed in 2m33s
+  and race (darwin-arm64) in 1m43s; the Linux job was skipped, as designed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
