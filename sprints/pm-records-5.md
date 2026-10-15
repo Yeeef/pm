@@ -57,7 +57,22 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check of publish at sprint close (this branch's .go/pm 0.9.0-dev,
+  commit 7d32fbc) in a scratch clone of a scratch bare origin under
+  /tmp/pmlc9Uyh, HOME, CODEX_HOME and CLAUDE_CONFIG_DIR there, the harness's
+  fake_sched as supervisor (the service served the site): pm init 1.36 s;
+  worktrees one and two made records workspaces by pm init --session-start;
+  each edited a different paragraph of design/parser.md and ran pm commit
+  --sprint r-vvlj.1: 'drafted records/design/parser.md for sprint r-vvlj.1 on
+  drafts/one: pm sprint close r-vvlj.1 publishes it', 0.25 s and 0.24 s.
+  Before the close: records:design/parser.md held neither edit (0 and 0), the
+  site's design/parser.html neither edit with both versions listed (worktree
+  one on one, worktree two on two), drafts/one/design/parser.html held one's
+  edit. pm sprint close r-vvlj.1 from one, 0.58 s: 'published
+  design/parser.md', exactly 1 records commit (065e2f3 '[SPRINT] demo sprint
+  1: closed' with 'Published: design/parser.md r-vvlj.1'), holding both edits;
+  the site's page showed both 2 s later; drafts/one and drafts/two then tagged
+  0 pages.
 
 ## Delivery report
 
