@@ -219,8 +219,9 @@ type Followed struct {
 //     with markers, as an uncommitted edit;
 //  4. the branch moves to the tip plus the new draft commit; a file not uncommitted is refreshed from the new tree.
 //
-// The markers name the records range merged in (records <base>..<tip>), which pm commit reads to name the commits. It
-// writes the files, then moves the branch and the index; a failure puts back what it changed.
+// The markers name the records range merged in (records <base>..<tip>), which pm commit reads to name the commits. A
+// binary file is not merged: an uncommitted one stays as the workspace has it. It writes the files, then moves the
+// branch and the index; a failure puts back what it changed.
 func Follow(store string, w Workspace) (Followed, error) {
 	tip, err := Git(store, "rev-parse", "refs/heads/"+Branch)
 	if err != nil {
@@ -315,8 +316,13 @@ func followPlan(store string, w Workspace, d draftState, head string, conflicted
 }
 
 // mergedText is ours merged with theirs from base, nil when ours removed the file and the merge keeps nothing; a
-// conflict is noted in f.
+// conflict is noted in f. A binary file (a figure) is never merged: the workspace's edit stands whole.
 func mergedText(base, ours, theirs *string, label, p string, f *Followed) (*string, error) {
+	for _, t := range []*string{base, ours, theirs} {
+		if t != nil && strings.Contains(*t, "\x00") {
+			return ours, nil
+		}
+	}
 	text, conflict, err := mergeFile(base, ours, theirs, label)
 	if err != nil {
 		return nil, err

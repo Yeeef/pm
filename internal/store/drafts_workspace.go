@@ -131,6 +131,10 @@ func AddWorkspace(store, code string) (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("%s is the main checkout, which keeps its records/ link to the store", code)
 	}
+	if name == EditsDraft || name == workspacesDraft { // its draft's URL would be the store's, or the error's
+		return "", errorf("a worktree named %s gets no records workspace: the site names a draft %s already; rename "+
+			"the worktree (git worktree move) and run %s there", name, name, Setup)
+	}
 	w := Workspace{Code: code, Dir: filepath.Join(code, "records"), Name: name}
 	link := ""
 	if st, err := os.Lstat(w.Dir); err == nil {

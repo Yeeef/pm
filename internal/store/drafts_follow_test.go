@@ -292,3 +292,30 @@ func dirtyOf(t *testing.T, w Workspace) []string {
 	}
 	return dirty
 }
+
+// A figure cannot merge: the workspace's uncommitted figure stands whole, and the follow goes on.
+func TestFollowLeavesAnUncommittedBinaryFileAsTheWorkspaceHasIt(t *testing.T) {
+	root, store := clone(t)
+	publish(t, store, "docs/fig.png", "\x89PNG\x00base")
+	w := workspace(t, root, store, "wt")
+	write(t, w.Dir, "docs/fig.png", "\x89PNG\x00mine")
+	publish(t, store, "docs/fig.png", "\x89PNG\x00published")
+	if f := follow(t, store, w); f.Conflicts != nil {
+		t.Errorf("conflicts %v", f.Conflicts)
+	}
+	if got := read(t, w.Dir, "docs/fig.png"); got != "\x89PNG\x00mine" {
+		t.Errorf("the figure: %q", got)
+	}
+	if head, tip := sh(t, store, "git rev-parse "+w.Ref()), sh(t, store, "git rev-parse records"); head != tip {
+		t.Errorf("the branch did not follow: %s, tip %s", head, tip)
+	}
+}
+
+func TestAWorktreeNamedLikeADraftGetsNoWorkspace(t *testing.T) {
+	root, store := clone(t)
+	code := filepath.Join(filepath.Dir(root), "store")
+	sh(t, root, "git worktree add -q -b store-branch "+code)
+	if _, err := AddWorkspace(store, code); err == nil || !strings.Contains(err.Error(), "the site names a draft store") {
+		t.Errorf("AddWorkspace in a worktree named store: %v", err)
+	}
+}

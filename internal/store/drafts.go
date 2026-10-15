@@ -81,6 +81,9 @@ func (e Edits) files() (map[string]*string, error) {
 	return files, nil
 }
 
+// workspacesDraft names the draft that says why the workspaces could not be listed.
+const workspacesDraft = "workspaces"
+
 // Clone is a clone's drafts: the store's uncommitted edits (Edits), then each workspace's, named by its code
 // worktree's admin name.
 type Clone struct{ Store string }
@@ -89,7 +92,7 @@ func (c Clone) Drafts() []Draft {
 	out := Edits(c).Drafts()
 	trees, err := Git(c.Store, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
-		return append(out, Draft{Name: "workspaces", Label: "the records workspaces", Err: err})
+		return append(out, Draft{Name: workspacesDraft, Label: "the records workspaces", Err: err})
 	}
 	branches := map[string]string{} // each worktree's branch, by its path
 	type entry struct{ path, branch string }

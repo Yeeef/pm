@@ -59,7 +59,10 @@ func Run(here string, apply bool, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	c := &cleaner{main: main, caller: realPath(strings.TrimSpace(caller)), remote: cfg.Remote, mainBranch: cfg.MainBranch,
+	if caller = strings.TrimSpace(caller); store.IsWorkspace(caller) { // pm clean run inside a records workspace
+		caller = filepath.Dir(caller)
+	}
+	c := &cleaner{main: main, caller: realPath(caller), remote: cfg.Remote, mainBranch: cfg.MainBranch,
 		mainRef: "refs/remotes/" + cfg.Remote + "/" + cfg.MainBranch, mainName: cfg.Remote + "/" + cfg.MainBranch}
 	if _, err := cleanGit(main, "rev-parse", "--verify", "--quiet", c.mainRef); err != nil {
 		return fmt.Errorf("no %s in this clone to compare branches with; run git fetch %s %s", c.mainName, cfg.Remote,

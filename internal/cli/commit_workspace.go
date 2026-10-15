@@ -26,8 +26,13 @@ func isDesignPage(rel string) bool { return path.Dir(rel) == "design" && strings
 // draft's pages on the records branch in the store, refusing a file the store has uncommitted edits to; follow again.
 // Until publish at sprint close is built, the draft's pages publish here with the journals (the sprint's decision).
 func (e *env) commitWorkspace(w store.Workspace, message string, p *Parsed) (string, error) {
-	if _, err := store.Follow(e.records, w); err != nil {
+	followed, err := store.Follow(e.records, w)
+	if err != nil {
 		return "", err
+	}
+	for _, rel := range followed.Conflicts {
+		fmt.Fprintf(e.stdout, "records/%s: the records branch changed it under your uncommitted edit; resolve the "+
+			"conflict markers there\n", rel)
 	}
 	dirty, err := w.Dirty()
 	if err != nil {
@@ -52,7 +57,16 @@ func (e *env) commitWorkspace(w store.Workspace, message string, p *Parsed) (str
 	texts := map[string]*string{}
 	changes := map[string]*string{}
 	for _, rel := range rels {
-		b, err := os.ReadFile(filepath.Join(w.Dir, filepath.FromSlash(rel)))
+		p := filepath.Join(w.Dir, filepath.FromSlash(rel))
+		if st, err := os.Lstat(p); err == nil && st.Mode()&os.ModeSymlink != 0 {
+			return "", refuse("records/%s is a symlink; a record is a file", rel)
+		}
+		if strings.HasSuffix(rel, ".summary.json") && fsutil.Exists(p) {
+			if _, err := records.ReadSummary(p); err != nil {
+				return "", err
+			}
+		}
+		b, err := os.ReadFile(p)
 		if err != nil && !os.IsNotExist(err) {
 			return "", err
 		}

@@ -151,6 +151,7 @@ A change to setup, the hooks, the site or replies gets a live check besides its 
 - **A check of `pm init`, `pm push` or the service runs in a scratch clone of a scratch origin** under a temp directory
   with `HOME` and `CODEX_HOME` there, as the fixtures do, never on a real clone's store or service.
 - The session-start path is checked in a scratch worktree: `git worktree add --no-checkout` then `git reset --hard`
-  (Claude Code's own sequence), or a session started with `claude -w <name>`. Remove the worktree and its branch
-  afterwards (`git worktree remove`, `git branch -D`).
+  (Claude Code's own sequence), or a session started with `claude -w <name>`. Session start gives it a records
+  workspace; remove that first, then the worktree, then both branches (`git worktree remove <wt>/records`,
+  `git worktree remove <wt>`, `git branch -D drafts/<name> <branch>`).
 - The live check's command, output and numbers go in the sprint's Findings and its delivery report.
