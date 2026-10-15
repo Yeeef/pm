@@ -52,7 +52,10 @@ A draft made in one clone shows on every other clone's site, a sprint closed fro
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-16}
+The design page agent-sync stays as it is for this sprint's code changes.
+The sync gains a drafts step; this page keeps the agent profile and leaves how records and drafts push to records-store and record-drafts, which this sprint updated
+:::
 
 ## Findings
 
