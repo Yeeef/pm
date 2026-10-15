@@ -5,6 +5,7 @@ import (
 	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -43,9 +44,18 @@ func cmdDocNew(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	var target string
-	if bead, ok := given(p, "bead"); ok {
-		if r.item(bead) == nil {
-			return "", refuse("--bead %s is not in the work store", bead)
+	flag, bead := "--sprint", p.Get("sprint")
+	want := work.Sprint
+	if id, ok := given(p, "task"); ok {
+		flag, bead, want = "--task", id, work.Task
+	}
+	if bead != "" {
+		it := r.item(bead)
+		if it == nil {
+			return "", refuse("%s %s is not in the work store", flag, bead)
+		}
+		if it.Type != want {
+			return "", refuse("%s %s is a %s, not a %s", flag, bead, it.Type, want)
 		}
 		inside := false
 		chain := append([]string{bead}, r.x.Ancestors(bead)...)
@@ -55,7 +65,7 @@ func cmdDocNew(e *env, p *Parsed) (string, error) {
 			}
 		}
 		if !inside {
-			return "", refuse("--bead %s is not inside a project with a record", bead)
+			return "", refuse("%s %s is not inside a project with a record", flag, bead)
 		}
 		target = "bead: " + bead
 	} else {

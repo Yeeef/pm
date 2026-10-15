@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,12 +25,14 @@ import (
 
 // storeCommand is one of them.
 type storeCommand struct {
-	usage string // after "pm "
+	// usage is the synopsis after "pm ": the command's words, then its flags with their metavars, an optional one in
+	// [ ], alternatives as (A | B) when one is required and [A | B] when neither is. The help renderer takes the
+	// metavars, required flags and groups from it (storeHelpCommand); the usage line it prints is the renderer's.
+	usage string
 	about string
 	flags func(fs *pflag.FlagSet)
-	// args is the number of positional arguments it takes.
-	args int
-	run  func(c *storeCall) error
+	id    string // the help of its one positional argument, ID; "" for none
+	run   func(c *storeCall) error
 }
 
 // storeCall is one run of a store command: its parsed flags and arguments, the store, who runs it, and its output.
@@ -51,7 +54,7 @@ var storeForms = map[string]*storeCommand{
 		about: "One item, any type: its fields, holder and whether that session is live, blockers, children, needs " +
 			"and comments. Without ID, pm show prints project state level by level (pm show --help).",
 		flags: func(fs *pflag.FlagSet) { fs.Bool("json", false, "the item as one JSON object, as pm export prints it") },
-		args:  1,
+		id:    "the item's id, any type",
 		run:   showItem,
 	},
 	"task add --parent": {
@@ -115,19 +118,25 @@ func runStoreCommand(name string, args []string, open func() (*work.Dolt, error)
 	stdout io.Writer) error {
 	sc := storeCommands[name]
 	fs := pflag.NewFlagSet("pm "+name, pflag.ContinueOnError)
+	fs.SortFlags = false
 	fs.SetOutput(io.Discard)
 	if sc.flags != nil {
 		sc.flags(fs)
 	}
-	usage := "usage: pm " + sc.usage
+	hc := storeHelpCommand(sc, fs)
+	usage := "usage: " + hc.Usage()
 	if err := fs.Parse(args); errors.Is(err, pflag.ErrHelp) {
-		fmt.Fprintf(stdout, "%s\n\n%s\n\noptions:\n%s", usage, sc.about, fs.FlagUsages())
+		fmt.Fprint(stdout, hc.HelpText())
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("%v\n%s", err, usage)
 	}
-	if fs.NArg() != sc.args {
-		return fmt.Errorf("pm %s takes %d argument(s), not %d\n%s", name, sc.args, fs.NArg(), usage)
+	want := 0
+	if sc.id != "" {
+		want = 1
+	}
+	if fs.NArg() != want {
+		return fmt.Errorf("pm %s takes %d argument(s), not %d\n%s", name, want, fs.NArg(), usage)
 	}
 	d, err := open()
 	if err != nil {
@@ -136,6 +145,53 @@ func runStoreCommand(name string, args []string, open func() (*work.Dolt, error)
 	c := &storeCall{fs: fs, args: fs.Args(), d: d, session: currentSession(), live: session.Live, stdin: stdin,
 		stdout: stdout}
 	return errors.Join(sc.run(c), d.Shutdown())
+}
+
+var (
+	usageMetavar = regexp.MustCompile(`--([a-z-]+) ([A-Z_]+)`)
+	usageGroup   = regexp.MustCompile(`[(\[]([^()\[\]]*\|[^()\[\]]*)[)\]]`)
+)
+
+// storeHelpCommand is a store command as a tree command, for the help renderer every other command's --help uses:
+// its positional ID, and each flag as fs defines it, with the metavar, requiredness and group its usage declares.
+func storeHelpCommand(sc *storeCommand, fs *pflag.FlagSet) *command {
+	c := &command{Name: "pm", Description: sc.about}
+	for _, w := range strings.Fields(sc.usage) {
+		if w == "ID" || strings.HasPrefix(w, "-") || strings.HasPrefix(w, "[") || strings.HasPrefix(w, "(") {
+			break
+		}
+		c = &command{Name: w, Parent: c, Description: sc.about}
+	}
+	meta := map[string]string{}
+	for _, m := range usageMetavar.FindAllStringSubmatch(sc.usage, -1) {
+		meta[m[1]] = m[2]
+	}
+	group := map[string]int{}
+	for _, m := range usageGroup.FindAllStringSubmatchIndex(sc.usage, -1) {
+		c.Groups = append(c.Groups, sc.usage[m[0]] == '(')
+		for _, f := range usageMetavar.FindAllStringSubmatch(sc.usage[m[2]:m[3]], -1) {
+			group[f[1]] = len(c.Groups)
+		}
+	}
+	optional := regexp.MustCompile(`\[[^\]]*\]`).ReplaceAllString(sc.usage, "")
+	fs.VisitAll(func(f *pflag.Flag) {
+		a := arg{Flags: []string{"--" + f.Name}, Dest: f.Name, Kind: value, Group: group[f.Name],
+			Help: strings.TrimSuffix(f.Usage, " (required)")}
+		if f.Value.Type() == "bool" {
+			a.Kind = switchOn
+		} else {
+			if meta[f.Name] == "" {
+				panic(fmt.Sprintf("pm: the usage of pm %s gives --%s no metavar", sc.usage, f.Name))
+			}
+			a.Metavar = []string{meta[f.Name]}
+		}
+		a.Required = a.Group == 0 && strings.Contains(optional, "--"+f.Name+" ")
+		c.Args = append(c.Args, a)
+	})
+	if sc.id != "" {
+		c.Args = append(c.Args, arg{Dest: "id", Metavar: []string{"ID"}, Kind: value, Required: true, Help: sc.id})
+	}
+	return c
 }
 
 func (c *storeCall) flag(name string) string {

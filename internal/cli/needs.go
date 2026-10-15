@@ -16,8 +16,6 @@ import (
 // it with its resolution (the work-store page, Commands).
 
 const (
-	levelRule = "project if a later sprint must follow it; sprint if it is about this sprint's own work; " +
-		"skip choices cheap to reverse"
 	needShape = "a decision need takes its parts as flags, one line each: one --question, one or more --fact, two or " +
 		"more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON naming " +
 		"the option taken if the owner does not answer. Put each value in single quotes, so code spans stay, e.g.:\n" +

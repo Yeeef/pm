@@ -138,6 +138,8 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
     writes = [
         (("doc", "new", "probe", "--title", "Probe: one", "--project", "demo"), "Body.",
          f"pm: created records/docs/{TODAY}-probe.md"),
+        (("doc", "new", "probe-sprint", "--title", "Probe: two", "--sprint", "repo-demo.1"), "Body.",
+         f"pm: created records/docs/{TODAY}-probe-sprint.md"),
         (("design", "new", "parser", "--title", "The parser", "--project", "demo"), "",
          "pm: created records/design/parser.md; fill in its sections by hand in records/, then pm commit -m \"…\" "
          "records/design/parser.md"),
@@ -155,6 +157,9 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
         assert res.returncode == 0, res.stderr
         assert committed(repo, [message])
     assert repo.unchanged()
+    assert f"bead: repo-demo.1\n" in (repo.records / f"docs/{TODAY}-probe-sprint.md").read_text()
+    refused(repo, "doc", "new", "probe-task", "--title", "T", "--task", "repo-demo.1", text="Body.",
+            match=r"--task repo-demo\.1 is a sprint, not a task")
     feedback = (repo.records / "docs/pm-feedback.md").read_text()
     assert feedback.count("UTC, session `sess-1`") == 2
     assert "About project `demo`, sprint `repo-demo.1`.\n\nThe refusal" in feedback

@@ -135,8 +135,8 @@ options:
   -h, --help        show this help message and exit
 ===== pm decision add --help
 usage: pm decision add [-h] --decision TEXT --reason TEXT
-                       [--level {project,sprint}] [--project NAME]
-                       [--sprint ID] [--until UNTIL] [--need ID | --confirmed]
+                       --level {project,sprint} [--project NAME] [--sprint ID]
+                       [--until UNTIL] [--need ID | --confirmed]
 
 Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it.
 
@@ -145,7 +145,7 @@ options:
   --decision TEXT       the decision, in one line
   --reason TEXT         why it holds, in one line
   --level {project,sprint}
-                        required, no default: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse
+                        no default: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse
   --project NAME        the project record name (with --level project)
   --sprint ID           the sprint's id (with --level sprint)
   --until UNTIL         a known condition to revisit the decision
@@ -252,12 +252,16 @@ options:
   --default LABEL REASON
                         the option taken if the owner does not answer, and why
 ===== pm need dismiss --help
-usage: pm need dismiss ID --reason REASON
+usage: pm need dismiss [-h] --reason REASON ID
 
 Close an open need as dismissed, with no answer: a [TEST] need, a replaced review, or a decision or action that became moot. pm sprint close skips a dismissed review.
 
+positional arguments:
+  ID               the open need's id
+
 options:
-      --reason string   why it is dismissed (required)
+  -h, --help       show this help message and exit
+  --reason REASON  why it is dismissed
 ===== pm reply --help
 usage: pm reply [-h] {read,add} ...
 
@@ -279,13 +283,17 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 ===== pm reply add --help
-usage: pm reply add ID (--text TEXT | --text-file FILE)
+usage: pm reply add [-h] (--text TEXT | --text-file FILE) ID
 
 The owner's answer to an open need, at a shell: a reply, as a reply on the site writes. The need stays open; the session that raised it reads the reply and records it, which closes the need.
 
+positional arguments:
+  ID                the open need's id
+
 options:
-      --text string        the answer, as one argument
-      --text-file string   the answer, from a file; - reads stdin, from a pipe or heredoc only
+  -h, --help        show this help message and exit
+  --text TEXT       the answer, as one argument
+  --text-file FILE  the answer, from a file; - reads stdin, from a pipe or heredoc only
 ===== pm doc --help
 usage: pm doc [-h] {new,rename} ...
 
@@ -297,8 +305,8 @@ positional arguments:
 options:
   -h, --help    show this help message and exit
 ===== pm doc new --help
-usage: pm doc new [-h] --title TITLE (--bead ID | --project NAME)
-                  [--text-file PATH | --text TEXT]
+usage: pm doc new [-h] --title TITLE (--sprint ID | --task ID |
+                  --project NAME) [--text-file PATH | --text TEXT]
                   slug
 
 positional arguments:
@@ -307,7 +315,8 @@ positional arguments:
 options:
   -h, --help        show this help message and exit
   --title TITLE
-  --bead ID         the sprint or task the doc belongs to
+  --sprint ID       the sprint the doc belongs to
+  --task ID         the task the doc belongs to
   --project NAME    the project the doc belongs to
   --text-file PATH  required: the doc's Markdown body; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
@@ -511,14 +520,15 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
 ===== pm task add --help
-usage: pm task add [-h] --sprint ID --title TITLE [--text-file PATH |
-                   --text TEXT]
+usage: pm task add [-h] (--sprint ID | --parent TASK) --title TITLE
+                   [--text-file PATH | --text TEXT]
 
 Create a task in an open sprint. pm task add --parent TASK --title TITLE, in place of --sprint, adds a sub-task under the open task TASK instead (pm task add --parent TASK --help).
 
 options:
   -h, --help        show this help message and exit
   --sprint ID       the open sprint's id
+  --parent TASK     the open task a sub-task is a part of, in place of --sprint (pm task add --parent TASK --help)
   --title TITLE
   --text-file PATH  optional: the task's description; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
@@ -561,28 +571,37 @@ options:
   --text-file PATH  required: why the task moves, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
 ===== pm task ready --help
-usage: pm task ready [--sprint ID] [--json]
+usage: pm task ready [-h] [--sprint ID] [--json]
 
 The tasks an agent can claim now: open, under open ancestors, held by no live session, with no open blocker of their own or an ancestor's. By sprint number, then id; tasks directly under a project last. A task whose holder is not live is ready and marked a stale holder; pm task claim takes it over.
 
 options:
-      --json            the ready tasks as a JSON array of items
-      --sprint string   only the tasks under this sprint
+  -h, --help   show this help message and exit
+  --sprint ID  only the tasks under this sprint
+  --json       the ready tasks as a JSON array of items
 ===== pm task edit --help
-usage: pm task edit ID [--title TITLE] [--text TEXT | --text-file FILE]
+usage: pm task edit [-h] [--title TITLE] [--text TEXT | --text-file FILE] ID
 
 Set a task's title, its description (the body: --text, or --text-file - <<'EOF' … EOF), or both. A scope change is still pm task move or a sprint decision.
 
+positional arguments:
+  ID                the task's id
+
 options:
-      --text string        the new description, as one argument
-      --text-file string   the new description, from a file; - reads stdin, from a pipe or heredoc only
-      --title string       the new title
+  -h, --help        show this help message and exit
+  --title TITLE     the new title
+  --text TEXT       the new description, as one argument
+  --text-file FILE  the new description, from a file; - reads stdin, from a pipe or heredoc only
 ===== pm task release --help
-usage: pm task release ID
+usage: pm task release [-h] ID
 
 Clear the holder of a task this session ($CLAUDE_CODE_SESSION_ID, $CODEX_SESSION_ID or $CODEX_THREAD_ID, as pm task claim takes it) holds.
 
+positional arguments:
+  ID          the task's id
+
 options:
+  -h, --help  show this help message and exit
 ===== pm dep --help
 usage: pm dep [-h] {add,rm} ...
 
@@ -594,19 +613,27 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 ===== pm dep add --help
-usage: pm dep add ID --on BLOCKER
+usage: pm dep add [-h] --on BLOCKER ID
 
 BLOCKER blocks ID: ID, and every task under it, waits until BLOCKER closes. Refuses a blocker that does not exist and a cycle over blocked_by, ancestors included.
 
+positional arguments:
+  ID            the item that waits
+
 options:
-      --on string   the blocker (required)
+  -h, --help    show this help message and exit
+  --on BLOCKER  the blocker
 ===== pm dep rm --help
-usage: pm dep rm ID --on BLOCKER
+usage: pm dep rm [-h] --on BLOCKER ID
 
 BLOCKER no longer blocks ID.
 
+positional arguments:
+  ID            the item that waits
+
 options:
-      --on string   the blocker (required)
+  -h, --help    show this help message and exit
+  --on BLOCKER  the blocker
 ===== pm comment --help
 usage: pm comment [-h] {add} ...
 
@@ -617,13 +644,17 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 ===== pm comment add --help
-usage: pm comment add ID (--text TEXT | --text-file FILE)
+usage: pm comment add [-h] (--text TEXT | --text-file FILE) ID
 
 Add a note to an item: --text, or --text-file - <<'EOF' … EOF. Its author is this session, or owner when no session runs the command.
 
+positional arguments:
+  ID                the item's id
+
 options:
-      --text string        the note, as one argument
-      --text-file string   the note, from a file; - reads stdin, from a pipe or heredoc only
+  -h, --help        show this help message and exit
+  --text TEXT       the note, as one argument
+  --text-file FILE  the note, from a file; - reads stdin, from a pipe or heredoc only
 ===== pm record --help
 usage: pm record [-h] {link} ...
 
@@ -652,11 +683,12 @@ Check that every record renders with the work store, writing nothing; pm commit 
 options:
   -h, --help  show this help message and exit
 ===== pm sync --help
-usage: pm sync
+usage: pm sync [-h]
 
 Sync the work store with the repo's remote now: the pm service pulls, resolves conflicts by the merge rules and pushes, as it does every 10 minutes. A conflict no rule settles fails, names the item and field, and leaves the store as it was.
 
 options:
+  -h, --help  show this help message and exit
 ===== pm service --help
 usage: pm service [-h] {install,status,restart,stop,logs,run} ...
 

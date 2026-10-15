@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/spf13/pflag"
 )
 
 // help is pm <argv> --help's output, failing the test unless it exits 0.
@@ -59,6 +61,15 @@ func TestEveryCommandPmRunsIsListedInHelp(t *testing.T) {
 	}
 	walk(tree, nil)
 	for name, sc := range storeCommands {
+		// its help is the shared renderer's: the usage line with [-h], each flag with its usage's metavar
+		fs := pflag.NewFlagSet(name, pflag.ContinueOnError)
+		if sc.flags != nil {
+			sc.flags(fs)
+		}
+		if text := storeHelpCommand(sc, fs).HelpText(); !strings.HasPrefix(text, "usage: pm "+strings.Fields(name)[0]) ||
+			!strings.Contains(text, " [-h]") {
+			t.Errorf("pm %s --help is not the shared renderer's:\n%s", name, text)
+		}
 		if c := leaf(name); c != nil {
 			if c.Store != sc || c.Subs != nil {
 				t.Errorf("pm %s is in the tree but not as its work-store command", name)
