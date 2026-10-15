@@ -516,6 +516,9 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	} else if inMain && !(isLink(link) && Resolve(link) == Resolve(records)) {
 		out = append(out, fmt.Sprintf("records link: %s is not a link to %s; run pm init", link, records))
 	}
+	if err := store.CheckGit(); err != nil {
+		out = append(out, "git: "+err.Error())
+	}
 	if old, err := OldSparse(top); err != nil {
 		return nil, err
 	} else if old {

@@ -319,3 +319,22 @@ func TestAWorktreeNamedLikeADraftGetsNoWorkspace(t *testing.T) {
 		t.Errorf("AddWorkspace in a worktree named store: %v", err)
 	}
 }
+
+func TestAGitOlderThanMergeTreesMergeBaseIsRefused(t *testing.T) {
+	for out, ok := range map[string]bool{"git version 2.43.0": true, "git version 2.40.0.windows.1": true,
+		"git version 3.0.1": true, "git version 2.39.3 (Apple Git-146)": false, "git version 1.9.5": false} {
+		err := gitNewEnough(out)
+		if (err == nil) != ok {
+			t.Errorf("%q: %v", out, err)
+		}
+		if !ok && err != nil && !strings.Contains(err.Error(), "older than 2.40, which records workspaces need") {
+			t.Errorf("%q: %v", out, err)
+		}
+	}
+	if err := gitNewEnough("not git"); err == nil {
+		t.Error("an unreadable version passed")
+	}
+	if err := CheckGit(); err != nil {
+		t.Errorf("this machine's git: %v", err)
+	}
+}

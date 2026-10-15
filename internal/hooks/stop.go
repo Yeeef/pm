@@ -1,6 +1,8 @@
 package hooks
 
-// pm hook stop: an agent may not hand back with records it edited by hand left uncommitted in the store. The store is
+// pm hook stop: an agent may not hand back with records it edited by hand left uncommitted. In a worktree with a
+// records workspace, every uncommitted file of that workspace is its sessions' own, so the hook blocks on them all,
+// reading no transcript (workspaceStopReason). Elsewhere (the main checkout) it checks the store,
 // <main checkout>/.pm/store/records, found from the clone's common git dir. When it has uncommitted files that this
 // session's tool calls name (Claude Code tool_use inputs; Codex function_call arguments, custom_tool_call inputs and
 // local_shell_call actions), the hook blocks the stop once with a reason naming them. A path that only the prompt of a
@@ -22,6 +24,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
+	"github.com/Yeeef/pm/internal/store"
 )
 
 const stopReason = "These records in the store (%[1]s) have uncommitted changes, and this session's tool calls name them:\n" +
@@ -296,6 +299,12 @@ func StopReason(event Event, stderr io.Writer) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if w, err := store.WorkspaceOf(*cwd); err != nil {
+		fmt.Fprintf(stderr, "pm hook stop: the records workspace cannot be read (%s); letting the stop through\n", err)
+		return "", nil
+	} else if w != nil {
+		return workspaceStopReason(*w, stderr), nil
+	}
 	store, paths, perr := func() (string, []string, *proc.Error) {
 		store, err := StoreOf(cwd)
 		if err != nil {
@@ -353,6 +362,33 @@ func StopReason(event Event, stderr io.Writer) (string, error) {
 	}
 	return fmt.Sprintf(stopReason, store, strings.Join(files, "\n")), nil
 }
+
+// workspaceStopReason is the reason to block a stop in a worktree with a records workspace: the workspace's
+// uncommitted files, each with conflict markers named. The workspace is this worktree's own, so every edit in it is
+// this worktree's session's: no transcript is read. "" when it has none, or cannot be read (named on stderr).
+func workspaceStopReason(w store.Workspace, stderr io.Writer) string {
+	dirty, err := w.Dirty()
+	if err != nil {
+		fmt.Fprintf(stderr, "pm hook stop: git status failed in %s (%s); letting the stop through\n", w.Dir, err)
+		return ""
+	}
+	if len(dirty) == 0 {
+		return ""
+	}
+	files := make([]string, len(dirty))
+	for i, p := range dirty {
+		files[i] = "- records/" + p
+		if b, err := os.ReadFile(filepath.Join(w.Dir, filepath.FromSlash(p))); err == nil && store.HasMarkers(string(b)) {
+			files[i] += " (conflict markers: keep both edits between the <<<<<<< and >>>>>>> lines, remove the markers)"
+		}
+	}
+	return fmt.Sprintf(workspaceStopText, w.Dir, strings.Join(files, "\n"))
+}
+
+const workspaceStopText = "These records in this worktree's records workspace (%[1]s) have uncommitted changes:\n" +
+	"%[2]s\n" +
+	"Commit them from this worktree with `pm commit -m \"<why>\" <path>...` (paths as listed, under records/), or " +
+	"revert them with `git -C %[1]s checkout -- <path>` (`rm` for a new file)."
 
 // dumps is v, a value encoding/json read, as compact JSON with <, > and & as they are: a tool call's input as text, in
 // which to look for a path.

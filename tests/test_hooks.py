@@ -337,6 +337,46 @@ def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tm
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(t)}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == ""
 
+def test_stop_in_a_worktree_blocks_on_its_own_workspaces_uncommitted_records(repo, tmp_path):
+    """In a worktree with a records workspace, every uncommitted file there is its sessions' own: the stop blocks once
+    on them, naming them and any conflict markers, with no transcript read. Another worktree's workspace and the
+    store never block it."""
+    trees = {}
+    for name in ("one", "two"):
+        trees[name] = wt = repo.worktree(name)
+        repo.git("worktree", "add", "-q", "-B", f"drafts/{name}", str(wt / "records"), "records")  # as pm init does
+
+    def stop(wt, **event):
+        res = run(STOP, {"cwd": str(wt), **event}, repo.env, wt)
+        assert res.returncode == 0, res.stderr
+        return res.stdout
+
+    assert stop(trees["one"]) == "", "a clean workspace"
+    sprint = trees["two"] / "records/sprints/demo-1.md"
+    sprint.write_text(sprint.read_text().replace("Ship it.", "Ship it, two."))
+    (trees["two"] / "records/docs").mkdir()
+    (trees["two"] / "records/docs/x.md").write_text("<<<<<<< workspace\nmine\n=======\ntheirs\n>>>>>>> records a..b\n")
+    stored = repo.store / "sprints/demo-2.md"
+    stored.write_text(stored.read_text() + "a main-checkout edit\n")
+    t = claude_transcript(tmp_path / "t.jsonl", {"file_path": str(stored)})
+    assert stop(trees["one"], transcript_path=t) == "", "another worktree's workspace, and the store"
+
+    out = json.loads(stop(trees["two"]))
+    ws = trees["two"] / "records"
+    assert out["decision"] == "block", out
+    assert out["reason"] == (
+        f"These records in this worktree's records workspace ({ws}) have uncommitted changes:\n"
+        "- records/sprints/demo-1.md\n"
+        "- records/docs/x.md (conflict markers: keep both edits between the <<<<<<< and >>>>>>> lines, remove the "
+        "markers)\n"
+        "Commit them from this worktree with `pm commit -m \"<why>\" <path>...` (paths as listed, under records/), or "
+        f"revert them with `git -C {ws} checkout -- <path>` (`rm` for a new file)."), out["reason"]
+    assert stop(trees["two"], stop_hook_active=True) == "", "it blocks once"
+
+    # the main checkout keeps the transcript match on the store
+    assert json.loads(stop(repo.root, transcript_path=t))["decision"] == "block"
+
+
 # ---------------------------------------------------------------- Claude Code and Codex alike
 
 ME = "sess-me"

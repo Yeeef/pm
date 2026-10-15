@@ -32,6 +32,11 @@ site shows each worktree's edits as a version of its own.
 
 ### Changed
 
+- The Stop hook in a worktree blocks once while its records workspace has uncommitted edits, naming each file and
+  any conflict markers; in the main checkout it still checks the store's files this session's tool calls name.
+- Records workspaces need git 2.40 or newer (`git merge-tree --merge-base`): `pm init` in a worktree refuses an older
+  git, naming the version found and the one needed, and `pm doctor` reports it.
+
 - `pm clean` removes a worktree's records workspace with it, and keeps a worktree whose workspace has uncommitted
   edits. `pm uninstall` removes the workspaces and their branches, refusing while one has uncommitted edits.
 - Claude Code needs no `additionalDirectories` entry in a worktree any more: `pm init` takes the store out of a

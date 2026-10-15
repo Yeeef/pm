@@ -697,7 +697,7 @@ var tree = &command{
 			Subs: []*command{
 				{
 					Name: "stop",
-					Help: "Stop: block once while records this session's tool calls name are uncommitted in the store, leaving out a record that only a still-running subagent's prompt names",
+					Help: "Stop: block once while records are uncommitted: in a worktree, any in its own records workspace (each named, conflict markers too); in the main checkout, those in the store that this session's tool calls name, leaving out a record that only a still-running subagent's prompt names",
 				},
 				{
 					Name:        "owner-request",

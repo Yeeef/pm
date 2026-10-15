@@ -135,6 +135,9 @@ func AddWorkspace(store, code string) (string, error) {
 		return "", errorf("a worktree named %s gets no records workspace: the site names a draft %s already; rename "+
 			"the worktree (git worktree move) and run %s there", name, name, Setup)
 	}
+	if err := CheckGit(); err != nil {
+		return "", err
+	}
 	w := Workspace{Code: code, Dir: filepath.Join(code, "records"), Name: name}
 	link := ""
 	if st, err := os.Lstat(w.Dir); err == nil {
@@ -274,4 +277,29 @@ func (w Workspace) Named(here string, names, dirty []string) ([]string, error) {
 		rels = append(rels, rel)
 	}
 	return rels, nil
+}
+
+// minGit is the oldest git a workspace works with: follow runs git merge-tree --write-tree --merge-base (git 2.40).
+var minGit = [2]int{2, 40}
+
+// CheckGit refuses a git older than minGit, naming the version found and the one needed.
+func CheckGit() error {
+	out, err := Git(".", "version")
+	if err != nil {
+		return err
+	}
+	return gitNewEnough(out)
+}
+
+// gitNewEnough checks git version's output ("git version 2.43.0", "git version 2.39.3 (Apple Git-146)").
+func gitNewEnough(version string) error {
+	var major, minor int
+	if _, err := fmt.Sscanf(strings.TrimPrefix(version, "git version "), "%d.%d", &major, &minor); err != nil {
+		return errorf("cannot read the git version from %q", version)
+	}
+	if major > minGit[0] || (major == minGit[0] && minor >= minGit[1]) {
+		return nil
+	}
+	return errorf("git %d.%d is older than %d.%d, which records workspaces need (git merge-tree --merge-base); "+
+		"install git %d.%d or newer, then run %s again", major, minor, minGit[0], minGit[1], minGit[0], minGit[1], Setup)
 }
