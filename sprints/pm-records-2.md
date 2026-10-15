@@ -57,6 +57,11 @@ The design page increment 1 is split: this sprint ships the published view and v
 The site side is independent of the workspaces and gives the owner the version view first; the claude -w live check that fixes where workspaces live runs here, before workspaces are built.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page site-replies stays as it is for this sprint's code changes.
+Replies, the token and the access refusal are unchanged; the versions under /drafts/ pass the same refusal as every other path, before routing.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
