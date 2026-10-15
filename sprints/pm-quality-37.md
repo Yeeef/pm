@@ -54,7 +54,10 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- The pm command tree grew from 39 nodes (10-07) to 81 (10-15): 63 leaves, 48
+  distinct flags. Of 3,768 agent invocations over 11 days, 6.7% failed and
+  1.5% were syntax guesses; the top 20 of 65 commands used carry 91% of
+  invocations.
 
 ## Delivery report
 
