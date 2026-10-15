@@ -7,7 +7,6 @@ covers:
   - "internal/cli/request.go"
   - "internal/cli/decision.go"
   - "internal/records/text.go"
-  - "internal/cli/needform/*.go"
 ---
 
 ## Problem
