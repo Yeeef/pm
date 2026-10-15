@@ -260,7 +260,8 @@ yeeef-agents-9va.30.8.1). The records step:
 
 | Store against `origin/records`, after a fetch | What it does |
 |---|---|
-| Not ahead | Nothing, even when behind: it does not pull |
+| Up to date | Nothing |
+| Behind, not ahead | Fast-forwards onto `origin/records` under the store lock (`git merge --ff-only`, never a merge commit); git refuses, and the step fails, flagged and retried on the next run, while an uncommitted edit in the store would be overwritten. Then each records workspace with no uncommitted file follows ([Record drafts and publishing](record-drafts.md), Follow), so its draft drops the pages another clone's close published |
 | Ahead, not behind | Pushes |
 | Ahead and behind | Rebases onto `origin/records` under the store lock, then pushes outside the lock. Skipped until the next run while tracked records have uncommitted edits; a rebase that stops is aborted, leaving the store as it was |
 
@@ -310,5 +311,5 @@ None yet.
 
 > What is still unresolved?
 
-- Two machines at once: a store with nothing to push is never pulled (Push); an auto-pull would be needed.
+- Two clones on one day: each commits its own `days/<date>.summary.json`, so the second clone's rebase conflicts on it and its records push fails, flagged, until one side's file is dropped by hand (seen in the draft refs' live check, pm-records sprint 6). Whether the summary should be merged by rule, rebuilt after a rebase, or kept per clone is open.
 - A write's `LOCK_EX` on the store waits while the pm service holds `LOCK_SH`, which it takes to re-read the records after a partial or failed load, across a work-store read and a whole render. A `pm task add` under the Python pm hung 2:16 in a likely case of this, unproven; whether the shared lock should cover the work-store read is open.
