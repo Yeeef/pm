@@ -87,6 +87,12 @@ Owner chose this in chat over tuning concurrency: both jobs take 190-300 s on a 
   authentication_error'. The federation rule does not admit main's OIDC
   subject (repo:Yeeef/pm:ref:refs/heads/main); PR runs still authenticate.
 
+- After the federation rule was widened, daily run 38695521967 on main
+  (9aed332): full passed in 213 s (grading 198 s, $0.454); cases 12/12 runs
+  gave the case's verdict (clean case skipped, covered by full), 170 calls in
+  197 s, $0.65, job 256 s. Run 38696025586 right after: changed found nothing
+  changed since 9aed332, full and cases skipped, no model calls.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
