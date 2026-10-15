@@ -220,7 +220,7 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 			return "", err
 		}
 	}
-	if err := closing.Done(r.records); err != nil {
+	if err := closeDone(closing, r.records); err != nil {
 		return "", fmt.Errorf("%w; the close's records commit is %s, so run pm sprint close %s again", err, head, id)
 	}
 	reason := fmt.Sprintf("%s (records commit %s)", line, head)
@@ -243,6 +243,9 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	}
 	return out, nil
 }
+
+// closeDone finishes the close's drafts (design.Closing.Done); a variable so a test can fail it.
+var closeDone = (*design.Closing).Done
 
 func (r *repo) sprintOutcome(rec *records.Record) (string, error) {
 	line, err := records.Outcome(rec)

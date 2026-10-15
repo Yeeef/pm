@@ -135,11 +135,21 @@ func (e *env) checkWorkspaceCommit(w store.Workspace, rels []string, changes map
 		return nil, err
 	}
 	pages := map[string]string{}
+	drafted, err := w.Sprints(e.records)
+	if err != nil {
+		return nil, err
+	}
 	for _, rel := range rels {
-		if isDesignPage(rel) {
-			if pages[rel], err = designSprint(recs, x, rel, sprint); err != nil {
-				return nil, err
-			}
+		if !isDesignPage(rel) {
+			continue
+		}
+		if pages[rel], err = designSprint(recs, x, rel, sprint); err != nil {
+			return nil, err
+		}
+		if it := x.Get(drafted[rel]); it != nil && drafted[rel] != pages[rel] && it.Status != work.Closed {
+			return nil, refuse("records/%s is drafted in this workspace for sprint %s; a page's draft belongs to one "+
+				"sprint: commit it with --sprint %s, or draft sprint %s's edit in another worktree or once sprint %s "+
+				"closes", rel, drafted[rel], drafted[rel], pages[rel], drafted[rel])
 		}
 	}
 	paths := make([]string, 0, len(changes))

@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"maps"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -61,7 +62,7 @@ func DraftBranches(store string) ([]Workspace, error) {
 	return out, nil
 }
 
-// Drafted is the unpublished design pages the clone's draft commits hold, by sprint: each page's store path
+// Drafted is the unpublished design pages the clone's draft commits hold or mark in conflict, by sprint: each page's store path
 // (design/x.md).
 func Drafted(store string) (map[string]map[string]bool, error) {
 	branches, err := DraftBranches(store)
@@ -74,11 +75,18 @@ func Drafted(store string) (map[string]map[string]bool, error) {
 		if err != nil {
 			return nil, err
 		}
+		d, err := readDraft(store, w)
+		if err != nil {
+			return nil, err
+		}
 		for p := range pages {
-			if out[tags[p]] == nil {
-				out[tags[p]] = map[string]bool{}
+			d.conflicts[p] = tags[p]
+		}
+		for p, sprint := range d.conflicts { // a page in conflict is still the sprint's draft
+			if out[sprint] == nil {
+				out[sprint] = map[string]bool{}
 			}
-			out[tags[p]][p] = true
+			out[sprint][p] = true
 		}
 	}
 	return out, nil
@@ -166,6 +174,7 @@ func PlanPublish(store, sprint string, discard []string) (*Publish, error) {
 		if len(x.pages) > 0 || (w.Dir == "" && !d.draft) {
 			p.drops = append(p.drops, x)
 		}
+		overlaps = append(overlaps, conflicting(w, d, sprint, discard)...)
 		if len(take) == 0 {
 			continue
 		}
@@ -206,7 +215,7 @@ func PlanPublish(store, sprint string, discard []string) (*Publish, error) {
 		acc = next
 	}
 	if overlaps != nil {
-		return nil, errorf("sprint %s's design-page drafts overlap, so nothing is published: %s", sprint,
+		return nil, errorf("sprint %s's design-page drafts cannot publish, so nothing is published: %s", sprint,
 			strings.Join(overlaps, "; "))
 	}
 	paths, err := changedPaths(store, tip, acc)
@@ -227,6 +236,11 @@ func PlanPublish(store, sprint string, discard []string) (*Publish, error) {
 func sprintPages(store string, w Workspace, d draftState, sprint string, discard []string) (drop, []string, error) {
 	x := drop{w: w, d: d}
 	var take []string
+	for page, s := range d.conflicts {
+		if s == sprint && slices.Contains(discard, page) {
+			x.pages = append(x.pages, page)
+		}
+	}
 	for page, s := range d.tags {
 		if s != sprint {
 			continue
@@ -264,6 +278,28 @@ func sprintPages(store string, w Workspace, d draftState, sprint string, discard
 	return x, take, nil
 }
 
+// conflicting is why each page the draft marks as the sprint's, in conflict, holds the close, unless discarded: a
+// follow left the edit with conflict markers, uncommitted, so the draft commit no longer holds it.
+func conflicting(w Workspace, d draftState, sprint string, discard []string) []string {
+	var out []string
+	for _, page := range slices.Sorted(maps.Keys(d.conflicts)) {
+		if d.conflicts[page] != sprint || slices.Contains(discard, page) {
+			continue
+		}
+		slug := strings.TrimSuffix(path.Base(page), ".md")
+		if w.Dir == "" {
+			out = append(out, fmt.Sprintf("records/%s on %s holds the sprint's edit in conflict, uncommitted, and its "+
+				"worktree is gone with the edit: redo it in a workspace of your own and pm commit --sprint %s it, or "+
+				"drop it with --discard %s --reason \"…\"", page, w.Branch(), sprint, slug))
+			continue
+		}
+		out = append(out, fmt.Sprintf("records/%s in worktree %s holds the sprint's edit with conflict markers a follow "+
+			"left, uncommitted: resolve them there and pm commit --sprint %s it, or drop it with --discard %s "+
+			"--reason \"…\"", page, w.Code, sprint, slug))
+	}
+	return out
+}
+
 // publishedSince is whether a records commit since base published page as sprint's (its "Published:" line).
 func publishedSince(store, base, page, sprint string) (bool, error) {
 	log, err := Git(store, "log", "--format=%B", base+"..refs/heads/"+Branch, "--", page)
@@ -277,6 +313,9 @@ func publishedSince(store, base, page, sprint string) (bool, error) {
 // published since the draft's base.
 func (d draftState) pending(store string) ([]string, error) {
 	var out []string
+	for page := range d.conflicts {
+		out = append(out, page)
+	}
 	for page, sprint := range d.tags {
 		done, err := publishedSince(store, d.base, page, sprint)
 		if err != nil {
@@ -341,9 +380,10 @@ func (p *Publish) Drop(store string) error {
 	var script strings.Builder
 	for _, x := range p.drops {
 		old := x.d.head
-		tags := maps.Clone(x.d.tags)
+		tags, marks := maps.Clone(x.d.tags), maps.Clone(x.d.conflicts)
 		for _, page := range x.pages {
 			delete(tags, page)
+			delete(marks, page)
 		}
 		tree := old
 		if x.w.Dir == "" && x.d.draft {
@@ -356,11 +396,11 @@ func (p *Publish) Drop(store string) error {
 		if err != nil {
 			return err
 		}
-		if x.w.Dir == "" && len(paths) == 0 {
+		if x.w.Dir == "" && len(paths) == 0 && len(marks) == 0 {
 			fmt.Fprintf(&script, "delete %s %s\ndelete %s\n", x.w.Ref(), old, x.w.BaseRef())
 			continue
 		}
-		head, err := gitIn(store, nil, draftMessage(x.w, paths, tags), "commit-tree", tree+"^{tree}", "-p", x.d.base,
+		head, err := gitIn(store, nil, draftMessage(x.w, paths, tags, marks), "commit-tree", tree+"^{tree}", "-p", x.d.base,
 			"-F", "-")
 		if err != nil {
 			return err

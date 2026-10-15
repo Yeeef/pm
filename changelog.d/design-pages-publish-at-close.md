@@ -26,7 +26,10 @@ never shows a page describing code that has not merged, and two sprints' edits o
   sprint links. Run again after a stop, it finds nothing left to publish. A sprint with no PR publishes the same way.
 - `pm sprint close --discard SLUG --reason "…"`, repeatable, drops the sprint's drafts of a page instead of
   publishing them, puts back your workspace's uncommitted edits to it, and records the reason as `pm design
-  unchanged` does.
+  unchanged` does; a later run of the close never publishes that page.
+- A follow that leaves a drafted page with conflict markers keeps its sprint, and the sprint's close refuses from any
+  worktree, naming the worktree and the page, until it is resolved and committed again. A page's draft in a
+  workspace belongs to one sprint: `pm commit` refuses it for another open sprint.
 - `pm where` lists each `drafts/` branch whose worktree is gone, with the design pages it still holds for their
   sprints' close.
 

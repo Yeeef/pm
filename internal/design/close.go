@@ -48,20 +48,27 @@ func PlanClose(here, dir, root string, sprint *records.Record, discard map[strin
 	if err != nil {
 		return nil, err
 	}
-	var paths []string
 	for _, slug := range slices.Sorted(maps.Keys(discard)) {
 		page := "design/" + slug + ".md"
 		_, waived := Waivers(sprint)[slug]
 		if !drafted[id][page] && !slices.Contains(dirty, page) && !waived {
 			return nil, fmt.Errorf("--discard %s: sprint %s has no draft of the design page %s to drop", slug, id, slug)
 		}
+	}
+	dropped := Discarded(sprint) // what an earlier run of the close discarded holds on every rerun, whatever its flags
+	for slug := range discard {
+		dropped[slug] = true
+	}
+	var paths []string
+	for _, slug := range slices.Sorted(maps.Keys(dropped)) {
+		page := "design/" + slug + ".md"
 		paths = append(paths, page)
 		if slices.Contains(dirty, page) {
 			c.revert = append(c.revert, page)
 		}
 	}
 	for _, slug := range records.DesignLinks(sprint) {
-		if _, dropped := discard[slug]; !dropped && slices.Contains(dirty, "design/"+slug+".md") {
+		if !dropped[slug] && slices.Contains(dirty, "design/"+slug+".md") {
 			page := "design/" + slug + ".md"
 			return nil, fmt.Errorf("records/%s has uncommitted edits in this worktree's records workspace %s, and sprint "+
 				"%s links it: pm commit it, which drafts it for the sprint, or drop the edits with --discard %s "+
@@ -138,16 +145,33 @@ func (c *Closing) Said(discard map[string]string) string {
 	return strings.Join(parts, "; ")
 }
 
-// Waive is the sprint record's text with a waiver decision (WaiverText), as pm design unchanged records it, for each
-// page of discard (slug and reason) it does not waive yet, in slug order; block makes the decision block of a body.
+// discardLine follows a waiver's reason when pm sprint close --discard recorded it: the record of the discard, which
+// every later run of the close reads, so none publishes the page's draft.
+const discardLine = "Its drafts are discarded at the sprint's close, not published."
+
+// Discarded is the pages whose drafts the sprint's close discarded, by slug, as its record holds them.
+func Discarded(sprint *records.Record) map[string]bool {
+	out := map[string]bool{}
+	for _, d := range records.Decisions(sprint.Text) {
+		first, _, _ := strings.Cut(strings.TrimSpace(d.Body), "\n")
+		if m := waiverRE.FindStringSubmatch(first); m != nil && strings.Contains(d.Body, "\n"+discardLine) {
+			out[m[1]] = true
+		}
+	}
+	return out
+}
+
+// Waive is the sprint record's text with a waiver decision (WaiverText) for each page of discard (slug and reason) it
+// has not discarded yet, in slug order, its last line discardLine; block makes the decision block of a body.
 func Waive(sprint *records.Record, discard map[string]string, block func(string) string) (string, error) {
-	text, waived := sprint.Text, Waivers(sprint)
+	text, done := sprint.Text, Discarded(sprint)
 	for _, slug := range slices.Sorted(maps.Keys(discard)) {
-		if _, ok := waived[slug]; ok {
+		if done[slug] {
 			continue
 		}
 		var err error
-		if text, err = records.InsertEntry(text, "Decisions", block(WaiverText(slug, discard[slug]))); err != nil {
+		if text, err = records.InsertEntry(text, "Decisions", block(WaiverText(slug, discard[slug])+"\n"+
+			discardLine)); err != nil {
 			return "", err
 		}
 	}

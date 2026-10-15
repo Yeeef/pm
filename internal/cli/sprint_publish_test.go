@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"errors"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
 	"github.com/Yeeef/pm/internal/work/worktest"
@@ -210,7 +212,7 @@ func TestDiscardDropsTheDraftAndRecordsTheDecision(t *testing.T) {
 	}
 	sprint := gitOut(t, records, "show", "records:sprints/demo-1.md")
 	if !strings.Contains(sprint, "The design page parser stays as it is for this sprint's code changes.\n"+
-		"The parser's design holds as it is.\n:::") {
+		"The parser's design holds as it is.\nIts drafts are discarded at the sprint's close, not published.\n:::") {
 		t.Errorf("the sprint record lacks the decision:\n%s", sprint)
 	}
 	if got := fileText(t, filepath.Join(one.Dir, "design/parser.md")); got != published+"\n" && got != published {
@@ -345,4 +347,83 @@ func TestAPublishedPatternMainLostWaitsOnTheDraftThatChangesIt(t *testing.T) {
 		`design pages match no file on origin/main: design/parser.md: covers pattern "src/parser.go"`) {
 		t.Errorf("pm check with no pending draft: exit %d %q", code, errs)
 	}
+}
+
+// A close whose drafts step fails after its records commit has recorded the discard: run again without --discard, it
+// still does not publish the page, and drops its draft.
+func TestARerunAfterAFailedDropKeepsTheDiscard(t *testing.T) {
+	_, records, one, two := workspaces(t)
+	edit(t, filepath.Join(two.Dir, "design/parser.md"), "\nP2\n", "\nP2 by two\n")
+	mustPM(t, two.Code, "commit", "-m", "two's parser", "records/design/parser.md")
+	published := gitOut(t, records, "show", "records:design/parser.md")
+	closed := closeReady(t, records)
+	saved := closeDone
+	t.Cleanup(func() { closeDone = saved })
+	closeDone = func(*design.Closing, string) error { return errors.New("the drop stopped") }
+	_, errs, code := runPM(t, one.Code, "sprint", "close", "demo.1", "--discard", "parser", "--reason", "It holds.")
+	if code != 1 || !strings.Contains(errs, "the drop stopped; the close's records commit is") || len(*closed) != 0 {
+		t.Fatalf("the close with a failing drop: exit %d %q, closed %v", code, errs, *closed)
+	}
+	closeDone = saved
+	mustPM(t, one.Code, "sprint", "close", "demo.1")
+	if got := gitOut(t, records, "show", "records:design/parser.md"); got != published {
+		t.Errorf("the rerun published a discarded draft:\n%s", got)
+	}
+	if got := draftPages(t, records, two); len(got) != 0 || len(*closed) != 1 {
+		t.Errorf("after the rerun: two drafts %v, closed %v", got, *closed)
+	}
+}
+
+// A follow that leaves a drafted page in conflict keeps its sprint: a close from another worktree refuses, naming the
+// worktree and the page, until the edit is resolved and committed there; then it publishes it.
+func TestACloseRefusesWhileADraftOfItsPageIsInConflictElsewhere(t *testing.T) {
+	_, records, one, two := workspaces(t)
+	rel := "records/design/parser.md"
+	edit(t, filepath.Join(one.Dir, "design/parser.md"), "\nP1\n", "\nP1 by one\n")
+	mustPM(t, one.Code, "commit", "-m", "one's parser", rel)
+	edit(t, filepath.Join(records, "design/parser.md"), "\nP1\n", "\nP1 by sprint two\n")
+	run(t, records, "git commit -qam 'sprint two published the parser'")
+	mustPM(t, one.Code, "finding", "add", "--sprint", "demo.1", "One follows into a conflict.")
+	path := filepath.Join(one.Dir, "design/parser.md")
+	if !store.HasMarkers(fileText(t, path)) {
+		t.Fatal("the follow left no markers in one")
+	}
+	closeReady(t, records)
+	before := gitOut(t, records, "rev-parse", "records")
+	_, errs, code := runPM(t, two.Code, "sprint", "close", "demo.1")
+	if code != 1 || !strings.Contains(errs, "records/design/parser.md in worktree "+one.Code+" holds the sprint's edit "+
+		"with conflict markers") {
+		t.Fatalf("the close from two: exit %d %q; want refused naming one", code, errs)
+	}
+	if got := gitOut(t, records, "rev-parse", "records"); got != before {
+		t.Fatal("the refused close changed records")
+	}
+	conflict := regexp.MustCompile(`(?s)<<<<<<< workspace\nP1 by one\n=======\nP1 by sprint two\n>>>>>>> records [^\n]*\n`)
+	writeFile(t, path, conflict.ReplaceAllString(fileText(t, path), "P1 by both\n"))
+	mustPM(t, one.Code, "commit", "-m", "both", "--sprint", "demo.1", rel)
+	mustPM(t, two.Code, "sprint", "close", "demo.1")
+	if got := gitOut(t, records, "show", "records:design/parser.md"); !strings.Contains(got, "\nP1 by both\n") {
+		t.Errorf("the published page:\n%s", got)
+	}
+}
+
+// A page's draft in one workspace belongs to one sprint: pm commit refuses it for another open sprint while it is
+// drafted there for the first.
+func TestAPageDraftedForOneSprintIsRefusedForAnother(t *testing.T) {
+	_, records, one, _ := workspaces(t)
+	rel := "records/design/parser.md"
+	edit(t, filepath.Join(records, "sprints/demo-2.md"), "> Where is the detail?\n\nNone yet.",
+		"> Where is the detail?\n\n[Parser](../design/parser.md)")
+	run(t, records, "git commit -qam 'sprint two links the parser'")
+	edit(t, filepath.Join(one.Dir, "design/parser.md"), "\nP1\n", "\nP1 by one\n")
+	mustPM(t, one.Code, "commit", "-m", "for one", "--sprint", "demo.1", rel)
+	edit(t, filepath.Join(one.Dir, "design/parser.md"), "\nP2\n", "\nP2 for two\n")
+	_, errs, code := runPM(t, one.Code, "commit", "-m", "for two", "--sprint", "demo.2", rel)
+	if code != 1 || !strings.Contains(errs, "records/design/parser.md is drafted in this workspace for sprint demo.1") {
+		t.Fatalf("a second sprint's commit: exit %d %q", code, errs)
+	}
+	if got := draftPages(t, records, one); got["design/parser.md"] != "demo.1" {
+		t.Errorf("the draft after the refusal: %v", got)
+	}
+	mustPM(t, one.Code, "commit", "-m", "for one again", "--sprint", "demo.1", rel)
 }
