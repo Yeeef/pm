@@ -7,6 +7,7 @@ covers:
   - "internal/cli/request.go"
   - "internal/cli/decision.go"
   - "internal/records/text.go"
+  - "internal/cli/needform/*.go"
 ---
 
 ## Problem
@@ -113,7 +114,7 @@ pm checks each text: the question, each fact, each option text, each cost and th
 
 ### Refusals
 
-pm refuses the call, writes nothing, and prints one message. `<shape>` is the example call from the Input form section above.
+pm checks every rule below, then refuses the call once, writes nothing, and prints one message. One broken rule prints its line alone. Several print `this breaks <n> rules; fix them all, then run it again:`, one `- <rule>` line each, and the shape once at the end, so an agent fixes every rule in one retry. A rule that needs no store (the form, the title, the description) is refused even when the store does not load. `<shape>` is the example call from the Input form section above.
 
 | Condition | Message |
 |---|---|
@@ -130,7 +131,7 @@ pm refuses the call, writes nothing, and prints one message. `<shape>` is the ex
 | The default names no option | `--default <label> names no option; the labels are <a, b, …>` |
 | A sentence has more than 25 words | `the sentence "<first 6 words> …" in <part> has <n> words; the limit is 25 (ASD-STE100); split it` |
 
-`<part>` names where the sentence is: `the question`, `fact <n>`, `option <label>`, `the cost of option <label>` or `the default`. The existing refusal for a request that asks to review or merge a PR stays, and runs first.
+`<part>` names where the sentence is: `the question`, `fact <n>`, `option <label>`, `the cost of option <label>` or `the default`. The refusal for a request that asks to review or merge a PR is one more line of the same list.
 
 ### Site card
 
