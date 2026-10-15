@@ -72,6 +72,11 @@ The design page pm-go stays as it is for this sprint's code changes.
 The package layout and embedded files are unchanged; versions.go and diff.go are new files of internal/site, drafts.go of internal/store.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page record-layer stays as it is for this sprint's code changes.
+Record format and checks are unchanged; ParseSummary splits ReadSummary so a summary read from git is checked the same way.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
