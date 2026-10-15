@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T21:37:39+00:00",
- "digest": "7d544dee58e6d692",
+ "generated_at": "2026-10-15T21:48:05+00:00",
+ "digest": "dd68e4a060c5825a",
  "model": "claude-haiku-5-5",
- "text": "- **Record layer workspaces:** Each worktree now gets its own records workspace, and `pm commit` publishes from it. The site shows every draft of a record beside its published version, with diffs.\n- **Owner questions and replies:** Ask-tool questions now answer on the site or in chat, and the first answer wins. Owner replies reach a session by push alone; the wait command and inbox are gone.\n- **Build, CI and tooling:** The AGENTS.md check now gives the same verdict on reruns, and its PR checks run faster. macOS Go jobs run once a day instead of on every PR and push.\n- **Docs rendering:** Docs typeset math with KaTeX, render SVG diagrams, and resolve links by slug. A new index page lists the docs; pm no longer supports MDX, so raw JSX is refused."
+ "text": "- **Record layer workspaces:** Each code worktree now has its own records workspace, and `pm commit` publishes its journals. The site shows each record's published version beside every draft.\n- **Owner questions:** Owners can now answer ask-tool questions on the site or in chat. The first answer wins, and question endings reach pm through hook events.\n- **CI and checks:** The AGENTS.md check gives the same verdict on every rerun. Pull requests run that check in diff mode, and macOS Go jobs run once a day.\n- **Docs rendering:** Docs now typeset math with KaTeX and render raw HTML and SVG diagrams. Doc links resolve by slug, and a new docs index lists the docs."
 }
