@@ -134,6 +134,8 @@ Record format and checks are unchanged; ParseSummary splits ReadSummary so a sum
 
 done: the site shows each record's published version from the `records` branch, and every draft of it beside it as a full version with its diff; a broken draft fails only its own version.
 
+Merged as 5fa543c (PR #99).
+
 - The published view renders the `records` branch tip, figures included, never the store's working tree.
 - Drafts are a source; the one draft today is the store's uncommitted edits, named `store`. Per-worktree workspaces plug in next sprint.
 - A version bar on each page a draft changes; each version at `/drafts/<name>/<record>.html`; diffs by section against published and draft against draft (`?vs=`).
