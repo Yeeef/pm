@@ -67,6 +67,11 @@ The design page pm-go stays as it is for this sprint's code changes.
 serve.go and session.Uses gained the workspaces' drafts and labels; the package map and the service's shape the page describes did not change
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page site-replies stays as it is for this sprint's code changes.
+serve.go's change is the drafts source and its stamp; who may reach the site and how replies are served are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
