@@ -55,7 +55,10 @@ A design page's edits reach the published records only when its sprint closes, w
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-16}
+The design page pm-in-codex stays as it is for this sprint's code changes.
+codex.go gained CodexState, the writable-roots state pm where prints, moved from internal/cli unchanged but for the parse message; the hooks, rules and writable_roots pm writes are unchanged
+:::
 
 ## Findings
 
