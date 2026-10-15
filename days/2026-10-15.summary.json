@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T11:22:27+00:00",
- "digest": "65226201852add70",
+ "generated_at": "2026-10-15T11:42:54+00:00",
+ "digest": "8b300c7cc314ade6",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions and replies:** Ask-tool questions now get answered on the site as well as in chat, and the first answer wins. Questions close from hook events, and owner replies reach a session by push alone.\n- **Checks and CI speed:** The AGENTS.md check gives the same verdict on every rerun and runs faster on pull requests. Full grading runs daily on main, and macOS Go jobs run once a day.\n- **Record layer and site:** The owner agreed the record layer design. The site now renders the records branch and each draft version, with section diffs.\n- **Repo and tool setup:** Claude Code no longer saves or loads auto memory in this repo. pm no longer installs a git hook, and this repo runs a newer pm release."
+ "text": "- **Record layer and site:** The record layer design is agreed, with Model A chosen. The site renders the records branch and each draft version.\n- **Owner questions:** Ask-tool questions can now be answered on the site or in chat. The first answer wins.\n- **CI and checks:** Pull requests grade AGENTS.md in diff mode, and the check gives the same verdict on reruns. The macOS Go jobs now run daily, not on every pull request.\n- **Repo tooling:** pm now runs its newer release in this repo, and the store is synced. Claude Code does not save or load auto memory here."
 }
