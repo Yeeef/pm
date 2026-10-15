@@ -6,7 +6,7 @@ covers:
   - "internal/site/versions*.go"
   - "internal/site/diff.go"
   - "internal/store/drafts*.go"
-  - "internal/cli/commit_workspace.go"
+  - "internal/cli/commit_workspace*.go"
 ---
 
 ## Problem
