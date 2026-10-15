@@ -19,7 +19,8 @@ knowing the project state, take only work nobody else holds, leave its
 findings and decisions where the owner reads them, ask the owner without
 stopping, and hand back with nothing half-written. This page follows one
 session from start to hand-back and names the command or hook behind each
-step; the sprint-level flow is [Sprint lifecycle](sprint-lifecycle.md).
+step; the sprint-level flow is [Sprint lifecycle](sprint-lifecycle.md), and
+what a session reads before it starts work is [Work context](work-context.md).
 
 ## Goals and non-goals
 

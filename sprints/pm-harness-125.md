@@ -38,7 +38,7 @@ An agent starting work sees the design pages that hold its area's current state,
 
 > Where is the detail?
 
-None yet.
+- [Work context](../design/work-context.md): the design-page index at sprint open and first claim, `pm search`, and the procedure in `prime.md`
 
 ## Progress
 
