@@ -50,6 +50,11 @@ pm --help hides the machinery commands (hook, prime, push, service run, sync, ex
 The 2026-10-16 command audit found 13 machinery leaves typed 0-5 times each beside about 50 agent commands; the tree has grown from about 30 nodes when pm-harness 18 ruled to 81.
 :::
 
+::: decision {source=owner date=2026-10-16}
+prime.md keeps full procedures for the commands that carry most use and names the rest in one line pointing at --help; inlined refusal lists move to --help. This tunes the 2026-10-07 deliberate-redundancy decision; it does not reverse it.
+The audit measured prime.md at 3,218 words with its third hook chunk at 76% of the cap; the top 20 commands carry 91% of 3,768 invocations, and agents read refusals rather than --help (5 of 252 failures were followed by --help).
+:::
+
 ## Design pages
 
 > Where is the detail?
