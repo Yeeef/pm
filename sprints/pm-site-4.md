@@ -79,15 +79,15 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: docs render TeX math, MDX-style SVG diagrams and links between docs by slug, and a docs index lists every doc (PR #102).
+done: docs typeset TeX math, links between docs resolve by slug, a docs index lists every doc, and pm check refuses dead record links and JSX in raw HTML (PR #102, merged as b242ffd).
 
 - KaTeX 0.19.0 is pinned on the CDN like Mermaid and loads only on pages that have math.
-- An MDX block opened by `<svg` or a `className=` tag runs to its closing tag; JSX attributes and comments are translated. JSX expressions are not.
-- `pm check` and `pm commit` refuse a dead record link. This is breaking: this store's `sprints/pm-harness-50.md` has 2 dead links and the poker store has 13.
+- MDX is not supported (owner decision). `pm check` and `pm commit` refuse `className=`, `{/* */}`, `attr={…}`, camelCase SVG attributes and blank lines inside `<svg>`, naming the line and the HTML fix.
+- Breaking: a store with a dead record link or JSX fails `pm check` once its pin moves. The pm store has 2 dead links (`sprints/pm-harness-50.md`). The poker store has 13 dead links and 219 JSX errors in two imported notes, which its agent rewrites.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- Met: Go tests and golden files cover math, MDX, links and the docs index. `make test-go` exit 0, `make test` 150 passed, `make lint` 0 issues, and PR #102's CI is green.
-- Met: on a scratch pm service with headless Chromium, the unedited CFR note had 32 `.math` elements, 32 `.katex` and 0 `.katex-error`, with no raw `$` text. The information-set SVG drew at 960×421. A link between two docs resolved by slug and returned 200. `docs/index.html` listed the note.
+- Met: Go tests and golden files cover math, links, the docs index and the JSX check. `make test-go` exit 0, `make test` 150 passed, `make lint` 0 issues, and PR #102's CI is green at 61df4dd.
+- Partly met: on a scratch pm service with headless Chromium, the unedited CFR note had 32 `.math` and 32 `.katex` elements, with 0 errors and no raw `$` text. A link between two docs returned 200, and `docs/index.html` listed the note. The SVG drew at 960×421 under the MDX translation, which was later dropped; the note now draws only after its rewrite to plain HTML. The JSX check gives 0 errors on ai-safety's 11 SVG-bearing docs, which shows plain HTML SVG passes.
