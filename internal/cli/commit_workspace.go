@@ -22,9 +22,9 @@ func isDesignPage(rel string) bool { return path.Dir(rel) == "design" && strings
 
 // commitWorkspace is pm commit in a worktree with a records workspace (the record-drafts page, Writes and journal
 // publish): follow; refuse a named file with conflict markers, naming the records commits that touched it; put the
-// named design pages into the workspace's draft commit, each tagged with its sprint; commit the named journals and the
-// draft's pages on the records branch in the store, refusing a file the store has uncommitted edits to; follow again.
-// Until publish at sprint close is built, the draft's pages publish here with the journals (the sprint's decision).
+// named design pages into the workspace's draft commit, each tagged with its sprint, where they wait for the sprint's
+// close (pm sprint close publishes them); commit the named journals on the records branch in the store, refusing a
+// file the store has uncommitted edits to; follow again.
 func (e *env) commitWorkspace(w store.Workspace, message string, p *Parsed) (string, error) {
 	followed, err := store.Follow(e.records, w)
 	if err != nil {
@@ -202,8 +202,8 @@ func orNone(list []string) string {
 	return strings.Join(list, ", ")
 }
 
-// publishWorkspace puts the design pages into the draft commit, then commits the journals and the draft's pages on
-// the records branch, each page's sprint in the message; a failed commit puts the draft back. Then it follows.
+// publishWorkspace puts the design pages into the draft commit, then commits the journals on the records branch; a
+// failed commit puts the draft back. Then it follows.
 func (e *env) publishWorkspace(w store.Workspace, message string, rels []string, texts map[string]*string,
 	pages map[string]string) (string, error) {
 	old := ""
@@ -213,48 +213,47 @@ func (e *env) publishWorkspace(w store.Workspace, message string, rels []string,
 			return "", err
 		}
 	}
-	drafted, tags, err := store.DraftPages(e.records, w)
-	if err != nil {
-		return "", err
-	}
 	var writes []store.Write
-	add := func(rel string, text *string) {
-		wr := store.Write{Path: filepath.Join(e.records, filepath.FromSlash(rel)), Remove: text == nil}
-		if text != nil {
-			wr.Text = *text
-		}
-		writes = append(writes, wr)
-	}
+	var journals []string
 	for _, rel := range rels {
-		if _, ok := pages[rel]; !ok {
-			add(rel, texts[rel])
+		if _, ok := pages[rel]; ok {
+			continue
 		}
-	}
-	trailer := ""
-	for _, rel := range slices.Sorted(maps.Keys(drafted)) {
-		add(rel, drafted[rel])
-		trailer += fmt.Sprintf("\nSprint: %s %s", rel, tags[rel])
-	}
-	if trailer != "" {
-		message += "\n" + trailer
-	}
-	if err := store.Apply(e.records, writes, message, "", ""); err != nil {
-		if old != "" {
-			err = errors.Join(err, store.ResetDraft(e.records, w, old))
+		wr := store.Write{Path: filepath.Join(e.records, filepath.FromSlash(rel)), Remove: texts[rel] == nil}
+		if texts[rel] != nil {
+			wr.Text = *texts[rel]
 		}
-		return "", err
+		writes, journals = append(writes, wr), append(journals, "records/"+rel)
 	}
-	if _, err := store.Follow(e.records, w); err != nil {
-		return "", err
+	var said []string
+	if writes != nil {
+		if err := store.Apply(e.records, writes, message, "", ""); err != nil {
+			if old != "" {
+				err = errors.Join(err, store.ResetDraft(e.records, w, old))
+			}
+			return "", err
+		}
+		if _, err := store.Follow(e.records, w); err != nil {
+			return "", err
+		}
+		head, err := store.Git(e.records, "rev-parse", "--short", "HEAD")
+		if err != nil {
+			return "", err
+		}
+		said = append(said, fmt.Sprintf("committed %s as %s: %s", strings.Join(journals, ", "), head, message))
 	}
-	head, err := store.Git(e.records, "rev-parse", "--short", "HEAD")
+	drafted, _, err := store.DraftPages(e.records, w)
 	if err != nil {
 		return "", err
 	}
-	named := make([]string, len(rels))
-	for i, rel := range rels {
-		named[i] = "records/" + rel
+	for _, rel := range slices.Sorted(maps.Keys(pages)) {
+		if _, ok := drafted[rel]; ok {
+			said = append(said, fmt.Sprintf("drafted records/%s for sprint %s on %s: pm sprint close %s publishes it",
+				rel, pages[rel], w.Branch(), pages[rel]))
+		} else {
+			said = append(said, fmt.Sprintf("records/%s holds its published text, so it left the draft on %s", rel,
+				w.Branch()))
+		}
 	}
-	return fmt.Sprintf("committed %s as %s: %s", strings.Join(named, ", "), head, strings.SplitN(message, "\n", 2)[0]),
-		nil
+	return strings.Join(said, "\n"), nil
 }

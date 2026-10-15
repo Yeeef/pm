@@ -20,7 +20,9 @@ import (
 var OpenWork = func(main string) (work.Store, error) { return work.Dial(main) }
 
 // cmdCheck is pm check: every record renders with the work store's items, writing nothing; it lists the tracked source
-// files no page covers, and each covers pattern that matches no tracked file yet (design.Report).
+// files no page covers (design.Report), and fails on a design page's covers pattern that matches no file where the
+// page holds it: a published page's on the remote's main, a draft page's (in a worktree's records workspace, whose
+// drafts it checks over the published records) in the worktree's tracked files.
 func cmdCheck(here string, stdout io.Writer) error {
 	recordsDir, err := store.Find(here)
 	if err != nil {
@@ -38,7 +40,7 @@ func cmdCheck(here string, stdout io.Writer) error {
 	if err := errors.Join(err, ws.Shutdown()); err != nil { // disconnect before the render, which needs no item more
 		return err
 	}
-	recs, err := records.Read(recordsDir, nil)
+	recs, drafts, err := store.Working(here, recordsDir)
 	if err != nil {
 		return err
 	}
@@ -60,6 +62,9 @@ func cmdCheck(here string, stdout io.Writer) error {
 	}
 	report, err := design.Report(recs, tracked, cfg.DesignSources, config.Rel)
 	if err != nil {
+		return err
+	}
+	if err := design.Hold(recs, drafts, root, cfg.Remote, cfg.MainBranch); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintf(stdout, "checked the records in %s: all %d pages render%s\n", recordsDir, n, report)

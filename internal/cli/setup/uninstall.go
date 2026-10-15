@@ -104,7 +104,8 @@ func planUninstall(here string) (uninstallPlan, error) {
 			return uninstallPlan{}, err
 		} else if len(pages) > 0 {
 			return uninstallPlan{}, fmt.Errorf("the records workspace %s holds a draft commit of design pages not "+
-				"published on the records branch; publish them, then run pm uninstall again", w.Dir)
+				"published on the records branch; close their sprints with pm sprint close, which publishes them (or "+
+				"drops them with --discard), then run pm uninstall again", w.Dir)
 		}
 		workspaces = append(workspaces, *w)
 	}
