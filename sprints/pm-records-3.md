@@ -58,6 +58,11 @@ The design page sprint-lifecycle stays as it is for this sprint's code changes.
 The design gate and its waivers work as before; the rename only rewrites a renamed page's slug in its waivers, which the pm-cli page states.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+prime.md only names the two new rename commands beside design new and doc new; the lifecycle it describes is unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
