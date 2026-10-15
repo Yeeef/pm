@@ -35,34 +35,54 @@ func (mathInlineParser) Trigger() []byte { return []byte{'$'} }
 
 func isSpaceByte(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\r' }
 
-// Parse reads $$…$$ or $…$ within the current line; nil leaves the $ as text.
+// Parse reads $$…$$ or $…$ from the current line, or onto the paragraph's next line (records hard-wrap; a paragraph
+// holds no blank line); nil leaves the $ as text. A formula never runs into a code span or across a link's "](", so
+// a $ in a link's text and its destination leaves the link whole.
 func (mathInlineParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) ast.Node {
-	line, _ := block.PeekLine()
-	if len(line) > 1 && line[1] == '$' {
-		end := bytes.Index(line[2:], []byte("$$"))
-		if end < 0 || strings.TrimSpace(string(line[2:2+end])) == "" || bytes.IndexByte(line[2:2+end], '`') >= 0 {
+	src, _ := block.PeekLine()
+	if bytes.HasSuffix(src, []byte("\n")) {
+		l, pos := block.Position()
+		block.AdvanceLine()
+		if next, _ := block.PeekLine(); next != nil {
+			src = append(append([]byte{}, src...), next...)
+		}
+		block.SetPosition(l, pos)
+	}
+	stops := func(tex []byte) bool { return bytes.IndexByte(tex, '`') >= 0 || bytes.Contains(tex, []byte("](")) }
+	if len(src) > 1 && src[1] == '$' {
+		end := bytes.Index(src[2:], []byte("$$"))
+		if end < 0 || strings.TrimSpace(string(src[2:2+end])) == "" || stops(src[2:2+end]) {
 			return nil
 		}
 		block.Advance(2 + end + 2)
-		return &mathNode{tex: string(line[2 : 2+end]), display: true}
+		return &mathNode{tex: string(src[2 : 2+end]), display: true}
 	}
-	if len(line) < 3 || isSpaceByte(line[1]) {
+	if len(src) < 3 || isSpaceByte(src[1]) {
 		return nil
 	}
-	for j := 2; j < len(line); j++ {
-		if line[j] == '`' { // a code span binds tighter: a $ inside one closes nothing
+	for j := 2; j < len(src); j++ {
+		if stops(src[j:j+1]) || src[j] == ']' && j+1 < len(src) && src[j+1] == '(' {
 			return nil
 		}
-		if line[j] != '$' || isSpaceByte(line[j-1]) || line[j-1] == '\\' {
+		if src[j] != '$' || isSpaceByte(src[j-1]) || escaped(src, j) {
 			continue
 		}
-		if j+1 < len(line) && line[j+1] >= '0' && line[j+1] <= '9' {
+		if j+1 < len(src) && src[j+1] >= '0' && src[j+1] <= '9' {
 			continue
 		}
 		block.Advance(j + 1)
-		return &mathNode{tex: string(line[1:j])}
+		return &mathNode{tex: string(src[1:j])}
 	}
 	return nil
+}
+
+// escaped says whether the byte at i follows an odd run of backslashes: after \\ a $ closes a formula, after \ not.
+func escaped(src []byte, i int) bool {
+	n := 0
+	for i-n-1 >= 0 && src[i-n-1] == '\\' {
+		n++
+	}
+	return n%2 == 1
 }
 
 var kindMathBlock = ast.NewNodeKind("MathBlock")
@@ -92,25 +112,49 @@ func closing(line []byte) int {
 	return len(t) - 2
 }
 
-// Open opens a formula on a line that starts with $$, within three spaces of indent; one that ends in $$ too is the
-// whole formula.
+// Open opens a formula, within three spaces of indent, on a line that is $$ alone, closed by a later line that ends in
+// $$ before any blank line, or on a line that is $$…$$ and nothing more. Any other $$ is the inline parser's.
 func (mathBlockParser) Open(parent ast.Node, reader text.Reader, pc parser.Context) (ast.Node, parser.State) {
 	line, seg := reader.PeekLine()
 	w, pos := util.IndentWidth(line, reader.LineOffset())
-	if w > 3 || !bytes.HasPrefix(line[pos:], []byte("$$")) {
+	t := bytes.TrimRight(line[pos:], " \t\r\n")
+	if w > 3 || !bytes.HasPrefix(t, []byte("$$")) {
 		return nil, parser.NoChildren
 	}
 	n := &mathBlock{}
-	rest := line[pos+2:]
 	start := seg.Start + pos + 2
-	if end := closing(rest); end >= 0 {
-		n.Lines().Append(text.NewSegment(start, start+end))
+	switch {
+	case len(t) == 2:
+		if !closesBeforeABlankLine(reader.Source()[seg.Stop:]) {
+			return nil, parser.NoChildren
+		}
+	case len(t) > 4 && bytes.HasSuffix(t, []byte("$$")) && !bytes.Contains(t[2:len(t)-2], []byte("$$")):
+		n.Lines().Append(text.NewSegment(start, start+len(t)-4))
 		n.closed = true
-	} else if strings.TrimSpace(string(rest)) != "" {
-		n.Lines().Append(text.NewSegment(start, seg.Stop))
+	default:
+		return nil, parser.NoChildren
 	}
 	reader.AdvanceToEOL()
 	return n, parser.NoChildren
+}
+
+// closesBeforeABlankLine says whether a line of rest ends in $$ before a blank line or the end.
+func closesBeforeABlankLine(rest []byte) bool {
+	for len(rest) > 0 {
+		line := rest
+		if i := bytes.IndexByte(rest, '\n'); i >= 0 {
+			line, rest = rest[:i+1], rest[i+1:]
+		} else {
+			rest = nil
+		}
+		if strings.TrimSpace(string(line)) == "" {
+			return false
+		}
+		if closing(line) >= 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (mathBlockParser) Continue(node ast.Node, reader text.Reader, pc parser.Context) parser.State {

@@ -35,6 +35,19 @@ func TestMathKeepsItsTeXVerbatim(t *testing.T) {
 		{"$5 or `$x$`", "$5 or <code>$x$</code>"},
 		{`escaped \$x\$ stays`, `escaped $x$ stays`},
 		{`$ x$ and $x $`, `$ x$ and $x $`},
+		// $$ opens a block only alone on its line, or as $$…$$ with nothing after; the inline parser has the rest
+		{"$$E=mc^2$$ is famous.\n\nNext.\n\n## H\n", "<p><span class=\"math display\">E=mc^2</span> is famous.</p>\n" +
+			"<p>Next.</p>\n<h2 id=\"h\">H</h2>"},
+		{"$$ is the shell's pid.\n\nLater.", "<p>$$ is the shell's pid.</p>\n<p>Later.</p>"},
+		{"text\n$$x$$ more\n\nnext", "<p>text\n<span class=\"math display\">x</span> more</p>\n<p>next</p>"},
+		{"$$a$$ and $$b$$", `<span class="math display">a</span> and <span class="math display">b</span>`},
+		{"$$\nx\n\ny\n$$\n", "<p>$$\nx</p>\n<p>y\n$$</p>"}, // unclosed before a blank line: no math
+		{`[cost $5](http://x/$y)`, `<a href="http://x/$y">cost $5</a>`},
+		{`[a $b$](http://x/$y$)`, `<a href="http://x/$y$">a <span class="math inline">b</span></a>`},
+		{"wrapped $a +\nb$ formula", "wrapped <span class=\"math inline\">a +\nb</span> formula"},
+		{"one $a\n\nb$ two", "<p>one $a</p>\n<p>b$ two</p>"},
+		{`$a\\$ b`, `<span class="math inline">a\\</span> b`},
+		{`$a\$ b$`, `<span class="math inline">a\$ b</span>`},
 	}
 	for _, c := range cases {
 		got, _ := mdBody(t, c.src)

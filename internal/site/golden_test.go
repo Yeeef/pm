@@ -293,7 +293,7 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 				"---\n\nx\n"}, nil,
 			"postmortems/2026-10-03-lost: no sprint record has bead demo.42"},
 		{"link-to-no-record", map[string]string{"docs/2026-10-03-plan.md": read("docs/2026-10-03-plan.md") +
-			"\n[gone](./gone.md), [by slug](notes.md), [gone too](../design/none.md#x)\n"}, nil,
+			"\n[gone](./gone.md), [by slug](notes.md), [gone too](../design/none.md#x), [again](./gone.md)\n"}, nil,
 			"docs/2026-10-03-plan.md: the link ./gone.md names records/docs/gone.md, which does not exist\n" +
 				"docs/2026-10-03-plan.md: the link ../design/none.md#x names records/design/none.md, which does not exist\n" +
 				"fix each link to name a record's file, or a doc's or postmortem's slug, or remove it"},

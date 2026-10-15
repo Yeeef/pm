@@ -1429,9 +1429,15 @@ func renderPages(recs []*Record, items *Items, siteName string, dates Dates, sum
 // renders: the site shows the page, and only this check refuses it.
 func Check(recs []*Record, items *Items, siteName string, summaries map[string]*records.Summary) (int, error) {
 	pages, broken, err := renderPages(recs, items, siteName, nil, summaries)
-	if err == nil && broken != nil {
+	var once []string // a link a record gives twice is named once
+	for _, b := range broken {
+		if !slices.Contains(once, b) {
+			once = append(once, b)
+		}
+	}
+	if err == nil && once != nil {
 		err = errorf("%s\nfix each link to name a record's file, or a doc's or postmortem's slug, or remove it",
-			strings.Join(broken, "\n"))
+			strings.Join(once, "\n"))
 	}
 	return len(pages), err
 }

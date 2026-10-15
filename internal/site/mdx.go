@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
@@ -37,8 +38,8 @@ var mdxOpenRE = regexp.MustCompile(`^<([a-zA-Z][a-zA-Z0-9]*)[\s>/]`)
 
 func (mdxParser) Trigger() []byte { return []byte{'<'} }
 
-// Open opens a block on a line, within three spaces of indent, that starts with an <svg> tag or a tag with className;
-// a block whose tag never closes is left to the HTML block parser.
+// Open opens a block on a line, within three spaces of indent, that starts with an <svg> tag or a tag whose opening
+// tag has className; a block whose tag does not close is left to the HTML block parser.
 func (mdxParser) Open(parent ast.Node, reader text.Reader, pc parser.Context) (ast.Node, parser.State) {
 	line, seg := reader.PeekLine()
 	w, pos := util.IndentWidth(line, reader.LineOffset())
@@ -46,7 +47,14 @@ func (mdxParser) Open(parent ast.Node, reader text.Reader, pc parser.Context) (a
 		return nil, parser.NoChildren
 	}
 	m := mdxOpenRE.FindSubmatch(line[pos:])
-	if len(m) < 2 || string(m[1]) != "svg" && !bytes.Contains(line, []byte("className=")) {
+	if len(m) < 2 {
+		return nil, parser.NoChildren
+	}
+	head := line[pos:]
+	if i := bytes.IndexByte(head, '>'); i >= 0 {
+		head = head[:i]
+	}
+	if string(m[1]) != "svg" && !bytes.Contains(head, []byte(" className=")) {
 		return nil, parser.NoChildren
 	}
 	end := closeOf(reader.Source(), seg.Start+pos, string(m[1]))
@@ -59,24 +67,58 @@ func (mdxParser) Open(parent ast.Node, reader text.Reader, pc parser.Context) (a
 	return n, parser.NoChildren
 }
 
+var (
+	scanners   = map[string]*regexp.Regexp{} // by tag name: a fence line, a {/* comment start, or the tag
+	scannersMu sync.Mutex
+	commentEnd = []byte("*/}")
+)
+
+// tagScanner finds, from an offset, the next fence line, {/* comment or open, close or self-closing tag of the name.
+func tagScanner(tag string) *regexp.Regexp {
+	scannersMu.Lock()
+	defer scannersMu.Unlock()
+	re, ok := scanners[tag]
+	if !ok {
+		re = regexp.MustCompile("(?m)(^ {0,3}(?:```|~~~))|(\\{/\\*)|<(/?)" + regexp.QuoteMeta(tag) + `\b[^>]*?(/?)>`)
+		scanners[tag] = re
+	}
+	return re
+}
+
 // closeOf is the offset of the end of the line on which the tag opened at from closes, counting the same tag nested
-// inside it; -1 when it never closes.
+// inside it and skipping {/* … */} comments; -1 when a fence line or the end comes first. It scans forward once.
 func closeOf(source []byte, from int, tag string) int {
-	re := regexp.MustCompile(`<(/?)` + regexp.QuoteMeta(tag) + `\b[^>]*?(/?)>`)
+	re := tagScanner(tag)
 	depth := 0
-	for _, m := range re.FindAllSubmatchIndex(source[from:], -1) {
+	for off := from; off < len(source); {
+		m := re.FindSubmatchIndex(source[off:])
+		if m == nil {
+			return -1
+		}
+		start, stop := off+m[0], off+m[1]
 		switch {
-		case m[3] > m[2]: // </tag>
+		case m[2] >= 0: // a fence line; ^ also matches where the slice starts, mid-line
+			if start == 0 || source[start-1] == '\n' {
+				return -1
+			}
+		case m[4] >= 0:
+			i := bytes.Index(source[stop:], commentEnd)
+			if i < 0 {
+				return -1
+			}
+			stop += i + len(commentEnd)
+		case m[7] > m[6]: // </tag>
 			depth--
-		case m[5] == m[4]: // <tag …>, not <tag …/>
+		case m[9] == m[8]: // <tag …>, not <tag …/>
 			depth++
 		}
-		if depth <= 0 {
-			if nl := bytes.IndexByte(source[from+m[1]:], '\n'); nl >= 0 {
-				return from + m[1] + nl + 1
+		if depth <= 0 && m[6] >= 0 {
+			if nl := bytes.IndexByte(source[stop:], '\n'); nl >= 0 {
+				return stop + nl + 1
 			}
 			return len(source)
 		}
+		off = max(stop, start+1)
 	}
 	return -1
 }
@@ -97,7 +139,7 @@ func (mdxParser) Continue(node ast.Node, reader text.Reader, pc parser.Context) 
 
 func (mdxParser) Close(node ast.Node, reader text.Reader, pc parser.Context) {}
 
-func (mdxParser) CanInterruptParagraph() bool { return true }
+func (mdxParser) CanInterruptParagraph() bool { return false } // an HTML block of CommonMark type 7
 
 func (mdxParser) CanAcceptIndentedLine() bool { return false }
 
