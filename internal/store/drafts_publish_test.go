@@ -172,3 +172,22 @@ func TestARemovedWorktreesNameIsReusedOnceItsDraftIsPublished(t *testing.T) {
 	}
 	reused(two)
 }
+
+// A branch whose worktree went with an edit left in conflict holds only the conflict mark: pm where names the page,
+// its sprint, that the edit is lost, and that the mark holds the close.
+func TestAnOrphanHoldingOnlyAConflictMarkSaysTheEditIsLost(t *testing.T) {
+	root, store := clone(t)
+	publish(t, store, "design/p.md", lines)
+	w := workspace(t, root, store, "wt")
+	draft(t, store, w, "design/p.md", "c\n", "C draft\n", "pm-1")
+	publish(t, store, "design/p.md", strings.Replace(lines, "c\n", "C published\n", 1))
+	follow(t, store, w)
+	sh(t, root, "git worktree remove --force --force "+w.Code)
+	got, err := Orphans(store)
+	want := "drafts    drafts/wt  its worktree is gone; its edit of records/design/p.md for sprint pm-1 was left in " +
+		"conflict and is lost with the worktree; the mark holds that sprint's close until pm sprint close pm-1 " +
+		"--discard p"
+	if err != nil || len(got) != 1 || got[0] != want {
+		t.Errorf("Orphans = %q, %v; want %q", got, err, want)
+	}
+}

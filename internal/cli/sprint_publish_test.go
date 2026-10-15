@@ -302,7 +302,7 @@ func TestCoversAreHeldToMainOnceAndToTheWorktreeWhileDrafted(t *testing.T) {
 	mustPM(t, root, "check") // the draft is not published
 	closeReady(t, records)
 	_, errs, code = runPM(t, one.Code, "sprint", "close", "demo.1")
-	if code != 1 || !strings.Contains(errs, "the design pages it publishes add covers patterns that name files "+
+	if code != 1 || !strings.Contains(errs, "the design pages it publishes have covers patterns that name files "+
 		`origin/main does not have: design/parser.md: covers pattern "src/tables.go"`) {
 		t.Fatalf("the close before the merge: exit %d %q", code, errs)
 	}
@@ -332,7 +332,7 @@ func TestAPublishedPatternMainLostWaitsOnTheDraftThatChangesIt(t *testing.T) {
 	run(t, root, "git rm -q src/parser.go", "git commit -qm 'the parser goes'", "git push -q origin main")
 	out := mustPM(t, root, "check")
 	if !strings.Contains(out, "1 covers patterns of published pages match no file on origin/main, waiting on the close "+
-		"of the sprint whose draft changes the page's covers:\n  design/parser.md: covers pattern \"src/parser.go\" "+
+		"of the sprint whose draft of the page drops the pattern:\n  design/parser.md: covers pattern \"src/parser.go\" "+
 		"(sprint demo.1)") {
 		t.Errorf("pm check with a pending draft: %q", out)
 	}
@@ -342,6 +342,12 @@ func TestAPublishedPatternMainLostWaitsOnTheDraftThatChangesIt(t *testing.T) {
 	mustPM(t, one.Code, "commit", "-m", "back to the parser", "records/design/parser.md")
 	if got := draftPages(t, records, one); got["design/parser.md"] != "demo.1" {
 		t.Fatalf("one's draft: %v; want the page still drafted", got)
+	}
+	// nor does the close publish a page that keeps a pattern main lost
+	closeReady(t, records)
+	if _, errs, code := runPM(t, one.Code, "sprint", "close", "demo.1"); code != 1 || !strings.Contains(errs,
+		`origin/main does not have: design/parser.md: covers pattern "src/parser.go"`) {
+		t.Errorf("the close of a page keeping a lost pattern: exit %d %q", code, errs)
 	}
 	if _, errs, code := runPM(t, root, "check"); code != 1 || !strings.Contains(errs, "covers patterns of published "+
 		`design pages match no file on origin/main: design/parser.md: covers pattern "src/parser.go"`) {
@@ -426,4 +432,70 @@ func TestAPageDraftedForOneSprintIsRefusedForAnother(t *testing.T) {
 		t.Errorf("the draft after the refusal: %v", got)
 	}
 	mustPM(t, one.Code, "commit", "-m", "for one again", "--sprint", "demo.1", rel)
+}
+
+// Another worktree's drafts branch with a commit made by hand fails none of this worktree's or the main checkout's
+// pm check: it is named in a warning. The close leaves it out with a warning while no commit of it names the sprint,
+// and refuses, naming it, once one does.
+func TestABadDraftsBranchFailsOnlyItsOwnWorktree(t *testing.T) {
+	root, records, one, two := workspaces(t)
+	origin := filepath.Join(filepath.Dir(root), "origin.git")
+	writeFile(t, filepath.Join(root, "src/parser.go"), "package src\n")
+	run(t, root, "git add src", "git commit -qm parser", "git init -q --bare "+origin, "git remote add origin "+origin,
+		"git push -q origin main", "git fetch -q origin")
+	edit(t, filepath.Join(records, "design/parser.md"), "project: demo\n", "project: demo\ncovers: [src/parser.go]\n")
+	run(t, records, "git commit -qam 'the parser page names its file'")
+	mustPM(t, one.Code, "finding", "add", "--sprint", "demo.1", "One follows.")
+	run(t, one.Code, "git merge -q main")
+	writeFile(t, filepath.Join(one.Code, "src/grammar.go"), "package src\n")
+	run(t, one.Code, "git add src", "git commit -qm grammar")
+	edit(t, filepath.Join(one.Dir, "design/parser.md"), "covers: [src/parser.go]", "covers: [src/grammar.go]")
+	mustPM(t, one.Code, "commit", "-m", "the grammar", "records/design/parser.md")
+	run(t, root, "git rm -q src/parser.go", "git commit -qm 'the parser goes'", "git push -q origin main")
+	writeFile(t, filepath.Join(two.Dir, "notes.md"), "by hand\n")
+	run(t, two.Dir, "git add notes.md", "git commit -qm 'by hand'")
+	for _, dir := range []string{root, one.Code} {
+		out := mustPM(t, dir, "check")
+		if dir == root && (!strings.Contains(out, "warning: drafts/two cannot be read") ||
+			!strings.Contains(out, `design/parser.md: covers pattern "src/parser.go" (sprint demo.1)`)) {
+			t.Errorf("pm check in the main checkout: %q", out)
+		}
+	}
+
+	closeReady(t, records)
+	run(t, root, "git merge -q one", "git push -q origin main")
+	if out := mustPM(t, one.Code, "sprint", "close", "demo.1"); !strings.Contains(out, "warning: drafts/two cannot be "+
+		"read") || !strings.Contains(out, "published design/parser.md") {
+		t.Errorf("the close with an unreadable branch that names no sprint: %q", out)
+	}
+	base := gitOut(t, records, "rev-parse", two.BaseRef())
+	run(t, two.Dir, "git reset -q --soft "+base, "git reset -q", "rm notes.md")
+	mustPM(t, two.Code, "finding", "add", "--sprint", "demo.2", "Two follows.")
+	edit(t, filepath.Join(two.Dir, "design/parser.md"), "\nP2\n", "\nP2 by two\n")
+	mustPM(t, two.Code, "commit", "-m", "two's parser", "--sprint", "demo.1", "records/design/parser.md")
+	writeFile(t, filepath.Join(two.Dir, "notes.md"), "by hand\n")
+	run(t, two.Dir, "git add notes.md", "git commit -qm 'by hand'")
+	if _, errs, code := runPM(t, one.Code, "sprint", "close", "demo.1"); code != 1 || !strings.Contains(errs,
+		"drafts/two may hold sprint demo.1's design pages, and pm cannot read it") {
+		t.Errorf("the close with an unreadable branch that names the sprint: exit %d %q", code, errs)
+	}
+}
+
+// The close publishes past another worktree's uncommitted edit of the page, and says so, naming it.
+func TestTheCloseNotesAnotherWorktreesUncommittedEditOfAPageItPublishes(t *testing.T) {
+	_, records, one, two := workspaces(t)
+	edit(t, filepath.Join(one.Dir, "design/parser.md"), "\nP1\n", "\nP1 by one\n")
+	mustPM(t, one.Code, "commit", "-m", "one's parser", "records/design/parser.md")
+	edit(t, filepath.Join(two.Dir, "design/parser.md"), "\nP2\n", "\nP2 by two, not committed\n")
+	closeReady(t, records)
+	out := mustPM(t, one.Code, "sprint", "close", "demo.1")
+	if !strings.Contains(out, "note: worktree "+two.Code+" has uncommitted edits to records/design/parser.md, which "+
+		"this close published without them") {
+		t.Errorf("the close said %q", out)
+	}
+	// a rerun cannot discard what the close published
+	if _, errs, code := runPM(t, one.Code, "sprint", "close", "demo.1", "--discard", "parser", "--reason", "R."); code != 1 ||
+		!strings.Contains(errs, "--discard parser: a close of sprint demo.1 already published records/design/parser.md") {
+		t.Errorf("--discard of a published page: exit %d %q", code, errs)
+	}
 }

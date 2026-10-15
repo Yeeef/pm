@@ -83,6 +83,7 @@ type repo struct {
 	items         []work.Item
 	x             *records.Items
 	recs          []*records.Record
+	warn          io.Writer // where a warning goes: the command's stderr
 }
 
 // load is the records and the items: the records branch's HEAD, which every write builds on, or with working the
@@ -110,7 +111,8 @@ func (e *env) load(working bool) (*repo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &repo{root: root, records: e.records, items: items, x: records.NewItems(items), recs: recs}, nil
+	return &repo{root: root, records: e.records, items: items, x: records.NewItems(items), recs: recs, warn: e.stderr},
+		nil
 }
 
 // item is the item with this id, or nil.

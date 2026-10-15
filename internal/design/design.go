@@ -7,7 +7,7 @@
 //
 // A design page publishes at its sprint's close, once its PRs are on main (the record-drafts page), so every covers
 // pattern of a published page must match a file on the remote's main (MissingOnMain): pm check holds them there, and
-// pm sprint close holds the patterns a page to publish adds or changes. A draft page names the files of its own
+// pm sprint close holds every pattern of a page it publishes. A draft page names the files of its own
 // worktree's branch, which pm check holds it to in that worktree.
 //
 // The gate reads a PR's changed files with gh api --paginate repos/<o>/<r>/pulls/<n>/files, a rename's old path too.
@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,8 +136,8 @@ func MissingOnMain(root, remote, branch string, patterns map[string][]string) ([
 // Hold fails on a covers pattern of recs that matches no file where its page holds it: a draft page's (drafts, by
 // store path: design/x.md) in the files the worktree root tracks, every other page's on the remote's main
 // (MissingOnMain). A published page's pattern main lacks while a draft of the page in the clone (dir is the records
-// store) changes its covers is not a failure but waits on that sprint's close, which publishes the new covers: Hold
-// gives those as pm check's waiting lines. pm check runs it.
+// store) no longer holds it is not a failure but waits on that sprint's close, which publishes the new covers: Hold
+// gives those as pm check's waiting lines, and a warning for each drafts/ branch it cannot read. pm check runs it.
 func Hold(recs []*records.Record, drafts map[string]bool, dir, root, remote, branch string) (string, error) {
 	onMain, here := map[string][]string{}, map[string][]string{}
 	for _, r := range recs {
@@ -164,14 +165,21 @@ func Hold(recs []*records.Record, drafts map[string]bool, dir, root, remote, bra
 	if err != nil {
 		return "", err
 	}
-	pending, err := pendingCovers(dir, recs)
-	if err != nil {
-		return "", err
+	var pending func(page, pattern string) []string
+	var warnings []string
+	if missing != nil { // the drafts are read only for a pattern main lacks
+		if pending, warnings, err = pendingCovers(dir); err != nil {
+			return "", err
+		}
 	}
 	var dead, waiting []string
 	for _, m := range missing {
-		page, _, _ := strings.Cut(m, ".md: ")
-		if sprints := pending[page]; sprints != nil {
+		page, quoted, _ := strings.Cut(m, ".md: covers pattern ")
+		pattern, err := strconv.Unquote(quoted)
+		if err != nil {
+			return "", fmt.Errorf("design.Missing gave %q", m)
+		}
+		if sprints := pending(page, pattern); sprints != nil {
 			waiting = append(waiting, fmt.Sprintf("%s (sprint %s)", m, strings.Join(sprints, ", ")))
 		} else {
 			dead = append(dead, m)
@@ -184,48 +192,47 @@ func Hold(recs []*records.Record, drafts map[string]bool, dir, root, remote, bra
 			remote, branch, strings.Join(dead, ", ")))
 	}
 	if why != nil {
-		return "", errors.New(strings.Join(why, "\n"))
+		return "", errors.New(strings.Join(append(why, warnings...), "\n"))
+	}
+	said := ""
+	for _, w := range warnings {
+		said += "\n" + w
 	}
 	if waiting == nil {
-		return "", nil
+		return said, nil
 	}
-	return fmt.Sprintf("\n%d covers patterns of published pages match no file on %s/%s, waiting on the close of the "+
-		"sprint whose draft changes the page's covers:\n  %s", len(waiting), remote, branch,
+	return said + fmt.Sprintf("\n%d covers patterns of published pages match no file on %s/%s, waiting on the close of the "+
+		"sprint whose draft of the page drops the pattern:\n  %s", len(waiting), remote, branch,
 		strings.Join(waiting, "\n  ")), nil
 }
 
-// pendingCovers is, by page (design/x), the sprints whose drafts in the clone change the page's covers against its
-// text in recs; a draft whose header does not parse counts as changing them.
-func pendingCovers(dir string, recs []*records.Record) (map[string][]string, error) {
-	branches, err := store.DraftBranches(dir)
+// pendingCovers says, of a published page's pattern main lacks, the sprints whose drafts of the page in the clone
+// (dir is the records store) no longer hold that pattern, or whose draft header does not parse: the pattern waits on
+// their close. Each drafts/ branch pm cannot read is left out, with a warning naming it and its fix.
+func pendingCovers(dir string) (func(page, pattern string) []string, []string, error) {
+	drafts, warnings, err := store.AllDrafts(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	now := map[string][]string{}
-	for _, r := range recs {
-		if r.Type() == "design" {
-			now[r.Rel] = r.Covers()
-		}
-	}
-	out := map[string][]string{}
-	for _, w := range branches {
-		pages, tags, err := store.DraftPages(dir, w)
-		if err != nil {
-			return nil, err
-		}
-		for path, text := range pages {
-			page := strings.TrimSuffix(path, ".md")
+	return func(page, pattern string) []string {
+		var sprints []string
+		for _, b := range drafts {
+			path := page + ".md"
+			text, ok := b.Pages[path]
+			if !ok {
+				continue
+			}
 			if text != nil {
-				if covers, err := records.CoversOf(*text, path); err == nil && slices.Equal(covers, now[page]) {
+				if covers, err := records.CoversOf(*text, path); err == nil && slices.Contains(covers, pattern) {
 					continue
 				}
 			}
-			if !slices.Contains(out[page], tags[path]) {
-				out[page] = append(out[page], tags[path])
+			if !slices.Contains(sprints, b.Tags[path]) {
+				sprints = append(sprints, b.Tags[path])
 			}
 		}
-	}
-	return out, nil
+		return sprints
+	}, warnings, nil
 }
 
 // MainFiles is the files of the tree at ref (the remote's main, fetched), as slash paths from the repo's top.

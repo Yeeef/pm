@@ -1,10 +1,12 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -62,34 +64,67 @@ func DraftBranches(store string) ([]Workspace, error) {
 	return out, nil
 }
 
-// Drafted is the unpublished design pages the clone's draft commits hold or mark in conflict, by sprint: each page's store path
-// (design/x.md).
-func Drafted(store string) (map[string]map[string]bool, error) {
+// BranchDraft is one drafts/ branch as the clone's drafts read it: its unpublished pages' texts (nil: removed) and
+// sprints, and the pages it marks in conflict, with theirs.
+type BranchDraft struct {
+	Workspace
+	Pages     map[string]*string
+	Tags      map[string]string
+	Conflicts map[string]string
+}
+
+// AllDrafts is every drafts/ branch of the clone that pm can read, and a warning naming each one it cannot (a commit
+// made by hand, a missing base ref) with its fix, left out: one workspace's bad state fails only its own worktree's
+// pm commands, never another's check or gate.
+func AllDrafts(store string) ([]BranchDraft, []string, error) {
 	branches, err := DraftBranches(store)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	out := map[string]map[string]bool{}
+	var out []BranchDraft
+	var warnings []string
 	for _, w := range branches {
 		pages, tags, err := DraftPages(store, w)
+		var d draftState
+		if err == nil {
+			d, err = readDraft(store, w)
+		}
 		if err != nil {
-			return nil, err
+			warnings = append(warnings, unreadable(w, err))
+			continue
 		}
-		d, err := readDraft(store, w)
-		if err != nil {
-			return nil, err
+		out = append(out, BranchDraft{Workspace: w, Pages: pages, Tags: tags, Conflicts: d.conflicts})
+	}
+	return out, warnings, nil
+}
+
+func unreadable(w Workspace, err error) string {
+	return fmt.Sprintf("warning: %s cannot be read, so pm leaves its drafts out here: %v", w.Branch(), err)
+}
+
+// Drafted is the unpublished design pages the clone's draft commits hold or mark in conflict, by sprint: each page's
+// store path (design/x.md); and AllDrafts' warnings.
+func Drafted(store string) (map[string]map[string]bool, []string, error) {
+	drafts, warnings, err := AllDrafts(store)
+	if err != nil {
+		return nil, nil, err
+	}
+	out := map[string]map[string]bool{}
+	add := func(sprint, page string) {
+		if out[sprint] == nil {
+			out[sprint] = map[string]bool{}
 		}
-		for p := range pages {
-			d.conflicts[p] = tags[p]
+		out[sprint][page] = true
+	}
+	for _, b := range drafts {
+		for p := range b.Pages {
+			add(b.Tags[p], p)
 		}
-		for p, sprint := range d.conflicts { // a page in conflict is still the sprint's draft
-			if out[sprint] == nil {
-				out[sprint] = map[string]bool{}
-			}
-			out[sprint][p] = true
+		for p, sprint := range b.Conflicts { // a page in conflict is still the sprint's draft
+			add(sprint, p)
 		}
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
 // Orphans is pm where's line for each drafts/ branch whose worktree is gone: what it still holds.
@@ -103,29 +138,45 @@ func Orphans(store string) ([]string, error) {
 		if w.Dir != "" {
 			continue
 		}
-		said := "its worktree is gone and it holds no unpublished draft; the next pm sprint close deletes it"
-		d, err := readDraft(store, w)
-		var pages []string
-		if err == nil {
-			pages, err = d.pending(store)
-		}
-		tags := d.tags
-		if err != nil {
-			said = "unreadable: " + err.Error()
-		} else if len(pages) > 0 {
-			var sprints []string
-			for _, p := range pages {
-				if !slices.Contains(sprints, tags[p]) {
-					sprints = append(sprints, tags[p])
-				}
-			}
-			sort.Strings(sprints)
-			said = fmt.Sprintf("its worktree is gone; a draft commit of %d design pages for sprint %s, published at "+
-				"the sprint's close", len(pages), strings.Join(sprints, ", "))
-		}
-		out = append(out, fmt.Sprintf("drafts    %s  %s", w.Branch(), said))
+		out = append(out, fmt.Sprintf("drafts    %s  %s", w.Branch(), orphaned(store, w)))
 	}
 	return out, nil
+}
+
+// orphaned is what a branch whose worktree is gone still holds: unpublished pages, and edits lost in conflict.
+func orphaned(store string, w Workspace) string {
+	d, err := readDraft(store, w)
+	var pages []string
+	if err == nil {
+		pages, err = d.pending(store)
+	}
+	if err != nil {
+		return "unreadable: " + err.Error()
+	}
+	var said, sprints []string
+	var drafted int
+	for _, p := range pages {
+		if sprint, ok := d.tags[p]; ok {
+			drafted++
+			if !slices.Contains(sprints, sprint) {
+				sprints = append(sprints, sprint)
+			}
+		}
+	}
+	if drafted > 0 {
+		sort.Strings(sprints)
+		said = append(said, fmt.Sprintf("a draft commit of %d design pages for sprint %s, published at the sprint's "+
+			"close", drafted, strings.Join(sprints, ", ")))
+	}
+	for _, p := range slices.Sorted(maps.Keys(d.conflicts)) {
+		said = append(said, fmt.Sprintf("its edit of records/%s for sprint %s was left in conflict and is lost with the "+
+			"worktree; the mark holds that sprint's close until pm sprint close %s --discard %s", p, d.conflicts[p],
+			d.conflicts[p], strings.TrimSuffix(path.Base(p), ".md")))
+	}
+	if said == nil {
+		return "its worktree is gone and it holds no unpublished draft; the next pm sprint close deletes it"
+	}
+	return "its worktree is gone; " + strings.Join(said, "; ")
 }
 
 // Publish is what pm sprint close publishes for one sprint, planned without a write: the pages the sprint's drafts
@@ -134,7 +185,9 @@ type Publish struct {
 	Tip   string             // the records tip the drafts merged onto
 	Pages map[string]*string // each page the merge changes on the tip (design/x.md): its text, nil when removed
 	Was   map[string]*string // each of Pages as the tip holds it, nil when it has none
-	drops []drop
+	// Skipped is a warning for each drafts/ branch pm cannot read and no commit of which names the sprint
+	Skipped []string
+	drops   []drop
 }
 
 // drop is a draft to take pages out of: the sprint's, published or discarded, and on a branch with no worktree also
@@ -165,7 +218,12 @@ func PlanPublish(store, sprint string, discard []string) (*Publish, error) {
 	for _, w := range branches {
 		d, err := readDraft(store, w)
 		if err != nil {
-			return nil, err
+			if mine, err2 := mayHold(store, w, sprint); err2 != nil || mine {
+				return nil, errors.Join(errorf("%s may hold sprint %s's design pages, and pm cannot read it, so "+
+					"nothing is published: %v", w.Branch(), sprint, err), err2)
+			}
+			p.Skipped = append(p.Skipped, unreadable(w, err))
+			continue
 		}
 		x, take, err := sprintPages(store, w, d, sprint, discard)
 		if err != nil {
@@ -276,6 +334,32 @@ func sprintPages(store string, w Workspace, d draftState, sprint string, discard
 	sort.Strings(x.pages)
 	sort.Strings(take)
 	return x, take, nil
+}
+
+// mayHold is whether a commit of w's branch not on the records branch names sprint in a "Sprint:" or "Conflict:"
+// line: an unreadable branch that may hold the sprint's pages.
+func mayHold(store string, w Workspace, sprint string) (bool, error) {
+	log, err := Git(store, "log", "--format=%B", "refs/heads/"+Branch+".."+w.Ref())
+	if err != nil {
+		return false, err
+	}
+	for _, l := range strings.Split(log, "\n") {
+		for _, tag := range []*regexp.Regexp{sprintTag, conflictTag} {
+			if m := tag.FindStringSubmatch(l); len(m) == 3 && m[2] == sprint {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// PublishedBy is whether a close of sprint published page on the records branch (its "Published:" line), ever.
+func PublishedBy(store, page, sprint string) (bool, error) {
+	log, err := Git(store, "log", "--format=%B", "refs/heads/"+Branch, "--", page)
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(strings.Split(log, "\n"), publishedTag+page+" "+sprint), nil
 }
 
 // conflicting is why each page the draft marks as the sprint's, in conflict, holds the close, unless discarded: a

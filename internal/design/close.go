@@ -19,13 +19,16 @@ type Closing struct {
 	*store.Publish
 	w      *store.Workspace
 	revert []string
+	notes  []string // what the close leaves to others: unreadable drafts, other worktrees' edits of its pages
 }
 
 // PlanClose plans, writing nothing, the publish of the sprint's design-page drafts from every draft of the clone, less
 // discard (slugs, each with its reason), after the close's other checks; here is where the close runs, dir the records
 // store, root the code checkout. It refuses while the closing workspace (here's; none in the main checkout) has uncommitted edits to a page the sprint links and does not discard; a discard of a page the
-// sprint has no draft of, edit of or waiver for; an overlap (store.PlanPublish); and a covers pattern a page to publish
-// adds or changes that matches no file on the remote's main, fetched (MissingOnMain).
+// sprint has no draft of, edit of or waiver for, or that a close of the sprint published; an overlap or an unreadable
+// branch that may hold the sprint's pages (store.PlanPublish); and a covers pattern of a page to publish that matches
+// no file on the remote's main, fetched (MissingOnMain). It notes, without refusing, unreadable branches it leaves out
+// and other worktrees' uncommitted edits of the pages it publishes.
 func PlanClose(here, dir, root string, sprint *records.Record, discard map[string]string) (*Closing, error) {
 	id := sprint.Bead()
 	cfg, err := config.Load(here)
@@ -44,12 +47,18 @@ func PlanClose(here, dir, root string, sprint *records.Record, discard map[strin
 			return nil, err
 		}
 	}
-	drafted, err := store.Drafted(dir)
+	drafted, _, err := store.Drafted(dir) // PlanPublish refuses an unreadable branch that may hold the sprint's pages
 	if err != nil {
 		return nil, err
 	}
 	for _, slug := range slices.Sorted(maps.Keys(discard)) {
 		page := "design/" + slug + ".md"
+		if done, err := store.PublishedBy(dir, page, id); err != nil {
+			return nil, err
+		} else if done && !Discarded(sprint)[slug] {
+			return nil, fmt.Errorf("--discard %s: a close of sprint %s already published records/%s; it is no draft "+
+				"to drop", slug, id, page)
+		}
 		_, waived := Waivers(sprint)[slug]
 		if !drafted[id][page] && !slices.Contains(dirty, page) && !waived {
 			return nil, fmt.Errorf("--discard %s: sprint %s has no draft of the design page %s to drop", slug, id, slug)
@@ -78,36 +87,56 @@ func PlanClose(here, dir, root string, sprint *records.Record, discard map[strin
 	if c.Publish, err = store.PlanPublish(dir, id, paths); err != nil {
 		return nil, err
 	}
-	added := map[string][]string{}
+	held := map[string][]string{} // every pattern of a page to publish: once published, pm check holds them all to main
 	for _, page := range slices.Sorted(maps.Keys(c.Pages)) {
 		if c.Pages[page] == nil {
 			continue
 		}
-		now, err := records.CoversOf(*c.Pages[page], page)
-		if err != nil {
+		if held[strings.TrimSuffix(page, ".md")], err = records.CoversOf(*c.Pages[page], page); err != nil {
 			return nil, err
 		}
-		var was []string
-		if c.Was[page] != nil {
-			if was, err = records.CoversOf(*c.Was[page], page); err != nil {
-				return nil, fmt.Errorf("the page as the records branch holds it: %w", err)
-			}
-		}
-		added[strings.TrimSuffix(page, ".md")] = slices.DeleteFunc(now, func(p string) bool {
-			return slices.Contains(was, p)
-		})
 	}
-	missing, err := MissingOnMain(root, remote, branch, added)
+	missing, err := MissingOnMain(root, remote, branch, held)
 	if err != nil {
 		return nil, fmt.Errorf("sprint %s: %w", id, err)
 	}
 	if missing != nil {
-		return nil, fmt.Errorf("sprint %s: the design pages it publishes add covers patterns that name files %s/%s "+
+		return nil, fmt.Errorf("sprint %s: the design pages it publishes have covers patterns that name files %s/%s "+
 			"does not have: %s. Fix each pattern to the file main has in the workspace that drafts the page and pm "+
 			"commit it there, or merge the PR that adds the file first; then pm sprint close %s again", id, remote,
 			branch, strings.Join(missing, ", "), id)
 	}
+	c.notes = append(c.notes, c.Skipped...)
+	if err := c.othersEdits(dir); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+// othersEdits notes each other worktree's uncommitted edit of a page the close publishes: the close does not wait on
+// it, and once the sprint is closed it has no open sprint to be committed under.
+func (c *Closing) othersEdits(dir string) error {
+	branches, err := store.DraftBranches(dir)
+	if err != nil {
+		return err
+	}
+	for _, w := range branches {
+		if w.Dir == "" || (c.w != nil && w.Dir == c.w.Dir) {
+			continue
+		}
+		dirty, err := w.Dirty()
+		if err != nil {
+			return err
+		}
+		for _, page := range slices.Sorted(maps.Keys(c.Pages)) {
+			if slices.Contains(dirty, page) {
+				c.notes = append(c.notes, fmt.Sprintf("note: worktree %s has uncommitted edits to records/%s, which "+
+					"this close published without them; commit them for an open sprint that links the page, or "+
+					"revert them", w.Code, page))
+			}
+		}
+	}
+	return nil
 }
 
 // Writes is the close's writes of the pages it publishes, in the records store dir.
@@ -142,7 +171,11 @@ func (c *Closing) Said(discard map[string]string) string {
 	if len(discard) > 0 {
 		parts = append(parts, "discarded the drafts of "+strings.Join(slices.Sorted(maps.Keys(discard)), ", "))
 	}
-	return strings.Join(parts, "; ")
+	said := strings.Join(parts, "; ")
+	for _, n := range c.notes {
+		said += "\n" + n
+	}
+	return said
 }
 
 // discardLine follows a waiver's reason when pm sprint close --discard recorded it: the record of the discard, which

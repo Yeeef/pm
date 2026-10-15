@@ -13,9 +13,9 @@ never shows a page describing code that has not merged, and two sprints' edits o
   no longer publishes it: `pm sprint close` does.
 - `pm check` fails on a published design page's covers pattern that matches no file on the remote's main (fetched
   when its remote-tracking branch lacks one), and in a worktree on a draft page's pattern that matches no file the
-  worktree tracks. A published pattern main lacks while a draft of the page changes its covers is listed as waiting
+  worktree tracks. A published pattern main lacks while a draft of the page no longer holds it is listed as waiting
   on that sprint's close instead. The list of patterns waiting on unmerged work is gone, and `pm sprint close` no longer holds the
-  patterns a sprint added since it opened by records commit dates: it holds the patterns each page it publishes adds.
+  patterns a sprint added since it opened by records commit dates: it holds every pattern of each page it publishes.
 
 ### Added
 
@@ -27,6 +27,9 @@ never shows a page describing code that has not merged, and two sprints' edits o
 - `pm sprint close --discard SLUG --reason "…"`, repeatable, drops the sprint's drafts of a page instead of
   publishing them, puts back your workspace's uncommitted edits to it, and records the reason as `pm design
   unchanged` does; a later run of the close never publishes that page.
+- `pm check`, the design-page gate and `pm sprint close` name a `drafts/` branch they cannot read (a commit made by
+  hand there) in a warning and carry on; the close refuses only when a commit of that branch names its sprint. The
+  close notes each other worktree's uncommitted edit of a page it publishes.
 - A follow that leaves a drafted page with conflict markers keeps its sprint, and the sprint's close refuses from any
   worktree, naming the worktree and the page, until it is resolved and committed again. A page's draft in a
   workspace belongs to one sprint: `pm commit` refuses it for another open sprint.

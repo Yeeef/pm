@@ -20,9 +20,12 @@ func (r *repo) designGate(pr string, sprintIDs []string, files func() ([]string,
 	if !design.Covered(r.recs) {
 		return nil, nil
 	}
-	drafted, err := store.Drafted(r.records)
+	drafted, warnings, err := store.Drafted(r.records)
 	if err != nil {
 		return nil, err
+	}
+	for _, w := range warnings { // another worktree's bad branch never fails this gate
+		fmt.Fprintln(r.warn, w)
 	}
 	var sprints []design.Sprint
 	for _, id := range sprintIDs {
