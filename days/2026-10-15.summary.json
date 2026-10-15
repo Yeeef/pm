@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T07:19:40+00:00",
- "digest": "f4ef7ca01a2fcc83",
+ "generated_at": "2026-10-15T07:30:09+00:00",
+ "digest": "d0b567bdd20f0929",
  "model": "claude-haiku-5-5",
- "text": "- **Question answering:** Ask-tool questions can now be answered on the site as well as in chat. The first answer wins. Question endings now come from hook events, not transcript reads.\n- **CI and test reliability:** The AGENTS.md check now gives the same verdict on every rerun. Pull requests grade AGENTS.md in diff mode, and full grading runs daily on main. `make test-go` passes on every run because the service test takes a free port from the kernel.\n- **Pm release and repo setup:** This repo now uses the newest pm release, and the service runs on it. pm no longer installs a git hook or sets the git hooks path. Claude Code no longer saves or loads auto memory in this repo.\n- **Record layer design:** The owner chose Model A for the record layer. The project records now hold this decision as an owner decision. The record drafts page states the final design."
+ "text": "- **Owner questions and answers:** Ask-tool questions can now be answered on the site as well as in chat. The first answer wins, and question endings now come only from hook events.\n- **CI and test stability:** The AGENTS.md check gives the same verdict on every rerun, and the test-go target passes on every run. macOS Go jobs and full AGENTS.md grading now run once a day.\n- **Repo tooling and hooks:** pm no longer installs a git hook, and each new worktree is set up at session start. Claude Code auto memory is now off in this repo, and this repo runs the newer pm release.\n- **Record layer design:** The owner chose Model A, and its design page is in final form. A live check showed Claude sessions can write a nested records worktree."
 }
