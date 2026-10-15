@@ -36,7 +36,7 @@ A draft made in one clone shows on every other clone's site, a sprint closed fro
 
 > Where is the detail?
 
-None yet.
+- [Record drafts and publishing](../design/record-drafts.md): Draft refs, Publish at sprint close, Increment 5
 
 ## Progress
 
