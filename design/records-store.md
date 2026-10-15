@@ -261,7 +261,10 @@ yeeef-agents-9va.30.8.1). The records step:
 | Store against `origin/records`, after a fetch | What it does |
 |---|---|
 | Up to date | Nothing |
-| Behind, not ahead | Fast-forwards onto `origin/records` under the store lock (`git merge --ff-only`, never a merge commit); git refuses, and the step fails, flagged and retried on the next run, while an uncommitted edit in the store would be overwritten. Then each records workspace with no uncommitted file follows ([Record drafts and publishing](record-drafts.md), Follow), so its draft drops the pages another clone's close published |
+| Behind, not ahead | Fast-forwards onto `origin/records` under the store lock (`git merge --ff-only`, never a merge commit, with `merge.autoStash` off, as an autostash would go to the stash every worktree of the clone shares). It refuses, failing the step, flagged and retried on the next run, while tracked records have uncommitted edits (as the rebase does, whether or not the remote touches them) and while a path the remote changes exists on disk untracked or ignored. Then each records workspace with no uncommitted file follows ([Record drafts and publishing](record-drafts.md), Follow), so its draft drops the pages another clone's close published; one whose follow would strand a page is left to its own worktree's next pm write |
+
+The counts are read again under the store lock, which a pm write may have moved since the first read, and every case
+but up to date first checks the store's HEAD is on `records`, refusing otherwise, as the rebase does.
 | Ahead, not behind | Pushes |
 | Ahead and behind | Rebases onto `origin/records` under the store lock, then pushes outside the lock. Skipped until the next run while tracked records have uncommitted edits; a rebase that stops is aborted, leaving the store as it was |
 
