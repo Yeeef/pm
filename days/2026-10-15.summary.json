@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T09:01:07+00:00",
- "digest": "49ed84bcedbe98c9",
+ "generated_at": "2026-10-15T10:51:40+00:00",
+ "digest": "8f81a0cf6d684bc0",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions:** An ask-tool question can now be answered on the site or in chat. The first answer is used. Questions now close from hook events, so transcript and rollout reads are gone. Owner replies reach a session by push alone.\n- **Record layer site:** The site now renders the records branch, including published images. Each draft has its own page with a full render. Section diffs and draft-to-draft comparison are available. A broken draft fails only its own version.\n- **CI check stability:** The AGENTS.md check gives the same verdict on repeated runs. Pull requests now grade in diff mode, and full grading runs daily on main. macOS Go jobs run once a day, not on each pull request.\n- **Repo setup:** The repo's pm pin moved to the newer release, and the store was synced. Claude Code auto memory is now off in this repo. pm no longer installs a git hook or owns the hooks path."
+ "text": "- **Record layer views:** The owner chose Model A for the record layer design. The site now renders the records branch and a page for each draft version.\n- **Owner questions and replies:** Ask-tool questions can now be answered on the site or in chat. Question endings now come only from hook events.\n- **AGENTS.md grading:** The AGENTS.md check gives the same verdict on every rerun. Pull requests grade in diff mode, and full grading runs daily on main.\n- **pm tooling and CI:** pm no longer installs a post-checkout git hook. The macOS Go jobs now run on a daily schedule only."
 }
