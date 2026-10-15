@@ -983,6 +983,9 @@ def test_task_close_dropped_records_why_and_needs_no_commit(repo):
     add_task(repo)
     (repo.root / "wip.txt").write_text("not committed\n")
     refused(repo, "task", "close", "repo-demo.1.3", "--dropped", match=r"--dropped needs --reason")
+    refused(repo, "task", "close", "repo-demo.1.3",
+            match=r"--reason is required: what was done, in a sentence; pm adds the commit that holds the work, or "
+                  r"close a task not done with --dropped --reason \"<why>\"")
     refused(repo, "task", "close", "repo-demo.1.3", "--dropped", "--reason", "x", "--commit", "HEAD",
             match=r"--dropped closes repo-demo\.1\.3 as not done, so no commit holds its work; drop --commit")
     res = repo.pm("task", "close", "repo-demo.1.3", "--dropped", "--reason", "A library parses it.")
@@ -1006,27 +1009,27 @@ def test_task_close_resolves_another_repos_commit_or_a_pr_with_gh(repo):
     merged, open_pr = "https://github.com/Yeeef/pm/pull/7", "https://github.com/Yeeef/pm/pull/9"
     repo.set_pr(merged, "MERGED", sha)
     repo.set_pr(open_pr, "OPEN")
-    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "Yeeef/pm@fedcba9",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done", "--commit", "Yeeef/pm@fedcba9",
             match=r"--commit Yeeef/pm@fedcba9 is not a commit of Yeeef/pm on GitHub: gh api "
                   r"repos/Yeeef/pm/commits/fedcba9 failed: gh: No commit found for SHA: fedcba9")
-    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "https://github.com/Yeeef/pm/pull/8",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done", "--commit", "https://github.com/Yeeef/pm/pull/8",
             match=r"--commit https://github.com/Yeeef/pm/pull/8 is not a pull request on GitHub: gh pr view")
     repo.set_pr("https://github.com/Yeeef/pm/pull/10", "CLOSED")
-    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "https://github.com/Yeeef/pm/pull/10",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done", "--commit", "https://github.com/Yeeef/pm/pull/10",
             match=r"--commit https://github.com/Yeeef/pm/pull/10 was closed without merging, so it holds no work")
-    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "no-such-ref",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done", "--commit", "no-such-ref",
             match=r"--commit no-such-ref is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL")
     res = repo.pm("task", "close", "repo-demo.1.3", "--reason", "Parser written.", "--commit", "Yeeef/pm@0123456")
     assert res.returncode == 0, res.stderr
-    assert repo.pm("task", "close", "repo-demo.1.4", "--commit", merged).returncode == 0
-    assert repo.pm("task", "close", "repo-demo.1.5", "--commit", open_pr).returncode == 0
+    assert repo.pm("task", "close", "repo-demo.1.4", "--reason", "Done", "--commit", merged).returncode == 0
+    assert repo.pm("task", "close", "repo-demo.1.5", "--reason", "Done", "--commit", open_pr).returncode == 0
     items = repo.items()
     assert items["repo-demo.1.3"]["close_reason"] == "Parser written. (commit Yeeef/pm@0123456)"
     assert items["repo-demo.1.4"]["close_reason"] == f"Done (PR {merged}, merged as Yeeef/pm@0123456)"
     assert items["repo-demo.1.5"]["close_reason"] == f"Done (PR {open_pr})"
     # a branch of this repo named like OWNER/REPO@SHA is this repo's commit: no gh call
     repo.git("branch", "Yeeef/pm@cafe1234")
-    assert repo.pm("task", "close", "repo-demo.1.6", "--commit", "Yeeef/pm@cafe1234").returncode == 0
+    assert repo.pm("task", "close", "repo-demo.1.6", "--reason", "Done", "--commit", "Yeeef/pm@cafe1234").returncode == 0
     head = repo.git("rev-parse", "--short", "HEAD").strip()
     assert repo.items()["repo-demo.1.6"]["close_reason"] == f"Done (commit {head})"
 
@@ -1034,12 +1037,12 @@ def test_task_close_resolves_another_repos_commit_or_a_pr_with_gh(repo):
 def test_task_close_refuses_a_task_another_live_session_holds(repo):
     add_task(repo)  # held by sess-a
     transcript(repo, "sess-a", 60)
-    refused(repo, "task", "close", "repo-demo.1.3",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done",
             match=r"repo-demo\.1\.3 is held by live session sess-a \(claimed \S+ ago; its transcript was written in the "
                   r"last 30 minutes\); leave it, or ask that session to close it, or to release it with pm task release "
                   r"repo-demo\.1\.3")
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-a")  # the holder itself closes it
-    res = repo.pm("task", "close", "repo-demo.1.3")
+    res = repo.pm("task", "close", "repo-demo.1.3", "--reason", "Done")
     assert res.returncode == 0, res.stderr
     assert repo.items()["repo-demo.1.3"]["status"] == "closed"
 

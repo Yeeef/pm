@@ -426,10 +426,10 @@ var tree = &command{
 				{
 					Name:        "close",
 					Help:        "close a task with a reason naming its commit, or drop it",
-					Description: "Close a task as done. The reason ends with what holds the work: '(commit <hash>)' for HEAD if it was committed after the task started, else the --commit given: a commit of this repo, OWNER/REPO@SHA for another repo's commit, or a PR URL, the last two resolved with gh; one that does not resolve, or a PR closed without merging, is refused. Without --commit, a warning when HEAD is older than the task or the working tree has uncommitted changes. --dropped closes it as not done instead (resolution dismissed, shown as dropped and left out of a sprint's task counts), with a required --reason and no commit; a task it blocks no longer waits on it. Refuses a task that another live session holds, as pm task claim does; that session closes it or releases it with pm task release.",
+					Description: "Close a task as done, with a required --reason saying what was done. The reason ends with what holds the work: '(commit <hash>)' for HEAD if it was committed after the task started, else the --commit given: a commit of this repo, OWNER/REPO@SHA for another repo's commit, or a PR URL, the last two resolved with gh; one that does not resolve, or a PR closed without merging, is refused. Without --commit, a warning when HEAD is older than the task or the working tree has uncommitted changes. --dropped closes it as not done instead (resolution dismissed, shown as dropped and left out of a sprint's task counts), with a required --reason and no commit; a task it blocks no longer waits on it. Refuses a task that another live session holds, as pm task claim does; that session closes it or releases it with pm task release.",
 					Args: []arg{
 						{Dest: "task_id", Required: true, Kind: value, Help: "the task's id"},
-						{Flags: []string{"--reason"}, Dest: "reason", Kind: value, Help: "what was done (default: Done); with --dropped, required: why it is not done"},
+						{Flags: []string{"--reason"}, Dest: "reason", Kind: value, Help: "required: what was done; with --dropped, why it is not done"},
 						{Flags: []string{"--commit"}, Dest: "commit", Metavar: []string{"REF"}, Kind: value, Help: "what holds the work: a commit of this repo, OWNER/REPO@SHA or a PR URL (default: HEAD, if newer than the task)"},
 						{Flags: []string{"--dropped"}, Dest: "dropped", Kind: switchOn, Help: "close it as not done: no commit, a reason required"},
 					},
