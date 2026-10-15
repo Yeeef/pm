@@ -22,6 +22,11 @@
             "command": "pm prime --state --hook-json",
             "type": "command",
             "timeout": 30
+          },
+          {
+            "command": "pm prime --request-rule --hook-json",
+            "type": "command",
+            "timeout": 10
           }
         ],
         "matcher": ""
@@ -92,6 +97,17 @@
           }
         ],
         "matcher": "AskUserQuestion"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook session-end || exit 1",
+            "type": "command",
+            "timeout": 10
+          }
+        ]
       }
     ]
   },
