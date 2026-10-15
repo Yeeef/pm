@@ -1,36 +1,37 @@
-# pm on every pull request: built on both release targets as the release builds it (cgo, native runners), the gofmt
-# check, go vet and the Go tests (make test-go), split into parallel jobs. On Linux: the build (pm, the page renderer
-# and pm-before), gofmt, vet and every package's tests but internal/work's; internal/work's tests, the longest, in
-# processes at once (make go-test-work); the race tests. On macOS, two jobs, since GitHub runs at most 5 macOS jobs at
-# once across all of the repo's runs (Linux takes 20): pm's build beside every package's tests but internal/work's,
-# then internal/work's; the race tests. On a pull request the macOS jobs run only the tests whose behaviour can differ
-# by OS (pr_run: the os rows of .github/scripts/go-os-tests.txt, which go-os-check holds to every test); a push to
-# main runs every test on macOS (run). macOS runs RACE_TESTS only under -race. gofmt and vet read the same files on
+# pm built on both release targets as the release builds it (cgo, native runners), the gofmt check, go vet and the Go
+# tests (make test-go), split into parallel jobs. On every pull request and push to main, Linux (job test): the build
+# (pm, the page renderer and pm-before), gofmt, vet and every package's tests but internal/work's; internal/work's
+# tests, the longest, in processes at once (make go-test-work); the race tests. Once a day on main, and on demand
+# (workflow_dispatch), macOS (job macos), every test, as the owner asked: macOS runners are CI's slowest and scarcest
+# (GitHub runs at most 5 macOS jobs at once across all of the repo's runs; Linux takes 20). The daily run does not
+# repeat Linux, which ran on the push. Two macOS jobs: pm's build beside every package's tests but internal/work's,
+# then internal/work's; the race tests. macOS runs RACE_TESTS only under -race. gofmt and vet read the same files on
 # both targets (no Go file is OS-specific), and the renderer and pm-before serve only the harness, which runs on
-# Linux, so they run there alone.
+# Linux, so they run there alone. Both jobs run the same steps (the YAML anchor `steps`); on a pull request the macOS
+# job is skipped, which merge_ready.py counts as passed.
 # The step summary records the binary's size per target. pm-release-build.yml runs the release build test,
 # pm-tests.yml the harness suite.
 #
 # A pull request whose changed files no Go job reads (.github/scripts/go_changes.py: docs, the harness's and the
 # release tools' Python) skips each job's steps after the check, so every job still reports, as merge_ready.py
-# requires of a workflow that runs on every PR, and passes. A push to main runs everything.
+# requires of a workflow that runs on every PR, and passes. A push to main, or a daily run, runs everything.
 # A pull request that the Go jobs read runs only the test packages its changes can affect: go_changes.py select reads
 # the import graph from go list -deps -test and each package's non-Go inputs (embeds, testdata, files its Go code
 # names), writes the packages to .go/selected, and the suite's make targets take that file as SELECTED; a changed file
 # it cannot place selects every package. A target with no package selected (internal/work's, when the PR changes
-# nothing its tests link or read) says so and passes. On macOS the selection is intersected with the os tests. The
-# build, gofmt, vet and go-os-check run whole.
+# nothing its tests link or read) says so and passes. The build, gofmt and vet run whole.
 #
-# The Go caches (GOMODCACHE and GOCACHE) are saved by each push to main, one per target, Go version, kind (build, race)
-# and go.sum, and a pull request restores main's latest, so a PR compiles only what it changed. A run that finds none
-# for its go.sum (a dependency change, a new Go version, an evicted cache) restores the latest of its kind and saves its
-# own, so the PR's next push is warm. A run whose tests fail saves too: what it compiled is as good as a passing run's,
-# and a failed push to main would otherwise leave every PR cold until the next green one. A run that saves trims the
-# restored build cache to what it used first (.github/scripts/go_cache_trim.py), so the cache, and each restore of it,
-# does not grow with every save. The module cache is saved without its downloaded zips: a build reads only the unpacked
-# modules beside them, and the zips, already compressed, only lengthen each restore (actions/cache's `!` paths cannot
-# leave them out: it archives a listed directory whole). The key's `unzipped` names that form, so no run restores a
-# cache saved with them. GOFLAGS=-count=1: the restored cache never stands in for a test run.
+# The Go caches (GOMODCACHE and GOCACHE) are saved by each run on main (Linux's by each push, macOS's by each daily
+# run), one per target, Go version, kind (build, race) and go.sum, and a pull request restores main's latest, so a PR
+# compiles only what it changed. A run that finds none for its go.sum (a dependency change, a new Go version, an
+# evicted cache) restores the latest of its kind and saves its own, so the PR's next push is warm. A run whose tests
+# fail saves too: what it compiled is as good as a passing run's, and a failed push to main would otherwise leave every
+# PR cold until the next green one. A run that restores its own key (a daily run on a commit already saved, a re-run)
+# neither trims nor saves: the key exists. A run that saves trims the restored build cache to what it used first
+# (.github/scripts/go_cache_trim.py), so the cache, and each restore of it, does not grow with every save. The module
+# cache is saved without its downloaded zips: a build reads only the unpacked modules beside them, and the zips,
+# already compressed, only lengthen each restore (actions/cache's `!` paths cannot leave them out: it archives a
+# listed directory whole). The key's `unzipped` names that form, so no run restores a cache saved with them. GOFLAGS=-count=1: the restored cache never stands in for a test run.
 # .github/scripts/setup_go.py installs Go, as actions/setup-go does but without its 12 s copy into the runner's tool
 # cache.
 name: pm go
@@ -39,9 +40,13 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "41 6 * * *"
+  workflow_dispatch:
 
 concurrency:
-  group: pm-go-${{ github.ref }}
+  # by event too: a push to main must not cancel the daily run queued behind it, nor the daily run a push
+  group: pm-go-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -49,28 +54,22 @@ permissions:
 
 jobs:
   test:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     name: ${{ matrix.suite }} (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - {target: linux-amd64, runner: ubuntu-22.04, suite: build-vet-test, cache: build, save: true, binary: true,
-             run: make go-build go-fmt go-vet go-os-check go-test-but-work}
+             run: make go-build go-fmt go-vet go-test-but-work}
           # what work compiles is a subset of build-vet-test's, which saves it
           - {target: linux-amd64, runner: ubuntu-22.04, suite: work, cache: build, save: false, run: make go-test-work}
           - {target: linux-amd64, runner: ubuntu-22.04, suite: race, cache: race, save: true, run: make -j2 go-test-race}
-          # pm's link waits on I/O more than it computes, so it runs beside the tests; internal/work's after them: all three
-          # at once took as long (96 s against 98 s), the runner's 3 cores being busy either way
-          - {target: darwin-arm64, runner: macos-14, suite: build-test, cache: build, save: true, binary: true,
-             run: make -j2 go-build-pm go-test-but-work && make go-test-work-macos,
-             pr_run: make -j2 go-build-pm go-test-but-work-os && make go-test-work-os}
-          - {target: darwin-arm64, runner: macos-14, suite: race, cache: race, save: true, run: make -j2 go-test-race,
-             pr_run: make go-test-race-os}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     env:
       GOFLAGS: -count=1
-    steps:
+    steps: &steps
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2  # a PR's merge commit and its base, which go_changes.py diffs
@@ -104,7 +103,8 @@ jobs:
       - name: Age the restored Go build cache, so the save keeps only what this run uses
         id: age
         if: >-
-          matrix.save && steps.restore.outputs.cache-matched-key != '' && (github.ref == 'refs/heads/main' ||
+          matrix.save && steps.restore.outputs.cache-hit != 'true' && steps.restore.outputs.cache-matched-key != '' &&
+          (github.ref == 'refs/heads/main' ||
           !startsWith(steps.restore.outputs.cache-matched-key, format('{0}{1}', steps.paths.outputs.kind, steps.paths.outputs.sum)))
         run: python3 .github/scripts/go_cache_trim.py age "${{ steps.paths.outputs.build }}"
       - name: The test packages the changes can affect
@@ -116,7 +116,7 @@ jobs:
         if: steps.changes.outputs.go == 'true'
         env:
           SELECTED: ${{ github.event_name == 'pull_request' && '.go/selected' || '' }}
-        run: ${{ github.event_name == 'pull_request' && matrix.pr_run || matrix.run }}
+        run: ${{ matrix.run }}
       - name: Record the binary
         if: matrix.binary && steps.suite.outcome == 'success'
         run: |
@@ -128,7 +128,8 @@ jobs:
         run: python3 .github/scripts/go_cache_trim.py trim "${{ steps.paths.outputs.build }}"
       - name: Drop the module cache's zips before the save
         if: >-
-          !cancelled() && steps.suite.outcome != 'skipped' && matrix.save && (github.ref == 'refs/heads/main' ||
+          !cancelled() && steps.suite.outcome != 'skipped' && matrix.save && steps.restore.outputs.cache-hit != 'true' &&
+          (github.ref == 'refs/heads/main' ||
           !startsWith(steps.restore.outputs.cache-matched-key, format('{0}{1}', steps.paths.outputs.kind, steps.paths.outputs.sum)))
         run: |
           zips="${{ steps.paths.outputs.mod }}/cache/download"
@@ -136,7 +137,8 @@ jobs:
           find "$zips" -name '*.zip' -delete
       - name: Save the Go cache
         if: >-
-          !cancelled() && steps.suite.outcome != 'skipped' && matrix.save && (github.ref == 'refs/heads/main' ||
+          !cancelled() && steps.suite.outcome != 'skipped' && matrix.save && steps.restore.outputs.cache-hit != 'true' &&
+          (github.ref == 'refs/heads/main' ||
           !startsWith(steps.restore.outputs.cache-matched-key, format('{0}{1}', steps.paths.outputs.kind, steps.paths.outputs.sum)))
         uses: actions/cache/save@v4
         with:
@@ -144,3 +146,21 @@ jobs:
             ${{ steps.paths.outputs.mod }}
             ${{ steps.paths.outputs.build }}
           key: ${{ steps.restore.outputs.cache-primary-key }}
+
+  macos:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: ${{ matrix.suite }} (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # pm's link waits on I/O more than it computes, so it runs beside the tests; internal/work's after them: all three
+          # at once took as long (96 s against 98 s), the runner's 3 cores being busy either way
+          - {target: darwin-arm64, runner: macos-14, suite: build-test, cache: build, save: true, binary: true,
+             run: make -j2 go-build-pm go-test-but-work && make go-test-work-macos}
+          - {target: darwin-arm64, runner: macos-14, suite: race, cache: race, save: true, run: make -j2 go-test-race}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      GOFLAGS: -count=1
+    steps: *steps

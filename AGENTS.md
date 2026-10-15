@@ -70,8 +70,6 @@ hold it).
   PR; never hand-edit one to make a test pass.
 - **After adding or renaming an `internal/work` test, run `make go-test-work UPDATE=1`**: it measures and rewrites
   `.github/scripts/work-test-seconds.txt`, which must name every test and no other, or `go-test-work` fails.
-- **After adding or renaming a Go test, classify it `os` or `any` in `.github/scripts/go-os-tests.txt`**, whose header
-  says how; `make go-os-check` fails until you do.
 - A function or file past a cap (`.golangci.yml`, `size_test.go`) is split along a seam, never kept with `//nolint`.
 
 ## Merging
