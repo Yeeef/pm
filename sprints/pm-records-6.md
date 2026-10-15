@@ -92,6 +92,15 @@ run.go changes only the sync steps (the drafts step); reply delivery is untouche
 
 - Live check on this repo after the pin move to 0.15.1: a worktree made as Claude Code makes one (`git worktree add --no-checkout`, then `git reset --hard`) got its records workspace on `drafts/livecheck-records` from `pm init --session-start` in 0.14 s; this finding was written by hand in that workspace.
 
+- Live check on this repo, pm 0.15.1, real service on :8001: the hand edit in
+  the workspace left /sprints/pm-records-6.html without it (200, 0 matches)
+  and listed the version /drafts/livecheck-records/sprints/pm-records-6.html
+  (200, 1 match) with its diff (200); pm commit from the worktree took 0.31 s
+  and landed as records 0e7f6e5; 2 s later the published page held the line (1
+  match) and the workspace was clean. After pm init on the main checkout the
+  service reported the new drafts step overdue since 2026-10-10 until its
+  first run; the first pm push cleared it (drafts ok: pushed 0, deleted 0).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
