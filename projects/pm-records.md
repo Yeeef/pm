@@ -31,6 +31,11 @@ Design-page drafts publish at pm sprint close, not when the pm service sees a PR
 The closing session can resolve a conflict with a page another sprint published first, where the service could only flag it after the code merged; sprint close already checks the PRs and covers on main, so the service needs no publish step, no gh poll and no branch-to-worktree match.
 :::
 
+::: decision {source=owner date=2026-10-15}
+The agent delivers pm-records end to end: it merges the project PRs itself through make merge-ready, and finishes by releasing and moving this repo pin to a pm release that carries the record layer.
+The owner handed the project over in chat; their reviews stop gating each PR, so the agent runs the fresh-context reviews and the merge-ready check itself.
+:::
+
 ## Design pages
 
 > Where is the detail?
