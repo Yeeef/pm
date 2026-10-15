@@ -40,6 +40,11 @@ A design page's edits reach the published records only when its sprint closes, w
 > Where is the detail?
 
 - [Record drafts and publishing](../design/record-drafts.md): Publish at sprint close, Covers, Increments 3 and 4
+- [Sprint lifecycle](../design/sprint-lifecycle.md): Close, Design pages follow the code, Covers hold on main at the close
+- [Shared records store](../design/records-store.md): pm where's drafts line; pm commit keeps design pages as drafts
+- [Record layer](../design/record-layer.md): covers held to main
+- [pm CLI](../design/pm-cli.md): pm sprint close, pm commit, pm where
+- [Agent lifecycle](../design/agent-lifecycle.md): design pages stay drafts until the close
 
 ## Progress
 

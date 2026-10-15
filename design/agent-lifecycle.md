@@ -247,7 +247,8 @@ records on the `records` branch, which each `pm` write commits itself.
   `--confirmed`.
 - Goal, Done when, delivery reports and design pages are edited by hand in
   `records/` (in a worktree, its own records workspace; design pages only
-  there) and committed with `pm commit -m "…" <path>`.
+  there) and committed with `pm commit -m "…" <path>`; a design page stays
+  the worktree's draft until its sprint's close publishes it.
 - Delegation: the main agent decides and briefs; a subagent claims
   (`pm task claim`) and closes its own task and reports back, and the main
   agent checks the report against the files before accepting it.

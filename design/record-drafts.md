@@ -7,6 +7,7 @@ covers:
   - "internal/site/diff.go"
   - "internal/store/drafts*.go"
   - "internal/cli/commit_workspace*.go"
+  - "internal/cli/sprint_publish_test.go"
 ---
 
 ## Problem
@@ -15,7 +16,7 @@ covers:
 
 Every session writes records in one shared working tree, and the site renders that tree. Two open sprints edited the same 8 design pages in it, one starting two minutes after the other's commit; nothing was lost only because of that gap ([the starting analysis](../docs/2026-10-14-record-layer-concurrency.md)). Three problems follow from the one shared tree:
 
-| Problem | Database name | Today |
+| Problem | Database name | Before this design |
 |---|---|---|
 | Two agents write one file | Dirty write, lost update | `pm commit` commits a named file whole, so it can carry another session's half-made edit to that file |
 | The owner wants work in progress | Dirty read, wanted on purpose | The site renders uncommitted edits, unlabelled by writer and with no mark of done |
@@ -69,7 +70,7 @@ This page is the record layer's model for drafts and publishing: each code workt
 
 **Design pages and the code**
 
-- `pm check` passes a `covers:` pattern that matches no tracked file, listing it as waiting on unmerged work. The gate (`pm action need --pr`, `pm sprint close`) passes a page covering a changed file when it was updated (a records commit since the sprint opened, plus a Design pages link) or waived. `pm sprint close` refuses while a pattern the sprint added matches no file on the remote's main ([Sprint lifecycle](sprint-lifecycle.md)).
+- The gate (`pm action need --pr`, `pm sprint close`) passes a page covering a changed file when it was updated (a draft of it tagged with the sprint, or a records commit to it since the sprint opened, plus a Design pages link) or waived ([Sprint lifecycle](sprint-lifecycle.md)).
 - `pm sprint close` already refuses an unwritten report, an open task, and a review not closed `merged as <sha>`; a PR merged with no review is given by `--merged <sha>`, which must be on the remote's main. With a PR it stamps the merge into the Outcome in one commit on `records`.
 
 **Runtimes** ([Shared records store](records-store.md), Constraints)
@@ -170,7 +171,7 @@ flowchart LR
 
 - Each code worktree gets a workspace: a git worktree of the branch `drafts/<name>`, where `<name>` is the worktree's admin name (unique in the clone), checked out at `<worktree>/records` in place of today's link. `/records` is already git-ignored in code worktrees.
 - The isolation unit is the code worktree: private to one session by the invariant, its branch is what merges, and `records/` already resolves per worktree. Alternatives considered says why not per session or per sprint.
-- `drafts/<name>` is always a `records` commit (its base) plus at most one draft commit, which holds the worktree's committed, unpublished design-page edits and names each page's sprint. pm records the base in its own ref, `refs/pm/workspaces/<name>/base`, moved with the branch in one ref transaction: a records sync that rebases leaves the base off the branch, and the ref keeps it known and reachable after the reflog entry expires. A branch head that is neither the base nor a draft commit on it is a commit made by hand, and every pm write refuses it, naming `git reset --soft <base>`.
+- `drafts/<name>` is always a `records` commit (its base) plus at most one draft commit, which holds the worktree's committed, unpublished design-page edits and names each page's sprint (a line `Sprint: <path> <sprint id>`). A page the draft commit holds with no such line was published or discarded by its sprint's close; the workspace's next follow drops it. pm records the base in its own ref, `refs/pm/workspaces/<name>/base`, moved with the branch in one ref transaction: a records sync that rebases leaves the base off the branch, and the ref keeps it known and reachable after the reflog entry expires. A branch head that is neither the base nor a draft commit on it is a commit made by hand, and every pm write refuses it, naming `git reset --soft <base>`.
 - pm never runs `git rebase`, `git merge` or `git stash` in a workspace: it computes merges with `git merge-tree --write-tree` and `git merge-file`, writes commits with `git commit-tree`, moves refs with `git update-ref`, and writes files itself. No workspace is ever left mid-rebase or mid-merge: each operation runs under the store lock and either completes or changes nothing.
 - **The main checkout** keeps the store as its records tree for journal hand edits, shared by its sessions as today; its uncommitted edits show as one draft, `store`. Design pages are edited only in a worktree: `pm commit` in the main checkout refuses a design page and names a worktree.
 - **The Stop hook** checks the session's own workspace's uncommitted edits; in the main checkout it keeps the transcript match.
@@ -196,7 +197,7 @@ Agents write `<worktree>/records/…` with file tools, inside their own worktree
 
 ### Publish at sprint close
 
-`pm sprint close` publishes the sprint's design-page drafts; nothing else publishes a design page. A sprint with PRs and a records-only sprint with none publish the same way.
+`pm sprint close` publishes the sprint's design-page drafts; nothing else publishes a design page's edits (two one-shot writes aside, below). A sprint with PRs and a records-only sprint with none publish the same way.
 
 **Which drafts are the sprint's.** The draft commit names each page's sprint. `pm commit` takes it from the open sprints whose Design pages link the page and in which the committing session holds a task: it refuses with none (link the page first) and takes `--sprint ID` with several. The close publishes every page attributed to the sprint, in every workspace and `drafts/*` branch of the clone, whichever worktree or session made it. Why this rule:
 
@@ -204,22 +205,31 @@ Agents write `<worktree>/records/…` with file tools, inside their own worktree
 - The Design pages links alone cannot tell two open sprints' drafts of one page apart, the case this design exists for.
 - "The worktrees whose sessions held the sprint's tasks" needs a session-to-worktree history that pm does not keep: `session.Uses` sees only live sessions.
 
-**The close, in order**
+**The close, in order.** Nothing is written before step 5; steps 2 to 4 compute the merge in memory.
 
-1. The existing checks: the report written, every task closed, every review closed `merged as <sha>` or `--merged` given.
-2. The drafts: it refuses while the closing workspace has uncommitted edits to a page the sprint links, and while another clone's draft ref holds a page of the sprint, naming that clone.
-3. Covers: each `covers:` pattern a page to publish adds or changes must match a file on the remote's main; the existing check, read from the draft.
-4. The merge: from the `records` tip, each draft in turn, `git merge-tree --write-tree --merge-base <draft base> <tip> <draft>`, taking only the sprint's pages. An overlap refuses the close and changes nothing, naming the commit that touched the page since the draft's base (`git log <base>..records -- <path>`): a page another sprint published first, or the sprint's other draft. The agent runs follow in that workspace (any pm write there; the markers become uncommitted edits), resolves them, runs `pm commit`, and closes again.
-5. One commit on `records`, under the store lock: the pages, with the Outcome's merge stamp when the sprint has a PR. Each draft commit drops the published pages; a `drafts/<name>` branch left empty with no worktree is deleted, with its remote ref.
-6. The sprint closes in the work store. A close stopped after step 5 finds nothing left to publish when run again.
+1. The existing checks: the report written, every task closed, every review closed `merged as <sha>` or `--merged` given, and the design-page gate, which reads `--discard`'s waivers.
+2. The drafts: it refuses while the closing workspace has uncommitted edits to a page the sprint links and does not discard. (A draft ref of another clone is step 5's.)
+3. The merge: from the `records` tip, each `drafts/*` branch in name order, `git merge-tree --write-tree --merge-base <draft base> <merge so far> <the draft's pages of the sprint>`. An overlap refuses the close and changes nothing, naming for each page what it overlaps and the fix:
 
-**`--discard <slug> --reason "…"`** drops the sprint's draft of that page instead: the page leaves each draft commit, the closing workspace's uncommitted edits to it are reverted, and the reason is recorded as a sprint decision, as `pm design unchanged` does. It repeats for several pages.
+   | Overlaps | Named | Fix |
+   |---|---|---|
+   | What `records` published since the draft's base (another sprint's close) | The commits: `git log --cherry-pick --right-only <base>...records -- <path>` | Any pm write in that worktree brings the commits in as conflict markers; resolve them, `pm commit --sprint <id>`, close again |
+   | The same, the draft's worktree gone | The commits, and that the worktree is gone | Take the page's text (`git show drafts/<name>:<path>`) into a workspace of your own, resolve and commit it there, delete the old branch, close again |
+   | The sprint's draft on another branch | That branch | Bring both edits into one workspace's page and commit it; put the page back to its published text in the other and commit it, which drops it from that draft |
 
-**A removed worktree.** Its workspace's uncommitted edits are lost; its `drafts/<name>` branch and remote ref keep the draft commit, and the close publishes from them. `pm clean` refuses a worktree whose workspace has uncommitted edits or unpublished design drafts.
+4. Covers: each `covers:` pattern a page to publish adds or changes, against the page as `records` holds it, must match a file on the remote's main, fetched (Covers).
+5. One commit on `records`, under the store lock: the pages, the Outcome's merge stamp when the sprint has a PR, `--discard`'s waivers, and a line `Published: <path> <sprint id>` per page. Then one ref transaction drops the published and discarded pages from the drafts: a workspace's draft commit keeps its tree and loses the pages' sprint lines, so no other worktree's files are written and its own next follow drops them; a branch whose worktree is gone loses them from its tree, and is deleted with its recorded base once nothing is left, as is any empty branch with no worktree.
+6. The sprint closes in the work store. A close stopped after step 5 finds nothing left to publish when run again; one stopped between the commit and the drop skips each page a `Published:` line since the draft's base names for the sprint.
+
+**`--discard <slug> --reason "…"`** drops the sprint's drafts of that page instead: the page leaves each draft commit as step 5 drops a published one, the closing workspace's uncommitted edits to it are put back once the close's commit is made, and the reason is recorded in that commit as the waiver `pm design unchanged` writes, which the gate reads. It takes one `--reason` per `--discard`, repeats for several pages, and refuses a page the sprint has no draft of, no uncommitted edit of in the closing workspace, and no waiver for.
+
+**A removed worktree.** Its workspace's uncommitted edits are lost; its `drafts/<name>` branch keeps the draft commit, the close publishes from it, and `pm where` lists it with the pages it still holds. `pm clean` refuses a worktree whose workspace has uncommitted edits or unpublished design drafts.
+
+**A draft commit is the only publish path**, save two one-shot writes on `records`: `pm design new` publishes a new page's empty sections, and `pm design rename` its new slug, title and links.
 
 ### Covers
 
-A page publishes only at its sprint's close, after the close found its PRs and covers on main, so `pm check` fails on a published pattern that matches no file on the remote's main. The waiting list and the close's hold (`LiveOnMain`, `Own`, the author-date window) retire. In a workspace, `pm check` checks draft pages against that worktree's tracked files; the gate's "updated" reads the draft commit.
+A page publishes only at its sprint's close, after the close found its PRs and covers on main, so `pm check` fails on a published pattern that matches no file on the remote's main: read from its remote-tracking branch, fetched first when a pattern matches nothing there, as it may be behind. The waiting list and the close's hold by records commit dates (`LiveOnMain`, `Own`, the author-date window) are retired. In a worktree with a records workspace, `pm check` checks the published records with the workspace's drafts over them, and holds a draft page's patterns to the worktree's tracked files instead. The gate's "updated" reads the draft commits of the clone.
 
 ### Draft refs
 
@@ -236,7 +246,8 @@ The service pushes `records` as today, and each draft commit to `refs/pm/drafts/
 - A sprint with several PRs publishes its pages at its close, not each with its PR; until then the owner reads the new text as a labelled version.
 - Two open sprints editing one page in one worktree share one draft text; the first close publishes both edits.
 - `git worktree remove` of a code worktree, which Claude Code runs at session end, exits 0 and deletes the nested workspace with its uncommitted edits; a committed draft survives on `drafts/<name>`. The Stop hook is the guard for uncommitted ones: it blocks the stop while the workspace has any.
-- A rename on `records` of a page that a workspace's draft commit holds leaves the draft holding the old path, untagged after the merge, and follow refuses ("holds design/r.md with no sprint"). It cannot happen while `pm commit` publishes the draft at once; step 4 must carry the sprint tag across the rename or make the untagged path a conflict.
+- A rename on `records` of a page that a workspace's draft commit holds (`pm design rename`): follow carries the page's sprint to its new path (`git diff --find-renames <base> <tip>`, the rename detection `git merge-tree` runs), where the merge puts the draft's edit, so the draft stays committed and the close publishes it at the new path. Carrying, rather than turning the path into a conflict, keeps the draft where a close from any worktree sees it; an uncommitted edit only its own worktree's close would see. A move the detection does not see (a directory rename) is refused at the follow, naming `git reset --soft <base ref>`, which keeps the draft as uncommitted edits to commit again.
+- Between a PR's merge and its sprint's close, a published page may name a file the PR removed from main: `pm check` fails for every session until the close publishes the page's new covers.
 - Records workspaces need git 2.40 (`git merge-tree --merge-base`). With an older git, `pm init` leaves a worktree's `records/` the link to the shared store and says so loudly at session start and in `pm doctor`; the rest of `pm init` runs.
 - About 2.6 MB per workspace (26 MB for this clone's 10 code worktrees), made in about 10 ms; a follow is a merge-tree and a few file writes under the store lock.
 
@@ -257,7 +268,7 @@ The service pushes `records` as today, and each draft commit to `refs/pm/drafts/
 | 1 | The published view at the `records` ref; the version bar, per-version renders and diffs, over the shared store's uncommitted edits as one draft | Scratch clone: a hand edit leaves the published page unchanged and adds a version; the version renders at its URL; its diff against published and a draft-to-draft diff show exactly the edited lines; a malformed draft fails only its own version, every published page 200 |
 | 2 | Workspaces, follow, journal publish at `pm commit`; each workspace a draft; the Stop hook on the own workspace, `pm clean`'s guard and the main checkout's design-page refusal | Scratch clone with two worktrees: each edits one design page differently; the page shows three versions, each renders. Disjoint edits to one sprint record from both reach `records`; an overlap is refused naming the first commit, markers only in the second workspace |
 | 3 | `pm where`'s orphaned draft branches | `pm where` lists a `drafts/` branch whose worktree is gone |
-| 4 | Each draft page's sprint at `pm commit`, carried across a rename on `records` (or the untagged path made a conflict); publish at `pm sprint close` and `--discard`; covers waiting and hold retired | Scratch sprint with drafts in two worktrees: the close publishes both in one `records` commit. A page another sprint published first refuses the close, naming that commit; after the agent resolves and commits in its workspace, the close passes. `--discard` drops the draft and records the sprint decision. `pm check` passes no published pattern that matches no file on main |
+| 4 | Each draft page's sprint at `pm commit`, carried across a rename on `records`; publish at `pm sprint close` and `--discard`; covers waiting and hold retired | Scratch sprint with drafts in two worktrees: the close publishes both in one `records` commit. A page another sprint published first refuses the close, naming that commit; after the agent resolves and commits in its workspace, the close passes. `--discard` drops the draft and records the sprint decision. `pm check` passes no published pattern that matches no file on main |
 | 5 | Per-clone draft refs | A second clone lists the first's draft as a version after two follows and one sync each |
 
 ## Alternatives considered

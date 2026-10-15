@@ -124,8 +124,8 @@ main checkout, and uses its `.pm/store/records`. It fails when the store is miss
 `records` branch; nothing falls back to a local `records/`.
 `pm where records` prints the path; bare `pm where` lists every location
 setup touches (pm's pin, the store and its ahead/behind against `origin/records`, this
-checkout and its link, the work store, Codex's writable roots,
-the pm service, each push step's last outcome, the site) with its state.
+checkout and its link, each `drafts/` branch whose worktree is gone with the design pages it still holds, the work
+store, Codex's writable roots, the pm service, each push step's last outcome, the site) with its state.
 
 ### Reading
 
@@ -170,8 +170,10 @@ nothing behind.
 
 Hand edits are made through `records/` and committed with
 `pm commit -m "…" <path>…`, under the same lock. From a worktree it commits from the workspace: it follows it first,
-refuses a file with conflict markers or one the store has uncommitted edits to, and writes the named files into the
-store and commits them ([Record drafts and publishing](record-drafts.md), Writes and journal publish); every other
+refuses a file with conflict markers or one the store has uncommitted edits to, writes the named journals into the
+store and commits them, and keeps a named design page in the workspace's draft commit, tagged with its sprint, which
+`pm sprint close` publishes ([Record drafts and publishing](record-drafts.md), Writes and journal publish, Publish at
+sprint close); every other
 `pm` write from a worktree follows its workspace after its commit. Either way it accepts only named paths
 that have uncommitted changes (with none named it lists what is uncommitted and
 commits nothing), checks that `HEAD` plus the named paths renders as a whole

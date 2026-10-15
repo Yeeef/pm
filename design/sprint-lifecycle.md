@@ -153,9 +153,13 @@ after its review was raised; with `--merged SHA` it runs it on `--pr`'s files,
 or without `--pr` on the files a merge commit brought against its first
 parent. A commit with one parent (a squash or rebase merge, a direct commit)
 does not say where its delivery starts, so there it refuses and asks for
-`--pr`. Then it holds the covers of the sprint's pages to the remote's main
-(Covers hold on main at the close, below). A sprint with no PR,
-or a voided one, closes without a review or a stamp.
+`--pr`. Then it publishes the design pages drafted for the sprint, from every
+worktree, in the same records commit as the stamp, once the covers patterns
+they add hold on the remote's main (Covers hold on main at the close, below;
+[Record drafts and publishing](record-drafts.md), Publish at sprint close);
+`--discard <slug> --reason "…"` drops a page's drafts instead and records the
+reason as `pm design unchanged` does. A sprint with no PR, or a voided one,
+closes without a review or a stamp, and publishes its pages the same way.
 
 A review closed without "merged as <sha>" (its PR merged into a stacked
 base, which later reached main inside another merge) is restamped with the
@@ -176,8 +180,8 @@ passes the page when one of the sprints the PR delivers either:
 
 | Way out | What it takes | What the gate reads |
 |---|---|---|
-| Updated | The page brought to the new state, committed with `pm commit`, and linked in the sprint record's Design pages | A commit to the page on the records branch since the sprint's epic was created, and a `../design/<slug>.md` link in Design pages |
-| Waived | `pm design unchanged <slug> --sprint ID --reason "…"` | A sprint decision of source agent whose first line is "The design page <slug> stays as it is for this sprint's code changes." and whose second is the reason |
+| Updated | The page brought to the new state in a worktree's records workspace, committed with `pm commit` (a draft tagged with the sprint), and linked in the sprint record's Design pages | A draft of the page in this clone tagged with the sprint, or a commit to the page on the records branch since the sprint's epic was created (the close's publish is one), and a `../design/<slug>.md` link in Design pages |
+| Waived | `pm design unchanged <slug> --sprint ID --reason "…"`, or `pm sprint close --discard <slug> --reason "…"` | A sprint decision of source agent whose first line is "The design page <slug> stays as it is for this sprint's code changes." and whose second is the reason |
 
 Otherwise it refuses, naming each page, a file it covers and both ways out.
 With no page carrying `covers:` there is nothing to gate and `gh` is not
@@ -187,60 +191,42 @@ the PR.
 
 ### Covers hold on main at the close
 
-A sprint updates its page before its PR merges, and the records store is
-shared across branches, so a page's `covers:` may name a file that only the
-sprint's branch has. `pm check` lists such a pattern as waiting on unmerged
-work and passes ([Record layer](record-layer.md)). The close is where main
-must have the file: `pm sprint close`, in both forms, fetches the remote's
-main (the ref `--merged` checks) and reads its tree, then refuses while a
-page holds a covers pattern of the sprint's that matches no file there.
+A design page publishes only at its sprint's close, once the sprint's PRs are
+on main, so a published page's covers name files main has. `pm check` fails
+on a published page's pattern that matches no file on the remote's main (its
+remote-tracking branch, fetched first when a pattern matches nothing there,
+as it may be behind), and in a worktree on a draft page's pattern that
+matches no file the worktree tracks ([Record layer](record-layer.md)).
 
-| Pages held | Why |
-|---|---|
-| Each design page the sprint record's Design pages links | The sprint brought it to the new state |
-| Each design page the gate names for the sprint's PRs, updated or waived | The PR changed code it covers |
-
-Pages are shared, so a held page may carry another sprint's pending
-pattern, for a file that sprint's open PR adds. Only the sprint's own
-patterns hold it: those the page did not hold at the newest records commit
-authored before the sprint's epic was created. Author dates, since the push
-rebases the records branch onto the remote and resets committer dates; a
-clock skewed between clones can still move that base. The old page is read
-for its covers only, so a rule a later pm adds cannot fail it.
-
-| Case | Held against the sprint |
-|---|---|
-| A pattern on the page before the sprint opened, left as it was | No: another sprint's to keep live |
-| A pattern added while the sprint was open | Yes |
-| A pattern edited while the sprint was open | Yes: the edited text is a new pattern |
-| A page created while the sprint was open, or no records commit before it opened | Every pattern |
-| A pattern another session added to the page while the sprint was open | Yes: a records commit names no sprint |
-
-The last row is the rule's known cost: two sprints open at once that both
-edit one page's covers hold each other's pending patterns, as before. The
-refusal says so: it names each page and pattern and the two ways out, fix
-the pattern to the file main has and commit the page, or merge the PR that
-adds the file first, which may be another sprint's. A page without covers is
-not held, and with no pattern of the sprint's nothing is fetched.
+`pm sprint close`, in both forms, holds each pattern that a page it publishes
+adds or changes, against the page as the records branch holds it, to the
+remote's main, fetched: one that matches no file there refuses the close,
+naming page and pattern and the two ways out, fix the pattern in the
+workspace that drafts the page and commit it, or merge the PR that adds the
+file first. A pattern the page held already is `pm check`'s to hold, and
+with no new pattern nothing is fetched. The draft's sprint tag says whose
+each edit is, so no time window or records commit date decides it.
 
 ## Alternatives considered
 
 > What else was considered and not adopted, and why not?
 
-- **`pm check` failing on a covers pattern that matches no tracked file:**
-  every session's check failed while other sessions' branches were in flight
-  (27 patterns on main at once), since the gate makes a
-  page name a file before main has it. The close is the first point where
-  main must have the file.
-- **Holding every pattern of a held page at the close:** a sprint waited on
-  any other session's open PR whose pattern sat on a shared page (the CLI
-  split's patterns on the pm CLI page held every sprint that touched the
-  CLI), although the sprint did nothing to the pattern.
+- **A waiting list in `pm check`, and a close holding the patterns a sprint
+  added since it opened by records commit author dates:** needed while a page
+  published at `pm commit`, before its code merged, when a hard `pm check`
+  failed every session while other sessions' branches were in flight (27
+  patterns on main at once); two open sprints editing one page's covers held
+  each other's pending patterns. Retired with publish at the close, whose
+  draft tag attributes each edit to its sprint.
+- **Holding every pattern of a page the close publishes:** a pattern the page
+  already held is published and `pm check` holds it; holding it again at the
+  close adds a fetch and nothing else.
 - **Attributing each records commit to a session or a sprint:** records
   commits carry neither, a subagent shares its parent's session (one session
-  runs several sprints at once), and the owner commits with none; adding a
-  required sprint to every `pm commit` costs every edit for a case the time
-  window already covers but for concurrent edits to one page.
+  runs several sprints at once), and the owner commits with none. Design
+  pages get it from their draft commit's sprint tag instead
+  ([Record drafts and publishing](record-drafts.md)), which `pm commit` takes
+  from the sprint that links the page.
 
 - **A draft paragraph in the report** (`Draft until its PR merges.`, shown
   as a "Draft — closes when PR #N merges" banner): it duplicated the open
