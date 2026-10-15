@@ -54,7 +54,27 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check of per-clone draft refs (this branch's .go/pm 0.9.0-dev, commit
+  bfa2158): two scratch clones A and B of one scratch bare origin under
+  /tmp/pmlc9x776xys, each with HOME, CODEX_HOME and CLAUDE_CONFIG_DIR of its
+  own and the harness's fake_sched as supervisor (each service served its
+  site). pm init gave each clone an id (A 40ccd2085839, B its own; pm where:
+  'clone     <id>  its drafts push to origin refs/pm/drafts/<id>/'). In A's
+  worktree wa, pm commit drafted records/design/parser.md for the sprint (0.06
+  s); A's pm push: 'drafts ok: pushed 1 and deleted 0 draft refs' (0.20 s),
+  origin then held refs/pm/drafts/40ccd2085839/wa. B, cloned after, ran pm
+  init and one pm push (0.07 s, 'fetched the other clones''); B's site listed
+  the version 'clone 40ccd2085839, worktree wa, sprint r-yqb2.1, no session'
+  0.25 s later, its published page without A's edit and
+  drafts/40ccd2085839~wa/design/parser.html with it. pm sprint close from B
+  (0.10 s): 'published design/parser.md' plus a note naming A's draft, exactly
+  1 records commit with 'Published: design/parser.md r-yqb2.1', A's text in
+  it, on B's site 0.25 s later; A's remote ref left untouched by B. After B's
+  pm push and A's pm push: A 'drafts ok: pushed 0 and deleted 1 draft refs',
+  origin held no draft ref. Found on the way, not this change's: A's records
+  step then failed, as both clones had committed days/2026-10-16.summary.json
+  and the rebase conflicted on it (the records-store page's open question on
+  two machines).
 
 ## Delivery report
 
