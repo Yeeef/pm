@@ -20,7 +20,11 @@ The owner sees records change live, before a sprint commits them and before its 
 > What constrains every future sprint? Sprint-only choices live in the sprint
 > record.
 
-None yet.
+::: decision {source=owner date=2026-10-15}
+The record layer builds Model A of the record-drafts design: every record stays in the records store, each code worktree writes in a private records workspace, journals publish at pm commit, and design-page edits publish when their code PR merges.
+Owner choice over the agent default B. A meets all five goals for every record type, journals included, and keeps one store and the rule that no code branch tracks records.
+Answers `pm-c72a.1.3.1`.
+:::
 
 ## Design pages
 
