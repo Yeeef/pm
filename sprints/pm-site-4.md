@@ -37,7 +37,7 @@ A doc imported from a research notes repo renders on the site as written: TeX ma
 
 > Where is the detail?
 
-None yet.
+- [views-and-site](../design/views-and-site.md): math, MDX blocks, links by slug, the broken-link check and the docs index.
 
 ## Progress
 
