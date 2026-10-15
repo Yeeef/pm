@@ -29,6 +29,46 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.1] - 2026-10-15
+
+A design-page draft made in one clone now shows on every other clone's site, and a sprint closed from any clone
+publishes it.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.1/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.1`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- `pm init` gives each clone an id once (`git config pm.clone`), which `pm where` shows and `pm doctor` names when
+  it is missing.
+- The pm service's sync and `pm push` gain a `drafts` step: each records workspace's draft commit is pushed to the
+  remote's `refs/pm/drafts/<clone id>/<worktree>`, forced only with a lease against what this clone last pushed
+  there, and deleted once the draft is empty, published or gone; the other clones' are fetched. A lease that fails
+  is flagged as a failed push in `pm show`, `pm where` and on the site, and never forced.
+- The site lists another clone's draft as a committed version with no session, labelled with its clone, its
+  worktree there and its sprint, at `/drafts/<clone id>~<worktree>/…`.
+- `pm sprint close` fetches the other clones' drafts first and publishes their pages of the sprint too, under the
+  same overlap and conflict refusals, naming the clone; the clone that drafted them drops them at its next follow and
+  deletes its ref at its next sync. The design-page gate and `pm check` count another clone's draft as its sprint's.
+
+### Changed
+
+- `pm sprint close` refuses when it cannot fetch the other clones' drafts from the remote, and in a clone with a
+  remote but no id (run `pm init`).
+- The records step of the pm service's sync and `pm push` fast-forwards a records store that is only behind the
+  remote's, where it used to leave it behind: never with a merge commit or an autostash, and refused, flagged as a
+  failed push, while the store has uncommitted edits to tracked records, while a file the remote adds sits there
+  untracked or ignored, or while the store is off the records branch. Each records workspace with no uncommitted
+  file then follows, so a draft drops the pages another clone's close published.
+- A draft page whose sprint has closed with other text published (an edit committed after the clone last pushed)
+  leaves the draft commit at the next pm write in its worktree and stays there as an uncommitted edit; `pm where`,
+  the site's version bar and the Stop hook name it as stranded and say to commit it under an open sprint, or revert
+  it. Its text is kept in `refs/pm/workspaces/<worktree>/stranded` until then, so removing the worktree loses
+  nothing: `pm where` and `pm doctor` list the ref and how to take the page back.
+
 ## [0.15.0] - 2026-10-15
 
 A design page's edits now reach the published records when its sprint closes, once its code is on main, so the site
@@ -1138,6 +1178,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.1]: https://github.com/Yeeef/pm/compare/pm-v0.15.0...pm-v0.15.1
 [0.15.0]: https://github.com/Yeeef/pm/compare/pm-v0.14.0...pm-v0.15.0
 [0.14.0]: https://github.com/Yeeef/pm/compare/pm-v0.13.0...pm-v0.14.0
 [0.13.0]: https://github.com/Yeeef/pm/compare/pm-v0.12.1...pm-v0.13.0
