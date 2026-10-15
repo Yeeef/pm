@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T20:05:24+00:00",
- "digest": "b103ec73fc2e2186",
+ "generated_at": "2026-10-15T20:15:49+00:00",
+ "digest": "2c418925595e787b",
  "model": "claude-haiku-5-5",
- "text": "- **Records site views:** The site shows each record's published version beside every draft. Each draft opens as a full version with section diffs.\n- **Owner question handling:** Ask-tool questions can now be answered on the site as well as in chat. The first answer wins, and hook events close each question.\n- **CI runs and checks:** The AGENTS.md check gives the same verdict on every rerun. macOS Go jobs now run daily, not on every pull request.\n- **Repository setup:** Claude Code auto memory is now off in this repo. The post-checkout git hook is retired, and pm moved to its new release."
+ "text": "- **Records and site views:** The site now shows each record's published version and every draft as a full version. Renaming a design page or doc now rewrites every link to it.\n- **Owner questions and replies:** Ask-tool questions now take an answer from the site as well as from chat. The answer that arrives first closes the question.\n- **AGENTS.md check and CI:** The AGENTS.md check now gives the same verdict on every rerun. CI runs its slow jobs daily, not on every pull request.\n- **Repo setup and tooling:** This repo runs a newer pm release, and its service restarted on it. Claude Code auto memory is off here, and pm no longer installs a git hook."
 }
