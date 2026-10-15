@@ -53,6 +53,11 @@ A rename rewrites every link and waiver in the records in its one commit, and re
 Links in records are the only references pm checks against; rewriting them keeps pm check and the review gate correct, and refusing on an open review avoids a work-store rewrite for a transient case.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page sprint-lifecycle stays as it is for this sprint's code changes.
+The design gate and its waivers work as before; the rename only rewrites a renamed page's slug in its waivers, which the pm-cli page states.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
