@@ -70,6 +70,7 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 	parts := needText(p)
 	_, textGiven := given(p, "text")
 	var desc string
+	var v violations
 	switch need.Need.Kind {
 	case work.Question:
 		return "", refuse("%s is a session's question, whose card pm builds from the ask tool's call; ask again with the "+
@@ -83,21 +84,22 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 				"parts", id, textForms)
 		}
 		if desc = p.Get("text"); desc == "" {
-			return "", refuse("the description is empty; pass it with %s: %s", textForms, actionShape)
+			v.add("the description is empty; pass it with %s: %s", textForms, actionShape)
 		}
 	case work.Decision:
 		if textGiven {
 			return "", refuse("%s is a decision need; its body is its parts, given as flags, not --text: %s", id,
 				needShape)
 		}
-		if desc, err = needMarkdown(p); err != nil {
-			return "", err
-		}
+		desc = needMarkdown(p, &v)
 	}
 	if asksReview(need.Title + "\n" + p.Get("text") + parts) {
-		return "", refuse("this asks the owner to review or merge a PR; raise it with the review form, so its card links "+
+		v.add("this asks the owner to review or merge a PR; raise it with the review form, so its card links "+
 			"the PR, the sprints and design pages and its wait wakes on the merge: %s. If it only mentions the PR, say "+
 			"what you ask without review, merge or approve", reviewForm)
+	}
+	if err := v.err(); err != nil {
+		return "", err
 	}
 	if desc == need.Description {
 		return "", refuse("%s has this body already", id)

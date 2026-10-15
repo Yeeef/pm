@@ -912,6 +912,14 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
         res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *flags)
         assert res.returncode != 0 and error in res.stderr, res.stderr
         assert repo.unchanged() and "repo-demo.1.3" not in repo.items()
+    # every broken rule is listed in one refusal, each in its own wording, not only the first
+    refused(repo, "decision", "need", "--title", "Site URL", "--parent", "repo-demo.9",
+            *without(SITE_URL, ("--cost", "a")), "--fact", " ".join(["word"] * 26) + ".",
+            match=r"this breaks 3 rules; fix them all, then run it again:\n"
+                  r"- option a has no cost; add --cost a '<what it costs>'\n"
+                  r"- the sentence \"word word word word word word …\" in fact 3 has 26 words; the limit is 25 "
+                  r"\(ASD-STE100\); split it\n"
+                  r"- --parent repo-demo.9 is not in the work store$")
 
     assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
