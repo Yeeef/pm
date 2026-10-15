@@ -70,6 +70,11 @@ A rename on records of a drafted page carries the page sprint tag to its new pat
 Carrying keeps the draft committed and attributed, so a close from any worktree publishes it; a conflict would make it an uncommitted edit that only its own worktree sees, and a close elsewhere would silently leave it out.
 :::
 
+::: decision {source=agent date=2026-10-16}
+The close drops a published page from a live workspace by removing its sprint line from the draft commit, tree kept; that workspace own next follow drops the page, and only a branch with no worktree has its tree rewritten.
+Rewriting a live workspace tree or index would write another worktree files, which follow never does; an untagged page is ignored by the site, pm clean and the gate until then.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
