@@ -19,8 +19,8 @@ const (
 )
 
 // Exclude is what pm keeps in the clone's .git/info/exclude: the clone's own state under .pm/ and each worktree's
-// records/ link. A branch made before pm has neither .pm/.gitignore nor pm's .gitignore block, and there git add -A
-// would stage the store as an embedded repo and the link as a file.
+// records/ (the link, or the worktree's records workspace). A branch made before pm has neither .pm/.gitignore nor
+// pm's .gitignore block, and there git add -A would stage the store as an embedded repo and the link as a file.
 var Exclude = []string{"/.pm/store/", "/.pm/run/", "/records"}
 
 // SparsePatterns is the sparse checkout an earlier pm set in each worktree, everything but records/, to keep the main
@@ -422,9 +422,9 @@ func RetireHooksPath(main string) (string, error) {
 // ---------------------------------------------------------------- the clone's and the worktree's setup
 
 // SetupClone makes the clone and this worktree ready, pm init's clone half, which session start runs in each new
-// worktree: unset an earlier pm's git hooks path, check out the records store if it is missing, link this worktree's
-// records/ to it, and let Codex's sandbox write both stores and commit. pm init then brings the pm service up and has
-// it attach the work store (SetupWork), which the service alone opens.
+// worktree: unset an earlier pm's git hooks path, check out the records store if it is missing, give this worktree its
+// records/ (setupRecords), and let Codex's sandbox write both stores and commit. pm init then brings the pm service up
+// and has it attach the work store (SetupWork), which the service alone opens.
 func SetupClone(cwd, remote string) (string, error) {
 	records, err := store.PathOf(cwd)
 	if err != nil {
@@ -469,6 +469,9 @@ func SetupClone(cwd, remote string) (string, error) {
 	if Resolve(top) == Resolve(records) {
 		return "", refuse("%s is the store itself; run %s from a code worktree", top, setup)
 	}
+	if store.IsWorkspace(top) {
+		return "", refuse("%s is a records workspace; run %s from its code worktree %s", top, setup, filepath.Dir(top))
+	}
 	// an earlier pm kept the main branch's records/ copy out of each worktree with a sparse checkout
 	if old, err := OldSparse(top); err != nil {
 		return "", err
@@ -478,20 +481,14 @@ func SetupClone(cwd, remote string) (string, error) {
 		}
 		out = append(out, fmt.Sprintf("turned off the sparse checkout an earlier pm set in %s", top))
 	}
-	link := filepath.Join(top, "records")
-	if said, err := setupRecordsLink(top, records); err != nil {
+	said, err := setupRecords(top, main, records)
+	if err != nil {
 		return "", err
-	} else if said != "" {
-		out = append(out, said)
 	}
-	if said, err := SetupClaude(top, records); err != nil {
-		return "", err
-	} else if said != "" {
-		out = append(out, said)
-	}
+	out = append(out, said...)
 	done := strings.Join(out, "\n")
 	if done == "" {
-		done = fmt.Sprintf("already set up: %s -> %s", link, records)
+		done = "already set up: " + recordsState(top, records)
 	}
 	codex, err := SetupCodex(main)
 	if err != nil {
@@ -510,10 +507,7 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	if _, err := store.Find(top); err != nil {
 		out = append(out, "store: "+err.Error())
 	}
-	link := filepath.Join(top, "records")
-	if !(isLink(link) && Resolve(link) == Resolve(records)) {
-		out = append(out, fmt.Sprintf("records link: %s is not a link to %s; run pm init", link, records))
-	}
+	out = append(out, doctorRecords(top, main, records)...)
 	if old, err := OldSparse(top); err != nil {
 		return nil, err
 	} else if old {
@@ -559,7 +553,7 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	if len(missing) > 0 {
 		out = append(out, fmt.Sprintf("git exclude: %s lacks %s; run pm init", ExcludePath(main), strings.Join(missing, ", ")))
 	}
-	if isDir(claudeConfigDir()) {
+	if isLink(filepath.Join(top, "records")) && isDir(claudeConfigDir()) { // the link needs it; a workspace does not
 		path := filepath.Join(top, ".claude", "settings.local.json")
 		listed, err := ClaudeListsStore(top, records)
 		if err != nil {
@@ -571,6 +565,85 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 		}
 	}
 	return out, nil
+}
+
+// setupRecords gives the worktree its records/: the main checkout the link to the store, which Claude Code reaches
+// through the store in this worktree's .claude/settings.local.json; any other worktree its records workspace
+// (store.AddWorkspace), in place of an earlier pm's link, and the store taken out of its Claude Code settings, as
+// records/ is inside the worktree now.
+func setupRecords(top, main, records string) ([]string, error) {
+	var out []string
+	add := func(said string, err error) error {
+		if said != "" {
+			out = append(out, said)
+		}
+		return err
+	}
+	if Resolve(top) == Resolve(main) {
+		if err := add(setupRecordsLink(top, records)); err != nil {
+			return nil, err
+		}
+		return out, add(SetupClaude(top, records))
+	}
+	if err := checkGit(); err != nil { // this worktree only: the rest of pm init runs, and it writes the shared store
+		if w, werr := store.WorkspaceAt(top); werr != nil || w != nil {
+			return nil, errors.Join(err, werr)
+		}
+		if err := add(setupRecordsLink(top, records)); err != nil {
+			return nil, err
+		}
+		return append(out, oldGit(top, err)), add(SetupClaude(top, records))
+	}
+	if tracks, err := TracksRecords(top); err != nil {
+		return nil, err
+	} else if link := filepath.Join(top, "records"); tracks && !isLink(link) {
+		return nil, refuse("%s is this branch's tracked copy of records/, not a records workspace; merge the main "+
+			"branch, which tracks none, then run %s again", link, setup)
+	}
+	if err := add(store.AddWorkspace(records, top)); err != nil {
+		return nil, err
+	}
+	return out, add(RemoveClaude(top, records))
+}
+
+// checkGit is store.CheckGit, a variable so a test can give an older git.
+var checkGit = store.CheckGit
+
+// oldGit is what pm init and pm doctor say when git is too old for this worktree's records workspace.
+func oldGit(top string, err error) string {
+	return fmt.Sprintf("WARNING: no records workspace for %s: %s. Until then its records/ is the link to the shared "+
+		"store, so its record edits go straight into the store, shared with every other session", top, err)
+}
+
+// recordsState is the worktree's records/ as pm init leaves it: the link in the main checkout, else the workspace.
+func recordsState(top, records string) string {
+	link := filepath.Join(top, "records")
+	if w, err := store.WorkspaceAt(top); err == nil && w != nil {
+		return link + " is a records workspace on " + w.Branch()
+	}
+	return link + " -> " + records
+}
+
+// doctorRecords is how this worktree's records/ differs from what pm init makes: the main checkout's link, or another
+// worktree's records workspace, or the link with a warning when git is too old for one.
+func doctorRecords(top, main, records string) []string {
+	var out []string
+	link := filepath.Join(top, "records")
+	inMain := Resolve(top) == Resolve(main)
+	var gitErr error
+	if !inMain {
+		if gitErr = checkGit(); gitErr != nil {
+			out = append(out, "git: "+oldGit(top, gitErr))
+		}
+	}
+	if w, err := store.WorkspaceAt(top); err != nil {
+		out = append(out, "records workspace: "+err.Error())
+	} else if !inMain && w == nil && gitErr == nil {
+		out = append(out, fmt.Sprintf("records workspace: %s is not this worktree's records workspace; run pm init", link))
+	} else if (inMain || gitErr != nil) && w == nil && !(isLink(link) && Resolve(link) == Resolve(records)) {
+		out = append(out, fmt.Sprintf("records link: %s is not a link to %s; run pm init", link, records))
+	}
+	return out
 }
 
 func setupRecordsLink(top, records string) (string, error) {

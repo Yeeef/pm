@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	gosync "sync"
 	"time"
@@ -158,6 +159,7 @@ type servedSite struct {
 	records, name string
 	main          string   // <remote>/<main branch>: the remote's main, whose commits to covered files a design page names
 	heads         []string // the files whose bytes change whenever the store's HEAD commit or the main branch does
+	common        string   // the clone's common git dir, whose worktrees/ names the records workspaces
 	drafts        store.DraftSource
 	mu            gosync.Mutex
 	datesStamp    string // the stamp the cached design dates were read at
@@ -169,7 +171,7 @@ type servedSite struct {
 
 // newServedSite reads where the records store keeps its HEAD: the worktree's HEAD, the records branch's loose ref, the
 // remote's main branch's (main, <remote>/<branch>) and packed-refs, read as files so a look runs no git. Its drafts
-// are the store's uncommitted edits (store.Edits).
+// are the store's uncommitted edits and each records workspace's (store.Clone).
 func newServedSite(records, name, main string) (*servedSite, error) {
 	out, err := git(records, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
 	if err != nil {
@@ -185,19 +187,41 @@ func newServedSite(records, name, main string) (*servedSite, error) {
 	}
 	return &servedSite{records: records, name: name, main: main, heads: []string{filepath.Join(dirs[0], "HEAD"),
 		filepath.Join(dirs[1], "refs/heads", store.Branch), filepath.Join(dirs[1], "refs/remotes", main),
-		filepath.Join(dirs[1], "packed-refs")}, drafts: store.Edits{Store: records},
+		filepath.Join(dirs[1], "packed-refs")}, common: dirs[1], drafts: store.Clone{Store: records},
 		indexLock: filepath.Join(dirs[0], "index.lock")}, nil
 }
 
-// Stamp is a digest of every record file and day summary in the store's working tree (path and bytes), the store's
-// HEAD files and today's date: it moves with the published records and with every draft.
+// Stamp is a digest of every record file and day summary in the working trees of the store and of each records
+// workspace (path and bytes), the store's HEAD files, the workspaces' branch refs and today's date: it moves with the
+// published records and with every draft.
 func (s *servedSite) Stamp() (string, error) {
 	h := sha256.New()
+	workspaces, refs := store.WorkspaceStamp(s.common)
+	for _, root := range append([]string{s.records}, workspaces...) {
+		if err := stampTree(h, root, root == s.records); err != nil {
+			return "", err
+		}
+	}
+	for _, p := range append(slices.Clone(s.heads), refs...) {
+		data, err := os.ReadFile(p)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		fmt.Fprintf(h, "%s\x00%d\x00", p, len(data))
+		h.Write(data)
+	}
+	h.Write([]byte(store.Today()))
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// stampTree adds each record file and day summary under root, path and bytes, to h; a workspace that went (its
+// worktree removed) adds nothing, while the store must be there.
+func stampTree(h io.Writer, root string, required bool) error {
 	// A file or directory the walk listed can be gone when it is read: git rewrites a record by unlinking it, so a records
 	// sync that rebases opens that window on every file it changes. One that went is not in the stamp; the next look sees
 	// the files that replaced it.
-	err := filepath.WalkDir(s.records, func(p string, d fs.DirEntry, err error) error {
-		if errors.Is(err, fs.ErrNotExist) && p != s.records {
+	return filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && (p != root || !required) {
 			return nil
 		}
 		if err != nil {
@@ -220,19 +244,6 @@ func (s *servedSite) Stamp() (string, error) {
 		h.Write(data)
 		return nil
 	})
-	if err != nil {
-		return "", err
-	}
-	for _, p := range s.heads {
-		data, err := os.ReadFile(p)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return "", err
-		}
-		fmt.Fprintf(h, "%s\x00%d\x00", p, len(data))
-		h.Write(data)
-	}
-	h.Write([]byte(store.Today()))
-	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // Load reads the published records from the records branch (store.Published) and checks them against items, and lists
@@ -258,6 +269,7 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 		return nil, err
 	}
 	drafts := s.drafts.Drafts()
+	site.LabelDrafts(drafts, items, store.MainOf(s.records))
 	s.mu.Lock()
 	dates := s.dates
 	if s.datesStamp != stamp {

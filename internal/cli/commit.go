@@ -19,6 +19,11 @@ func cmdCommit(e *env, p *Parsed) (string, error) {
 	if message == "" {
 		return "", refuse("-m is empty; say what the hand edit changed")
 	}
+	if w, err := store.WorkspaceOf(e.here); err != nil {
+		return "", err
+	} else if w != nil {
+		return e.commitWorkspace(*w, message, p)
+	}
 	dirty, err := gitPorcelain(e.records)
 	if err != nil {
 		return "", err
@@ -41,6 +46,18 @@ func cmdCommit(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	root := fsutil.Resolved(e.records)
+	for _, path := range paths {
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return "", err
+		}
+		if isDesignPage(filepath.ToSlash(rel)) {
+			return "", refuse("records/%s is a design page: design pages are edited and committed in a code worktree's "+
+				"records workspace, not in the shared store. Make the edit in <worktree>/records/%s of a worktree of "+
+				"your own (pm init there makes the workspace; pm task claim says how to make the worktree), then pm "+
+				"commit it there", rel, rel)
+		}
+	}
 	codeRoot, err := store.CodeRoot(e.here, e.records)
 	if err != nil {
 		return "", err

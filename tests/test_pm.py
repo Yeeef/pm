@@ -139,10 +139,10 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
         (("doc", "new", "probe", "--title", "Probe: one", "--project", "demo"), "Body.",
          f"pm: created records/docs/{TODAY}-probe.md"),
         (("design", "new", "parser", "--title", "The parser", "--project", "demo"), "",
-         "pm: created records/design/parser.md; fill in its sections by hand in the store, then pm commit -m \"…\" "
+         "pm: created records/design/parser.md; fill in its sections by hand in records/, then pm commit -m \"…\" "
          "records/design/parser.md"),
         (("postmortem", "new", "outage", "--title", "Outage", "--sprint", "repo-demo.1"), "",
-         f"pm: created records/postmortems/{TODAY}-outage.md; fill in its sections by hand in the store, then pm "
+         f"pm: created records/postmortems/{TODAY}-outage.md; fill in its sections by hand in records/, then pm "
          f"commit -m \"…\" records/postmortems/{TODAY}-outage.md"),
         (("feedback", "add", "--project", "demo", "--sprint", "repo-demo.1"), "The refusal named no fix.",
          "pm: added feedback to records/docs/pm-feedback.md"),

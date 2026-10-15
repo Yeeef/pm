@@ -99,7 +99,7 @@ func cmdDesignNew(e *env, p *Parsed) (string, error) {
 	if err := r.checkPlanned(w, nil); err != nil {
 		return "", err
 	}
-	return r.apply(w, fmt.Sprintf("created %s; fill in its sections by hand in the store, then pm commit -m \"…\" %s",
+	return r.apply(w, fmt.Sprintf("created %s; fill in its sections by hand in records/, then pm commit -m \"…\" %s",
 		r.rel(path), r.rel(path)), "pm: ")
 }
 
@@ -135,7 +135,7 @@ func cmdPostmortemNew(e *env, p *Parsed) (string, error) {
 	if err := r.checkPlanned(w, nil); err != nil {
 		return "", err
 	}
-	return r.apply(w, fmt.Sprintf("created %s; fill in its sections by hand in the store, then pm commit -m \"…\" %s",
+	return r.apply(w, fmt.Sprintf("created %s; fill in its sections by hand in records/, then pm commit -m \"…\" %s",
 		r.rel(path), r.rel(path)), "pm: ")
 }
 

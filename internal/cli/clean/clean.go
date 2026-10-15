@@ -19,6 +19,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/session"
+	"github.com/Yeeef/pm/internal/store"
 )
 
 // agentWorktrees is where Claude Code makes an agent's worktree (claude -w, a subagent's isolation), under the main
@@ -38,8 +39,9 @@ type verdict struct {
 	wt           worktree
 	remove       bool
 	reason       string
-	deleteBranch bool // the branch is on the main branch, so it goes with the worktree
-	unlock       bool // a stale lock, taken off before git worktree remove
+	deleteBranch bool             // the branch is on the main branch, so it goes with the worktree
+	unlock       bool             // a stale lock, taken off before git worktree remove
+	workspace    *store.Workspace // its records workspace, clean and holding no draft: removed first, with its branch
 }
 
 // Run is pm clean: each worktree with keep or remove and the reason; with apply (--apply), the removals done.
@@ -57,7 +59,10 @@ func Run(here string, apply bool, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	c := &cleaner{main: main, caller: realPath(strings.TrimSpace(caller)), remote: cfg.Remote, mainBranch: cfg.MainBranch,
+	if caller = strings.TrimSpace(caller); store.IsWorkspace(caller) { // pm clean run inside a records workspace
+		caller = filepath.Dir(caller)
+	}
+	c := &cleaner{main: main, caller: realPath(caller), remote: cfg.Remote, mainBranch: cfg.MainBranch,
 		mainRef: "refs/remotes/" + cfg.Remote + "/" + cfg.MainBranch, mainName: cfg.Remote + "/" + cfg.MainBranch}
 	if _, err := cleanGit(main, "rev-parse", "--verify", "--quiet", c.mainRef); err != nil {
 		return fmt.Errorf("no %s in this clone to compare branches with; run git fetch %s %s", c.mainName, cfg.Remote,
@@ -117,8 +122,9 @@ type cleaner struct {
 	trees                                               []worktree
 }
 
-// judge decides one worktree. Kept: the main checkout, the records store, the calling worktree, anything outside
-// .claude/worktrees/, a worktree a live process locks or a live session used, a dirty one, and one whose commits are
+// judge decides one worktree. Kept: the main checkout, the records store, the calling worktree, a records workspace
+// (it goes with its worktree), anything outside .claude/worktrees/, a worktree a live process locks or a live session
+// used, a dirty one, one whose records workspace has uncommitted edits or a draft commit, and one whose commits are
 // neither on the main branch nor pushed.
 func (c *cleaner) judge(wt worktree) verdict {
 	v := verdict{wt: wt}
@@ -132,6 +138,8 @@ func (c *cleaner) judge(wt worktree) verdict {
 		return keep("the records store")
 	case path == c.caller:
 		return keep("the worktree pm clean runs in")
+	case strings.HasPrefix(wt.branch, store.DraftsPrefix):
+		return keep("the records workspace of " + filepath.Dir(wt.path) + ", removed with it")
 	case !strings.HasPrefix(wt.path, filepath.Join(c.main, agentWorktrees)+"/"):
 		return keep("not an agent worktree (outside " + agentWorktrees + "/)")
 	}
@@ -147,9 +155,17 @@ func (c *cleaner) judge(wt worktree) verdict {
 		return keep(fmt.Sprintf("live session %s used it %s ago", use.Session, session.Age(use.At)))
 	}
 	for _, other := range c.trees { // git worktree remove deletes the whole directory, a worktree inside it too
-		if strings.HasPrefix(other.path, wt.path+"/") {
+		if !strings.HasPrefix(other.path, wt.path+"/") {
+			continue
+		}
+		if other.path != filepath.Join(wt.path, "records") || !strings.HasPrefix(other.branch, store.DraftsPrefix) {
 			return keep("holds the worktree " + other.path)
 		}
+		w, why := c.workspace(wt.path)
+		if w == nil {
+			return keep(why)
+		}
+		v.workspace = w
 	}
 	if wt.prunable {
 		notes = append(notes, "its directory is gone")
@@ -195,6 +211,32 @@ func (c *cleaner) judge(wt worktree) verdict {
 		c.mainName, ghNote(ghErr)))
 }
 
+// workspace is the worktree's records workspace when it may go with it, else why the worktree is kept: uncommitted
+// record edits, or design pages in a draft commit, that removing it would lose.
+func (c *cleaner) workspace(path string) (*store.Workspace, string) {
+	w, err := store.WorkspaceAt(path)
+	if err != nil {
+		return nil, "its records workspace cannot be read: " + err.Error()
+	}
+	if w == nil {
+		return nil, "holds the worktree " + filepath.Join(path, "records")
+	}
+	if dirty, err := w.Dirty(); err != nil || len(dirty) > 0 {
+		return nil, fmt.Sprintf("its records workspace has uncommitted edits (%d paths%s)", len(dirty), errNote(err))
+	}
+	if pages, _, err := store.DraftPages(filepath.Join(c.main, config.Store), *w); err != nil || len(pages) > 0 {
+		return nil, fmt.Sprintf("its records workspace holds unpublished design pages%s", errNote(err))
+	}
+	return w, ""
+}
+
+func errNote(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "; " + err.Error()
+}
+
 // pushedRef is where the branch was pushed: its upstream, unless that is the main branch (git worktree add -b from
 // origin/main sets it so), else <remote>/<branch>; "" when neither exists.
 func (c *cleaner) pushedRef(wt worktree) string {
@@ -221,6 +263,14 @@ func ghNote(err error) string {
 func (c *cleaner) remove(v verdict) error {
 	if v.unlock {
 		if _, err := cleanGit(c.main, "worktree", "unlock", v.wt.path); err != nil {
+			return err
+		}
+	}
+	if w := v.workspace; w != nil {
+		if _, err := cleanGit(c.main, "worktree", "remove", w.Dir); err != nil {
+			return err
+		}
+		if err := w.DeleteBranch(c.main); err != nil {
 			return err
 		}
 	}

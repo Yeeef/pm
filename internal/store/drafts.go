@@ -15,7 +15,9 @@ import (
 type Draft struct {
 	Name  string // the version's URL segment, /drafts/<Name>/…: unique among a clone's drafts
 	Label string // what the draft is, as the version bar names it
-	State string // how far it is: uncommitted edits
+	State string // how far it is: committed (a draft commit), uncommitted edits, or conflict (markers in a file)
+	// Worktree is a workspace's code worktree and Branch that worktree's branch; "" for the store's edits.
+	Worktree, Branch string
 	// Files is each record file the draft changes, by its path in the store (design/x.md): its text, or nil when the
 	// draft removes it.
 	Files map[string]*string
@@ -77,4 +79,113 @@ func (e Edits) files() (map[string]*string, error) {
 		}
 	}
 	return files, nil
+}
+
+// workspacesDraft names the draft that says why the workspaces could not be listed.
+const workspacesDraft = "workspaces"
+
+// Clone is a clone's drafts: the store's uncommitted edits (Edits), then each workspace's, named by its code
+// worktree's admin name.
+type Clone struct{ Store string }
+
+func (c Clone) Drafts() []Draft {
+	out := Edits(c).Drafts()
+	trees, err := Git(c.Store, "worktree", "list", "--porcelain", "-z")
+	if err != nil {
+		return append(out, Draft{Name: workspacesDraft, Label: "the records workspaces", Err: err})
+	}
+	branches := map[string]string{} // each worktree's branch, by its path
+	type entry struct{ path, branch string }
+	var workspaces []entry
+	for _, block := range strings.Split(trees, "\x00\x00") {
+		var e entry
+		prunable := false
+		for _, field := range strings.Split(block, "\x00") {
+			key, value, _ := strings.Cut(field, " ")
+			switch key {
+			case "worktree":
+				e.path = value
+			case "branch":
+				e.branch = strings.TrimPrefix(value, "refs/heads/")
+			case "prunable":
+				prunable = true
+			}
+		}
+		branches[e.path] = e.branch
+		if strings.HasPrefix(e.branch, DraftsPrefix) && !prunable {
+			workspaces = append(workspaces, e)
+		}
+	}
+	for _, e := range workspaces {
+		w := Workspace{Code: filepath.Dir(e.path), Dir: e.path, Name: strings.TrimPrefix(e.branch, DraftsPrefix)}
+		d := Draft{Name: w.Name, Worktree: w.Code, Branch: branches[w.Code]}
+		d.Files, d.State, d.Err = c.workspaceFiles(w)
+		out = append(out, d)
+	}
+	return out
+}
+
+// workspaceFiles is the record files a workspace changes against its base, its draft commit's then its uncommitted
+// ones over them, and its state.
+func (c Clone) workspaceFiles(w Workspace) (map[string]*string, string, error) {
+	d, err := readDraft(c.Store, w)
+	if err != nil {
+		return nil, "", err
+	}
+	files := map[string]*string{}
+	var states []string
+	if d.draft {
+		if files, _, err = DraftPages(c.Store, w); err != nil {
+			return nil, "", err
+		}
+		states = append(states, "committed")
+	}
+	dirty, err := w.Dirty()
+	if err != nil {
+		return nil, "", err
+	}
+	conflict, edited := false, false
+	for _, rel := range dirty {
+		conflict = conflict || w.binaryConflict(rel)
+		if !strings.HasSuffix(rel, ".md") {
+			continue
+		}
+		text, err := w.read(rel)
+		if err != nil {
+			return nil, "", err
+		}
+		files[rel], edited = text, true
+		conflict = conflict || (text != nil && HasMarkers(*text))
+	}
+	if edited {
+		states = append(states, "uncommitted edits")
+	}
+	if conflict {
+		states = append(states, "conflict")
+	}
+	return files, strings.Join(states, ", "), nil
+}
+
+// WorkspaceStamp is what a look at the workspaces reads without git, from the admin dirs under the clone's common git
+// dir: each workspace's directory and its branch's ref file.
+func WorkspaceStamp(common string) (dirs, refs []string) {
+	admins, err := os.ReadDir(filepath.Join(common, "worktrees"))
+	if err != nil { // none: no worktree but the main checkout; another failure, the next look reads it again
+		return nil, nil
+	}
+	for _, a := range admins {
+		admin := filepath.Join(common, "worktrees", a.Name())
+		head, err := os.ReadFile(filepath.Join(admin, "HEAD"))
+		ref, ok := strings.CutPrefix(strings.TrimSpace(string(head)), "ref: ")
+		if err != nil || !ok || !strings.HasPrefix(ref, "refs/heads/"+DraftsPrefix) {
+			continue
+		}
+		gitdir, err := os.ReadFile(filepath.Join(admin, "gitdir"))
+		if err != nil {
+			continue
+		}
+		dirs = append(dirs, filepath.Dir(strings.TrimSpace(string(gitdir))))
+		refs = append(refs, filepath.Join(common, filepath.FromSlash(ref)))
+	}
+	return dirs, refs
 }

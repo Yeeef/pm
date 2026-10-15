@@ -114,14 +114,17 @@ def test_session_start_sets_up_a_worktree_post_checkout_skipped(repo):
         ran, located, rest = text.split("\n\n", 2)
         if tracked:
             assert (wt / "records/sprints/demo-1.md").read_text() == "copy\n", "the tracked copy is left as it is"
-            assert (f"{wt / 'records'} is this branch's tracked copy of records/, not the link to {repo.store}; merge "
+            assert (f"{wt / 'records'} is this branch's tracked copy of records/, not a records workspace; merge "
                     "the main branch, which tracks none, then run pm init again") in ran, ran
             assert (f"checkout  {wt}  branch {name}, records/ is this branch's tracked copy, not the link; merge the "
                     "main branch, which tracks none, then run pm init") in located, located
             continue
-        assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve(), text
-        assert ran.startswith("`pm init` at session start:\n") and f"linked {wt / 'records'} -> {repo.store}" in ran
-        assert f"checkout  {wt}  branch {name}, records link set up" in located
+        assert not (wt / "records").is_symlink(), text
+        assert repo.git("rev-parse", "--abbrev-ref", "HEAD", cwd=wt / "records").strip() == f"drafts/{name}"
+        assert ran.startswith("`pm init` at session start:\n")
+        assert f"made {wt / 'records'} a records workspace on branch drafts/{name}" in ran, ran
+        assert (f"checkout  {wt}  branch {name}, records workspace on drafts/{name}, 0 uncommitted files, on the "
+                "records tip") in located, located
         assert rest.startswith("Project state from `pm show` at session start, ")
         assert "decision .1.2  Ask the owner  (sprint 1)" in rest
 
@@ -333,6 +336,46 @@ def test_stop_leaves_out_a_record_only_a_running_subagents_prompt_names(repo, tm
     t.write_text(t.read_text() + (tmp_path / "other.jsonl").read_text())
     res = run(STOP, {"cwd": str(repo.root), "transcript_path": str(t)}, repo.env, repo.root)
     assert res.returncode == 0 and res.stdout == ""
+
+def test_stop_in_a_worktree_blocks_on_its_own_workspaces_uncommitted_records(repo, tmp_path):
+    """In a worktree with a records workspace, every uncommitted file there is its sessions' own: the stop blocks once
+    on them, naming them and any conflict markers, with no transcript read. Another worktree's workspace and the
+    store never block it."""
+    trees = {}
+    for name in ("one", "two"):
+        trees[name] = wt = repo.worktree(name)
+        repo.git("worktree", "add", "-q", "-B", f"drafts/{name}", str(wt / "records"), "records")  # as pm init does
+
+    def stop(wt, **event):
+        res = run(STOP, {"cwd": str(wt), **event}, repo.env, wt)
+        assert res.returncode == 0, res.stderr
+        return res.stdout
+
+    assert stop(trees["one"]) == "", "a clean workspace"
+    sprint = trees["two"] / "records/sprints/demo-1.md"
+    sprint.write_text(sprint.read_text().replace("Ship it.", "Ship it, two."))
+    (trees["two"] / "records/docs").mkdir()
+    (trees["two"] / "records/docs/x.md").write_text("<<<<<<< workspace\nmine\n=======\ntheirs\n>>>>>>> records a..b\n")
+    stored = repo.store / "sprints/demo-2.md"
+    stored.write_text(stored.read_text() + "a main-checkout edit\n")
+    t = claude_transcript(tmp_path / "t.jsonl", {"file_path": str(stored)})
+    assert stop(trees["one"], transcript_path=t) == "", "another worktree's workspace, and the store"
+
+    out = json.loads(stop(trees["two"]))
+    ws = trees["two"] / "records"
+    assert out["decision"] == "block", out
+    assert out["reason"] == (
+        f"These records in this worktree's records workspace ({ws}) have uncommitted changes:\n"
+        "- records/sprints/demo-1.md\n"
+        "- records/docs/x.md (conflict markers: keep both edits between the <<<<<<< and >>>>>>> lines, remove the "
+        "markers)\n"
+        "Commit them from this worktree with `pm commit -m \"<why>\" <path>...` (paths as listed, under records/), or "
+        f"revert them with `git -C {ws} checkout -- <path>` (`rm` for a new file)."), out["reason"]
+    assert stop(trees["two"], stop_hook_active=True) == "", "it blocks once"
+
+    # the main checkout keeps the transcript match on the store
+    assert json.loads(stop(repo.root, transcript_path=t))["decision"] == "block"
+
 
 # ---------------------------------------------------------------- Claude Code and Codex alike
 

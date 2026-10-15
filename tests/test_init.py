@@ -167,8 +167,8 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert (new_repo / ".git/info/exclude").read_text() == exclude
     assert "git add" not in again.stdout and "already set up" in again.stdout
 
-    # once committed: a new worktree gets its records link and no sparse checkout from session start's pm init, and
-    # the link is git-ignored, so a code-branch commit of everything leaves records/ out
+    # once committed: a new worktree gets its records workspace and no sparse checkout from session start's pm init,
+    # and records/ is git-ignored, so a code-branch commit of everything leaves the workspace out
     git(new_repo, "add", "-A")
     git(new_repo, "commit", "-qm", "Install pm")
     wt = tmp_path / "wt"
@@ -176,7 +176,8 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert not (wt / "records").exists(), "no git hook links it"
     res = pm(wt, "init", "--session-start")
     assert res.returncode == 0, res.stderr
-    assert (wt / "records").is_symlink() and (wt / "records").resolve() == store.resolve(), res.stdout
+    assert (wt / "records/.git").is_file() and not (wt / "records").is_symlink(), res.stdout
+    assert git(wt / "records", "rev-parse", "--abbrev-ref", "HEAD").strip() == "drafts/wt"
     for tree in (new_repo, wt):
         assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() == ""
     (wt / "code.txt").write_text("code\n")
@@ -287,7 +288,7 @@ def test_init_refuses_a_held_site_port_before_writing_anything(new_repo: Path, t
 
 
 def test_init_in_a_worktree_sets_it_up_when_mains_pin_differs(repo):
-    """The main checkout pins another pm: the worktree's own setup (its records link) still runs, and
+    """The main checkout pins another pm: the worktree's own setup (its records workspace) still runs, and
     only the installed pm and the service, which follow main's pin, are refused."""
     wt = repo.root.parent / "feature"
     repo.git("worktree", "add", "-q", "--no-checkout", "-b", "feature", str(wt))
@@ -298,8 +299,8 @@ def test_init_in_a_worktree_sets_it_up_when_mains_pin_differs(repo):
     assert f"error: the main checkout {repo.root} pins pm 9.9.9, and the pm service and the installed pm follow it" \
         in res.stderr, res.stderr
     assert "pm init set up this worktree and left the installed pm and the service alone:" in res.stderr, res.stderr
-    assert f"linked {wt / 'records'} -> {repo.store}" in res.stderr, res.stderr
-    assert (wt / "records").is_symlink() and (wt / "records").resolve() == repo.store.resolve()
+    assert f"made {wt / 'records'} a records workspace on branch drafts/feature" in res.stderr, res.stderr
+    assert (wt / "records/.git").is_file() and not (wt / "records").is_symlink()
     assert repo.git("config", "--get", "--default=", "core.sparseCheckout", cwd=wt).strip() == ""
     assert not (repo.root.parent / "sched.log").exists(), "no service"
 

@@ -34,7 +34,7 @@ func isFile(p string) bool {
 	return err == nil && st.Mode().IsRegular()
 }
 
-// codeTop is the code worktree a repo-level command acts on; refused inside the store.
+// codeTop is the code worktree a repo-level command acts on; refused inside the store or a records workspace.
 func codeTop(here, records, what string) (string, error) {
 	top, err := install.Git(here, "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -42,6 +42,9 @@ func codeTop(here, records, what string) (string, error) {
 	}
 	if fsutil.Resolved(top) == fsutil.Resolved(records) {
 		return "", fmt.Errorf("%s is the records store; run pm %s from a code worktree", top, what)
+	}
+	if store.IsWorkspace(top) {
+		return "", fmt.Errorf("%s is a records workspace; run pm %s from its code worktree %s", top, what, filepath.Dir(top))
 	}
 	return top, nil
 }
@@ -219,12 +222,9 @@ func Init(p Arguments, here string, stdout io.Writer) error {
 		return err
 	}
 	main := store.MainOf(records)
-	top, err := install.Git(here, "rev-parse", "--show-toplevel")
+	top, err := codeTop(here, records, "init")
 	if err != nil {
 		return err
-	}
-	if fsutil.Resolved(top) == fsutil.Resolved(records) {
-		return fmt.Errorf("%s is the records store; run pm init from a code worktree", top)
 	}
 	sessionStart := p.Get("session_start") == "true"
 	siteArg, siteGiven := p.Get("site_url"), len(p.ValuesOf("site_url")) > 0

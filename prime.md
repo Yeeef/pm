@@ -35,9 +35,9 @@ Each fact has one home: the work store holds the status, the records hold the wh
 
 ## 3. Records
 
-**Where records live.** Each clone has one store: the `records` branch, checked out at `<main checkout>/.pm/store/records`. Each worktree's `records/` is a git-ignored link to it, made by `pm init`. So a write from any branch or worktree shows everywhere at once, as the work store does.
+**Where records live.** Each clone has one store: the `records` branch, checked out at `<main checkout>/.pm/store/records`; the main checkout's `records/` is a git-ignored link to it. Every other worktree's `records/` is its own records workspace (branch `drafts/<worktree>`), made by `pm init`. Each pm write commits on `records`, then brings your workspace up to date, so a write shows everywhere at once, as the work store does.
 - No code branch tracks `records/`, `main` included: people read records on the site or on the `records` branch.
-- Many sessions write in one store. Commit only the paths that you edited.
+- Commit only the paths that you edited. Where `records` changed the lines you edit, `pm commit` leaves conflict markers in your file and refuses, naming that commit: keep both edits, remove the markers, commit again.
 
 **Format.** A record is Markdown with a small header and fixed `##` sections. The header holds ids only, never a status. Each section opens with a `>` prompt line that says what goes there. A record has all its sections from the start. An empty section holds "None yet.". A close-time section holds "Not closed yet.".
 
@@ -74,7 +74,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 
 - Split the work along independence, so that projects and sprints run in parallel. Where one feeds another, record the dependency: `pm dep add`.
 - Records point at work-store ids and never copy a status. The site looks up the status when it builds a page. There is no hand-kept status file.
-- **Change code only in a worktree of your own**, never in the main checkout or another session's worktree, so sessions never mix edits, branches or stashes. Read-only work and records writes may run anywhere: `records/` is the shared store. A subagent works in its parent's worktree. `pm task claim` in the main checkout is refused with how to make a worktree.
+- **Change code only in a worktree of your own**, never in the main checkout or another session's worktree, so sessions never mix edits, branches or stashes. Read-only work and records writes may run anywhere: a worktree's `records/` is its own workspace, the main checkout's the shared store. A subagent works in its parent's worktree. `pm task claim` in the main checkout is refused with how to make a worktree.
 - Every change has a task in a sprint. Work outside any sprint becomes a small new sprint, so that it shows in the work store.
 - A task has one holder, a session. A subagent shares its session's id, so it holds what its session holds.
 - A sprint's frame exists before anything runs. A scope change is a sprint decision, never a task renamed or rewritten.
@@ -131,10 +131,10 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - close a project: Close every sprint. Write Outcome by hand: the results against the goal in numbers, what was learned and what was retired. Link the sprints' delivery reports. Commit it with `pm commit`, then run `pm project close <name>`.
 - create a postmortem: `pm postmortem new <slug> --title "…" --sprint ID\|--project NAME` writes every section; then by hand and `pm commit`. Write it once the incident is fixed, under the sprint it hit.
 - find a link: Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.
-- **Hand edits.** Goal, Scope, Done when, the delivery report, design pages, docs and postmortems are edited by hand in `records/`. Then commit them: `pm commit -m "…" <path>…`. It checks the whole store. With no path, it lists what is uncommitted and commits nothing. `pm check` checks the store without a commit.
+- **Hand edits.** Goal, Scope, Done when, the delivery report, design pages, docs and postmortems are edited by hand in `records/`, design pages only in a worktree's. Then commit them: `pm commit -m "…" <path>…`. It tags a design page with the open sprint that links it in its Design pages and in which you hold a task (`--sprint ID` with several). It checks the whole store. With no path, it lists what is uncommitted and commits nothing. `pm check` checks the store without a commit.
 - Report where pm got in your way: `pm feedback add [--project NAME]`, once, with what happened and what would have helped. It appends to the repo's one feedback doc, `records/docs/pm-feedback.md`.
 - check pm service status: `pm service status`; `pm service --help` holds the detail.
-- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and its link, and the pm service.
+- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store, its link in the main checkout or this worktree's records workspace, and the pm service.
 - set the site link or port: `pm init --site-url URL` sets the public site link. `PORT=<n> pm service install` moves this clone's site port; on a first install, run `PORT=<n> pm init`.
 
 For anything this reference does not cover, run `pm <noun> --help`.
