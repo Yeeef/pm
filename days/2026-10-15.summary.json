@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T20:15:49+00:00",
- "digest": "2c418925595e787b",
+ "generated_at": "2026-10-15T20:26:19+00:00",
+ "digest": "6f5b07da0ee6dd77",
  "model": "claude-haiku-5-5",
- "text": "- **Records and site views:** The site now shows each record's published version and every draft as a full version. Renaming a design page or doc now rewrites every link to it.\n- **Owner questions and replies:** Ask-tool questions now take an answer from the site as well as from chat. The answer that arrives first closes the question.\n- **AGENTS.md check and CI:** The AGENTS.md check now gives the same verdict on every rerun. CI runs its slow jobs daily, not on every pull request.\n- **Repo setup and tooling:** This repo runs a newer pm release, and its service restarted on it. Claude Code auto memory is off here, and pm no longer installs a git hook."
+ "text": "- **Record layer and site:** The owner agreed the record layer design, and the site now shows each record's published version beside its drafts. The `pm design rename` and `pm doc rename` commands now rewrite every link to a renamed page.\n- **Owner questions and replies:** Ask-tool questions can now be answered on the site as well as in chat, and the first answer wins. Owner replies reach the asking session by push alone, and the wait command and inbox hook are removed.\n- **CI and grading checks:** The AGENTS.md check gives the same verdict on every rerun, and its full grading runs daily on main. The macOS Go jobs now run once a day, and the Go test target passes on every run.\n- **Repo and pm tooling:** The repo uses the new pm release. pm no longer installs a git hook, and Claude Code auto memory is off here."
 }
