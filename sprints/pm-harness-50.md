@@ -83,12 +83,12 @@ Merged as 9722641 (PR #55).
 - `pm feedback add --project P [--text T | stdin] [--sprint ID] [--task ID]` appends a dated entry (UTC time, session id, sprint or task, text) to `docs/<date of first use>-<project>-feedback.md`, creating it on first use, and commits it on the `records` branch.
 - RULES.md, SKILL.md and the pm.py docstring describe it: use it once when pm gets in the way, not for routine use.
 - `pm show`, which every session gets at start, names the command and gives each project's feedback doc with its entry count and link.
-- The pm-harness feedback doc already holds two real entries: [pm feedback](../docs/2026-10-07-pm-harness-feedback.md).
+- The pm-harness feedback doc already holds two real entries: [pm feedback](../docs/pm-feedback.md).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
 - Met: `pm feedback add` appends to the one feedback doc and commits it on `records`. `make test`: 404 passed, 7 skipped (13 new tests, one for `pm show`: first use, append from another session and stdin, refusals, render, ignored look-alike docs, `--text` with an open stdin pipe). `pm render` passed on the store afterwards (94 pages).
-- Met: this session ran `pm feedback add` twice for real (records commits 4469542 and ad2d08a); both entries are in [pm feedback](../docs/2026-10-07-pm-harness-feedback.md), which the pm-harness project page links under Docs.
+- Met: this session ran `pm feedback add` twice for real (records commits 4469542 and ad2d08a); both entries are in [pm feedback](../docs/pm-feedback.md), which the pm-harness project page links under Docs.
 - Met: RULES.md (noun list and a rule), SKILL.md (command table row) and the pm.py docstring describe the command and when to use it; on the owner's request `pm show` also carries it. Real `bin/pm show` prints `feedback: 2 entries -> https://pm.yeeefs.com/docs/2026-10-07-pm-harness-feedback.html` under pm-harness and the `pm feedback add` hint after `site:`.
