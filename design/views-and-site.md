@@ -118,6 +118,7 @@ Every view is rendered from records plus live status from Beads. Nothing in a vi
 | Root page | Owner | Generated overview: needs across projects and questions asked outside any task, each project's open sprints with progress, recent days, a Not in a sprint table of open non-epic items filed directly under a project epic or with no parent, design pages (last updated first, with created and updated dates) and docs. Replaces a hand-kept current-state file |
 | Design pages | Owner | Design records, with their created and last-updated dates under the title, and one line when commits on the main branch changed a file the page's `covers:` match after its last records commit: how many, and the latest one's date |
 | Docs | Owner | Doc records, linked to their project |
+| Versions | Owner | Every page above renders the records as published on the `records` branch; each draft (for now the store's uncommitted edits, one draft named `store`) is a version beside it, under `/drafts/<draft>/`, with a version bar on each page it changes and a diff by section ([Record drafts and publishing](record-drafts.md), Published view and versions) |
 | `pm show` | Agents | The same data as the pages, as compact text with ids |
 
 ### Example: the daily page
@@ -204,7 +205,7 @@ flowchart LR
 | Diagrams | Mermaid, drawn in the browser from a CDN script | No Node toolchain | `mermaid-cli` at build time; Graphviz or D2 |
 | Packaging | Two entry scripts (`pm.py`, `render.py`) with inline dependencies (PEP 723), run by `uv run`, sharing a small `harness/` package beside them | No install step; one parser for both | One large script; an installed package |
 | Covered code changed | For each committed design page with `covers:`, one `git log --first-parent --since=<its last records commit> refs/remotes/<remote>/<main_branch> -- :(glob)<pattern>…` in the records store, which shares the code's repository: the remote's main as the clone last fetched it, the ref `pm sprint close --merged` checks against; computed with the dates and cached with them, that ref's file added to what moves the cache. A clone without the ref renders each such page with "Code changes not checked: no origin/main." and never fails the site. A commit a sprint stamped as its merge ("Merged as <sha>") is left out when that sprint links the page in Design pages or waived it: its page edit or waiver answers for the merge, which lands after the edit | The owner sees which pages may be stale without reading code history; git's glob pathspec reads a pattern as pm's matcher does, since `**` only stands alone between slashes; `--first-parent` counts a merge once, at its own date, where history simplification could show the branch's older commit instead | A model judging the page against the code (out of scope); one `git log --name-only` over the whole history matched in Go (larger output for stale pages) |
-| Design page dates | Created and last updated are a design page's first and last commit dates (`%cs`) on the records branch, following renames within its directory as `git log --follow` does; a page with uncommitted changes counts as updated today, one never committed as created today too. One `git log -M --name-status` over the design pages' directories, parsed once, plus one `git status`: about 45 ms on the real store | The page's name holds its current state, so a date in it would go stale; git already records when it changed | A date in the file name or header (goes stale, or is hand-kept); one `git log --follow` per page (a git call per page); `--follow`'s copy detection (pairs a new page with a similar older one, giving it the older page's created date) |
+| Design page dates | Created and last updated are a published design page's first and last commit dates (`%cs`) on the records branch, following renames within its directory as `git log --follow` does; in a draft's version, a page the draft changes or adds is updated today, and created today when new. One `git log -M --name-status refs/heads/records` over the design pages' directories, parsed once | The page's name holds its current state, so a date in it would go stale; git already records when it changed | A date in the file name or header (goes stale, or is hand-kept); one `git log --follow` per page (a git call per page); `--follow`'s copy detection (pairs a new page with a similar older one, giving it the older page's created date) |
 | Running | `make docs` starts `pm serve` once. Requests render from a snapshot of the records and Beads that a background thread keeps current; see Read path. The design pages' dates are recomputed only when the record texts, the store's HEAD commit (the bytes of its HEAD, branch ref and `packed-refs` files, read without git) or the day changed, and a page is rendered once per snapshot. Replies carry `Cache-Control: no-store`. `make render` writes `site/` and is the check before commits | A page loads in milliseconds while others write and says how old it is. Dolt appends every write to its chunk journal, so a `bd` write always changes a size, while a lone `bd` read changes none; the fingerprint costs 0.2 ms | Reading records and Beads inline on each request under the store lock (pages waited up to 11 s and replies up to 45 s behind writers, measured 2026-10-05); rendering by hand with `make render` (left the owner reading stale pages); rendering after each `pm` write (misses plain `bd` changes); rendering every page on every request (0.75–0.86 s per reload with 41 pages); a `bd` call as the change signal (none costs under 0.1 s); mtimes as the signal (a `bd` read changes them); a file watcher (needs a dependency) |
 
 ### Read path
@@ -298,6 +299,11 @@ stateDiagram-v2
   moved; a reread equal to the last one (readers move the fingerprint too)
   keeps the rendered pages. Each snapshot stored wakes the waits on the wait
   socket, so they share this one look.
+- **Published records.** The read takes the records at the tip of the
+  `records` branch, one `git archive` (0.01-0.02 s for the real store's
+  2.5 MB), never the working tree; the drafts are one `git status` and the
+  files it lists. Each draft's version is parsed and checked on its first
+  request and kept for the snapshot.
 - **No lock.** The read takes no store lock, since `pm` writes each file
   atomically. Between a `pm` write's steps the records and Beads may not
   render together (a need closed before its decision is written), so a read
@@ -381,9 +387,10 @@ skills/project-management/             ← the skill: generic, reusable
 Smaller alternatives sit beside the choice they lost to in Design, marked
 "Not chosen".
 
-- **Reading the committed records** at the store's HEAD (`git archive HEAD`,
-  13 ms) to avoid the lock: reading the files without the lock avoids it too
-  and still shows hand edits before they are committed.
+- **Reading the store's working tree**, uncommitted edits included (the
+  design before the published view): a half-made hand edit showed as
+  published, unlabelled, and one record that did not parse made every page a
+  500 until it was fixed.
 - **A separate background thread for Beads**: the stated age is bounded by
   `bd list` itself, which a second thread does not shorten.
 - **An in-memory reply queue, drained on Ctrl-C**: a crash or kill -9 lost

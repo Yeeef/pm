@@ -2,7 +2,10 @@
 type: design
 title: Record drafts and publishing
 project: pm-records
-covers: []
+covers:
+  - "internal/site/versions*.go"
+  - "internal/site/diff.go"
+  - "internal/store/drafts*.go"
 ---
 
 ## Problem
@@ -52,8 +55,8 @@ This page is the record layer's model for drafts and publishing: each code workt
 
 **The site**
 
-- The site renders the working tree, uncommitted edits included; the service looks for a change every second.
-- One record that does not parse fails the whole load, and every page is served as a 500 error page until it is fixed.
+- The site renders the `records` branch (one `git archive`, 0.01-0.02 s on this store), and the store's uncommitted edits as one draft, `store`; the service looks for a change every second.
+- A draft that does not parse fails only its own version's URLs; its diff still renders, and every published page stays 200.
 
 **Hooks, sessions, sync**
 
@@ -128,7 +131,7 @@ A page's URL renders its published version: the record on `records`, never a wor
 | Published | The page's URL |
 | One per draft | Worktree name, branch, sprints, session (when live), and its state: committed on the draft branch, uncommitted edits, or conflict (markers in the file, or a publish refused). A link to its full render and to its diff against published |
 
-Worktree and branch come from `git worktree list`, the session from `session.Uses` widened to every worktree, the sprints from the open tasks that session holds. The main checkout's uncommitted edits are one more draft, named "main checkout".
+Worktree and branch come from `git worktree list`, the session from `session.Uses` widened to every worktree, the sprints from the open tasks that session holds. The shared store's uncommitted edits (the main checkout's) are one more draft, named `store` and labelled "uncommitted edits in the shared store". The site takes drafts from a source (`store.DraftSource`); the store's edits are its first, and each workspace plugs in as another.
 
 **A version's URL** is `/drafts/<worktree>/<record path>.html`, for example `/drafts/pm-records-1/design/record-drafts.html`. A path rather than a query string (`?v=<worktree>`) because a record's relative links then stay in the same version: a link from a draft to another record renders that record in the same draft, which is the published text wherever the draft does not change it. The worktree's admin name is unique in the clone and stable for the worktree's life.
 
@@ -165,7 +168,7 @@ flowchart LR
 - The isolation unit is the code worktree: private to one session by the invariant, its branch is what merges, and `records/` already resolves per worktree. Alternatives considered says why not per session or per sprint.
 - `drafts/<name>` is always a `records` commit (its base) plus at most one draft commit, which holds the worktree's committed, unpublished design-page edits.
 - pm never runs `git rebase`, `git merge` or `git stash` in a workspace: it computes merges with `git merge-tree --write-tree` and `git merge-file`, writes commits with `git commit-tree`, moves refs with `git update-ref`, and writes files itself. No workspace is ever left mid-rebase or mid-merge: each operation runs under the store lock and either completes or changes nothing.
-- **The main checkout** keeps the store as its records tree for journal hand edits, shared by its sessions as today; its uncommitted edits show as one draft labelled "main checkout". Design pages are edited only in a worktree: `pm commit` in the main checkout refuses a design page and names a worktree.
+- **The main checkout** keeps the store as its records tree for journal hand edits, shared by its sessions as today; its uncommitted edits show as one draft, `store`. Design pages are edited only in a worktree: `pm commit` in the main checkout refuses a design page and names a worktree.
 - **The Stop hook** checks the session's own workspace's uncommitted edits; in the main checkout it keeps the transcript match.
 
 ### Follow

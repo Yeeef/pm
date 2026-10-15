@@ -134,9 +134,11 @@ so agents read `records/...` as before. `/records` is in the repo's
 `.gitignore`, so no code-branch commit can pick up the link or the store's
 files, and no hook or CI check guards `records/`.
 
-The site renders the store's working tree, uncommitted edits included: the
-pm service looks for a change every second. A record that does not parse
-makes every page an error page (status 500) until it is fixed or reverted.
+The site renders the records as published on the `records` branch, not the
+working tree; the store's uncommitted edits are one draft, `store`, shown as a
+version beside each page it changes ([Record drafts and publishing](record-drafts.md),
+Published view and versions). The pm service looks for a change every second.
+A record that does not parse fails only its draft's version.
 
 Claude Code reaches the store through `permissions.additionalDirectories`
 and Codex through `writable_roots` (Setup and sync, below). A `pm` command itself

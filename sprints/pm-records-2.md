@@ -40,6 +40,8 @@ The owner reads each record's published version on the site, and every draft of 
 > Where is the detail?
 
 - [Record drafts and publishing](../design/record-drafts.md): Published view and versions; Workspaces (where they live)
+- [Views and the site](../design/views-and-site.md): Views (versions), Implementation (design page dates), Read path (published records), Alternatives considered
+- [Shared records store](../design/records-store.md): Reading (the site renders the records branch)
 
 ## Progress
 
