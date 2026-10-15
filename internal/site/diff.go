@@ -21,7 +21,7 @@ type section struct {
 
 var (
 	sectionHead = regexp.MustCompile(`^#{2,3} `)
-	fence       = regexp.MustCompile("^ {0,3}(```|~~~)")
+	fence       = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})(.*)$")
 )
 
 // sections cuts text at its ## and ### headings; a heading inside a code fence is text.
@@ -32,11 +32,12 @@ func sections(text string) []section {
 	out := []section{{}}
 	inFence := ""
 	for _, line := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
+		// CommonMark: a fence closes on a run of its own character at least as long, with nothing after it
 		if m := fence.FindStringSubmatch(line); m != nil {
-			switch inFence {
-			case "":
+			switch {
+			case inFence == "":
 				inFence = m[1]
-			case m[1]:
+			case m[1][0] == inFence[0] && len(m[1]) >= len(inFence) && strings.TrimSpace(m[2]) == "":
 				inFence = ""
 			}
 		}

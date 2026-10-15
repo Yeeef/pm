@@ -257,10 +257,7 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	if err != nil {
 		return nil, err
 	}
-	drafts, err := s.drafts.Drafts()
-	if err != nil {
-		return nil, err
-	}
+	drafts := s.drafts.Drafts()
 	s.mu.Lock()
 	dates := s.dates
 	if s.datesStamp != stamp {

@@ -3,6 +3,7 @@ package store
 import (
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -15,8 +16,8 @@ func TestPublishedIsTheBranchAndEditsAreTheUncommittedRecords(t *testing.T) {
 	write(t, store, "docs/moved.md", "moved")
 	write(t, store, "days/2026-10-01.summary.json", "{}")
 	sh(t, store, "git add -A", "git commit -qm more")
-	if drafts, err := (Edits{store}).Drafts(); err != nil || drafts != nil {
-		t.Fatalf("a clean store: %v, %v; want no draft", drafts, err)
+	if drafts := (Edits{store}).Drafts(); drafts != nil {
+		t.Fatalf("a clean store: %v; want no draft", drafts)
 	}
 
 	write(t, store, "projects/demo.md", project+"edited\n")
@@ -42,9 +43,9 @@ func TestPublishedIsTheBranchAndEditsAreTheUncommittedRecords(t *testing.T) {
 		t.Errorf("Published summaries = %v, want %v", sums, want)
 	}
 
-	drafts, err := (Edits{store}).Drafts()
-	if err != nil || len(drafts) != 1 {
-		t.Fatalf("Drafts = %v, %v; want one", drafts, err)
+	drafts := (Edits{store}).Drafts()
+	if len(drafts) != 1 || drafts[0].Err != nil {
+		t.Fatalf("Drafts = %v; want one, read", drafts)
 	}
 	d := drafts[0]
 	got := map[string]any{}
@@ -60,5 +61,21 @@ func TestPublishedIsTheBranchAndEditsAreTheUncommittedRecords(t *testing.T) {
 	if d.Name != EditsDraft || d.Label != "uncommitted edits in the shared store" || d.State != "uncommitted edits" ||
 		!reflect.DeepEqual(got, want) {
 		t.Errorf("the draft is %s %q %q %v, want %v", d.Name, d.Label, d.State, got, want)
+	}
+}
+
+// A draft that cannot be read is still listed, with its error, which fails only its version: a record path git lists
+// that is no file (a link to a directory), or a store git status fails in.
+func TestADraftThatCannotBeReadCarriesItsError(t *testing.T) {
+	_, store := clone(t)
+	sh(t, store, "mkdir -p docs/dir", "ln -s dir docs/link.md")
+	drafts := (Edits{store}).Drafts()
+	if len(drafts) != 1 || drafts[0].Name != EditsDraft || drafts[0].Err == nil ||
+		!strings.Contains(drafts[0].Err.Error(), "reading docs/link.md") {
+		t.Errorf("a link to a directory: %+v", drafts)
+	}
+	drafts = (Edits{t.TempDir()}).Drafts()
+	if len(drafts) != 1 || drafts[0].Err == nil || !strings.Contains(drafts[0].Err.Error(), "git status failed") {
+		t.Errorf("no git repository: %+v", drafts)
 	}
 }

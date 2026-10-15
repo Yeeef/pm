@@ -321,7 +321,7 @@ func DesignDates(store string, recs []*records.Record) (map[string]Dates, error)
 	return out, nil
 }
 
-// CodeChanges sets the Code of each design page in dates that has covers and no uncommitted changes: the commits on
+// CodeChanges sets the Code of each published design page in dates that has covers: the commits on
 // main, the remote's main branch as this clone last fetched it (refs/remotes/<main>, as pm sprint close --merged
 // names it), that change a file its covers match and are newer than its last records commit, newest first. It follows
 // the first parent, so a merge counts as the one commit that brought its branch, at its own date. The records store

@@ -415,6 +415,25 @@ func TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
+		cmd.Dir = recs
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "records")
+	git("add", "-A")
+	git("commit", "-qm", "records") // the published figures; a version's page reads the working tree's
+	edited := `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>`
+	if err := os.WriteFile(filepath.Join(recs, "docs/x.svg"), []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := s.get("/drafts/store/docs/x.svg"); body != edited {
+		t.Fatalf("a version's figure is not the working tree's: %q", body)
+	}
 	resp, body := s.get("/docs/x.svg")
 	if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "image/svg+xml" || body != svg ||
 		resp.Header.Get("X-Content-Type-Options") != "nosniff" || !strings.Contains(resp.Header.Get("Content-Security-Policy"), "sandbox") {
@@ -549,7 +568,7 @@ func TestAPartialReadIsRepeatedUnderTheLockAndServedThere(t *testing.T) {
 	}
 	s.site.mu.Lock()
 	start := s.site.loads
-	s.site.loadErr = &Partial{Pages: fakePages{}, Gone: []string{"sprints/x.md"}} // read without the need's page
+	s.site.loadErr = &Partial{Pages: fakePages{}} // read without the need's page
 	s.site.stamp = 1
 	s.site.mu.Unlock()
 	eventually(t, "the partial read served", func() bool {

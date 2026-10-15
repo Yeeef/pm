@@ -1,6 +1,7 @@
 package site
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -225,5 +226,76 @@ func TestSectionsCutAtHeadingsOutsideCodeFences(t *testing.T) {
 	}
 	if got := changedLines(sectionDiff("", "## A\n\nx\n")); !slices.Equal(got, []string{"+ ## A", "+ ", "+ x"}) {
 		t.Errorf("a new record marks %q", got)
+	}
+}
+
+// A draft that cannot be read, one that adds a record under DraftsDir, and one that removes a record other records
+// link to: each fails or changes only its own version, and every published page renders as before.
+func TestADraftsErrorReservedPathOrRemovalStaysInItsVersion(t *testing.T) {
+	inZone(t)
+	unread := store.Draft{Name: "unread", Label: "a draft not read", State: "uncommitted edits",
+		Err: errors.New("reading docs/link.md: is a directory")}
+	under := store.Draft{Name: "under", Label: "a record under drafts/", State: "uncommitted edits",
+		Files: map[string]*string{"drafts/x.md": new("---\ntype: doc\ntitle: X\ndate: 2026-10-05\nproject: demo\n---\n\nx\n")}}
+	removed := store.Draft{Name: "removed", Label: "the parser removed", State: "uncommitted edits",
+		Files: map[string]*string{"design/parser.md": nil}}
+	s, golden := servedWith(t, unread, under, removed)
+	for path, want := range map[string]string{"drafts/unread/index.html": "is a directory",
+		"drafts/under/index.html": "the version under does not render: drafts/x:"} {
+		if _, found, err := s.Page(path); !found || err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: found %v, %v; want an error naming %q", path, found, err, want)
+		}
+	}
+	for path, want := range golden {
+		page := get(t, s, path)
+		if path != "design/parser.html" && path != "index.html" && page != want {
+			t.Errorf("%s changed:\n%s", path, Diff(want, page))
+		}
+	}
+	index := get(t, s, "index.html")
+	for _, want := range []string{"a draft not read; uncommitted edits; does not render",
+		"a record under drafts/; uncommitted edits; does not render"} {
+		if !strings.Contains(index, want) {
+			t.Errorf("the overview's bar lacks %q", want)
+		}
+	}
+	if page := get(t, s, "design/parser.html"); !strings.Contains(page, "the parser removed; uncommitted edits; removes this record") {
+		t.Errorf("the removed page's bar:\n%s", page)
+	}
+	if _, found, err := s.Page("drafts/removed/design/parser.html"); found || err != nil {
+		t.Errorf("the removed record in its version: found %v, %v; want no page", found, err)
+	}
+	if diff := get(t, s, "drafts/removed/design/parser.diff.html"); strings.Contains(diff, `class="add"`) ||
+		!strings.Contains(diff, `<span class="del">- title: The parser</span>`) {
+		t.Errorf("the removal's diff:\n%s", diff)
+	}
+	// a page linking the removed record renders in the version, its link to a page the version lacks
+	if sprint := get(t, s, "drafts/removed/sprints/demo-1.html"); !strings.Contains(sprint, `href="../design/parser.html"`) {
+		t.Errorf("the sprint's link to the removed page:\n%s", sprint)
+	}
+}
+
+// A file a draft lists with its published text (a mode change, an edit staged then undone) is no change: a draft of
+// only such files is no version, and gives no page a bar.
+func TestADraftFileHoldingItsPublishedTextIsNoChange(t *testing.T) {
+	inZone(t)
+	dir := constructsStore(t, nil)
+	same := edited(t, dir, "design/parser.md", "The parser", "The parser")
+	s, golden := servedWith(t, store.Draft{Name: "store", Label: "l", State: "uncommitted edits",
+		Files: map[string]*string{"design/parser.md": same}})
+	for _, path := range []string{"design/parser.html", "index.html"} {
+		if page := get(t, s, path); page != golden[path] {
+			t.Errorf("%s has a bar for no change:\n%s", path, Diff(golden[path], page))
+		}
+	}
+	if _, found, err := s.Page("drafts/store/index.html"); found || err != nil {
+		t.Errorf("a draft of no change is a version: found %v, %v", found, err)
+	}
+}
+
+func TestANestedFenceClosesOnlyOnARunAsLong(t *testing.T) {
+	text := "# A\n\n## One\n\n````\n```\n## not a head\n```\nx\n````\n"
+	if got := sections(text); len(got) != 2 || got[1].head != "## One" {
+		t.Errorf("sections: %+v", got)
 	}
 }

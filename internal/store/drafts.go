@@ -19,11 +19,14 @@ type Draft struct {
 	// Files is each record file the draft changes, by its path in the store (design/x.md): its text, or nil when the
 	// draft removes it.
 	Files map[string]*string
+	// Err is why the draft could not be read; its version fails with it, and only its version.
+	Err error
 }
 
-// DraftSource lists a clone's drafts, which the site serves as versions beside the published records.
+// DraftSource lists a clone's drafts, which the site serves as versions beside the published records. A draft that
+// cannot be read is listed with its Err, so it never fails the published site.
 type DraftSource interface {
-	Drafts() ([]Draft, error)
+	Drafts() []Draft
 }
 
 // EditsDraft is the name of the shared store's uncommitted edits as a draft.
@@ -31,10 +34,20 @@ const EditsDraft = "store"
 
 // Edits is the shared store's uncommitted record edits as one draft named EditsDraft, or no draft when it has none:
 // each record file that git status lists (modified, staged, removed or untracked) with its text in the working tree.
-// One git status, with no optional lock (Uncommitted says why).
+// One git status, with no optional lock (Uncommitted says why). A file the status lists may hold its published text
+// (a mode change, an edit staged then undone): the site drops those.
 type Edits struct{ Store string }
 
-func (e Edits) Drafts() ([]Draft, error) {
+func (e Edits) Drafts() []Draft {
+	files, err := e.files()
+	if err == nil && len(files) == 0 {
+		return nil
+	}
+	return []Draft{{Name: EditsDraft, Label: "uncommitted edits in the shared store", State: "uncommitted edits",
+		Files: files, Err: err}}
+}
+
+func (e Edits) files() (map[string]*string, error) {
 	out, errOut, err := run(e.Store, "--no-optional-locks", "status", "--porcelain", "-z", "--no-renames",
 		"--untracked-files=all")
 	if err != nil {
@@ -57,15 +70,11 @@ func (e Edits) Drafts() ([]Draft, error) {
 		case errors.Is(err, fs.ErrNotExist): // removed, or gone since git status listed it: the next look sees which
 			files[rel] = nil
 		case err != nil:
-			return nil, err
+			return nil, fmt.Errorf("reading %s: %w", rel, err)
 		default:
 			text := string(b)
 			files[rel] = &text
 		}
 	}
-	if len(files) == 0 {
-		return nil, nil
-	}
-	return []Draft{{Name: EditsDraft, Label: "uncommitted edits in the shared store", State: "uncommitted edits",
-		Files: files}}, nil
+	return files, nil
 }

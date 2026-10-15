@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -315,5 +316,60 @@ func run(t *testing.T, dir string, cmds ...string) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%s: %v\n%s", c, err, out)
 		}
+	}
+}
+
+// A commit of a hand edit moves only the records branch, the working tree already holding its text: the stamp moves
+// with the branch's ref, and the next look publishes the edit and drops the draft.
+func TestACommittedEditIsPublishedAndLeavesNoDraftAtTheNextLook(t *testing.T) {
+	root := clone(t)
+	records := filepath.Join(root, ".pm/store/records")
+	s, err := newServedSite(records, "t", "origin/main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []work.Item{{ID: "demo", Type: work.Project, Title: "Demo", Status: work.Open}}
+	project := filepath.Join(records, "projects/demo.md")
+	b, err := os.ReadFile(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(project, bytes.Replace(b, []byte("## Goal\n\nx\n"), []byte("## Goal\n\nShip it.\n"), 1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	page := func(pages service.Pages, path string) (string, bool) {
+		t.Helper()
+		text, found, err := pages.Page(path)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		return text, found
+	}
+	pages, err := s.Load(items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text, _ := page(pages, "projects/demo.html"); strings.Contains(text, "Ship it.") {
+		t.Fatal("an uncommitted edit is published")
+	}
+	if text, found := page(pages, "drafts/store/projects/demo.html"); !found || !strings.Contains(text, "Ship it.") {
+		t.Fatalf("the edit is no version: found %v", found)
+	}
+	before, err := s.Stamp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	run(t, records, "git commit -qam goal")
+	if after, err := s.Stamp(); err != nil || after == before {
+		t.Fatalf("the stamp did not move with the records branch: %v", err)
+	}
+	if pages, err = s.Load(items); err != nil {
+		t.Fatal(err)
+	}
+	if text, _ := page(pages, "projects/demo.html"); !strings.Contains(text, "Ship it.") {
+		t.Error("the committed edit is not published at the next look")
+	}
+	if _, found := page(pages, "drafts/store/projects/demo.html"); found {
+		t.Error("the committed edit is still a draft")
 	}
 }

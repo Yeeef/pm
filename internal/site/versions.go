@@ -32,7 +32,9 @@ type version struct {
 }
 
 // AddDrafts serves each draft as a version beside s: root is the records store and texts the published record texts
-// that s was made from, by resolved path, as store.Published gives them.
+// that s was made from, by resolved path, as store.Published gives them. A draft's file that holds its published text
+// (git lists a mode change or an edit staged then undone) is no change, and a draft that changes nothing and read
+// without error is no version.
 func (s *Served) AddDrafts(root string, texts map[string]string, drafts []store.Draft) error {
 	root, err := filepath.EvalSymlinks(root)
 	if err != nil {
@@ -46,6 +48,17 @@ func (s *Served) AddDrafts(root string, texts map[string]string, drafts []store.
 		if d.Name == "" || strings.ContainsAny(d.Name, "/?#%") || s.version(d.Name) != nil {
 			return fmt.Errorf("draft name %q is empty, holds a URL delimiter or names two drafts", d.Name)
 		}
+		files := map[string]*string{}
+		for rel, text := range d.Files {
+			was, published := texts[filepath.Join(root, filepath.FromSlash(rel))]
+			if (text == nil && published) || (text != nil && (!published || *text != was)) {
+				files[rel] = text
+			}
+		}
+		if len(files) == 0 && d.Err == nil {
+			continue
+		}
+		d.Files = files
 		s.versions = append(s.versions, &version{draft: d})
 	}
 	return nil
@@ -72,9 +85,13 @@ func (s *Served) version(name string) *version {
 }
 
 // build is v's site: the published texts with the draft's files laid over them, parsed and checked as Serve checks
-// the published ones. A design page the draft changes or adds is updated today; the others keep their dates.
+// the published ones; the draft's Err when it could not be read. A design page the draft changes or adds is updated today; the others keep their dates.
 func (s *Served) build(v *version) (*Served, error) {
 	v.once.Do(func() {
+		if v.draft.Err != nil {
+			v.err = v.draft.Err
+			return
+		}
 		texts := maps.Clone(s.texts)
 		for rel, text := range v.draft.Files {
 			p := filepath.Join(s.root, filepath.FromSlash(rel))
