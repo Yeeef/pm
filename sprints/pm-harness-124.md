@@ -53,7 +53,10 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- PR #98 CI on cf6c9e2: every Linux job passed; the macOS job shows as skipped
+  on the PR. make merge-ready PR=98 accepted it. The PR-only macOS test subset
+  (go-os-tests.txt, go_os_tests.py, go-os-check) is removed: 8 files changed,
+  +121 -475 lines. No macOS run has happened under the new schedule yet.
 
 ## Delivery report
 
