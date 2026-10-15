@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"path"
 	"regexp"
 	"strings"
 
@@ -22,13 +23,19 @@ import (
 
 // The Markdown renderers. Python pm renders with markdown-it-py's commonmark preset; goldmark is CommonMark too, and
 // the parts below give it what pm adds: GFM tables wrapped in <div class="tbl"> with style alignment, ids on h2 and h3
-// with mdit-py-plugins' anchors slug, the ::: note, decision and result containers, the mermaid fence, the link rewrite
-// .md(#…) to .html(#…), and front matter skipped.
+// with mdit-py-plugins' anchors slug, the ::: note, decision and result containers, the mermaid fence, TeX math
+// (math.go), MDX-style HTML blocks (mdx.go), the link rewrite .md(#…) to .html(#…) with a dated record found by its
+// slug, and front matter skipped.
 
-// ctx is one page's render: the record it is for, for errors, and whether a mermaid diagram is on it.
+// ctx is one page's render: the record it is for, for errors; whether a mermaid diagram or math is on it; the records
+// its links resolve against; and, while links is set, each link of the record's own text that names no record.
 type ctx struct {
 	rel     string
 	mermaid bool
+	math    bool
+	recs    []*Record
+	links   bool
+	broken  []string
 }
 
 // recordMD is the renderer of record bodies and request descriptions: raw HTML kept, tables, anchors, containers.
@@ -36,8 +43,10 @@ func recordMD(c *ctx) goldmark.Markdown {
 	return goldmark.New(
 		goldmark.WithExtensions(extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignStyle))),
 		goldmark.WithParserOptions(
-			parser.WithBlockParsers(util.Prioritized(&containerParser{}, 690)),
-			parser.WithASTTransformers(util.Prioritized(anchors{}, 100), util.Prioritized(linkRewrite{}, 200),
+			parser.WithBlockParsers(util.Prioritized(&containerParser{}, 690), util.Prioritized(mathBlockParser{}, 695),
+				util.Prioritized(mdxParser{}, 850)),
+			parser.WithInlineParsers(util.Prioritized(mathInlineParser{}, 150)),
+			parser.WithASTTransformers(util.Prioritized(anchors{}, 100), util.Prioritized(linkRewrite{c}, 200),
 				util.Prioritized(cellAlign{}, 300)),
 		),
 		goldmark.WithRendererOptions(ghtml.WithUnsafe(), renderer.WithNodeRenderers(util.Prioritized(&recordRenderer{c}, 100))),
@@ -287,22 +296,70 @@ func headingSource(h *ast.Heading, source []byte) string {
 
 // ---------------------------------------------------------------- links
 
-// linkRewrite points a relative link at a record's page: .md, or .md#anchor, becomes .html.
-type linkRewrite struct{}
+// linkRewrite points a relative link at a record's page: .md, or .md#anchor, becomes .html; a link to a dated record
+// (a doc or a postmortem) by its slug alone, without the date, points at that record's page.
+type linkRewrite struct{ c *ctx }
 
 var (
 	schemeRE = regexp.MustCompile(`^[a-z]+:`)
 	mdLinkRE = regexp.MustCompile(`\.md(#|$)`)
 )
 
-func (linkRewrite) Transform(doc *ast.Document, reader text.Reader, pc parser.Context) {
+func (t linkRewrite) Transform(doc *ast.Document, reader text.Reader, pc parser.Context) {
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if l, ok := n.(*ast.Link); ok && entering && !schemeRE.Match(l.Destination) {
-			l.Destination = mdLinkRE.ReplaceAll(l.Destination, []byte(".html$1"))
+			dest, broken := resolveLink(t.c.rel, string(l.Destination), t.c.recs)
+			l.Destination = []byte(dest)
+			if broken != "" && t.c.links {
+				t.c.broken = append(t.c.broken, broken)
+			}
 		}
 		return ast.WalkContinue, nil
 	})
 }
+
+// resolveLink is the destination dest, a relative link in the record at rel, points to on the site, and, for a .md
+// link into the store that names no record, why: the target as the link names it, or the docs a slug names when it
+// names more than one. A link that leaves the store, or names no .md file, is only rewritten.
+func resolveLink(rel, dest string, recs []*Record) (string, string) {
+	rewritten := mdLinkRE.ReplaceAllString(dest, ".html$1")
+	file, anchor, hasAnchor := strings.Cut(dest, "#")
+	if recs == nil || !strings.HasSuffix(file, ".md") || strings.HasPrefix(file, "/") {
+		return rewritten, ""
+	}
+	target := path.Clean(path.Join(path.Dir(rel), strings.TrimSuffix(file, ".md")))
+	if target == ".." || strings.HasPrefix(target, "../") {
+		return rewritten, ""
+	}
+	dir, base := path.Split(target)
+	var named []*Record
+	for _, r := range recs {
+		if r.Rel == target {
+			return rewritten, ""
+		}
+		if d, name := path.Split(r.Rel); d == dir && datePrefix.ReplaceAllString(name, "") == base {
+			named = append(named, r)
+		}
+	}
+	if len(named) == 1 {
+		if hasAnchor {
+			anchor = "#" + anchor
+		}
+		return strings.TrimSuffix(file, base+".md") + named[0].Name() + ".html" + anchor, ""
+	}
+	why := "records/" + target + ".md, which does not exist"
+	if len(named) > 1 {
+		var names []string
+		for _, r := range named {
+			names = append(names, r.Name())
+		}
+		why = "a slug that " + fmt.Sprint(len(named)) + " records have: " + strings.Join(names, ", ")
+	}
+	return rewritten, fmt.Sprintf("%s.md: the link %s names %s", rel, dest, why)
+}
+
+// datePrefix is the <date>- a dated record's name starts with.
+var datePrefix = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}-`)
 
 // cellAlign gives a cell that pads a short row its column's alignment, as markdown-it does; goldmark leaves it none.
 type cellAlign struct{}
@@ -334,6 +391,9 @@ func (r *recordRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) 
 	reg.Register(kindContainer, r.container)
 	reg.Register(ast.KindFencedCodeBlock, r.fence)
 	reg.Register(east.KindTable, r.table)
+	reg.Register(kindMath, r.math)
+	reg.Register(kindMathBlock, r.mathBlock)
+	reg.Register(kindMDX, r.mdx)
 }
 
 func (r *recordRenderer) container(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {

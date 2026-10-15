@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/item"
+	"github.com/Yeeef/pm/internal/records"
 )
 
 // testdata/serve/filled.html is the page below with its reply slots and status filled, frozen, in
@@ -82,5 +83,24 @@ func TestAQuestionsSlotBecomesTheFormItsInputsPost(t *testing.T) {
 	}
 	if strings.Contains(got, "<textarea") {
 		t.Errorf("a question's form has a text box: %s", got)
+	}
+}
+
+// The service serves the docs index that every page's navigation links.
+func TestTheServiceServesTheDocsIndex(t *testing.T) {
+	recs := linkRecs("docs/2026-10-15-note-cfr")
+	s, err := Serve(recs, records.NewItems(nil), "demo", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, found, err := s.Page(DocsIndex)
+	if err != nil || !found {
+		t.Fatalf("docs index: found %v, err %v", found, err)
+	}
+	if !strings.Contains(p, `<a href="../docs/2026-10-15-note-cfr.html">T</a><span class="k">2026-10-15</span>`) {
+		t.Errorf("the docs index does not list the doc:\n%s", p)
+	}
+	if !strings.Contains(p, `<a class="docs" href="../docs/index.html">Docs</a>`) {
+		t.Errorf("the docs index's navigation does not link it:\n%s", p)
 	}
 }

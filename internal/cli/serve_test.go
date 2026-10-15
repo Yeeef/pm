@@ -217,8 +217,8 @@ func TestLoadNeverPassesARecordSetMissingAFileGitRewrote(t *testing.T) {
 		if err := cmdCheck(root, &out); err != nil {
 			t.Fatal(err)
 		}
-		// Python: f"checked the records in {records}: all {n} pages render"; the project page and the index
-		if want := "checked the records in " + filepath.Join(root, ".pm/store/records") + ": all 2 pages render\n"; out.String() != want {
+		// Python: f"checked the records in {records}: all {n} pages render"; the project page, the index and the docs index
+		if want := "checked the records in " + filepath.Join(root, ".pm/store/records") + ": all 3 pages render\n"; out.String() != want {
 			t.Errorf("pm check printed %q, want %q", out.String(), want)
 		}
 
@@ -243,7 +243,7 @@ func TestLoadNeverPassesARecordSetMissingAFileGitRewrote(t *testing.T) {
 		if err := cmdCheck(root, &out); err != nil {
 			t.Fatal(err)
 		}
-		if want := "checked the records in " + filepath.Join(root, ".pm/store/records") + ": all 2 pages render\n"; out.String() != want {
+		if want := "checked the records in " + filepath.Join(root, ".pm/store/records") + ": all 3 pages render\n"; out.String() != want {
 			t.Errorf("pm check printed %q, want %q", out.String(), want)
 		}
 	})

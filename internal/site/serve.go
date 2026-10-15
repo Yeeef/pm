@@ -57,6 +57,10 @@ func (s *Served) page(path string) (string, bool, error) {
 		p, err := RenderIndex(s.recs, s.items, s.name, s.dates)
 		return p, true, err
 	}
+	if path == DocsIndex {
+		p, err := RenderDocsIndex(s.recs, s.items)
+		return p, true, err
+	}
 	for _, r := range s.recs {
 		if r.Out() == path {
 			p, err := RenderRecord(r, s.recs, s.items, s.dates)
