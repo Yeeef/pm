@@ -60,6 +60,11 @@ The design page pm-in-codex stays as it is for this sprint's code changes.
 codex.go gained CodexState, the writable-roots state pm where prints, moved from internal/cli unchanged but for the parse message; the hooks, rules and writable_roots pm writes are unchanged
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page pm-product stays as it is for this sprint's code changes.
+codex.go's CodexState move, uninstall's refusal naming pm sprint close and prime.md's close step change no install, pin, service or product behaviour the page describes
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
