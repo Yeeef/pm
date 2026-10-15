@@ -240,7 +240,7 @@ func (w Workspace) Describe(store string) (string, error) {
 		return "", err
 	}
 	parts := []string{"records workspace on " + w.Branch()}
-	if d.draft {
+	if len(d.tags) > 0 { // a page with no tag was published or discarded by its sprint's close
 		parts = append(parts, fmt.Sprintf("a draft commit of %d design pages", len(d.tags)))
 	}
 	dirty, err := w.Dirty()
