@@ -29,6 +29,56 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.0] - 2026-10-15
+
+A design page's edits now reach the published records when its sprint closes, once its code is on main, so the site
+never shows a page describing code that has not merged, and two sprints' edits of one page meet at the close.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.0`, then commit what it changes and merge it, as an ordinary PR.
+3. Before moving the pin, check the published design pages against main: `pm check` now fails on a covers pattern
+   that matches no file on the remote's main, where it listed it as waiting on unmerged work. Fix each pattern it
+   names in a worktree's records workspace, linked from a sprint's Design pages, and close that sprint.
+
+### Breaking changes
+
+- `pm commit` of a design page from a worktree keeps it in the workspace's draft commit, tagged with its sprint, and
+  no longer publishes it: `pm sprint close` does.
+- `pm check` fails on a published design page's covers pattern that matches no file on the remote's main (fetched
+  when its remote-tracking branch lacks one), and in a worktree on a draft page's pattern that matches no file the
+  worktree tracks. A published pattern main lacks while a draft of the page no longer holds it is listed as waiting
+  on that sprint's close instead. The list of patterns waiting on unmerged work is gone, and `pm sprint close` no longer holds the
+  patterns a sprint added since it opened by records commit dates: it holds every pattern of each page it publishes.
+
+### Added
+
+- `pm sprint close` publishes every design page drafted for the sprint, from every worktree and from every
+  `drafts/` branch whose worktree is gone, in one records commit with the Outcome's merge stamp. It refuses, changing
+  nothing, while a draft overlaps what the records branch published since the draft's base or another draft of the
+  sprint, naming the commits or the branch and the fix, and while your workspace has uncommitted edits to a page the
+  sprint links. Run again after a stop, it finds nothing left to publish. A sprint with no PR publishes the same way.
+- `pm sprint close --discard SLUG --reason "…"`, repeatable, drops the sprint's drafts of a page instead of
+  publishing them, puts back your workspace's uncommitted edits to it, and records the reason as `pm design
+  unchanged` does; a later run of the close never publishes that page.
+- `pm check`, the design-page gate and `pm sprint close` name a `drafts/` branch they cannot read (a commit made by
+  hand there) in a warning and carry on; the close refuses only when a commit of that branch names its sprint. The
+  close notes each other worktree's uncommitted edit of a page it publishes.
+- A follow that leaves a drafted page with conflict markers keeps its sprint, and the sprint's close refuses from any
+  worktree, naming the worktree and the page, until it is resolved and committed again. A page's draft in a
+  workspace belongs to one sprint: `pm commit` refuses it for another open sprint.
+- `pm where` lists each `drafts/` branch whose worktree is gone, with the design pages it still holds for their
+  sprints' close.
+
+### Changed
+
+- The design-page gate (`pm action need --pr`, `pm sprint close`) counts a page as updated when a draft of this clone
+  holds it for the sprint.
+- A draft page keeps its sprint when the page is renamed on the records branch (`pm design rename`): the draft
+  follows it to the new path and publishes there.
+
 ## [0.14.0] - 2026-10-15
 
 Docs render as written: TeX math is typeset, links between docs resolve by slug, and a docs index lists every doc; `pm
@@ -1088,6 +1138,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.0]: https://github.com/Yeeef/pm/compare/pm-v0.14.0...pm-v0.15.0
 [0.14.0]: https://github.com/Yeeef/pm/compare/pm-v0.13.0...pm-v0.14.0
 [0.13.0]: https://github.com/Yeeef/pm/compare/pm-v0.12.1...pm-v0.13.0
 [0.12.1]: https://github.com/Yeeef/pm/compare/pm-v0.12.0...pm-v0.12.1
