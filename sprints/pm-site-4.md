@@ -53,6 +53,11 @@ The design page site-replies stays as it is for this sprint's code changes.
 serve.go only serves one more page path, docs/index.html; access, replies and the service are untouched
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page pm-go stays as it is for this sprint's code changes.
+only a test's expected page count changes, 2 to 3, for the docs index
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
