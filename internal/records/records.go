@@ -2,8 +2,9 @@
 // decides its required header fields and sections; fenced-div blocks are limited to the names in Blocks; sections carry
 // line ranges so a command can insert into a named section and leave the rest of the file untouched.
 //
-// covers.go holds a design page's covers: and its doublestar matcher. testdata/expected.json holds the scanning
-// functions and YAML 1.1 typing; it is edited by hand.
+// covers.go holds a design page's covers: and its doublestar matcher; rename.go plans a design page's or a doc's
+// rename and rewrites the links to it. testdata/expected.json holds the scanning functions and YAML 1.1 typing; it is
+// edited by hand.
 package records
 
 import (

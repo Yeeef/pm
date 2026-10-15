@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Yeeef/pm/internal/item"
 	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
@@ -232,6 +233,30 @@ var waiverRE = regexp.MustCompile(`^The design page (\S+) stays as it is for thi
 // WaiverText is the decision body pm design unchanged records in the sprint record: the fixed line, then the reason.
 func WaiverText(slug, reason string) string {
 	return "The design page " + slug + " stays as it is for this sprint's code changes.\n" + reason
+}
+
+// RenameCheck is pm design rename's check of a rename of the page slug to the slug to ("" when only its title
+// changes): it refuses while an open PR review names the page, since the work store holds the review's targets, which a
+// rename does not rewrite; else it gives the rewrite of the page's waivers (RenameWaivers), or nil.
+func RenameCheck(items []item.Item, slug, to string) (func(string) string, error) {
+	for _, it := range items {
+		if r := it.Need; it.Status != item.Closed && r != nil && r.Review != nil && slices.Contains(r.Review.Designs, slug) {
+			return nil, fmt.Errorf("the open PR review %s names design page %s (--design); close it with pm action "+
+				"done, or dismiss it, before the page is renamed", it.ID, slug)
+		}
+	}
+	if to == "" {
+		return nil, nil
+	}
+	return func(text string) string { return RenameWaivers(text, slug, to) }, nil
+}
+
+// RenameWaivers is a record's text with each waiver of the design page from waiving the page to instead, as pm design
+// rename moves it: the fixed first line, which Waivers reads, rewritten in place.
+func RenameWaivers(text, from, to string) string {
+	line := regexp.MustCompile(`(?m)^([ \t]*)The design page ` + regexp.QuoteMeta(from) +
+		` stays as it is for this sprint's code changes\.$`)
+	return line.ReplaceAllString(text, "${1}The design page "+to+" stays as it is for this sprint's code changes.")
 }
 
 // Waivers is the reason of each waiver among the sprint record's decisions, by page slug.

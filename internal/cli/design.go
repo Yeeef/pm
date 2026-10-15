@@ -81,3 +81,50 @@ func cmdDesignUnchanged(e *env, p *Parsed) (string, error) {
 	}
 	return r.apply(w, fmt.Sprintf("recorded in %s that design page %s stays as it is", r.rel(rec.Path), slug), "pm: ")
 }
+
+// cmdDesignRename is pm design rename: a design page's slug or title or both, every link to it and every waiver of
+// it (design.RenameCheck), in one records commit.
+func cmdDesignRename(e *env, p *Parsed) (string, error) {
+	return renameRecord(e, p, "design", design.RenameCheck)
+}
+
+// cmdDocRename is pm doc rename: a doc's slug, its date prefix kept, or its title, or both, and every link to it.
+func cmdDocRename(e *env, p *Parsed) (string, error) { return renameRecord(e, p, "doc", nil) }
+
+// renameCheck refuses a rename of the record name to the slug to ("" for none), or gives an extra rewrite of every
+// record's text, or nil.
+type renameCheck func(items []work.Item, name, to string) (func(string) string, error)
+
+// renameRecord runs a rename of a record of kind (records.RenameTarget) as its flags give it, in one records commit;
+// check, when not nil, runs before the plan.
+func renameRecord(e *env, p *Parsed, kind string, check renameCheck) (string, error) {
+	to, title := p.Get("to"), p.Get("title")
+	if title, given := given(p, "title"); given && strip(title) == "" {
+		return "", refuse("--title is empty")
+	}
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	rn := records.Rename{To: to, Title: strip(title)}
+	if rn.From, err = records.RenameTarget(r.recs, kind, p.Get("slug")); err != nil {
+		return "", err
+	}
+	if check != nil {
+		if rn.Rewrite, err = check(r.items, rn.From.Name(), to); err != nil {
+			return "", err
+		}
+	}
+	changes, msg, err := rn.Plan(r.recs)
+	if err != nil {
+		return "", err
+	}
+	w := make([]store.Write, len(changes))
+	for i, c := range changes {
+		w[i] = store.Write(c)
+	}
+	if err := r.checkPlanned(w, nil); err != nil {
+		return "", err
+	}
+	return r.apply(w, msg, "pm: ")
+}

@@ -15,7 +15,7 @@ positional arguments:
     need                needs of any kind: decisions, actions and reviews
     reply               the owner's replies from the site
     doc                 free-form dated docs
-    design              design pages: create one, or record why one stays as it is
+    design              design pages: create or rename one, or record why one stays as it is
     postmortem          incident postmortems
     project             projects
     sprint              sprints
@@ -285,14 +285,15 @@ options:
       --text string        the answer, as one argument
       --text-file string   the answer, from a file; - reads stdin, from a pipe or heredoc only
 ===== pm doc --help
-usage: pm doc [-h] {new} ...
+usage: pm doc [-h] {new,rename} ...
 
 positional arguments:
-  {new}
-    new       create records/docs/<today>-<slug>.md; body with --text
+  {new,rename}
+    new         create records/docs/<today>-<slug>.md; body with --text
+    rename      rename a doc, its slug or title or both, and rewrite every record's links to it
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help    show this help message and exit
 ===== pm doc new --help
 usage: pm doc new [-h] --title TITLE (--bead ID | --project NAME)
                   [--text-file PATH | --text TEXT]
@@ -308,16 +309,29 @@ options:
   --project NAME    the project the doc belongs to
   --text-file PATH  required: the doc's Markdown body; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
-===== pm design --help
-usage: pm design [-h] {new,unchanged} ...
+===== pm doc rename --help
+usage: pm doc rename [-h] [--to NEW_SLUG] [--title TITLE] doc
+
+Rename a doc in one records commit: --to moves records/docs/<date>-<slug>.md to records/docs/<date>-<new>.md (the date prefix stays), --title sets its title: header; give one or both. Every record's Markdown link to the doc (../docs/<name>.md, or <name>.md beside it, anchors kept) is rewritten to the new name, and a link whose text is the old title takes the new one. Old URLs get no redirect. The repo's feedback doc is not renamed.
 
 positional arguments:
-  {new,unchanged}
-    new            create records/design/<slug>.md with every template section
-    unchanged      record why a design page stays as it is although the sprint's PR changes code it covers
+  doc            the doc: records/docs/<date>-<slug>.md, <date>-<slug>, or <slug> when one doc has it
 
 options:
-  -h, --help       show this help message and exit
+  -h, --help     show this help message and exit
+  --to NEW_SLUG  the new slug, lowercase words joined by '-', without the date
+  --title TITLE  the new title
+===== pm design --help
+usage: pm design [-h] {new,rename,unchanged} ...
+
+positional arguments:
+  {new,rename,unchanged}
+    new                 create records/design/<slug>.md with every template section
+    rename              rename a design page, its slug or title or both, and rewrite every record's links and waivers to it
+    unchanged           record why a design page stays as it is although the sprint's PR changes code it covers
+
+options:
+  -h, --help            show this help message and exit
 ===== pm design new --help
 usage: pm design new [-h] --title TITLE --project NAME slug
 
@@ -330,6 +344,18 @@ options:
   -h, --help      show this help message and exit
   --title TITLE
   --project NAME  the project the design belongs to
+===== pm design rename --help
+usage: pm design rename [-h] [--to NEW_SLUG] [--title TITLE] slug
+
+Rename a design page in one records commit: --to moves records/design/<slug>.md to records/design/<new>.md, --title sets its title: header; give one or both. Every record's Markdown link to the page (../design/<slug>.md, or <slug>.md from another design page, anchors kept) is rewritten to the new slug, a link whose text is the old title takes the new one, and each pm design unchanged waiver of the page names the new slug. Old URLs get no redirect. Refused while an open PR review need names the page (pm action need --design): close or dismiss it first.
+
+positional arguments:
+  slug           the design page's slug (records/design/<slug>.md)
+
+options:
+  -h, --help     show this help message and exit
+  --to NEW_SLUG  the new slug, lowercase words joined by '-'
+  --title TITLE  the new title
 ===== pm design unchanged --help
 usage: pm design unchanged [-h] --sprint ID --reason REASON slug
 
