@@ -63,6 +63,11 @@ The design page agent-lifecycle stays as it is for this sprint's code changes.
 prime.md only names the two new rename commands beside design new and doc new; the lifecycle it describes is unchanged.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page pm-product stays as it is for this sprint's code changes.
+prime.md only names the two new rename commands; nothing the product page says about setup or prime changes.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
