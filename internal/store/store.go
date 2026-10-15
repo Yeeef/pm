@@ -2,8 +2,9 @@
 // <main checkout>/.pm/store/records. Every worktree finds it through the clone's common git dir, so a write is visible
 // from every branch and worktree at once. It finds and checks the store, locks it, writes records atomically and
 // commits exactly the files written. Published is the records the site renders: the records branch's tip, read with
-// git archive. drafts.go lists the drafts the site serves beside them as versions: for now the store's uncommitted
-// edits, as one draft.
+// git archive. drafts.go lists the drafts the site serves beside them as versions: the store's uncommitted edits, as
+// one draft, and each code worktree's records workspace (drafts_workspace.go), which follows the records branch and
+// holds its draft commit (drafts_follow.go).
 //
 // It also keeps a design page's dates and the commits on the main branch to the page's covered files after them
 // (CodeChanges: one git log --first-parent per page with covers, run in the records store, which shares the code's
@@ -129,15 +130,18 @@ func resolved(p string) string {
 	return filepath.Join(resolved(filepath.Dir(abs)), filepath.Base(abs))
 }
 
-// CodeRoot is the worktree a command acts on for code commits and the site: cwd's, or the main checkout from inside
-// the store.
+// CodeRoot is the worktree a command acts on for code commits and the site: cwd's, the main checkout from inside the
+// store, or the code worktree from inside its records workspace.
 func CodeRoot(cwd, store string) (string, error) {
-	top, err := Git(cwd, "rev-parse", "--show-toplevel")
+	top, ref, err := headOf(cwd)
 	if err != nil {
 		return "", err
 	}
-	if resolved(top) == resolved(store) {
+	switch {
+	case resolved(top) == resolved(store):
 		return MainOf(store), nil
+	case strings.HasPrefix(ref, "refs/heads/"+DraftsPrefix):
+		return filepath.Dir(top), nil
 	}
 	return top, nil
 }
