@@ -113,5 +113,5 @@ done: the agents md jobs no longer set a PR's CI time; per the owner's decision,
 | Item | Met | Evidence |
 |---|---|---|
 | `check` and `cases` within the slowest other check on a PR changing the grader and AGENTS.md | met | PR #97: check 38 s, cases skipped; slowest other check build-test (darwin-arm64) 2m9s |
-| Calibration 13/13 in CI and locally; a clean full run; cost within 10% of PR #80's | changed by the owner's decision | The calibration and full run move to the daily job; its first run is checked after merge with `gh workflow run agents-md.yml`. No live run was made in this sprint. Cost: full check with 5 votes is $0.41-0.46 (the $0.27 baseline was 3-vote), cases $0.66-0.73; the daily job runs only on a change |
+| Calibration 13/13 in CI and locally; a clean full run; cost within 10% of PR #80's | met in CI, by the owner's decision on the daily job; not run locally | Daily run 38695521967 on main: full mode passed (the clean case), 198 s, $0.454; cases 12/12, $0.65. With 5 votes since sprint 33, full costs $0.41-0.46, against PR #80's 3-vote $0.27; cases are within 10% of $0.68. The job runs only on a change: run 38696025586 made no model calls. No local live run was made |
 | `make test`, `make lint`, PR CI green | met | make test: 147 passed, 169 skipped; make lint: 0 issues; actionlint: no findings; PR #97: all checks green |
