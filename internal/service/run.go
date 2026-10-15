@@ -1053,9 +1053,20 @@ func (s *server) SyncSteps() []pmsync.Step {
 			return true, lines[0]
 		}},
 		{Name: "summary", Run: s.d.Summarize},
-		{Name: "records", Run: func() (bool, string) { return pmsync.PushRecords(s.d.Records, s.d.Remote) }},
+		{Name: "records", Run: func() (bool, string) { return pmsync.PushRecords(s.d.Records, s.d.Remote, s.closed) }},
 		{Name: "drafts", Run: func() (bool, string) { return pmsync.PushDrafts(s.d.Records, s.d.Remote) }},
 	}
+}
+
+// closed is which sprints the work store holds closed, for the records step's follow.
+func (s *server) closed() (pmstore.SprintClosed, error) {
+	var items []work.Item
+	err := s.withStore("the closed sprints", func(st work.Store) error {
+		var err error
+		items, err = st.Items()
+		return err
+	})
+	return pmstore.ClosedSprints(items), err
 }
 
 // syncer runs the sync every pmsync.Interval, logging each step's line; a run that fails is logged, and the next

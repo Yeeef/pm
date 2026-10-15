@@ -17,8 +17,10 @@ import (
 // Draft refs (the record-drafts page): the pm service's sync pushes each drafts/<name> branch's draft commit to the
 // remote's refs/pm/drafts/<clone>/<name>, where <clone> is the id pm init made for this clone (CloneID), so each clone
 // is the only writer of its namespace; no clone ever writes another's. A follow rewrites the draft commit, so the push
-// is forced, with --force-with-lease against the sha this clone last pushed there, kept in its refs/pm/pushed/<name>:
-// a lease that fails is reported and never forced. A branch gone, or holding no unpublished page and no conflict mark,
+// is forced, with --force-with-lease against the sha this clone last pushed there, kept in its
+// refs/pm/pushed/<clone>/<name> (keyed by the id, so a clone given a new id pushes every draft anew): a lease that fails
+// is reported and never forced, and so is a ref of this clone's that the remote holds at another sha than the one this
+// clone last pushed, even when its draft did not move (git ls-remote, once per sync). A branch gone, or holding no unpublished page and no conflict mark,
 // deletes its remote ref. The sync and pm sprint close fetch the other clones' refs into refs/pm/fetched/<clone>/<name>
 // (FetchDrafts), which the site lists as committed drafts with no session (Clone) and the close publishes from
 // (PlanPublish). A page another clone's close published stays in this clone's draft until its next follow onto a
@@ -29,7 +31,7 @@ const (
 	cloneKey    = "pm.clone"
 	remoteRefs  = "refs/pm/drafts/"  // on the remote: refs/pm/drafts/<clone>/<name>
 	fetchedRefs = "refs/pm/fetched/" // here, the other clones' as last fetched: refs/pm/fetched/<clone>/<name>
-	pushedRefs  = "refs/pm/pushed/"  // here, what this clone last pushed: refs/pm/pushed/<name>
+	pushedRefs  = "refs/pm/pushed/"  // here, what this clone last pushed: refs/pm/pushed/<clone>/<name>
 )
 
 var cloneID = regexp.MustCompile(`^[0-9a-f]{12}$`)
@@ -93,7 +95,7 @@ func FetchOtherDrafts(store, remote string) error {
 	}
 	if err := FetchDrafts(store, remote, id); err != nil {
 		return errorf("pm sprint close fetches the other clones' drafts from %s first, as it publishes them too, and "+
-			"the fetch failed: %v; run it again once %s is reachable", remote, err, remote)
+			"the fetch failed: %v; run it again (a fetch the pm service ran at the same moment fails it too)", remote, err)
 	}
 	return nil
 }
@@ -104,9 +106,12 @@ func FetchDrafts(store, remote, id string) error {
 	if id == "" {
 		return errorf("this clone has no id (git config %s), which its draft refs need; run %s", cloneKey, Setup)
 	}
-	_, err := Git(store, "fetch", "--quiet", "--prune", "--no-tags", "--no-write-fetch-head", remote,
+	_, errOut, err := netGit(store, "fetch", "--quiet", "--prune", "--no-tags", "--no-write-fetch-head", remote,
 		"+"+remoteRefs+"*:"+fetchedRefs+"*", "^"+remoteRefs+id+"/*")
-	return err
+	if err != nil {
+		return errorf("git fetch of the draft refs from %s failed: %s", remote, strings.Join(strings.Fields(errOut), " "))
+	}
+	return nil
 }
 
 // FetchedStamp is the loose ref files of the other clones' drafts under the clone's common git dir, which a look at
@@ -292,6 +297,13 @@ func (f Fetched) overlap(store, tip, p, sprint string, others []string) (string,
 		return "", err
 	}
 	page := fmt.Sprintf("records/%s on %s", p, f.Label())
+	if _, _, err := run(store, "merge-base", "--is-ancestor", f.d.base, tip); err != nil {
+		//nolint:nilerr // exit 1: the base is no ancestor of the tip, the case this names
+		return fmt.Sprintf("%s is drafted on records commits this clone's records branch does not have yet (its base "+
+			"%.12s): bring this clone's records branch up to the remote's with pm push; if it is up to date, that "+
+			"clone's draft sits on records commits it has since rebased, and a pm write in its worktree %s then pm push "+
+			"there move it onto the remote's; then pm sprint close %s again", page, f.d.base, f.Name, sprint), nil
+	}
 	if commits != "" {
 		return fmt.Sprintf("%s overlaps what the records branch published since its base, in %s: in clone %s, once "+
 			"its records branch has these commits (its pm push rebases onto the remote's once it has a records commit "+
@@ -340,20 +352,20 @@ type refPlan struct {
 
 // planRefs reads, under the store lock, which draft commit each remote ref should hold and which it last pushed. A
 // branch pm cannot read keeps its remote ref as it is.
-func planRefs(store, remote string) (refPlan, error) {
+func planRefs(store, remote, id string) (refPlan, error) {
 	unlock, err := Lock(store)
 	if err != nil {
 		return refPlan{}, err
 	}
 	defer unlock()
 	plan := refPlan{want: map[string]string{}, pushed: map[string]string{}}
-	list, err := Git(store, "for-each-ref", "--format=%(refname) %(objectname)", pushedRefs)
+	list, err := Git(store, "for-each-ref", "--format=%(refname) %(objectname)", pushedRefs+id+"/")
 	if err != nil {
 		return refPlan{}, err
 	}
 	for _, l := range strings.Split(list, "\n") {
 		if ref, sha, ok := strings.Cut(l, " "); ok {
-			plan.pushed[strings.TrimPrefix(ref, pushedRefs)] = sha
+			plan.pushed[strings.TrimPrefix(ref, pushedRefs+id+"/")] = sha
 		}
 	}
 	branches, err := DraftBranches(store)
@@ -389,12 +401,27 @@ func PushDrafts(store, remote, id string) (string, error) {
 	if id == "" {
 		return "", errorf("this clone has no id (git config %s), which its draft refs need; run %s", cloneKey, Setup)
 	}
-	plan, err := planRefs(store, remote)
+	plan, err := planRefs(store, remote, id)
 	if err != nil {
 		return "", err
 	}
+	out, errOut, err := netGit(store, "ls-remote", remote, remoteRefs+id+"/*")
+	if err != nil {
+		return "", errorf("git ls-remote %s failed: %s", remote, strings.Join(strings.Fields(errOut), " "))
+	}
+	there := map[string]string{} // each ref of this clone's namespace on the remote, by name: its sha
+	for _, l := range strings.Split(strings.TrimSpace(out), "\n") {
+		if sha, ref, ok := strings.Cut(l, "\t"); ok {
+			there[strings.TrimPrefix(ref, remoteRefs+id+"/")] = sha
+		}
+	}
 	var pushed, deleted int
 	var failed []string
+	for name := range there {
+		if _, ok := plan.pushed[name]; !ok {
+			plan.pushed[name] = "" // never pushed from here: another writer's, which the check below names
+		}
+	}
 	all := maps.Clone(plan.want) // every branch, and every name pushed before: a branch gone deletes its ref
 	for n := range plan.pushed {
 		if _, ok := all[n]; !ok {
@@ -403,10 +430,21 @@ func PushDrafts(store, remote, id string) (string, error) {
 	}
 	for _, name := range slices.Sorted(maps.Keys(all)) {
 		want, have := plan.want[name], plan.pushed[name]
+		ref := remoteRefs + id + "/" + name
+		if there[name] == want && want != have { // pushed, but the run stopped before it noted so
+			if err := notePushed(store, pushedRefs+id+"/"+name, want); err != nil {
+				return "", err
+			}
+			continue
+		}
+		if there[name] != have {
+			failed = append(failed, leaseFailed(remote, ref, have))
+			continue
+		}
 		if want == have {
 			continue
 		}
-		if err := pushRef(store, remote, remoteRefs+id+"/"+name, pushedRefs+name, want, have); err != nil {
+		if err := pushRef(store, remote, ref, pushedRefs+id+"/"+name, want, have); err != nil {
 			failed = append(failed, err.Error())
 			continue
 		}
@@ -426,27 +464,36 @@ func PushDrafts(store, remote, id string) (string, error) {
 	return said, nil
 }
 
+// leaseFailed says that the remote ref is not where this clone last pushed it (have, "" for absent), and the way out.
+func leaseFailed(remote, ref, have string) string {
+	if have == "" {
+		have = "absent"
+	}
+	return fmt.Sprintf("%s on %s is not at %s, where this clone last pushed it, so pm did not force it: another writer "+
+		"moved it, a copy of this clone with its id or a push by hand. See it with git ls-remote %s %s; a copied clone "+
+		"gets its own id with git config --unset %s and %s there", ref, remote, have, remote, ref, cloneKey, Setup)
+}
+
 // pushRef moves the remote ref from have, the sha this clone last pushed ("" none), to want ("" deletes it), with
 // --force-with-lease, then records want in local.
 func pushRef(store, remote, ref, local, want, have string) error {
-	out, errOut, err := run(store, "push", "--porcelain", remote, "--force-with-lease="+ref+":"+have, want+":"+ref)
+	out, errOut, err := netGit(store, "push", "--porcelain", remote, "--force-with-lease="+ref+":"+have, want+":"+ref)
 	if err != nil {
 		if strings.Contains(out, "(stale info)") {
-			was := have
-			if was == "" {
-				was = "absent"
-			}
-			return errorf("%s on %s is not at %s, where this clone last pushed it, so pm did not force it: another "+
-				"writer moved it, a copy of this clone with its id or a push by hand. See it with git ls-remote %s %s; a "+
-				"copied clone gets its own id with git config --unset %s and %s there", ref, remote, was, remote, ref,
-				cloneKey, Setup)
+			return errorf("%s", leaseFailed(remote, ref, have))
 		}
 		return errorf("git push of %s to %s failed: %s", ref, remote, strings.Join(strings.Fields(errOut+" "+out), " "))
 	}
-	if want == "" {
+	return notePushed(store, local, want)
+}
+
+// notePushed records in local the sha this clone's remote ref now holds ("" none).
+func notePushed(store, local, sha string) error {
+	var err error
+	if sha == "" {
 		_, err = Git(store, "update-ref", "-d", local)
 	} else {
-		_, err = Git(store, "update-ref", local, want)
+		_, err = Git(store, "update-ref", local, sha)
 	}
 	return err
 }

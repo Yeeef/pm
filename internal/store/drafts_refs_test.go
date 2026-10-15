@@ -145,6 +145,53 @@ func TestALeaseThatFailsIsReportedAndNeverForced(t *testing.T) {
 	if got := strings.Fields(remoteDraftRefs(t, sa)); len(got) != 2 || got[0] != other {
 		t.Errorf("the remote ref is %v; want the other writer's %s kept", got, other)
 	}
+	pushed := sh(t, sa, "git rev-parse refs/pm/pushed/"+id(t, sa)+"/wa")
+	if _, err := PushDrafts(sa, "origin", id(t, sa)); err == nil {
+		t.Error("a second sync pushed over the other writer")
+	}
+	// the draft emptied: its delete is refused too
+	draft(t, sa, ws, "design/p.md", "A two\n", "a\n", "pm-1")
+	draft(t, sa, ws, "design/p.md", "C one\n", "c\n", "pm-1")
+	if _, err := PushDrafts(sa, "origin", id(t, sa)); err == nil || !strings.Contains(err.Error(), "did not force") {
+		t.Errorf("a delete over the other writer: %v", err)
+	}
+	if got := strings.Fields(remoteDraftRefs(t, sa)); len(got) != 2 || got[0] != other {
+		t.Errorf("the remote ref is %v after the delete; want %s kept", got, other)
+	}
+	if now := sh(t, sa, "git rev-parse refs/pm/pushed/"+id(t, sa)+"/wa"); now != pushed {
+		t.Errorf("the refused pushes moved what this clone last pushed: %s, was %s", now, pushed)
+	}
+}
+
+// Another writer over a draft this clone did not move is found by the sync's ls-remote, not only by a lease.
+func TestAForeignWriteOverAnUnmovedDraftIsReported(t *testing.T) {
+	a, sa, sb := twoClones(t)
+	ws := workspace(t, a, sa, "wa")
+	draft(t, sa, ws, "design/p.md", "c\n", "C one\n", "pm-1")
+	syncDrafts(t, sa)
+	ref := "refs/pm/drafts/" + id(t, sa) + "/wa"
+	sh(t, sb, "git push -q origin +$(git commit-tree -m other records^{tree}):"+ref)
+	if _, err := PushDrafts(sa, "origin", id(t, sa)); err == nil || !strings.Contains(err.Error(), "did not force") {
+		t.Errorf("PushDrafts with a foreign commit on its unmoved ref: %v", err)
+	}
+}
+
+// A clone given a new id (a copied clone's fix) pushes every draft to its new namespace.
+func TestANewCloneIDPushesEveryDraftAnew(t *testing.T) {
+	a, sa, _ := twoClones(t)
+	ws := workspace(t, a, sa, "wa")
+	draft(t, sa, ws, "design/p.md", "c\n", "C one\n", "pm-1")
+	syncDrafts(t, sa)
+	sh(t, a, "git config --unset pm.clone")
+	if _, err := MakeCloneID(a); err != nil {
+		t.Fatal(err)
+	}
+	if said := syncDrafts(t, sa); said != "pushed 1 and deleted 0 draft refs" {
+		t.Errorf("the sync under the new id said %q", said)
+	}
+	if !strings.Contains(remoteDraftRefs(t, sa), "refs/pm/drafts/"+id(t, sa)+"/wa") {
+		t.Errorf("no ref under the new id: %s", remoteDraftRefs(t, sa))
+	}
 }
 
 func TestADraftEmptiedOrGoneDeletesItsRemoteRef(t *testing.T) {

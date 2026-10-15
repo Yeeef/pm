@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/Yeeef/pm/internal/item"
 )
 
 // Follow brings a workspace onto the records tip; the draft commit and pm commit's publish build on it. pm never runs
@@ -224,7 +226,8 @@ func same(a, b *string) bool { return (a == nil) == (b == nil) && (a == nil || *
 type Followed struct {
 	Base, Tip string
 	Conflicts []string
-	Binaries  []string // uncommitted binary files the records branch changed under: kept whole, noted for pm commit
+	Binaries  []string          // uncommitted binary files the records branch changed under: kept whole, noted for pm commit
+	Stranded  map[string]string // draft pages whose sprint closed, with it: left the draft commit, uncommitted
 }
 
 // Follow brings the workspace onto the records tip, under the store lock the caller holds:
@@ -236,12 +239,15 @@ type Followed struct {
 //     text, working text, new HEAD text), conflict markers where hunks overlap;
 //  3. a draft page that conflicts in 1 leaves the draft commit: its file keeps the agent's text merged with the tip's,
 //     with markers, as an uncommitted edit;
-//  4. the branch moves to the tip plus the new draft commit; a file not uncommitted is refreshed from the new tree.
+//  4. a draft page, or a conflict mark, whose sprint closed (closed; another clone's close, which published what this
+//     clone last pushed) leaves the draft commit too: its file keeps the draft's text as an uncommitted edit, noted as
+//     stranded (Stranded), to commit under an open sprint or revert;
+//  5. the branch moves to the tip plus the new draft commit; a file not uncommitted is refreshed from the new tree.
 //
 // The markers name the records range merged in (records <base>..<tip>), which pm commit reads to name the commits. A
 // binary file is not merged: an uncommitted one stays as the workspace has it. It writes the files, then moves the
 // branch and the index; a failure puts back what it changed.
-func Follow(store string, w Workspace) (Followed, error) {
+func Follow(store string, w Workspace, sprints func() (SprintClosed, error)) (Followed, error) {
 	tip, err := Git(store, "rev-parse", "refs/heads/"+Branch)
 	if err != nil {
 		return Followed{}, err
@@ -250,17 +256,24 @@ func Follow(store string, w Workspace) (Followed, error) {
 	if err != nil {
 		return Followed{}, err
 	}
-	closed, err := d.closed(store)
+	untagged, err := d.closed(store)
 	if err != nil {
 		return Followed{}, err
 	}
+	closed := func(string) bool { return false }
+	if len(d.tags)+len(d.conflicts) > 0 { // the work store is read only for a draft that names a sprint
+		if closed, err = sprints(); err != nil {
+			return Followed{}, err
+		}
+	}
 	f := Followed{Base: d.base, Tip: tip}
-	if d.base == tip && len(closed) == 0 {
+	if d.base == tip && len(untagged) == 0 && !d.closedSprint(closed) {
 		return f, w.syncIndex() // a follow stopped between the branch and the index leaves the index behind
 	}
-	head, conflicted := tip, []string(nil)
+	head, full, conflicted := tip, tip, []string(nil)
+	var stranded map[string]string
 	if d.draft {
-		draft, err := withoutPages(store, d, closed)
+		draft, err := withoutPages(store, d, untagged)
 		if err != nil {
 			return Followed{}, err
 		}
@@ -276,18 +289,81 @@ func Follow(store string, w Workspace) (Followed, error) {
 		if err != nil {
 			return Followed{}, err
 		}
-		if head, err = draftCommit(store, w, tree, tip, tags, marks); err != nil {
+		if full, err = draftCommit(store, w, tree, tip, tags, marks); err != nil {
+			return Followed{}, err
+		}
+		if head, stranded, err = strand(store, w, tree, tip, tags, marks, closed); err != nil {
 			return Followed{}, err
 		}
 	}
-	plan, err := followPlan(store, w, d, head, conflicted, &f)
+	plan, err := followPlan(store, w, d, full, conflicted, &f) // the files as the draft holds them, stranded or not
 	if err != nil {
 		return Followed{}, err
 	}
 	if err := w.move(store, d.head, head, tip, plan); err != nil {
 		return Followed{}, err
 	}
+	f.Stranded = stranded
+	if err := w.noteStranded(stranded, nil); err != nil {
+		return Followed{}, err
+	}
 	return f, w.noteBinaries(d.base, tip, f.Binaries)
+}
+
+// SprintClosed is whether the sprint with this id is closed in the work store.
+type SprintClosed func(id string) bool
+
+// ClosedSprints is SprintClosed over the work store's items.
+func ClosedSprints(items []item.Item) SprintClosed {
+	closed := map[string]bool{}
+	for _, it := range items {
+		if it.Type == item.Sprint && it.Status == item.Closed {
+			closed[it.ID] = true
+		}
+	}
+	return func(id string) bool { return closed[id] }
+}
+
+// closedSprint is whether a page or a conflict mark of the draft names a closed sprint.
+func (d draftState) closedSprint(closed SprintClosed) bool {
+	for _, m := range []map[string]string{d.tags, d.conflicts} {
+		for _, sprint := range m {
+			if closed(sprint) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// strand is the draft commit of tree on tip less each page whose sprint closed, and less each conflict mark that names
+// one: the commit, and the stranded pages with their sprints. Their files keep the draft's text, uncommitted.
+func strand(store string, w Workspace, tree, tip string, tags, marks map[string]string, closed SprintClosed) (string,
+	map[string]string, error) {
+	pages, err := changedPaths(store, tip, tree)
+	if err != nil {
+		return "", nil, err
+	}
+	stranded := map[string]string{}
+	for _, p := range pages {
+		if closed(tags[p]) {
+			stranded[p] = tags[p]
+		}
+	}
+	marks = maps.Clone(marks)
+	for p, sprint := range marks {
+		if closed(sprint) {
+			stranded[p] = sprint
+			delete(marks, p)
+		}
+	}
+	if len(stranded) > 0 {
+		if tree, err = withFiles(store, tree, tip, slices.Collect(maps.Keys(stranded))); err != nil {
+			return "", nil, err
+		}
+	}
+	head, err := draftCommit(store, w, tree, tip, tags, marks)
+	return head, stranded, err
 }
 
 // conflictMarks is the conflict marks the draft commit keeps across a follow: each page the merge conflicts on, with
@@ -576,6 +652,7 @@ func CommitDraft(store string, w Workspace, pages map[string]string) (string, er
 		return "", err
 	}
 	var info strings.Builder
+	var committed []string
 	for _, p := range slices.Sorted(maps.Keys(pages)) {
 		text, err := w.read(p)
 		if err != nil {
@@ -583,6 +660,7 @@ func CommitDraft(store string, w Workspace, pages map[string]string) (string, er
 		}
 		d.tags[p] = pages[p]
 		delete(d.conflicts, p) // committed again: resolved
+		committed = append(committed, p)
 		if text == nil {
 			info.WriteString("0 0000000000000000000000000000000000000000\t" + p + "\n")
 			continue
@@ -613,7 +691,10 @@ func CommitDraft(store string, w Workspace, pages map[string]string) (string, er
 	if err != nil {
 		return "", err
 	}
-	return d.head, w.setBranch(store, d.head, head, d.base)
+	if err := w.setBranch(store, d.head, head, d.base); err != nil {
+		return "", err
+	}
+	return d.head, w.noteStranded(nil, committed) // committed under an open sprint: no longer stranded
 }
 
 // ResetDraft moves the workspace's branch back to old, the commit CommitDraft returned, and its index with it.
@@ -684,4 +765,36 @@ func MarkerCommits(store, rel, text string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// FollowClean follows each records workspace that has no uncommitted file, under the store lock the caller holds: the
+// records sync's follow after a fast-forward, which writes no file a session is editing. A line for each workspace it
+// followed that dropped or stranded pages, and for each it could not follow; a failure fails only its own line.
+func FollowClean(store string, closed SprintClosed) []string {
+	branches, err := DraftBranches(store)
+	if err != nil {
+		return []string{"listing the records workspaces failed: " + err.Error()}
+	}
+	var out []string
+	for _, w := range branches {
+		if w.Dir == "" {
+			continue
+		}
+		dirty, err := w.Dirty()
+		if err == nil && len(dirty) > 0 {
+			continue
+		}
+		var f Followed
+		if err == nil {
+			f, err = Follow(store, w, func() (SprintClosed, error) { return closed, nil })
+		}
+		switch {
+		case err != nil:
+			out = append(out, fmt.Sprintf("%s not followed: %v", w.Branch(), err))
+		case len(f.Stranded) > 0:
+			out = append(out, fmt.Sprintf("%s followed; stranded %s", w.Branch(),
+				strings.Join(slices.Sorted(maps.Keys(f.Stranded)), ", ")))
+		}
+	}
+	return out
 }

@@ -21,7 +21,8 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
-	"github.com/Yeeef/pm/internal/store"
+	pmstore "github.com/Yeeef/pm/internal/store"
+	"github.com/Yeeef/pm/internal/work"
 )
 
 const (
@@ -179,10 +180,11 @@ func flock(path string, flags int) (func(), error) {
 	return func() { syscall.Close(fd) }, nil
 }
 
-// PushRecords pushes the store when it is ahead of <remote>/records, rebasing onto it first when the remote moved.
-// The rebase holds the store lock every pm write takes; a rebase that stops is aborted, and an abort that fails or
-// leaves HEAD off the records branch is reported as needing repair by hand.
-func PushRecords(store, remote string) (bool, string) {
+// PushRecords pushes the store when it is ahead of <remote>/records, rebasing onto it first when the remote moved; a
+// store only behind is fast-forwarded (FastForward). The rebase holds the store lock every pm write takes; a rebase
+// that stops is aborted, and an abort that fails or leaves HEAD off the records branch is reported as needing repair by
+// hand. closed reads which sprints are closed, for the follow after a fast-forward.
+func PushRecords(store, remote string, closed func() (pmstore.SprintClosed, error)) (bool, string) {
 	if ok, said := Run(store, "git", "fetch", "--quiet", remote, Branch); !ok {
 		return false, said
 	}
@@ -199,12 +201,11 @@ func PushRecords(store, remote string) (bool, string) {
 	if aerr != nil || berr != nil {
 		return false, "git rev-list printed " + counts
 	}
+	if ahead == 0 && behind == 0 {
+		return true, "up to date with " + remote + "/" + Branch
+	}
 	if ahead == 0 {
-		said := "up to date with " + remote + "/" + Branch
-		if behind > 0 {
-			said += fmt.Sprintf(" (%d behind; not pulled)", behind)
-		}
-		return true, said
+		return FastForward(store, remote, behind, closed)
 	}
 	if behind > 0 {
 		unlock, err := flock(store, syscall.O_RDONLY)
@@ -254,21 +255,59 @@ func PushRecords(store, remote string) (bool, string) {
 // PushDrafts pushes this clone's draft refs (store.PushDrafts), then fetches the other clones' (store.FetchDrafts):
 // the record-drafts page, Draft refs. A lease that failed fails the step, which flags it; nothing is forced.
 func PushDrafts(records, remote string) (bool, string) {
-	id, err := store.CloneID(records)
+	id, err := pmstore.CloneID(records)
 	if err != nil {
 		return false, err.Error()
 	}
-	said, err := store.PushDrafts(records, remote, id)
+	said, err := pmstore.PushDrafts(records, remote, id)
 	if err != nil {
 		said = err.Error()
 	}
-	if ferr := store.FetchDrafts(records, remote, id); ferr != nil {
+	if ferr := pmstore.FetchDrafts(records, remote, id); ferr != nil {
 		return false, said + "; fetching the other clones' drafts failed: " + ferr.Error()
 	}
 	if err != nil {
 		return false, said
 	}
 	return true, said + "; fetched the other clones'"
+}
+
+// DialClosed reads which sprints are closed through a connection to the clone's pm service, as pm push does.
+func DialClosed(main string) func() (pmstore.SprintClosed, error) {
+	return func() (pmstore.SprintClosed, error) {
+		d, err := work.Dial(main)
+		if err != nil {
+			return nil, err
+		}
+		items, err := d.Items()
+		return pmstore.ClosedSprints(items), errors.Join(err, d.Shutdown())
+	}
+}
+
+// FastForward brings a store only behind <remote>/records up to it, under the store lock: git merge --ff-only, never a
+// merge commit; git refuses, and so does the step, flagged and retried on the next run, while an uncommitted edit in
+// the store would be overwritten. Then each records workspace with no uncommitted file follows (store.FollowClean),
+// so a draft drops the pages another clone's close published.
+func FastForward(store, remote string, behind int, closed func() (pmstore.SprintClosed, error)) (bool, string) {
+	isClosed, err := closed() // before the store lock: the work store is never read under it
+	if err != nil {
+		return false, "reading the work store's sprints failed: " + err.Error()
+	}
+	unlock, err := flock(store, syscall.O_RDONLY)
+	if err != nil {
+		return false, fmt.Sprintf("could not lock %s: %v", store, err)
+	}
+	defer unlock()
+	if ok, said := Run(store, "git", "merge", "--ff-only", "--quiet", remote+"/"+Branch); !ok {
+		return false, fmt.Sprintf("%d behind %s/%s and not fast-forwarded, as git refused, so nothing was forced: %s; "+
+			"commit or revert the store's uncommitted edits it names, and the next run fast-forwards", behind, remote,
+			Branch, said)
+	}
+	said := fmt.Sprintf("fast-forwarded %d commit(s) from %s/%s", behind, remote, Branch)
+	if lines := pmstore.FollowClean(store, isClosed); len(lines) > 0 {
+		said += "; " + strings.Join(lines, "; ")
+	}
+	return true, said
 }
 
 // Push is one run, under a lock no second run waits for: each step in order, its outcome recorded; a failed step does

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -147,11 +148,15 @@ func Drafted(store string) (map[string]map[string]bool, []string, error) {
 	return out, warnings, nil
 }
 
-// Orphans is pm where's line for each drafts/ branch whose worktree is gone: what it still holds.
-func Orphans(store string) ([]string, error) {
+// Orphans is pm where's line for each drafts/ branch whose worktree is gone, what it still holds, or why they cannot
+// be listed; none before setup, with no store.
+func Orphans(store string) []string {
+	if st, err := os.Stat(store); err != nil || !st.IsDir() {
+		return nil
+	}
 	branches, err := DraftBranches(store)
 	if err != nil {
-		return nil, err
+		return []string{"drafts    unreadable: " + err.Error()}
 	}
 	var out []string
 	for _, w := range branches {
@@ -160,7 +165,7 @@ func Orphans(store string) ([]string, error) {
 		}
 		out = append(out, fmt.Sprintf("drafts    %s  %s", w.Branch(), orphaned(store, w)))
 	}
-	return out, nil
+	return out
 }
 
 // orphaned is what a branch whose worktree is gone still holds: unpublished pages, and edits lost in conflict.

@@ -40,7 +40,7 @@ func cmdPush(cfg config.Config, here string, stdout io.Writer) error {
 			if err != nil {
 				return false, err.Error()
 			}
-			return pmsync.PushRecords(records, cfg.Remote)
+			return pmsync.PushRecords(records, cfg.Remote, pmsync.DialClosed(main))
 		}},
 		{Name: "drafts", Run: func() (bool, string) {
 			records, err := store.Find(here)

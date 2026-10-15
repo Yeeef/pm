@@ -52,6 +52,33 @@ func run(dir string, args ...string) (stdout, stderr string, err error) {
 	return o.String(), e.String(), err
 }
 
+// NetTimeout bounds a git command that reaches the remote (netGit); a variable so tests can shorten it.
+var NetTimeout = 120 * time.Second
+
+// netGit is git in dir reaching the remote, as run, in its own process group, which NetTimeout kills whole: git starts
+// ssh or git-remote-https children that would outlive a kill of git alone, and a stalled remote must not hold the pm
+// service's sync or a close.
+func netGit(dir string, args ...string) (stdout, stderr string, err error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	var o, e bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &o, &e
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		return "", "", err
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err = <-done:
+	case <-time.After(NetTimeout):
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) //nolint:errcheck // the wait below reaps it either way
+		<-done
+		return o.String(), fmt.Sprintf("git %s timed out after %s", strings.Join(args, " "), NetTimeout), errorf("timed out")
+	}
+	return o.String(), e.String(), err
+}
+
 // Git is git in dir, its stdout stripped; a failure is a records error carrying git's message.
 func Git(dir string, args ...string) (string, error) {
 	out, errOut, err := run(dir, args...)

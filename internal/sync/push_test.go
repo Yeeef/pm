@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Yeeef/pm/internal/store"
 )
 
 func at(t *testing.T, when string) {
@@ -125,25 +127,42 @@ func TestPushRecordsPushesRebasesAndReports(t *testing.T) {
 		git(t, dir, "commit", "-q", "-m", file)
 	}
 	commit(store, "a.md")
-	if ok, said := PushRecords(store, "origin"); ok { // origin has no records branch yet: fetch fails
+	if ok, said := PushRecords(store, "origin", noneClosed); ok { // origin has no records branch yet: fetch fails
 		t.Fatal(said)
 	}
 	git(t, store, "push", "-q", "origin", "HEAD:"+Branch)
-	if ok, said := PushRecords(store, "origin"); !ok || said != "up to date with origin/records" {
+	if ok, said := PushRecords(store, "origin", noneClosed); !ok || said != "up to date with origin/records" {
 		t.Fatal(ok, said)
 	}
 	commit(store, "b.md")
-	if ok, said := PushRecords(store, "origin"); !ok || said != "pushed 1 commit(s)" {
+	if ok, said := PushRecords(store, "origin", noneClosed); !ok || said != "pushed 1 commit(s)" {
 		t.Fatal(ok, said)
 	}
 	git(t, tmp, "clone", "-q", "-b", Branch, origin, other)
 	commit(other, "c.md")
 	git(t, other, "push", "-q", "origin", "HEAD:"+Branch)
-	if ok, said := PushRecords(store, "origin"); !ok || said != "up to date with origin/records (1 behind; not pulled)" {
+	if ok, said := PushRecords(store, "origin", noneClosed); !ok || said != "fast-forwarded 1 commit(s) from origin/records" {
 		t.Fatal(ok, said)
 	}
+	if _, err := os.Stat(filepath.Join(store, "c.md")); err != nil {
+		t.Fatal("the fast-forward did not bring c.md:", err)
+	}
+	put(t, filepath.Join(store, "e.md"), "mine") // untracked: the other clone adds it next
+	commit(other, "e.md")
+	git(t, other, "push", "-q", "origin", "HEAD:"+Branch)
+	if ok, said := PushRecords(store, "origin", noneClosed); ok || !strings.Contains(said, "not fast-forwarded") {
+		t.Fatal("a fast-forward over an uncommitted file:", ok, said)
+	}
+	if b := get(t, filepath.Join(store, "e.md")); b != "mine" {
+		t.Fatalf("the refused fast-forward changed e.md: %q", b)
+	}
+	if err := os.Remove(filepath.Join(store, "e.md")); err != nil {
+		t.Fatal(err)
+	}
 	commit(store, "d.md")
-	if ok, said := PushRecords(store, "origin"); !ok || said != "pushed 1 commit(s) after rebasing onto 1 new on origin/records" {
+	if ok, said := PushRecords(store, "origin", noneClosed); !ok || said != "pushed 1 commit(s) after rebasing onto 1 new on origin/records" {
 		t.Fatal(ok, said)
 	}
 }
+
+func noneClosed() (store.SprintClosed, error) { return func(string) bool { return false }, nil }

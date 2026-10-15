@@ -117,7 +117,7 @@ func whereAll(here string) (string, error) {
 		state = "records is not a link to the store; move it away and run " + whereSetup
 	}
 	out = append(out, fmt.Sprintf("checkout  %s  branch %s, %s", top, whereGit(top, "rev-parse", "--abbrev-ref", "HEAD"), state))
-	out = append(out, whereOrphans(storeDir)...)
+	out = append(out, store.Orphans(storeDir)...)
 
 	workDir, _ := work.Locations(main)
 	workState, err := install.WorkState(main, cfg.Remote)
@@ -155,17 +155,4 @@ func whereAll(here string) (string, error) {
 	}
 	out = append(out, fmt.Sprintf("site      %s (served by the pm service)", url))
 	return strings.Join(out, "\n"), nil
-}
-
-// whereOrphans is a line for each drafts/ branch whose worktree is gone (store.Orphans), or why they cannot be listed;
-// none before setup.
-func whereOrphans(storeDir string) []string {
-	if !fsutil.IsDir(storeDir) {
-		return nil
-	}
-	lines, err := store.Orphans(storeDir)
-	if err != nil {
-		return []string{"drafts    unreadable: " + err.Error()}
-	}
-	return lines
 }

@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Yeeef/pm/internal/records"
@@ -174,6 +176,14 @@ func (c Clone) workspaceFiles(w Workspace) (map[string]*string, string, error) {
 	}
 	if edited {
 		states = append(states, "uncommitted edits")
+	}
+	stranded, err := w.Stranded()
+	if err != nil {
+		return nil, "", err
+	}
+	for _, rel := range slices.Sorted(maps.Keys(stranded)) {
+		states = append(states, fmt.Sprintf("records/%s stranded: sprint %s closed without it, commit it under an "+
+			"open sprint", rel, stranded[rel]))
 	}
 	if conflict {
 		states = append(states, "conflict")
