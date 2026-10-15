@@ -73,7 +73,12 @@ prime.md only names the two new rename commands; nothing the product page says a
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check in a scratch clone (built binary, scratch origin, temp HOME): pm
+  design rename parser --to grammar --title Grammar made one records commit
+  (design/{parser.md => grammar.md}, projects/lang.md, sprints/lang-1.md); no
+  old link or waiver text left; pm check: all 6 pages render, exit 0; site
+  /design/grammar.html 200, /design/parser.html 404; rename onto an existing
+  slug and --to Bad_Slug both refused with exit 1.
 
 ## Delivery report
 
