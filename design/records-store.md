@@ -123,7 +123,7 @@ past commits; pm has no command for it.
 main checkout, and uses its `.pm/store/records`. It fails when the store is missing or not a worktree on the
 `records` branch; nothing falls back to a local `records/`.
 `pm where records` prints the path; bare `pm where` lists every location
-setup touches (pm's pin, the store and its ahead/behind against `origin/records`, this
+setup touches (pm's pin, the store and its ahead/behind against `origin/records`, the clone's id, this
 checkout and its link, each `drafts/` branch whose worktree is gone with the design pages it still holds, the work
 store, Codex's writable roots, the pm service, each push step's last outcome, the site) with its state.
 
@@ -263,6 +263,11 @@ yeeef-agents-9va.30.8.1). The records step:
 | Not ahead | Nothing, even when behind: it does not pull |
 | Ahead, not behind | Pushes |
 | Ahead and behind | Rebases onto `origin/records` under the store lock, then pushes outside the lock. Skipped until the next run while tracked records have uncommitted edits; a rebase that stops is aborted, leaving the store as it was |
+
+A fourth step, `drafts`, follows: it pushes each records workspace's draft commit to the remote's
+`refs/pm/drafts/<clone id>/<worktree>` with `--force-with-lease` against the sha this clone last pushed, deletes the
+ref of a draft emptied, published or gone, and fetches the other clones' into `refs/pm/fetched/`; a lease that fails
+is flagged as a failed push and never forced ([Record drafts and publishing](record-drafts.md), Draft refs).
 
 Each step's outcome goes to a state file in `.pm/run/` and a line to a log
 beside it. `pm where`, `pm service status` and the site flag a failed push, or

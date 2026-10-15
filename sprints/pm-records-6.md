@@ -37,6 +37,11 @@ A draft made in one clone shows on every other clone's site, a sprint closed fro
 > Where is the detail?
 
 - [Record drafts and publishing](../design/record-drafts.md): Draft refs, Publish at sprint close, Increment 5
+- [Shared records store](../design/records-store.md): Push's drafts step; pm where's clone line
+- [Sprint lifecycle](../design/sprint-lifecycle.md): the close publishes other clones' drafts, fetched first
+- [pm CLI](../design/pm-cli.md): pm sprint close fetches the other clones' draft refs
+- [pm in Go](../design/pm-go.md): internal/sync pushes and fetches the draft refs
+- [pm as an installable product](../design/pm-product.md): pm init gives the clone its id
 
 ## Progress
 

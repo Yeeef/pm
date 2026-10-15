@@ -154,7 +154,7 @@ or without `--pr` on the files a merge commit brought against its first
 parent. A commit with one parent (a squash or rebase merge, a direct commit)
 does not say where its delivery starts, so there it refuses and asks for
 `--pr`. Then it publishes the design pages drafted for the sprint, from every
-worktree, in the same records commit as the stamp, once the covers patterns
+worktree of the clone and every other clone's draft ref, fetched first, in the same records commit as the stamp, once the covers patterns
 they add hold on the remote's main (Covers hold on main at the close, below;
 [Record drafts and publishing](record-drafts.md), Publish at sprint close);
 `--discard <slug> --reason "…"` drops a page's drafts instead and records the
