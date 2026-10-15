@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T13:13:39+00:00",
- "digest": "474274b400ac54ab",
+ "generated_at": "2026-10-15T19:14:38+00:00",
+ "digest": "dfe08aa302b40aa9",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions and replies:** Ask-tool questions now get answered on the site as well as in chat. The first answer wins, and owner replies now reach a session by push alone.\n- **Records and site views:** The site now shows the records branch and its drafts, each with its own page. Renaming a design page or doc now rewrites every link and waiver that names it.\n- **CI and AGENTS.md checks:** The AGENTS.md check now gives the same verdict on reruns. The macOS Go jobs now run once a day, not on every pull request.\n- **Repo tooling and pins:** The repo's pm pin moved to the newer release, and the service now runs it. Claude Code auto memory is off here, and pm no longer installs a git hook."
+ "text": "- **Owner questions and replies:** Questions asked through the ask tool can be answered on the site or in chat, and the first answer wins. Owner replies now reach a session by push alone.\n- **Records and site:** The site now shows the published record and each draft as a version, with section and draft-to-draft diffs. Design pages and docs can now be renamed, with their links rewritten.\n- **Checks and CI:** The AGENTS.md check now gives the same verdict on every rerun, and its jobs finish within the other checks. macOS Go jobs now run daily, not on every pull request and push.\n- **Repo tooling and setup:** This repo now runs the newer pm release, and Claude Code's automatic memory is off here. pm no longer installs a git hook or owns the git hooks path."
 }
