@@ -90,6 +90,8 @@ run.go changes only the sync steps (the drafts step); reply delivery is untouche
   and the rebase conflicted on it (the records-store page's open question on
   two machines).
 
+- Live check on this repo after the pin move to 0.15.1: a worktree made as Claude Code makes one (`git worktree add --no-checkout`, then `git reset --hard`) got its records workspace on `drafts/livecheck-records` from `pm init --session-start` in 0.14 s; this finding was written by hand in that workspace.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
