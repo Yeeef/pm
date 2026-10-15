@@ -1,0 +1,7 @@
+{
+ "date": "2026-10-16",
+ "generated_at": "2026-10-15T22:08:44+00:00",
+ "digest": "3ac2aa989fc58d0c",
+ "model": "claude-haiku-5-5",
+ "text": "- **Docs rendering and navigation:** Docs now typeset TeX math. Links between docs resolve by slug. A docs index lists every doc.\n- **Record link checks:** `pm check` now refuses dead record links. It also refuses JSX in raw HTML.\n- **Record link repair:** Two dead links in a project record now point to the renamed feedback doc."
+}
