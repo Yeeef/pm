@@ -24,8 +24,8 @@ import (
 // The Markdown renderers. Python pm renders with markdown-it-py's commonmark preset; goldmark is CommonMark too, and
 // the parts below give it what pm adds: GFM tables wrapped in <div class="tbl"> with style alignment, ids on h2 and h3
 // with mdit-py-plugins' anchors slug, the ::: note, decision and result containers, the mermaid fence, TeX math
-// (math.go), MDX-style HTML blocks (mdx.go), the link rewrite .md(#…) to .html(#…) with a dated record found by its
-// slug, and front matter skipped.
+// (math.go), the link rewrite .md(#…) to .html(#…) with a dated record found by its slug, and front matter skipped.
+// Raw HTML is CommonMark's: MDX is not supported, and Check refuses JSX in it (jsx.go).
 
 // ctx is one page's render: the record it is for, for errors; whether a mermaid diagram or math is on it; the records
 // its links resolve against; and, while links is set, each link of the record's own text that names no record.
@@ -43,8 +43,7 @@ func recordMD(c *ctx) goldmark.Markdown {
 	return goldmark.New(
 		goldmark.WithExtensions(extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignStyle))),
 		goldmark.WithParserOptions(
-			parser.WithBlockParsers(util.Prioritized(&containerParser{}, 690), util.Prioritized(mathBlockParser{}, 695),
-				util.Prioritized(mdxParser{}, 850)),
+			parser.WithBlockParsers(util.Prioritized(&containerParser{}, 690), util.Prioritized(mathBlockParser{}, 695)),
 			parser.WithInlineParsers(util.Prioritized(mathInlineParser{}, 150)),
 			parser.WithASTTransformers(util.Prioritized(anchors{}, 100), util.Prioritized(linkRewrite{c}, 200),
 				util.Prioritized(cellAlign{}, 300)),
@@ -393,7 +392,6 @@ func (r *recordRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) 
 	reg.Register(east.KindTable, r.table)
 	reg.Register(kindMath, r.math)
 	reg.Register(kindMathBlock, r.mathBlock)
-	reg.Register(kindMDX, r.mdx)
 }
 
 func (r *recordRenderer) container(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {

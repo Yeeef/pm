@@ -1,16 +1,24 @@
-Docs render as written: TeX math is typeset, MDX-style SVG diagrams draw, links between docs resolve by slug, and a
-docs index lists every doc; `pm check` refuses a link to a record that does not exist.
+Docs render as written: TeX math is typeset, links between docs resolve by slug, and a docs index lists every doc;
+`pm check` refuses a link to a record that does not exist, and JSX in raw HTML. pm does not support MDX.
 
 ### Upgrade guide
 
 1. Run `pm check`. For each link it names, point the link at an existing record's file, or at a doc's or a postmortem's
    slug, or remove the link. Then commit the fixed records with `pm commit`.
+2. For each JSX line it names in raw HTML, apply the fix the error gives: `class=` for `className=`, `<!-- -->` for
+   `{/* … */}`, the computed value in quotes for `attr={…}`, the SVG name such as `stroke-width` for `strokeWidth`, and
+   no blank line between `<svg` and `</svg>`. Then commit the fixed records with `pm commit`.
 
 ### Breaking changes
 
 - `pm check` and `pm commit` refuse a store in which a relative `.md` link in a record names no record. The error
   names each file and its link. The page still renders on the site. Before, such a link was a 404 on the site and
   nothing reported it.
+- `pm check` and `pm commit` refuse a record whose raw HTML, outside code, holds JSX: `className=`, a `{/* … */}`
+  comment, an `attr={…}` value, or a camelCase SVG attribute such as `strokeWidth`, `textAnchor` or `fontSize`; or a
+  blank line between `<svg` and its `</svg>`, which ends the HTML block and turns the rest of the drawing into text.
+  Each error names the file, the line and the HTML fix. Records are CommonMark: pm does not support MDX. Before, such
+  HTML rendered broken and nothing reported it.
 
 ### Added
 
@@ -22,9 +30,6 @@ docs index lists every doc; `pm check` refuses a link to a record that does not 
 
 ### Fixed
 
-- MDX-style raw HTML now renders. A block whose tag has `className`, or an `<svg>` block, is one HTML block up to the
-  line that closes its tag, blank lines included. `className` becomes `class`, JSX presentation attributes such as
-  `strokeWidth` get their SVG names, and `{/* … */}` comments are dropped. An inline SVG with no width of its own
-  fills the column, up to 960px wide.
+- An inline SVG with no width of its own fills the column, up to 960px wide.
 - A relative link to a doc or a postmortem by its slug alone, without the date (`[x](note-foo.md)`), opens that
   record's page and is no longer a 404.

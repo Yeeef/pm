@@ -1425,8 +1425,9 @@ func renderPages(recs []*Record, items *Items, siteName string, dates Dates, sum
 
 // Check is pm check's and pm commit's check: every page renders, every answered decision need is cited or marked
 // no-decision, and every relative .md link of a record's text that stays in the store names a record (a dated one by
-// its file name or its slug). It writes nothing; it returns the number of pages. A link that names no record still
-// renders: the site shows the page, and only this check refuses it.
+// its file name or its slug), and no record's raw HTML holds JSX or a blank line inside an <svg> (jsx.go). It writes
+// nothing; it returns the number of pages. A link that names no record, and JSX, still render: the site shows the
+// page, and only this check refuses it.
 func Check(recs []*Record, items *Items, siteName string, summaries map[string]*records.Summary) (int, error) {
 	pages, broken, err := renderPages(recs, items, siteName, nil, summaries)
 	var once []string // a link a record gives twice is named once
@@ -1435,9 +1436,18 @@ func Check(recs []*Record, items *Items, siteName string, summaries map[string]*
 			once = append(once, b)
 		}
 	}
-	if err == nil && once != nil {
-		err = errorf("%s\nfix each link to name a record's file, or a doc's or postmortem's slug, or remove it",
-			strings.Join(once, "\n"))
+	var errs []string
+	if once != nil {
+		errs = append(errs, strings.Join(once, "\n"),
+			"fix each link to name a record's file, or a doc's or postmortem's slug, or remove it")
+	}
+	for _, r := range recs {
+		if r.Text != "" {
+			errs = append(errs, jsxErrors(r.Rel, r.Body, strings.Count(r.Text[:len(r.Text)-len(r.Body)], "\n")+1)...)
+		}
+	}
+	if err == nil && errs != nil {
+		err = errorf("%s", strings.Join(errs, "\n"))
 	}
 	return len(pages), err
 }

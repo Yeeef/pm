@@ -26,24 +26,22 @@ echo "$a_t $b_t"
 
 ## Diagram
 
-<div className="research-viz">
-  <p className="viz-kicker">Information sets</p>
-  <svg className="viz-scene" viewBox="0 0 820 360" role="img" aria-label="Two histories collapse into one information set">
+<div class="research-viz">
+  <p class="viz-kicker">Information sets</p>
+  <svg class="viz-scene" viewBox="0 0 820 360" role="img" aria-label="Two histories collapse into one information set">
     <defs>
       <linearGradient id="infosetFill" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" stopColor="#e8f5f2" />
+        <stop offset="0%" stop-color="#e8f5f2" />
       </linearGradient>
     </defs>
-
-    {/* history 1 */}
-    <rect x="210" y="40" width="180" height="80" rx="10" fill="#fff" stroke="#46635f" strokeWidth="1.5" />
-    <text x="300" y="68" textAnchor="middle" fontWeight="700">History h₁</text>
-
-    <g stroke="#46635f" strokeWidth="2" fill="none">
+    <!-- history 1 -->
+    <rect x="210" y="40" width="180" height="80" rx="10" fill="#fff" stroke="#46635f" stroke-width="1.5" />
+    <text x="300" y="68" text-anchor="middle" font-weight="700">History h₁</text>
+    <g stroke="#46635f" stroke-width="2" fill="none">
       <path d="M150 170 C180 150, 195 110, 210 90" />
     </g>
   </svg>
-  <p className="viz-note">Several histories collapse into one info set.</p>
+  <p class="viz-note">Several histories collapse into one info set.</p>
 </div>
 
 <details>
