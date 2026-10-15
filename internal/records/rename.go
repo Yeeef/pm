@@ -132,23 +132,112 @@ func (rn Rename) Plan(recs []*Record) ([]Change, string, error) {
 }
 
 // RenameLinks is text, a record in the records directory dir (design, docs, sprints, …), with each Markdown link to
-// the record from (a Rel, such as design/parser) pointing at to instead, its anchor kept: ../design/parser.md from
-// any directory, and parser.md or ./parser.md from a record beside it. A link whose text is fromTitle takes
-// toTitle when toTitle is not "". It says whether text changed.
+// the record from (a Rel, such as design/parser) pointing at to instead: ../design/parser.md from any directory, and
+// parser.md or ./parser.md from a record beside it; .html as well as .md, in <…> or not, its anchor and link title
+// kept. A link inside a fenced code block or an inline code span stays as written. A link whose text is fromTitle
+// takes toTitle when toTitle is not "". It says whether text changed.
 func RenameLinks(text, dir, from, to, fromTitle, toTitle string) (string, bool) {
 	kind, name := path.Split(from)
 	prefix := `\.\./` + regexp.QuoteMeta(kind)
 	if strings.TrimSuffix(kind, "/") == dir {
 		prefix = `(?:` + prefix + `|\./)?`
 	}
-	link := regexp.MustCompile(`\[([^\]\n]*)\]\((` + prefix + `)` + regexp.QuoteMeta(name) + `\.md([#)])`)
-	out := link.ReplaceAllStringFunc(text, func(m string) string {
-		g := link.FindStringSubmatch(m)
-		label := g[1]
+	link := regexp.MustCompile(`\[([^\]\n]*)\]\((<?` + prefix + `)` + regexp.QuoteMeta(name) + `(\.(?:md|html)[#)>\s])`)
+	code := codeRanges(text)
+	var b strings.Builder
+	last := 0
+	for _, m := range link.FindAllStringSubmatchIndex(text, -1) {
+		if inRanges(code, m[0]) {
+			continue
+		}
+		label := text[m[2]:m[3]]
 		if toTitle != "" && label == fromTitle {
 			label = toTitle
 		}
-		return "[" + label + "](" + g[2] + path.Base(to) + ".md" + g[3]
-	})
-	return out, out != text
+		b.WriteString(text[last:m[0]] + "[" + label + "](" + text[m[4]:m[5]] + path.Base(to) + text[m[6]:m[7]])
+		last = m[1]
+	}
+	b.WriteString(text[last:])
+	return b.String(), b.String() != text
+}
+
+// fenceOpen is a fenced code block's opening line: up to three spaces, then three or more backticks or tildes.
+var fenceOpen = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})")
+
+// codeRanges is the byte ranges of text's fenced code blocks and inline code spans, as [start, end) pairs: a fence
+// closes at a line of its character at least as long and nothing else, an inline span at the next backtick run of
+// its opening run's length on the same line.
+func codeRanges(text string) [][2]int {
+	var out [][2]int
+	fence, fenceAt := "", 0
+	for at := 0; at < len(text); {
+		end := strings.IndexByte(text[at:], '\n') + at + 1
+		if end == at {
+			end = len(text)
+		}
+		line := text[at:end]
+		switch {
+		case fence != "":
+			t := strings.TrimLeft(line, " ")
+			if strings.HasPrefix(t, fence) && strings.TrimSpace(strings.TrimLeft(t, fence[:1])) == "" {
+				out, fence = append(out, [2]int{fenceAt, end}), ""
+			}
+		case fenceOpen.MatchString(line):
+			fence, fenceAt = fenceOpen.FindStringSubmatch(line)[1], at
+		default:
+			out = append(out, codeSpans(line, at)...)
+		}
+		at = end
+	}
+	if fence != "" { // an unclosed fence runs to the end
+		out = append(out, [2]int{fenceAt, len(text)})
+	}
+	return out
+}
+
+// codeSpans is the inline code spans of one line that starts at byte offset at.
+func codeSpans(line string, at int) [][2]int {
+	var out [][2]int
+	for i := 0; i < len(line); {
+		if line[i] != '`' {
+			i++
+			continue
+		}
+		j := i
+		for j < len(line) && line[j] == '`' {
+			j++
+		}
+		run, closed := line[i:j], -1
+		for k := j; k < len(line); {
+			if line[k] != '`' {
+				k++
+				continue
+			}
+			l := k
+			for l < len(line) && line[l] == '`' {
+				l++
+			}
+			if l-k == len(run) {
+				closed = l
+				break
+			}
+			k = l
+		}
+		if closed < 0 {
+			i = j
+			continue
+		}
+		out, i = append(out, [2]int{at + i, at + closed}), closed
+	}
+	return out
+}
+
+// inRanges says whether offset i lies in one of the ranges.
+func inRanges(ranges [][2]int, i int) bool {
+	for _, r := range ranges {
+		if i >= r[0] && i < r[1] {
+			return true
+		}
+	}
+	return false
 }
