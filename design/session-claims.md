@@ -8,7 +8,7 @@ covers:
   - "internal/cli/writes.go"
   - "internal/cli/task.go"
   - "internal/cli/move.go"
-  - "internal/cli/clean.go"
+  - "internal/cli/clean/*.go"
   - "internal/cli/show.go"
   - "internal/work/dolt.go"
   - "internal/work/ready*.go"
