@@ -47,7 +47,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-15}
+A rename rewrites every link and waiver in the records in its one commit, and refuses while an open PR review need names the design page; old URLs get no redirect.
+Links in records are the only references pm checks against; rewriting them keeps pm check and the review gate correct, and refusing on an open review avoids a work-store rewrite for a transient case.
+:::
 
 ## Findings
 
