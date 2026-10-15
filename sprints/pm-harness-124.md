@@ -71,6 +71,8 @@ None yet.
 
 done: pm-go.yml's macOS jobs now run once a day on main (06:41 UTC) and on manual dispatch, not on every PR and push (PR #98, merged as ced67c4).
 
+Merged as ced67c4 (PR #98).
+
 - Linux jobs run on every PR and push to main, as before; the daily run skips Linux.
 - The PR-only macOS test subset is removed: go-os-tests.txt, go_os_tests.py and make go-os-check.
 
