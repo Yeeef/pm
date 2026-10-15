@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T07:09:22+00:00",
- "digest": "0d20ccb93b0b3dac",
+ "generated_at": "2026-10-15T07:19:40+00:00",
+ "digest": "f4ef7ca01a2fcc83",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions:** Ask-tool questions now get answered on the site as well as in chat. Owner replies reach a session by push alone, with no reply wait.\n- **Agents file checks:** The AGENTS.md check now gives the same verdict on every rerun. Pull requests grade it in diff mode, and full grading runs daily on main.\n- **Session setup:** The new pm release now runs in this repo. pm no longer installs a git hook, and Claude Code's auto memory is off.\n- **Test runs:** The Go service test now picks its own free port. `make test-go` passes on every run."
+ "text": "- **Question answering:** Ask-tool questions can now be answered on the site as well as in chat. The first answer wins. Question endings now come from hook events, not transcript reads.\n- **CI and test reliability:** The AGENTS.md check now gives the same verdict on every rerun. Pull requests grade AGENTS.md in diff mode, and full grading runs daily on main. `make test-go` passes on every run because the service test takes a free port from the kernel.\n- **Pm release and repo setup:** This repo now uses the newest pm release, and the service runs on it. pm no longer installs a git hook or sets the git hooks path. Claude Code no longer saves or loads auto memory in this repo.\n- **Record layer design:** The owner chose Model A for the record layer. The project records now hold this decision as an owner decision. The record drafts page states the final design."
 }
