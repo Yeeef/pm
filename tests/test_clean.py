@@ -316,6 +316,7 @@ def test_clean_removes_a_records_workspace_with_its_worktree_and_keeps_one_with_
     repo = clone
     trees = {name: agent_tree(repo, name) for name in ("gone", "edited")}
     for name, wt in trees.items():  # each worktree's records workspace, as pm init makes it
+        repo.git("update-ref", f"refs/pm/workspaces/{name}/base", "records")
         repo.git("worktree", "add", "-q", "-B", f"drafts/{name}", str(wt / "records"), "records")
     sprint = trees["edited"] / "records/sprints/demo-1.md"
     sprint.write_text(sprint.read_text() + "edited\n")
@@ -331,5 +332,6 @@ def test_clean_removes_a_records_workspace_with_its_worktree_and_keeps_one_with_
 
     clean(repo, "--apply")
     assert "gone" not in worktrees(repo) and "drafts/gone" not in branches(repo)
+    assert repo.git("for-each-ref", "refs/pm/workspaces/gone") == "", "its recorded base goes with it"
     assert "edited" in worktrees(repo) and "drafts/edited" in branches(repo) and sprint.read_text().endswith("edited\n")
     assert (repo.store / "sprints/demo-1.md").is_file(), "the store stays"

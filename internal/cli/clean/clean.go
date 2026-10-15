@@ -270,7 +270,7 @@ func (c *cleaner) remove(v verdict) error {
 		if _, err := cleanGit(c.main, "worktree", "remove", w.Dir); err != nil {
 			return err
 		}
-		if _, err := cleanGit(c.main, "branch", "-D", "--quiet", w.Branch()); err != nil {
+		if err := w.DeleteBranch(c.main); err != nil {
 			return err
 		}
 	}

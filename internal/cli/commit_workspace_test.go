@@ -348,3 +348,32 @@ func writeFile(t *testing.T, path, text string) {
 		t.Fatal(err)
 	}
 }
+
+// A figure the records branch changed under the workspace's uncommitted copy cannot merge: pm commit refuses it once,
+// naming the commit, and a second pm commit replaces the published figure.
+func TestPmCommitRefusesAFigureTheRecordsBranchChangedUnderIt(t *testing.T) {
+	_, storeDir, one, _ := workspaces(t)
+	writeFile(t, filepath.Join(storeDir, "docs/fig.png"), "\x89PNG\x00base")
+	run(t, storeDir, "git add docs/fig.png", "git commit -qm figure")
+	if _, errs, code := runPM(t, one.Code, "finding", "add", "--sprint", "demo.1", "Follow."); code != 0 {
+		t.Fatal(errs)
+	}
+	writeFile(t, filepath.Join(one.Dir, "docs/fig.png"), "\x89PNG\x00mine")
+	writeFile(t, filepath.Join(storeDir, "docs/fig.png"), "\x89PNG\x00published")
+	run(t, storeDir, "git commit -qam 'a newer figure'")
+	newer := gitOut(t, storeDir, "rev-parse", "--short", "HEAD")
+	_, errs, code := runPM(t, one.Code, "commit", "-m", "my figure", "records/docs/fig.png")
+	if code != 1 || !strings.Contains(errs, "records/docs/fig.png is a binary file the records branch changed under your "+
+		"uncommitted copy, in "+newer+" a newer figure") {
+		t.Fatalf("exit %d %q", code, errs)
+	}
+	if got := gitOut(t, storeDir, "show", "records:docs/fig.png"); got != "\x89PNG\x00published" {
+		t.Errorf("the published figure changed: %q", got)
+	}
+	if _, errs, code := runPM(t, one.Code, "commit", "-m", "my figure", "records/docs/fig.png"); code != 0 {
+		t.Fatalf("the second commit: %s", errs)
+	}
+	if got := gitOut(t, storeDir, "show", "records:docs/fig.png"); got != "\x89PNG\x00mine" {
+		t.Errorf("the figure was not replaced: %q", got)
+	}
+}

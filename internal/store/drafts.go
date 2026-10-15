@@ -146,6 +146,7 @@ func (c Clone) workspaceFiles(w Workspace) (map[string]*string, string, error) {
 	}
 	conflict, edited := false, false
 	for _, rel := range dirty {
+		conflict = conflict || w.binaryConflict(rel)
 		if !strings.HasSuffix(rel, ".md") {
 			continue
 		}

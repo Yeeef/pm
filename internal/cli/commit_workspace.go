@@ -66,6 +66,13 @@ func (e *env) commitWorkspace(w store.Workspace, message string, p *Parsed) (str
 				return "", err
 			}
 		}
+		if commits, err := w.BinaryCommits(e.records, rel); err != nil {
+			return "", err
+		} else if len(commits) > 0 {
+			return "", refuse("records/%s is a binary file the records branch changed under your uncommitted copy, in "+
+				"%s; it cannot be merged. Take the published one with git -C %s checkout -- %s and redo your change, or "+
+				"run this pm commit again to replace it with yours", rel, strings.Join(commits, "; "), w.Dir, rel)
+		}
 		b, err := os.ReadFile(p)
 		if err != nil && !os.IsNotExist(err) {
 			return "", err

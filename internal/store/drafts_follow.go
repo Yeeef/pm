@@ -32,6 +32,11 @@ type draftState struct {
 }
 
 func readDraft(store string, w Workspace) (draftState, error) {
+	base, err := Git(store, "rev-parse", "--verify", "--quiet", w.BaseRef())
+	if err != nil {
+		return draftState{}, errorf("%s has no recorded base (%s); remove the workspace with git worktree remove %s "+
+			"and run %s in %s", w.Branch(), w.BaseRef(), w.Dir, Setup, w.Code)
+	}
 	out, err := Git(store, "log", "-1", "--format=%H%x00%P%x00%B", w.Ref())
 	if err != nil {
 		return draftState{}, err
@@ -40,34 +45,20 @@ func readDraft(store string, w Workspace) (draftState, error) {
 	if len(parts) != 3 {
 		return draftState{}, fmt.Errorf("git log -1 %s printed %q", w.Ref(), out)
 	}
-	d := draftState{head: parts[0], base: parts[0], tags: map[string]string{}}
-	if strings.HasPrefix(parts[2], draftSubject) {
-		parents := strings.Fields(parts[1])
-		if len(parents) != 1 {
-			return draftState{}, errorf("the draft commit %s of %s has %d parents, not its base alone", d.head,
-				w.Branch(), len(parents))
-		}
-		d.draft, d.base = true, parents[0]
+	d := draftState{head: parts[0], base: base, tags: map[string]string{}}
+	switch {
+	case d.head == base:
+	case strings.HasPrefix(parts[2], draftSubject) && parts[1] == base:
+		d.draft = true
 		for _, m := range sprintTag.FindAllStringSubmatch(parts[2], -1) {
 			d.tags[m[1]] = m[2]
 		}
-	}
-	if !isRecordsCommit(store, d.base) {
-		return draftState{}, errorf("%s is at %s, which is neither a records commit nor a draft commit on one: a commit "+
-			"made by hand in %s? pm commits there itself; undo it with git -C %s reset --soft HEAD~1, which keeps its "+
-			"edits uncommitted, then pm commit them", w.Branch(), d.base, w.Dir, w.Dir)
+	default:
+		return draftState{}, errorf("%s is at %s, a commit pm did not make on its base %s: a commit made by hand in %s? "+
+			"pm commits there itself; undo it with git -C %s reset --soft %s, which keeps its edits uncommitted, then pm "+
+			"commit them", w.Branch(), d.head, base, w.Dir, w.Dir, base)
 	}
 	return d, nil
-}
-
-// isRecordsCommit is whether sha is or was on the records branch: on it now, or in its reflog (a records sync rebases
-// the branch, leaving a workspace's base off it).
-func isRecordsCommit(store, sha string) bool {
-	if _, _, err := run(store, "merge-base", "--is-ancestor", sha, "refs/heads/"+Branch); err == nil {
-		return true
-	}
-	out, _, err := run(store, "reflog", "show", "--format=%H", "refs/heads/"+Branch)
-	return err == nil && slices.Contains(strings.Fields(out), sha)
 }
 
 // gitIn is git in dir with env added and stdin fed; stdout stripped, a failure a records error with git's message.
@@ -208,6 +199,7 @@ func same(a, b *string) bool { return (a == nil) == (b == nil) && (a == nil || *
 type Followed struct {
 	Base, Tip string
 	Conflicts []string
+	Binaries  []string // uncommitted binary files the records branch changed under: kept whole, noted for pm commit
 }
 
 // Follow brings the workspace onto the records tip, under the store lock the caller holds:
@@ -233,7 +225,7 @@ func Follow(store string, w Workspace) (Followed, error) {
 	}
 	f := Followed{Base: d.base, Tip: tip}
 	if d.base == tip {
-		return f, nil
+		return f, w.syncIndex() // a follow stopped between the branch and the index leaves the index behind
 	}
 	head, conflicted := tip, []string(nil)
 	if d.draft {
@@ -249,12 +241,31 @@ func Follow(store string, w Workspace) (Followed, error) {
 	if err != nil {
 		return Followed{}, err
 	}
-	return f, w.move(store, d.head, head, plan)
+	if err := w.move(store, d.head, head, tip, plan); err != nil {
+		return Followed{}, err
+	}
+	return f, w.noteBinaries(d.base, tip, f.Binaries)
 }
 
-// followPlan is each workspace file Follow rewrites, with its new text (nil: removed), and f.Conflicts set.
+// syncIndex resets the workspace's index to its HEAD's tree when they differ; the working tree is untouched.
+func (w Workspace) syncIndex() error {
+	if _, _, err := run(w.Dir, "diff-index", "--cached", "--quiet", "HEAD", "--"); err == nil {
+		return nil
+	}
+	if _, err := Git(w.Dir, "read-tree", "HEAD"); err != nil {
+		return err
+	}
+	run(w.Dir, "update-index", "-q", "--refresh") //nolint:errcheck // exits 1 while files differ, which they may
+	return nil
+}
+
+// planned is a file Follow rewrites: the text it read there, and its new text (nil: no file).
+type planned struct{ was, text *string }
+
+// followPlan is each workspace file Follow rewrites, with the text it read and its new text (nil: removed), and
+// f.Conflicts and f.Binaries set.
 func followPlan(store string, w Workspace, d draftState, head string, conflicted []string, f *Followed) (
-	map[string]*string, error) {
+	map[string]planned, error) {
 	moved, err := changedPaths(store, d.head, head)
 	if err != nil {
 		return nil, err
@@ -286,7 +297,7 @@ func followPlan(store string, w Workspace, d draftState, head string, conflicted
 		return nil, err
 	}
 	label := "records " + from + ".." + to
-	plan := map[string]*string{}
+	plan := map[string]planned{}
 	for _, p := range paths {
 		working, err := w.read(p)
 		if err != nil {
@@ -309,7 +320,7 @@ func followPlan(store string, w Workspace, d draftState, head string, conflicted
 			return nil, err
 		}
 		if !same(text, working) {
-			plan[p] = text
+			plan[p] = planned{was: working, text: text}
 		}
 	}
 	return plan, nil
@@ -320,6 +331,7 @@ func followPlan(store string, w Workspace, d draftState, head string, conflicted
 func mergedText(base, ours, theirs *string, label, p string, f *Followed) (*string, error) {
 	for _, t := range []*string{base, ours, theirs} {
 		if t != nil && strings.Contains(*t, "\x00") {
+			f.Binaries = append(f.Binaries, p)
 			return ours, nil
 		}
 	}
@@ -365,9 +377,10 @@ func draftCommit(store string, w Workspace, tree, base string, tags map[string]s
 	return gitIn(store, nil, msg, "commit-tree", tree, "-p", base, "-F", "-")
 }
 
-// move writes plan's files into the workspace, then moves its branch from old to head and its index to head's tree;
+// move writes plan's files into the workspace, each only while it still holds the text the plan read (an edit made
+// meanwhile aborts the move), then moves its branch from old to head, its base to base and its index to head's tree;
 // whatever fails puts back what it changed.
-func (w Workspace) move(store, old, head string, plan map[string]*string) error {
+func (w Workspace) move(store, old, head, base string, plan map[string]planned) error {
 	before := map[string]*string{}
 	undo := func(err error) error {
 		for p, text := range before {
@@ -376,36 +389,50 @@ func (w Workspace) move(store, old, head string, plan map[string]*string) error 
 		return err
 	}
 	for _, p := range slices.Sorted(maps.Keys(plan)) {
-		was, err := w.read(p)
+		now, err := w.read(p)
 		if err != nil {
 			return undo(err)
 		}
-		before[p] = was
-		if err := w.put(p, plan[p]); err != nil {
+		if !same(now, plan[p].was) {
+			return undo(errorf("records/%s changed in %s while pm followed the records branch; nothing was changed, so "+
+				"run the pm command again", p, w.Dir))
+		}
+		before[p] = now
+		if err := w.put(p, plan[p].text); err != nil {
 			return undo(err)
 		}
 	}
 	if head == old {
 		return nil
 	}
-	if err := w.setBranch(store, old, head); err != nil {
+	if err := w.setBranch(store, old, head, base); err != nil {
 		return undo(err)
 	}
 	return nil
 }
 
-// setBranch moves the branch from old to head and the workspace's index to head's tree, the working tree untouched;
-// it moves the branch back when the index fails.
-func (w Workspace) setBranch(store, old, head string) error {
-	if _, err := Git(store, "update-ref", "-m", "pm: follow", w.Ref(), head, old); err != nil {
+// setBranch moves the branch from old to head and its recorded base to base in one ref transaction, then the
+// workspace's index to head's tree, the working tree untouched; it moves both back when the index fails.
+func (w Workspace) setBranch(store, old, head, base string) error {
+	was, err := Git(store, "rev-parse", "--verify", "--quiet", w.BaseRef())
+	if err != nil {
+		return err
+	}
+	if err := w.setRefs(store, old, head, was, base, "pm: follow"); err != nil {
 		return err
 	}
 	if _, err := Git(w.Dir, "read-tree", head); err != nil {
-		_, back := Git(store, "update-ref", "-m", "pm: follow undone", w.Ref(), old, head)
-		return errors.Join(err, back)
+		return errors.Join(err, w.setRefs(store, head, old, base, was, "pm: follow undone"))
 	}
 	run(w.Dir, "update-index", "-q", "--refresh") //nolint:errcheck // exits 1 while files differ, which they may
 	return nil
+}
+
+// setRefs moves the branch from old to head and the base from oldBase to base, both or neither.
+func (w Workspace) setRefs(store, old, head, oldBase, base, why string) error {
+	_, err := gitIn(store, nil, fmt.Sprintf("start\nupdate %s %s %s\nupdate %s %s %s\nprepare\ncommit\n", w.Ref(), head,
+		old, w.BaseRef(), base, oldBase), "update-ref", "-m", why, "--stdin")
+	return err
 }
 
 // put writes rel's text in the workspace, or removes the file for nil.
@@ -464,16 +491,16 @@ func CommitDraft(store string, w Workspace, pages map[string]string) (string, er
 	if err != nil {
 		return "", err
 	}
-	return d.head, w.setBranch(store, d.head, head)
+	return d.head, w.setBranch(store, d.head, head, d.base)
 }
 
 // ResetDraft moves the workspace's branch back to old, the commit CommitDraft returned, and its index with it.
 func ResetDraft(store string, w Workspace, old string) error {
-	head, err := Git(store, "rev-parse", w.Ref())
-	if err != nil || head == old {
+	d, err := readDraft(store, w)
+	if err != nil || d.head == old {
 		return err
 	}
-	return w.setBranch(store, head, old)
+	return w.setBranch(store, d.head, old, d.base)
 }
 
 // DraftPages is the pages the workspace's draft commit holds, each with its text (nil: it removes the page), and their
@@ -509,7 +536,9 @@ func MarkerCommits(store, rel, text string) ([]string, error) {
 	seen := map[string]bool{}
 	var out []string
 	for _, m := range markerRange.FindAllStringSubmatch(text, -1) {
-		log, err := Git(store, "log", "--reverse", "--format=%h %s", m[1]+".."+m[2], "--", rel)
+		// a records sync that rebased leaves copies of commits the workspace had: --cherry-pick drops them
+		log, err := Git(store, "log", "--reverse", "--cherry-pick", "--right-only", "--format=%h %s", m[1]+"..."+m[2],
+			"--", rel)
 		if err != nil {
 			return nil, err
 		}

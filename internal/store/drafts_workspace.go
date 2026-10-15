@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,6 +31,19 @@ func (w Workspace) Branch() string { return DraftsPrefix + w.Name }
 
 // Ref is the workspace's branch as a full ref.
 func (w Workspace) Ref() string { return "refs/heads/" + w.Branch() }
+
+// BaseRef is where pm records the workspace's base, the records commit its branch is on: a ref, so the base stays
+// known and reachable after a records sync rebased it off the branch and its reflog entry expired.
+func (w Workspace) BaseRef() string { return "refs/pm/workspaces/" + w.Name + "/base" }
+
+// DeleteBranch deletes the workspace's branch and its recorded base, run in dir; for a workspace already removed.
+func (w Workspace) DeleteBranch(dir string) error {
+	_, err := Git(dir, "branch", "-D", "--quiet", w.Branch())
+	if err == nil {
+		_, err = Git(dir, "update-ref", "-d", w.BaseRef())
+	}
+	return err
+}
 
 // adminName is the admin name of the linked worktree code (its git dir is <common>/worktrees/<name>), or "" for the
 // main checkout, whose git dir is the common dir.
@@ -166,7 +180,16 @@ func AddWorkspace(store, code string) (string, error) {
 			return "", err
 		}
 	}
-	if _, err := Git(store, "worktree", "add", "--quiet", "-B", w.Branch(), w.Dir, "refs/heads/"+Branch); err != nil {
+	tip, err := Git(store, "rev-parse", "refs/heads/"+Branch)
+	if err != nil {
+		return "", err
+	}
+	if _, err := Git(store, "update-ref", w.BaseRef(), tip); err != nil {
+		return "", err
+	}
+	if _, err := Git(store, "worktree", "add", "--quiet", "-B", w.Branch(), w.Dir, tip); err != nil {
+		_, undo := Git(store, "update-ref", "-d", w.BaseRef())
+		err = errors.Join(err, undo)
 		if link != "" {
 			err = errors.Join(err, os.Symlink(link, w.Dir))
 		}
@@ -302,4 +325,105 @@ func gitNewEnough(version string) error {
 	}
 	return errorf("git %d.%d is older than %d.%d, which records workspaces need (git merge-tree --merge-base); "+
 		"install git %d.%d or newer, then run %s again", major, minor, minGit[0], minGit[1], minGit[0], minGit[1], Setup)
+}
+
+// binariesFile, in the workspace's git dir, notes each uncommitted binary file that a follow kept whole while the
+// records branch changed it: a line "<path>\t<base>..<tip>", the records range it was kept over.
+const binariesFile = "pm-binaries"
+
+func (w Workspace) binariesPath() (string, error) {
+	dir, err := Git(w.Dir, "rev-parse", "--absolute-git-dir")
+	return filepath.Join(dir, binariesFile), err
+}
+
+// binaries is the noted binary files, each with its records range.
+func (w Workspace) binaries() (map[string]string, error) {
+	p, err := w.binariesPath()
+	if err != nil {
+		return nil, err
+	}
+	b, err := os.ReadFile(p)
+	if errors.Is(err, fs.ErrNotExist) {
+		return map[string]string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		if rel, span, ok := strings.Cut(line, "\t"); ok {
+			out[rel] = span
+		}
+	}
+	return out, nil
+}
+
+func (w Workspace) writeBinaries(m map[string]string) error {
+	p, err := w.binariesPath()
+	if err != nil {
+		return err
+	}
+	if len(m) == 0 {
+		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	var b strings.Builder
+	for _, rel := range slices.Sorted(maps.Keys(m)) {
+		b.WriteString(rel + "\t" + m[rel] + "\n")
+	}
+	return WriteAtomic(p, b.String())
+}
+
+// noteBinaries notes the binary files a follow from base to tip kept whole, widening a file's range when it was noted
+// before, and forgets those no longer uncommitted.
+func (w Workspace) noteBinaries(base, tip string, kept []string) error {
+	m, err := w.binaries()
+	if err != nil || (len(m) == 0 && len(kept) == 0) {
+		return err
+	}
+	dirty, err := w.Dirty()
+	if err != nil {
+		return err
+	}
+	for rel := range m {
+		if !slices.Contains(dirty, rel) {
+			delete(m, rel)
+		}
+	}
+	for _, rel := range kept {
+		from := base
+		if span, ok := m[rel]; ok {
+			from, _, _ = strings.Cut(span, "..")
+		}
+		m[rel] = from + ".." + tip
+	}
+	return w.writeBinaries(m)
+}
+
+// BinaryCommits is the records commits that changed rel, an uncommitted binary file a follow kept whole over them,
+// each as "<short sha> <subject>"; none when it was not noted. It forgets the note, so a second pm commit of the file
+// replaces the published one.
+func (w Workspace) BinaryCommits(store, rel string) ([]string, error) {
+	m, err := w.binaries()
+	if err != nil {
+		return nil, err
+	}
+	span, ok := m[rel]
+	if !ok {
+		return nil, nil
+	}
+	delete(m, rel)
+	if err := w.writeBinaries(m); err != nil {
+		return nil, err
+	}
+	return MarkerCommits(store, rel, ">>>>>>> records "+span+"\n")
+}
+
+// binaryConflict is whether rel is a noted binary file.
+func (w Workspace) binaryConflict(rel string) bool {
+	m, err := w.binaries()
+	_, ok := m[rel]
+	return err == nil && ok
 }

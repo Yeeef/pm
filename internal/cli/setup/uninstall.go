@@ -203,7 +203,7 @@ func (u uninstallPlan) removeClone() ([]string, error) {
 		if _, err := install.Git(main, "worktree", "remove", w.Dir); err != nil {
 			return nil, err
 		}
-		if _, err := install.Git(main, "branch", "-D", "--quiet", w.Branch()); err != nil {
+		if err := w.DeleteBranch(main); err != nil {
 			return nil, err
 		}
 		out = append(out, fmt.Sprintf("removed the records workspace %s and its branch %s", w.Dir, w.Branch()))

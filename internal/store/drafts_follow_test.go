@@ -279,8 +279,98 @@ func TestAHandCommitInAWorkspaceIsRefused(t *testing.T) {
 	write(t, w.Dir, "docs/x.md", "x")
 	sh(t, w.Dir, "git add -A", "git commit -qm by-hand")
 	publish(t, store, "projects/demo.md", project+"more\n")
-	if _, err := Follow(store, w); err == nil || !strings.Contains(err.Error(), "neither a records commit nor a draft") {
-		t.Errorf("Follow over a hand commit: %v", err)
+	_, err := Follow(store, w)
+	if err == nil || !strings.Contains(err.Error(), "a commit pm did not make on its base") {
+		t.Fatalf("Follow over a hand commit: %v", err)
+	}
+	// its advice fixes it: the edit becomes uncommitted again, and the follow goes on
+	sh(t, w.Dir, "git reset -q --soft "+sh(t, store, "git rev-parse "+w.BaseRef()))
+	follow(t, store, w)
+	if dirty := dirtyOf(t, w); !reflect.DeepEqual(dirty, []string{"docs/x.md"}) {
+		t.Errorf("after the advice: %v", dirty)
+	}
+}
+
+// A records sync that rebased local commits leaves a workspace's base off the branch; once the reflog entry expired
+// the recorded base still holds it, and the follow goes on.
+func TestFollowOutlivesARebasedBaseWhoseReflogExpired(t *testing.T) {
+	root, store := clone(t)
+	publish(t, store, "sprints/s.md", lines)
+	w := workspace(t, root, store, "wt")
+	write(t, w.Dir, "sprints/s.md", strings.Replace(lines, "e\n", "E mine\n", 1))
+	sh(t, store, "git commit -q --amend -m rebased", "git reflog expire --expire-unreachable=now --all",
+		"git gc -q --prune=now")
+	publish(t, store, "sprints/s.md", strings.Replace(lines, "a\n", "A published\n", 1))
+	f := follow(t, store, w)
+	if got := read(t, w.Dir, "sprints/s.md"); got != "A published\n\nb\n\nc\n\nd\n\nE mine\n" || f.Conflicts != nil {
+		t.Errorf("after the follow: %q, %v", got, f.Conflicts)
+	}
+}
+
+// An edit made between the follow's read of a file and its write (a subagent in the same worktree) aborts the whole
+// follow, changing nothing.
+func TestAnEditDuringAFollowAbortsIt(t *testing.T) {
+	root, store := clone(t)
+	publish(t, store, "sprints/s.md", lines)
+	w := workspace(t, root, store, "wt")
+	write(t, w.Dir, "sprints/s.md", strings.Replace(lines, "e\n", "E mine\n", 1))
+	publish(t, store, "sprints/s.md", strings.Replace(lines, "a\n", "A published\n", 1))
+	d, err := readDraft(store, w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tip := sh(t, store, "git rev-parse records")
+	plan, err := followPlan(store, w, d, tip, nil, &Followed{Base: d.base, Tip: tip})
+	if err != nil || len(plan) != 1 {
+		t.Fatalf("plan %v, %v", plan, err)
+	}
+	meanwhile := strings.Replace(lines, "e\n", "E mine, then more\n", 1)
+	write(t, w.Dir, "sprints/s.md", meanwhile)
+	if err := w.move(store, d.head, tip, tip, plan); err == nil || !strings.Contains(err.Error(), "while pm followed") {
+		t.Fatalf("move over a newer edit: %v", err)
+	}
+	if got := read(t, w.Dir, "sprints/s.md"); got != meanwhile {
+		t.Errorf("the newer edit was overwritten: %q", got)
+	}
+	if head := sh(t, store, "git rev-parse "+w.Ref()); head != d.head {
+		t.Errorf("the branch moved")
+	}
+}
+
+// A follow stopped after it moved the branch and before the index leaves the index on the old tree; the next follow
+// resets it, so the refreshed files do not look edited.
+func TestAFollowStoppedBeforeTheIndexIsRepairedByTheNext(t *testing.T) {
+	root, store := clone(t)
+	w := workspace(t, root, store, "wt")
+	publish(t, store, "projects/demo.md", project+"more\n")
+	old, tip := sh(t, store, "git rev-parse "+w.Ref()), sh(t, store, "git rev-parse records")
+	write(t, w.Dir, "projects/demo.md", project+"more\n") // the files were written
+	if err := w.setRefs(store, old, tip, old, tip, "test: stopped"); err != nil {
+		t.Fatal(err)
+	}
+	if dirtyOf(t, w) == nil {
+		t.Fatal("the stale index shows no edit; the test does not stage the crash")
+	}
+	follow(t, store, w)
+	clean(t, store, w)
+}
+
+// After a records sync rebased commits the workspace had, the markers' range holds their copies; pm commit names
+// only the commits that are new to the workspace.
+func TestMarkerCommitsLeaveOutRebasedCopies(t *testing.T) {
+	_, store := clone(t)
+	publish(t, store, "sprints/s.md", lines)
+	sh(t, store, "git branch before")
+	publish(t, store, "sprints/s.md", strings.Replace(lines, "a\n", "A mine\n", 1))
+	base := sh(t, store, "git rev-parse HEAD")
+	// the sync: records reset to before, a remote commit, then a copy of the workspace's commit
+	sh(t, store, "git reset -q --hard before", "git branch -D before")
+	remote := publish(t, store, "sprints/s.md", strings.Replace(lines, "e\n", "E remote\n", 1))
+	sh(t, store, "git cherry-pick "+base+" >/dev/null")
+	tip := sh(t, store, "git rev-parse HEAD")
+	commits, err := MarkerCommits(store, "sprints/s.md", ">>>>>>> records "+base[:9]+".."+tip[:9]+"\n")
+	if err != nil || len(commits) != 1 || !strings.HasPrefix(commits[0], remote+" ") {
+		t.Errorf("MarkerCommits = %v, %v; want the remote commit %s alone", commits, err, remote)
 	}
 }
 
@@ -293,15 +383,27 @@ func dirtyOf(t *testing.T, w Workspace) []string {
 	return dirty
 }
 
-// A figure cannot merge: the workspace's uncommitted figure stands whole, and the follow goes on.
+// A figure cannot merge: the workspace's uncommitted figure stands whole, the follow goes on, and the records
+// commits it was kept over are noted for pm commit, once.
 func TestFollowLeavesAnUncommittedBinaryFileAsTheWorkspaceHasIt(t *testing.T) {
 	root, store := clone(t)
 	publish(t, store, "docs/fig.png", "\x89PNG\x00base")
 	w := workspace(t, root, store, "wt")
 	write(t, w.Dir, "docs/fig.png", "\x89PNG\x00mine")
-	publish(t, store, "docs/fig.png", "\x89PNG\x00published")
-	if f := follow(t, store, w); f.Conflicts != nil {
-		t.Errorf("conflicts %v", f.Conflicts)
+	published := publish(t, store, "docs/fig.png", "\x89PNG\x00published")
+	if f := follow(t, store, w); f.Conflicts != nil || !reflect.DeepEqual(f.Binaries, []string{"docs/fig.png"}) {
+		t.Errorf("conflicts %v, binaries %v", f.Conflicts, f.Binaries)
+	}
+	if !w.binaryConflict("docs/fig.png") {
+		t.Error("the kept figure is not noted")
+	}
+	follow(t, store, w) // a later follow keeps the note
+	commits, err := w.BinaryCommits(store, "docs/fig.png")
+	if err != nil || len(commits) != 1 || !strings.HasPrefix(commits[0], published+" ") {
+		t.Errorf("BinaryCommits = %v, %v; want %s", commits, err, published)
+	}
+	if commits, err := w.BinaryCommits(store, "docs/fig.png"); err != nil || commits != nil {
+		t.Errorf("a second BinaryCommits = %v, %v; want the note forgotten", commits, err)
 	}
 	if got := read(t, w.Dir, "docs/fig.png"); got != "\x89PNG\x00mine" {
 		t.Errorf("the figure: %q", got)
