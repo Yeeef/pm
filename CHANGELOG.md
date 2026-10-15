@@ -29,6 +29,29 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.12.1] - 2026-10-15
+
+The site shows each record as published on the `records` branch, and every draft of it beside it as a version.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.12.1/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.12.1`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- The store's uncommitted record edits are a draft, `store`. A page that a draft changes carries a version bar; the
+  draft's version renders in full at `/drafts/store/<record>.html`, its links staying in the version, and its diff
+  against the published text, section by section, at `/drafts/store/<record>.diff.html` (`?vs=<draft>` diffs two
+  drafts). A draft that does not render fails only its own version's pages; its diff still shows.
+
+### Changed
+
+- The site renders the records committed on the `records` branch, not the store's working tree: a hand edit no
+  longer shows as published before `pm commit`, and a record that does not parse no longer turns every page into an
+  error.
+
 ## [0.12.0] - 2026-10-15
 
 `pm interactive` turns the owner-request check off for one session while the owner chats in it, and `pm autopilot`
@@ -972,6 +995,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.12.1]: https://github.com/Yeeef/pm/compare/pm-v0.12.0...pm-v0.12.1
 [0.12.0]: https://github.com/Yeeef/pm/compare/pm-v0.11.1...pm-v0.12.0
 [0.11.1]: https://github.com/Yeeef/pm/compare/pm-v0.11.0...pm-v0.11.1
 [0.11.0]: https://github.com/Yeeef/pm/compare/pm-v0.10.0...pm-v0.11.0
