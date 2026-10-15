@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T20:36:36+00:00",
- "digest": "e490392c2a619ac3",
+ "generated_at": "2026-10-15T20:46:55+00:00",
+ "digest": "796b6c245e4d21a8",
  "model": "claude-haiku-5-5",
- "text": "- **Records and site views:** The site shows each record's published version, with every draft beside it as its own full version. Each agent worktree now gets its own records workspace, and `pm commit` publishes from it.\n- **Owner questions and replies:** Ask-tool questions now close from the site or chat, and the first answer wins. Interactive and autopilot modes now gate the owner-request judge for each session.\n- **AGENTS.md checks:** Pull request checks now grade AGENTS.md in diff mode, and full grading runs daily on main. The check gives the same verdict on every rerun of a known input.\n- **Repo tooling and CI:** Claude Code no longer saves or loads auto memory in this repo. The macOS Go jobs now run once a day only, and the pm pin moved to a newer release."
+ "text": "- **Records workspaces and site versions:** Each worktree now gets its own records workspace, and the site shows every draft beside the published version. Renaming a design page or doc rewrites its links in a single commit.\n- **Owner questions and replies:** Ask-tool questions now close on the site or in chat, and the first answer wins. Owner replies reach the asking session by push alone.\n- **CI checks:** Pull requests now grade AGENTS.md in diff mode, and reruns give the same verdict. MacOS Go jobs run on a daily schedule instead of on every pull request.\n- **Docs rendering:** The docs now typeset math with KaTeX and draw MDX diagrams. Doc links resolve by slug, and a new docs index lists the notes."
 }
