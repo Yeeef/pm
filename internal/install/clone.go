@@ -507,18 +507,7 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	if _, err := store.Find(top); err != nil {
 		out = append(out, "store: "+err.Error())
 	}
-	link := filepath.Join(top, "records")
-	inMain := Resolve(top) == Resolve(main)
-	if w, err := store.WorkspaceAt(top); err != nil {
-		out = append(out, "records workspace: "+err.Error())
-	} else if !inMain && w == nil {
-		out = append(out, fmt.Sprintf("records workspace: %s is not this worktree's records workspace; run pm init", link))
-	} else if inMain && !(isLink(link) && Resolve(link) == Resolve(records)) {
-		out = append(out, fmt.Sprintf("records link: %s is not a link to %s; run pm init", link, records))
-	}
-	if err := store.CheckGit(); err != nil {
-		out = append(out, "git: "+err.Error())
-	}
+	out = append(out, doctorRecords(top, main, records)...)
 	if old, err := OldSparse(top); err != nil {
 		return nil, err
 	} else if old {
@@ -564,7 +553,7 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 	if len(missing) > 0 {
 		out = append(out, fmt.Sprintf("git exclude: %s lacks %s; run pm init", ExcludePath(main), strings.Join(missing, ", ")))
 	}
-	if inMain && isDir(claudeConfigDir()) {
+	if isLink(filepath.Join(top, "records")) && isDir(claudeConfigDir()) { // the link needs it; a workspace does not
 		path := filepath.Join(top, ".claude", "settings.local.json")
 		listed, err := ClaudeListsStore(top, records)
 		if err != nil {
@@ -596,6 +585,15 @@ func setupRecords(top, main, records string) ([]string, error) {
 		}
 		return out, add(SetupClaude(top, records))
 	}
+	if err := checkGit(); err != nil { // this worktree only: the rest of pm init runs, and it writes the shared store
+		if w, werr := store.WorkspaceAt(top); werr != nil || w != nil {
+			return nil, errors.Join(err, werr)
+		}
+		if err := add(setupRecordsLink(top, records)); err != nil {
+			return nil, err
+		}
+		return append(out, oldGit(top, err)), add(SetupClaude(top, records))
+	}
 	if tracks, err := TracksRecords(top); err != nil {
 		return nil, err
 	} else if link := filepath.Join(top, "records"); tracks && !isLink(link) {
@@ -608,6 +606,15 @@ func setupRecords(top, main, records string) ([]string, error) {
 	return out, add(RemoveClaude(top, records))
 }
 
+// checkGit is store.CheckGit, a variable so a test can give an older git.
+var checkGit = store.CheckGit
+
+// oldGit is what pm init and pm doctor say when git is too old for this worktree's records workspace.
+func oldGit(top string, err error) string {
+	return fmt.Sprintf("WARNING: no records workspace for %s: %s. Until then its records/ is the link to the shared "+
+		"store, so its record edits go straight into the store, shared with every other session", top, err)
+}
+
 // recordsState is the worktree's records/ as pm init leaves it: the link in the main checkout, else the workspace.
 func recordsState(top, records string) string {
 	link := filepath.Join(top, "records")
@@ -615,6 +622,28 @@ func recordsState(top, records string) string {
 		return link + " is a records workspace on " + w.Branch()
 	}
 	return link + " -> " + records
+}
+
+// doctorRecords is how this worktree's records/ differs from what pm init makes: the main checkout's link, or another
+// worktree's records workspace, or the link with a warning when git is too old for one.
+func doctorRecords(top, main, records string) []string {
+	var out []string
+	link := filepath.Join(top, "records")
+	inMain := Resolve(top) == Resolve(main)
+	var gitErr error
+	if !inMain {
+		if gitErr = checkGit(); gitErr != nil {
+			out = append(out, "git: "+oldGit(top, gitErr))
+		}
+	}
+	if w, err := store.WorkspaceAt(top); err != nil {
+		out = append(out, "records workspace: "+err.Error())
+	} else if !inMain && w == nil && gitErr == nil {
+		out = append(out, fmt.Sprintf("records workspace: %s is not this worktree's records workspace; run pm init", link))
+	} else if (inMain || gitErr != nil) && w == nil && !(isLink(link) && Resolve(link) == Resolve(records)) {
+		out = append(out, fmt.Sprintf("records link: %s is not a link to %s; run pm init", link, records))
+	}
+	return out
 }
 
 func setupRecordsLink(top, records string) (string, error) {
