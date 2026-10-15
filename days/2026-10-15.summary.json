@@ -1,7 +1,7 @@
 {
  "date": "2026-10-15",
- "generated_at": "2026-10-15T07:40:32+00:00",
- "digest": "cfc49868be18c726",
+ "generated_at": "2026-10-15T08:00:48+00:00",
+ "digest": "d51e1a4c9e3b5d4b",
  "model": "claude-haiku-5-5",
- "text": "- **Owner questions:** Ask-tool questions now get answers on the site as well as in chat, and the first answer wins.\n- **Tooling and releases:** This repo now runs the new pm release, and its service restarted on it. pm no longer installs a git hook, and Claude sessions here skip auto memory.\n- **CI and checks:** Pull requests grade AGENTS.md in diff mode, and the check gives the same verdict on reruns. The macOS Go jobs now run once a day, not on every pull request.\n- **Record layer:** The record layer design is agreed: the owner chose Model A. Work started on the published view and per-version pages."
+ "text": "- **Owner questions:** An ask-tool question can now be answered on the site or in chat, and the first answer wins. Questions now close only from hook events, and pm no longer reads transcripts or rollouts for them.\n- **CI and test stability:** The AGENTS.md check grades diffs on pull requests and runs in full daily on main. Reruns now give the same verdict, and the Go test suite passes on every run.\n- **pm setup:** This repo now runs a newer pm release, and Claude Code auto memory is off here. pm no longer installs a git hook or owns `core.hooksPath`; new worktrees are set up at session start.\n- **Record layer:** The record-layer design is agreed, and the owner chose Model A. Work started on the published view and per-version pages on the site."
 }
