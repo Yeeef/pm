@@ -13,7 +13,8 @@ never shows a page describing code that has not merged, and two sprints' edits o
   no longer publishes it: `pm sprint close` does.
 - `pm check` fails on a published design page's covers pattern that matches no file on the remote's main (fetched
   when its remote-tracking branch lacks one), and in a worktree on a draft page's pattern that matches no file the
-  worktree tracks. The list of patterns waiting on unmerged work is gone, and `pm sprint close` no longer holds the
+  worktree tracks. A published pattern main lacks while a draft of the page changes its covers is listed as waiting
+  on that sprint's close instead. The list of patterns waiting on unmerged work is gone, and `pm sprint close` no longer holds the
   patterns a sprint added since it opened by records commit dates: it holds the patterns each page it publishes adds.
 
 ### Added

@@ -310,3 +310,39 @@ func TestCoversAreHeldToMainOnceAndToTheWorktreeWhileDrafted(t *testing.T) {
 		t.Errorf("the page was not published:\n%s", got)
 	}
 }
+
+// A PR that removes a file a published page covers merges before its sprint closes: while a draft of the page changes
+// its covers, pm check lists the pattern as waiting on that sprint's close and passes; with no such draft it fails.
+func TestAPublishedPatternMainLostWaitsOnTheDraftThatChangesIt(t *testing.T) {
+	root, records, one, _ := workspaces(t)
+	origin := filepath.Join(filepath.Dir(root), "origin.git")
+	writeFile(t, filepath.Join(root, "src/parser.go"), "package src\n")
+	run(t, root, "git add src", "git commit -qm parser", "git init -q --bare "+origin, "git remote add origin "+origin,
+		"git push -q origin main", "git fetch -q origin")
+	edit(t, filepath.Join(records, "design/parser.md"), "project: demo\n", "project: demo\ncovers: [src/parser.go]\n")
+	run(t, records, "git commit -qam 'the parser page names its file'")
+	mustPM(t, root, "check")
+
+	mustPM(t, one.Code, "finding", "add", "--sprint", "demo.1", "One follows.")
+	edit(t, filepath.Join(one.Dir, "design/parser.md"), "covers: [src/parser.go]", "covers: [src/grammar.go]")
+	edit(t, filepath.Join(one.Dir, "design/parser.md"), "\nP1\n", "\nP1, the grammar\n")
+	mustPM(t, one.Code, "commit", "-m", "the grammar replaces the parser", "records/design/parser.md")
+	run(t, root, "git rm -q src/parser.go", "git commit -qm 'the parser goes'", "git push -q origin main")
+	out := mustPM(t, root, "check")
+	if !strings.Contains(out, "1 covers patterns of published pages match no file on origin/main, waiting on the close "+
+		"of the sprint whose draft changes the page's covers:\n  design/parser.md: covers pattern \"src/parser.go\" "+
+		"(sprint demo.1)") {
+		t.Errorf("pm check with a pending draft: %q", out)
+	}
+
+	// with the draft keeping the page's covers, the same pattern fails
+	edit(t, filepath.Join(one.Dir, "design/parser.md"), "covers: [src/grammar.go]", "covers: [src/parser.go]")
+	mustPM(t, one.Code, "commit", "-m", "back to the parser", "records/design/parser.md")
+	if got := draftPages(t, records, one); got["design/parser.md"] != "demo.1" {
+		t.Fatalf("one's draft: %v; want the page still drafted", got)
+	}
+	if _, errs, code := runPM(t, root, "check"); code != 1 || !strings.Contains(errs, "covers patterns of published "+
+		`design pages match no file on origin/main: design/parser.md: covers pattern "src/parser.go"`) {
+		t.Errorf("pm check with no pending draft: exit %d %q", code, errs)
+	}
+}

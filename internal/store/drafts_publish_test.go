@@ -113,3 +113,62 @@ func TestFollowCarriesADraftPagesSprintAcrossARenameOnRecords(t *testing.T) {
 		t.Errorf("uncommitted after the follow: %v", dirty)
 	}
 }
+
+// A removed worktree's branch whose draft commit holds only published pages (named by a close's Published: line, or
+// untagged by its drop) is no draft: a new worktree of that name takes it. One with an unpublished page is refused.
+func TestARemovedWorktreesNameIsReusedOnceItsDraftIsPublished(t *testing.T) {
+	root, store := clone(t)
+	publish(t, store, "design/p.md", lines)
+	publish(t, store, "design/q.md", lines)
+	reuse := func(w Workspace) error {
+		t.Helper()
+		sh(t, root, "git worktree remove --force --force "+w.Code, "git worktree add -q "+w.Code+" "+w.Name)
+		_, err := AddWorkspace(store, w.Code)
+		return err
+	}
+	closeOf := func(sprint string, drop bool) {
+		t.Helper()
+		p, err := PlanPublish(store, sprint, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var writes []Write
+		for path, text := range p.Pages {
+			writes = append(writes, Write{Path: filepath.Join(store, path), Text: *text})
+		}
+		if err := Apply(store, writes, "close\n\n"+p.Trailer(sprint), "", ""); err != nil {
+			t.Fatal(err)
+		}
+		if drop {
+			if err := p.Drop(store); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	reused := func(w Workspace) {
+		t.Helper()
+		if pages, _, err := DraftPages(store, w); err != nil || len(pages) != 0 {
+			t.Errorf("%s after the reuse: %v, %v; want no draft", w.Branch(), pages, err)
+		}
+		clean(t, store, w)
+	}
+
+	one := workspace(t, root, store, "one")
+	draft(t, store, one, "design/p.md", "a\n", "A one\n", "pm-1")
+	if err := reuse(one); err == nil || !strings.Contains(err.Error(), "with pages not published (design/p.md)") {
+		t.Fatalf("AddWorkspace over an unpublished draft: %v; want it refused", err)
+	}
+	closeOf("pm-1", false) // a close stopped after its records commit: p still tagged, named by its Published: line
+	if err := reuse(one); err != nil {
+		t.Fatalf("AddWorkspace over a published draft: %v", err)
+	}
+	reused(one)
+
+	two := workspace(t, root, store, "two")
+	draft(t, store, two, "design/q.md", "a\n", "A two\n", "pm-2")
+	closeOf("pm-2", true) // the drop untags q in the live workspace; the worktree goes before it follows
+	if err := reuse(two); err != nil {
+		t.Fatalf("AddWorkspace over an untagged draft: %v", err)
+	}
+	reused(two)
+}

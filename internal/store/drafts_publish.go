@@ -95,13 +95,18 @@ func Orphans(store string) ([]string, error) {
 		if w.Dir != "" {
 			continue
 		}
-		said := "its worktree is gone and it holds no draft; the next pm sprint close deletes it"
-		pages, tags, err := DraftPages(store, w)
+		said := "its worktree is gone and it holds no unpublished draft; the next pm sprint close deletes it"
+		d, err := readDraft(store, w)
+		var pages []string
+		if err == nil {
+			pages, err = d.pending(store)
+		}
+		tags := d.tags
 		if err != nil {
 			said = "unreadable: " + err.Error()
 		} else if len(pages) > 0 {
 			var sprints []string
-			for p := range pages {
+			for _, p := range pages {
 				if !slices.Contains(sprints, tags[p]) {
 					sprints = append(sprints, tags[p])
 				}
@@ -238,10 +243,19 @@ func sprintPages(store string, w Workspace, d draftState, sprint string, discard
 			take = append(take, page)
 		}
 	}
-	if w.Dir == "" {
+	if w.Dir == "" { // with no worktree to follow, the drop takes every published page out: untagged or named so
 		closed, err := d.closed(store)
 		if err != nil {
 			return drop{}, nil, err
+		}
+		pending, err := d.pending(store)
+		if err != nil {
+			return drop{}, nil, err
+		}
+		for page, s := range d.tags {
+			if s != sprint && !slices.Contains(pending, page) {
+				closed = append(closed, page)
+			}
 		}
 		x.pages = append(x.pages, closed...)
 	}
@@ -257,6 +271,23 @@ func publishedSince(store, base, page, sprint string) (bool, error) {
 		return false, err
 	}
 	return slices.Contains(strings.Split(log, "\n"), publishedTag+page+" "+sprint), nil
+}
+
+// pending is the draft commit's pages not yet published, sorted: each tagged page that no close of its sprint
+// published since the draft's base.
+func (d draftState) pending(store string) ([]string, error) {
+	var out []string
+	for page, sprint := range d.tags {
+		done, err := publishedSince(store, d.base, page, sprint)
+		if err != nil {
+			return nil, err
+		}
+		if !done {
+			out = append(out, page)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 // overlap is why the draft on w cannot publish path, and the way out: the records commits that changed it since the

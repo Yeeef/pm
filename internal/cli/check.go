@@ -64,9 +64,10 @@ func cmdCheck(here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := design.Hold(recs, drafts, root, cfg.Remote, cfg.MainBranch); err != nil {
+	waiting, err := design.Hold(recs, drafts, recordsDir, root, cfg.Remote, cfg.MainBranch)
+	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "checked the records in %s: all %d pages render%s\n", recordsDir, n, report)
+	_, err = fmt.Fprintf(stdout, "checked the records in %s: all %d pages render%s%s\n", recordsDir, n, report, waiting)
 	return err
 }
