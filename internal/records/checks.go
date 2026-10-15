@@ -241,14 +241,32 @@ func ReadSummaries(root string) (map[string]*Summary, error) {
 	return out, nil
 }
 
+// ParseSummaries is the day summaries of texts (each file's path to its text, as store.Tree gives them), by date.
+func ParseSummaries(texts map[string]string) (map[string]*Summary, error) {
+	out := map[string]*Summary{}
+	for p, text := range texts {
+		s, err := ParseSummary(p, []byte(text))
+		if err != nil {
+			return nil, err
+		}
+		out[s.Date] = s
+	}
+	return out, nil
+}
+
 // ReadSummary is one day summary; an error naming the file when it is not one, since every page reads them.
 func ReadSummary(path string) (*Summary, error) {
-	base := filepath.Base(path)
-	name := "days/" + base
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	return ParseSummary(path, b)
+}
+
+// ParseSummary is the day summary b, read from path; an error naming the file when it is not one.
+func ParseSummary(path string, b []byte) (*Summary, error) {
+	base := filepath.Base(path)
+	name := "days/" + base
 	var v any
 	if err := json.Unmarshal(b, &v); err != nil {
 		return nil, errorf("%s: not valid JSON (%v); fix it or delete it and run pm day summarize", name, err)

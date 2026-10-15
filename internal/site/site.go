@@ -2,9 +2,10 @@
 // renders. Page assembly uses html/template, and fragments are escaped with the standard library's html.EscapeString;
 // golden_test.go holds every page of testdata/constructs to its frozen copy.
 //
-// serve.go holds what only the service's pages have: the reply forms and the status line. The pages load Mermaid at one
-// exact version, MermaidVersion. A page change shows in the golden pages (testdata/constructs/pages); a construct the
-// fixture lacks gets a record or item in testdata/constructs.
+// serve.go holds what only the service's pages have: the reply forms and the status line. versions.go serves each
+// draft beside the published records as a version, with the version bar and the URLs under DraftsDir; diff.go is a
+// version's diff by section. The pages load Mermaid at one exact version, MermaidVersion. A page change shows in the
+// golden pages (testdata/constructs/pages); a construct the fixture lacks gets a record or item in testdata/constructs.
 package site
 
 import (

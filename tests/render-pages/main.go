@@ -1,5 +1,5 @@
-// Command render-pages prints every page of the site, as the pm service renders it from the records and the work
-// store, as one JSON object by path: what the harness's tests of the pages' HTML read (Repo.pages in
+// Command render-pages prints every published page of the site, as the pm service renders it from the records on the
+// records branch and the work store, as one JSON object by path: what the harness's tests of the pages' HTML read (Repo.pages in
 // tests/conftest.py), since pm writes no site to disk. Run it in a checkout whose clone's pm service is up; make
 // go-build builds it with pm's version, which the service's handshake requires.
 package main
@@ -46,15 +46,19 @@ func run() error {
 	if err := errors.Join(err, ws.Shutdown()); err != nil {
 		return err
 	}
-	recs, err := records.Read(dir, nil)
+	texts, sums, err := store.Published(dir)
 	if err != nil {
 		return err
 	}
-	summaries, err := records.ReadSummaries(dir)
+	recs, err := records.ParseAll(dir, texts)
 	if err != nil {
 		return err
 	}
-	dates, err := store.DesignDates(dir, recs, store.Today())
+	summaries, err := records.ParseSummaries(sums)
+	if err != nil {
+		return err
+	}
+	dates, err := store.DesignDates(dir, recs)
 	if err != nil {
 		return err
 	}

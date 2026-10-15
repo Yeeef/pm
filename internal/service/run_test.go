@@ -351,6 +351,26 @@ func TestServesPagesStyleAndVersionWithTheStoreAndVersionHeaders(t *testing.T) {
 	}
 }
 
+// A version's page links the stylesheet relative to itself, under /drafts/<draft>/; a diff against another draft
+// (?vs=) is its own page, which /version digests as the page itself.
+func TestServesAVersionsStyleAndADiffAgainstAnotherDraft(t *testing.T) {
+	s := serve(t, newFakeWork(), "")
+	if resp, body := s.get("/drafts/store/style.css"); body != "body{}" || resp.StatusCode != 200 {
+		t.Fatalf("a version's link to the style: %d %s", resp.StatusCode, body)
+	}
+	resp, text := s.get("/drafts/a/x.diff.html?vs=b&y=1")
+	if resp.StatusCode != 200 || !strings.HasPrefix(text, "<h1>drafts/a/x.diff.html against b</h1>") {
+		t.Fatalf("a diff against another draft: %d %s", resp.StatusCode, text)
+	}
+	_, version := s.get("/version?page=" + url.QueryEscape("/drafts/a/x.diff.html?vs=b&y=1"))
+	var v struct {
+		Page string `json:"page"`
+	}
+	if err := json.Unmarshal([]byte(version), &v); err != nil || "[status "+v.Page+"]" != regexp.MustCompile(`\[status \w+\]`).FindString(text) {
+		t.Fatalf("version %s against the diff %s (%v)", version, text, err)
+	}
+}
+
 // raw sends path as the request line holds it, so no client cleans a .. out first; it returns the status and the
 // Content-Type.
 func (s *served) raw(path string) (int, string) {
@@ -395,20 +415,40 @@ func TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
+		cmd.Dir = recs
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "records")
+	git("add", "-A")
+	git("commit", "-qm", "records") // the published figures; a version's page reads the working tree's
+	edited := `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>`
+	if err := os.WriteFile(filepath.Join(recs, "docs/x.svg"), []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := s.get("/drafts/store/docs/x.svg"); body != edited {
+		t.Fatalf("a version's figure is not the working tree's: %q", body)
+	}
 	resp, body := s.get("/docs/x.svg")
 	if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "image/svg+xml" || body != svg ||
 		resp.Header.Get("X-Content-Type-Options") != "nosniff" || !strings.Contains(resp.Header.Get("Content-Security-Policy"), "sandbox") {
 		t.Fatalf("GET /docs/x.svg: %d %v %q", resp.StatusCode, resp.Header, body)
 	}
 	for path, want := range map[string]string{"/docs/fig.png": "image/png", "/docs/a.jpg": "image/jpeg",
-		"/docs/b.webp": "image/webp", "/docs/in.svg": "image/svg+xml"} {
+		"/docs/b.webp": "image/webp", "/docs/in.svg": "image/svg+xml", "/drafts/store/docs/fig.png": "image/png"} {
 		if code, ctype := s.raw(path); code != 200 || ctype != want {
 			t.Errorf("GET %s: %d %s, want 200 %s", path, code, ctype, want)
 		}
 	}
 	for _, path := range []string{"/docs/missing.svg", "/../secret.svg", "/docs/../../secret.svg",
 		"/docs/%2e%2e/%2e%2e/secret.svg", "/%2e%2e/secret.svg", "//" + strings.TrimPrefix(secret, "/"), "/docs/out.svg",
-		"/docs/abs.svg", "/.git/x.svg", "/docs/./x.svg", "/docs", "/docs/leak.svg", "/docs/git.svg"} {
+		"/docs/abs.svg", "/.git/x.svg", "/docs/./x.svg", "/docs", "/docs/leak.svg", "/docs/git.svg",
+		"/drafts/store/../secret.svg", "/drafts/store/%2e%2e/secret.svg", "/drafts/x.svg"} {
 		if code, _ := s.raw(path); code != 404 {
 			t.Errorf("GET %s: %d, want 404", path, code)
 		}
@@ -528,7 +568,7 @@ func TestAPartialReadIsRepeatedUnderTheLockAndServedThere(t *testing.T) {
 	}
 	s.site.mu.Lock()
 	start := s.site.loads
-	s.site.loadErr = &Partial{Pages: fakePages{}, Gone: []string{"sprints/x.md"}} // read without the need's page
+	s.site.loadErr = &Partial{Pages: fakePages{}} // read without the need's page
 	s.site.stamp = 1
 	s.site.mu.Unlock()
 	eventually(t, "the partial read served", func() bool {
