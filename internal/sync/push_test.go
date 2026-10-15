@@ -166,3 +166,64 @@ func TestPushRecordsPushesRebasesAndReports(t *testing.T) {
 }
 
 func noneClosed() (store.SprintClosed, error) { return func(string) bool { return false }, nil }
+
+// A store only behind is fast-forwarded only when it is safe: never with an autostash (the stash is every worktree's),
+// never over a tracked edit, an untracked or ignored file the remote adds, or a HEAD off the records branch.
+func TestAFastForwardRefusesWhatItWouldOverwriteOrStash(t *testing.T) {
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(k, "t")
+	}
+	tmp := t.TempDir()
+	origin, store, other := filepath.Join(tmp, "origin.git"), filepath.Join(tmp, "store"), filepath.Join(tmp, "other")
+	git(t, tmp, "init", "-q", "--bare", origin)
+	git(t, tmp, "clone", "-q", origin, store)
+	git(t, store, "checkout", "-q", "-b", Branch)
+	git(t, store, "config", "merge.autoStash", "true")
+	put(t, filepath.Join(store, "a.md"), "a\n")
+	put(t, filepath.Join(store, ".gitignore"), "ignored.md\n")
+	git(t, store, "add", "a.md", ".gitignore")
+	git(t, store, "commit", "-q", "-m", "a")
+	git(t, store, "push", "-q", "origin", "HEAD:"+Branch)
+	git(t, tmp, "clone", "-q", "-b", Branch, origin, other)
+	put(t, filepath.Join(other, "a.md"), "a from the other clone\n")
+	put(t, filepath.Join(other, "ignored.md"), "theirs\n")
+	git(t, other, "add", "-f", "a.md", "ignored.md")
+	git(t, other, "commit", "-q", "-m", "other")
+	git(t, other, "push", "-q", "origin", "HEAD:"+Branch)
+	stashes := func() string {
+		out, _ := exec.Command("git", "-C", store, "stash", "list").Output() //nolint:errcheck // none: empty
+		return string(out)
+	}
+
+	put(t, filepath.Join(store, "a.md"), "my edit\n") // a tracked edit the remote's commit changes
+	if ok, said := PushRecords(store, "origin", noneClosed); ok || !strings.Contains(said, "uncommitted changes") {
+		t.Errorf("over a tracked edit: %v %s", ok, said)
+	}
+	if get(t, filepath.Join(store, "a.md")) != "my edit\n" || stashes() != "" {
+		t.Errorf("the refused fast-forward moved the edit: %q, stash %q", get(t, filepath.Join(store, "a.md")), stashes())
+	}
+	git(t, store, "checkout", "--", "a.md")
+
+	put(t, filepath.Join(store, "ignored.md"), "mine\n") // ignored here, added by the remote
+	if ok, said := PushRecords(store, "origin", noneClosed); ok || !strings.Contains(said, "the remote adds ignored.md") {
+		t.Errorf("over an ignored file: %v %s", ok, said)
+	}
+	if get(t, filepath.Join(store, "ignored.md")) != "mine\n" {
+		t.Error("the refused fast-forward overwrote the ignored file")
+	}
+	if err := os.Remove(filepath.Join(store, "ignored.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	git(t, store, "checkout", "-q", "--detach")
+	if ok, said := PushRecords(store, "origin", noneClosed); ok || !strings.Contains(said, "is not on the records branch") {
+		t.Errorf("with HEAD detached: %v %s", ok, said)
+	}
+	git(t, store, "checkout", "-q", Branch)
+	if ok, said := PushRecords(store, "origin", noneClosed); !ok || said != "fast-forwarded 1 commit(s) from origin/records" {
+		t.Errorf("the fast-forward: %v %s", ok, said)
+	}
+	if stashes() != "" || get(t, filepath.Join(store, "a.md")) != "a from the other clone\n" {
+		t.Errorf("after the fast-forward: stash %q, a.md %q", stashes(), get(t, filepath.Join(store, "a.md")))
+	}
+}

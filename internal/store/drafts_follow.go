@@ -248,6 +248,15 @@ type Followed struct {
 // binary file is not merged: an uncommitted one stays as the workspace has it. It writes the files, then moves the
 // branch and the index; a failure puts back what it changed.
 func Follow(store string, w Workspace, sprints func() (SprintClosed, error)) (Followed, error) {
+	return following(store, w, sprints, true)
+}
+
+// errWouldStrand stops a follow that may not strand (FollowClean) before it changes anything.
+var errWouldStrand = errors.New("its draft holds a page of a closed sprint, which the next pm write there strands as " +
+	"an uncommitted edit")
+
+// following is Follow; with strand false it changes nothing and fails with errWouldStrand where it would strand a page.
+func following(store string, w Workspace, sprints func() (SprintClosed, error), strand bool) (Followed, error) {
 	tip, err := Git(store, "rev-parse", "refs/heads/"+Branch)
 	if err != nil {
 		return Followed{}, err
@@ -292,8 +301,11 @@ func Follow(store string, w Workspace, sprints func() (SprintClosed, error)) (Fo
 		if full, err = draftCommit(store, w, tree, tip, tags, marks); err != nil {
 			return Followed{}, err
 		}
-		if head, stranded, err = strand(store, w, tree, tip, tags, marks, closed); err != nil {
+		if head, stranded, err = strandPages(store, w, tree, tip, tags, marks, closed); err != nil {
 			return Followed{}, err
+		}
+		if len(stranded) > 0 && !strand {
+			return Followed{}, errWouldStrand
 		}
 	}
 	plan, err := followPlan(store, w, d, full, conflicted, &f) // the files as the draft holds them, stranded or not
@@ -304,6 +316,9 @@ func Follow(store string, w Workspace, sprints func() (SprintClosed, error)) (Fo
 		return Followed{}, err
 	}
 	f.Stranded = stranded
+	if err := w.keepStranded(store, full, stranded); err != nil {
+		return Followed{}, err
+	}
 	if err := w.noteStranded(stranded, nil); err != nil {
 		return Followed{}, err
 	}
@@ -336,9 +351,9 @@ func (d draftState) closedSprint(closed SprintClosed) bool {
 	return false
 }
 
-// strand is the draft commit of tree on tip less each page whose sprint closed, and less each conflict mark that names
+// strandPages is the draft commit of tree on tip less each page whose sprint closed, and less each conflict mark that names
 // one: the commit, and the stranded pages with their sprints. Their files keep the draft's text, uncommitted.
-func strand(store string, w Workspace, tree, tip string, tags, marks map[string]string, closed SprintClosed) (string,
+func strandPages(store string, w Workspace, tree, tip string, tags, marks map[string]string, closed SprintClosed) (string,
 	map[string]string, error) {
 	pages, err := changedPaths(store, tip, tree)
 	if err != nil {
@@ -768,8 +783,10 @@ func MarkerCommits(store, rel, text string) ([]string, error) {
 }
 
 // FollowClean follows each records workspace that has no uncommitted file, under the store lock the caller holds: the
-// records sync's follow after a fast-forward, which writes no file a session is editing. A line for each workspace it
-// followed that dropped or stranded pages, and for each it could not follow; a failure fails only its own line.
+// records sync's follow after a fast-forward, which writes no file a session is editing. It leaves a workspace whose
+// draft names a closed sprint to its own next pm write, as stranding turns a page into an uncommitted edit, which only
+// a session there sees (the Stop hook) before the worktree may be removed. A line for each workspace it left or could
+// not follow; a failure fails only its own line.
 func FollowClean(store string, closed SprintClosed) []string {
 	branches, err := DraftBranches(store)
 	if err != nil {
@@ -784,16 +801,11 @@ func FollowClean(store string, closed SprintClosed) []string {
 		if err == nil && len(dirty) > 0 {
 			continue
 		}
-		var f Followed
-		if err == nil {
-			f, err = Follow(store, w, func() (SprintClosed, error) { return closed, nil })
+		if err == nil { // stranding is the worktree's own follow's, at its next pm write
+			_, err = following(store, w, func() (SprintClosed, error) { return closed, nil }, false)
 		}
-		switch {
-		case err != nil:
+		if err != nil {
 			out = append(out, fmt.Sprintf("%s not followed: %v", w.Branch(), err))
-		case len(f.Stranded) > 0:
-			out = append(out, fmt.Sprintf("%s followed; stranded %s", w.Branch(),
-				strings.Join(slices.Sorted(maps.Keys(f.Stranded)), ", ")))
 		}
 	}
 	return out

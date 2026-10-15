@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -478,28 +479,101 @@ func (w Workspace) Stranded() (map[string]string, error) {
 // noteStranded adds the pages of add to the noted ones and forgets those of done, and any no longer uncommitted.
 func (w Workspace) noteStranded(add map[string]string, done []string) error {
 	m, err := w.Stranded()
-	if err != nil || (len(m) == 0 && len(add) == 0) {
+	if err != nil {
 		return err
-	}
-	maps.Copy(m, add)
-	for _, rel := range done {
-		delete(m, rel)
 	}
 	p, err := w.gitFile(strandedFile)
 	if err != nil {
 		return err
 	}
+	if _, err := os.Stat(p); errors.Is(err, fs.ErrNotExist) && len(add) == 0 {
+		return nil
+	}
+	maps.Copy(m, add)
+	for _, rel := range done {
+		delete(m, rel)
+	}
 	if len(m) == 0 {
 		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
-		return nil
+		// every stranded page was committed again or reverted: the kept draft is no longer needed
+		_, _, err := run(w.Dir, "update-ref", "-d", w.StrandedRef())
+		return err
 	}
 	var b strings.Builder
 	for _, rel := range slices.Sorted(maps.Keys(m)) {
 		b.WriteString(rel + "\t" + m[rel] + "\n")
 	}
 	return WriteAtomic(p, b.String())
+}
+
+// StrandedRef keeps the draft text of the pages a follow stranded, so removing the worktree, which deletes their
+// uncommitted files, loses nothing: pm deletes it only once each is committed again or reverted in the workspace.
+func (w Workspace) StrandedRef() string { return "refs/pm/workspaces/" + w.Name + "/stranded" }
+
+// keepStranded records the stranded pages' text, as the follow's merged draft commit full holds it, in StrandedRef: a
+// commit on the ref's last one, if any, with those pages laid over it and a line "Stranded: <path> <sprint>" each.
+func (w Workspace) keepStranded(store, full string, stranded map[string]string) error {
+	if len(stranded) == 0 {
+		return nil
+	}
+	pages := slices.Sorted(maps.Keys(stranded))
+	tree, parent, msg := full, full, "pm stranded: pages of "+w.Branch()+" whose sprint closed\n\n"
+	if old, err := Git(store, "rev-parse", "--verify", "--quiet", w.StrandedRef()); err == nil {
+		if tree, err = withFiles(store, old, full, pages); err != nil {
+			return err
+		}
+		parent = old
+		prev, err := Git(store, "log", "-1", "--format=%B", old)
+		if err != nil {
+			return err
+		}
+		for _, m := range strandedTag.FindAllStringSubmatch(prev, -1) {
+			if _, ok := stranded[m[1]]; !ok {
+				msg += m[0] + "\n"
+			}
+		}
+	}
+	for _, p := range pages {
+		msg += "Stranded: " + p + " " + stranded[p] + "\n"
+	}
+	head, err := gitIn(store, nil, msg, "commit-tree", tree+"^{tree}", "-p", parent, "-F", "-")
+	if err != nil {
+		return err
+	}
+	_, err = Git(store, "update-ref", w.StrandedRef(), head)
+	return err
+}
+
+var strandedTag = regexp.MustCompile(`(?m)^Stranded: (\S+) (\S+)$`)
+
+// StrandedRefs is pm where's and pm doctor's line for each kept stranded draft (StrandedRef): its pages and sprints,
+// and how to recover them.
+func StrandedRefs(store string) []string {
+	list, err := Git(store, "for-each-ref", "--format=%(refname)", "refs/pm/workspaces/")
+	if err != nil {
+		return []string{"stranded  unreadable: " + err.Error()}
+	}
+	var out []string
+	for _, ref := range strings.Split(list, "\n") {
+		if !strings.HasSuffix(ref, "/stranded") {
+			continue
+		}
+		msg, err := Git(store, "log", "-1", "--format=%B", ref)
+		if err != nil {
+			out = append(out, "stranded  "+ref+"  unreadable: "+err.Error())
+			continue
+		}
+		var pages []string
+		for _, m := range strandedTag.FindAllStringSubmatch(msg, -1) {
+			pages = append(pages, fmt.Sprintf("records/%s (sprint %s, closed)", m[1], m[2]))
+		}
+		out = append(out, fmt.Sprintf("stranded  %s  keeps %s: take each with git -C %s show %s:<path> into a "+
+			"workspace of yours and pm commit it under an open sprint; then git -C %s update-ref -d %s", ref,
+			strings.Join(pages, ", "), store, ref, store, ref))
+	}
+	return out
 }
 
 // StrandedLine is what to do about a stranded page, as pm where, the site and the Stop hook say it.

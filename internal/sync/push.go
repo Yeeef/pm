@@ -180,74 +180,157 @@ func flock(path string, flags int) (func(), error) {
 	return func() { syscall.Close(fd) }, nil
 }
 
-// PushRecords pushes the store when it is ahead of <remote>/records, rebasing onto it first when the remote moved; a
-// store only behind is fast-forwarded (FastForward). The rebase holds the store lock every pm write takes; a rebase
-// that stops is aborted, and an abort that fails or leaves HEAD off the records branch is reported as needing repair by
-// hand. closed reads which sprints are closed, for the follow after a fast-forward.
+// PushRecords brings the store and <remote>/records together, after a fetch: under the store lock, which every pm
+// write takes, it reads how far each is ahead and checks HEAD is on the records branch, then fast-forwards a store only
+// behind (fastForward) or rebases one ahead and behind onto the remote; then it pushes a store ahead, outside the lock.
+// A rebase that stops is aborted, and an abort that fails or leaves HEAD off the records branch is reported as needing
+// repair by hand. closed reads which sprints are closed, for the follow after a fast-forward.
 func PushRecords(store, remote string, closed func() (pmstore.SprintClosed, error)) (bool, string) {
 	if ok, said := Run(store, "git", "fetch", "--quiet", remote, Branch); !ok {
 		return false, said
 	}
-	ok, counts := Run(store, "git", "rev-list", "--left-right", "--count", "HEAD..."+remote+"/"+Branch)
-	if !ok {
-		return false, counts
-	}
-	f := strings.Fields(counts)
-	if len(f) != 2 {
-		return false, "git rev-list printed " + counts
-	}
-	ahead, aerr := strconv.Atoi(f[0])
-	behind, berr := strconv.Atoi(f[1])
-	if aerr != nil || berr != nil {
-		return false, "git rev-list printed " + counts
+	ahead, behind, said := counts(store, remote)
+	if said != "" {
+		return false, said
 	}
 	if ahead == 0 && behind == 0 {
 		return true, "up to date with " + remote + "/" + Branch
 	}
-	if ahead == 0 {
-		return FastForward(store, remote, behind, closed)
-	}
-	if behind > 0 {
-		unlock, err := flock(store, syscall.O_RDONLY)
-		if err != nil {
-			return false, fmt.Sprintf("could not lock %s: %v", store, err)
+	var isClosed pmstore.SprintClosed
+	if behind > 0 && ahead == 0 {
+		var err error
+		if isClosed, err = closed(); err != nil { // before the store lock: the work store is never read under it
+			return false, "reading the work store's sprints failed: " + err.Error()
 		}
-		ok, said := func() (bool, string) {
-			defer unlock()
-			if clean, _ := Run(store, "git", "diff", "--quiet", "HEAD"); !clean {
-				return false, remote + "/" + Branch + " moved and the store has uncommitted changes to tracked records; " +
-					"not rebased, retried on the next run"
-			}
-			ok, said := Run(store, "git", "rebase", "--quiet", remote+"/"+Branch)
-			if ok {
-				return true, ""
-			}
-			aborted, why := Run(store, "git", "rebase", "--abort")
-			on, branch := Run(store, "git", "symbolic-ref", "--short", "HEAD")
-			if !aborted || !on || branch != Branch {
-				if why == "" {
-					why = "ok"
-				}
-				if !on || branch == "" {
-					branch = "detached"
-				}
-				return false, fmt.Sprintf("rebase onto %s/%s stopped and its abort did not restore the store, which "+
-					"needs manual repair: git -C %s status, then git -C %s rebase --abort or git -C %s switch %s "+
-					"(abort: %s; HEAD: %s); the rebase: %s", remote, Branch, store, store, store, Branch, why, branch, said)
-			}
-			return false, fmt.Sprintf("rebase onto %s/%s stopped, aborted and the store left as it was: %s", remote,
-				Branch, said)
-		}()
-		if !ok {
+	}
+	unlock, err := flock(store, syscall.O_RDONLY)
+	if err != nil {
+		return false, fmt.Sprintf("could not lock %s: %v", store, err)
+	}
+	ok, said := func() (bool, string) {
+		defer unlock()
+		if on, branch := Run(store, "git", "symbolic-ref", "--short", "HEAD"); !on || branch != Branch {
+			return false, fmt.Sprintf("the store %s is not on the %s branch (HEAD: %s); not synced: git -C %s switch %s",
+				store, Branch, branch, store, Branch)
+		}
+		if ahead, behind, said = counts(store, remote); said != "" { // again, under the lock: a write may have moved it
 			return false, said
 		}
+		switch {
+		case behind == 0:
+			return true, ""
+		case ahead == 0 && isClosed == nil: // a write made it only behind since the first read: next run
+			return true, fmt.Sprintf("%d behind %s/%s, fast-forwarded on the next run", behind, remote, Branch)
+		case ahead == 0:
+			return fastForward(store, remote, behind, isClosed)
+		}
+		return rebase(store, remote)
+	}()
+	if !ok || ahead == 0 {
+		return ok, said
 	}
 	if ok, said := Run(store, "git", "push", "--quiet", remote, "HEAD:"+Branch); !ok {
 		return false, said
 	}
-	said := fmt.Sprintf("pushed %d commit(s)", ahead)
+	pushed := fmt.Sprintf("pushed %d commit(s)", ahead)
 	if behind > 0 {
-		said += fmt.Sprintf(" after rebasing onto %d new on %s/%s", behind, remote, Branch)
+		pushed += fmt.Sprintf(" after rebasing onto %d new on %s/%s", behind, remote, Branch)
+	}
+	return true, pushed
+}
+
+// counts is how many commits the store's HEAD is ahead of and behind <remote>/records, or why it cannot say.
+func counts(store, remote string) (ahead, behind int, why string) {
+	ok, out := Run(store, "git", "rev-list", "--left-right", "--count", "HEAD..."+remote+"/"+Branch)
+	if !ok {
+		return 0, 0, out
+	}
+	f := strings.Fields(out)
+	if len(f) != 2 {
+		return 0, 0, "git rev-list printed " + out
+	}
+	ahead, aerr := strconv.Atoi(f[0])
+	behind, berr := strconv.Atoi(f[1])
+	if aerr != nil || berr != nil {
+		return 0, 0, "git rev-list printed " + out
+	}
+	return ahead, behind, ""
+}
+
+// rebase rebases the store, ahead and behind, onto <remote>/records, under the store lock the caller holds; skipped
+// while tracked records have uncommitted edits.
+func rebase(store, remote string) (bool, string) {
+	if clean, _ := Run(store, "git", "diff", "--quiet", "HEAD"); !clean {
+		return false, remote + "/" + Branch + " moved and the store has uncommitted changes to tracked records; " +
+			"not rebased, retried on the next run"
+	}
+	ok, said := Run(store, "git", "rebase", "--quiet", remote+"/"+Branch)
+	if ok {
+		return true, ""
+	}
+	aborted, why := Run(store, "git", "rebase", "--abort")
+	on, branch := Run(store, "git", "symbolic-ref", "--short", "HEAD")
+	if !aborted || !on || branch != Branch {
+		if why == "" {
+			why = "ok"
+		}
+		if !on || branch == "" {
+			branch = "detached"
+		}
+		return false, fmt.Sprintf("rebase onto %s/%s stopped and its abort did not restore the store, which "+
+			"needs manual repair: git -C %s status, then git -C %s rebase --abort or git -C %s switch %s "+
+			"(abort: %s; HEAD: %s); the rebase: %s", remote, Branch, store, store, store, Branch, why, branch, said)
+	}
+	return false, fmt.Sprintf("rebase onto %s/%s stopped, aborted and the store left as it was: %s", remote,
+		Branch, said)
+}
+
+// DialClosed reads which sprints are closed through a connection to the clone's pm service, as pm push does.
+func DialClosed(main string) func() (pmstore.SprintClosed, error) {
+	return func() (pmstore.SprintClosed, error) {
+		d, err := work.Dial(main)
+		if err != nil {
+			return nil, err
+		}
+		items, err := d.Items()
+		return pmstore.ClosedSprints(items), errors.Join(err, d.Shutdown())
+	}
+}
+
+// fastForward brings a store only behind <remote>/records up to it, under the store lock the caller holds: git merge
+// --ff-only, never a merge commit and never an autostash (merge.autoStash would stash into the stash every worktree of
+// the clone shares). It refuses, flagged and retried on the next run, while tracked records have uncommitted edits, as
+// the rebase does, and while a path the remote changes exists on disk untracked or ignored, which the fast-forward
+// would overwrite. Then each records workspace with no uncommitted file follows (store.FollowClean), so a draft drops
+// the pages another clone's close published.
+func fastForward(store, remote string, behind int, closed pmstore.SprintClosed) (bool, string) {
+	refused := fmt.Sprintf("%d behind %s/%s and not fast-forwarded, so nothing was overwritten", behind, remote, Branch)
+	if clean, _ := Run(store, "git", "diff", "--quiet", "HEAD"); !clean {
+		return false, refused + ": the store has uncommitted changes to tracked records; commit or revert them, and " +
+			"the next run fast-forwards"
+	}
+	ok, changed := Run(store, "git", "diff", "--name-only", "HEAD", remote+"/"+Branch)
+	if !ok {
+		return false, changed
+	}
+	var onDisk []string
+	for _, p := range strings.Fields(changed) {
+		_, err := os.Lstat(filepath.Join(store, filepath.FromSlash(p)))
+		if tracked, _ := Run(store, "git", "cat-file", "-e", "HEAD:"+p); err == nil && !tracked {
+			onDisk = append(onDisk, p)
+		}
+	}
+	if onDisk != nil {
+		return false, refused + ": the remote adds " + strings.Join(onDisk, ", ") + ", which the store holds untracked " +
+			"or ignored; move them away, and the next run fast-forwards"
+	}
+	if ok, said := Run(store, "git", "-c", "merge.autoStash=false", "merge", "--ff-only", "--no-autostash", "--quiet",
+		remote+"/"+Branch); !ok {
+		return false, refused + ": " + said
+	}
+	said := fmt.Sprintf("fast-forwarded %d commit(s) from %s/%s", behind, remote, Branch)
+	if lines := pmstore.FollowClean(store, closed); len(lines) > 0 {
+		said += "; " + strings.Join(lines, "; ")
 	}
 	return true, said
 }
@@ -270,44 +353,6 @@ func PushDrafts(records, remote string) (bool, string) {
 		return false, said
 	}
 	return true, said + "; fetched the other clones'"
-}
-
-// DialClosed reads which sprints are closed through a connection to the clone's pm service, as pm push does.
-func DialClosed(main string) func() (pmstore.SprintClosed, error) {
-	return func() (pmstore.SprintClosed, error) {
-		d, err := work.Dial(main)
-		if err != nil {
-			return nil, err
-		}
-		items, err := d.Items()
-		return pmstore.ClosedSprints(items), errors.Join(err, d.Shutdown())
-	}
-}
-
-// FastForward brings a store only behind <remote>/records up to it, under the store lock: git merge --ff-only, never a
-// merge commit; git refuses, and so does the step, flagged and retried on the next run, while an uncommitted edit in
-// the store would be overwritten. Then each records workspace with no uncommitted file follows (store.FollowClean),
-// so a draft drops the pages another clone's close published.
-func FastForward(store, remote string, behind int, closed func() (pmstore.SprintClosed, error)) (bool, string) {
-	isClosed, err := closed() // before the store lock: the work store is never read under it
-	if err != nil {
-		return false, "reading the work store's sprints failed: " + err.Error()
-	}
-	unlock, err := flock(store, syscall.O_RDONLY)
-	if err != nil {
-		return false, fmt.Sprintf("could not lock %s: %v", store, err)
-	}
-	defer unlock()
-	if ok, said := Run(store, "git", "merge", "--ff-only", "--quiet", remote+"/"+Branch); !ok {
-		return false, fmt.Sprintf("%d behind %s/%s and not fast-forwarded, as git refused, so nothing was forced: %s; "+
-			"commit or revert the store's uncommitted edits it names, and the next run fast-forwards", behind, remote,
-			Branch, said)
-	}
-	said := fmt.Sprintf("fast-forwarded %d commit(s) from %s/%s", behind, remote, Branch)
-	if lines := pmstore.FollowClean(store, isClosed); len(lines) > 0 {
-		said += "; " + strings.Join(lines, "; ")
-	}
-	return true, said
 }
 
 // Push is one run, under a lock no second run waits for: each step in order, its outcome recorded; a failed step does

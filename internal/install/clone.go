@@ -514,6 +514,11 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 		out = append(out, "store: "+err.Error())
 	}
 	out = append(out, doctorRecords(top, main, records)...)
+	if isDir(records) {
+		for _, l := range store.StrandedRefs(records) { // a stranded draft kept off its worktree, with its recovery
+			out = append(out, "records: "+strings.TrimSpace(strings.TrimPrefix(l, "stranded ")))
+		}
+	}
 	if id, err := store.CloneID(main); err != nil {
 		out = append(out, "clone id: "+err.Error())
 	} else if id == "" {

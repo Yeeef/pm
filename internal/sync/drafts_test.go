@@ -161,8 +161,20 @@ func TestADraftCommittedAfterItsPushIsStrandedWhenItsSprintClosesElsewhere(t *te
 	syncOnce(t, sb, "pm-1")
 
 	rec, drafts := syncOnce(t, sa, "pm-1")
-	if !strings.Contains(rec, "drafts/wa followed; stranded design/p.md") || !strings.Contains(drafts, "deleted 1") {
+	if !strings.Contains(rec, "drafts/wa not followed: its draft holds a page of a closed sprint") ||
+		!strings.Contains(drafts, "deleted 1") {
 		t.Errorf("A's sync said %q, %q", rec, drafts)
+	}
+	if pages, _, err := store.DraftPages(sa, w); err != nil || len(pages) != 1 {
+		t.Errorf("the service's follow stranded A's draft: %v (%v)", pages, err)
+	}
+
+	// the next pm write in the worktree follows, and strands the page
+	f, err := store.Follow(sa, w, func() (store.SprintClosed, error) {
+		return func(id string) bool { return id == "pm-1" }, nil
+	})
+	if err != nil || f.Stranded["design/p.md"] != "pm-1" {
+		t.Fatalf("the worktree's follow: %v, %v", f.Stranded, err)
 	}
 	text := get(t, filepath.Join(w.Dir, "design/p.md"))
 	if !strings.Contains(text, "A after the push\n") || !strings.Contains(text, "C in A\n") {
@@ -183,11 +195,45 @@ func TestADraftCommittedAfterItsPushIsStrandedWhenItsSprintClosesElsewhere(t *te
 		"stranded: sprint pm-1 closed without it") {
 		t.Errorf("the site's draft of wa: %+v", d)
 	}
+	if kept := sh(t, sa, "git show "+w.StrandedRef()+":design/p.md"); !strings.Contains(kept, "A after the push") {
+		t.Errorf("the stranded ref keeps %q", kept)
+	}
 	if _, err := store.CommitDraft(sa, w, map[string]string{"design/p.md": "pm-2"}); err != nil {
 		t.Fatal(err)
 	}
 	if stranded, err := w.Stranded(); err != nil || len(stranded) != 0 {
 		t.Errorf("committed under pm-2, the page is still noted stranded: %v, %v", stranded, err)
+	}
+	if got := sh(t, sa, "git for-each-ref "+w.StrandedRef()); got != "" {
+		t.Errorf("committed again, the stranded ref stays: %s", got)
+	}
+}
+
+// Removing a worktree with a stranded page, as Claude Code does at session end, loses nothing: pm where lists the kept
+// draft and how to take it back.
+func TestAStrandedPageSurvivesItsWorktreesRemoval(t *testing.T) {
+	a, sa, sb := clones(t)
+	draftIn(t, a, sa, "c\n", "C in A\n")
+	syncOnce(t, sa)
+	syncOnce(t, sb)
+	w := draftIn(t, a, sa, "a\n", "A after the push\n")
+	closeFromB(t, sb)
+	syncOnce(t, sb, "pm-1")
+	syncOnce(t, sa, "pm-1")
+	if _, err := store.Follow(sa, w, func() (store.SprintClosed, error) {
+		return func(id string) bool { return id == "pm-1" }, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sh(t, a, "git worktree remove "+w.Code)
+	lines := store.Orphans(sa)
+	want := "stranded  " + w.StrandedRef() + "  keeps records/design/p.md (sprint pm-1, closed): take each with git -C " +
+		sa + " show " + w.StrandedRef() + ":<path>"
+	if len(lines) == 0 || !strings.HasPrefix(lines[len(lines)-1], want) {
+		t.Errorf("pm where's lines %q; want one starting %q", lines, want)
+	}
+	if kept := sh(t, sa, "git show "+w.StrandedRef()+":design/p.md"); !strings.Contains(kept, "A after the push") {
+		t.Errorf("after the removal the ref keeps %q", kept)
 	}
 }
 

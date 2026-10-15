@@ -149,7 +149,7 @@ func Drafted(store string) (map[string]map[string]bool, []string, error) {
 }
 
 // Orphans is pm where's line for each drafts/ branch whose worktree is gone, what it still holds, or why they cannot
-// be listed; none before setup, with no store.
+// be listed, then each kept stranded draft (StrandedRefs); none before setup, with no store.
 func Orphans(store string) []string {
 	if st, err := os.Stat(store); err != nil || !st.IsDir() {
 		return nil
@@ -165,7 +165,7 @@ func Orphans(store string) []string {
 		}
 		out = append(out, fmt.Sprintf("drafts    %s  %s", w.Branch(), orphaned(store, w)))
 	}
-	return out
+	return append(out, StrandedRefs(store)...)
 }
 
 // orphaned is what a branch whose worktree is gone still holds: unpublished pages, and edits lost in conflict.
