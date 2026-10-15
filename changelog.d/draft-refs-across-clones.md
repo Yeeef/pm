@@ -19,3 +19,10 @@ publishes it.
 
 - `pm sprint close` refuses when it cannot fetch the other clones' drafts from the remote, and in a clone with a
   remote but no id (run `pm init`).
+- The records step of the pm service's sync and `pm push` fast-forwards a records store that is only behind the
+  remote's, where it used to leave it behind: never with a merge commit, and refused, flagged as a failed push, while
+  an uncommitted edit in the store would be overwritten. Each records workspace with no uncommitted file then
+  follows, so a draft drops the pages another clone's close published.
+- A draft page whose sprint has closed with other text published (an edit committed after the clone last pushed)
+  leaves the draft commit at the next follow and stays in the workspace as an uncommitted edit; `pm where`, the
+  site's version bar and the Stop hook name it as stranded and say to commit it under an open sprint, or revert it.
