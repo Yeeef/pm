@@ -69,7 +69,7 @@ None yet.
 ### Outcome
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-partial: PR #98 moves pm-go.yml's macOS jobs to a daily schedule (06:41 UTC) and manual dispatch; the first macOS run waits on the merge.
+done: pm-go.yml's macOS jobs now run once a day on main (06:41 UTC) and on manual dispatch, not on every PR and push (PR #98, merged as ced67c4).
 
 - Linux jobs run on every PR and push to main, as before; the daily run skips Linux.
 - The PR-only macOS test subset is removed: go-os-tests.txt, go_os_tests.py and make go-os-check.
@@ -79,4 +79,4 @@ partial: PR #98 moves pm-go.yml's macOS jobs to a daily schedule (06:41 UTC) and
 > Each item, met or not, with its evidence (a page, a command, a number).
 
 - A PR's CI shows no macOS job and is green, and `make merge-ready` accepts it: met in effect. On PR #98 (head cf6c9e2) every Linux job passed. The macOS job does not run; it shows as one skipped check whose name is not expanded. `make merge-ready PR=98` printed "PR #98 is ready".
-- The macOS jobs run on main and pass: not met yet. This needs `gh workflow run pm-go.yml --ref main` after the merge.
+- The macOS jobs run on main and pass: met. Run 38813318122 (`gh workflow run pm-go.yml --ref main`, on 899bd3c): build-test (darwin-arm64) and race (darwin-arm64) both passed; the Linux job was skipped.
