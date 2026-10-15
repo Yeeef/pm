@@ -25,6 +25,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 var(--body)}
 .wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:24px 80px}
 .topbar{font:500 .75rem var(--mono);letter-spacing:.04em;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
 .topbar a{color:var(--accent);text-decoration:none}
+.topbar .docs{margin-left:auto}
 .eyebrow{font:500 .72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
 h1{font:600 2.1rem/1.15 var(--display);margin:.2rem 0 .6rem;text-wrap:balance}
 h2{font:600 1.35rem/1.25 var(--display);margin:2.6rem 0 .8rem;text-wrap:balance;scroll-margin-top:16px}
@@ -40,6 +41,10 @@ code{font:.86em var(--mono);background:var(--code-bg);padding:.1em .35em;border-
 pre{font:12.5px/1.55 var(--mono);background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:.6rem 0}
 pre code{background:none;padding:0}
 pre.mermaid{background:var(--panel);text-align:center}
+/* TeX math, typeset by KaTeX in the browser; a wide display formula scrolls sideways */
+div.math{overflow-x:auto;overflow-y:hidden;margin:.6rem 0}
+/* an inline SVG diagram that sets no width of its own fills the column, up to a size its text stays readable at */
+:not(pre)>svg[viewBox]:not([width]){display:block;width:100%;max-width:960px;height:auto;margin:.6rem 0}
 img{max-width:100%;height:auto;background:#fff;border-radius:4px}
 figure{margin:1.2rem 0;max-width:100%}
 figcaption{font-size:.85rem;color:var(--muted);margin-top:.4rem}

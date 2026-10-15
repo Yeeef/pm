@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Regret minimization note</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head><body><div class="wrap"><!--pm-status-->
+<nav class="topbar"><a href="../index.html">Home</a> / <a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a><a class="docs" href="../docs/index.html">Docs</a></nav>
+<div class="eyebrow">doc</div>
+<h1>Regret minimization note</h1>
+<p class="meta"><span>2026-10-04</span></p><h2 id="math">Math</h2>
+<p>On each iteration <span class="math inline">t</span> you sample <span class="math inline">a_t \sim \sigma_t</span> and track regret, with <span class="math inline">\pi_{-i}(h)</span> the reach of the
+others and an <span class="math inline">\varepsilon</span>-Nash at the end:</p>
+<div class="math display">R_T(a) \;=\; \sum_{t=1}^{T} \bigl[\, u_t(a) - u_t(a_t)\,\bigr]</div>
+<div class="math display">\sigma_{T+1}(I, a) \;\propto\; \max\bigl(R_T(I, a),\, 0\bigr)</div>
+<p>Inline display: <span class="math display">\bar{\sigma}_T \to \text{Nash}</span>, and escapes kept: <span class="math inline">\{x\_1, x\_2\} \subset X</span>.</p>
+<p>Not math: a price of $5 and $10, a code span <code>$a_t$</code>, an escaped $x$, and <code>echo $HOME</code>:</p>
+<pre><code class="language-sh">echo &#34;$a_t $b_t&#34;
+</code></pre>
+<h2 id="diagram">Diagram</h2>
+<div class="research-viz">
+  <p class="viz-kicker">Information sets</p>
+  <svg class="viz-scene" viewBox="0 0 820 360" role="img" aria-label="Two histories collapse into one information set">
+    <defs>
+      <linearGradient id="infosetFill" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="#e8f5f2" />
+      </linearGradient>
+    </defs>
+    <!-- history 1 -->
+    <rect x="210" y="40" width="180" height="80" rx="10" fill="#fff" stroke="#46635f" stroke-width="1.5" />
+    <text x="300" y="68" text-anchor="middle" font-weight="700">History h₁</text>
+    <g stroke="#46635f" stroke-width="2" fill="none">
+      <path d="M150 170 C180 150, 195 110, 210 90" />
+    </g>
+  </svg>
+  <p class="viz-note">Several histories collapse into one info set.</p>
+</div>
+<details>
+<summary>A plain HTML block</summary>
+<p>Still Markdown, after the blank line.</p>
+</details>
+<h2 id="links">Links</h2>
+<ul>
+<li><a href="2026-10-02-notes.html">the notes, by slug</a> and <a href="./2026-10-02-notes.html#notes">by ./slug</a></li>
+<li><a href="2026-10-03-plan.html">the plan, by file name</a></li>
+<li><a href="../design/parser.html">the parser design</a></li>
+<li><a href="../postmortems/2026-10-03-outage.html">the outage, by slug</a></li>
+<li><a href="../../README.html">a code link</a> leaves the store</li>
+</ul>
+
+</div>
+<script type="module">
+const at = ["https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/",
+  "https://unpkg.com/katex@0.19.0/dist/"];
+let katex, base = at[0];
+try { katex = (await import(at[0] + "katex.mjs")).default; } catch { base = at[1]; katex = (await import(at[1] + "katex.mjs")).default; }
+const css = document.createElement("link");
+css.rel = "stylesheet";
+css.href = base + "katex.min.css";
+document.head.append(css);
+for (const n of document.querySelectorAll(".math")) {
+  katex.render(n.textContent, n, { displayMode: n.classList.contains("display"), throwOnError: false });
+}
+</script>
+</body></html>

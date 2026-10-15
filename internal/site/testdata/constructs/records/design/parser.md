@@ -48,7 +48,7 @@ line two, with a hard break, <kbd>inline HTML</kbd>, &copy; &#169; and an escape
 | Only a header |
 |---|
 
-### The `parse()` *fast* path & [links](x.md)
+### The `parse()` *fast* path & [links](empty.md)
 
 Text.
 

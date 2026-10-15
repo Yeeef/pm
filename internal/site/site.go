@@ -284,6 +284,17 @@ func docList(docs []*Record, frm *Record, heading, label string) string {
 	if len(docs) == 0 {
 		return ""
 	}
+	var lis strings.Builder
+	for _, d := range newestFirst(docs) {
+		lis.WriteString(`<li><a href="` + link(frm, d.Out()) + `">` + esc(d.Title()) + "</a>" +
+			`<span class="k">` + esc(d.Meta["date"].Str) + "</span></li>")
+	}
+	return "<" + heading + ` id="` + strings.ToLower(label) + `">` + label + "</" + heading + `><ul class="list">` +
+		lis.String() + "</ul>\n"
+}
+
+// newestFirst is dated records by date, newest first, then by path, last first.
+func newestFirst(docs []*Record) []*Record {
 	sorted := append([]*Record{}, docs...)
 	sort.SliceStable(sorted, func(i, j int) bool {
 		di, dj := sorted[i].Meta["date"].Str, sorted[j].Meta["date"].Str
@@ -292,13 +303,7 @@ func docList(docs []*Record, frm *Record, heading, label string) string {
 		}
 		return sorted[i].Rel > sorted[j].Rel
 	})
-	var lis strings.Builder
-	for _, d := range sorted {
-		lis.WriteString(`<li><a href="` + link(frm, d.Out()) + `">` + esc(d.Title()) + "</a>" +
-			`<span class="k">` + esc(d.Meta["date"].Str) + "</span></li>")
-	}
-	return "<" + heading + ` id="` + strings.ToLower(label) + `">` + label + "</" + heading + `><ul class="list">` +
-		lis.String() + "</ul>\n"
+	return sorted
 }
 
 func sprintDocs(sprint *Record, recs []*Record, items *Items) []*Record {
@@ -782,11 +787,11 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600&display=swap">
 <link rel="stylesheet" href="{{.CSS}}">
 </head><body><div class="wrap">{{.Status}}
-<nav class="topbar"><a href="{{.Home}}">Home</a>{{.Crumbs}}</nav>
+<nav class="topbar"><a href="{{.Home}}">Home</a>{{.Crumbs}}<a class="docs" href="{{.Docs}}">Docs</a></nav>
 <div class="eyebrow">{{.Kind}}</div>
 <h1>{{.Title}}</h1>
 {{.Body}}
-</div>{{.Mermaid}}</body></html>
+</div>{{.Mermaid}}{{.Math}}</body></html>
 `))
 
 // MermaidVersion is the exact Mermaid release the pages load: a pinned URL is immutable, so a browser that loaded it
@@ -826,14 +831,18 @@ redraw();
 `, "VERSION", MermaidVersion)
 
 func page(rec *Record, kind, title, body string, c *ctx, crumbs string) (string, error) {
-	mermaid := ""
+	mermaid, math := "", ""
 	if c.mermaid {
 		mermaid = mermaidScript
+	}
+	if c.math {
+		math = katexScript
 	}
 	var b bytes.Buffer
 	err := pageTemplate.Execute(&b, map[string]any{
 		"Status": template.HTML(StatusSlot), "Title": title, "CSS": link(rec, "style.css"), "Home": link(rec, "index.html"),
-		"Crumbs": template.HTML(crumbs), "Kind": kind, "Body": template.HTML(body), "Mermaid": template.HTML(mermaid),
+		"Docs": link(rec, DocsIndex), "Crumbs": template.HTML(crumbs), "Kind": kind, "Body": template.HTML(body),
+		"Mermaid": template.HTML(mermaid), "Math": template.HTML(math),
 	})
 	return b.String(), err
 }
@@ -914,12 +923,18 @@ var (
 
 // RenderRecord is one record's page.
 func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (string, error) {
-	c := &ctx{rel: rec.Rel}
+	p, _, err := renderRecord(rec, recs, items, dates)
+	return p, err
+}
+
+// renderRecord is one record's page and each link of its own text that names no record (resolveLink).
+func renderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (string, []string, error) {
+	c := &ctx{rel: rec.Rel, recs: recs}
 	md := recordMD(c)
 	render := func(s string) (string, error) { return render(md, s) }
 	m := rec.Meta
 	if err := records.Validate(rec, recs, items); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	var proj *Record
 	if rec.Type() != "day" {
@@ -936,20 +951,20 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 		var err error
 		body, err = projectBody(rec, recs, items)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 	case "sprint":
 		c.mermaid = true
 		var err error
 		pre, body, err = sprintBody(rec, proj, recs, items, render)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 	case "day":
 		var err error
 		body, err = dayBody(rec, recs, items, render)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 	case "doc":
 		where := ""
@@ -969,16 +984,18 @@ func RenderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 		}
 	}
 	source := []byte(skipFrontMatter(body))
+	c.links = true // the links of the record's text; a request's description renders above with none checked
 	doc := md.Parser().Parse(text.NewReader(source))
 	var content bytes.Buffer
 	if err := md.Renderer().Render(&content, source, doc); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	nav := ""
 	if rec.Type() == "design" {
 		nav = toc(doc, source)
 	}
-	return page(rec, rec.Type(), rec.Title(), pre+nav+content.String(), c, crumbs)
+	p, err := page(rec, rec.Type(), rec.Title(), pre+nav+content.String(), c, crumbs)
+	return p, c.broken, err
 }
 
 func projectBody(rec *Record, recs []*Record, items *Items) (string, error) {
@@ -1163,6 +1180,40 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 	return page(nil, "overview", siteName, strings.Join(out, ""), c, "")
 }
 
+// DocsIndex is the path of the docs index, which every page's navigation links.
+const DocsIndex = "docs/index.html"
+
+// RenderDocsIndex is the docs index: every doc, newest first, with its date and the project it belongs to, and its
+// bead when it names one.
+func RenderDocsIndex(recs []*Record, items *Items) (string, error) {
+	frm := &Record{Rel: strings.TrimSuffix(DocsIndex, ".html")}
+	var docs []*Record
+	for _, r := range recs {
+		if r.Type() == "doc" {
+			docs = append(docs, r)
+		}
+	}
+	body := `<p class="empty">No docs yet.</p>`
+	if docs != nil {
+		var lis strings.Builder
+		for _, d := range newestFirst(docs) {
+			where := ""
+			if p := records.ProjectOf(d, recs, items); p != nil {
+				where = `<a href="` + link(frm, p.Out()) + `">` + esc(p.Title()) + "</a>"
+			} else if records.IsFeedbackDoc(d) {
+				where = "the repo's pm feedback, about any project"
+			}
+			if d.Has("bead") {
+				where += " · " + esc(d.Meta["bead"].Str)
+			}
+			lis.WriteString(`<li><a href="` + link(frm, d.Out()) + `">` + esc(d.Title()) + "</a>" +
+				`<span class="k">` + esc(d.Meta["date"].Str) + `</span><span class="k">` + where + "</span></li>")
+		}
+		body = `<ul class="list">` + lis.String() + "</ul>"
+	}
+	return page(frm, "docs", "Docs", body, &ctx{}, "")
+}
+
 func indexDays(recs []*Record) string {
 	var days []*Record
 	for _, r := range recs {
@@ -1341,30 +1392,63 @@ func CheckNeedsAnswered(recs []*Record, items *Items, ids map[string]bool) error
 // RenderPages is every page of the site by its path; an invalid record fails it. dates are the design pages' dates; a
 // render that only validates leaves them out. A day page is rendered for every date with activity, with its summary.
 func RenderPages(recs []*Record, items *Items, siteName string, dates Dates, summaries map[string]*records.Summary) (map[string]string, error) {
+	pages, _, err := renderPages(recs, items, siteName, dates, summaries)
+	return pages, err
+}
+
+// renderPages is RenderPages and each link of a record's text that names no record.
+func renderPages(recs []*Record, items *Items, siteName string, dates Dates, summaries map[string]*records.Summary) (map[string]string, []string, error) {
 	if err := CheckNeedsAnswered(recs, items, nil); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	recs = WithDays(recs, items, summaries)
 	pages := map[string]string{}
+	var broken []string
 	for _, r := range recs {
-		p, err := RenderRecord(r, recs, items, dates)
+		p, b, err := renderRecord(r, recs, items, dates)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		pages[r.Out()] = p
+		broken = append(broken, b...)
 	}
 	index, err := RenderIndex(recs, items, siteName, dates)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pages["index.html"] = index
-	return pages, nil
+	if pages[DocsIndex], err = RenderDocsIndex(recs, items); err != nil {
+		return nil, nil, err
+	}
+	return pages, broken, nil
 }
 
-// Check is pm check's and pm commit's check: every page renders and every answered decision need is cited or marked
-// no-decision. It writes nothing; it returns the number of pages.
+// Check is pm check's and pm commit's check: every page renders, every answered decision need is cited or marked
+// no-decision, and every relative .md link of a record's text that stays in the store names a record (a dated one by
+// its file name or its slug), and no record's raw HTML holds JSX or a blank line inside an <svg> (jsx.go). It writes
+// nothing; it returns the number of pages. A link that names no record, and JSX, still render: the site shows the
+// page, and only this check refuses it.
 func Check(recs []*Record, items *Items, siteName string, summaries map[string]*records.Summary) (int, error) {
-	pages, err := RenderPages(recs, items, siteName, nil, summaries)
+	pages, broken, err := renderPages(recs, items, siteName, nil, summaries)
+	var once []string // a link a record gives twice is named once
+	for _, b := range broken {
+		if !slices.Contains(once, b) {
+			once = append(once, b)
+		}
+	}
+	var errs []string
+	if once != nil {
+		errs = append(errs, strings.Join(once, "\n"),
+			"fix each link to name a record's file, or a doc's or postmortem's slug, or remove it")
+	}
+	for _, r := range recs {
+		if r.Text != "" {
+			errs = append(errs, jsxErrors(r.Rel, r.Body, strings.Count(r.Text[:len(r.Text)-len(r.Body)], "\n")+1)...)
+		}
+	}
+	if err == nil && errs != nil {
+		err = errorf("%s", strings.Join(errs, "\n"))
+	}
 	return len(pages), err
 }
 

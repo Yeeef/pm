@@ -292,6 +292,14 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 			"postmortems/2026-10-03-lost.md": "---\ntype: postmortem\ntitle: Lost\ndate: 2026-10-03\nsprint: demo.42\n" +
 				"---\n\nx\n"}, nil,
 			"postmortems/2026-10-03-lost: no sprint record has bead demo.42"},
+		{"link-to-no-record", map[string]string{"docs/2026-10-03-plan.md": read("docs/2026-10-03-plan.md") +
+			"\n[gone](./gone.md), [by slug](notes.md), [gone too](../design/none.md#x), [again](./gone.md)\n"}, nil,
+			"docs/2026-10-03-plan.md: the link ./gone.md names records/docs/gone.md, which does not exist\n" +
+				"docs/2026-10-03-plan.md: the link ../design/none.md#x names records/design/none.md, which does not exist\n" +
+				"fix each link to name a record's file, or a doc's or postmortem's slug, or remove it"},
+		{"jsx-in-html", map[string]string{"docs/2026-10-03-plan.md": read("docs/2026-10-03-plan.md") +
+			"\n<p className=\"k\">x</p>\n"}, nil, fmt.Sprintf("docs/2026-10-03-plan.md:%d: className= is JSX, not HTML; "+
+			"use class=", strings.Count(read("docs/2026-10-03-plan.md"), "\n")+2)},
 		{"no-project", map[string]string{"design/parser.md": strings.Replace(design, "project: demo", "project: nowhere", 1)}, nil,
 			"design/parser: no project record found"},
 		{"uncited-need", nil, []string{uncited},
