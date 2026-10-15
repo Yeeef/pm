@@ -81,7 +81,7 @@ func whereAll(here string) (string, error) {
 		}
 		out = append(out, line)
 	}
-	out = append(out, whereClone(main, cfg.Remote))
+	out = append(out, "clone     "+store.DescribeClone(main, cfg.Remote))
 
 	top := whereGit(here, "rev-parse", "--show-toplevel")
 	if top == "" {
@@ -155,18 +155,6 @@ func whereAll(here string) (string, error) {
 	}
 	out = append(out, fmt.Sprintf("site      %s (served by the pm service)", url))
 	return strings.Join(out, "\n"), nil
-}
-
-// whereClone is the clone's id (store.CloneID), its namespace for draft refs on the remote, or why there is none.
-func whereClone(main, remote string) string {
-	id, err := store.CloneID(main)
-	switch {
-	case err != nil:
-		return "clone     " + err.Error()
-	case id == "":
-		return "clone     no id; run " + whereSetup
-	}
-	return fmt.Sprintf("clone     %s  its drafts push to %s refs/pm/drafts/%s/", id, remote, id)
 }
 
 // whereOrphans is a line for each drafts/ branch whose worktree is gone (store.Orphans), or why they cannot be listed;

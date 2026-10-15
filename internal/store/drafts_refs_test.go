@@ -185,3 +185,21 @@ func TestAnotherClonesDraftThatOverlapsWhatRecordsPublishedIsRefusedNamingItsClo
 		t.Errorf("a refused plan moved records")
 	}
 }
+
+func TestTheClosesFetchSkipsAMissingRemoteAndRefusesACloneWithoutAnID(t *testing.T) {
+	root, store := clone(t)
+	if err := FetchOtherDrafts(store, "origin"); err != nil {
+		t.Errorf("FetchOtherDrafts with no remote: %v; want nothing to fetch", err)
+	}
+	sh(t, root, "git init -q --bare ../origin.git", "git remote add origin ../origin.git")
+	if err := FetchOtherDrafts(store, "origin"); err == nil || !strings.Contains(err.Error(), "run pm init") {
+		t.Errorf("FetchOtherDrafts with no id: %v; want it refused, naming pm init", err)
+	}
+	if got := DescribeClone(root, "origin"); got != "no id; run pm init" {
+		t.Errorf("DescribeClone = %q", got)
+	}
+	sh(t, root, "git config pm.clone not-an-id")
+	if _, err := CloneID(root); err == nil || !strings.Contains(err.Error(), "not the 12 hex digits pm init makes") {
+		t.Errorf("CloneID of a hand-set id: %v", err)
+	}
+}

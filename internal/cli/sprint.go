@@ -164,7 +164,11 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 			return "", err
 		}
 	}
-	if err := fetchOtherDrafts(e); err != nil { // before the records lock: it fetches
+	cfg, err := config.Load(e.here)
+	if err != nil {
+		return "", err
+	}
+	if err := store.FetchOtherDrafts(e.records, cfg.Remote); err != nil { // before the records lock: it fetches
 		return "", err
 	}
 	r, err := e.load(false)
@@ -245,31 +249,6 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		out += "; " + said
 	}
 	return out, nil
-}
-
-// fetchOtherDrafts fetches the other clones' draft refs (store.FetchDrafts), so the gate and the publish read what
-// they last pushed; a clone whose remote is not set up has no other clone to fetch from.
-func fetchOtherDrafts(e *env) error {
-	cfg, err := config.Load(e.here)
-	if err != nil {
-		return err
-	}
-	if _, err := store.Git(e.records, "remote", "get-url", cfg.Remote); err != nil {
-		return nil //nolint:nilerr // no remote: no other clone has drafts to fetch
-	}
-	id, err := store.CloneID(e.records)
-	if err != nil {
-		return err
-	}
-	if id == "" {
-		return refuse("this clone has no id (git config pm.clone), which pm sprint close needs to fetch the other " +
-			"clones' drafts; run pm init")
-	}
-	if err := store.FetchDrafts(e.records, cfg.Remote, id); err != nil {
-		return refuse("pm sprint close fetches the other clones' drafts from %s first, as it publishes them too, and "+
-			"the fetch failed: %v; run it again once %s is reachable", cfg.Remote, err, cfg.Remote)
-	}
-	return nil
 }
 
 // closeDone finishes the close's drafts (design.Closing.Done); a variable so a test can fail it.

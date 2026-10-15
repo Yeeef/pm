@@ -65,6 +65,39 @@ func MakeCloneID(dir string) (string, error) {
 		remoteRefs, id), nil
 }
 
+// DescribeClone is pm where's word on the clone's id: the id and where its drafts push, or why there is none.
+func DescribeClone(dir, remote string) string {
+	id, err := CloneID(dir)
+	switch {
+	case err != nil:
+		return err.Error()
+	case id == "":
+		return "no id; run " + Setup
+	}
+	return fmt.Sprintf("%s  its drafts push to %s %s%s/", id, remote, remoteRefs, id)
+}
+
+// FetchOtherDrafts is pm sprint close's fetch of the other clones' draft refs (FetchDrafts), before it reads them: it
+// refuses a clone with no id and a fetch that fails; a clone whose remote is not set up has no other clone.
+func FetchOtherDrafts(store, remote string) error {
+	if _, err := Git(store, "remote", "get-url", remote); err != nil {
+		return nil //nolint:nilerr // no remote: no other clone has drafts to fetch
+	}
+	id, err := CloneID(store)
+	if err != nil {
+		return err
+	}
+	if id == "" {
+		return errorf("this clone has no id (git config %s), which pm sprint close needs to fetch the other clones' "+
+			"drafts; run %s", cloneKey, Setup)
+	}
+	if err := FetchDrafts(store, remote, id); err != nil {
+		return errorf("pm sprint close fetches the other clones' drafts from %s first, as it publishes them too, and "+
+			"the fetch failed: %v; run it again once %s is reachable", remote, err, remote)
+	}
+	return nil
+}
+
 // FetchDrafts fetches the other clones' draft refs from remote into refs/pm/fetched/<clone>/<name>, removing each
 // the remote no longer has; id's own are left out.
 func FetchDrafts(store, remote, id string) error {

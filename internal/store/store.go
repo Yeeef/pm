@@ -4,8 +4,9 @@
 // commits exactly the files written. Published is the records the site renders: the records branch's tip, read with
 // git archive. drafts.go lists the drafts the site serves beside them as versions: the store's uncommitted edits, as
 // one draft, and each code worktree's records workspace (drafts_workspace.go), which follows the records branch and
-// holds its draft commit (drafts_follow.go). pm sprint close publishes a sprint's design pages from the draft commits
-// (drafts_publish.go).
+// holds its draft commit (drafts_follow.go), then each other clone's draft commit as last fetched. pm sprint close
+// publishes a sprint's design pages from the draft commits (drafts_publish.go). The pm service's sync pushes this
+// clone's draft commits to the remote under its clone id and fetches the other clones' (drafts_refs.go).
 //
 // It also keeps a design page's dates and the commits on the main branch to the page's covered files after them
 // (CodeChanges: one git log --first-parent per page with covers, run in the records store, which shares the code's
