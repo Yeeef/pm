@@ -9,7 +9,6 @@ import (
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -193,17 +192,23 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	merges, gated, err := r.sprintMerges(id, reviews, agentMerge, mergedSHA, pr, prGiven)
+	discard, err := discards(p)
 	if err != nil {
 		return "", err
 	}
-	if err := r.heldOnMain(e, rec, epic, gated); err != nil {
-		return "", err
-	}
-	w, stamp, message, err := r.sprintStamp(rec, merges)
+	waived, err := r.waive(rec, discard) // the gate reads --discard's waivers
 	if err != nil {
 		return "", err
 	}
+	merges, err := r.sprintMerges(id, reviews, agentMerge, mergedSHA, pr, prGiven)
+	if err != nil {
+		return "", err
+	}
+	closing, err := design.PlanClose(e.here, r.records, r.root, rec, discard)
+	if err != nil {
+		return "", err
+	}
+	w, stamp, message := r.sprintStamp(rec, waived, merges, closing)
 	if err := r.checkPlanned(w, r.with(closedCopy(epic, fmt.Sprintf("%s (records commit %s)", line, head)))); err != nil {
 		return "", err
 	}
@@ -214,6 +219,9 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		if head, err = store.Git(r.records, "rev-parse", "--short", "HEAD"); err != nil {
 			return "", err
 		}
+	}
+	if err := closeDone(closing, r.records); err != nil {
+		return "", fmt.Errorf("%w; the close's records commit is %s, so run pm sprint close %s again", err, head, id)
 	}
 	reason := fmt.Sprintf("%s (records commit %s)", line, head)
 	ws, err := e.work()
@@ -227,11 +235,17 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	out := fmt.Sprintf("closed %s: %s", id, reason)
-	if w != nil {
+	if stamp != "" {
 		out += "; stamped the Outcome: " + stamp
+	}
+	if said := closing.Said(discard); said != "" {
+		out += "; " + said
 	}
 	return out, nil
 }
+
+// closeDone finishes the close's drafts (design.Closing.Done); a variable so a test can fail it.
+var closeDone = (*design.Closing).Done
 
 func (r *repo) sprintOutcome(rec *records.Record) (string, error) {
 	line, err := records.Outcome(rec)
@@ -276,19 +290,17 @@ func (r *repo) closedSprintReviews(id string) ([]*work.Item, error) {
 
 type sprintMerge struct{ sha, pr string }
 
-func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, mergedSHA, pr string, prGiven bool) ([]sprintMerge, []design.Verdict, error) {
+func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, mergedSHA, pr string, prGiven bool) ([]sprintMerge, error) {
 	var merges []sprintMerge
-	var gated []design.Verdict // the pages the gate names for the sprint's PRs, held to the remote's main after
 	for _, rv := range reviews {
 		if rv.Resolution == work.Dismissed { // a replaced PR's review, or a [TEST] one: it delivers nothing
 			continue
 		}
-		v, err := r.designGate(rv.Need.Review.PR, rv.Need.Review.Sprints, design.PRFiles(r.root, rv.Need.Review.PR))
-		if gated = append(gated, v...); err != nil {
-			return nil, nil, err
+		if _, err := r.designGate(rv.Need.Review.PR, rv.Need.Review.Sprints, design.PRFiles(r.root, rv.Need.Review.PR)); err != nil {
+			return nil, err
 		}
 		if agentMerge {
-			return nil, nil, refuse("sprint %s holds PR review %s (%s), whose close stamps the merge; close it with pm action "+
+			return nil, refuse("sprint %s holds PR review %s (%s), whose close stamps the merge; close it with pm action "+
 				"done %s --reason \"merged as <sha>\" if it is not closed yet, then run pm sprint close %s without --merged",
 				id, rv.ID, rv.Need.Review.PR, rv.ID, id)
 		}
@@ -298,7 +310,7 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 			if rv.CloseReason != "" {
 				why = rv.CloseReason
 			}
-			return nil, nil, refuse("PR review %s (%s) is closed as %s, not 'merged as <sha>'; a sprint closes only once each PR "+
+			return nil, refuse("PR review %s (%s) is closed as %s, not 'merged as <sha>'; a sprint closes only once each PR "+
 				"delivering it is on main, so the close stamps its merge commit into the Outcome; once its work is on main, "+
 				"restamp it: pm action done %s --reason \"merged as <sha>\"", rv.ID, rv.Need.Review.PR, strconv.Quote(why), rv.ID)
 		}
@@ -313,9 +325,8 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 		if prGiven {
 			named, files = pr, design.PRFiles(r.root, pr)
 		}
-		v, err := r.designGate(named, []string{id}, files)
-		if gated = append(gated, v...); err != nil {
-			return nil, nil, err
+		if _, err := r.designGate(named, []string{id}, files); err != nil {
+			return nil, err
 		}
 		label := ""
 		if prGiven {
@@ -326,30 +337,39 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 		}
 		merges = append(merges, sprintMerge{mergedSHA[:7], label})
 	}
-	return merges, gated, nil
+	return merges, nil
 }
 
-// heldOnMain refuses a sprint close while a design page the sprint lists or the gate named for its PRs has a covers
-// pattern the sprint added that matches no file on the remote's main (design.Held, design.LiveOnMain).
-func (r *repo) heldOnMain(e *env, rec *records.Record, epic *work.Item, gated []design.Verdict) error {
-	pages := design.Held(rec, r.recs, gated)
-	if pages == nil {
-		return nil
+// discards is --discard's pages, each with its --reason, in one line.
+func discards(p *Parsed) (map[string]string, error) {
+	slugs, reasons := p.Values["discard"], p.Values["reason"]
+	if len(slugs) != len(reasons) {
+		return nil, refuse("give one --reason with each --discard: %d --discard, %d --reason", len(slugs), len(reasons))
 	}
-	cfg, err := config.Load(e.here)
-	if err != nil {
-		return err
+	out := map[string]string{}
+	for i, slug := range slugs {
+		reason, err := decisionLine("--reason", reasons[i])
+		if err != nil {
+			return nil, err
+		}
+		out[slug] = reason
 	}
-	s := design.Sprint{Record: rec, Opened: epic.CreatedAt}
-	return design.LiveOnMain(r.root, cfg.Remote, cfg.MainBranch, r.records, s, pages)
+	return out, nil
 }
 
-func (r *repo) sprintStamp(rec *records.Record, merges []sprintMerge) ([]store.Write, string, string, error) {
-	b, err := os.ReadFile(rec.Path)
-	if err != nil {
-		return nil, "", "", err
+// waive is the sprint record's text with --discard's waivers (design.Waive); it reloads the records with that text,
+// for the gate.
+func (r *repo) waive(rec *records.Record, discard map[string]string) (string, error) {
+	text, err := design.Waive(rec, discard, func(body string) string { return decisionBlock("agent", body) })
+	if err != nil || text == rec.Text {
+		return text, err
 	}
-	text := string(b)
+	r.recs, err = store.Committed(r.records, map[string]*string{rec.Path: &text})
+	return text, err
+}
+
+func (r *repo) sprintStamp(rec *records.Record, text string, merges []sprintMerge,
+	closing *design.Closing) ([]store.Write, string, string) {
 	stamps, shas := make([]string, len(merges)), make([]string, len(merges))
 	for i, m := range merges {
 		stamps[i] = fmt.Sprintf("Merged as %s (%s).", m.sha, m.pr)
@@ -359,10 +379,16 @@ func (r *repo) sprintStamp(rec *records.Record, merges []sprintMerge) ([]store.W
 		shas[i] = m.sha
 	}
 	stamp := strings.Join(stamps, " ")
-	var w []store.Write
 	if merges != nil && !strings.Contains(text, stamp) {
-		w = []store.Write{{Path: rec.Path, Text: records.MergeStamp(text, stamp)}}
+		text = records.MergeStamp(text, stamp)
+	} else {
+		stamp = "" // stamped by a close run before
 	}
+	var w []store.Write
+	if text != rec.Text {
+		w = []store.Write{{Path: rec.Path, Text: text}}
+	}
+	w = append(w, closing.Writes(r.records)...)
 	proj := records.ProjectOf(rec, r.recs, r.x)
 	number := rec.Name()
 	projName := ""
@@ -372,8 +398,14 @@ func (r *repo) sprintStamp(rec *records.Record, merges []sprintMerge) ([]store.W
 			number = m[1]
 		}
 	}
-	message := fmt.Sprintf("[SPRINT] %s sprint %s: closed, merged as %s", projName, number, strings.Join(shas, ", "))
-	return w, stamp, message, nil
+	message := fmt.Sprintf("[SPRINT] %s sprint %s: closed", projName, number)
+	if len(shas) > 0 {
+		message += ", merged as " + strings.Join(shas, ", ")
+	}
+	if trailer := closing.Trailer(rec.Bead()); trailer != "" {
+		message += "\n\n" + trailer
+	}
+	return w, stamp, message
 }
 
 // shaRE is a commit's hex sha, as --merged takes it.

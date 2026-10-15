@@ -1,12 +1,14 @@
 // Package design keeps design pages in step with the code they cover (records.Record.Covers): pm check's coverage of
-// the tracked source files, and the gate pm action need --pr and pm sprint close run on the files a sprint's PR
-// changes. A page whose covers match a changed file passes when one of the PR's sprints updated it (a records commit
-// to the page since the sprint opened, and a link to it in the sprint record's Design pages) or waived it (a sprint
-// decision pm design unchanged records).
+// the tracked source files and its hold of each page's covers to the code, and the gate pm action need --pr and pm
+// sprint close run on the files a sprint's PR changes. A page whose covers match a changed file passes when one of the
+// PR's sprints updated it (its draft of the page, or a records commit to the page since the sprint opened, and a link
+// to it in the sprint record's Design pages) or waived it (a sprint decision pm design unchanged or pm sprint close
+// --discard records).
 //
-// The records store is shared across branches, so a sprint names a new file in its page's covers before its PR
-// merges: pm check lists a covers pattern that matches no tracked file as waiting on unmerged work (Check), and pm
-// sprint close refuses while a pattern the sprint added matches no file on the remote's main (LiveOnMain, Own).
+// A design page publishes at its sprint's close, once its PRs are on main (the record-drafts page), so every covers
+// pattern of a published page must match a file on the remote's main (MissingOnMain): pm check holds them there, and
+// pm sprint close holds every pattern of a page it publishes. A draft page names the files of its own
+// worktree's branch, which pm check holds it to in that worktree.
 //
 // The gate reads a PR's changed files with gh api --paginate repos/<o>/<r>/pulls/<n>/files, a rename's old path too.
 package design
@@ -14,6 +16,7 @@ package design
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -43,11 +46,8 @@ func Tracked(dirs ...string) (map[string]bool, error) {
 }
 
 // Check fails on a source pattern that pm cannot read or that matches no tracked file, naming each; otherwise it returns
-// the tracked files a source pattern matches and no design page covers, sorted, and each covers pattern that matches no
-// tracked file (Dead). Such a pattern waits on unmerged work: the records store is shared across branches, and the
-// gate makes a sprint bring its page to the new state before its PR merges, so a page names a file before main has
-// it. pm sprint close holds the patterns a sprint added to main instead (LiveOnMain).
-func Check(recs []*records.Record, tracked map[string]bool, sources []string) (uncovered, waiting []string, err error) {
+// the tracked files a source pattern matches and no design page covers, sorted.
+func Check(recs []*records.Record, tracked map[string]bool, sources []string) (uncovered []string, err error) {
 	var bad, covers []string
 	for _, p := range sources {
 		if err := records.CheckPattern(p); err != nil {
@@ -57,12 +57,10 @@ func Check(recs []*records.Record, tracked map[string]bool, sources []string) (u
 		}
 	}
 	if bad != nil {
-		return nil, nil, fmt.Errorf("%s", strings.Join(bad, "\n"))
+		return nil, fmt.Errorf("%s", strings.Join(bad, "\n"))
 	}
-	var pages []*records.Record
 	for _, r := range recs {
 		if r.Type() == "design" {
-			pages = append(pages, r)
 			covers = append(covers, r.Covers()...)
 		}
 	}
@@ -72,137 +70,169 @@ func Check(recs []*records.Record, tracked map[string]bool, sources []string) (u
 		}
 	}
 	sort.Strings(uncovered)
-	return uncovered, Dead(pages, tracked, (*records.Record).Covers), nil
+	return uncovered, nil
 }
 
 // Report is what pm check prints after its render line, from Check: the tracked source files no page covers (the
-// design_sources key of the config file at rel) or that a page covers each, then the covers patterns that wait on
-// unmerged work.
+// design_sources key of the config file at rel), or that a page covers each.
 func Report(recs []*records.Record, tracked map[string]bool, sources []string, rel string) (string, error) {
-	uncovered, waiting, err := Check(recs, tracked, sources)
+	uncovered, err := Check(recs, tracked, sources)
 	if err != nil {
 		return "", err
 	}
-	var out string
 	switch {
 	case uncovered != nil:
-		out = fmt.Sprintf("; %d tracked source files (design_sources in %s) no design page covers; add each to the "+
-			"covers: of the page about its area:\n  %s", len(uncovered), rel, strings.Join(uncovered, "\n  "))
+		return fmt.Sprintf("; %d tracked source files (design_sources in %s) no design page covers; add each to the "+
+			"covers: of the page about its area:\n  %s", len(uncovered), rel, strings.Join(uncovered, "\n  ")), nil
 	case sources != nil:
-		out = "; a design page covers every tracked source file"
+		return "; a design page covers every tracked source file", nil
 	}
-	if waiting != nil {
-		out += fmt.Sprintf("\n%d covers patterns match no tracked file, waiting on unmerged work; pm sprint close "+
-			"refuses a sprint only on a pattern it added or changed while open that its merged PR leaves missing on "+
-			"the remote's main:\n  %s",
-			len(waiting), strings.Join(waiting, "\n  "))
-	}
-	return out, nil
+	return "", nil
 }
 
-// Dead is each pattern of the pages (covers gives a page's patterns) that matches none of files, as `<page>.md: covers
-// pattern "<pattern>"`, in page then pattern order.
-func Dead(pages []*records.Record, files map[string]bool, covers func(*records.Record) []string) []string {
+// Missing is each of patterns (by page, as its store path without .md: design/x) that matches none of files, as
+// `<page>.md: covers pattern "<pattern>"`, in page then pattern order.
+func Missing(patterns map[string][]string, files map[string]bool) []string {
 	var out []string
-	for _, r := range pages {
-		for _, p := range covers(r) {
+	for _, page := range slices.Sorted(maps.Keys(patterns)) {
+		for _, p := range patterns[page] {
 			if !matchesAny(p, files) {
-				out = append(out, fmt.Sprintf("%s.md: covers pattern %q", r.Rel, p))
+				out = append(out, fmt.Sprintf("%s.md: covers pattern %q", page, p))
 			}
 		}
 	}
 	return out
 }
 
-// Own is the covers patterns of the committed page that the sprint opened at opened added or changed: those its covers
-// did not hold at the newest records commit (dir is the store) authored before the sprint opened. Author dates, as a
-// rebase of the records branch onto the remote keeps them; a clock skewed between clones can move the base. With no
-// commit before then, or no page in it, every pattern is the sprint's. A records commit names no sprint, so another
-// session's commit to the page while the sprint is open counts as the sprint's. The old page is read for its covers
-// only, as a later pm's rules may refuse it.
-func Own(dir string, page *records.Record, opened time.Time) ([]string, error) {
-	log, err := store.Git(dir, "log", "--format=%H %at", "HEAD")
-	if err != nil {
-		return nil, err
-	}
-	base := ""
-	for _, l := range lines(log) {
-		sha, at, _ := strings.Cut(l, " ")
-		if n, err := strconv.ParseInt(at, 10, 64); err != nil {
-			return nil, fmt.Errorf("git log gave %q, not a sha and an author time", l)
-		} else if n < opened.Unix() {
-			base = sha
-			break
-		}
-	}
-	var before []string
-	if base != "" {
-		if there, err := store.Git(dir, "ls-tree", "--name-only", base, "--", page.Rel+".md"); err != nil {
-			return nil, err
-		} else if there != "" {
-			text, err := store.Git(dir, "show", base+":"+page.Rel+".md")
-			if err != nil {
-				return nil, err
-			}
-			if before, err = records.CoversOf(text+"\n", page.Rel); err != nil {
-				return nil, fmt.Errorf("the page as it was before the sprint opened (records commit %s): %w", base[:7], err)
-			}
-		}
-	}
-	return slices.DeleteFunc(page.Covers(), func(p string) bool { return slices.Contains(before, p) }), nil
-}
-
-// Held is the design pages with covers that pm sprint close holds to the remote's main: those the sprint record's
-// Design pages list, then those the gate's verdicts for its PRs name, each once.
-func Held(sprint *records.Record, recs []*records.Record, verdicts []Verdict) []*records.Record {
-	var out []*records.Record
-	for _, page := range recs {
-		if page.Type() == "design" && slices.Contains(records.DesignLinks(sprint), page.Name()) {
-			out = append(out, page)
-		}
-	}
-	for _, v := range verdicts {
-		if !slices.Contains(out, v.Page) {
-			out = append(out, v.Page)
-		}
-	}
-	return slices.DeleteFunc(out, func(p *records.Record) bool { return len(p.Covers()) == 0 })
-}
-
-// LiveOnMain fetches the remote's main in the checkout root and fails while one of the pages has a covers pattern the
-// sprint added or changed (Own; dir is the records store) that matches no file there, naming page, pattern and the
-// fix: a page may name a file before main has it only while the PR that adds it is open, and the sprint closes once
-// its PR is merged. A pattern on the page before the sprint opened is another sprint's to keep live, and is not held.
-// With no pattern of the sprint's, nothing is fetched.
-func LiveOnMain(root, remote, branch, dir string, s Sprint, pages []*records.Record) error {
-	id, own, n := s.Record.Bead(), map[*records.Record][]string{}, 0
-	for _, p := range pages {
-		patterns, err := Own(dir, p, s.Opened)
-		if err != nil {
-			return err
-		}
-		own[p], n = patterns, n+len(patterns)
+// MissingOnMain is Missing against the files of the remote's main, read in the checkout root from its remote-tracking
+// ref, which is fetched first when it is missing or when a pattern matches nothing there, as it may be behind. With no
+// pattern, nothing is read.
+func MissingOnMain(root, remote, branch string, patterns map[string][]string) ([]string, error) {
+	n := 0
+	for _, list := range patterns {
+		n += len(list)
 	}
 	if n == 0 {
-		return nil
+		return nil, nil
 	}
 	main := remote + "/" + branch
+	var missing []string
+	if files, err := MainFiles(root, "refs/remotes/"+main); err == nil {
+		if missing = Missing(patterns, files); missing == nil {
+			return nil, nil
+		}
+	}
 	ref, err := store.FetchMain(root, remote, branch)
 	if err != nil {
-		return fmt.Errorf("sprint %s: pm cannot see %s, so it cannot check its design pages' covers against it: %v",
-			id, main, err)
+		return nil, fmt.Errorf("pm cannot see %s, so it cannot check design pages' covers against it: %v", main, err)
 	}
 	files, err := MainFiles(root, ref)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if dead := Dead(pages, files, func(p *records.Record) []string { return own[p] }); dead != nil {
-		return fmt.Errorf("sprint %s: covers patterns it added or changed since it opened name files %s does not have: "+
-			"%s. Fix each pattern to the file main has and commit the page with pm commit, or merge the PR that adds the "+
-			"file first, which may be another sprint's that edited the page while this one was open; then run pm sprint "+
-			"close %s again", id, main, strings.Join(dead, ", "), id)
+	return Missing(patterns, files), nil
+}
+
+// Hold fails on a covers pattern of recs that matches no file where its page holds it: a draft page's (drafts, by
+// store path: design/x.md) in the files the worktree root tracks, every other page's on the remote's main
+// (MissingOnMain). A published page's pattern main lacks while a draft of the page in the clone (dir is the records
+// store) no longer holds it is not a failure but waits on that sprint's close, which publishes the new covers: Hold
+// gives those as pm check's waiting lines, and a warning for each drafts/ branch it cannot read. pm check runs it.
+func Hold(recs []*records.Record, drafts map[string]bool, dir, root, remote, branch string) (string, error) {
+	onMain, here := map[string][]string{}, map[string][]string{}
+	for _, r := range recs {
+		if r.Type() != "design" || len(r.Covers()) == 0 {
+			continue
+		}
+		if drafts[r.Rel+".md"] {
+			here[r.Rel] = r.Covers()
+		} else {
+			onMain[r.Rel] = r.Covers()
+		}
 	}
-	return nil
+	var why []string
+	if len(here) > 0 {
+		files, err := Tracked(root)
+		if err != nil {
+			return "", err
+		}
+		if missing := Missing(here, files); missing != nil {
+			why = append(why, fmt.Sprintf("covers patterns of this workspace's draft pages match no file this worktree "+
+				"tracks: %s; fix each to a file of this branch, or git add the file", strings.Join(missing, ", ")))
+		}
+	}
+	missing, err := MissingOnMain(root, remote, branch, onMain)
+	if err != nil {
+		return "", err
+	}
+	var pending func(page, pattern string) []string
+	var warnings []string
+	if missing != nil { // the drafts are read only for a pattern main lacks
+		if pending, warnings, err = pendingCovers(dir); err != nil {
+			return "", err
+		}
+	}
+	var dead, waiting []string
+	for _, m := range missing {
+		page, quoted, _ := strings.Cut(m, ".md: covers pattern ")
+		pattern, err := strconv.Unquote(quoted)
+		if err != nil {
+			return "", fmt.Errorf("design.Missing gave %q", m)
+		}
+		if sprints := pending(page, pattern); sprints != nil {
+			waiting = append(waiting, fmt.Sprintf("%s (sprint %s)", m, strings.Join(sprints, ", ")))
+		} else {
+			dead = append(dead, m)
+		}
+	}
+	if dead != nil {
+		why = append(why, fmt.Sprintf("covers patterns of published design pages match no file on %s/%s: %s; a page "+
+			"publishes at its sprint's close, once its code is on main: fix each pattern to a file main has, in a "+
+			"worktree's records workspace, with the page linked in a sprint's Design pages, and pm commit it there",
+			remote, branch, strings.Join(dead, ", ")))
+	}
+	if why != nil {
+		return "", errors.New(strings.Join(append(why, warnings...), "\n"))
+	}
+	said := ""
+	for _, w := range warnings {
+		said += "\n" + w
+	}
+	if waiting == nil {
+		return said, nil
+	}
+	return said + fmt.Sprintf("\n%d covers patterns of published pages match no file on %s/%s, waiting on the close of the "+
+		"sprint whose draft of the page drops the pattern:\n  %s", len(waiting), remote, branch,
+		strings.Join(waiting, "\n  ")), nil
+}
+
+// pendingCovers says, of a published page's pattern main lacks, the sprints whose drafts of the page in the clone
+// (dir is the records store) no longer hold that pattern, or whose draft header does not parse: the pattern waits on
+// their close. Each drafts/ branch pm cannot read is left out, with a warning naming it and its fix.
+func pendingCovers(dir string) (func(page, pattern string) []string, []string, error) {
+	drafts, warnings, err := store.AllDrafts(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	return func(page, pattern string) []string {
+		var sprints []string
+		for _, b := range drafts {
+			path := page + ".md"
+			text, ok := b.Pages[path]
+			if !ok {
+				continue
+			}
+			if text != nil {
+				if covers, err := records.CoversOf(*text, path); err == nil && slices.Contains(covers, pattern) {
+					continue
+				}
+			}
+			if !slices.Contains(sprints, b.Tags[path]) {
+				sprints = append(sprints, b.Tags[path])
+			}
+		}
+		return sprints
+	}, warnings, nil
 }
 
 // MainFiles is the files of the tree at ref (the remote's main, fetched), as slash paths from the repo's top.
@@ -271,17 +301,19 @@ func Waivers(sprint *records.Record) map[string]string {
 	return out
 }
 
-// Sprint is a sprint a PR delivers: its record and when it opened.
+// Sprint is a sprint a PR delivers: its record, when it opened, and the pages the clone's drafts hold for it, by store
+// path (design/x.md).
 type Sprint struct {
-	Record *records.Record
-	Opened time.Time
+	Record  *records.Record
+	Opened  time.Time
+	Drafted map[string]bool
 }
 
 // Verdict is how one design page covering a changed file stands.
 type Verdict struct {
 	Page   *records.Record
 	Files  []string // the changed files its covers match
-	Edited bool     // one of the sprints committed the page since it opened and links it in its Design pages
+	Edited bool     // one of the sprints drafted or committed the page since it opened and links it in its Design pages
 	Waiver string   // a sprint's waiver reason; "" when none
 }
 
@@ -325,6 +357,10 @@ func Gate(dir, pr string, sprints []Sprint, recs []*records.Record, changed func
 				v.Waiver = reason
 			}
 			if v.Edited || !slices.Contains(records.DesignLinks(s.Record), page.Name()) {
+				continue
+			}
+			if s.Drafted[page.Rel+".md"] {
+				v.Edited = true
 				continue
 			}
 			log, err := store.Git(dir, "log", "-1", "--format=%H", "--since="+s.Opened.UTC().Format(time.RFC3339),

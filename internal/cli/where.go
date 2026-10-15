@@ -1,15 +1,12 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/install"
@@ -19,7 +16,6 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
-	"slices"
 )
 
 // cmdWhere is pm where: with records, the store's path alone, for scripts; without, every location with its state.
@@ -120,6 +116,7 @@ func whereAll(here string) (string, error) {
 		state = "records is not a link to the store; move it away and run " + whereSetup
 	}
 	out = append(out, fmt.Sprintf("checkout  %s  branch %s, %s", top, whereGit(top, "rev-parse", "--abbrev-ref", "HEAD"), state))
+	out = append(out, whereOrphans(storeDir)...)
 
 	workDir, _ := work.Locations(main)
 	workState, err := install.WorkState(main, cfg.Remote)
@@ -137,7 +134,7 @@ func whereAll(here string) (string, error) {
 			filepath.Join(home, "config.toml"), whereSetup))
 	default:
 		path := filepath.Join(home, "config.toml")
-		state, err := whereCodexState(path, main)
+		state, err := install.CodexState(path, main)
 		if err != nil {
 			return "", err
 		}
@@ -159,75 +156,15 @@ func whereAll(here string) (string, error) {
 	return strings.Join(out, "\n"), nil
 }
 
-// whereCodexState is the codex line's state: the writable roots set, the ones missing, or why the config cannot be
-// read. A refusal reads as "unreadable: …"; any other failure (git) is the command's error.
-func whereCodexState(path, main string) (string, error) {
-	state := func() (string, error) {
-		have, err := whereCodexConfig(path)
-		if err != nil {
-			return "", err
-		}
-		roots, err := whereCodexRoots(main)
-		if err != nil {
-			return "", err
-		}
-		var missing []string
-		for _, r := range roots {
-			if !slices.Contains(have, r) {
-				missing = append(missing, r)
-			}
-		}
-		if len(missing) == 0 {
-			return "writable_roots set", nil
-		}
-		return fmt.Sprintf("writable_roots missing %s; run %s", strings.Join(missing, ", "), whereSetup), nil
+// whereOrphans is a line for each drafts/ branch whose worktree is gone (store.Orphans), or why they cannot be listed;
+// none before setup.
+func whereOrphans(storeDir string) []string {
+	if !fsutil.IsDir(storeDir) {
+		return nil
 	}
-	s, err := state()
-	var r *refusal
-	if errors.As(err, &r) {
-		return "unreadable: " + r.msg, nil
+	lines, err := store.Orphans(storeDir)
+	if err != nil {
+		return []string{"drafts    unreadable: " + err.Error()}
 	}
-	return s, err
+	return lines
 }
-
-const whereCodexTable = "sandbox_workspace_write"
-
-// whereCodexConfig is codex_config's read side: the writable roots the Codex config already lists; it refuses what it
-// cannot read.
-func whereCodexConfig(path string) ([]string, error) {
-	text, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	data := map[string]any{}
-	if _, err := toml.Decode(string(text), &data); err != nil {
-		return nil, refuse("cannot parse %s: %s; fix it by hand and run %s again", path, err, whereSetup)
-	}
-	bad := refuse("%s: %s.writable_roots is not a list of paths; fix it by hand", path, whereCodexTable)
-	table, ok := data[whereCodexTable]
-	if !ok {
-		return nil, nil
-	}
-	t, ok := table.(map[string]any)
-	if !ok {
-		return nil, bad
-	}
-	roots, ok := t["writable_roots"]
-	if !ok {
-		return nil, nil
-	}
-	list, ok := roots.([]any)
-	if !ok {
-		return nil, bad
-	}
-	have := make([]string, len(list))
-	for i, r := range list {
-		if have[i], ok = r.(string); !ok {
-			return nil, bad
-		}
-	}
-	return have, nil
-}
-
-// whereCodexRoots is the writable roots the clone needs in Codex's sandbox (install.CodexRoots).
-func whereCodexRoots(main string) ([]string, error) { return install.CodexRoots(main) }

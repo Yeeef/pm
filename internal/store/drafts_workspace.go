@@ -132,8 +132,8 @@ func WorkspaceOf(cwd string) (*Workspace, error) {
 
 // AddWorkspace makes the code worktree's workspace in place of its records/ link, or of no records/: the branch
 // drafts/<name> set to the records tip and checked out at <code>/records. A branch left by a removed worktree of the
-// same name is reused when it holds no draft commit. "" when the workspace is there already; it changes nothing when
-// it fails.
+// same name is reused when its draft commit holds no unpublished page. "" when the workspace is there already; it
+// changes nothing when it fails.
 func AddWorkspace(store, code string) (string, error) {
 	if w, err := WorkspaceAt(code); err != nil || w != nil {
 		return "", err
@@ -164,11 +164,17 @@ func AddWorkspace(store, code string) (string, error) {
 		}
 	}
 	if _, err := Git(store, "rev-parse", "--verify", "--quiet", w.Ref()); err == nil {
-		if d, err := readDraft(store, w); err != nil {
+		d, err := readDraft(store, w)
+		if err != nil {
 			return "", err
-		} else if d.draft {
-			return "", errorf("%s holds the draft commit %s of a removed worktree named %s; publish or drop it before "+
-				"this worktree takes the name", w.Branch(), d.head, name)
+		}
+		// a draft commit whose every page is published (untagged, or named by a close's Published: line) is no draft
+		if pending, err := d.pending(store); err != nil {
+			return "", err
+		} else if pending != nil {
+			return "", errorf("%s holds the draft commit %s of a removed worktree named %s, with pages not published "+
+				"(%s); publish them with pm sprint close, or drop them with its --discard, before this worktree takes "+
+				"the name", w.Branch(), d.head, name, strings.Join(pending, ", "))
 		}
 	}
 	// a worktree removed without git worktree remove still holds its branch in git's list until pruned
@@ -240,7 +246,7 @@ func (w Workspace) Describe(store string) (string, error) {
 		return "", err
 	}
 	parts := []string{"records workspace on " + w.Branch()}
-	if d.draft {
+	if len(d.tags) > 0 { // a page with no tag was published or discarded by its sprint's close
 		parts = append(parts, fmt.Sprintf("a draft commit of %d design pages", len(d.tags)))
 	}
 	dirty, err := w.Dirty()

@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Yeeef/pm/internal/records"
 )
@@ -21,23 +20,22 @@ func page(t *testing.T, rel, header string) *records.Record {
 	return rec
 }
 
-func TestCheckListsDeadPatternsAsWaitingAndUncoveredSources(t *testing.T) {
+func TestCheckListsUncoveredSourcesAndNotDeadPatterns(t *testing.T) {
 	tracked := map[string]bool{"internal/a/a.go": true, "internal/b/b.go": true, "prime.md": true, "README.md": true}
 	recs := []*records.Record{page(t, "design/a", "covers: [internal/a/**]\n"), page(t, "design/none", "")}
-	got, waiting, err := Check(recs, tracked, []string{"internal/**", "prime.md"})
-	if err != nil || !reflect.DeepEqual(got, []string{"internal/b/b.go", "prime.md"}) || waiting != nil {
-		t.Errorf("Check = %v, %v, %v; want the two uncovered sources", got, waiting, err)
+	got, err := Check(recs, tracked, []string{"internal/**", "prime.md"})
+	if err != nil || !reflect.DeepEqual(got, []string{"internal/b/b.go", "prime.md"}) {
+		t.Errorf("Check = %v, %v; want the two uncovered sources", got, err)
 	}
-	if got, waiting, err := Check(recs, tracked, nil); err != nil || got != nil || waiting != nil {
-		t.Errorf("Check without sources = %v, %v, %v; want nothing", got, waiting, err)
+	if got, err := Check(recs, tracked, nil); err != nil || got != nil {
+		t.Errorf("Check without sources = %v, %v; want nothing", got, err)
 	}
 	recs = append(recs, page(t, "design/dead", "covers: [internal/c/**, prime.md, internal/d.go]\n"))
-	got, waiting, err = Check(recs, tracked, []string{"internal/**"})
-	want := []string{`design/dead.md: covers pattern "internal/c/**"`, `design/dead.md: covers pattern "internal/d.go"`}
-	if err != nil || !reflect.DeepEqual(waiting, want) || !reflect.DeepEqual(got, []string{"internal/b/b.go"}) {
-		t.Errorf("Check with dead patterns = %v, %v, %v; want them waiting, not fatal", got, waiting, err)
+	got, err = Check(recs, tracked, []string{"internal/**"})
+	if err != nil || !reflect.DeepEqual(got, []string{"internal/b/b.go"}) {
+		t.Errorf("Check with dead patterns = %v, %v; want the uncovered source alone (Hold holds the patterns)", got, err)
 	}
-	_, _, err = Check(recs, tracked, []string{"internal/**", "lib/**"})
+	_, err = Check(recs, tracked, []string{"internal/**", "lib/**"})
 	if err == nil || err.Error() != `design_sources pattern "lib/**" matches no tracked file; fix or remove it` {
 		t.Errorf("Check with a dead source pattern: %v, want it fatal", err)
 	}
@@ -73,9 +71,9 @@ func TestMainFilesReadsTheTreeAtARefNotTheWorktree(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(files, map[string]bool{"a/x.go": true, "b.md": true}) {
 		t.Errorf("MainFiles = %v, %v; want the ref's two files", files, err)
 	}
-	recs := []*records.Record{page(t, "design/a", "covers: [a/**, a/new.go]\n")}
-	if got := Dead(recs, files, (*records.Record).Covers); !reflect.DeepEqual(got, []string{`design/a.md: covers pattern "a/new.go"`}) {
-		t.Errorf("Dead = %v; want the unmerged file's pattern", got)
+	if got := Missing(map[string][]string{"design/a": {"a/**", "a/new.go"}}, files); !reflect.DeepEqual(got,
+		[]string{`design/a.md: covers pattern "a/new.go"`}) {
+		t.Errorf("Missing = %v; want the unmerged file's pattern", got)
 	}
 }
 
@@ -158,44 +156,46 @@ func TestMergeFilesReadsAMergeCommitAndRefusesASingleParentOne(t *testing.T) {
 	}
 }
 
-func TestOwnIsThePatternsTheSprintAddedOrChangedSinceItOpened(t *testing.T) {
-	dir, committer := t.TempDir(), ""
-	commit := func(day, covers string) { // authored on day; committed on the day in committer, when set
+// MissingOnMain reads the remote-tracking ref, and fetches it when a pattern matches nothing there: a page published
+// once its code merged names a file that a stale ref lacks.
+func TestMissingOnMainFetchesAStaleRefBeforeItFails(t *testing.T) {
+	tmp := t.TempDir()
+	git := func(dir string, args ...string) {
 		t.Helper()
-		if err := os.MkdirAll(filepath.Join(dir, "design"), 0o755); err != nil {
+		cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	origin, root, other := filepath.Join(tmp, "origin.git"), filepath.Join(tmp, "root"), filepath.Join(tmp, "other")
+	git(tmp, "init", "-q", "--bare", "-b", "main", origin)
+	add := func(dir, f string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(f)), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		text := "---\ntype: design\nproject: demo\ncovers: " + covers + "\n---\n\nx\n" // no title: Parse refuses it
-		if err := os.WriteFile(filepath.Join(dir, "design/p.md"), []byte(text), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("x\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		for _, args := range [][]string{{"add", "-A"}, {"commit", "-qm", day}} {
-			cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
-			cmd.Env = append(os.Environ(), "GIT_AUTHOR_DATE="+day+"T12:00:00Z", "GIT_COMMITTER_DATE="+committer+"T12:00:00Z")
-			if out, err := cmd.CombinedOutput(); err != nil {
-				t.Fatalf("git %v: %v\n%s", args, err, out)
-			}
-		}
+		git(dir, "add", "-A")
+		git(dir, "commit", "-qm", f)
+		git(dir, "push", "-q", "origin", "HEAD:main")
 	}
-	if out, err := exec.Command("git", "-C", dir, "init", "-q").CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v\n%s", err, out)
+	git(tmp, "clone", "-q", origin, root)
+	add(root, "a/x.go")
+	git(root, "fetch", "-q", "origin")
+	git(tmp, "clone", "-q", origin, other)
+	add(other, "a/new.go") // merged elsewhere: root's origin/main lacks it
+	patterns := map[string][]string{"design/a": {"a/**", "a/new.go"}, "design/b": {"b/**"}}
+	got, err := MissingOnMain(root, "origin", "main", patterns)
+	if err != nil || !reflect.DeepEqual(got, []string{`design/b.md: covers pattern "b/**"`}) {
+		t.Errorf("MissingOnMain = %v, %v; want only the pattern main lacks after the fetch", got, err)
 	}
-	opened := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	committer = "2026-10-01" // authored before the sprint opened, rebased onto the remote's records after it
-	commit("2026-09-20", "[a/**, pending/x.go, old.go]")
-	committer = "2026-10-02"
-	commit("2026-10-02", "[a/**, pending/x.go, new.go, a/y.go]") // in the sprint: old.go edited to new.go, a/y.go added
-	now := page(t, "design/p", "covers: [a/**, pending/x.go, new.go, a/y.go]\n")
-	got, err := Own(dir, now, opened)
-	if err != nil || !reflect.DeepEqual(got, []string{"new.go", "a/y.go"}) {
-		t.Errorf("Own = %v, %v; want the edited and the added pattern, not the ones the page held before (read from "+
-			"a header Parse refuses, in a commit whose author date predates the sprint)", got, err)
+	if got, err := MissingOnMain(root, "nowhere", "main", map[string][]string{"design/a": nil}); err != nil || got != nil {
+		t.Errorf("MissingOnMain with no pattern = %v, %v; want nothing read", got, err)
 	}
-	if got, err := Own(dir, now, time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)); err != nil || len(got) != 4 {
-		t.Errorf("Own of a sprint opened before any commit = %v, %v; want every pattern", got, err)
-	}
-	created := page(t, "design/q", "covers: [a/**]\n") // a page made during the sprint: no design/q.md before it
-	if got, err := Own(dir, created, opened); err != nil || !reflect.DeepEqual(got, []string{"a/**"}) {
-		t.Errorf("Own of a page created in the sprint = %v, %v; want every pattern", got, err)
+	if _, err := MissingOnMain(root, "nowhere", "main", patterns); err == nil ||
+		!strings.Contains(err.Error(), "pm cannot see nowhere/main") {
+		t.Errorf("MissingOnMain with no such remote: %v; want it to fail naming the ref", err)
 	}
 }

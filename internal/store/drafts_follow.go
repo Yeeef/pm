@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -19,16 +18,33 @@ import (
 // commits with git commit-tree, moves the branch with git update-ref, resets the workspace's index with git read-tree
 // and writes the files itself. Each runs under the store lock and completes or changes nothing.
 
-// draftSubject starts a draft commit's message; each of its pages has a line "Sprint: <path> <sprint id>".
+// draftSubject starts a draft commit's message; each of its unpublished pages has a line "Sprint: <path> <sprint id>".
+// A page the draft commit changes with no such line was published or discarded by its sprint's close
+// (drafts_publish.go), which leaves the tree as it was: the next follow drops it. A page a follow took out of the
+// draft commit with conflict markers keeps its sprint in a line "Conflict: <path> <sprint id>" until it is committed
+// again or the workspace drops the edit, so the sprint's close refuses while it waits.
 const draftSubject = "pm draft: "
 
-var sprintTag = regexp.MustCompile(`(?m)^Sprint: (\S+) (\S+)$`)
+var (
+	sprintTag   = regexp.MustCompile(`(?m)^Sprint: (\S+) (\S+)$`)
+	conflictTag = regexp.MustCompile(`(?m)^Conflict: (\S+) (\S+)$`)
+)
 
 // draftState is a workspace's branch: its commit, the records commit it is on, and its draft commit's pages' sprints.
 type draftState struct {
 	head, base string
 	draft      bool              // head is a draft commit on base
-	tags       map[string]string // each page of the draft commit (design/x.md): its sprint
+	tags       map[string]string // each unpublished page of the draft commit (design/x.md): its sprint
+	conflicts  map[string]string // each page a follow left with conflict markers, uncommitted: its sprint
+}
+
+// closed is the pages the draft commit changes with no sprint: published or discarded by their sprint's close.
+func (d draftState) closed(store string) ([]string, error) {
+	if !d.draft {
+		return nil, nil
+	}
+	paths, err := changedPaths(store, d.base, d.head)
+	return slices.DeleteFunc(paths, func(p string) bool { _, ok := d.tags[p]; return ok }), err
 }
 
 func readDraft(store string, w Workspace) (draftState, error) {
@@ -45,13 +61,16 @@ func readDraft(store string, w Workspace) (draftState, error) {
 	if len(parts) != 3 {
 		return draftState{}, fmt.Errorf("git log -1 %s printed %q", w.Ref(), out)
 	}
-	d := draftState{head: parts[0], base: base, tags: map[string]string{}}
+	d := draftState{head: parts[0], base: base, tags: map[string]string{}, conflicts: map[string]string{}}
 	switch {
 	case d.head == base:
 	case strings.HasPrefix(parts[2], draftSubject) && parts[1] == base:
 		d.draft = true
 		for _, m := range sprintTag.FindAllStringSubmatch(parts[2], -1) {
 			d.tags[m[1]] = m[2]
+		}
+		for _, m := range conflictTag.FindAllStringSubmatch(parts[2], -1) {
+			d.conflicts[m[1]] = m[2]
 		}
 	default:
 		return draftState{}, errorf("%s is at %s, a commit pm did not make on its base %s: a commit made by hand in %s? "+
@@ -204,7 +223,9 @@ type Followed struct {
 
 // Follow brings the workspace onto the records tip, under the store lock the caller holds:
 //
-//  1. the draft commit, if any, is merged onto the tip with git merge-tree --write-tree from its base;
+//  1. the draft commit, if any, less the pages it holds with no sprint (published or discarded at their sprint's close),
+//     is merged onto the tip with git merge-tree --write-tree from its base; a page the records branch renamed since
+//     the base keeps its sprint at its new path, where the merge puts the draft's edit;
 //  2. each file whose HEAD text moves and that is uncommitted in the workspace is merged with git merge-file (old HEAD
 //     text, working text, new HEAD text), conflict markers where hunks overlap;
 //  3. a draft page that conflicts in 1 leaves the draft commit: its file keeps the agent's text merged with the tip's,
@@ -223,17 +244,33 @@ func Follow(store string, w Workspace) (Followed, error) {
 	if err != nil {
 		return Followed{}, err
 	}
+	closed, err := d.closed(store)
+	if err != nil {
+		return Followed{}, err
+	}
 	f := Followed{Base: d.base, Tip: tip}
-	if d.base == tip {
+	if d.base == tip && len(closed) == 0 {
 		return f, w.syncIndex() // a follow stopped between the branch and the index leaves the index behind
 	}
 	head, conflicted := tip, []string(nil)
 	if d.draft {
-		var tree string
-		if tree, conflicted, err = mergeTree(store, d.base, tip, d.head); err != nil {
+		draft, err := withoutPages(store, d, closed)
+		if err != nil {
 			return Followed{}, err
 		}
-		if head, err = draftCommit(store, w, tree, tip, d.tags); err != nil {
+		tags, err := renamedTags(store, d, tip)
+		if err != nil {
+			return Followed{}, err
+		}
+		var tree string
+		if tree, conflicted, err = mergeTree(store, d.base, tip, draft); err != nil {
+			return Followed{}, err
+		}
+		marks, err := w.conflictMarks(d, tags, conflicted)
+		if err != nil {
+			return Followed{}, err
+		}
+		if head, err = draftCommit(store, w, tree, tip, tags, marks); err != nil {
 			return Followed{}, err
 		}
 	}
@@ -245,6 +282,69 @@ func Follow(store string, w Workspace) (Followed, error) {
 		return Followed{}, err
 	}
 	return f, w.noteBinaries(d.base, tip, f.Binaries)
+}
+
+// conflictMarks is the conflict marks the draft commit keeps across a follow: each page the merge conflicts on, with
+// its sprint, and each marked before whose file is still uncommitted (one reverted by hand dropped the edit).
+func (w Workspace) conflictMarks(d draftState, tags map[string]string, conflicted []string) (map[string]string, error) {
+	marks := map[string]string{}
+	if len(d.conflicts) > 0 {
+		dirty, err := w.Dirty()
+		if err != nil {
+			return nil, err
+		}
+		for p, sprint := range d.conflicts {
+			if slices.Contains(dirty, p) {
+				marks[p] = sprint
+			}
+		}
+	}
+	for _, p := range conflicted {
+		if sprint := tags[p]; sprint != "" {
+			marks[p] = sprint
+		}
+	}
+	return marks, nil
+}
+
+// withoutPages is the draft commit with paths as its base has them: a commit on the base, or the base itself when
+// nothing is left; the draft commit itself when paths is empty.
+func withoutPages(store string, d draftState, paths []string) (string, error) {
+	if len(paths) == 0 {
+		return d.head, nil
+	}
+	tree, err := withFiles(store, d.head, d.base, paths)
+	if err != nil {
+		return "", err
+	}
+	if same, err := Git(store, "rev-parse", d.base+"^{tree}"); err != nil || same == tree {
+		return d.base, err
+	}
+	return gitIn(store, nil, draftSubject+"less its closed pages\n", "commit-tree", tree, "-p", d.base, "-F", "-")
+}
+
+// renamedTags is the draft's tags, with each tagged page that the records branch renamed between the base and tip
+// tagged at its new path too (git diff --find-renames, the rename detection git merge-tree runs).
+func renamedTags(store string, d draftState, tip string) (map[string]string, error) {
+	tags := maps.Clone(d.tags)
+	if len(tags) == 0 {
+		return tags, nil
+	}
+	out, err := Git(store, "diff", "--name-status", "-z", "--find-renames", d.base, tip, "--")
+	if err != nil {
+		return nil, err
+	}
+	fields := strings.Split(strings.TrimRight(out, "\x00"), "\x00")
+	for i := 0; i+1 < len(fields); i += 2 {
+		if !strings.HasPrefix(fields[i], "R") || i+2 >= len(fields) {
+			continue
+		}
+		if sprint, ok := d.tags[fields[i+1]]; ok {
+			tags[fields[i+2]] = sprint
+		}
+		i++ // a rename lists two paths
+	}
+	return tags, nil
 }
 
 // syncIndex resets the workspace's index to its HEAD's tree when they differ; the working tree is untouched.
@@ -356,25 +456,40 @@ func setOf(list []string) map[string]bool {
 	return out
 }
 
-// draftCommit is the draft commit of tree on base, its pages tagged as tags give them, or base when tree adds nothing.
-func draftCommit(store string, w Workspace, tree, base string, tags map[string]string) (string, error) {
+// draftCommit is the draft commit of tree on base, its pages tagged as tags give them and marks its conflict marks,
+// or base when it holds neither a page nor a mark.
+func draftCommit(store string, w Workspace, tree, base string, tags, marks map[string]string) (string, error) {
 	pages, err := changedPaths(store, base, tree)
-	if err != nil || len(pages) == 0 {
+	if err != nil || (len(pages) == 0 && len(marks) == 0) {
 		return base, err
 	}
-	msg := draftSubject + "design pages of " + w.Branch() + "\n"
-	sort.Strings(pages)
-	for i, p := range pages {
-		if i == 0 {
-			msg += "\n"
+	for _, p := range pages {
+		if tags[p] == "" {
+			return "", errorf("the draft of %s holds %s with no sprint: the records branch moved a drafted page in a "+
+				"way pm cannot follow. Keep the draft as uncommitted edits with git -C %s reset --soft %s, then pm "+
+				"commit them", w.Branch(), p, w.Dir, w.BaseRef())
 		}
-		sprint := tags[p]
-		if sprint == "" {
-			return "", errorf("the draft of %s holds %s with no sprint", w.Branch(), p)
-		}
-		msg += "Sprint: " + p + " " + sprint + "\n"
 	}
-	return gitIn(store, nil, msg, "commit-tree", tree, "-p", base, "-F", "-")
+	return gitIn(store, nil, draftMessage(w, pages, tags, marks), "commit-tree", tree, "-p", base, "-F", "-")
+}
+
+// draftMessage is a draft commit's message: the subject, then a "Sprint:" line for each of pages that tags names, and
+// a "Conflict:" line for each mark.
+func draftMessage(w Workspace, pages []string, tags, marks map[string]string) string {
+	var lines []string
+	for _, p := range slices.Sorted(slices.Values(pages)) {
+		if sprint := tags[p]; sprint != "" {
+			lines = append(lines, "Sprint: "+p+" "+sprint)
+		}
+	}
+	for _, p := range slices.Sorted(maps.Keys(marks)) {
+		lines = append(lines, "Conflict: "+p+" "+marks[p])
+	}
+	msg := draftSubject + "design pages of " + w.Branch() + "\n"
+	if lines != nil {
+		msg += "\n" + strings.Join(lines, "\n") + "\n"
+	}
+	return msg
 }
 
 // move writes plan's files into the workspace, each only while it still holds the text the plan read (an edit made
@@ -461,6 +576,7 @@ func CommitDraft(store string, w Workspace, pages map[string]string) (string, er
 			return "", err
 		}
 		d.tags[p] = pages[p]
+		delete(d.conflicts, p) // committed again: resolved
 		if text == nil {
 			info.WriteString("0 0000000000000000000000000000000000000000\t" + p + "\n")
 			continue
@@ -487,7 +603,7 @@ func CommitDraft(store string, w Workspace, pages map[string]string) (string, er
 	if err != nil {
 		return "", err
 	}
-	head, err := draftCommit(store, w, tree, d.base, d.tags)
+	head, err := draftCommit(store, w, tree, d.base, d.tags, d.conflicts)
 	if err != nil {
 		return "", err
 	}
@@ -503,8 +619,19 @@ func ResetDraft(store string, w Workspace, old string) error {
 	return w.setBranch(store, d.head, old, d.base)
 }
 
-// DraftPages is the pages the workspace's draft commit holds, each with its text (nil: it removes the page), and their
-// sprints.
+// Sprints is each page the workspace's draft commit holds unpublished or marks in conflict: its sprint, one per page.
+func (w Workspace) Sprints(store string) (map[string]string, error) {
+	d, err := readDraft(store, w)
+	if err != nil {
+		return nil, err
+	}
+	out := maps.Clone(d.conflicts)
+	maps.Copy(out, d.tags)
+	return out, nil
+}
+
+// DraftPages is the unpublished pages the workspace's draft commit holds, each with its text (nil: it removes the
+// page), and their sprints; a page its sprint's close published or discarded is not one.
 func DraftPages(store string, w Workspace) (map[string]*string, map[string]string, error) {
 	d, err := readDraft(store, w)
 	if err != nil || !d.draft {
@@ -514,6 +641,7 @@ func DraftPages(store string, w Workspace) (map[string]*string, map[string]strin
 	if err != nil {
 		return nil, nil, err
 	}
+	paths = slices.DeleteFunc(paths, func(p string) bool { _, ok := d.tags[p]; return !ok })
 	texts, err := blobs(store, d.head, paths)
 	return texts, d.tags, err
 }

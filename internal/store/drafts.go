@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -138,7 +139,9 @@ func (c Clone) workspaceFiles(w Workspace) (map[string]*string, string, error) {
 		if files, _, err = DraftPages(c.Store, w); err != nil {
 			return nil, "", err
 		}
-		states = append(states, "committed")
+		if len(files) > 0 {
+			states = append(states, "committed")
+		}
 	}
 	dirty, err := w.Dirty()
 	if err != nil {
@@ -188,4 +191,34 @@ func WorkspaceStamp(common string) (dirs, refs []string) {
 		refs = append(refs, filepath.Join(common, filepath.FromSlash(ref)))
 	}
 	return dirs, refs
+}
+
+// Files is each record file the workspace changes against its base, by its path in the store (design/x.md): its draft
+// commit's pages, then its uncommitted record edits over them; its text, or nil when it removes the file. The site's
+// version of the workspace lays the same files over the published records.
+func (w Workspace) Files(store string) (map[string]*string, error) {
+	files, _, err := Clone{Store: store}.workspaceFiles(w)
+	return files, err
+}
+
+// Working is the records as the worktree containing cwd edits them, for pm check: in a worktree with a records
+// workspace, the published records with the workspace's drafts over them, and the design pages it drafts (design/x.md);
+// elsewhere the store's records as they are.
+func Working(cwd, store string) ([]*records.Record, map[string]bool, error) {
+	w, err := WorkspaceOf(cwd)
+	if err != nil || w == nil {
+		recs, err := records.Read(store, nil)
+		return recs, nil, err
+	}
+	files, err := w.Files(store)
+	if err != nil {
+		return nil, nil, err
+	}
+	changes, drafts := map[string]*string{}, map[string]bool{}
+	for rel, text := range files {
+		changes[filepath.Join(store, filepath.FromSlash(rel))] = text
+		drafts[rel] = path.Dir(rel) == "design"
+	}
+	recs, err := Committed(store, changes)
+	return recs, drafts, err
 }

@@ -213,24 +213,28 @@ func TestAOneShotWriteMergesIntoAnotherWorkspacesUncommittedEdit(t *testing.T) {
 	}
 }
 
-// A design page commits through the draft commit, tagged with the sprint that links it and in which the session holds
-// a task, and is published in the same commit for now; with no such sprint it is refused, and the main checkout
-// refuses a design page.
+// A design page commits into the draft commit, tagged with the sprint that links it and in which the session holds a
+// task, and is not published; with no such sprint it is refused, and the main checkout refuses a design page.
 func TestADesignPageIsTaggedWithItsSprintAndRefusedInTheMainCheckout(t *testing.T) {
 	root, records, one, _ := workspaces(t)
 	rel := "records/design/parser.md"
+	tip := gitOut(t, records, "rev-parse", "records")
 	edit(t, filepath.Join(one.Dir, "design/parser.md"), "\nP1\n", "\nP1, drafted\n")
 	if out, errs, code := runPM(t, one.Code, "commit", "-m", "parser", rel); code != 0 {
 		t.Fatalf("commit: exit %d %s%s", code, out, errs)
 	}
-	if got := gitOut(t, records, "log", "-1", "--format=%B"); got != "parser\n\nSprint: design/parser.md demo.1" {
-		t.Errorf("the records commit's message: %q", got)
+	if got := gitOut(t, records, "rev-parse", "records"); got != tip {
+		t.Errorf("the draft moved records to %s", got)
 	}
-	if got := gitOut(t, records, "show", "records:design/parser.md"); !strings.Contains(got, "P1, drafted") {
-		t.Error("the page is not published")
+	if got := gitOut(t, records, "log", "-1", "--format=%B", one.Ref()); got != "pm draft: design pages of drafts/one"+
+		"\n\nSprint: design/parser.md demo.1" {
+		t.Errorf("the draft commit's message: %q", got)
 	}
-	if head := gitOut(t, records, "rev-parse", one.Ref()); head != gitOut(t, records, "rev-parse", "records") {
-		t.Errorf("the draft commit outlived its publish: %s", head)
+	if got := gitOut(t, records, "show", "records:design/parser.md"); strings.Contains(got, "P1, drafted") {
+		t.Error("the page is published")
+	}
+	if dirty := dirtyOf(t, one); dirty != nil {
+		t.Errorf("the draft left uncommitted files: %v", dirty)
 	}
 
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "s2") // holds no task
@@ -246,7 +250,7 @@ func TestADesignPageIsTaggedWithItsSprintAndRefusedInTheMainCheckout(t *testing.
 	if err := os.Symlink(records, filepath.Join(root, "records")); err != nil {
 		t.Fatal(err)
 	}
-	edit(t, filepath.Join(records, "design/parser.md"), "\nP1, drafted\n", "\nP1, in the store\n")
+	edit(t, filepath.Join(records, "design/parser.md"), "\nP1\n", "\nP1, in the store\n")
 	_, errs, code = runPM(t, root, "commit", "-m", "parser", rel)
 	if code != 1 || !strings.Contains(errs, "error: "+rel+" is a design page: design pages are edited and committed in "+
 		"a code worktree's records workspace") {

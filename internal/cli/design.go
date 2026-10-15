@@ -13,11 +13,19 @@ import (
 	"slices"
 )
 
-// designGate is the design-page gate (design.Gate) on the files a PR changes, for the sprints it delivers. When no
-// design page has covers there is nothing to gate, and files is not called.
+// designGate is the design-page gate (design.Gate) on the files a PR changes, for the sprints it delivers, each with
+// the pages the clone's drafts hold for it. When no design page has covers there is nothing to gate, and files is not
+// called.
 func (r *repo) designGate(pr string, sprintIDs []string, files func() ([]string, error)) ([]design.Verdict, error) {
 	if !design.Covered(r.recs) {
 		return nil, nil
+	}
+	drafted, warnings, err := store.Drafted(r.records)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range warnings { // another worktree's bad branch never fails this gate
+		fmt.Fprintln(r.warn, w)
 	}
 	var sprints []design.Sprint
 	for _, id := range sprintIDs {
@@ -29,7 +37,7 @@ func (r *repo) designGate(pr string, sprintIDs []string, files func() ([]string,
 		if it == nil {
 			return nil, refuse("sprint %s is not in the work store, so the design-page check cannot tell when it opened", id)
 		}
-		sprints = append(sprints, design.Sprint{Record: rec, Opened: it.CreatedAt})
+		sprints = append(sprints, design.Sprint{Record: rec, Opened: it.CreatedAt, Drafted: drafted[id]})
 	}
 	return design.Gate(r.records, pr, sprints, r.recs, files)
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -113,6 +114,33 @@ func CodexConfig(path string) (string, map[string]any, []string, error) {
 		}
 	}
 	return text, data, have, nil
+}
+
+// CodexState is pm where's state of the Codex config at path: the writable roots the clone needs (CodexRoots) set, the
+// ones missing, or why the config cannot be read.
+func CodexState(path, main string) (string, error) {
+	_, _, have, err := CodexConfig(path)
+	var bad *Error
+	if errors.As(err, &bad) {
+		return "unreadable: " + bad.Msg, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	roots, err := CodexRoots(main)
+	if err != nil {
+		return "", err
+	}
+	var missing []string
+	for _, r := range roots {
+		if !slices.Contains(have, r) {
+			missing = append(missing, r)
+		}
+	}
+	if len(missing) == 0 {
+		return "writable_roots set", nil
+	}
+	return fmt.Sprintf("writable_roots missing %s; run pm init", strings.Join(missing, ", ")), nil
 }
 
 func tomlError(err error) string {
