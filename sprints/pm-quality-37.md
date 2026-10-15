@@ -72,10 +72,13 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the audit doc measures the pm command surface, its usage and its drift from the design intent, and ranks ten simplifications.
+
+- [pm command surface: quality audit and simplifications](../docs/2026-10-16-pm-command-quality-audit.md).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- A doc record under pm-quality with the inventory, the evidence sources and at least five ranked proposals, each with reason, cost and decisions touched: met. The doc holds 63 leaves, 48 flags and the growth from 39 to 81 nodes; 3,768 invocations from 252 transcript files; 105 command decisions; ten proposals, four marked as needing an owner decision.
+- `pm check` passes: met. "all 242 pages render; a design page covers every tracked source file" (one covers pattern waits on another sprint's unmerged work).
