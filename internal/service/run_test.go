@@ -351,6 +351,26 @@ func TestServesPagesStyleAndVersionWithTheStoreAndVersionHeaders(t *testing.T) {
 	}
 }
 
+// A version's page links the stylesheet relative to itself, under /drafts/<draft>/; a diff against another draft
+// (?vs=) is its own page, which /version digests as the page itself.
+func TestServesAVersionsStyleAndADiffAgainstAnotherDraft(t *testing.T) {
+	s := serve(t, newFakeWork(), "")
+	if resp, body := s.get("/drafts/store/style.css"); body != "body{}" || resp.StatusCode != 200 {
+		t.Fatalf("a version's link to the style: %d %s", resp.StatusCode, body)
+	}
+	resp, text := s.get("/drafts/a/x.diff.html?vs=b&y=1")
+	if resp.StatusCode != 200 || !strings.HasPrefix(text, "<h1>drafts/a/x.diff.html against b</h1>") {
+		t.Fatalf("a diff against another draft: %d %s", resp.StatusCode, text)
+	}
+	_, version := s.get("/version?page=" + url.QueryEscape("/drafts/a/x.diff.html?vs=b&y=1"))
+	var v struct {
+		Page string `json:"page"`
+	}
+	if err := json.Unmarshal([]byte(version), &v); err != nil || "[status "+v.Page+"]" != regexp.MustCompile(`\[status \w+\]`).FindString(text) {
+		t.Fatalf("version %s against the diff %s (%v)", version, text, err)
+	}
+}
+
 // raw sends path as the request line holds it, so no client cleans a .. out first; it returns the status and the
 // Content-Type.
 func (s *served) raw(path string) (int, string) {
@@ -401,14 +421,15 @@ func TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt(t *testing.T) {
 		t.Fatalf("GET /docs/x.svg: %d %v %q", resp.StatusCode, resp.Header, body)
 	}
 	for path, want := range map[string]string{"/docs/fig.png": "image/png", "/docs/a.jpg": "image/jpeg",
-		"/docs/b.webp": "image/webp", "/docs/in.svg": "image/svg+xml"} {
+		"/docs/b.webp": "image/webp", "/docs/in.svg": "image/svg+xml", "/drafts/store/docs/fig.png": "image/png"} {
 		if code, ctype := s.raw(path); code != 200 || ctype != want {
 			t.Errorf("GET %s: %d %s, want 200 %s", path, code, ctype, want)
 		}
 	}
 	for _, path := range []string{"/docs/missing.svg", "/../secret.svg", "/docs/../../secret.svg",
 		"/docs/%2e%2e/%2e%2e/secret.svg", "/%2e%2e/secret.svg", "//" + strings.TrimPrefix(secret, "/"), "/docs/out.svg",
-		"/docs/abs.svg", "/.git/x.svg", "/docs/./x.svg", "/docs", "/docs/leak.svg", "/docs/git.svg"} {
+		"/docs/abs.svg", "/.git/x.svg", "/docs/./x.svg", "/docs", "/docs/leak.svg", "/docs/git.svg",
+		"/drafts/store/../secret.svg", "/drafts/store/%2e%2e/secret.svg", "/drafts/x.svg"} {
 		if code, _ := s.raw(path); code != 404 {
 			t.Errorf("GET %s: %d, want 404", path, code)
 		}

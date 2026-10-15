@@ -79,6 +79,7 @@ internal/service   TestLocalhostIsServedAsBeforeAndAnEdgeForwardedRequestNeedsTh
 internal/service   TestTheServiceChecksAccessOnEveryRequestAndARefusalNamesNoStore                    os  serve(): service.Run with TCP listen and flock
 internal/service   TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers                               os  PlatformKind unit file, UnitBytes for launchd/systemd, TCP port held
 internal/service   TestServesPagesStyleAndVersionWithTheStoreAndVersionHeaders                        os  serve(): service.Run with TCP listen and flock
+internal/service   TestServesAVersionsStyleAndADiffAgainstAnotherDraft                                os  serve(): service.Run with TCP listen and flock
 internal/service   TestServesImageFilesFromTheRecordsStoreAndNothingOutsideIt                         os  serve() plus os.Symlink escapes refused by os.Root
 internal/service   TestAReplyIsSpooledStoredOnceAndPushedIntoTheSessionsInbox                         os  flocked spool plus a unix-socket inbox in /tmp
 internal/service   TestAReplyIsRefusedWithItsReason                                                   os  serve(): service.Run with flock and TCP
@@ -121,6 +122,10 @@ internal/site      TestCodeChangedLeavesOutTheMergesOfSprintsThatUpdatedOrWaived
 internal/site      TestGoldenFillRepliesAndStatus                                                     any HTML template fill compared with testdata
 internal/site      TestAReplyToASessionWithNoInboxWaitsForIt                                          any HTML text
 internal/site      TestAQuestionsSlotBecomesTheFormItsInputsPost                                      any HTML text replacement in memory
+internal/site      TestAVersionIsThePublishedRecordsWithItsDraftLaidOver                              os  the constructs' git store in TempDir read through store.Published (git archive, EvalSymlinks) with git dates
+internal/site      TestADraftsDiffAgainstAnotherDraftShowsWhereTheyDiffer                             os  same git store fixture
+internal/site      TestABrokenDraftFailsOnlyItsOwnVersion                                             os  same git store fixture
+internal/site      TestSectionsCutAtHeadingsOutsideCodeFences                                         any string cutting and diffing in memory
 internal/sync      TestARunRecordsEachStepAndFlagsAFailure                                            os  the push lock is syscall.Flock LOCK_NB; the ASecondRunSkipsWhileOneHoldsTheLock subtest depends on it
 internal/sync      TestANeverSuccessfulPushIsOverdueFromTheInstall                                    any JSON state file and an injected clock
 internal/sync      TestPushRecordsPushesRebasesAndReports                                             os  git clone/push/rebase under a store flock, with process-group kill in Run

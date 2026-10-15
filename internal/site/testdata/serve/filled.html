@@ -26,7 +26,7 @@ function show() {
 }
 async function poll() {
   try {
-    const r = await fetch("/version?page=" + encodeURIComponent(location.pathname), {cache: "no-store"});
+    const r = await fetch("/version?page=" + encodeURIComponent(location.pathname + location.search), {cache: "no-store"});
     const v = await r.json();
     gone = false;
     if (v.page === el.dataset.page) el.dataset.asof = v.asof;

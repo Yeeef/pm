@@ -76,7 +76,8 @@ func (p *Partial) Error() string {
 
 // Pages renders the pages of one Load.
 type Pages interface {
-	// Page is the page at path (index.html, sprints/x.html); found false when the site has no such page.
+	// Page is the page at path (index.html, sprints/x.html, with ?vs=<draft> when the URL carries vs: pageOf);
+	// found false when the site has no such page.
 	Page(path string) (html string, found bool, err error)
 }
 
@@ -525,6 +526,32 @@ func pathOf(p string) string {
 	return p
 }
 
+// pageOf is the page a URL names: its path's page, and the draft a version's diff is against (?vs=<draft>), the one
+// query a page reads.
+func pageOf(u *url.URL) string {
+	p := pathOf(u.Path)
+	if vs := u.Query().Get("vs"); vs != "" {
+		p += "?vs=" + vs
+	}
+	return p
+}
+
+// versionAsset is a version's link to the stylesheet or a figure (/drafts/<draft>/<path>, relative to the version's
+// page) as the file it names, /<path>; any other path as it is. The service serves one stylesheet and the store's
+// figures to every version.
+func versionAsset(p string) string {
+	rest, ok := strings.CutPrefix(p, "/drafts/")
+	if !ok {
+		return p
+	}
+	if _, asset, ok := strings.Cut(rest, "/"); ok {
+		if _, image := ImageTypes[strings.ToLower(path.Ext(asset))]; image || asset == "style.css" {
+			return "/" + asset
+		}
+	}
+	return p
+}
+
 type logged struct {
 	http.ResponseWriter
 	code int
@@ -535,8 +562,9 @@ func (l *logged) WriteHeader(code int) {
 	l.ResponseWriter.WriteHeader(code)
 }
 
-// ServeHTTP answers GET and HEAD for the pages, /style.css, /version and the image files in the records store, and
-// POST for /reply, each only once refusal passes it; it logs one line each.
+// ServeHTTP answers GET and HEAD for the pages (the drafts' versions under /drafts/ among them), /style.css, /version
+// and the image files in the records store, and POST for /reply, each only once refusal passes it; it logs one line
+// each.
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	lw := &logged{ResponseWriter: w}
@@ -573,7 +601,7 @@ func (s *server) reply(w http.ResponseWriter, code int, ctype string, body []byt
 
 func (s *server) get(w http.ResponseWriter, r *http.Request) {
 	s.poke() // a reload asks for a look at once; it does not wait for it
-	switch r.URL.Path {
+	switch versionAsset(r.URL.Path) {
 	case "/style.css":
 		s.reply(w, 200, "text/css; charset=utf-8", s.d.Style)
 		return
@@ -586,7 +614,7 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			u = &url.URL{Path: target}
 		}
-		_, text, snap := s.page(pathOf(u.Path))
+		_, text, snap := s.page(pageOf(u))
 		body, err := json.Marshal(struct {
 			AsOf float64 `json:"asof"`
 			Page string  `json:"page"`
@@ -598,10 +626,10 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ctype, ok := ImageTypes[strings.ToLower(path.Ext(r.URL.Path))]; ok {
-		s.image(w, strings.TrimPrefix(r.URL.Path, "/"), ctype)
+		s.image(w, strings.TrimPrefix(versionAsset(r.URL.Path), "/"), ctype)
 		return
 	}
-	code, text, snap := s.page(pathOf(r.URL.Path))
+	code, text, snap := s.page(pageOf(r.URL))
 	text = s.d.Site.FillStatus(text, snap.asOf, digest(text), time.Now())
 	s.reply(w, code, "text/html; charset=utf-8", []byte(text))
 }

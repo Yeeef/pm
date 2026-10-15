@@ -151,12 +151,14 @@ func summarizeDay(main string) (bool, string) {
 }
 
 // servedSite is internal/site as the pm service renders it (service.Site): the records published on the records
-// branch, the remote's main branch and today's date as the stamp; each look's records and items checked and their
-// pages rendered on demand; the reply forms and the status line filled on every page served.
+// branch, each draft beside them as a version, the remote's main branch and today's date as the stamp; each look's
+// records and items checked and their pages rendered on demand; the reply forms and the status line filled on every
+// page served.
 type servedSite struct {
 	records, name string
 	main          string   // <remote>/<main branch>: the remote's main, whose commits to covered files a design page names
 	heads         []string // the files whose bytes change whenever the store's HEAD commit or the main branch does
+	drafts        store.DraftSource
 	mu            gosync.Mutex
 	datesStamp    string // the stamp the cached design dates were read at
 	dates         site.Dates
@@ -166,7 +168,8 @@ type servedSite struct {
 }
 
 // newServedSite reads where the records store keeps its HEAD: the worktree's HEAD, the records branch's loose ref, the
-// remote's main branch's (main, <remote>/<branch>) and packed-refs, read as files so a look runs no git.
+// remote's main branch's (main, <remote>/<branch>) and packed-refs, read as files so a look runs no git. Its drafts
+// are the store's uncommitted edits (store.Edits).
 func newServedSite(records, name, main string) (*servedSite, error) {
 	out, err := git(records, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
 	if err != nil {
@@ -182,7 +185,7 @@ func newServedSite(records, name, main string) (*servedSite, error) {
 	}
 	return &servedSite{records: records, name: name, main: main, heads: []string{filepath.Join(dirs[0], "HEAD"),
 		filepath.Join(dirs[1], "refs/heads", store.Branch), filepath.Join(dirs[1], "refs/remotes", main),
-		filepath.Join(dirs[1], "packed-refs")},
+		filepath.Join(dirs[1], "packed-refs")}, drafts: store.Edits{Store: records},
 		indexLock: filepath.Join(dirs[0], "index.lock")}, nil
 }
 
@@ -232,10 +235,10 @@ func (s *servedSite) Stamp() (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// Load reads the published records from the records branch (store.Published) and checks them against items. The
-// design pages' dates and their covered code's changes come from git, read again only when the stamp moved. A worktree
-// that moved while it read (the stamp after the read not the stamp before, or git rewriting it) makes it a
-// service.Partial.
+// Load reads the published records from the records branch (store.Published) and checks them against items, and lists
+// the drafts, which the site builds as versions on request. The design pages' dates and their covered code's changes
+// come from git, read again only when the stamp moved. Drafts that moved while it read them (the stamp after the read
+// not the stamp before, or git rewriting the worktree) make it a service.Partial.
 func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	rewriting := fsutil.Exists(s.indexLock)
 	stamp, err := s.Stamp() // before the read: a write between the two moves the stamp again, and the next look reads
@@ -254,6 +257,10 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	if err != nil {
 		return nil, err
 	}
+	drafts, err := s.drafts.Drafts()
+	if err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	dates := s.dates
 	if s.datesStamp != stamp {
@@ -269,6 +276,9 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	s.mu.Unlock()
 	served, err := site.Serve(recs, records.NewItems(items), s.name, dates, summaries)
 	if err != nil {
+		return nil, err
+	}
+	if err := served.AddDrafts(s.records, texts, drafts); err != nil {
 		return nil, err
 	}
 	// A records sync rewrote the worktree mid-read: the stamp moved, or git was rewriting the worktree, which a git that

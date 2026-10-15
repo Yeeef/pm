@@ -14,12 +14,17 @@ import (
 // What the pm service adds to the pages: each is rendered when first asked for from one read of the records and
 // items, its reply slots filled with forms and its status slot with the data's age.
 
-// Served is one read of the records and the items, checked, whose pages render on demand.
+// Served is one read of the records and the items, checked, whose pages render on demand; with AddDrafts, each draft
+// is served beside them as a version (versions.go).
 type Served struct {
-	recs  []*Record
-	items *Items
-	name  string
-	dates Dates
+	recs      []*Record
+	items     *Items
+	name      string
+	dates     Dates
+	summaries map[string]*records.Summary
+	root      string            // the store, resolved: what texts' paths are under
+	texts     map[string]string // the published record texts the records were parsed from, by resolved path
+	versions  []*version
 }
 
 // Serve checks the records and items as RenderPages does (every answered decision need cited) and returns the site
@@ -28,12 +33,26 @@ func Serve(recs []*Record, items *Items, siteName string, dates Dates, summaries
 	if err := CheckNeedsAnswered(recs, items, nil); err != nil {
 		return nil, err
 	}
-	return &Served{WithDays(recs, items, summaries), items, siteName, dates}, nil
+	return &Served{recs: WithDays(recs, items, summaries), items: items, name: siteName, dates: dates,
+		summaries: summaries}, nil
 }
 
-// Page is the page at path as RenderPages renders it; found false when the site has no such page. A record that fails
-// to render fails only its own page here, where RenderPages fails the whole site.
+// Page is the page at path as RenderPages renders it, with its version bar when a draft changes it; a version's page
+// or diff under DraftsDir (versions.go); found false when the site has no such page. A record that fails to render
+// fails only its own page here, where RenderPages fails the whole site.
 func (s *Served) Page(path string) (string, bool, error) {
+	if rest, ok := strings.CutPrefix(path, DraftsDir); ok {
+		return s.versionPage(rest)
+	}
+	text, found, err := s.page(path)
+	if !found || err != nil {
+		return text, found, err
+	}
+	return s.withBar(text, strings.TrimSuffix(path, ".html"), nil, 0)
+}
+
+// page is the published page at path, without a version bar.
+func (s *Served) page(path string) (string, bool, error) {
 	if path == "index.html" {
 		p, err := RenderIndex(s.recs, s.items, s.name, s.dates)
 		return p, true, err
@@ -168,7 +187,7 @@ function show() {
 }
 async function poll() {
   try {
-    const r = await fetch("/version?page=" + encodeURIComponent(location.pathname), {cache: "no-store"});
+    const r = await fetch("/version?page=" + encodeURIComponent(location.pathname + location.search), {cache: "no-store"});
     const v = await r.json();
     gone = false;
     if (v.page === el.dataset.page) el.dataset.asof = v.asof;

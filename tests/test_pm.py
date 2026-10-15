@@ -1440,6 +1440,57 @@ def served(repo):
         repo.start_service()  # the per-test service again, for what the test reads after
 
 
+def fetch(url: str) -> tuple[int, str]:
+    """The status and the page at `url`."""
+    import urllib.error
+    try:
+        with urllib.request.urlopen(url) as r:
+            return r.status, r.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+
+@pytest.mark.integration
+def test_a_hand_edit_is_a_version_beside_the_published_page(repo, served):
+    """The site renders the records branch; the store's uncommitted edits are the draft "store". A hand edit to a
+    design page leaves its published page as it was, plus a version bar; the version renders at its URL and its diff
+    marks exactly the edited lines. A draft that does not parse fails only its version's URLs; every published page
+    answers 200."""
+    assert repo.pm("design", "new", "parser", "--title", "The parser", "--project", "demo").returncode == 0
+    published = until_shown(lambda: load(f"{served}/design/parser.html"), lambda p: "The parser" in p, None)
+    path = repo.store / "design/parser.md"
+    text = path.read_text()
+    problem = "## Problem\n\n> What are we solving, and why now?\n\nNone yet.\n"
+    assert problem in text
+    written = time.time()
+    path.write_text(text.replace(problem, problem.replace("None yet.", "Records need a parser.\nIt streams."), 1))
+    version_url = f"{served}/drafts/store/design/parser.html"
+    version = until_shown(lambda: load(version_url), lambda p: "It streams." in p, written)
+    assert fetch(version_url)[0] == 200 and "Records need a parser." in version and "<b>store</b>" in version
+    code, page = fetch(f"{served}/design/parser.html")
+    bar = re.search(r'<div class="note draft versions">.*?</div>\n', page, re.S)
+    assert code == 200 and bar and "Records need a parser." not in page, page
+    assert 'href="../drafts/store/design/parser.html"' in bar.group(0)
+    assert "uncommitted edits in the shared store" in bar.group(0)
+    def strip(p: str) -> str:  # the status line, whose age moves
+        return re.sub(r'<p class="asof.*?</script>', "", p, flags=re.S)
+    assert strip(page.replace(bar.group(0), "")) == strip(published)
+    code, diff = fetch(f"{served}/drafts/store/design/parser.diff.html")
+    assert code == 200 and re.findall(r'<span class="(?:add|del)">(.*)</span>', diff) == [
+        "- None yet.", "+ Records need a parser.", "+ It streams."], diff
+
+    path.write_text(path.read_text().replace("type: design\n", "type: design\n  bad: [\n", 1))
+    until_shown(lambda: load(version_url), lambda p: "the version store does not render" in p, None)
+    assert fetch(version_url)[0] == 500
+    assert fetch(f"{served}/drafts/store/design/parser.diff.html")[0] == 200
+    paths = repo.pages()
+    assert "design/parser.html" in paths
+    for p in ["", *paths]:
+        code, page = fetch(f"{served}/{p}")
+        assert code == 200, (p, page)
+    assert "does not render" in fetch(f"{served}/design/parser.html")[1]
+
+
 # ---------------------------------------------------------------- replies on the site
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):

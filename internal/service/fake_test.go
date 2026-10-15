@@ -307,6 +307,9 @@ func (p fakePages) Page(path string) (string, bool, error) {
 	if path == "broken.html" {
 		return "", false, errors.New("the page broke")
 	}
+	if diff, vs, ok := strings.Cut(path, "?vs="); ok {
+		return "<h1>" + diff + " against " + vs + "</h1>" + StatusSlot, true, nil
+	}
 	for _, it := range p {
 		if path == "items/"+it.ID+".html" {
 			return "<h1>" + it.Title + "</h1>" + StatusSlot, true, nil
