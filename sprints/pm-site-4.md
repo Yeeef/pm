@@ -65,10 +65,15 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: docs render TeX math, MDX-style SVG diagrams and links between docs by slug, and a docs index lists every doc (PR #102).
+
+- KaTeX 0.19.0 is pinned on the CDN like Mermaid and loads only on pages that have math.
+- An MDX block opened by `<svg` or a `className=` tag runs to its closing tag; JSX attributes and comments are translated. JSX expressions are not.
+- `pm check` and `pm commit` refuse a dead record link. This is breaking: this store's `sprints/pm-harness-50.md` has 2 dead links and the poker store has 13.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Met: Go tests and golden files cover math, MDX, links and the docs index. `make test-go` exit 0, `make test` 150 passed, `make lint` 0 issues, and PR #102's CI is green.
+- Met: on a scratch pm service with headless Chromium, the unedited CFR note had 32 `.math` elements, 32 `.katex` and 0 `.katex-error`, with no raw `$` text. The information-set SVG drew at 960×421. A link between two docs resolved by slug and returned 200. `docs/index.html` listed the note.
