@@ -57,6 +57,11 @@ The design page agent-sync stays as it is for this sprint's code changes.
 The sync gains a drafts step; this page keeps the agent profile and leaves how records and drafts push to records-store and record-drafts, which this sprint updated
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page reply-delivery stays as it is for this sprint's code changes.
+run.go changes only the sync steps (the drafts step); reply delivery is untouched
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
