@@ -230,10 +230,11 @@ The service pushes `records` as today, and each draft commit to `refs/pm/drafts/
 
 | Step | Builds | Check |
 |---|---|---|
-| 1 | Workspaces, follow, journal publish at `pm commit`; the published view, the version bar, per-version renders and diffs | Scratch clone with two worktrees: each edits one design page differently; the page shows three versions, each renders at its URL, each diff against published and the draft-to-draft diff show exactly the edited lines; a malformed draft fails only its own version, every published page 200. Disjoint edits to one sprint record from both reach `records`; an overlap is refused naming the first commit, markers only in the second workspace |
-| 2 | Stop hook on the own workspace; `pm clean` and `pm where` guards; the main checkout's design-page refusal | The Stop hook blocks only the editing session; `pm clean` refuses a worktree whose workspace has uncommitted edits |
-| 3 | Publish at merge, `pm design publish`, the close's draft check; covers waiting and hold retired | Fake `gh` reports a merge: the page reaches `records` within one 60 s look, also for a branch cut inside the worktree; a conflict is flagged and the close refuses until `pm design publish` |
-| 4 | Per-clone draft refs | A second clone lists the first's draft as a version after two follows and one sync each |
+| 1 | The published view at the `records` ref; the version bar, per-version renders and diffs, over the shared store's uncommitted edits as one draft | Scratch clone: a hand edit leaves the published page unchanged and adds a version; the version renders at its URL; its diff against published and a draft-to-draft diff show exactly the edited lines; a malformed draft fails only its own version, every published page 200 |
+| 2 | Workspaces, follow, journal publish at `pm commit`; each workspace a draft | Scratch clone with two worktrees: each edits one design page differently; the page shows three versions, each renders. Disjoint edits to one sprint record from both reach `records`; an overlap is refused naming the first commit, markers only in the second workspace |
+| 3 | Stop hook on the own workspace; `pm clean` and `pm where` guards; the main checkout's design-page refusal | The Stop hook blocks only the editing session; `pm clean` refuses a worktree whose workspace has uncommitted edits |
+| 4 | Publish at merge, `pm design publish`, the close's draft check; covers waiting and hold retired | Fake `gh` reports a merge: the page reaches `records` within one 60 s look, also for a branch cut inside the worktree; a conflict is flagged and the close refuses until `pm design publish` |
+| 5 | Per-clone draft refs | A second clone lists the first's draft as a version after two follows and one sync each |
 
 ## Alternatives considered
 
