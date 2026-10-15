@@ -255,11 +255,21 @@ var tree = &command{
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 2, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
+				{
+					Name:        "rename",
+					Help:        "rename a doc, its slug or title or both, and rewrite every record's links to it",
+					Description: "Rename a doc in one records commit: --to moves records/docs/<date>-<slug>.md to records/docs/<date>-<new>.md (the date prefix stays), --title sets its title: header; give one or both. Every record's Markdown link to the doc (../docs/<name>.md, or <name>.md beside it; .html too; anchors and link titles kept; none in code) is rewritten to the new name, and a link whose text is the old title takes the new one. Old URLs get no redirect. The repo's feedback doc is not renamed.",
+					Args: []arg{
+						{Dest: "slug", Metavar: []string{"doc"}, Required: true, Kind: value, Help: "the doc: records/docs/<date>-<slug>.md, <date>-<slug>, or <slug> when one doc has it"},
+						{Flags: []string{"--to"}, Dest: "to", Metavar: []string{"NEW_SLUG"}, Kind: value, Help: "the new slug, lowercase words joined by '-', without the date"},
+						{Flags: []string{"--title"}, Dest: "title", Kind: value, Help: "the new title"},
+					},
+				},
 			},
 		},
 		{
 			Name:    "design",
-			Help:    "design pages: create one, or record why one stays as it is",
+			Help:    "design pages: create or rename one, or record why one stays as it is",
 			SubDest: "sub",
 			Subs: []*command{
 				{
@@ -270,6 +280,16 @@ var tree = &command{
 						{Dest: "slug", Required: true, Kind: value, Help: "what the design is, lowercase words joined by '-'"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
 						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Required: true, Kind: value, Help: "the project the design belongs to"},
+					},
+				},
+				{
+					Name:        "rename",
+					Help:        "rename a design page, its slug or title or both, and rewrite every record's links and waivers to it",
+					Description: "Rename a design page in one records commit: --to moves records/design/<slug>.md to records/design/<new>.md, --title sets its title: header; give one or both. Every record's Markdown link to the page (../design/<slug>.md, or <slug>.md from another design page; .html too; anchors and link titles kept; none in code) is rewritten to the new slug, a link whose text is the old title takes the new one, and each pm design unchanged waiver of the page names the new slug. Old URLs get no redirect. Refused while an open PR review need names the page (pm action need --design): close or dismiss it first.",
+					Args: []arg{
+						{Dest: "slug", Required: true, Kind: value, Help: "the design page's slug (records/design/<slug>.md)"},
+						{Flags: []string{"--to"}, Dest: "to", Metavar: []string{"NEW_SLUG"}, Kind: value, Help: "the new slug, lowercase words joined by '-'"},
+						{Flags: []string{"--title"}, Dest: "title", Kind: value, Help: "the new title"},
 					},
 				},
 				{

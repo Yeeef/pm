@@ -63,6 +63,10 @@ internal/launch    TestMarkersAreThoseScrubTookAndNoneUnlaunched                
 internal/launch    TestAGoPinIsDownloadedOnceThenExecdWithTheMarks                                    os  exec of the downloaded pin, "Exec format error", 0755 Perm, symlink tar entry
 internal/records   TestMatchReadsDoublestarGlobs                                                      any glob matching
 internal/records   TestCoversIsADesignPagesListOfPatterns                                             any header parsing
+internal/records   TestRenameLinksRewritesEveryFormOfALinkToTheRecord                                 any rewrites strings in memory
+internal/records   TestRenameLinksRewritesHTMLLinksKeepingTheExtension                                any rewrites strings in memory
+internal/records   TestRenameLinksRewritesLinksWithATitleOrInAngleBrackets                            any rewrites strings in memory
+internal/records   TestRenameLinksLeavesCodeAsWritten                                                 any rewrites strings in memory
 internal/records   TestHeaderValuesTypeAsPyyamlDoes                                                   any YAML typing compared with expected.json
 internal/records   TestReadSummariesLeavesOutASummaryGoneWhenRead                                     os  dangling os.Symlink treated as gone
 internal/service   TestPmInitKeepsTheUnitsPATH                                                        os  launchd/systemd unit files, PlatformKind, fake launchctl/systemctl

@@ -29,6 +29,25 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.11.1] - 2026-10-15
+
+A design page or a doc can be renamed in one command that keeps every record's links to it working.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.11.1/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.11.1`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- `pm design rename <slug> [--to NEW_SLUG] [--title "…"]` moves `records/design/<slug>.md` to its new slug, sets its
+  title, or both, and in the same records commit rewrites every record's link to the page (anchors kept, a link whose
+  text was the old title takes the new one) and every `pm design unchanged` waiver of it. It refuses while an open PR
+  review need names the page with `--design`.
+- `pm doc rename <doc> [--to NEW_SLUG] [--title "…"]` does the same for a doc, named by its path, `<date>-<slug>` or
+  slug; its date prefix stays. The feedback doc is not renamed.
+
 ## [0.11.0] - 2026-10-14
 
 An owner's reply reaches the session that asked by the pm service's push alone, with `pm show`'s flag and `pm reply
@@ -921,6 +940,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.11.1]: https://github.com/Yeeef/pm/compare/pm-v0.11.0...pm-v0.11.1
 [0.11.0]: https://github.com/Yeeef/pm/compare/pm-v0.10.0...pm-v0.11.0
 [0.10.0]: https://github.com/Yeeef/pm/compare/pm-v0.9.1...pm-v0.10.0
 [0.9.1]: https://github.com/Yeeef/pm/compare/pm-v0.9.0...pm-v0.9.1

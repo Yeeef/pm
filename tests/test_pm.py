@@ -881,6 +881,110 @@ def test_sprint_edit_renames_the_sprint_in_both_stores_and_records_why(repo):
             match="sprint repo-demo.2 is closed; only an open sprint is renamed")
 
 
+def design_and_doc_to_rename(repo):
+    """Seed design page parser, linked from sprint 1's Design pages, from design page lexer and from a doc beside the
+    doc notes, which links it too; sprint 2 waives parser. Every link to them is committed."""
+    (repo.records / "design").mkdir()
+    (repo.records / "docs").mkdir()
+    no_covers = lambda text: re.sub(r"covers: .*\n", "", text)  # noqa: E731
+    repo.write("design/parser.md", no_covers(design_page("[x]")).replace(
+        "## Design\n\nNone yet.", "## Design\n\nIt reads [itself](parser.md#design)."))
+    repo.write("design/lexer.md", no_covers(design_page("[x]", title="The lexer")).replace(
+        "## Design\n\nNone yet.", "## Design\n\nThe [parser](parser.md#problem) reads its tokens; "
+        "see [the parser](../design/parser.md) and [the notes](../docs/2026-10-03-notes.md)."))
+    repo.write("docs/2026-10-03-notes.md", "---\ntype: doc\ntitle: Notes\ndate: 2026-10-03\nproject: demo\n---\n\n"
+               "Read [The parser](../design/parser.md).\n")
+    repo.write("docs/2026-10-04-more.md", "---\ntype: doc\ntitle: More\ndate: 2026-10-04\nproject: demo\n---\n\n"
+               "After [Notes](2026-10-03-notes.md#top).\n")
+    sprint1 = repo.records / "sprints/demo-1.md"
+    sprint1.write_text(sprint1.read_text().replace("## Design pages\n\n> Where is the detail?\n\nNone yet.",
+                                                   "## Design pages\n\n> Where is the detail?\n\n"
+                                                   "- [The parser](../design/parser.md)"))
+    repo.commit("pages and docs that link each other")
+    assert repo.pm("design", "unchanged", "parser", "--sprint", "repo-demo.2", "--reason", "R.").returncode == 0
+
+
+def test_design_rename_moves_the_page_and_rewrites_every_link_and_waiver(repo):
+    """pm design rename: the page moves and takes its new title, and every record's link to it (anchors kept, a link
+    text that was the old title taken to the new one) and sprint 2's waiver of it name the new slug, in one commit;
+    each refusal writes nothing, an open review naming the page included."""
+    design_and_doc_to_rename(repo)
+    report(repo, "Done: shipped the thing.")
+    repo.set_pr(PR, "OPEN")
+    assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F",
+                   "--design", "parser").returncode == 0
+    repo.mark()
+    refused(repo, "design", "rename", "parser", "--to", "grammar",
+            match=r"the open PR review repo-demo\.1\.3 names design page parser \(--design\); close it")
+    assert repo.pm("need", "dismiss", "repo-demo.1.3", "--reason", "[TEST] done").returncode == 0
+    repo.mark()
+    refused(repo, "design", "rename", "parser", match="give --to NEW_SLUG, --title")
+    refused(repo, "design", "rename", "nope", "--to", "x", match=r'no design page "nope"; known: lexer, parser')
+    refused(repo, "design", "rename", "parser", "--to", "Bad_Slug",
+            match=r"design slug \"Bad_Slug\" must be lowercase words joined by '-'")
+    refused(repo, "design", "rename", "parser", "--to", "lexer", match=r"records/design/lexer\.md already exists")
+    refused(repo, "design", "rename", "parser", "--title", "  ", match="--title is empty")
+    refused(repo, "design", "rename", "parser", "--to", "parser", "--title", "The parser",
+            match=r'design page is named parser and titled "The parser" already')
+    page = repo.records / "design/parser.md"
+    page.write_text(page.read_text() + "A hand edit.\n")
+    refused(repo, "design", "rename", "parser", "--to", "grammar", match=r"records/design/parser\.md has uncommitted")
+    repo.git("checkout", "--", ".", cwd=repo.store)
+
+    res = repo.pm("design", "rename", "parser", "--to", "grammar", "--title", "The grammar")
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, ['pm: renamed design page parser to grammar, titled "The grammar"; rewrote its links in '
+                            "records/design/lexer.md, records/docs/2026-10-03-notes.md, records/sprints/demo-1.md, "
+                            "records/sprints/demo-2.md"])
+    assert not page.exists()
+    text = (repo.records / "design/grammar.md").read_text()
+    assert text.startswith('---\ntype: design\ntitle: The grammar\nproject: demo\n---\n')
+    assert "It reads [itself](grammar.md#design)." in text
+    lexer = (repo.records / "design/lexer.md").read_text()
+    assert ("The [parser](grammar.md#problem) reads its tokens; see [the parser](../design/grammar.md) and "
+            "[the notes](../docs/2026-10-03-notes.md).") in lexer
+    assert "- [The grammar](../design/grammar.md)" in (repo.records / "sprints/demo-1.md").read_text()
+    assert "Read [The grammar](../design/grammar.md)." in (repo.records / "docs/2026-10-03-notes.md").read_text()
+    assert ("The design page grammar stays as it is for this sprint's code changes.\nR.\n"
+            in (repo.records / "sprints/demo-2.md").read_text())
+    assert repo.pm("check").returncode == 0
+    res = repo.pm("design", "rename", "grammar", "--title", "Grammar")
+    assert res.returncode == 0 and res.stdout == ('retitled design page grammar "Grammar"; rewrote its links in '
+                                                  "records/docs/2026-10-03-notes.md, "
+                                                  "records/sprints/demo-1.md\n"), res.stdout
+    assert "- [Grammar](../design/grammar.md)" in (repo.records / "sprints/demo-1.md").read_text()
+
+
+def test_doc_rename_keeps_the_date_prefix_and_rewrites_every_link(repo):
+    """pm doc rename: by slug, date or path, the date prefix kept; the feedback doc and an ambiguous slug are
+    refused."""
+    design_and_doc_to_rename(repo)
+    repo.write("docs/2026-10-05-notes.md", "---\ntype: doc\ntitle: Notes again\ndate: 2026-10-05\nproject: demo\n"
+               "---\n\nAgain.\n")
+    repo.write("docs/pm-feedback.md", "---\ntype: doc\ntitle: pm feedback\ndate: 2026-10-07\n---\n\nNone yet.\n")
+    repo.commit("a second notes doc and the feedback doc")
+    repo.mark()
+    refused(repo, "doc", "rename", "notes", "--to", "log",
+            match=r'"notes" names 2 docs: records/docs/2026-10-03-notes\.md, records/docs/2026-10-05-notes\.md; give')
+    refused(repo, "doc", "rename", "nope", "--to", "log", match=r'no doc "nope" under records/docs')
+    refused(repo, "doc", "rename", "records/docs/pm-feedback.md", "--to", "log",
+            match=r"records/docs/pm-feedback\.md is the repo's feedback doc")
+    refused(repo, "doc", "rename", "2026-10-05-notes", "--to", "notes",
+            match=r'doc is named 2026-10-05-notes and titled "Notes again" already')
+    res = repo.pm("doc", "rename", "records/docs/2026-10-03-notes.md", "--to", "log", "--title", "Log")
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, ['pm: renamed doc 2026-10-03-notes to 2026-10-03-log, titled "Log"; rewrote its links in '
+                            "records/design/lexer.md, records/docs/2026-10-04-more.md"])
+    assert not (repo.records / "docs/2026-10-03-notes.md").exists()
+    assert (repo.records / "docs/2026-10-03-log.md").read_text().startswith(
+        "---\ntype: doc\ntitle: Log\ndate: 2026-10-03\nproject: demo\n---\n")
+    assert "After [Log](2026-10-03-log.md#top)." in (repo.records / "docs/2026-10-04-more.md").read_text()
+    assert "[the notes](../docs/2026-10-03-log.md)" in (repo.records / "design/lexer.md").read_text()
+    assert repo.pm("doc", "rename", "notes", "--to", "notes-again").returncode == 0, "one notes doc is left"
+    assert (repo.records / "docs/2026-10-05-notes-again.md").exists()
+    assert repo.pm("check").returncode == 0
+
+
 def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
     """pm need edit: an action takes a new description, a decision need new parts in the one layout; a need that holds
     a reply, a closed need, a PR review and a task are refused, as is the wrong form of body for the kind."""
@@ -1975,6 +2079,7 @@ STORE_COMMANDS = [
     ["finding", "add", "--sprint", "repo-demo.1", "x"], ["feedback", "add", "--project", "demo", "--text=x"],
     ["doc", "new", "x", "--title", "X", "--project", "demo", "--text=x"],
     ["design", "new", "x", "--title", "X", "--project", "demo"],
+    ["doc", "rename", "x", "--to", "y"], ["design", "rename", "x", "--to", "y"],
     ["postmortem", "new", "x", "--title", "X", "--project", "demo"],
     ["project", "open", "p", "--title", "P", "--text=x"], ["project", "close", "demo"],
     ["sprint", "open", "demo", "--title", "S",
