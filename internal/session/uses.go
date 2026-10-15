@@ -19,16 +19,16 @@ type Use struct {
 	At      time.Time
 }
 
-// Uses finds, for each of the worktrees under the main checkout's under/, the latest live session that used it: an entry of a
-// Claude Code transcript or a Codex rollout written within LiveWindow (pm's notion of a live session) whose cwd is in
-// the worktree, or whose tool call names its path (a subagent runs in its parent's directory and reaches its worktree
-// by path). The path's form relative to the main checkout counts when the entry's cwd is in the main checkout. The
+// Uses finds, for each of the worktrees under the main checkout's under/ (every one of them for ""), the latest live
+// session that used it: an entry of a Claude Code transcript or a Codex rollout written within LiveWindow (pm's notion
+// of a live session) whose cwd is in the worktree, or whose tool call names its path (a subagent runs in its parent's
+// directory and reaches its worktree by path). The path's form relative to the main checkout counts when the entry's cwd is in the main checkout. The
 // output of a tool call does not count, so listing worktrees, or pm clean's own output, uses none of them. A Codex
 // rollout's cwd is its session_meta's and then each turn_context's, and its session the root thread's (CodexMeta).
 func Uses(main string, worktrees []string, under string) (map[string]Use, error) {
 	u := &uses{main: main, now: time.Now(), found: map[string]Use{}}
 	for _, wt := range worktrees {
-		if rel, err := filepath.Rel(main, wt); err == nil && strings.HasPrefix(rel, under+"/") {
+		if rel, err := filepath.Rel(main, wt); err == nil && (under == "" || strings.HasPrefix(rel, under+"/")) {
 			u.trees = append(u.trees, tree{wt, rel})
 		}
 	}

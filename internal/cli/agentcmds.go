@@ -88,6 +88,32 @@ func runAgent(name string, cmd agentCommand, p *Parsed, here string, stdin io.Re
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(stdout, out)
-	return err
+	if _, err = fmt.Fprintln(stdout, out); err != nil || !e.lockRecords || name == "commit" {
+		return err
+	}
+	return e.followWrite(stdout)
+}
+
+// followWrite brings this worktree's records workspace, if it has one, onto the records branch the write just
+// committed on (store.Follow), and names a file the follow left with conflict markers.
+func (e *env) followWrite(stdout io.Writer) error {
+	w, err := store.WorkspaceOf(e.here)
+	if err != nil || w == nil {
+		return err
+	}
+	if _, err := e.work(); err != nil { // the records lock, which a write took as it connected
+		return err
+	}
+	f, err := store.Follow(e.records, *w)
+	if err != nil {
+		return fmt.Errorf("the write is committed on the records branch, but bringing the workspace %s onto it failed, "+
+			"which changed nothing there: %w", w.Dir, err)
+	}
+	for _, rel := range f.Conflicts {
+		if _, err := fmt.Fprintf(stdout, "records/%s: the records branch changed it under your uncommitted edit; "+
+			"resolve the conflict markers there, then pm commit it\n", rel); err != nil {
+			return err
+		}
+	}
+	return nil
 }
