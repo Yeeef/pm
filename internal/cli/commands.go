@@ -43,6 +43,7 @@ var tree = &command{
 		},
 		{
 			Name:    "day",
+			Hidden:  true,
 			Help:    "day pages: generated from the day's activity; nobody writes a day record",
 			SubDest: "sub",
 			Subs: []*command{
@@ -563,8 +564,9 @@ var tree = &command{
 			Description: "Check that every record renders with the work store, writing nothing; pm commit runs the same check. In a worktree with a records workspace it checks the published records with this workspace's drafts over them. It lists the tracked source files no design page covers: those the path patterns of design_sources in .pm/config.toml match (e.g. design_sources = [\"internal/**\", \"prime.md\"]; unset, no list), and fails on a design_sources pattern that matches no tracked file. It fails on a design page's covers: pattern that matches no file where the page holds it: a published page's on the remote's main (its remote-tracking branch, fetched when a pattern matches nothing there), since a page publishes at its sprint's close once its code is on main; a draft page's in this worktree's tracked files. A published pattern main lacks while a draft of the page in this clone no longer holds it (a merged PR removed the file, its sprint not closed yet) does not fail: it is listed as waiting on that sprint's close, naming the sprint. A drafts/ branch pm cannot read (a commit made by hand) is named in a warning and left out. A malformed pattern fails.",
 		},
 		{
-			Name: "sync",
-			Help: "sync the work store with the remote now, as the pm service does every 10 minutes",
+			Name:   "sync",
+			Hidden: true,
+			Help:   "sync the work store with the remote now, as the pm service does every 10 minutes",
 			Store: &storeCommand{
 				usage: "sync",
 				about: "Sync the work store with the repo's remote now: the pm service pulls, resolves conflicts by the merge rules and pushes, as it does every 10 minutes. A conflict no rule settles fails, names the item and field, and leaves the store as it was.",
@@ -608,6 +610,7 @@ var tree = &command{
 				},
 				{
 					Name:        "run",
+					Hidden:      true,
 					Help:        "the service's process, run by its supervisor: serve the site on localhost:$PORT and push every 10 minutes",
 					Description: "Serve the site on localhost:$PORT (default: port in .pm/config.toml): a page is at most 10 s behind the records and the work store and states its data's age; an open page never reloads itself but shows within ~10 s that newer data exists, loaded on reload. Every 10 minutes, the first 10 after start, run pm push. Exits once .pm/config.toml pins another pm version, so the supervisor starts the installed pm again, which runs the new pin. The supervisor runs it; run it by hand only to debug, or on another PORT.",
 				},
@@ -642,6 +645,7 @@ var tree = &command{
 		},
 		{
 			Name:        "push",
+			Hidden:      true,
 			Help:        "sync the work store, summarize today and push the records branch; what the pm service runs every 10 minutes, not a session command",
 			Description: "Sync the work store with the remote, then summarize today (pm day summarize only when today's activity changed), then push the records branch when the store is ahead of <remote>/records: fetch, rebase onto it if it moved (under the store lock; a rebase that stops is aborted, leaving the store as it was), push. Each step has a 120s timeout; a second run while one holds the lock exits at once. Each step's outcome goes to <clone>/.pm/run/push.json (read by pm show, pm where, pm service status and the site) and <clone>/.pm/run/push.log, a line per step.",
 		},
@@ -667,11 +671,13 @@ var tree = &command{
 		},
 		{
 			Name:        "autopilot",
+			Hidden:      true,
 			Help:        "turn the owner-request Stop check back on for this session, the default, and print the autopilot request rule; a no-op in autopilot",
 			Description: "Turn the owner-request Stop check back on for this session: it removes <main checkout>/.pm/run/sessions/<session id>, which pm interactive wrote, the session from the environment, and refuses when none is set; then it prints the request rule of autopilot. Autopilot is every session's default; in a session already in it, nothing changes and the first line says so. Run it when the owner asks.",
 		},
 		{
 			Name:        "export",
+			Hidden:      true,
 			Help:        "print every item of the work store, one JSON object per line, ordered by id; pm init --import reads it in another clone",
 			Description: "Print every item of this clone's work store, one JSON object per line, ordered by id. pm init --import FILE in another clone reads it, to move a project's items into a new repo's store.",
 			Args: []arg{
@@ -684,6 +690,7 @@ var tree = &command{
 		},
 		{
 			Name:   "prime",
+			Hidden: true,
 			Help:   fmt.Sprintf("pm's rules, then the rule for asking the owner in this session's mode, then pm init, pm where and pm show: the context a session starts with; the SessionStart hooks run --rules 1 to --rules %d, --request-rule and --state, and an agent may run it by hand", len(hooks.Starts)),
 			Groups: []bool{false},
 			Args: []arg{
@@ -696,6 +703,7 @@ var tree = &command{
 		},
 		{
 			Name:    "hook",
+			Hidden:  true,
 			Help:    "what a runtime hook runs: the hook input JSON on stdin; installs nothing",
 			SubDest: "sub",
 			Subs: []*command{

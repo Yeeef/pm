@@ -45,11 +45,14 @@ const (
 	pairSep                             = parse.PairSep
 )
 
-// Nouns lists the commands in their help order.
+// Nouns lists the commands pm --help lists, in its order: the machinery (Hidden) left out, as pm prime's noun list
+// leaves it out.
 func Nouns() []string {
-	out := make([]string, len(tree.Subs))
-	for i, s := range tree.Subs {
-		out[i] = s.Name
+	var out []string
+	for _, s := range tree.Subs {
+		if !s.Hidden {
+			out = append(out, s.Name)
+		}
 	}
 	return out
 }

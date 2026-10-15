@@ -48,7 +48,7 @@ func cmdTaskClose(e *env, p *Parsed) (string, error) {
 		if p.Get("dropped") != "" {
 			return "", refuse("--dropped needs --reason: why %s is dropped and not done", id)
 		}
-		return "", refuse("--reason is required: what was done, in a sentence; pm adds the commit that holds the "+
+		return "", refuse("--reason is required: what was done, in a sentence; pm adds the commit that holds the " +
 			"work, or close a task not done with --dropped --reason \"<why>\"")
 	}
 	r, err := e.load(false)

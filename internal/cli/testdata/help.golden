@@ -1,5 +1,47 @@
 ===== pm --help
 usage: pm [-h]
+          {show,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,service,doctor,upgrade,uninstall,init,where,clean,interactive,version,commit} ...
+
+pm: the write path for project records, and project actions that touch both records and the work store.
+
+positional arguments:
+  {show,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,service,doctor,upgrade,uninstall,init,where,clean,interactive,version,commit}
+    show                compact status of open projects for agents, level by level
+    finding             sprint findings
+    feedback            feedback on pm itself
+    decision            decisions: record one, or ask the owner for one
+    action              actions: ask the owner to do something (run, apply), or to review a PR (--pr)
+    need                needs of any kind: decisions, actions and reviews
+    reply               the owner's replies from the site
+    doc                 free-form dated docs
+    design              design pages: create or rename one, or record why one stays as it is
+    postmortem          incident postmortems
+    project             projects
+    sprint              sprints
+    task                tasks inside open sprints
+    dep                 dependencies: what an item waits on
+    comment             notes on items
+    record              records on the served site
+    check               check that every record renders with the work store, writing nothing; the check before a commit, and the one pm commit runs
+    service             the pm service: one background process per clone serves the site, syncs the work store and pushes the records branch every 10 minutes
+    doctor              compare every managed piece with what this pm writes, and the clone and worktree with what pm init makes; report each difference, exit 1 on any (in a checkout whose pin is not the version the clone's pm service runs, the work store cannot be checked: its line names the mismatch and the fix); fail when the CLI that summary_runtime in .pm/config.toml names (claude or codex) is not on PATH, since the pm service summarizes with it, and never for the other runtime, whose sessions, and so whose owner-request judge, run only where it is installed; and name a pm release newer than the pin, with its notes (or say the release list cannot be read), and the launcher's pins that no checkout on this machine pins, which pm upgrade prunes: both leave the exit code alone
+    upgrade             first print the upgrade guide of each release the move crosses, after the pin up to this pm, oldest first, from the release notes this pm was built with (no network; it fails, writing nothing, when a crossed release's guide is missing); then move the pin in .pm/config.toml to this pm and rewrite every managed piece as it writes them (the fix pm doctor names for a changed one), removing the pre-package harness's and the ones an earlier pm wrote and this one retired (the records/ copy and guard workflows, the pre-commit section); writes files and prints the commit to make, never commits; then lists the clone's other worktrees whose checked-out branch pins another pm, where pm refuses every work-store command once the main checkout pins this one, each with 'merge or rebase it onto the pin move'; last, prune the launcher's pins (<data dir>/pm/pins/<X>/pm) that no checkout on this machine pins (each worktree of this clone and of every clone with a pm service unit), keeping each pin's sha256 so a later download is checked against it, and pruning none when any of those cannot be read
+    uninstall           remove pm's pieces from this worktree (hook entries, .gitignore block, .pm/, an earlier pm's workflows and git hook sections in .pm/hooks) and the clone's and machine's setup (the store checkout, records/ links, records workspaces and their drafts/ branches and an earlier pm's sparse checkouts in every worktree, refused while a workspace has uncommitted edits; the pm service, this clone's Codex writable_roots, pm's lines in .git/info/exclude, a core.hooksPath an earlier pm pointed at .pm/hooks, the work store (refused while it holds what the remote lacks; with the pm service stopped, it runs pm service run for that check)); keeps the records branch and the remote's work store (refs/pm/work); never commits
+    init                install pm: the repo's files on first install (--site-url sets the public site link), then this clone, this worktree and the pm service (PORT=<n> sets its port, and on a first install the config's; PORT=<n> pm service install moves only the service's); session start runs it; never commits on the code branch
+    where               list every location with its state: the store, this checkout and its records/ (the main checkout's link to the store, or a worktree's records workspace: its branch, uncommitted files, conflict markers and how far it is behind the records branch), the work store (in a checkout whose pin is not the version the clone's pm service runs, the mismatch and the fix: merge or rebase onto main's pin move, or pm service restart), the Codex sandbox roots, the pm service, the last push, and the site; 'pm where records' prints only the store's path
+    clean               list each worktree with keep or remove and the reason; --apply removes the agent worktrees (.claude/worktrees/) that no live session owns and whose work is saved, and the interactive-mode files of sessions idle for a day
+    interactive         turn the owner-request Stop check off for this session, so asks in chat pass, until pm autopilot, and print the interactive request rule; run it only when the owner asks
+    version             print this pm's version, dev for an untagged build; outside any repo too
+    commit              commit your hand edits to records, named by path, on the records branch
+
+options:
+  -h, --help            show this help message and exit
+
+pm runs the pm version the repo pins in .pm/config.toml: another version's release binary, downloaded once; a pin below 0.2.0 (a retired Python release) is refused. pm where names the version running and why.
+
+pm --help --all also lists the machinery commands: what the runtimes' hooks, the scheduler and the pm service run, not agents.
+===== pm --help --all
+usage: pm [-h]
           {show,day,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,sync,service,doctor,upgrade,uninstall,init,push,where,clean,interactive,autopilot,export,version,prime,hook,commit} ...
 
 pm: the write path for project records, and project actions that touch both records and the work store.
@@ -690,6 +732,62 @@ Sync the work store with the repo's remote now: the pm service pulls, resolves c
 options:
   -h, --help  show this help message and exit
 ===== pm service --help
+usage: pm service [-h] {install,status,restart,stop,logs} ...
+
+The pm service: one supervised background process per clone, `pm service run` in the main checkout. It
+holds the work store, which every pm command reaches through its socket, .pm/run/work.sock, and serves the
+site live from the records store and the work store (a page is at most 10 s behind them), delivers
+the owner's site replies and reviewed PRs' merges (GitHub polled every 60 s) into the sessions that
+raised them, and syncs the work store, pushes today's summary and the records branch every
+600 s, the first push 600 s after it starts. Sessions push neither.
+
+Supervisor: it starts the service at login and again after a crash. A launchd agent with KeepAlive on
+macOS (~/Library/LaunchAgents/local.pm.<dir>.<hash>.plist); a systemd user service with Restart=always
+on Linux ($XDG_CONFIG_HOME/systemd/user/local.pm.<dir>.<hash>.service, ~/.config by default). On a
+machine with neither there is no service, and install refuses.
+
+Unit: runs the installed pm (`<bin dir>/pm service run`, the bin dir $PM_BIN_DIR, else ~/.local/bin; pm init
+copies pm there) in the main checkout, with the PATH install ran with (git must be on it, and uv
+for a Python pin) and PORT. The installed pm runs the version the main checkout pins: another Go version's release binary, a Python version
+through uv.
+
+Port: $PORT, else the installed unit's port, else `port` in .pm/config.toml. Installing again keeps the unit's
+port. A second clone of the repo on this machine needs its own: PORT=<n> pm service install.
+
+State and logs, in <main checkout>/.pm/run/ (never committed): service.log (pm service logs), push.json
+(each push step's last outcome), push.log (a line per step per run), push.lock (one push at a time).
+
+Health (pm service status, pm where): the supervisor holds the unit, and the site answers on its port
+with X-PM-Store naming this clone's store and X-PM-Version naming this pm's build. Status also
+flags a push step that failed or has not succeeded for 1800 s.
+
+Stale build: every 1 s the service rereads the pin in .pm/config.toml; once it pins another version (a
+pull after pm upgrade) the service exits and the supervisor starts the installed pm again, which runs the new
+pin. A service that answers on another build than the running pm, the pinned one, is stale in pm where, pm
+service status and pm doctor. Fix: pm init (it copies this pm into the bin dir when another is there, then
+installs the service); when the installed pm already is this build, pm service install or pm service restart.
+A unit that runs another program than the installed pm (Python pm's unit runs the pm uv tool's interpreter)
+is stale there too, and session start leaves it: pm service install rewrites it.
+
+Agents: pm prime carries pm where's service line and push state, and pm show warns when a push needs
+attention. When the service is down, run pm service restart; if that fails, raise an action for the
+owner (pm action need) and add a bug task (pm task add). pm init installs the service; pm service stop
+stops it and keeps it stopped, at login and at session start, until pm service restart or pm init;
+pm uninstall stops it and removes its unit.
+
+positional arguments:
+  {install,status,restart,stop,logs}
+    install             install and start this clone's service (launchd on macOS, systemd on Linux), or update it; a no-op once installed and current
+    status              whether the service is up and its site answers for this store, and its pushes; non-zero when either needs attention
+    restart             restart the service and wait for its site to answer; when it fails, raise an action for the owner and add a bug task
+    stop                stop this clone's service and keep it stopped, at login and at session start, until pm service restart or pm init
+    logs                print the end of the service's log, <main checkout>/.pm/run/service.log
+
+options:
+  -h, --help            show this help message and exit
+
+pm service --help --all also lists the machinery commands: what the runtimes' hooks, the scheduler and the pm service run, not agents.
+===== pm service --help --all
 usage: pm service [-h] {install,status,restart,stop,logs,run} ...
 
 The pm service: one supervised background process per clone, `pm service run` in the main checkout. It

@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import CHECKOUT, PM, VERSION, fake_env, project, sprint, wait_for, write_config
+from conftest import CHECKOUT, MACHINERY, PM, VERSION, fake_env, nouns, project, sprint, wait_for, write_config
 
 
 def reply_body(text: str) -> str:
@@ -105,6 +105,22 @@ def test_sprint_and_project_close_once_their_reports_are_written_and_their_work_
     assert res.returncode == 0, res.stderr
     assert repo.changes() == {"repo-demo": {"status": "closed", "resolution": "done", "close_reason":
                                             f"Shipped both sprints. (commit {store_head(repo)})"}}
+
+
+def test_pm_help_hides_the_machinery_that_help_all_lists():
+    """pm --help leaves out what the runtimes' hooks, the scheduler and the pm service run (MACHINERY) and says that
+    pm --help --all lists it; each hidden command still runs and keeps its own --help, and pm service --help hides
+    service run the same way."""
+    shown, every = nouns(), nouns("--all")
+    assert set(every) - set(shown) == MACHINERY and set(shown) < set(every), (shown, every)
+    top = subprocess.run([*PM, "--help"], cwd="/", capture_output=True, text=True).stdout
+    assert "pm --help --all also lists the machinery commands" in top
+    for cmd in (["hook"], ["prime"], ["sync"], ["day", "summarize"], ["service", "run"]):
+        res = subprocess.run([*PM, *cmd, "--help"], cwd="/", capture_output=True, text=True)
+        assert res.returncode == 0 and res.stdout.startswith(f"usage: pm {' '.join(cmd)} "), res.stdout + res.stderr
+    service = subprocess.run([*PM, "service", "--help"], cwd="/", capture_output=True, text=True).stdout
+    assert "    run " not in service and "pm service --help --all also lists" in service
+    assert "    run " in subprocess.run([*PM, "service", "--help", "--all"], cwd="/", capture_output=True, text=True).stdout
 
 
 def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):

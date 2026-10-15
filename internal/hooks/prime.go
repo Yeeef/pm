@@ -5,8 +5,8 @@
 // cause on stderr instead, which still lets the stop through: Claude Code shows the error, Codex takes it as a pass.
 // The exception runs before any hook: pm's check of the repo's .pm/config.toml, which fails hard.
 //
-// pm prime prints prime.md then the noun list, which Commands builds from the command tree (Machinery, the commands
-// left out). Claude Code passes a hook's additionalContext inline only up to Cap characters, per hook, and the hooks of
+// pm prime prints prime.md then the noun list, which Commands builds from the command tree (its hidden machinery
+// commands left out, as pm --help leaves them). Claude Code passes a hook's additionalContext inline only up to Cap characters, per hook, and the hooks of
 // one entry arrive in any order, so the rules run as one hook per chunk: Chunks cuts them at the headings in Starts and
 // puts a title line naming each chunk's place and sections on top (pm prime --rules N); the state runs as its own hook,
 // cut at a line. TestChunksFitTheCapAndAddUpToTheHead fails when a chunk outgrows Cap. Beside prime: stop.go pm hook
@@ -51,9 +51,6 @@ const (
 	cut = "\n… cut at the hook's 10,000-character limit; run `pm show` for the rest."
 )
 
-// Machinery is what the runtimes and the scheduler call, not agents: left out of the command list.
-var Machinery = map[string]bool{"prime": true, "hook": true, "push": true}
-
 // Starts are where Chunks cuts Head: the heading line each chunk starts with. Claude Code passes each hook's
 // additionalContext inline only up to Cap characters (longer reaches the model as a 2 KB preview and a file path), so
 // the rules run as one hook per chunk. The hooks of one entry run in parallel and arrive in any order, so each chunk
@@ -70,13 +67,12 @@ func Rules() string {
 	return config.PyStrip(strings.ReplaceAll(strings.ReplaceAll(pm.Rules, "\r\n", "\n"), "\r", "\n"))
 }
 
-// Commands is the command list: the agent-facing nouns in the order the command tree defines them.
+// Commands is the command list: the agent-facing nouns, as pm --help lists them (the caller leaves the hidden
+// machinery out).
 func Commands(nouns []string) string {
-	var named []string
-	for _, n := range nouns {
-		if !Machinery[n] {
-			named = append(named, "`"+n+"`")
-		}
+	named := make([]string, len(nouns))
+	for i, n := range nouns {
+		named[i] = "`" + n + "`"
 	}
 	return "# Commands\n\n`pm` nouns: " + strings.Join(named, ", ") + "."
 }

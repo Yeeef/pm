@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -20,11 +21,16 @@ var update = flag.Bool("update", false, "rewrite testdata/help.golden from the h
 
 const helpGolden = "testdata/help.golden"
 
-// helpTexts is pm <path> --help for c and every command under it, each after a line naming its path.
+// helpTexts is pm <path> --help for c and every command under it, each after a line naming its path, and
+// pm <path> --help --all for a noun with hidden subcommands.
 func helpTexts(t *testing.T, c *command, path []string, out *strings.Builder) {
 	t.Helper()
 	out.WriteString("===== pm " + strings.Join(append(append([]string{}, path...), "--help"), " ") + "\n")
 	out.WriteString(help(t, path...))
+	if slices.ContainsFunc(c.Subs, func(s *command) bool { return s.Hidden }) {
+		out.WriteString("===== pm " + strings.Join(append(append([]string{}, path...), "--help", "--all"), " ") + "\n")
+		out.WriteString(help(t, append(append([]string{}, path...), "--all")...))
+	}
 	for _, s := range c.Subs {
 		helpTexts(t, s, append(append([]string{}, path...), s.Name), out)
 	}

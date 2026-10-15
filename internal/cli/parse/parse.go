@@ -63,7 +63,8 @@ type Command[T comparable] struct {
 	SubDest                         string
 	Subs                            []*Command[T]
 	Parent                          *Command[T]
-	Store                           T // nonzero for a handler that parses its own arguments
+	Store                           T    // nonzero for a handler that parses its own arguments
+	Hidden                          bool // machinery: left out of its noun's --help, listed by --help --all; it still runs
 }
 
 func (c *Command[T]) Prog() string {
@@ -219,6 +220,14 @@ func Build[T comparable](c *Command[T], run func(*Parsed[T]) error, runStore fun
 	cc := &cobra.Command{Use: c.Name, Short: c.Help, Long: c.Description, SilenceErrors: true, SilenceUsage: true}
 	cc.SetHelpFunc(func(*cobra.Command, []string) { fmt.Fprint(out, c.HelpText()) })
 	if c.Subs != nil {
+		all := cc.Flags().Bool("all", false, "with --help: list the hidden machinery commands too")
+		cc.SetHelpFunc(func(*cobra.Command, []string) {
+			if *all {
+				fmt.Fprint(out, c.HelpTextAll())
+				return
+			}
+			fmt.Fprint(out, c.HelpText())
+		})
 		cc.Args = cobra.ArbitraryArgs // validate subcommand names with the same usage errors as arguments
 		cc.RunE = func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
