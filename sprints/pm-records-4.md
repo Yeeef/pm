@@ -141,6 +141,8 @@ pieces.go changed only its package doc comment to name the workspaces; the Codex
 
 done: each code worktree edits records in its own workspace, `pm commit` publishes journals and refuses an overlapping edit, and the site shows each workspace as a labelled version.
 
+Merged as 7dfd28f (PR #101).
+
 - Workspaces at `<worktree>/records`, made at that worktree's own setup; follow by `git merge-tree` and `git merge-file`, never rebase, merge or stash, with a base ref pm keeps itself.
 - `pm commit` and one-shot writes through the workspace; conflict markers name the commits; a figure changed on both sides is refused once, naming them.
 - The Stop hook checks the session's own workspace (moved here from step 3); `pm clean` and `pm uninstall` refuse a workspace with uncommitted edits or drafts.
