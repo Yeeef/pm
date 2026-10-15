@@ -31,12 +31,12 @@ var tree = &command{
 		{
 			Name:        "show",
 			Help:        "compact status of open projects for agents, level by level",
-			Description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).",
+			Description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).",
 			Args: []arg{
 				{Flags: []string{"--json"}, Dest: "json", Kind: switchOn, Help: "every level's data as one JSON object"},
 				{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "one open project (its name or id): its goal, owner requests in full, the repo's pm feedback doc, open sprints with their tasks, and last decisions"},
 				{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "one sprint's frame, findings and tasks"},
-				{Flags: []string{"--record"}, Dest: "record", Metavar: []string{"PATH"}, Kind: value, Help: "with --section: the record to read (a path, sprint id, project name or design slug)"},
+				{Flags: []string{"--record"}, Dest: "record", Metavar: []string{"PATH"}, Kind: value, Help: "the record to read (a path, sprint id or name, project name or design slug); alone, its outline: header ids and each section with its line count"},
 				{Flags: []string{"--section"}, Dest: "section", Metavar: []string{"NAME"}, Kind: value, Help: "with --record: print that one section, heading included"},
 				{Flags: []string{"--refresh-inbox"}, Dest: "refresh_inbox", Kind: switchOn, Help: "first point this session's open requests at its current inbox ($CLAUDE_CODE_MESSAGING_SOCKET); the session-start hook passes it, since a resumed session binds a new one"},
 			},
@@ -549,7 +549,7 @@ var tree = &command{
 					Help:        "print a record's page URL on the served site; the only link to give for a record",
 					Description: "Print the URL of a record's page on the site the pm service serves on localhost:$PORT (default: the installed service's port, else the port in .pm/config.toml), printed with the repo's site_url instead when .pm/config.toml sets one; --local prints the localhost URL even then, for a check on this machine that the public site's login would stop (a headless browser). The pm service's pages follow the records within 10 s and state their data's age, so no render step is needed. Fails with the command that fixes it when nothing serves there, or when what answers is not the pm service for this store.",
 					Args: []arg{
-						{Dest: "target", Required: true, Kind: value, Help: "a sprint or project id, a project name, a design slug, or a record path (records/<…>.md; records/ and .md optional)"},
+						{Dest: "target", Required: true, Kind: value, Help: "a sprint or project id, a sprint name (<project>-<n>), a project name, a design slug, or a record path (records/<…>.md; records/ and .md optional)"},
 						{Flags: []string{"--local"}, Dest: "local", Kind: switchOn, Help: "print http://127.0.0.1:<port>/…, the URL the service answers on here, even when site_url is set"},
 					},
 				},

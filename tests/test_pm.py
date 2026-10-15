@@ -189,7 +189,17 @@ def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
     refused(repo, "show", "--project", "demo", "--json", match="--project prints text only; drop --json")
     refused(repo, "show", "--project", "demo", "--sprint", "repo-demo.1", match="--sprint prints text only, one sprint")
     refused(repo, "show", "--project", "demo", "--record", "demo", "--section", "Goal",
-            match="--record and --section go together, without --sprint, --project or --json")
+            match="--section needs --record, and --record goes without --sprint, --project or --json")
+    refused(repo, "show", "--section", "Goal",
+            match="--section needs --record, and --record goes without --sprint, --project or --json")
+    # --record alone prints the outline: the header and each section with its line count and the command for it;
+    # a sprint's id and its name (<project>-<n>) both name its record.
+    for target in ("repo-demo.1", "demo-1"):
+        res = repo.pm("show", "--record", target)
+        assert res.returncode == 0, res.stderr
+        assert res.stdout.startswith("records/sprints/demo-1.md\n  bead: repo-demo.1\n"), res.stdout
+        assert f"  ## Goal  (" in res.stdout and f"pm show --record {target} --section Goal\n" in res.stdout
+        assert f"pm show --record {target} --section 'Done when'\n" in res.stdout
 
     # folded: test_feedback_add_refuses_to_overwrite_another_record_at_the_feedback_doc_s_path
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")

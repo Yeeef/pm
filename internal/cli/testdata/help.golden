@@ -49,14 +49,14 @@ pm runs the pm version the repo pins in .pm/config.toml: another version's relea
 usage: pm show [-h] [--json] [--project NAME] [--sprint ID] [--record PATH]
                [--section NAME] [--refresh-inbox]
 
-Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).
+Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).
 
 options:
   -h, --help       show this help message and exit
   --json           every level's data as one JSON object
   --project NAME   one open project (its name or id): its goal, owner requests in full, the repo's pm feedback doc, open sprints with their tasks, and last decisions
   --sprint ID      one sprint's frame, findings and tasks
-  --record PATH    with --section: the record to read (a path, sprint id, project name or design slug)
+  --record PATH    the record to read (a path, sprint id or name, project name or design slug); alone, its outline: header ids and each section with its line count
   --section NAME   with --record: print that one section, heading included
   --refresh-inbox  first point this session's open requests at its current inbox ($CLAUDE_CODE_MESSAGING_SOCKET); the session-start hook passes it, since a resumed session binds a new one
 ===== pm day --help
@@ -639,7 +639,7 @@ usage: pm record link [-h] [--local] target
 Print the URL of a record's page on the site the pm service serves on localhost:$PORT (default: the installed service's port, else the port in .pm/config.toml), printed with the repo's site_url instead when .pm/config.toml sets one; --local prints the localhost URL even then, for a check on this machine that the public site's login would stop (a headless browser). The pm service's pages follow the records within 10 s and state their data's age, so no render step is needed. Fails with the command that fixes it when nothing serves there, or when what answers is not the pm service for this store.
 
 positional arguments:
-  target      a sprint or project id, a project name, a design slug, or a record path (records/<…>.md; records/ and .md optional)
+  target      a sprint or project id, a sprint name (<project>-<n>), a project name, a design slug, or a record path (records/<…>.md; records/ and .md optional)
 
 options:
   -h, --help  show this help message and exit
