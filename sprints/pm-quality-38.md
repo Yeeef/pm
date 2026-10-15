@@ -76,10 +76,21 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: agents' top failure clusters on the pm command surface are removed, and `pm --help` and prime.md show what agents use (PR #104).
+
+- `pm show --record X` alone prints the record outline; sprint names resolve as targets.
+- Need forms refuse once with every broken rule.
+- `task close` requires `--reason`; `doc new --sprint|--task|--project`; one help renderer; honest usage lines.
+- `pm --help` hides the machinery commands behind `pm --help --all`.
+- prime.md from 3,218 to 2,884 words; the pm-cli design page rewritten with the CLI naming grammar.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `pm show --record <sprint id>` prints an outline with exit 0: met. The harness tests `show --record repo-demo.1` and `show --record demo-1` alone exit 0 with the outline; Go test `TestRecordOutlineListsEachSectionWithItsCommand`.
+- A `decision need` with two violations lists both in one refusal: met. A harness test lists three; `TestARefusedLabelIsOneRule` holds a single bad label to one rule.
+- `pm --help` hides the machinery and `pm --help --all` lists it: met. Golden `help.golden`; `test_pm_help_hides_the_machinery_that_help_all_lists`.
+- `pm task close <id>` without `--reason` is refused: met. A harness test in `tests/test_pm.py`.
+- prime.md is under 3,218 words and every hook chunk fits its cap: met. 2,884 words; chunks 3,850, 6,735 and 6,043 characters against 10,000; `tests/test_hooks.py` passes.
+- The pm-cli design page names no `bd`, `serve`, `render` or `setup`, `pm check` passes, and the PR's CI is green: the page and `pm check` are met; CI is in the PR #104 checks.
