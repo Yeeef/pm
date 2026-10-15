@@ -2,10 +2,10 @@
 pull_request path lists equal, naming what can alter the release build), the Go test job's package list (make
 go-test-but-work failing when go list fails) and go_shards.py's shards, go_changes.py's skip of the Go jobs' work on a
 PR no Go job reads (each job still running on every PR) and its selection of the test packages a PR's changes can
-affect, which the go test targets take as SELECTED, every restore of pm-go.yml's Go caches, the parity
-eval's scenario count, and the release on a push to main (its jobs, their tokens, main_ci.py, and the scripts of its
-plan and tag steps, run against a local bare origin and a fake gh). The expected results come from what each job is
-for, on fake tools built here."""
+affect, which the go test targets take as SELECTED, pm-go.yml's macOS jobs running once a day and not on a PR, every
+restore of pm-go.yml's Go caches, the parity eval's scenario count, and the release on a push to main (its jobs, their
+tokens, main_ci.py, and the scripts of its plan and tag steps, run against a local bare origin and a fake gh). The
+expected results come from what each job is for, on fake tools built here."""
 
 from __future__ import annotations
 
@@ -495,6 +495,21 @@ def test_a_go_job_skips_its_steps_after_the_change_check_and_still_runs_on_every
         if sid := re.search(r"^        id: (\S+)", body, re.M):
             gated.add(sid[1])
     assert "go" in gated and ("suite" in gated) == (workflow == "pm-go.yml")
+
+
+def test_pm_go_runs_linux_on_every_pr_and_push_and_macos_once_a_day():
+    """The owner asked for the macOS jobs once a day, not on every PR and push: job macos runs only on the schedule and
+    on demand, every test (no PR subset), and job test, Linux's, only on a PR or a push; both run the same steps."""
+    path = PM_DIR / ".github/workflows/pm-go.yml"
+    text = path.read_text()
+    assert re.search(r'^  schedule:\n    - cron: "\d+ \d+ \* \* \*"\n  workflow_dispatch:\n', text, re.M)
+    js = jobs(path)
+    assert set(js) == {"test", "macos"}
+    assert "    if: github.event_name == 'pull_request' || github.event_name == 'push'\n" in js["test"]
+    assert "    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'\n" in js["macos"]
+    assert "macos-" not in js["test"] and "ubuntu-" not in js["macos"]
+    assert "    steps: &steps\n" in js["test"] and js["macos"].endswith("    steps: *steps\n")
+    assert "pr_run" not in text
 
 
 def test_every_restore_of_pm_go_s_caches_names_the_key_pm_go_saves():
