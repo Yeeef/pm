@@ -28,10 +28,10 @@
 # fail saves too: what it compiled is as good as a passing run's, and a failed push to main would otherwise leave every
 # PR cold until the next green one. A run that restores its own key (a daily run on a commit already saved, a re-run)
 # neither trims nor saves: the key exists. A run that saves trims the restored build cache to what it used first
-# (.github/scripts/go_cache_trim.py), so the cache, and each restore of it, does not grow with every save. The module cache is saved without its downloaded zips: a build reads only the unpacked
-# modules beside them, and the zips, already compressed, only lengthen each restore (actions/cache's `!` paths cannot
-# leave them out: it archives a listed directory whole). The key's `unzipped` names that form, so no run restores a
-# cache saved with them. GOFLAGS=-count=1: the restored cache never stands in for a test run.
+# (.github/scripts/go_cache_trim.py), so the cache, and each restore of it, does not grow with every save. The module
+# cache is saved without its downloaded zips: a build reads only the unpacked modules beside them, and the zips,
+# already compressed, only lengthen each restore (actions/cache's `!` paths cannot leave them out: it archives a
+# listed directory whole). The key's `unzipped` names that form, so no run restores a cache saved with them. GOFLAGS=-count=1: the restored cache never stands in for a test run.
 # .github/scripts/setup_go.py installs Go, as actions/setup-go does but without its 12 s copy into the runner's tool
 # cache.
 name: pm go
