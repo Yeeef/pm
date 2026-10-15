@@ -90,6 +90,18 @@ The site side is independent of the workspaces and gives the owner the version v
   dirs stay read-only unless listed, and a commit also writes the common
   `.git` objects and refs, not only `.git/worktrees/<name>`).
 
+- Published view and versions, live check on a scratch clone (pm init with the
+  fixtures' fake supervisor, HOME and CODEX_HOME under the temp dir, service
+  from the built binary): a hand edit to design/parser.md showed as the store
+  version within 0.20 s; the published page stayed byte-equal to the page
+  before the edit plus the version bar; /drafts/store/design/parser.diff.html
+  marked exactly the 3 edited lines (- None yet., + Records need a parser., +
+  It streams.) in 1 changed section, 7 folded; a malformed header made only
+  /drafts/store/design/parser.html 500 (its diff 200; /, index, project and
+  design pages 200); refresh 4-6 ms, page GETs 0-1 ms. On the real store one
+  git archive of refs/heads/records (2.5 MB tar) takes 0.01-0.02 s and the
+  drafts' git status under 0.01 s.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
