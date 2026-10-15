@@ -1,7 +1,7 @@
 {
  "date": "2026-10-16",
- "generated_at": "2026-10-15T23:31:13+00:00",
- "digest": "58ace92855c45def",
+ "generated_at": "2026-10-15T23:51:33+00:00",
+ "digest": "0798d070b8c3a634",
  "model": "claude-haiku-5-5",
- "text": "- **Record publishing at close:** Design pages now stay as drafts until the sprint closes, then publish in one records commit. Conflicts hold the close, and a discarded draft keeps its reason on record.\n- **Command surface simplification:** An audit doc now measures the command surface and ranks the simplifications. Help hides machinery commands, `task close` requires a reason, and `show --record` alone prints an outline.\n- **Docs site rendering and checks:** Docs now typeset TeX math, resolve links by slug, and list every doc in an index. `pm check` refuses dead record links and JSX in raw HTML."
+ "text": "- **Command surface simplified:** `show --record` alone now prints the record outline. `pm --help` hides internal commands unless you add `--all`.\n- **Design page drafts:** Design page drafts now push and fetch across clones. `pm sprint close` publishes them in one records commit.\n- **Docs rendering:** Docs now display math and resolve links by slug. `pm check` now refuses dead record links.\n- **Command quality audit:** The audit measures command usage and how it differs from the design intent. It ranks candidate simplifications for the command surface."
 }
