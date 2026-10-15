@@ -81,6 +81,8 @@ None yet.
 
 done: docs typeset TeX math, links between docs resolve by slug, a docs index lists every doc, and pm check refuses dead record links and JSX in raw HTML (PR #102, merged as b242ffd).
 
+Merged as b242ffd (PR #102).
+
 - KaTeX 0.19.0 is pinned on the CDN like Mermaid and loads only on pages that have math.
 - MDX is not supported (owner decision). `pm check` and `pm commit` refuse `className=`, `{/* */}`, `attr={…}`, camelCase SVG attributes and blank lines inside `<svg>`, naming the line and the HTML fix.
 - Breaking: a store with a dead record link or JSX fails `pm check` once its pin moves. The pm store has 2 dead links (`sprints/pm-harness-50.md`). The poker store has 13 dead links and 219 JSX errors in two imported notes, which its agent rewrites.
