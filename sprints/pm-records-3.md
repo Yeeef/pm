@@ -90,6 +90,8 @@ prime.md only names the two new rename commands; nothing the product page says a
 
 done: `pm design rename` and `pm doc rename` rename a design page or a doc (its slug, its title or both) and rewrite every link and waiver that names it, in one records commit.
 
+Merged as 17e9b91 (PR #100).
+
 - Link forms rewritten: `.md` and `.html`, with anchors, link titles and angle brackets kept; links in code blocks and inline code are left as written.
 - Refusals: no flag given; an unknown or ambiguous target; an invalid or taken slug; an empty title; a rename that changes nothing; the feedback doc; an open PR review naming the page; uncommitted targets.
 - Not covered: reference-style links, slugs in prose, and redirects from old URLs.
