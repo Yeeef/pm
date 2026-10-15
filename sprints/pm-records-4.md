@@ -51,7 +51,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-15}
+Until publish at sprint close is built, a design page committed from a workspace is tagged with its sprint and published at pm commit, as journals are.
+Held drafts with no publish step would strand design edits; tagging now means step 4 only changes when the draft commit publishes, not what it holds.
+:::
 
 ## Findings
 
