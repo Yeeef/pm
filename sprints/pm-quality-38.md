@@ -55,7 +55,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-16}
+The no-op commands pm hook git-post-checkout and pm hook git-pre-commit stay, hidden under pm --help --all, instead of being removed.
+Pins 0.2.0 to 0.9.x write .pm/hooks sections that call them, and an older-pin session resets core.hooksPath; removing them would break checkouts and block commits on the new pin.
+:::
 
 ## Findings
 
