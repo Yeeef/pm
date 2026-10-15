@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PM, VERSION, fake_env, project, sprint, wait_for, write_config
+from conftest import CHECKOUT, PM, VERSION, fake_env, project, sprint, wait_for, write_config
 
 
 def reply_body(text: str) -> str:
@@ -2152,3 +2152,34 @@ def test_day_summarize_asks_the_runtime_summary_runtime_names(repo):
     res = repo.pm("day", "summarize")
     assert res.returncode != 0 and 'summary_runtime is "gpt"; set it to one of claude, codex' in res.stdout + res.stderr
     config.write_text(base)
+
+
+def test_interactive_and_autopilot_set_the_mode_of_the_session_that_runs_them(repo):
+    """pm interactive writes the session's mode file in the main checkout, from a worktree too, and pm autopilot removes
+    it, for a Claude Code session and a Codex one alike; each then prints the request rule of the mode it set.
+    Autopilot in autopilot changes nothing and says so, and with no session in the environment both refuse."""
+    modes, tree = repo.root / ".pm/run/sessions", repo.worktree("wt")
+    rule = {m: (CHECKOUT / f"prompts/request_rule_{m}.txt").read_text().strip() for m in ("autopilot", "interactive")}
+    inter = f"\n\n# Asking the owner: this session is in interactive mode\n\n{rule['interactive']}\n"
+    auto = f"\n\n# Asking the owner: this session is in autopilot\n\n{rule['autopilot']}\n"
+    saved = repo.env
+    none = {"CLAUDE_CODE_SESSION_ID": "", "CODEX_SESSION_ID": "", "CODEX_THREAD_ID": ""}
+    for env, sid in (({"CLAUDE_CODE_SESSION_ID": "cl-1"}, "cl-1"), ({"CODEX_SESSION_ID": "cx-root"}, "cx-root")):
+        repo.env = {**saved, **none, **env}
+        res = repo.pm("interactive", cwd=tree)
+        assert res.returncode == 0 and res.stdout == (f"session {sid} is in interactive mode: the owner-request check "
+                                                      "lets asks in chat through until pm autopilot" + inter), res.stderr
+        assert (modes / sid).is_file()
+        res = repo.pm("autopilot")
+        assert res.returncode == 0 and res.stdout.startswith(f"session {sid} is in autopilot: ") and not (modes / sid).exists()
+        assert res.stdout.endswith(auto)
+        res = repo.pm("autopilot")
+        assert res.stdout == f"session {sid} is already in autopilot, the default; nothing changed" + auto, res.stderr
+    repo.env = {**saved, **none}
+    for command in ("interactive", "autopilot"):
+        res = repo.pm(command)
+        assert res.returncode == 1 and res.stderr == ("error: no agent session: neither CLAUDE_CODE_SESSION_ID nor "
+                                                      "CODEX_THREAD_ID is set, so there is no session to set the mode "
+                                                      "of\n"), res.stderr
+    assert list(modes.iterdir()) == []
+    repo.env = saved

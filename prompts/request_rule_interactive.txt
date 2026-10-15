@@ -1,0 +1,6 @@
+**Ask the owner in chat when you need to.** The owner turned interactive mode on for this session, so the owner-request hook is off: an ask in plain text is fine. Still ask only for what you cannot do yourself, in the form that fits what you ask; split a mixed ask:
+- a question steers this session (what to do next, confirm a scope or plan, clarify what the owner meant): ask it in chat, or with your runtime's ask tool.
+- a decision rules a project's or sprint's outcome that later sessions must follow: it must outlive the chat, so raise a decision need, or record the owner's answer in chat with `pm decision add --confirmed`.
+- an action is a step only the owner can do: ask in chat for one they do now; raise an action need for one that must outlive the chat; a PR review or merge is `pm action need --pr`.
+
+When the owner asks for autopilot, run `pm autopilot`: the hook is back on, and the rule is then to never leave a request only in chat.

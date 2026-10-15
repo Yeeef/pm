@@ -3,10 +3,11 @@
 // builds it on cobra, and each leaf parses its own arguments with pflag (cobra's flag parsing is off on leaves):
 // required arguments, mutually exclusive groups, choices, positional counts, and --option LABEL TEXT. Each noun's body
 // has its own file (task.go, sprint.go, decision.go, …), the setup package holds pm init, doctor, upgrade and
-// uninstall, and fsutil the path helpers both share. store_commands.go holds the work-store commands' bodies, and the
-// forms show ID and task add --parent TASK, the one argv Execute routes before the tree (storeFormOf). Every command pm
-// runs is in the tree, so in pm --help: commands_test.go fails otherwise. help_golden_test.go holds every command's
-// --help to testdata/help.golden, and doc_test.go fails on a func whose doc comment does not start with its name.
+// uninstall, the clean package pm clean, and fsutil the path helpers cli and setup share. store_commands.go holds the
+// work-store commands' bodies, and the forms show ID and task add --parent TASK, the one argv Execute routes before the
+// tree (storeFormOf). Every command pm runs is in the tree, so in pm --help: commands_test.go fails otherwise.
+// help_golden_test.go holds every command's --help to testdata/help.golden, and doc_test.go fails on a func whose doc
+// comment does not start with its name.
 package cli
 
 import (
@@ -24,6 +25,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/cli/clean"
 	"github.com/Yeeef/pm/internal/cli/parse"
 	"github.com/Yeeef/pm/internal/cli/setup"
 	"github.com/Yeeef/pm/internal/config"
@@ -127,6 +129,8 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return hooks.HookStop(stdin, stdout, stderr)
 	case "hook ask":
 		return hooks.HookAsk(here, ask.Runtime(p.Get("runtime")), hooks.DialStore, stdin, stdout, stderr)
+	case "hook session-end":
+		return hooks.HookSessionEnd(here, stdin, stderr)
 	case "hook owner-request":
 		return runOwnerHook(p, here, stdin, stdout, stderr)
 	case "service install", "service status", "service restart", "service stop", "service logs", "service run":
@@ -162,7 +166,9 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 	case "where":
 		return cmdWhere(p, here, stdout)
 	case "clean":
-		return cmdClean(p, here, stdout)
+		return clean.Run(here, p.Get("apply") == "true", stdout)
+	case "interactive", "autopilot":
+		return cmdMode(here, name == "interactive", stdout)
 	}
 	if cmd, ok := agentCommands[name]; ok {
 		return runAgent(name, cmd, p, here, stdin, stdout, stderr)
@@ -172,8 +178,9 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 
 func runPrime(p *Parsed, stdin io.Reader, stdout io.Writer) error {
 	part := hooks.Part{}
+	part.RequestRule = p.Get("part") == "request-rule"
 	switch v := p.Get("part"); v {
-	case "":
+	case "", "request-rule":
 	case "state":
 		part.State = true
 	case "subagent":
@@ -201,6 +208,21 @@ func runOwnerHook(p *Parsed, here string, stdin io.Reader, stdout, stderr io.Wri
 	} else {
 		return &exitCode{code}
 	}
+}
+
+// cmdMode is pm interactive (on) and pm autopilot, for this command's session (hooks.SetMode).
+func cmdMode(here string, on bool, stdout io.Writer) error {
+	id := currentSession()
+	if id == "" {
+		return refuse("no agent session: neither %s nor %s is set, so there is no session to set the mode of",
+			sessionEnv, codexSessionEnv)
+	}
+	text, err := hooks.SetMode(here, id, on)
+	if err != nil {
+		return refuse("the mode of session %s is unchanged: %v", id, err)
+	}
+	_, err = fmt.Fprintln(stdout, text)
+	return err
 }
 
 func runInit(p *Parsed, here string, stdout io.Writer) error {

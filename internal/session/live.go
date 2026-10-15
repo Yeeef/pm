@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -86,15 +87,41 @@ func claudeConfigDir() string {
 // Live is whether one of the session's transcripts changed within LiveWindow: Claude Code's
 // <config>/projects/<project dir>/<id>.jsonl (any project dir, since each worktree has its own), or Codex's rollout of
 // the thread (Rollouts).
-func Live(session string) bool {
+func Live(session string) bool { return activeWithin(session, LiveWindow) }
+
+// activeWithin is whether one of the session's transcripts (Live) changed within window.
+func activeWithin(session string, window time.Duration) bool {
 	if !sessionID.MatchString(session) {
 		return false
 	}
 	paths := append(glob(filepath.Join(claudeConfigDir(), "projects", "*", session+".jsonl")), Rollouts(session)...)
 	for _, p := range paths {
-		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < LiveWindow {
+		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < window {
 			return true
 		}
 	}
 	return false
+}
+
+// Age is '12m', '3h' or '2d' since t, a session's claim or last use; '?' for the zero time.
+func Age(t time.Time) string {
+	if t.IsZero() {
+		return "?"
+	}
+	s := time.Since(t).Seconds()
+	switch {
+	case s < 3600:
+		return fmt.Sprintf("%dm", int(pyFloorDiv(s, 60)))
+	case s < 86400:
+		return fmt.Sprintf("%dh", int(pyFloorDiv(s, 3600)))
+	}
+	return fmt.Sprintf("%dd", int(pyFloorDiv(s, 86400)))
+}
+
+func pyFloorDiv(a, b float64) float64 {
+	q := a / b
+	if q < 0 && q != float64(int64(q)) {
+		return float64(int64(q) - 1)
+	}
+	return float64(int64(q))
 }

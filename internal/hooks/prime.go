@@ -11,10 +11,12 @@
 // puts a title line naming each chunk's place and sections on top (pm prime --rules N); the state runs as its own hook,
 // cut at a line. TestChunksFitTheCapAndAddUpToTheHead fails when a chunk outgrows Cap. Beside prime: stop.go pm hook
 // stop (uncommitted records), ownerrequest.go pm hook owner-request (the judge on the session's runtime, --runtime
-// claude or codex, through internal/ask), asktool.go the runtimes' ask tools the judge lets through, ask.go pm hook
-// ask (a session's ask-tool question raised as a question need: Claude Code's PermissionRequest of AskUserQuestion,
-// waiting beside the dialog for the first answer; Codex's PostToolUse of request_user_input_async), store.go the
-// hooks' reads and writes of the work store.
+// claude or codex, through internal/ask, off in a session in interactive mode), asktool.go the runtimes' ask tools the
+// judge lets through, ask.go pm hook ask (a session's ask-tool question raised as a question need: Claude Code's
+// PermissionRequest of AskUserQuestion, waiting beside the dialog for the first answer; Codex's PostToolUse of
+// request_user_input_async), store.go the hooks' reads and writes of the work store, requestrule.go the request rule
+// of each session mode (pm prime --request-rule, its own SessionStart hook), sessionend.go pm hook session-end
+// (SessionEnd: the session's mode file removed).
 package hooks
 
 import (
@@ -33,6 +35,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/launch"
 	"github.com/Yeeef/pm/internal/proc"
+	sessionpkg "github.com/Yeeef/pm/internal/session"
 )
 
 const (
@@ -420,11 +423,13 @@ type block struct {
 
 func blockFor(reason string) block { return block{"block", reason} }
 
-// Part is which part pm prime prints: a rules chunk (1-based), the state, the subagent line, or everything.
+// Part is which part pm prime prints: a rules chunk (1-based), the request rule, the state, the subagent line, or
+// everything.
 type Part struct {
-	Chunk    int // 1.. for --rules N; 0 otherwise
-	State    bool
-	Subagent bool
+	Chunk       int // 1.. for --rules N; 0 otherwise
+	RequestRule bool
+	State       bool
+	Subagent    bool
 	// Trust is the line the state opens with when the runtime skips some of pm's hooks (a Codex session's check of
 	// Codex's trust); nil asks nothing.
 	Trust func(cwd string) string
@@ -444,13 +449,16 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 		}
 	}
 	var text string
-	if part.Chunk > 0 {
+	switch {
+	case part.RequestRule: // reads nothing but the mode file, and fails to autopilot's rule
+		text = requestRuleFor(eventCwd(event), sessionOf(event, hookJSON))
+	case part.Chunk > 0:
 		chunks, err := Chunks(nouns)
 		if err != nil {
 			return err
 		}
 		text = chunks[part.Chunk-1]
-	} else {
+	default:
 		cwd, err := eventString(event, "cwd")
 		if err != nil {
 			return err
@@ -470,7 +478,7 @@ func CmdPrime(part Part, hookJSON bool, nouns []string, stdin io.Reader, stdout 
 				return err
 			}
 			if !part.State {
-				text = Head(nouns) + "\n\n" + text
+				text = Head(nouns) + "\n\n" + requestRuleFor(cwd, sessionOf(event, hookJSON)) + "\n\n" + text
 			}
 		}
 	}
@@ -507,4 +515,26 @@ func splitlines(s string) []string {
 		out = append(out, string(rs[start:]))
 	}
 	return out
+}
+
+// eventCwd is the hook input's cwd, or nil (the process's directory) when it is missing or not a string.
+func eventCwd(event Event) *string {
+	if cwd, ok := event["cwd"].(string); ok && cwd != "" {
+		return &cwd
+	}
+	return nil
+}
+
+// sessionOf is the session whose mode the request rule follows: the hook input's session_id; run by hand, the
+// session that runs pm; "" (autopilot's rule) when neither names one.
+func sessionOf(event Event, hookJSON bool) string {
+	if id, ok := event["session_id"].(string); ok && id != "" {
+		return id
+	}
+	if !hookJSON {
+		if id, _, err := sessionpkg.Current(sessionpkg.Innermost); err == nil {
+			return id
+		}
+	}
+	return ""
 }

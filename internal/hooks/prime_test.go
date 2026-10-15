@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -111,7 +112,7 @@ func TestFailuresNameOneLine(t *testing.T) {
 		} {
 			for _, runtime := range []ask.Runtime{ask.Claude, ask.Codex} { // the same failure on either runtime
 				var out, errb bytes.Buffer
-				code, err := HookOwnerRequest(t.TempDir(), runtime, read, strings.NewReader(in), &out, &errb)
+				code, err := HookOwnerRequest(gitDir(t), runtime, read, strings.NewReader(in), &out, &errb)
 				if code != 1 || err != nil || out.Len() != 0 ||
 					errb.String() != "pm hook owner-request: "+want+"; the owner-request check did not run\n" {
 					t.Errorf("%s %s: code %d, err %v, stdout %q, stderr %q", runtime, in, code, err, out.String(), errb.String())
@@ -130,4 +131,14 @@ func TestFailuresNameOneLine(t *testing.T) {
 			}
 		}
 	})
+}
+
+// gitDir is a new git repo, the main checkout a hook finds from its directory.
+func gitDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	return dir
 }

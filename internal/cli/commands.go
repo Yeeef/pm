@@ -650,11 +650,21 @@ var tree = &command{
 		},
 		{
 			Name:        "clean",
-			Help:        "list each worktree with keep or remove and the reason; --apply removes the agent worktrees (.claude/worktrees/) that no live session owns and whose work is saved",
-			Description: "List every worktree of this clone with keep or remove and the reason; a dry run unless --apply. Only an agent worktree, under <main checkout>/.claude/worktrees/, is ever removed; never the main checkout, the records store (.pm/store/records) or the worktree pm clean runs in. Owned, so kept: a worktree Claude Code locked for a live process (`claude <kind> <name> (pid N start T)` in .git/worktrees/<name>/locked; the lock is stale when pid N is gone or, on Linux, started at another time than T; on macOS a live pid owns it), a worktree someone else locked, and one a live session used: an entry of a Claude Code transcript (<config dir>/projects/) or a Codex rollout ($CODEX_HOME/sessions/) written in the last 30 minutes whose directory is in the worktree or whose tool call names the worktree's path (a subagent runs in its parent's directory). Removed, when clean (no change, no untracked file; its ignored files go with it, as git worktree remove deletes them) and holding no other worktree: one whose commits are on <remote>/<main branch> (its branch deleted too), one whose branch a PR merged into <main branch> took at its tip (a squash merge, asked of gh; kept when gh is missing or fails; its branch deleted too), and one whose branch has nothing beyond where it was pushed: its upstream, unless that is the main branch, else <remote>/<branch> (its branch kept, as it is not merged). Everything else is kept: uncommitted changes, commits never pushed. The branches compare with <remote>/<main branch> as last fetched: run git fetch first. --apply takes a stale lock off, runs git worktree remove (never --force, so git refuses a worktree that changed meanwhile; for a worktree whose directory is gone it drops git's entry), and deletes a merged branch at the tip it judged. It refuses, removing nothing, when a recent transcript cannot be read. Exits 1 when a removal failed, naming why on its line.",
+			Help:        "list each worktree with keep or remove and the reason; --apply removes the agent worktrees (.claude/worktrees/) that no live session owns and whose work is saved, and the interactive-mode files of sessions idle for a day",
+			Description: "List every worktree of this clone with keep or remove and the reason; a dry run unless --apply. Only an agent worktree, under <main checkout>/.claude/worktrees/, is ever removed; never the main checkout, the records store (.pm/store/records) or the worktree pm clean runs in. Owned, so kept: a worktree Claude Code locked for a live process (`claude <kind> <name> (pid N start T)` in .git/worktrees/<name>/locked; the lock is stale when pid N is gone or, on Linux, started at another time than T; on macOS a live pid owns it), a worktree someone else locked, and one a live session used: an entry of a Claude Code transcript (<config dir>/projects/) or a Codex rollout ($CODEX_HOME/sessions/) written in the last 30 minutes whose directory is in the worktree or whose tool call names the worktree's path (a subagent runs in its parent's directory). Removed, when clean (no change, no untracked file; its ignored files go with it, as git worktree remove deletes them) and holding no other worktree: one whose commits are on <remote>/<main branch> (its branch deleted too), one whose branch a PR merged into <main branch> took at its tip (a squash merge, asked of gh; kept when gh is missing or fails; its branch deleted too), and one whose branch has nothing beyond where it was pushed: its upstream, unless that is the main branch, else <remote>/<branch> (its branch kept, as it is not merged). Everything else is kept: uncommitted changes, commits never pushed. The branches compare with <remote>/<main branch> as last fetched: run git fetch first. --apply takes a stale lock off, runs git worktree remove (never --force, so git refuses a worktree that changed meanwhile; for a worktree whose directory is gone it drops git's entry), and deletes a merged branch at the tip it judged. It refuses, removing nothing, when a recent transcript cannot be read. After the worktrees it lists each session's interactive-mode file (<main checkout>/.pm/run/sessions/<session id>, which pm interactive writes): removed once its session has been idle for a day (no transcript or rollout written in the last 24 hours), as a session that crashed leaves it; a session that ends removes its own (pm hook session-end). Exits 1 when a removal failed, naming why on its line.",
 			Args: []arg{
 				{Flags: []string{"--apply"}, Dest: "apply", Kind: switchOn, Help: "remove the worktrees the dry run lists as remove; without it pm clean changes nothing"},
 			},
+		},
+		{
+			Name:        "interactive",
+			Help:        "turn the owner-request Stop check off for this session, so asks in chat pass, until pm autopilot, and print the interactive request rule; run it only when the owner asks",
+			Description: "Turn the owner-request Stop check (pm hook owner-request) off for this session alone: its stops pass without the judge, so asking the owner in chat is fine, until pm autopilot. It writes <main checkout>/.pm/run/sessions/<session id>, the session from the environment (CLAUDE_CODE_SESSION_ID, or Codex's session), and refuses when none is set; then it prints the request rule of interactive mode, which the SessionStart hook pm prime --request-rule also gives the session from then on, after a compaction too. The session's end removes the mode (pm hook session-end), so a session resumed after it ended, a claude -p or codex exec run resumed included, starts in autopilot. Run it only when the owner asks for interactive mode; nothing enforces that, so the rule is the agent's to keep. The uncommitted-records check (pm hook stop) stays on. The mode is local to the clone, shared by its worktrees and never synced; pm clean removes one a crashed session left, once it has been idle for a day.",
+		},
+		{
+			Name:        "autopilot",
+			Help:        "turn the owner-request Stop check back on for this session, the default, and print the autopilot request rule; a no-op in autopilot",
+			Description: "Turn the owner-request Stop check back on for this session: it removes <main checkout>/.pm/run/sessions/<session id>, which pm interactive wrote, the session from the environment, and refuses when none is set; then it prints the request rule of autopilot. Autopilot is every session's default; in a session already in it, nothing changes and the first line says so. Run it when the owner asks.",
 		},
 		{
 			Name:        "export",
@@ -670,11 +680,12 @@ var tree = &command{
 		},
 		{
 			Name:   "prime",
-			Help:   fmt.Sprintf("pm's rules, then pm init, pm where and pm show: the context a session starts with; the SessionStart hooks run --rules 1 to --rules %d and --state, and an agent may run it by hand", len(hooks.Starts)),
+			Help:   fmt.Sprintf("pm's rules, then the rule for asking the owner in this session's mode, then pm init, pm where and pm show: the context a session starts with; the SessionStart hooks run --rules 1 to --rules %d, --request-rule and --state, and an agent may run it by hand", len(hooks.Starts)),
 			Groups: []bool{false},
 			Args: []arg{
 				{Flags: []string{"--rules"}, Dest: "part", Metavar: []string{"N"}, Choices: chunkNumbers(), Kind: value, IsInt: true, Group: 1, Help: "only chunk N of the rules and the command list, under a title naming its sections: one hook each on SessionStart and SubagentStart, since Claude Code passes a hook's text inline only up to 10,000 characters"},
 				{Flags: []string{"--state"}, Dest: "part", Kind: switchTo, Constant: "state", Group: 1, Help: "only pm init, pm where and pm show, cut at a line to 10,000 characters: the last SessionStart hook; in a Codex session it opens with a line naming the pm hooks Codex skips, untrusted or changed since trusted (codex app-server, asked again only when .codex/hooks.json or your Codex trust changed)"},
+				{Flags: []string{"--request-rule"}, Dest: "part", Kind: switchTo, Constant: "request-rule", Group: 1, Help: "only the rule for asking the owner in the session's mode (autopilot, or interactive: pm interactive --help), under a heading naming it, read from the hook input's session_id (run by hand, this session's), autopilot's when the mode cannot be read: its own SessionStart hook, beside the rules chunks, never on SubagentStart"},
 				{Flags: []string{"--subagent"}, Dest: "part", Kind: switchTo, Constant: "subagent", Group: 1, Help: "only pm's git rule for agents, one line: the last SubagentStart hook, beside the rules chunks"},
 				{Flags: []string{"--hook-json"}, Dest: "hook_json", Kind: switchOn, Help: "read the SessionStart or SubagentStart input on stdin and print the hook's JSON envelope, as Claude Code and Codex read it"},
 			},
@@ -691,7 +702,7 @@ var tree = &command{
 				{
 					Name:        "owner-request",
 					Help:        "Stop: block once while the reply asks the owner for something no open need or action of this session covers",
-					Description: "Stop: block once while the reply asks the owner for something no open need or action of this session covers. A small model on the session's own runtime judges the reply: Claude Haiku through claude -p for Claude Code, gpt-5.6-luna through codex exec for Codex, each run from an empty temp directory with no hooks, no project instructions and no saved session. Each runtime's hook entry names its runtime; pm never guesses it. When the check cannot run (the runtime's CLI is missing, fails or times out), it exits 1 with the cause on stderr: Claude Code shows it, Codex lets the stop through.",
+					Description: "Stop: block once while the reply asks the owner for something no open need or action of this session covers. In a session in interactive mode (pm interactive --help) it lets every stop through without the judge. A small model on the session's own runtime judges the reply: Claude Haiku through claude -p for Claude Code, gpt-5.6-luna through codex exec for Codex, each run from an empty temp directory with no hooks, no project instructions and no saved session. Each runtime's hook entry names its runtime; pm never guesses it. When the check cannot run (the runtime's CLI is missing, fails or times out), it exits 1 with the cause on stderr: Claude Code shows it, Codex lets the stop through.",
 					Args: []arg{
 						{Flags: []string{"--runtime"}, Dest: "runtime", Choices: ask.Runtimes, Kind: value, Help: "the session's runtime, which the judge runs on; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json (default: claude, as an entry written before this flag)"},
 					},
@@ -703,6 +714,10 @@ var tree = &command{
 					Args: []arg{
 						{Flags: []string{"--runtime"}, Dest: "runtime", Choices: ask.Runtimes, Required: true, Kind: value, Help: "the session's runtime; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json"},
 					},
+				},
+				{
+					Name: "session-end",
+					Help: "SessionEnd: remove the ended session's interactive-mode file (pm interactive --help)",
 				},
 				{
 					Name: "git-post-checkout",

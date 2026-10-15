@@ -23,8 +23,8 @@ served by a per-test pm service; the pm under test is the Go binary `make go-bui
   the user's own values, which the live evals run with.
 - light_unless_integration (autouse) fails a test not marked `integration` that starts what integration_only names:
   the pm service, the whole site (Repo.pages), a clone's setup (pm init, upgrade, uninstall, doctor), a git remote
-  (clone, fetch, pull, push, a bare repo), pm push, or the session-start hook (pm prime without --rules or
-  --subagent).
+  (clone, fetch, pull, push, a bare repo), pm push, or the session-start hook (pm prime without --rules,
+  --subagent or --request-rule).
 - chunks() cuts the rules, prime.md and the command list, at RULE_STARTS (internal/hooks' Starts), as pm prime
   --rules N prints them.
 - The fakes are fake_gh.py, fake_claude.py, fake_codex.py and fake_sched.py; each one's docstring says what it
@@ -294,7 +294,7 @@ def integration_only(args) -> str | None:
             return None
         if rest[0] in HEAVY_PM:
             return f"pm {rest[0]}"
-        if rest[0] == "prime" and not {"--rules", "--subagent"} & set(rest):
+        if rest[0] == "prime" and not {"--rules", "--subagent", "--request-rule"} & set(rest):
             return "the session-start hook (pm prime runs pm init, where and show)"
     return None
 

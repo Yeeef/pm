@@ -282,3 +282,30 @@ def test_clean_keeps_what_a_removal_would_delete_with_it(clone):
     assert v["away"] == ("keep", "not an agent worktree (outside .claude/worktrees/)")
     assert (inner / "work.txt").exists() and (hidden / "notes.txt").exists()
     assert worktrees(repo) == ["away", "hidden", "inner", "outer", "records", "repo", "stacked"]  # no global prune
+
+
+def test_clean_removes_the_interactive_mode_of_a_session_idle_for_a_day(clone):
+    """A session that crashed leaves its mode file (`pm interactive`): pm clean removes it once no transcript or rollout
+    of the session was written for a day, and keeps it for a session idle longer than the 30 minutes that make it not
+    live, so an interactive session the owner stepped away from keeps its mode; Claude Code and Codex alike."""
+    repo = clone
+    modes = repo.root / ".pm/run/sessions"
+    modes.mkdir(parents=True)
+    for session in ("sess-away", ROOT_THREAD, "sess-gone"):
+        (modes / session).write_text("interactive\n")
+    ages = {"-repo/sess-away.jsonl": 2 * 3600, "-repo/sess-gone.jsonl": 25 * 3600}
+    for rel, age in ages.items():
+        transcript(repo, rel, entry("user", repo.root, age_s=age))
+        path = Path(repo.env["CLAUDE_CONFIG_DIR"]) / "projects" / rel
+        os.utime(path, (path.stat().st_mtime - age,) * 2)
+    rollout(repo, ROOT_THREAD, ROOT_THREAD, repo.root, age_s=2 * 3600)
+    for p in (Path(repo.env["CODEX_HOME"]) / "sessions").rglob(f"*{ROOT_THREAD}.jsonl"):
+        os.utime(p, (p.stat().st_mtime - 2 * 3600,) * 2)
+
+    kept = ("keep", "the session was active within a day")
+    for args in ((), ("--apply",)):
+        v = clean(repo, *args)
+        assert v["sess-away"] == kept and v[ROOT_THREAD] == kept, v
+        assert v["sess-gone"] == ("remove", "the session has been idle for a day")
+        assert (modes / "sess-gone").exists() == (not args), args
+    assert sorted(p.name for p in modes.iterdir()) == sorted(["sess-away", ROOT_THREAD])
