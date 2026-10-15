@@ -107,9 +107,9 @@ func TestStampAndTextsSurviveGitRewritingTheRecordsMidWalk(t *testing.T) {
 	}
 }
 
-// Load reads every record lock-free while a records sync may rewrite them; a file that went mid-read is left out of
-// that read, so the read must not pass for the whole store: Load says which went (a service.Partial), and the service
-// reads again under the records lock, which the sync's rebase holds. A Load that succeeds has every record.
+// Load reads lock-free while a records sync may rewrite the store's worktree: the published records come from the
+// records branch, so a Load that succeeds has every record; drafts read while git rewrote the worktree make it a
+// service.Partial, and the service reads again under the records lock, which the sync's rebase holds.
 func TestLoadNeverPassesARecordSetMissingAFileGitRewrote(t *testing.T) {
 	dir := t.TempDir()
 	git := func(args ...string) error {

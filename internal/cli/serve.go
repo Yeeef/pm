@@ -150,9 +150,9 @@ func summarizeDay(main string) (bool, string) {
 	return true, said
 }
 
-// servedSite is internal/site as the pm service renders it (service.Site): the records store's files, its HEAD, the
-// remote's main branch and today's date as the stamp; each look's records and items checked and their pages rendered on
-// demand; the reply forms and the status line filled on every page served.
+// servedSite is internal/site as the pm service renders it (service.Site): the records published on the records
+// branch, the remote's main branch and today's date as the stamp; each look's records and items checked and their
+// pages rendered on demand; the reply forms and the status line filled on every page served.
 type servedSite struct {
 	records, name string
 	main          string   // <remote>/<main branch>: the remote's main, whose commits to covered files a design page names
@@ -182,10 +182,12 @@ func newServedSite(records, name, main string) (*servedSite, error) {
 	}
 	return &servedSite{records: records, name: name, main: main, heads: []string{filepath.Join(dirs[0], "HEAD"),
 		filepath.Join(dirs[1], "refs/heads", store.Branch), filepath.Join(dirs[1], "refs/remotes", main),
-		filepath.Join(dirs[1], "packed-refs")}, indexLock: filepath.Join(dirs[0], "index.lock")}, nil
+		filepath.Join(dirs[1], "packed-refs")},
+		indexLock: filepath.Join(dirs[0], "index.lock")}, nil
 }
 
-// Stamp is a digest of every record file and day summary (path and bytes), the store's HEAD files and today's date.
+// Stamp is a digest of every record file and day summary in the store's working tree (path and bytes), the store's
+// HEAD files and today's date: it moves with the published records and with every draft.
 func (s *servedSite) Stamp() (string, error) {
 	h := sha256.New()
 	// A file or directory the walk listed can be gone when it is read: git rewrites a record by unlinking it, so a records
@@ -230,16 +232,17 @@ func (s *servedSite) Stamp() (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// Load reads the records as they are on disk, uncommitted edits included, and checks them against items. The design
-// pages' dates and their covered code's changes come from git, read again only when the stamp moved. Records that moved while it read them (a file gone,
-// or the stamp after the read not the stamp before) make it a service.Partial.
+// Load reads the published records from the records branch (store.Published) and checks them against items. The
+// design pages' dates and their covered code's changes come from git, read again only when the stamp moved. A worktree
+// that moved while it read (the stamp after the read not the stamp before, or git rewriting it) makes it a
+// service.Partial.
 func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	rewriting := fsutil.Exists(s.indexLock)
 	stamp, err := s.Stamp() // before the read: a write between the two moves the stamp again, and the next look reads
 	if err != nil {
 		return nil, err
 	}
-	texts, gone, err := records.Texts(s.records)
+	texts, sums, err := store.Published(s.records)
 	if err != nil {
 		return nil, err
 	}
@@ -247,14 +250,14 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	if err != nil {
 		return nil, err
 	}
-	summaries, err := records.ReadSummaries(s.records)
+	summaries, err := records.ParseSummaries(sums)
 	if err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	dates := s.dates
 	if s.datesStamp != stamp {
-		if dates, err = store.DesignDates(s.records, recs, store.Today()); err == nil {
+		if dates, err = store.DesignDates(s.records, recs); err == nil {
 			err = store.CodeChanges(s.records, s.main, recs, dates)
 		}
 		if err != nil {
@@ -268,11 +271,11 @@ func (s *servedSite) Load(items []work.Item) (service.Pages, error) {
 	if err != nil {
 		return nil, err
 	}
-	// A records sync rewrote them mid-read: a file listed went, or the walk missed one being rewritten, which only the
-	// stamp shows, or git was rewriting the worktree, which a git that stalled mid-checkout hides from both stamps (each
-	// walk misses the same unlinked file). The service reads again under the records lock.
-	if after, err := s.Stamp(); err != nil || after != stamp || gone != nil || rewriting || fsutil.Exists(s.indexLock) {
-		return nil, &service.Partial{Pages: served, Gone: gone}
+	// A records sync rewrote the worktree mid-read: the stamp moved, or git was rewriting the worktree, which a git that
+	// stalled mid-checkout hides from both stamps (each walk misses the same unlinked file). The service reads again
+	// under the records lock.
+	if after, err := s.Stamp(); err != nil || after != stamp || rewriting || fsutil.Exists(s.indexLock) {
+		return nil, &service.Partial{Pages: served}
 	}
 	return served, nil
 }
