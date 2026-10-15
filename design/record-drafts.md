@@ -138,7 +138,9 @@ Worktree and branch come from `git worktree list`, the session from `session.Use
 **A version's render**
 
 - Its record set is the published set with the draft's files laid over it: the draft ref's tree (`drafts/<name>`) for committed edits, then the workspace's working tree for uncommitted ones.
-- It is built on the first request and cached under the version's stamp: the draft ref's sha plus a digest of the workspace's record files, as the published render is cached under its own stamp. The service's look every second lists the drafts (`git status` in each workspace, about 1 ms); it renders none.
+- The service looks for a change every second (the stamp: the store's record files and its refs, read without git). When the stamp moves it reads again: the published set and the drafts' list (`git status` in each workspace, about 1 ms). A version is built on its first request and cached for that read, so a version is rebuilt only after its draft, the published set or the work store moved; a read whose stamp did not move keeps every built version.
+- A draft that cannot be read (git status fails, or a listed file is no file) is listed with its error, which fails only its version. A listed file that holds its published text (a mode change, an edit staged then undone) is no change.
+- Figures are not versioned: a published page's figures are read from the `records` branch, a version's from the store's working tree.
 - A version that does not parse serves its own render as the error page and its entry says "does not render"; the published pages and every other version stay 200.
 
 **Diffs**

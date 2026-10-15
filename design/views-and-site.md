@@ -301,8 +301,9 @@ stateDiagram-v2
   socket, so they share this one look.
 - **Published records.** The read takes the records at the tip of the
   `records` branch, one `git archive` (0.01-0.02 s for the real store's
-  2.5 MB), never the working tree; the drafts are one `git status` and the
-  files it lists. Each draft's version is parsed and checked on its first
+  2.5 MB), never the working tree, and so are a published page's figures
+  (`git cat-file`); the drafts are one `git status` and the files it lists,
+  and a version's figures come from the working tree. Each draft's version is parsed and checked on its first
   request and kept for the snapshot.
 - **No lock.** The read takes no store lock, since `pm` writes each file
   atomically. Between a `pm` write's steps the records and Beads may not
