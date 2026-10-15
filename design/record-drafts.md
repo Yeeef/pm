@@ -61,7 +61,7 @@ This page is the record layer's model for drafts and publishing: each code workt
 
 **Hooks, sessions, sync**
 
-- The Stop hook blocks when the session's transcript names an uncommitted store file in a tool call (substring match).
+- In the main checkout, the Stop hook blocks when the session's transcript names an uncommitted store file in a tool call (substring match).
 - `session.Uses` maps each worktree under `.claude/worktrees` to its latest live session; only `pm clean` uses it today.
 - One session changes code only in its own worktree; `pm task claim` refuses the main checkout.
 - The service pushes every 600 s. Records are not pulled when only behind. When ahead and behind, the store rebases onto the remote under the store lock, skipped while tracked records have uncommitted edits. The service fetches main only after it sees a review's PR merge.
@@ -227,7 +227,7 @@ The service pushes `records` as today, and each draft commit to `refs/pm/drafts/
 
 ### Setup
 
-`pm init` replaces a worktree's link with `git worktree add <worktree>/records drafts/<name>`; no git hook of pm's runs there, and session start skips a `drafts/` checkout as it skips the store. Claude Code then writes inside its own worktree. Codex writes the files there too, but committing needs the workspace's git dir as one more writable root per worktree, unless pm runs outside the sandbox (`.codex/rules/pm.rules`).
+`pm init` replaces a worktree's link with `git worktree add <worktree>/records drafts/<name>`, refusing a git older than 2.40 (follow needs `git merge-tree --merge-base`; `pm doctor` reports one); no git hook of pm's runs there, and session start skips a `drafts/` checkout as it skips the store. Claude Code then writes inside its own worktree. Codex writes the files there too, but committing needs the workspace's git dir as one more writable root per worktree, unless pm runs outside the sandbox (`.codex/rules/pm.rules`).
 
 ### Failure modes and cost
 
@@ -252,8 +252,8 @@ The service pushes `records` as today, and each draft commit to `refs/pm/drafts/
 | Step | Builds | Check |
 |---|---|---|
 | 1 | The published view at the `records` ref; the version bar, per-version renders and diffs, over the shared store's uncommitted edits as one draft | Scratch clone: a hand edit leaves the published page unchanged and adds a version; the version renders at its URL; its diff against published and a draft-to-draft diff show exactly the edited lines; a malformed draft fails only its own version, every published page 200 |
-| 2 | Workspaces, follow, journal publish at `pm commit`; each workspace a draft | Scratch clone with two worktrees: each edits one design page differently; the page shows three versions, each renders. Disjoint edits to one sprint record from both reach `records`; an overlap is refused naming the first commit, markers only in the second workspace |
-| 3 | Stop hook on the own workspace; `pm clean` and `pm where` guards; the main checkout's design-page refusal | The Stop hook blocks only the editing session; `pm clean` refuses a worktree whose workspace has uncommitted edits or unpublished design drafts |
+| 2 | Workspaces, follow, journal publish at `pm commit`; each workspace a draft; the Stop hook on the own workspace, `pm clean`'s guard and the main checkout's design-page refusal | Scratch clone with two worktrees: each edits one design page differently; the page shows three versions, each renders. Disjoint edits to one sprint record from both reach `records`; an overlap is refused naming the first commit, markers only in the second workspace |
+| 3 | `pm where`'s orphaned draft branches | `pm where` lists a `drafts/` branch whose worktree is gone |
 | 4 | Each draft page's sprint at `pm commit`; publish at `pm sprint close` and `--discard`; covers waiting and hold retired | Scratch sprint with drafts in two worktrees: the close publishes both in one `records` commit. A page another sprint published first refuses the close, naming that commit; after the agent resolves and commits in its workspace, the close passes. `--discard` drops the draft and records the sprint decision. `pm check` passes no published pattern that matches no file on main |
 | 5 | Per-clone draft refs | A second clone lists the first's draft as a version after two follows and one sync each |
 

@@ -184,8 +184,10 @@ The Stop hook (`pm hook stop`) blocks a session's stop once when the store has
 uncommitted files whose paths appear in that session's tool calls (a substring
 match over the transcript's tool inputs), naming them with the `pm commit` and
 revert commands; a path that only a still-running subagent's prompt names is
-left out. It reads the store only, so a worktree session's uncommitted edits in its own workspace are not checked
-yet ([Record drafts and publishing](record-drafts.md), Workspaces: the Stop hook).
+left out. That is the main checkout's check. In a worktree with a records workspace the hook blocks once on every
+uncommitted file of that workspace instead, naming each and its conflict markers, with no transcript read: the
+workspace is the worktree's own, so its edits are its sessions' ([Record drafts and publishing](record-drafts.md),
+Workspaces).
 
 ### Retired pieces
 
