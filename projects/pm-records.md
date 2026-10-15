@@ -26,6 +26,11 @@ Owner choice over the agent default B. A meets all five goals for every record t
 Answers `pm-c72a.1.3.1`.
 :::
 
+::: decision {source=owner date=2026-10-15}
+Design-page drafts publish at pm sprint close, not when the pm service sees a PR merge; pm sprint close --discard <slug> --reason drops a page draft instead, recorded as a sprint decision.
+The closing session can resolve a conflict with a page another sprint published first, where the service could only flag it after the code merged; sprint close already checks the PRs and covers on main, so the service needs no publish step, no gh poll and no branch-to-worktree match.
+:::
+
 ## Design pages
 
 > Where is the detail?
