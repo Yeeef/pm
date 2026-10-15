@@ -63,13 +63,16 @@ None yet.
 > Written at close. Each part holds "Not closed yet." until then.
 
 ### Outcome
-
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: PR #98 moves pm-go.yml's macOS jobs to a daily schedule (06:41 UTC) and manual dispatch; the first macOS run waits on the merge.
+
+- Linux jobs run on every PR and push to main, as before; the daily run skips Linux.
+- The PR-only macOS test subset is removed: go-os-tests.txt, go_os_tests.py and make go-os-check.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- A PR's CI shows no macOS job and is green, and `make merge-ready` accepts it: met in effect. On PR #98 (head cf6c9e2) every Linux job passed. The macOS job does not run; it shows as one skipped check whose name is not expanded. `make merge-ready PR=98` printed "PR #98 is ready".
+- The macOS jobs run on main and pass: not met yet. This needs `gh workflow run pm-go.yml --ref main` after the merge.
