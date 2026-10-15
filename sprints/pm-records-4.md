@@ -109,6 +109,23 @@ Without it a worktree session edits records the Stop hook no longer sees, so thi
   checkout refused ("is a design page: design pages are edited and committed
   in a code worktree's records workspace"). Scratch dir removed after.
 
+- Live check of PR #101 at a5c3c06 (pm 0.9.0-dev from make go-build, git
+  2.43.0, Claude Code 2.1.300, haiku): scratch origin + clone set up by
+  tests/agents.py Clone (fake supervisor runs the service; HOME and
+  CLAUDE_CONFIG_DIR scratch, login copied mode 600; no
+  permissions.additionalDirectories anywhere). (1) claude -w t1 -p
+  --permission-mode acceptEdits: SessionStart made <worktree>/records a
+  records workspace (git worktree of the store on drafts/t1, not a link); Read
+  and Edit of records/sprints/demo-1.md succeeded with no denial; Bash (pm
+  commit) needed approval, as any Bash does in acceptEdits -p. The Stop hook
+  (pm hook stop) blocked naming records/sprints/demo-1.md as uncommitted in
+  the t1 workspace; the next stop passed on stop_hook_active. (2) claude -w
+  t2, same plus --allowedTools Bash: Edit, then pm commit gave 'committed
+  records/sprints/demo-1.md as 694039d'; the store's records branch head is
+  694039d and its file holds the line; workspace clean; stop_hook_summary
+  hookErrors []. Scratch dir held the clone at /tmp/claude-1000/wcXXXX: the
+  scratchpad path made work.sock 127 bytes, over the 103 limit.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
