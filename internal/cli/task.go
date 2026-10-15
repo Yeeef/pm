@@ -242,7 +242,7 @@ func heldElsewhere(id string, task *work.Item, sid, then string) error {
 	h := holderOf(task)
 	if h != nil && h.Session != sid && h.Live {
 		return refuse("%s is held by live session %s (claimed %s ago; its transcript was written in the last %d "+
-			"minutes); leave it, or ask that session%s", id, h.Session, age(h.ClaimedAt), liveWindow/60, then)
+			"minutes); leave it, or ask that session%s", id, h.Session, session.Age(h.ClaimedAt), liveWindow/60, then)
 	}
 	return nil
 }

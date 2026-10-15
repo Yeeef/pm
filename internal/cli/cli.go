@@ -3,10 +3,11 @@
 // builds it on cobra, and each leaf parses its own arguments with pflag (cobra's flag parsing is off on leaves):
 // required arguments, mutually exclusive groups, choices, positional counts, and --option LABEL TEXT. Each noun's body
 // has its own file (task.go, sprint.go, decision.go, …), the setup package holds pm init, doctor, upgrade and
-// uninstall, and fsutil the path helpers both share. store_commands.go holds the work-store commands' bodies, and the
-// forms show ID and task add --parent TASK, the one argv Execute routes before the tree (storeFormOf). Every command pm
-// runs is in the tree, so in pm --help: commands_test.go fails otherwise. help_golden_test.go holds every command's
-// --help to testdata/help.golden, and doc_test.go fails on a func whose doc comment does not start with its name.
+// uninstall, the clean package pm clean, and fsutil the path helpers cli and setup share. store_commands.go holds the
+// work-store commands' bodies, and the forms show ID and task add --parent TASK, the one argv Execute routes before the
+// tree (storeFormOf). Every command pm runs is in the tree, so in pm --help: commands_test.go fails otherwise.
+// help_golden_test.go holds every command's --help to testdata/help.golden, and doc_test.go fails on a func whose doc
+// comment does not start with its name.
 package cli
 
 import (
@@ -24,6 +25,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/cli/clean"
 	"github.com/Yeeef/pm/internal/cli/parse"
 	"github.com/Yeeef/pm/internal/cli/setup"
 	"github.com/Yeeef/pm/internal/config"
@@ -164,7 +166,7 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 	case "where":
 		return cmdWhere(p, here, stdout)
 	case "clean":
-		return cmdClean(p, here, stdout)
+		return clean.Run(here, p.Get("apply") == "true", stdout)
 	case "interactive", "autopilot":
 		return cmdMode(here, name == "interactive", stdout)
 	}

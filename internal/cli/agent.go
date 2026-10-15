@@ -288,36 +288,13 @@ func holderOf(it *work.Item) *holder {
 	return &holder{Session: it.Holder.Session, ClaimedAt: it.Holder.ClaimedAt, Live: session.Live(it.Holder.Session)}
 }
 
-// age is '12m', '3h' or '2d' since t; '?' for the zero time.
-func age(t time.Time) string {
-	if t.IsZero() {
-		return "?"
-	}
-	s := time.Since(t).Seconds()
-	switch {
-	case s < 3600:
-		return fmt.Sprintf("%dm", int(pyFloorDiv(s, 60)))
-	case s < 86400:
-		return fmt.Sprintf("%dh", int(pyFloorDiv(s, 3600)))
-	}
-	return fmt.Sprintf("%dd", int(pyFloorDiv(s, 86400)))
-}
-
-func pyFloorDiv(a, b float64) float64 {
-	q := a / b
-	if q < 0 && q != float64(int64(q)) {
-		return float64(int64(q) - 1)
-	}
-	return float64(int64(q))
-}
-
 // holderText is a held task's tail: "held by <session's first 8>, <age>, live|idle".
 func holderText(h *holder) string {
 	state := "idle"
 	if h.Live {
 		state = "live"
 	}
-	return fmt.Sprintf("held by %s, %s, %s", firstRunes(h.Session, 8), age(h.ClaimedAt), state)
+	return fmt.Sprintf("held by %s, %s, %s", firstRunes(h.Session, 8), session.Age(h.ClaimedAt), state)
 }
 
 func firstRunes(s string, n int) string {

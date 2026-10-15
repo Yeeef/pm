@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -100,4 +101,27 @@ func activeWithin(session string, window time.Duration) bool {
 		}
 	}
 	return false
+}
+
+// Age is '12m', '3h' or '2d' since t, a session's claim or last use; '?' for the zero time.
+func Age(t time.Time) string {
+	if t.IsZero() {
+		return "?"
+	}
+	s := time.Since(t).Seconds()
+	switch {
+	case s < 3600:
+		return fmt.Sprintf("%dm", int(pyFloorDiv(s, 60)))
+	case s < 86400:
+		return fmt.Sprintf("%dh", int(pyFloorDiv(s, 3600)))
+	}
+	return fmt.Sprintf("%dd", int(pyFloorDiv(s, 86400)))
+}
+
+func pyFloorDiv(a, b float64) float64 {
+	q := a / b
+	if q < 0 && q != float64(int64(q)) {
+		return float64(int64(q) - 1)
+	}
+	return float64(int64(q))
 }
