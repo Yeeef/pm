@@ -6,7 +6,8 @@ package hooks
 // own runtime (--runtime, which each runtime's hook entry names: Claude Haiku through `claude -p`, or a small Codex model
 // through `codex exec`; internal/ask) to list the owner requests in the reply and the open need each one matches; a
 // request that matches none, or a needless ask for leave to take an authorized step, blocks the stop once. On
-// stop_hook_active, or a blank, null or missing reply, it lets the stop through without reading anything. It fails
+// stop_hook_active, or a blank, null or missing reply, it lets the stop through without reading anything; in a session
+// in interactive mode (its mode file, which pm interactive writes), it lets it through without the judge. It fails
 // hard, never silently, the same on either runtime: when the input is unusable, or the work store or the model call
 // fails, it exits 1 with the cause on stderr.
 
@@ -26,6 +27,7 @@ import (
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
+	sessionpkg "github.com/Yeeef/pm/internal/session"
 )
 
 const (
@@ -109,6 +111,15 @@ func decide(event Event, here string, runtime ask.Runtime, requests Requests) (s
 	dir := here
 	if cwd, ok := event["cwd"].(string); ok && cwd != "" { // Python ran bd there; None is the process's directory
 		dir = cwd
+	}
+	main, perr := mainOf(&dir)
+	if perr != nil {
+		return "", hookErrorf("finding the main checkout failed: %s", words(perr.Error()))
+	}
+	if on, err := sessionpkg.Interactive(main, session); err != nil {
+		return "", hookErrorf("reading this session's mode failed: %s", words(err.Error()))
+	} else if on {
+		return "", nil // interactive mode: asks in chat are the owner's to answer there
 	}
 	open, err := requests(dir, session)
 	if err != nil {

@@ -132,8 +132,9 @@ with the rule itself named:
 6. A new or renamed `internal/work` test needs `make go-test-work UPDATE=1`.
 7. When a test is marked `integration` (what it starts that only an integration test may).
 8. A test that pins another pm version and does not test the launch sets `PM_LAUNCHED=<pin>`.
-9. The owner-request rule is one rule in three texts (the rule in `prime.md`, the judge prompt, the block reasons),
-   changed in one commit with a labelled case for each case it moves.
+9. The owner-request rule is one rule in three texts (the autopilot request rule in
+   `prompts/request_rule_autopilot.txt`, the judge prompt, the block reasons), changed in one commit with a labelled
+   case for each case it moves.
 10. A labelled case's label comes from the rule, never from what the judge answers.
 11. A hook change edits both `claudeHooks` and `codexHooks`.
 12. A need raised during a test or live check starts its title with `[TEST]` and is dismissed once the check is done.

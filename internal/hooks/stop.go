@@ -46,11 +46,20 @@ func git(cwd *string, args ...string) (string, *proc.Error) {
 
 // StoreOf is the records store of the clone containing cwd: .pm/store/records beside the clone's common .git dir.
 func StoreOf(cwd *string) (string, *proc.Error) {
+	main, err := mainOf(cwd)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(main, config.Store), nil
+}
+
+// mainOf is the main checkout of the clone containing cwd: the directory holding the clone's common .git dir.
+func mainOf(cwd *string) (string, *proc.Error) {
 	common, err := git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(filepath.Dir(config.PyStrip(common)), config.Store), nil
+	return filepath.Dir(config.PyStrip(common)), nil
 }
 
 // Dirty is the paths, relative to the store, of tracked files with changes and of untracked files.

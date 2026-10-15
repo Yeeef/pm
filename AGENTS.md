@@ -60,8 +60,8 @@ hold it).
   read its docstring before a Go file reads a repo file outside its package, or a test reads Go source.
 - **Mark a test `integration`** when it starts the pm service, renders the whole site (`Repo.pages`), sets a clone up
   (`pm init`, `upgrade`, `uninstall`, `doctor`), reaches a git remote (`clone`, `fetch`, `pull`, `push`, a bare repo),
-  runs `pm push`, or runs the session-start hook (`pm prime` without `--rules` or `--subagent`). The autouse fixture
-  `light_unless_integration` in `conftest.py` fails an unmarked test that starts one of these.
+  runs `pm push`, or runs the session-start hook (`pm prime` without `--rules`, `--subagent` or `--request-rule`). The
+  autouse fixture `light_unless_integration` in `conftest.py` fails an unmarked test that starts one of these.
 - **A test that pins another version and does not test the launch sets `PM_LAUNCHED=<pin>`**, as a launched pm has
   it; without it the launcher downloads that release from GitHub.
 - A test seeds and reads work data only through the `repo` helpers that `conftest.py`'s docstring names.
@@ -120,9 +120,11 @@ it); leave a stale service to a typed `pm init` or `pm service restart`.
 
 - The Stop hook's judge runs on the session's own runtime (`--runtime claude` or `codex`, through `internal/ask`,
   whose doc says why its children run with no hooks). One prompt serves both: `prompts/owner_request_system.txt`.
-- **The rule is one rule in three texts**: the request rule in `prime.md`, the judge prompt, and the block reasons
-  (`prompts/owner_request_reason.txt`, `owner_request_needless.txt`). A rule change edits all three in one commit and
-  adds a labelled case to `tests/owner_request_cases.json` for each case it moves.
+- **The rule is one rule in three texts**: the autopilot request rule (`prompts/request_rule_autopilot.txt`, which the
+  SessionStart hook `pm prime --request-rule` gives a session in autopilot), the judge prompt, and the block reasons
+  (`prompts/owner_request_reason.txt`, `owner_request_needless.txt`). A rule change edits all three in one commit and adds a labelled case to
+  `tests/owner_request_cases.json` for each case it moves. The interactive rule (`request_rule_interactive.txt`) is
+  no part of it: the judge does not run in interactive mode.
 - **A case's label comes from the rule, never from what the judge answers**: a miss is a prompt change, not a relabel.
 - After editing the prompt, run `make test-live`: every run of every case must give the case's verdict on each
   runtime. Record the pass counts and latency it prints in the sprint's Findings, not here.

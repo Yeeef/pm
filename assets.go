@@ -32,6 +32,10 @@ var (
 	OwnerRequestReason   = prompt(ownerRequestReason)   // its block reason for an uncovered request; {asks} filled in
 	OwnerRequestNeedless = prompt(ownerRequestNeedless) // its block reason for a needless ask; {asks} filled in
 	DaySummary           = prompt(daySummary)           // pm day summarize's prompt; {day} and {activity} filled in
+	// the request rule for each session mode, which pm prime --request-rule (a SessionStart hook) and pm interactive and
+	// pm autopilot print
+	RequestRuleAutopilot   = prompt(requestRuleAutopilot)
+	RequestRuleInteractive = prompt(requestRuleInteractive)
 )
 
 //go:embed prompts/owner_request_system.txt
@@ -45,5 +49,11 @@ var ownerRequestNeedless string
 
 //go:embed prompts/day_summary.txt
 var daySummary string
+
+//go:embed prompts/request_rule_autopilot.txt
+var requestRuleAutopilot string
+
+//go:embed prompts/request_rule_interactive.txt
+var requestRuleInteractive string
 
 func prompt(file string) string { return strings.TrimSuffix(file, "\n") }

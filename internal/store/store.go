@@ -1,7 +1,9 @@
 // Package store is the records store: the `records` branch, checked out once per clone at
 // <main checkout>/.pm/store/records. Every worktree finds it through the clone's common git dir, so a write is visible
 // from every branch and worktree at once. It finds and checks the store, locks it, writes records atomically and
-// commits exactly the files written.
+// commits exactly the files written. Published is the records the site renders: the records branch's tip, read with
+// git archive. drafts.go lists the drafts the site serves beside them as versions: for now the store's uncommitted
+// edits, as one draft.
 //
 // It also keeps a design page's dates and the commits on the main branch to the page's covered files after them
 // (CodeChanges: one git log --first-parent per page with covers, run in the records store, which shares the code's
@@ -179,31 +181,9 @@ func Commit(store, message string, paths []string) (string, error) {
 // file neither blocks them nor lets them depend on it.
 func Committed(store string, changes map[string]*string) ([]*records.Record, error) {
 	root := resolved(store)
-	cmd := exec.Command("git", "archive", "--format=tar", "HEAD")
-	cmd.Dir = store
-	var o, e bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &o, &e
-	if err := cmd.Run(); err != nil {
-		return nil, errorf("git archive HEAD failed in %s: %s", store, records.Strip(e.String()))
-	}
-	texts := map[string]string{}
-	tr := tar.NewReader(&o)
-	for {
-		h, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		if h.Typeflag != tar.TypeReg || !strings.HasSuffix(h.Name, ".md") {
-			continue
-		}
-		b, err := io.ReadAll(tr)
-		if err != nil {
-			return nil, err
-		}
-		texts[filepath.Join(root, filepath.FromSlash(h.Name))] = string(b)
+	texts, _, err := Tree(store, "HEAD")
+	if err != nil {
+		return nil, err
 	}
 	for p, text := range changes {
 		if filepath.Ext(p) != ".md" {
@@ -218,11 +198,56 @@ func Committed(store string, changes map[string]*string) ([]*records.Record, err
 	return records.ParseAll(root, texts)
 }
 
+// Published is the records as published: the texts and day summaries at the tip of the records branch (Tree), which
+// the site renders by default.
+func Published(store string) (texts, summaries map[string]string, err error) {
+	return Tree(store, "refs/heads/"+Branch)
+}
+
+// Tree is the record texts (.md) and the day summaries (days/*.summary.json) at rev in the store, each by its resolved
+// path, as records.Texts gives them: one git archive.
+func Tree(store, rev string) (texts, summaries map[string]string, err error) {
+	root := resolved(store)
+	cmd := exec.Command("git", "archive", "--format=tar", rev)
+	cmd.Dir = store
+	var o, e bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &o, &e
+	if err := cmd.Run(); err != nil {
+		return nil, nil, errorf("git archive %s failed in %s: %s", rev, store, records.Strip(e.String()))
+	}
+	texts, summaries = map[string]string{}, map[string]string{}
+	tr := tar.NewReader(&o)
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		into := texts
+		switch {
+		case h.Typeflag != tar.TypeReg:
+			continue
+		case path.Dir(h.Name) == "days" && strings.HasSuffix(h.Name, ".summary.json"):
+			into = summaries
+		case !strings.HasSuffix(h.Name, ".md"):
+			continue
+		}
+		b, err := io.ReadAll(tr)
+		if err != nil {
+			return nil, nil, err
+		}
+		into[filepath.Join(root, filepath.FromSlash(h.Name))] = string(b)
+	}
+	return texts, summaries, nil
+}
+
 // Dates is a design page's created and last-updated dates, its last commit's time, and what changed in its covered code
 // since that commit (CodeChanges).
 type Dates struct {
 	Created, Updated string
-	Edited           int64        // the unix time of its last records commit; 0 while it has uncommitted changes
+	Edited           int64        // the unix time of its last records commit; 0 in a draft that changes the page
 	Code             []CodeCommit // the commits on the remote's main branch that changed its covered code after Edited
 	Unchecked        string       // why its covered code was not checked, for a page with covers; "" when it was
 }
@@ -230,11 +255,10 @@ type Dates struct {
 // CodeCommit is a commit on the main branch: its sha and its date.
 type CodeCommit struct{ SHA, Day string }
 
-// DesignDates is the dates of each design record in recs, by its rel: those of its first and last commits on the
-// records branch, following renames within its directory as git log --follow does. A page with uncommitted changes
-// counts as updated today, and one never committed as created today too. One git log over the design pages'
-// directories, plus one git status.
-func DesignDates(store string, recs []*records.Record, today string) (map[string]Dates, error) {
+// DesignDates is the dates of each design record in recs, the published ones, by its rel: those of its first and last
+// commits on the records branch, following renames within its directory as git log --follow does. One git log over
+// the design pages' directories.
+func DesignDates(store string, recs []*records.Record) (map[string]Dates, error) {
 	var rels []string
 	dirSet := map[string]bool{}
 	for _, r := range recs {
@@ -252,7 +276,8 @@ func DesignDates(store string, recs []*records.Record, today string) (map[string
 		dirs = append(dirs, d)
 	}
 	sort.Strings(dirs)
-	log, err := Git(store, append([]string{"log", "-M", "--name-status", "--format=%x00%cs %ct", "--"}, dirs...)...)
+	log, err := Git(store, append([]string{"log", "-M", "--name-status", "--format=%x00%cs %ct", "refs/heads/" + Branch,
+		"--"}, dirs...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -286,38 +311,17 @@ func DesignDates(store string, recs []*records.Record, today string) (map[string
 			}
 		}
 	}
-	files := make([]string, len(rels))
-	for i, rel := range rels {
-		files[i] = filepath.Join(store, rel+".md")
-	}
-	dirtyList, err := Uncommitted(store, files)
-	if err != nil {
-		return nil, err
-	}
-	dirty := map[string]bool{}
-	for _, d := range dirtyList {
-		dirty[d] = true
-	}
 	for _, rel := range rels {
 		p := rel + ".md"
-		switch {
-		case dirty[p]:
-			c, ok := created[p]
-			if !ok {
-				c = today
-			}
-			out[rel] = Dates{Created: c, Updated: today}
-		case updated[p] != "":
-			out[rel] = Dates{Created: created[p], Updated: updated[p], Edited: edited[p]}
-		default:
-			return nil, errorf("%s: committed and unchanged, yet git log over %s never names it", rel,
-				strings.Join(dirs, ", "))
+		if updated[p] == "" {
+			return nil, errorf("%s: published, yet git log over %s never names it", rel, strings.Join(dirs, ", "))
 		}
+		out[rel] = Dates{Created: created[p], Updated: updated[p], Edited: edited[p]}
 	}
 	return out, nil
 }
 
-// CodeChanges sets the Code of each design page in dates that has covers and no uncommitted changes: the commits on
+// CodeChanges sets the Code of each published design page in dates that has covers: the commits on
 // main, the remote's main branch as this clone last fetched it (refs/remotes/<main>, as pm sprint close --merged
 // names it), that change a file its covers match and are newer than its last records commit, newest first. It follows
 // the first parent, so a merge counts as the one commit that brought its branch, at its own date. The records store
@@ -362,8 +366,8 @@ func CodeChanges(store, main string, recs []*records.Record, dates map[string]Da
 }
 
 // Uncommitted is those of paths that differ from HEAD in the store (modified, staged, removed or untracked), as store
-// paths. It takes no optional lock: the pm service runs it every time the records move (design-page dates), and git
-// status's opportunistic index.lock would fail a pm commit running at that moment.
+// paths. It takes no optional lock, as Edits does not: git status's opportunistic index.lock would fail a pm commit
+// running at that moment.
 func Uncommitted(store string, paths []string) ([]string, error) {
 	if len(paths) == 0 {
 		return nil, nil // with no pathspec, git status would list every change in the store

@@ -31,11 +31,12 @@ GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to 
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
                    "/.claude/settings.local.json\n# --- END PM ---\n")
 RULES = [f"pm prime --rules {n} --hook-json" for n in range(1, len(RULE_STARTS) + 1)]  # one hook per rules chunk
-CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json"],
+CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json", "pm prime --request-rule --hook-json"],
              "SubagentStart": [*RULES, "pm prime --subagent --hook-json"],
              "PermissionRequest": ["pm hook ask --runtime claude || exit 1"],
              "PostToolUse": ["pm hook ask --runtime claude || exit 1"],
-             "Stop": ["pm hook owner-request --runtime claude || exit 1", "pm hook stop || exit 1"]}
+             "Stop": ["pm hook owner-request --runtime claude || exit 1", "pm hook stop || exit 1"],
+             "SessionEnd": ["pm hook session-end || exit 1"]}
 # Codex's are Claude Code's, but for the judge and the ask-tool hook, which run on each session's own runtime: Codex's
 # ask tool returns at once and asks no permission, so its question is raised at the tool's PostToolUse, and the owner's
 # next prompt answers it (UserPromptSubmit)

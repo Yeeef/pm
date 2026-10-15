@@ -31,6 +31,7 @@ import (
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/item"
 	"github.com/Yeeef/pm/internal/session"
+	pmstore "github.com/Yeeef/pm/internal/store"
 	pmsync "github.com/Yeeef/pm/internal/sync"
 	"github.com/Yeeef/pm/internal/work"
 )
@@ -59,24 +60,18 @@ type Site interface {
 }
 
 // Partial is Load's error when the records moved while it read them (git rewrites a file by unlinking it, as a
-// records sync's rebase does): Pages renders what it read, without the files in Gone and any the walk missed. The
-// service reads again under the records lock, which that rebase holds; a Partial there (a git command or an editor in
-// the store, which take no lock) is served as it is.
+// records sync's rebase does): Pages renders what it read. The service reads again under the records lock, which that
+// rebase holds; a Partial there (a git command or an editor in the store, which take no lock) is served as it is.
 type Partial struct {
 	Pages Pages
-	Gone  []string
 }
 
-func (p *Partial) Error() string {
-	if p.Gone == nil {
-		return "the records changed while read"
-	}
-	return "the records changed while read: " + strings.Join(p.Gone, ", ") + " went"
-}
+func (p *Partial) Error() string { return "the records changed while read" }
 
 // Pages renders the pages of one Load.
 type Pages interface {
-	// Page is the page at path (index.html, sprints/x.html); found false when the site has no such page.
+	// Page is the page at path (index.html, sprints/x.html, with ?vs=<draft> when the URL carries vs: pageOf);
+	// found false when the site has no such page.
 	Page(path string) (html string, found bool, err error)
 }
 
@@ -525,6 +520,32 @@ func pathOf(p string) string {
 	return p
 }
 
+// pageOf is the page a URL names: its path's page, and the draft a version's diff is against (?vs=<draft>), the one
+// query a page reads.
+func pageOf(u *url.URL) string {
+	p := pathOf(u.Path)
+	if vs := u.Query().Get("vs"); vs != "" {
+		p += "?vs=" + vs
+	}
+	return p
+}
+
+// asset is the file a URL path names, rooted (/style.css, /docs/fig.png), and whether a version's page linked it: a
+// version's links to the stylesheet and its figures (/drafts/<draft>/<path>, relative to its page) name /<path>, read
+// from the store's working tree, where the published pages' figures are read from the records branch.
+func asset(p string) (string, bool) {
+	rest, ok := strings.CutPrefix(p, "/drafts/")
+	if !ok {
+		return p, false
+	}
+	if _, file, ok := strings.Cut(rest, "/"); ok {
+		if _, image := ImageTypes[strings.ToLower(path.Ext(file))]; image || file == "style.css" {
+			return "/" + file, true
+		}
+	}
+	return p, false
+}
+
 type logged struct {
 	http.ResponseWriter
 	code int
@@ -535,8 +556,9 @@ func (l *logged) WriteHeader(code int) {
 	l.ResponseWriter.WriteHeader(code)
 }
 
-// ServeHTTP answers GET and HEAD for the pages, /style.css, /version and the image files in the records store, and
-// POST for /reply, each only once refusal passes it; it logs one line each.
+// ServeHTTP answers GET and HEAD for the pages (the drafts' versions under /drafts/ among them), /style.css, /version
+// and the image files in the records store, and POST for /reply, each only once refusal passes it; it logs one line
+// each.
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	lw := &logged{ResponseWriter: w}
@@ -573,7 +595,8 @@ func (s *server) reply(w http.ResponseWriter, code int, ctype string, body []byt
 
 func (s *server) get(w http.ResponseWriter, r *http.Request) {
 	s.poke() // a reload asks for a look at once; it does not wait for it
-	switch r.URL.Path {
+	file, draft := asset(r.URL.Path)
+	switch file {
 	case "/style.css":
 		s.reply(w, 200, "text/css; charset=utf-8", s.d.Style)
 		return
@@ -586,7 +609,7 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			u = &url.URL{Path: target}
 		}
-		_, text, snap := s.page(pathOf(u.Path))
+		_, text, snap := s.page(pageOf(u))
 		body, err := json.Marshal(struct {
 			AsOf float64 `json:"asof"`
 			Page string  `json:"page"`
@@ -598,10 +621,10 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ctype, ok := ImageTypes[strings.ToLower(path.Ext(r.URL.Path))]; ok {
-		s.image(w, strings.TrimPrefix(r.URL.Path, "/"), ctype)
+		s.image(w, strings.TrimPrefix(file, "/"), draft, ctype)
 		return
 	}
-	code, text, snap := s.page(pathOf(r.URL.Path))
+	code, text, snap := s.page(pageOf(r.URL))
 	text = s.d.Site.FillStatus(text, snap.asOf, digest(text), time.Now())
 	s.reply(w, code, "text/html; charset=utf-8", []byte(text))
 }
@@ -611,11 +634,16 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 var ImageTypes = map[string]string{".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
 	".jpeg": "image/jpeg", ".webp": "image/webp"}
 
-// image serves the file at rel in the records store, confined to it: a path with an empty, dot-led (.., .git) or
-// absolute part is refused, and os.Root refuses a symlink that leads out of the store. The file runs nothing: an SVG
-// opened alone is sandboxed.
-func (s *server) image(w http.ResponseWriter, rel, ctype string) {
-	data, err := readInStore(s.d.Records, rel)
+// image serves the file at rel in the records store, confined to it: as published on the records branch
+// (readPublished), or for a version's page (draft) as the store's working tree holds it (readInStore). A path with an
+// empty, dot-led (.., .git) or absolute part is refused, and so is a symlink that leads out of the store. The file runs
+// nothing: an SVG opened alone is sandboxed.
+func (s *server) image(w http.ResponseWriter, rel string, draft bool, ctype string) {
+	read := readPublished
+	if draft {
+		read = readInStore
+	}
+	data, err := read(s.d.Records, rel)
 	if err != nil {
 		s.reply(w, 404, "text/plain; charset=utf-8", []byte("No file "+rel+" in the records store\n"))
 		return
@@ -623,6 +651,48 @@ func (s *server) image(w http.ResponseWriter, rel, ctype string) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 	s.reply(w, 200, ctype, data)
+}
+
+// readPublished is the file at rel on the store's records branch, following a symlink in it (at most 8) within the
+// same checks as rel's own: one git ls-tree and one git cat-file per link.
+func readPublished(store, rel string) ([]byte, error) {
+	for range 8 {
+		if !storePath(rel) {
+			return nil, fmt.Errorf("%q is not a path in the records store", rel)
+		}
+		out, err := gitOut(store, "--literal-pathspecs", "ls-tree", "-z", PublishedRef, "--", rel)
+		if err != nil {
+			return nil, err
+		}
+		meta, name, _ := strings.Cut(strings.TrimSuffix(string(out), "\x00"), "\t")
+		fields := strings.Fields(meta)
+		if name != rel || len(fields) != 3 || fields[1] != "blob" {
+			return nil, fmt.Errorf("no file %s on %s", rel, PublishedRef)
+		}
+		data, err := gitOut(store, "cat-file", "blob", fields[2])
+		if err != nil || fields[0] != "120000" {
+			return data, err
+		}
+		target := string(data)
+		if path.IsAbs(target) {
+			return nil, fmt.Errorf("%s links to %s, outside the records store", rel, target)
+		}
+		rel = path.Join(path.Dir(rel), target)
+	}
+	return nil, fmt.Errorf("%s: too many links", rel)
+}
+
+// PublishedRef is the ref of the published records.
+const PublishedRef = "refs/heads/" + pmstore.Branch
+
+func gitOut(dir string, args ...string) ([]byte, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git %s in %s: %w", strings.Join(args, " "), dir, err)
+	}
+	return out, nil
 }
 
 func readInStore(store, rel string) ([]byte, error) {

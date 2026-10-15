@@ -139,7 +139,7 @@ func renderStore(dir string, items *records.Items) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	dates, err := store.DesignDates(dir, recs, store.Today())
+	dates, err := store.DesignDates(dir, recs)
 	if err != nil {
 		return nil, err
 	}

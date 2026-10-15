@@ -12,9 +12,9 @@ global AGENTS.md, which the real judge also reads (each mode 600, removed once t
 
 A case is a final reply, the open needs the work store holds and the verdict the rule gives. Its label comes from the
 rule, never from what the judge answers: a miss is a prompt change, not a relabel. The rule is one rule in three
-texts (prime.md's request rule, prompts/owner_request_system.txt, and the block reasons owner_request_reason.txt and
-owner_request_needless.txt); a rule change edits all of them in one commit and adds a labelled case for each case it
-moves.
+texts (the autopilot request rule prompts/request_rule_autopilot.txt, prompts/owner_request_system.txt, and the block
+reasons owner_request_reason.txt and owner_request_needless.txt); a rule change edits all of them in one commit and
+adds a labelled case for each case it moves.
 """
 
 from __future__ import annotations

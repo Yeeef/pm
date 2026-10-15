@@ -1,0 +1,98 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "pm prime --rules 1 --hook-json",
+            "type": "command",
+            "timeout": 30
+          },
+          {
+            "command": "pm prime --rules 2 --hook-json",
+            "type": "command",
+            "timeout": 30
+          },
+          {
+            "command": "pm prime --rules 3 --hook-json",
+            "type": "command",
+            "timeout": 30
+          },
+          {
+            "command": "pm prime --state --hook-json",
+            "type": "command",
+            "timeout": 30
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "pm prime --rules 1 --hook-json",
+            "type": "command",
+            "timeout": 15
+          },
+          {
+            "command": "pm prime --rules 2 --hook-json",
+            "type": "command",
+            "timeout": 15
+          },
+          {
+            "command": "pm prime --rules 3 --hook-json",
+            "type": "command",
+            "timeout": 15
+          },
+          {
+            "command": "pm prime --subagent --hook-json",
+            "type": "command",
+            "timeout": 15
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook owner-request --runtime claude || exit 1",
+            "type": "command",
+            "timeout": 30
+          },
+          {
+            "command": "pm hook stop || exit 1",
+            "type": "command",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook ask --runtime claude || exit 1",
+            "type": "command",
+            "timeout": 86400
+          }
+        ],
+        "matcher": "AskUserQuestion"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook ask --runtime claude || exit 1",
+            "type": "command",
+            "timeout": 10
+          }
+        ],
+        "matcher": "AskUserQuestion"
+      }
+    ]
+  }
+}

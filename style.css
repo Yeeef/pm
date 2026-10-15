@@ -105,6 +105,13 @@ form.reply button{align-self:flex-start;font:inherit;color:var(--panel);backgrou
 .list li{max-width:none;padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
 .list .k{color:var(--muted);font-size:.85rem}
 
+/* a page's versions and a version's diff */
+.versions .list li{padding:4px 0}
+pre.diff .add{background:var(--done-bg);color:var(--done)}
+pre.diff .del{background:var(--block-bg);color:var(--block)}
+details.same{margin:.4rem 0}
+details.same summary{cursor:pointer;color:var(--muted);font-size:.9rem}
+
 /* classes used by hand-built mock blocks inside design pages */
 .split{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .split>*{min-width:0}

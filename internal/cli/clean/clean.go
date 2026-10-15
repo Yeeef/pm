@@ -1,4 +1,6 @@
-package cli
+// Package clean runs pm clean: it lists the clone's worktrees with keep or remove and the reason, removes the
+// agent worktrees whose work is merged or pushed and that no live session uses, and the stale interactive-mode files.
+package clean
 
 import (
 	"bytes"
@@ -40,8 +42,8 @@ type verdict struct {
 	unlock       bool // a stale lock, taken off before git worktree remove
 }
 
-// cmdClean is pm clean: each worktree with keep or remove and the reason; with --apply, the removals done.
-func cmdClean(p *Parsed, here string, stdout io.Writer) error {
+// Run is pm clean: each worktree with keep or remove and the reason; with apply (--apply), the removals done.
+func Run(here string, apply bool, stdout io.Writer) error {
 	cfg, err := config.Load(here)
 	if err != nil {
 		return err
@@ -58,7 +60,7 @@ func cmdClean(p *Parsed, here string, stdout io.Writer) error {
 	c := &cleaner{main: main, caller: realPath(strings.TrimSpace(caller)), remote: cfg.Remote, mainBranch: cfg.MainBranch,
 		mainRef: "refs/remotes/" + cfg.Remote + "/" + cfg.MainBranch, mainName: cfg.Remote + "/" + cfg.MainBranch}
 	if _, err := cleanGit(main, "rev-parse", "--verify", "--quiet", c.mainRef); err != nil {
-		return refuse("no %s in this clone to compare branches with; run git fetch %s %s", c.mainName, cfg.Remote,
+		return fmt.Errorf("no %s in this clone to compare branches with; run git fetch %s %s", c.mainName, cfg.Remote,
 			cfg.MainBranch)
 	}
 	paths := make([]string, len(trees))
@@ -66,10 +68,9 @@ func cmdClean(p *Parsed, here string, stdout io.Writer) error {
 		paths[i] = wt.path
 	}
 	if c.sessions, err = session.Uses(main, paths, agentWorktrees); err != nil {
-		return refuse("pm clean cannot tell which worktrees live sessions use, so it removes none: %v", err)
+		return fmt.Errorf("pm clean cannot tell which worktrees live sessions use, so it removes none: %v", err)
 	}
 	c.trees = trees
-	apply := p.Get("apply") == "true"
 	var removing, failed int
 	for _, wt := range trees {
 		v := c.judge(wt)
@@ -91,9 +92,17 @@ func cmdClean(p *Parsed, here string, stdout io.Writer) error {
 		}
 		fmt.Fprintln(stdout, line)
 	}
+	modesRemoving, modesFailed, err := session.CleanModes(main, apply, stdout)
+	if err != nil {
+		return fmt.Errorf("pm clean cannot read the sessions' interactive-mode files: %v", err)
+	}
 	if apply {
 		if failed > 0 {
-			return refuse("%d of %d worktrees to remove were not removed; each line above says why", failed, removing)
+			return fmt.Errorf("%d of %d worktrees to remove were not removed; each line above says why", failed, removing)
+		}
+		if modesFailed > 0 {
+			return fmt.Errorf("%d of %d interactive-mode files to remove were not removed; each line above says why",
+				modesFailed, modesRemoving)
 		}
 		fmt.Fprintf(stdout, "removed %d of %d worktrees\n", removing, len(trees))
 		return nil
@@ -135,7 +144,7 @@ func (c *cleaner) judge(wt worktree) verdict {
 		notes = append(notes, owner)
 	}
 	if use, ok := c.sessions[wt.path]; ok {
-		return keep(fmt.Sprintf("live session %s used it %s ago", use.Session, age(use.At)))
+		return keep(fmt.Sprintf("live session %s used it %s ago", use.Session, session.Age(use.At)))
 	}
 	for _, other := range c.trees { // git worktree remove deletes the whole directory, a worktree inside it too
 		if strings.HasPrefix(other.path, wt.path+"/") {
@@ -254,7 +263,7 @@ func listWorktrees(dir string) ([]worktree, error) {
 		}
 	}
 	if len(trees) == 0 {
-		return nil, refuse("git worktree list listed no worktree in %s", dir)
+		return nil, fmt.Errorf("git worktree list listed no worktree in %s", dir)
 	}
 	return trees, nil
 }
