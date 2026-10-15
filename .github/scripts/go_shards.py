@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Run a Go test binary's top-level tests in N processes at once, balanced by their measured seconds.
 
-    go_shards.py [--shards N] [--run REGEX] [--update] TEST_BINARY PACKAGE_DIR SECONDS_FILE
+    go_shards.py [--shards N] [--run REGEX] [--skip REGEX] [--update] TEST_BINARY PACKAGE_DIR SECONDS_FILE
 
 The binary is `go test -c`'s; its tests run with PACKAGE_DIR as the working directory, as `go test` runs them. The
 tests are those `-test.list REGEX` names (every test without --run); each goes to the shard with the fewest predicted
 seconds so far, longest first. SECONDS_FILE holds one `<test> <seconds>` line per test of the binary, every test and
 no other, or the run fails before it starts, naming each test missing or stale: a new test is placed by its measured
 time, never by a guess. --run is test names joined by `|`, as Go's -run reads them; each must match a top-level
-test, or the run fails before it starts, naming each that matches none (a subtest's name selects nothing). --update
-runs every test and rewrites SECONDS_FILE from their measured times.
+test, or the run fails before it starts, naming each that matches none (a subtest's name selects nothing). --skip,
+in --run's form and held to the same check, leaves out the tests its names match. --update runs every test and
+rewrites SECONDS_FILE from their measured times.
 
 It fails unless every shard exits 0 and every test assigned reports PASS or SKIP exactly once, so a test in no shard,
 or one the run pattern missed, fails the run. A failing shard's whole output is printed.
@@ -58,6 +59,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--shards", type=int, default=8)
     ap.add_argument("--run", default=".", help="the tests to run, a Go regexp as -test.list takes it")
+    ap.add_argument("--skip", default="", help="the tests to leave out, test names joined by |")
     ap.add_argument("--update", action="store_true", help="run every test and rewrite SECONDS_FILE")
     ap.add_argument("binary", type=Path)
     ap.add_argument("package_dir", type=Path)
@@ -79,15 +81,19 @@ def main() -> int:
                 print(f"go_shards: {name} in {a.seconds_file} is no test of {a.binary}", file=sys.stderr)
             print("go_shards: rewrite it with make go-test-work UPDATE=1", file=sys.stderr)
             return 1
-        if any(c in a.run for c in "()/"):
-            print(f"go_shards: --run {a.run!r} must be test names joined by |", file=sys.stderr)
-            return 1
-        unmatched = [name for name in a.run.split("|") if not listed(binary, a.package_dir, name)]
-        if unmatched:
-            for name in unmatched:
-                print(f"go_shards: --run name {name} matches no top-level test of {a.binary}", file=sys.stderr)
-            return 1
-        tests = listed(binary, a.package_dir, a.run)
+        for flag, names in (("--run", a.run), ("--skip", a.skip)):
+            if not names:
+                continue
+            if any(c in names for c in "()/"):
+                print(f"go_shards: {flag} {names!r} must be test names joined by |", file=sys.stderr)
+                return 1
+            unmatched = [name for name in names.split("|") if not listed(binary, a.package_dir, name)]
+            if unmatched:
+                for name in unmatched:
+                    print(f"go_shards: {flag} name {name} matches no top-level test of {a.binary}", file=sys.stderr)
+                return 1
+        skipped = set(listed(binary, a.package_dir, a.skip)) if a.skip else set()
+        tests = [name for name in listed(binary, a.package_dir, a.run) if name not in skipped]
     shards = assign(tests, seconds, a.shards)
     assert sorted(t for s in shards for t in s) == sorted(tests), "every test is in exactly one shard"
 

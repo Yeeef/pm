@@ -60,7 +60,7 @@ jobs:
       matrix:
         include:
           - {target: linux-amd64, runner: ubuntu-22.04, suite: build-vet-test, cache: build, save: true, binary: true,
-             run: make go-build go-fmt go-vet go-os-check go-test-but-work}
+             run: make go-build go-fmt go-vet go-test-but-work}
           # what work compiles is a subset of build-vet-test's, which saves it
           - {target: linux-amd64, runner: ubuntu-22.04, suite: work, cache: build, save: false, run: make go-test-work}
           - {target: linux-amd64, runner: ubuntu-22.04, suite: race, cache: race, save: true, run: make -j2 go-test-race}

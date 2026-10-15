@@ -115,20 +115,19 @@ def test_the_go_test_targets_run_only_their_selected_packages_and_fail_on_a_miss
                              env={**env, "SELECTED": str(file)})
         return res.returncode, res.stdout + res.stderr, log.read_text() if log.exists() else ""
 
-    for target in ("go-test-work", "go-test-race", "go-test-work-os", "go-test-race-os"):
+    for target in ("go-test-work", "go-test-race", "go-test-work-macos"):
         code, out, log = make(target)
         assert (code, log) == (0, ""), out
         assert "internal/work is not selected" in out, out
     code, out, log = make("go-test-but-work")
-    assert (code, log) == (0, "test -trimpath -tags gms_pure_go -ldflags=-w . ./internal/site\n"), out
-    code, out, log = make("go-test-but-work-os")  # site's os tests; the root package has none
-    assert code == 0 and log.startswith("test -trimpath -tags gms_pure_go -ldflags=-w -run ^(") and \
-        log.endswith(")$ ./internal/site\n"), (out, log)
-    selected.write_text(".\n")
-    assert make("go-test-but-work-os")[::2] == (0, "")
+    assert (code, log) == (0, "test -trimpath -tags gms_pure_go -ldflags=-w ./internal/site .\n"), out
+    selected.write_text("./internal/work\n")
+    code, out, log = make("go-test-but-work")
+    assert (code, log) == (0, ""), out
+    assert "no package selected" in out, out
     selected.write_text("./internal/service\n")
     code, out, log = make("go-test-race-service")
-    assert (code, log) == (0, "test -race -tags gms_pure_go -ldflags=-w -run . ./internal/service\n"), out
+    assert (code, log) == (0, "test -race -tags gms_pure_go -ldflags=-w ./internal/service\n"), out
     for target in ("go-test-work", "go-test-but-work"):
         code, out, log = make(target, tmp_path / "missing")
         assert code != 0 and log == "", (target, out)
@@ -177,6 +176,10 @@ def test_go_shards_runs_every_test_once_across_the_shards(tmp_path):
     res = run_shards(tmp_path, binary, "TestA 5\nTestB 1\nTestC 1\nTestRacingD 3\n", "--run", "Racing|TestB")
     assert res.returncode == 0, res.stdout + res.stderr
     assert sorted((tmp_path / "ran.log").read_text().split()) == ["TestB", "TestRacingD"]
+    (tmp_path / "ran.log").unlink()
+    res = run_shards(tmp_path, binary, "TestA 5\nTestB 1\nTestC 1\nTestRacingD 3\n", "--skip", "Racing|TestB")
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert sorted((tmp_path / "ran.log").read_text().split()) == ["TestA", "TestC"]
 
 
 def test_go_shards_refuses_a_test_with_no_measured_seconds_or_a_stale_one_and_runs_nothing(tmp_path):
@@ -189,7 +192,7 @@ def test_go_shards_refuses_a_test_with_no_measured_seconds_or_a_stale_one_and_ru
     assert not (tmp_path / "ran.log").exists()
 
 
-def test_go_shards_refuses_a_run_name_that_matches_no_top_level_test_and_runs_nothing(tmp_path):
+def test_go_shards_refuses_a_run_or_skip_name_that_matches_no_top_level_test_and_runs_nothing(tmp_path):
     binary = fake_test_binary(tmp_path, ["TestARacingB", "TestC"])
     res = run_shards(tmp_path, binary, "TestARacingB 1\nTestC 1\n", "--run", "Racing|Eight|TestC|Gone")
     assert res.returncode == 1
@@ -199,6 +202,8 @@ def test_go_shards_refuses_a_run_name_that_matches_no_top_level_test_and_runs_no
     res = run_shards(tmp_path, binary, "TestARacingB 1\nTestC 1\n", "--run", "TestC/sub")
     assert res.returncode == 1
     assert "must be test names joined by |" in res.stderr
+    res = run_shards(tmp_path, binary, "TestARacingB 1\nTestC 1\n", "--skip", "Racing|Gone")
+    assert res.returncode == 1 and "--skip name Gone matches no top-level test" in res.stderr
     assert not (tmp_path / "ran.log").exists()
 
 
@@ -223,74 +228,6 @@ GO_CHANGES = PM_DIR / ".github/scripts/go_changes.py"
 spec = importlib.util.spec_from_file_location("go_changes", GO_CHANGES)
 go_changes = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(go_changes)
-
-
-OS_TESTS = PM_DIR / ".github/scripts/go_os_tests.py"
-
-
-def os_tests(root: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(OS_TESTS), "--root", str(root), *args], capture_output=True, text=True,
-                          check=False)
-
-
-def test_every_go_test_is_classified_by_os_once():
-    res = os_tests(PM_DIR, "check")
-    assert res.returncode == 0, res.stderr
-
-
-def test_the_os_lists_name_each_test_of_their_set_and_refuse_a_test_in_no_row_or_two(tmp_path):
-    def module(listing: str) -> Path:
-        for pkg, tests in {"a": ["TestOne", "TestOneMore", "TestTwo"], "b": ["TestTwo", "TestThree"]}.items():
-            (tmp_path / pkg).mkdir(exist_ok=True)
-            (tmp_path / pkg / "x_test.go").write_text("".join(f"func {t}(t *testing.T) {{}}\n" for t in tests)
-                                                      + "func TestMain(m *testing.M) {}\n")
-        (tmp_path / ".github/scripts").mkdir(parents=True, exist_ok=True)
-        (tmp_path / ".github/scripts/go-os-tests.txt").write_text("# c\n" + listing)
-        return tmp_path
-
-    root = module("a TestOne os x\na TestOneMore any x\na TestTwo any x\nb * os x\n")
-    assert os_tests(root, "check").returncode == 0
-    assert os_tests(root, "packages", "--os").stdout.split() == ["./a", "./b"]
-    assert os_tests(root, "names", "--os", "--package", "b").stdout.strip() == "TestThree|TestTwo"
-    assert os_tests(root, "names", "--package", "b", "--skip", "Two").stdout.strip() == "TestThree"
-    assert os_tests(root, "names", "--os", "--package", "b", "--only", "Two").stdout.strip() == "TestTwo"
-    # as substrings TestOne also picks TestOneMore, an any test; anchored, a's any TestTwo shares b's os name
-    for args in (["--package", "a"], ["--anchored"]):
-        res = os_tests(root, "names", "--os", *args)
-        assert res.returncode == 1 and "outside the set" in res.stderr, res
-    assert os_tests(root, "names", "--os", "--anchored", "--but", "a").stdout.strip() == "^(TestThree|TestTwo)$"
-    # --in keeps a selection's packages (go_changes.py select's file): an empty package list prints nothing and passes,
-    # empty names still fail, and a package with no tests fails
-    selected = tmp_path / "selected"
-    selected.write_text("./b\n")
-    assert os_tests(root, "packages", "--os", "--in", str(selected)).stdout.split() == ["./b"]
-    assert os_tests(root, "names", "--os", "--anchored", "--in", str(selected)).stdout.strip() == "^(TestThree|TestTwo)$"
-    selected.write_text("./a\n")
-    res = os_tests(root, "packages", "--os", "--but", "a", "--in", str(selected))
-    assert (res.returncode, res.stdout) == (0, "")
-    assert os_tests(root, "names", "--os", "--but", "a", "--in", str(selected)).returncode == 1
-    selected.write_text("./a\n./c\n")
-    res = os_tests(root, "packages", "--in", str(selected))
-    assert res.returncode == 1 and "names c, no package with tests" in res.stderr
-
-    root = module("a TestOne os x\na TestTwo any x\na TestTwo os x\nb TestNone os x\nc * any x\n")
-    res = os_tests(root, "check")
-    assert res.returncode == 1
-    for named in ("a TestOneMore: in 0 rows", "a TestTwo: in 2 rows", "b TestNone: no such top-level test",
-                  "b TestThree: in 0 rows", "b TestTwo: in 0 rows", "c *: no package with tests"):
-        assert named in res.stderr, named
-    assert not os_tests(root, "names").stdout  # nothing printed while a test is unclassified
-
-    # every form go test finds (an unnamed or wrapped parameter), none it does not (Testlower, TestMain), and a file go
-    # builds only on some systems refused
-    (tmp_path / "c").mkdir()
-    (tmp_path / "c" / "y_test.go").write_text("func TestFour(*testing.T) {}\nfunc TestFive(\n\tt *testing.T,\n) {}\n"
-                                              "func Testlower(t *testing.T) {}\n")
-    root = module("a * any x\nb * any x\nc TestFive os x\nc TestFour any x\n")
-    assert os_tests(root, "names", "--os").stdout.strip() == "TestFive"
-    (tmp_path / "c" / "z_linux_test.go").write_text("func TestSix(t *testing.T) {}\n")
-    res = os_tests(root, "check")
-    assert res.returncode == 1 and "c/z_linux_test.go builds only on some systems" in res.stderr
 
 
 def test_go_changes_skips_the_go_jobs_only_for_docs_and_harness_python_that_no_go_file_reads():
@@ -420,7 +357,7 @@ def test_go_changes_select_on_this_repo_follows_its_import_graph_and_its_readers
     assert "internal/launch" in chosen("changelog.d/x.md")  # an embedded directory's file
     assert "internal/service" in chosen("tests/fake_sched.py")  # internal/service's lifecycle test runs it
     assert "internal/work" in chosen("internal/work/testdata/bd-export.jsonl")
-    for path in ("go.mod", "Makefile", ".github/scripts/go-os-tests.txt", ".pm/hooks/post-checkout"):
+    for path in ("go.mod", "Makefile", ".github/scripts/work-test-seconds.txt", ".pm/hooks/post-checkout"):
         assert chosen(path) is go_changes.ALL, path
     assert chosen("AGENTS.md", "tests/test_pm.py") == set()
 

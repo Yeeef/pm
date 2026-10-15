@@ -23,7 +23,7 @@ select reads the module's packages from `go list -deps -test` and takes, for eac
 - a file under a package's testdata/, or one a package's Go files name by path, a directory of it included: that
   package's tests (and, named by a non-test file, every test package linking it);
 - a file of NO_GO that no Go file names: nothing;
-- anything else (the Makefile, a workflow, go-os-tests.txt, a .go file in no package): every package, since the
+- anything else (the Makefile, a workflow, a .go file in no package): every package, since the
   selector cannot place it.
 It fails hard on a package whose tests read Go source (parse it, run the go command on it, or walk for .go files) and
 is not in SOURCE_READERS, or one listed that no longer does. A checkout that is not a merge commit with both parents
