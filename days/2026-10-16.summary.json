@@ -1,7 +1,7 @@
 {
  "date": "2026-10-16",
- "generated_at": "2026-10-15T22:19:06+00:00",
- "digest": "78ac67972388c8c9",
+ "generated_at": "2026-10-15T22:29:36+00:00",
+ "digest": "5a1257ae21329b25",
  "model": "claude-haiku-5-5",
- "text": "- **Docs and link checks:** Docs now typeset TeX math, and links between docs resolve by slug. A docs index lists every doc, and pm check rejects dead record links and raw HTML containing JSX.\n- **Design records:** Design pages for record drafts, sprint close, and covers now describe the built state. These pages publish when a sprint closes.\n- **Harness feedback links:** Dead links in a harness record now point to the renamed feedback doc.\n- **Command surface audit:** A new sprint opened to audit the pm command surface and propose simplifications. Work began to measure command surface and usage."
+ "text": "- **Docs site rendering and links:** Docs typeset TeX math, and links between docs resolve by slug. The docs index lists every doc, and pm check refuses dead record links and JSX in raw HTML.\n- **Command surface audit:** An audit doc now measures the pm command surface, its usage and its drift from design intent. It ranks simplifications, and the audit sprint finished that day.\n- **Design pages and drafts:** The record-drafts page now describes the built state. Conflict marks hold a sprint close, and discards are recorded durably.\n- **Sprint records and decisions:** The quality project record has new owner decisions. Dead links in a harness page now point to an existing doc."
 }
