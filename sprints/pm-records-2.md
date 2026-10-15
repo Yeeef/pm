@@ -62,6 +62,11 @@ The design page site-replies stays as it is for this sprint's code changes.
 Replies, the token and the access refusal are unchanged; the versions under /drafts/ pass the same refusal as every other path, before routing.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page reply-delivery stays as it is for this sprint's code changes.
+The service's reply spool, write thread and push are unchanged; only its page routing gained the versions' ?vs= key and their assets.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
