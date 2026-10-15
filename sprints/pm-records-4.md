@@ -62,6 +62,11 @@ Until publish at sprint close is built, a design page committed from a workspace
 Held drafts with no publish step would strand design edits; tagging now means step 4 only changes when the draft commit publishes, not what it holds.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page pm-go stays as it is for this sprint's code changes.
+serve.go and session.Uses gained the workspaces' drafts and labels; the package map and the service's shape the page describes did not change
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
