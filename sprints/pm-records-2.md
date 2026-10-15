@@ -60,7 +60,35 @@ The site side is independent of the workspaces and gives the owner the version v
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Nested-workspace live check (scratch repo: main + `records` branch, store
+  worktree at `.pm/store/records`, each code worktree with `git worktree add
+  <wt>/records drafts/<name>`, `/records` git-ignored). Claude Code 2.1.300,
+  `-p --model haiku --permission-mode acceptEdits`, judged from disk and the
+  transcripts' tool results. (1) `claude -w t1`: Write into
+  `<t1>/records/design/x.md` (a nested worktree of another branch) succeeded;
+  Write into the store was refused: "This session is isolated in the worktree
+  <t1>, so its writes are limited to that folder. This path is in a different
+  worktree (<main>/.pm/store/records). Edit the copy of this file under <t1>
+  instead." So the -w isolation follows the path prefix, not git worktree
+  boundaries: a worktree nested inside its own is allowed. (2) Plain `claude`
+  in a normal worktree: Write and Edit in the nested `records/` succeeded; the
+  store write was refused without `additionalDirectories` ("Claude requested
+  permissions to write to <store path>, but you haven't granted it yet.") and
+  succeeded with `--settings
+  '{"permissions":{"additionalDirectories":["<store>"]}}'`. (3) Codex 0.162.1
+  `codex exec --sandbox workspace-write`: not measurable on this host: every
+  sandboxed command fails before running ("bwrap: loopback: Failed
+  RTM_NEWADDR: Operation not permitted"; with network_access=true "bwrap:
+  setting up uid map: Permission denied"; legacy Landlock panics
+  "filesystem-restricted execution requires bubblewrap"), since
+  kernel.apparmor_restrict_unprivileged_userns=1 and bwrap has no AppArmor
+  profile. A command matched by a `.codex/rules` `prefix_rule(...
+  decision="allow")` ran outside the sandbox and committed in the nested
+  workspace (3 of 3 runs, with and without extra writable_roots), so pm-run
+  commits work; whether the sandboxed agent itself can write or `git commit`
+  there is unverified here (the Constraints' 0.131.0 finding still stands: git
+  dirs stay read-only unless listed, and a commit also writes the common
+  `.git` objects and refs, not only `.git/worktrees/<name>`).
 
 ## Delivery report
 
