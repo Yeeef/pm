@@ -77,6 +77,11 @@ The Stop hook check of the session own workspace moves from step 3 into this spr
 Without it a worktree session edits records the Stop hook no longer sees, so this PR would drop a check that exists today; in a workspace the check is simpler than the transcript match it replaces there.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page pm-in-codex stays as it is for this sprint's code changes.
+pieces.go changed only its package doc comment to name the workspaces; the Codex hooks, rules and writable_roots pm init writes are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
