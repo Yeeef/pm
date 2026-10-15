@@ -1102,7 +1102,12 @@ def test_init_on_a_fresh_clone_checks_out_store_links_records_and_starts_the_ser
                            check=True).stdout.splitlines()
     assert where[0].startswith(f"pm        {VERSION}  ")
     assert where[1] == f"store     {clone}/.pm/store/records  branch records, 0 ahead, 0 behind origin/records (as of the last fetch)"
-    assert where[2] == f"checkout  {clone}  branch main, records link set up"
+    # pm init gives the clone its id once, its namespace for draft refs on the remote
+    clone_id = git_in(clone, "config", "--get", "pm.clone").strip()
+    assert re.fullmatch("[0-9a-f]{12}", clone_id), clone_id
+    assert f"gave this clone the id {clone_id}" in res.stdout
+    assert where[2] == f"clone     {clone_id}  its drafts push to origin refs/pm/drafts/{clone_id}/"
+    assert where[3] == f"checkout  {clone}  branch main, records link set up"
     # the clone's half of pm init ends with the service; the repo's files, installed already, stay as they are
     port = (tmp_path / "port").read_text()
     assert service_line(clone, tmp_path / "home", f"running; the site answers on :{port}") in where, where
@@ -1995,7 +2000,8 @@ def move_remote(repo, rel: str, text: str) -> None:
 def test_push_pushes_beads_and_new_records_commits(pushed):
     repo = pushed
     first = repo.pm("push").stdout
-    assert first.count(" ok: ") == 3 and "summary ok: summarized" in first, first
+    assert first.count(" ok: ") == 4 and "summary ok: summarized" in first, first
+    assert "drafts ok: pushed 0 and deleted 0 draft refs; fetched the other clones'" in first, first
     repo.write("days/2026-10-02.md", DAY2)
     repo.commit("a day")
     res = repo.pm("push")
@@ -2006,7 +2012,7 @@ def test_push_pushes_beads_and_new_records_commits(pushed):
     state = push_state(repo)
     assert state["work"]["ok"] and state["records"]["ok"] and state["records"]["message"] == "pushed 2 commit(s)", "the day file and its new summary"
     assert state["records"]["last_ok"] == state["records"]["at"]
-    assert len((repo.root / ".pm/run/push.log").read_text().splitlines()) == 6
+    assert len((repo.root / ".pm/run/push.log").read_text().splitlines()) == 8
     assert state["summary"]["message"].startswith("summarized"), "the new day file changed the activity"
 
     # folded: test_push_rebases_onto_a_moved_remote

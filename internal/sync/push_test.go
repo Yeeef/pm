@@ -28,10 +28,12 @@ func TestARunRecordsEachStepAndFlagsAFailure(t *testing.T) {
 	}
 	steps := []Step{{"work", func() (bool, string) { return true, "pushed 2 commits" }},
 		{"summary", func() (bool, string) { panic("claude is missing") }},
-		{"records", func() (bool, string) { return true, "up to date with origin/records" }}}
+		{"records", func() (bool, string) { return true, "up to date with origin/records" }},
+		{"drafts", func() (bool, string) { return true, "pushed 0 and deleted 0 draft refs" }}}
 	code, out, err := Push(main, steps)
 	want := "2026-10-08T10:00:00+00:00 work ok: pushed 2 commits\n2026-10-08T10:00:00+00:00 summary error: panic: claude is " +
-		"missing\n2026-10-08T10:00:00+00:00 records ok: up to date with origin/records"
+		"missing\n2026-10-08T10:00:00+00:00 records ok: up to date with origin/records\n2026-10-08T10:00:00+00:00 drafts ok: " +
+		"pushed 0 and deleted 0 draft refs"
 	if err != nil || code != 1 || out != want {
 		t.Fatalf("%d %v\n%s", code, err, out)
 	}
@@ -48,7 +50,7 @@ func TestARunRecordsEachStepAndFlagsAFailure(t *testing.T) {
 		t.Fatal(banner)
 	}
 	d, _ := Describe(main)
-	if len(d) != 4 || d[1] != "push      summary error at 2026-10-08T10:00:00+00:00: panic: claude is missing" {
+	if len(d) != 5 || d[1] != "push      summary error at 2026-10-08T10:00:00+00:00: panic: claude is missing" {
 		t.Fatal(d)
 	}
 	steps[1].Run = func() (bool, string) { return true, "summarized" }
@@ -60,7 +62,7 @@ func TestARunRecordsEachStepAndFlagsAFailure(t *testing.T) {
 	}
 	at(t, "2026-10-08T10:31:00Z") // past Overdue (30 min) since the last success
 	flags, _ = Flags(main, "", "origin")
-	if len(flags) != 3 || !strings.HasPrefix(flags[0], "work push overdue: last successful push 2026-10-08T10:00:00+00:00, 31 min ago (the pm service pushes every 10 min)") {
+	if len(flags) != 4 || !strings.HasPrefix(flags[0], "work push overdue: last successful push 2026-10-08T10:00:00+00:00, 31 min ago (the pm service pushes every 10 min)") {
 		t.Fatal(flags)
 	}
 	t.Run("ASecondRunSkipsWhileOneHoldsTheLock", func(t *testing.T) {
@@ -94,7 +96,7 @@ func TestANeverSuccessfulPushIsOverdueFromTheInstall(t *testing.T) {
 	at(t, "2026-10-08T11:00:00Z")
 	MarkInstalled(main) // keeps the first install's time
 	flags, _ := Flags(main, "", "origin")
-	if len(flags) != 3 || !strings.HasPrefix(flags[2], "records push overdue: no successful push since 2026-10-08T10:00:00+00:00, 60 min ago") {
+	if len(flags) != 4 || !strings.HasPrefix(flags[2], "records push overdue: no successful push since 2026-10-08T10:00:00+00:00, 60 min ago") {
 		t.Fatal(flags)
 	}
 }

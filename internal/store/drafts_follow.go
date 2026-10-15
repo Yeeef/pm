@@ -65,19 +65,25 @@ func readDraft(store string, w Workspace) (draftState, error) {
 	switch {
 	case d.head == base:
 	case strings.HasPrefix(parts[2], draftSubject) && parts[1] == base:
-		d.draft = true
-		for _, m := range sprintTag.FindAllStringSubmatch(parts[2], -1) {
-			d.tags[m[1]] = m[2]
-		}
-		for _, m := range conflictTag.FindAllStringSubmatch(parts[2], -1) {
-			d.conflicts[m[1]] = m[2]
-		}
+		d = draftOf(d.head, base, parts[2])
 	default:
 		return draftState{}, errorf("%s is at %s, a commit pm did not make on its base %s: a commit made by hand in %s? "+
 			"pm commits there itself; undo it with git -C %s reset --soft %s, which keeps its edits uncommitted, then pm "+
 			"commit them", w.Branch(), d.head, base, w.Dir, w.Dir, base)
 	}
 	return d, nil
+}
+
+// draftOf is the draft commit head on base, its pages' sprints and its conflict marks read from its message.
+func draftOf(head, base, message string) draftState {
+	d := draftState{head: head, base: base, draft: true, tags: map[string]string{}, conflicts: map[string]string{}}
+	for _, m := range sprintTag.FindAllStringSubmatch(message, -1) {
+		d.tags[m[1]] = m[2]
+	}
+	for _, m := range conflictTag.FindAllStringSubmatch(message, -1) {
+		d.conflicts[m[1]] = m[2]
+	}
+	return d
 }
 
 // gitIn is git in dir with env added and stdin fed; stdout stripped, a failure a records error with git's message.

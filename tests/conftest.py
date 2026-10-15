@@ -602,6 +602,10 @@ def repo(tmp_path: Path) -> Repo:
     r.stop_service()
 
 
+# The repo fixture's clone id, as pm init would have made it (git config pm.clone).
+CLONE_ID = "0123456789ab"
+
+
 def make_repo(tmp: Path, issues: list[dict] = ISSUES) -> Repo:
     """A clone as pm init leaves it, under tmp: its records store holds RECORDS and its work store the seed `issues`,
     held by the per-test pm service, which the caller stops."""
@@ -615,6 +619,7 @@ def make_repo(tmp: Path, issues: list[dict] = ISSUES) -> Repo:
     # git 2.55's commit starts `git maintenance run --auto --detach`, whose worktree-prune deletes a worktree that
     # `git worktree add` is still making ("could not open '.git/worktrees/records/locked'", exit 128)
     r.git("config", "maintenance.auto", "false")
+    r.git("config", "pm.clone", CLONE_ID)  # the clone's id, which pm init makes once: its draft refs' namespace
     (root / ".gitignore").write_text("/records\n")
     write_config(root)
     r.git("add", ".gitignore", ".pm")

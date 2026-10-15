@@ -1037,7 +1037,7 @@ func (s *server) ticker() {
 // SyncTimeout bounds the work store's sync.
 var SyncTimeout = 120 * time.Second
 
-// SyncSteps are one sync run's steps: the work store's sync, the day summary, the records push.
+// SyncSteps are one sync run's steps: the work store's sync, the day summary, the records push, the draft refs.
 func (s *server) SyncSteps() []pmsync.Step {
 	return []pmsync.Step{
 		{Name: "work", Run: func() (bool, string) {
@@ -1054,6 +1054,7 @@ func (s *server) SyncSteps() []pmsync.Step {
 		}},
 		{Name: "summary", Run: s.d.Summarize},
 		{Name: "records", Run: func() (bool, string) { return pmsync.PushRecords(s.d.Records, s.d.Remote) }},
+		{Name: "drafts", Run: func() (bool, string) { return pmsync.PushDrafts(s.d.Records, s.d.Remote) }},
 	}
 }
 

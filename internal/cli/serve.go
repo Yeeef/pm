@@ -192,11 +192,12 @@ func newServedSite(records, name, main string) (*servedSite, error) {
 }
 
 // Stamp is a digest of every record file and day summary in the working trees of the store and of each records
-// workspace (path and bytes), the store's HEAD files, the workspaces' branch refs and today's date: it moves with the
-// published records and with every draft.
+// workspace (path and bytes), the store's HEAD files, the workspaces' branch refs, the other clones' fetched draft refs
+// and today's date: it moves with the published records and with every draft.
 func (s *servedSite) Stamp() (string, error) {
 	h := sha256.New()
 	workspaces, refs := store.WorkspaceStamp(s.common)
+	refs = append(refs, store.FetchedStamp(s.common)...)
 	for _, root := range append([]string{s.records}, workspaces...) {
 		if err := stampTree(h, root, root == s.records); err != nil {
 			return "", err

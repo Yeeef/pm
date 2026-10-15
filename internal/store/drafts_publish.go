@@ -64,18 +64,20 @@ func DraftBranches(store string) ([]Workspace, error) {
 	return out, nil
 }
 
-// BranchDraft is one drafts/ branch as the clone's drafts read it: its unpublished pages' texts (nil: removed) and
-// sprints, and the pages it marks in conflict, with theirs.
+// BranchDraft is one drafts/ branch as the clone's drafts read it, or another clone's (Clone set: its id, and Name
+// its worktree's there): its unpublished pages' texts (nil: removed) and sprints, and the pages it marks in conflict,
+// with theirs.
 type BranchDraft struct {
 	Workspace
+	Clone     string
 	Pages     map[string]*string
 	Tags      map[string]string
 	Conflicts map[string]string
 }
 
-// AllDrafts is every drafts/ branch of the clone that pm can read, and a warning naming each one it cannot (a commit
-// made by hand, a missing base ref) with its fix, left out: one workspace's bad state fails only its own worktree's
-// pm commands, never another's check or gate.
+// AllDrafts is every drafts/ branch of the clone that pm can read, then every other clone's draft as last fetched,
+// and a warning naming each one it cannot (a commit made by hand, a missing base ref) with its fix, left out: one
+// workspace's bad state fails only its own worktree's pm commands, never another's check or gate.
 func AllDrafts(store string) ([]BranchDraft, []string, error) {
 	branches, err := DraftBranches(store)
 	if err != nil {
@@ -94,6 +96,24 @@ func AllDrafts(store string) ([]BranchDraft, []string, error) {
 			continue
 		}
 		out = append(out, BranchDraft{Workspace: w, Pages: pages, Tags: tags, Conflicts: d.conflicts})
+	}
+	fetched, err := FetchedDrafts(store)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, f := range fetched {
+		var pages map[string]*string
+		err := f.Err
+		if err == nil {
+			pages, err = f.Pages(store)
+		}
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("warning: %s cannot be read, so pm leaves it out here: %v",
+				f.Label(), err))
+			continue
+		}
+		out = append(out, BranchDraft{Workspace: Workspace{Name: f.Name}, Clone: f.Clone, Pages: pages,
+			Tags: f.Tags(), Conflicts: f.Conflicts()})
 	}
 	return out, warnings, nil
 }
@@ -185,9 +205,11 @@ type Publish struct {
 	Tip   string             // the records tip the drafts merged onto
 	Pages map[string]*string // each page the merge changes on the tip (design/x.md): its text, nil when removed
 	Was   map[string]*string // each of Pages as the tip holds it, nil when it has none
-	// Skipped is a warning for each drafts/ branch pm cannot read and no commit of which names the sprint
+	// Skipped is a warning for each draft pm cannot read and no commit of which names the sprint
 	Skipped []string
-	drops   []drop
+	// Others is a note for each other clone's draft the close publishes pages from
+	Others []string
+	drops  []drop
 }
 
 // drop is a draft to take pages out of: the sprint's, published or discarded, and on a branch with no worktree also
@@ -198,11 +220,11 @@ type drop struct {
 	pages []string
 }
 
-// PlanPublish merges, from the records tip, the pages each draft commit tags with sprint, branch by branch, leaving
-// out discard (store paths, design/x.md) and any page the records branch holds as a close of the sprint published it
-// since the draft's base (a close stopped before it dropped the drafts). It changes nothing. An overlap, with what the
-// records branch changed since a draft's base or with another draft of the sprint, is refused, naming for each page
-// the commits or the branch, and the fix.
+// PlanPublish merges, from the records tip, the pages each draft commit tags with sprint, branch by branch, then each
+// other clone's as last fetched, leaving out discard (store paths, design/x.md) and any page the records branch holds
+// as a close of the sprint published it since the draft's base (a close stopped before it dropped the drafts). It
+// changes nothing. An overlap, with what the records branch changed since a draft's base or with another draft of the
+// sprint, is refused, naming for each page the commits or the draft, and the fix.
 func PlanPublish(store, sprint string, discard []string) (*Publish, error) {
 	tip, err := Git(store, "rev-parse", "refs/heads/"+Branch)
 	if err != nil {
@@ -212,9 +234,12 @@ func PlanPublish(store, sprint string, discard []string) (*Publish, error) {
 	if err != nil {
 		return nil, err
 	}
+	fetched, err := FetchedDrafts(store)
+	if err != nil {
+		return nil, err
+	}
 	p := &Publish{Tip: tip}
-	acc, changedBy := tip, map[string][]string{} // the merge so far; each page, the branches whose draft changed it
-	var overlaps []string
+	m := &merging{store: store, sprint: sprint, acc: tip, changedBy: map[string][]string{}}
 	for _, w := range branches {
 		d, err := readDraft(store, w)
 		if err != nil {
@@ -232,61 +257,106 @@ func PlanPublish(store, sprint string, discard []string) (*Publish, error) {
 		if len(x.pages) > 0 || (w.Dir == "" && !d.draft) {
 			p.drops = append(p.drops, x)
 		}
-		overlaps = append(overlaps, conflicting(w, d, sprint, discard)...)
-		if len(take) == 0 {
-			continue
-		}
-		tree, err := withFiles(store, d.base, d.head, take) // the base with the sprint's pages from the draft
-		if err != nil {
+		m.overlaps = append(m.overlaps, conflicting(w, d, sprint, discard)...)
+		if err := m.merge(w.Branch(), d, take, func(path string, others []string) (string, error) {
+			return overlap(store, w, d, tip, path, sprint, others)
+		}); err != nil {
 			return nil, err
 		}
-		mine, err := gitIn(store, nil, "pm: the pages of "+w.Branch()+" for "+sprint+"\n", "commit-tree", tree, "-p",
-			d.base, "-F", "-")
-		if err != nil {
-			return nil, err
-		}
-		merged, conflicted, err := mergeTree(store, d.base, acc, mine)
-		if err != nil {
-			return nil, err
-		}
-		for _, path := range conflicted {
-			why, err := overlap(store, w, d, tip, path, sprint, changedBy[path])
-			if err != nil {
-				return nil, err
+	}
+	for _, f := range fetched {
+		if f.Err != nil {
+			if f.mayHold(sprint) {
+				return nil, errorf("%s may hold sprint %s's design pages, and pm cannot read it, so nothing is "+
+					"published: %v", f.Label(), sprint, f.Err)
 			}
-			overlaps = append(overlaps, why)
-		}
-		if len(conflicted) > 0 {
+			p.Skipped = append(p.Skipped, fmt.Sprintf("warning: %s cannot be read, so pm leaves it out here: %v",
+				f.Label(), f.Err))
 			continue
 		}
-		next, err := gitIn(store, nil, "pm: publish "+sprint+"\n", "commit-tree", merged, "-p", acc, "-F", "-")
+		take, err := f.takes(store, sprint, discard)
 		if err != nil {
 			return nil, err
 		}
-		changed, err := changedPaths(store, acc, next)
-		if err != nil {
+		m.overlaps = append(m.overlaps, f.conflicting(sprint, discard)...)
+		before := m.acc
+		if err := m.merge(f.Label(), f.d, take, func(path string, others []string) (string, error) {
+			return f.overlap(store, tip, path, sprint, others)
+		}); err != nil {
 			return nil, err
 		}
-		for _, path := range changed {
-			changedBy[path] = append(changedBy[path], w.Branch())
+		if m.acc != before {
+			p.Others = append(p.Others, fmt.Sprintf("note: published %s from %s; that clone drops them from its "+
+				"draft when it follows onto a records branch with this close", strings.Join(take, ", "), f.Label()))
 		}
-		acc = next
 	}
-	if overlaps != nil {
+	if m.overlaps != nil {
 		return nil, errorf("sprint %s's design-page drafts cannot publish, so nothing is published: %s", sprint,
-			strings.Join(overlaps, "; "))
+			strings.Join(m.overlaps, "; "))
 	}
-	paths, err := changedPaths(store, tip, acc)
+	paths, err := changedPaths(store, tip, m.acc)
 	if err != nil {
 		return nil, err
 	}
-	if p.Pages, err = blobs(store, acc, paths); err != nil {
+	if p.Pages, err = blobs(store, m.acc, paths); err != nil {
 		return nil, err
 	}
 	if p.Was, err = blobs(store, tip, paths); err != nil {
 		return nil, err
 	}
 	return p, nil
+}
+
+// merging is PlanPublish's merge so far: acc, the records tip with the drafts merged so far; changedBy, each page with
+// the drafts whose merge changed it; overlaps, why each page that overlaps cannot publish.
+type merging struct {
+	store, sprint, acc string
+	changedBy          map[string][]string
+	overlaps           []string
+}
+
+// merge merges take, pages of the draft d (named label), onto acc from the draft's base: an overlap is noted with
+// why, which says why the draft cannot publish a page and the way out, and leaves acc as it was.
+func (m *merging) merge(label string, d draftState, take []string, why func(string, []string) (string, error)) error {
+	if len(take) == 0 {
+		return nil
+	}
+	tree, err := withFiles(m.store, d.base, d.head, take) // the base with the sprint's pages from the draft
+	if err != nil {
+		return err
+	}
+	mine, err := gitIn(m.store, nil, "pm: the pages of "+label+" for "+m.sprint+"\n", "commit-tree", tree, "-p",
+		d.base, "-F", "-")
+	if err != nil {
+		return err
+	}
+	merged, conflicted, err := mergeTree(m.store, d.base, m.acc, mine)
+	if err != nil {
+		return err
+	}
+	for _, path := range conflicted {
+		said, err := why(path, m.changedBy[path])
+		if err != nil {
+			return err
+		}
+		m.overlaps = append(m.overlaps, said)
+	}
+	if len(conflicted) > 0 {
+		return nil
+	}
+	next, err := gitIn(m.store, nil, "pm: publish "+m.sprint+"\n", "commit-tree", merged, "-p", m.acc, "-F", "-")
+	if err != nil {
+		return err
+	}
+	changed, err := changedPaths(m.store, m.acc, next)
+	if err != nil {
+		return err
+	}
+	for _, path := range changed {
+		m.changedBy[path] = append(m.changedBy[path], label)
+	}
+	m.acc = next
+	return nil
 }
 
 // sprintPages is what the close takes from one draft: the drop (the sprint's pages; on a branch with no worktree also
@@ -386,7 +456,12 @@ func conflicting(w Workspace, d draftState, sprint string, discard []string) []s
 
 // publishedSince is whether a records commit since base published page as sprint's (its "Published:" line).
 func publishedSince(store, base, page, sprint string) (bool, error) {
-	log, err := Git(store, "log", "--format=%B", base+"..refs/heads/"+Branch, "--", page)
+	return publishedOn(store, "refs/heads/"+Branch, base, page, sprint)
+}
+
+// publishedOn is whether a commit of rev since base published page as sprint's (its "Published:" line).
+func publishedOn(store, rev, base, page, sprint string) (bool, error) {
+	log, err := Git(store, "log", "--format=%B", base+".."+rev, "--", page)
 	if err != nil {
 		return false, err
 	}

@@ -1,7 +1,7 @@
-// Package sync is the push the pm service runs every Interval: the work store's sync, today's summary and the records
-// branch, so no session pushes either. Each run records the outcome of each step's last attempt in a state file in the
-// clone's runtime directory (.pm/run/, never committed) and appends a line per step to a log beside it; pm where, pm
-// service status and the served site read the state to flag a failed or overdue push.
+// Package sync is the push the pm service runs every Interval: the work store's sync, today's summary, the records
+// branch and the draft refs (PushDrafts), so no session pushes any. Each run records the outcome of each step's last
+// attempt in a state file in the clone's runtime directory (.pm/run/, never committed) and appends a line per step to
+// a log beside it; pm where, pm service status and the served site read the state to flag a failed or overdue push.
 //
 // pm push (internal/cli/push.go) runs the same steps once.
 package sync
@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/config"
+	"github.com/Yeeef/pm/internal/store"
 )
 
 const (
@@ -32,11 +33,11 @@ const (
 // Timeout is how long each step's command (git fetch, rebase, push) may take; a variable so tests can shorten it.
 var Timeout = 120 * time.Second
 
-// Steps are the run's steps in order: the work store's sync, the day summary, the records push. Stores are the steps
-// that push a store; the summary is a step.
+// Steps are the run's steps in order: the work store's sync, the day summary, the records push, the draft refs' push
+// and fetch. Stores are the steps that push a store; the summary is a step.
 var (
-	Steps  = []string{"work", "summary", "records"}
-	stores = map[string]bool{"work": true, "records": true}
+	Steps  = []string{"work", "summary", "records", "drafts"}
+	stores = map[string]bool{"work": true, "records": true, "drafts": true}
 )
 
 // Step is one step of a run: its name and what it does, returning ok and one line saying what it did or why it failed.
@@ -248,6 +249,26 @@ func PushRecords(store, remote string) (bool, string) {
 		said += fmt.Sprintf(" after rebasing onto %d new on %s/%s", behind, remote, Branch)
 	}
 	return true, said
+}
+
+// PushDrafts pushes this clone's draft refs (store.PushDrafts), then fetches the other clones' (store.FetchDrafts):
+// the record-drafts page, Draft refs. A lease that failed fails the step, which flags it; nothing is forced.
+func PushDrafts(records, remote string) (bool, string) {
+	id, err := store.CloneID(records)
+	if err != nil {
+		return false, err.Error()
+	}
+	said, err := store.PushDrafts(records, remote, id)
+	if err != nil {
+		said = err.Error()
+	}
+	if ferr := store.FetchDrafts(records, remote, id); ferr != nil {
+		return false, said + "; fetching the other clones' drafts failed: " + ferr.Error()
+	}
+	if err != nil {
+		return false, said
+	}
+	return true, said + "; fetched the other clones'"
 }
 
 // Push is one run, under a lock no second run waits for: each step in order, its outcome recorded; a failed step does

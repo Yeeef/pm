@@ -82,11 +82,16 @@ func (e Edits) files() (map[string]*string, error) {
 	return files, nil
 }
 
-// workspacesDraft names the draft that says why the workspaces could not be listed.
-const workspacesDraft = "workspaces"
+// workspacesDraft names the draft that says why the workspaces could not be listed, and fetchedDraft the one that
+// says why the other clones' could not.
+const (
+	workspacesDraft = "workspaces"
+	fetchedDraft    = "~clones"
+)
 
 // Clone is a clone's drafts: the store's uncommitted edits (Edits), then each workspace's, named by its code
-// worktree's admin name.
+// worktree's admin name, then each other clone's draft commit as last fetched (drafts_refs.go), named
+// <clone>~<worktree>.
 type Clone struct{ Store string }
 
 func (c Clone) Drafts() []Draft {
@@ -122,6 +127,13 @@ func (c Clone) Drafts() []Draft {
 		d := Draft{Name: w.Name, Worktree: w.Code, Branch: branches[w.Code]}
 		d.Files, d.State, d.Err = c.workspaceFiles(w)
 		out = append(out, d)
+	}
+	fetched, err := FetchedDrafts(c.Store)
+	if err != nil {
+		return append(out, Draft{Name: fetchedDraft, Label: "the other clones' drafts", Err: err})
+	}
+	for _, f := range fetched {
+		out = append(out, f.draft(c.Store))
 	}
 	return out
 }
