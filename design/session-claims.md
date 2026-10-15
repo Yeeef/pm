@@ -93,7 +93,7 @@ A claim held by a live other session is refused, naming the holder, its age and 
 
 ### Live sessions in worktrees
 
-`pm clean` keeps an agent worktree that a live session used: the latest entry, written within `LiveWindow`, of a Claude Code transcript or a Codex rollout whose working directory is in the worktree or whose tool call names its path. A Codex rollout's working directory is its `session_meta`'s and then each `turn_context`'s, and its session the root thread's. A tool call's output does not count.
+`pm clean` keeps an agent worktree that a live session used: the latest entry, written within `LiveWindow`, of a Claude Code transcript or a Codex rollout whose working directory is in the worktree or whose tool call names its path. A Codex rollout's working directory is its `session_meta`'s and then each `turn_context`'s, and its session the root thread's. A tool call's output does not count. A worktree's records workspace goes with it, and a workspace with uncommitted edits or a draft commit keeps it ([Record drafts and publishing](record-drafts.md)). The site's version bar names each workspace's live session from the same scan, over every worktree.
 
 A session's interactive-mode file (`.pm/run/sessions/<id>`, [Owner-request Stop hook](owner-request-hook.md)) uses a longer window: the session's end removes it (`pm hook session-end`), and `pm clean` lists each one and removes it with `--apply` only once the session's transcripts have been untouched for a day (`ModeWindow`), so a session the owner stepped away from keeps its mode.
 

@@ -245,7 +245,8 @@ records on the `records` branch, which each `pm` write commits itself.
   `source=agent`; `source=owner` only with `--need` (it answers a need) or
   `--confirmed`.
 - Goal, Done when, delivery reports and design pages are edited by hand in
-  the store and committed with `pm commit -m "…" <path>`.
+  `records/` (in a worktree, its own records workspace; design pages only
+  there) and committed with `pm commit -m "…" <path>`.
 - Delegation: the main agent decides and briefs; a subagent claims
   (`pm task claim`) and closes its own task and reports back, and the main
   agent checks the report against the files before accepting it.

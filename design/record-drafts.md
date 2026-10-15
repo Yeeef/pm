@@ -6,6 +6,7 @@ covers:
   - "internal/site/versions*.go"
   - "internal/site/diff.go"
   - "internal/store/drafts*.go"
+  - "internal/cli/commit_workspace.go"
 ---
 
 ## Problem
@@ -48,14 +49,14 @@ This page is the record layer's model for drafts and publishing: each code workt
 
 **The store and its writers**
 
-- One records store per clone: the `records` branch checked out at `<main checkout>/.pm/store/records`. Each worktree's `records/` is a git-ignored link to it, made by `pm init` ([Shared records store](records-store.md)).
+- One records store per clone: the `records` branch checked out at `<main checkout>/.pm/store/records`. The main checkout's `records/` is a git-ignored link to it; each other worktree's is its workspace (Workspaces), made by `pm init` ([Shared records store](records-store.md)).
 - pm one-shot writes (`pm finding add`, `pm decision add`, …) validate against the store's HEAD plus their planned writes, refuse a target file with uncommitted changes, and commit exactly their paths, under an exclusive `flock` on the store directory.
-- `pm commit` holds that lock from its start, validates HEAD plus the named files (not the working tree), and commits the named files whole. It never checks who edited a file or whether it moved since the committing session read it.
+- `pm commit` holds that lock from its start, validates HEAD plus the named files (not the working tree), and commits the named files whole. In the shared store it never checks who edited a file or whether it moved since the committing session read it; from a workspace, follow does (Writes and journal publish).
 - Agents edit records with their own file tools; pm sees those edits only at `pm commit`.
 
 **The site**
 
-- The site renders the `records` branch (one `git archive`, 0.01-0.02 s on this store), and the store's uncommitted edits as one draft, `store`; the service looks for a change every second.
+- The site renders the `records` branch (one `git archive`, 0.01-0.02 s on this store), and as drafts the store's uncommitted edits, `store`, and each workspace's; the service looks for a change every second.
 - A draft that does not parse fails only its own version's URLs; its diff still renders, and every published page stays 200.
 
 **Hooks, sessions, sync**
@@ -183,7 +184,7 @@ Follow brings a workspace onto `records`. Every pm write from the worktree runs 
 3. A committed draft file that conflicts in step 1 leaves the draft commit: the file keeps the agent's text, merged with markers, as an uncommitted edit.
 4. The ref moves to the `records` tip plus the new draft commit; files not uncommitted are refreshed from the new tree.
 
-A file with conflict markers stays an ordinary uncommitted edit; `pm commit` refuses it, naming the `records` commits that touched it since the old base (`git log <base>..records -- <path>`). Step 2 rewrites a file the worktree's own sessions are editing, never another worktree's; a file tool that checks the file moved since it read it then rereads it.
+A file with conflict markers stays an ordinary uncommitted edit; `pm commit` refuses it, naming the `records` commits that touched it since the old base (`git log <base>..records -- <path>`). The markers carry that range (`>>>>>>> records <base>..<tip>`), so a later `pm commit` names the commits whichever follow wrote them. Step 2 rewrites a file the worktree's own sessions are editing, never another worktree's; a file tool that checks the file moved since it read it then rereads it.
 
 ### Writes and journal publish
 

@@ -41,6 +41,12 @@ Each code worktree edits records in its own workspace, so no session's commit ca
 > Where is the detail?
 
 - [Record drafts and publishing](../design/record-drafts.md): Workspaces, Follow, Writes and journal publish, Published view and versions
+- [Shared records store](../design/records-store.md): the main checkout's link and each worktree's workspace; Reading, Writing, Setup
+- [pm CLI](../design/pm-cli.md): pm commit and pm where
+- [Agent lifecycle](../design/agent-lifecycle.md): where hand edits happen
+- [pm as an installable product](../design/pm-product.md): what pm init sets up in a worktree
+- [Session claims](../design/session-claims.md): pm clean and a worktree's workspace
+- [Views and the site](../design/views-and-site.md): each workspace a version
 
 ## Progress
 

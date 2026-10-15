@@ -90,10 +90,10 @@ as "None yet.", while the need citing the finding was visible everywhere.
 
 ```mermaid
 flowchart LR
-  wt1["Worktree on branch X"] -->|"pm write"| store
+  wt1["Worktree on branch X"] -->|"pm write; pm commit from its workspace"| store
   wt2["Main checkout on branch Y"] -->|"pm write"| store
   store[("records branch<br/>checked out at .pm/store/records")]
-  wt1 -.->|"records symlink"| store
+  store -.->|"follow into records/,<br/>its workspace on drafts/x"| wt1
   wt2 -.->|"records symlink"| store
   store <-->|"pm service: push, rebase when behind"| remote["remote records branch"]
   store -->|"pm service renders"| site["site"]
@@ -102,8 +102,8 @@ flowchart LR
   main["main and code branches:<br/>no records/"]
 ```
 
-*Reading:* every worktree reads and writes one store; people read it on the
-site or on the remote `records` branch; no code branch carries records.
+*Reading:* every write lands in one store, the main checkout through its link and every other worktree through
+its records workspace; people read it on the site or on the remote `records` branch; no code branch carries records.
 
 ### The store
 
@@ -129,8 +129,10 @@ the pm service, each push step's last outcome, the site) with its state.
 
 ### Reading
 
-Each worktree has a git-ignored symlink `records -> <main checkout>/.pm/store/records`,
-so agents read `records/...` as before. `/records` is in the repo's
+The main checkout has a git-ignored symlink `records -> <main checkout>/.pm/store/records`; every other worktree's
+`records/` is its own records workspace, a worktree of the branch `drafts/<worktree's name>` that follows the
+`records` branch ([Record drafts and publishing](record-drafts.md), Workspaces and Follow). Either way agents read
+`records/...` with ordinary file tools. `/records` is in the repo's
 `.gitignore`, so no code-branch commit can pick up the link or the store's
 files, and no hook or CI check guards `records/`.
 
@@ -140,8 +142,9 @@ version beside each page it changes ([Record drafts and publishing](record-draft
 Published view and versions). The pm service looks for a change every second.
 A record that does not parse fails only its draft's version.
 
-Claude Code reaches the store through `permissions.additionalDirectories`
-and Codex through `writable_roots` (Setup and sync, below). A `pm` command itself
+Claude Code reaches the store from the main checkout through `permissions.additionalDirectories`, and writes a
+worktree's workspace, which is inside the worktree, with no setting; Codex reaches the store through `writable_roots`
+(Setup and sync, below). A `pm` command itself
 (`pm commit`, `pm finding add`) runs outside Codex's sandbox through
 `.codex/rules/pm.rules`, since the sandbox blocks the pm service's socket
 ([pm in Codex](../design/pm-in-codex.md), Sandbox).
@@ -166,11 +169,14 @@ restores the files it wrote and unstages them, and says so, so it leaves
 nothing behind.
 
 Hand edits are made through `records/` and committed with
-`pm commit -m "…" <path>…`, under the same lock. It accepts only named paths
+`pm commit -m "…" <path>…`, under the same lock. From a worktree it commits from the workspace: it follows it first,
+refuses a file with conflict markers or one the store has uncommitted edits to, and writes the named files into the
+store and commits them ([Record drafts and publishing](record-drafts.md), Writes and journal publish); every other
+`pm` write from a worktree follows its workspace after its commit. Either way it accepts only named paths
 that have uncommitted changes (with none named it lists what is uncommitted and
 commits nothing), checks that `HEAD` plus the named paths renders as a whole
 record set against the work store, and commits only those paths, so another
-session's edit in progress is never swept into the commit. It does not check
+session's edit in progress is never swept into the commit. In the shared store it does not check
 who edited a named file. Store commits skip git hooks: `pm` has already
 validated them, and code-branch hooks do not apply to records.
 
@@ -178,7 +184,8 @@ The Stop hook (`pm hook stop`) blocks a session's stop once when the store has
 uncommitted files whose paths appear in that session's tool calls (a substring
 match over the transcript's tool inputs), naming them with the `pm commit` and
 revert commands; a path that only a still-running subagent's prompt names is
-left out.
+left out. It reads the store only, so a worktree session's uncommitted edits in its own workspace are not checked
+yet ([Record drafts and publishing](record-drafts.md), Workspaces: the Stop hook).
 
 ### Retired pieces
 
@@ -198,7 +205,8 @@ left out.
 
 A clone runs one command, `pm init`. Its clone half adds `/.pm/store/`, `/.pm/run/` and
 `/records` to `.git/info/exclude`, creates the local `records` branch from
-`origin/records`, checks it out at `.pm/store/records`, and makes the link; the
+`origin/records`, checks it out at `.pm/store/records`, and makes the main checkout's link or this worktree's
+records workspace (in place of an earlier pm's link, at that worktree's own setup); the
 rest of `pm init` sets up the work store and the pm service
 ([Work store](work-store.md)). Each step runs only when it is missing, so
 re-running the command changes nothing. If `$CODEX_HOME` (default `~/.codex`)
@@ -214,10 +222,11 @@ result does not parse to the old data plus those paths, so every other line and
 comment stays byte for byte. Without `$CODEX_HOME` it says so and leaves
 Codex alone. If Claude Code's config dir (`$CLAUDE_CONFIG_DIR`, default
 `~/.claude`) exists, it also adds the store to
-`permissions.additionalDirectories` in the worktree's
+`permissions.additionalDirectories` in the main checkout's
 `.claude/settings.local.json`, keeping the file's other settings: that
 file is per worktree and git-ignored, so the absolute path stays out of
-the repo, and it refuses a file it cannot parse.
+the repo, and it refuses a file it cannot parse. In any other worktree it takes the store out of that file, as the
+workspace is inside the worktree.
 
 The session-start hook runs `pm init --session-start` at every session start,
 so every worktree an agent works in is set up whatever tool created it; that

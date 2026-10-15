@@ -118,7 +118,7 @@ Every view is rendered from records plus live status from Beads. Nothing in a vi
 | Root page | Owner | Generated overview: needs across projects and questions asked outside any task, each project's open sprints with progress, recent days, a Not in a sprint table of open non-epic items filed directly under a project epic or with no parent, design pages (last updated first, with created and updated dates) and docs. Replaces a hand-kept current-state file |
 | Design pages | Owner | Design records, with their created and last-updated dates under the title, and one line when commits on the main branch changed a file the page's `covers:` match after its last records commit: how many, and the latest one's date |
 | Docs | Owner | Doc records, linked to their project |
-| Versions | Owner | Every page above renders the records as published on the `records` branch; each draft (for now the store's uncommitted edits, one draft named `store`) is a version beside it, under `/drafts/<draft>/`, with a version bar on each page it changes and a diff by section ([Record drafts and publishing](record-drafts.md), Published view and versions) |
+| Versions | Owner | Every page above renders the records as published on the `records` branch; each draft (the store's uncommitted edits, one draft named `store`, and each worktree's records workspace, named by its worktree) is a version beside it, under `/drafts/<draft>/`, with a version bar on each page it changes and a diff by section ([Record drafts and publishing](record-drafts.md), Published view and versions) |
 | `pm show` | Agents | The same data as the pages, as compact text with ids |
 
 ### Example: the daily page
@@ -302,7 +302,7 @@ stateDiagram-v2
 - **Published records.** The read takes the records at the tip of the
   `records` branch, one `git archive` (0.01-0.02 s for the real store's
   2.5 MB), never the working tree, and so are a published page's figures
-  (`git cat-file`); the drafts are one `git status` and the files it lists,
+  (`git cat-file`); the drafts are one `git status` per workspace and the store, and the files they list,
   and a version's figures come from the working tree. Each draft's version is parsed and checked on its first
   request and kept for the snapshot.
 - **No lock.** The read takes no store lock, since `pm` writes each file

@@ -76,13 +76,13 @@ pm init
 | Machine | the `pm` binary in `~/.local/bin` and its pins cache (a pin's binary kept while a checkout on the machine pins it; `pm upgrade` prunes the rest); the pm service per clone (systemd user service or launchd agent); Codex sandbox `writable_roots` per clone | `pm init` |
 | Repo (tracked) | `.pm/` (below); pm's hook entries in `.claude/settings.json` and `.codex/hooks.json`; `.codex/rules/pm.rules`, which runs `pm` outside Codex's sandbox ([pm in Codex](../design/pm-in-codex.md), Sandbox); pm's lines in `.gitignore`, `/records` among them | `pm init`, `pm upgrade` |
 | Clone | the store checkout at `<main>/.pm/store/records` (git-ignored); Beads database and config; the Beads agent profile | `pm init` |
-| Worktree | the `records/` link to the store | `pm init`, run by the session-start hook |
+| Worktree | `records/`: in the main checkout the link to the store, in any other worktree its records workspace (a worktree of `drafts/<name>`, [Record drafts and publishing](record-drafts.md)) | `pm init`, run by the session-start hook |
 
 pm writes nothing into `AGENTS.md` or `CLAUDE.md`, and installs no git hook.
 
 ### The `.pm/` directory
 
-Content and machinery stay apart: records stay at `records/` (each worktree's link to the store; no branch tracks them); everything else pm owns lives in `.pm/`.
+Content and machinery stay apart: records stay at `records/` (the main checkout's link to the store, each other worktree's records workspace; no code branch tracks them); everything else pm owns lives in `.pm/`.
 
 ```
 .pm/
