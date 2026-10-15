@@ -40,7 +40,7 @@ Each code worktree edits records in its own workspace, so no session's commit ca
 
 > Where is the detail?
 
-None yet.
+- [Record drafts and publishing](../design/record-drafts.md): Workspaces, Follow, Writes and journal publish, Published view and versions
 
 ## Progress
 
