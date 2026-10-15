@@ -134,10 +134,20 @@ Without it a worktree session edits records the Stop hook no longer sees, so thi
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: each code worktree edits records in its own workspace, `pm commit` publishes journals and refuses an overlapping edit, and the site shows each workspace as a labelled version.
+
+- Workspaces at `<worktree>/records`, made at that worktree's own setup; follow by `git merge-tree` and `git merge-file`, never rebase, merge or stash, with a base ref pm keeps itself.
+- `pm commit` and one-shot writes through the workspace; conflict markers name the commits; a figure changed on both sides is refused once, naming them.
+- The Stop hook checks the session's own workspace (moved here from step 3); `pm clean` and `pm uninstall` refuse a workspace with uncommitted edits or drafts.
+- git older than 2.40 fails only the workspace step, with a warning at session start and in `pm doctor`; that worktree keeps the shared store.
+- Design pages are tagged with their sprint and, until publish at sprint close is built, published at `pm commit`.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Disjoint edits to one sprint record from two worktrees both reach `records`; an overlap is refused at the second `pm commit`, naming the first commit, markers only in the second workspace: met. Go tests in `internal/store` and `internal/cli`, `tests/test_workspaces.py`; live check on a scratch clone: overlap refused naming d3e247f, no merge or rebase state left (Findings).
+- A one-shot write merges into another workspace's uncommitted edit and leaves no workspace mid-operation: met. Go test; live check (Findings).
+- The site lists each workspace as a version labelled with its worktree: met. Go tests; live check: three entries on the version bar, every version and diff URL 200.
+- A `claude -w` session writes and commits a record from its own worktree with no extra settings: met. Live check with Claude Code 2.1.300: workspace made at session start, file-tool edit, `pm commit` landed as the records head; the Stop hook blocked on an uncommitted edit and passed when clean (Findings). `pm commit` itself needs Bash permission, as any pm command does.
+- CI green on the sprint's PR: met. PR #101 at a6ebcb4, every check green; two fresh-context reviews, all their findings fixed or documented in the design page's Failure modes.
