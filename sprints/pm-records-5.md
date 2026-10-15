@@ -112,6 +112,8 @@ agent.go only carries the command's stderr into repo so a write can print a warn
 
 done: design-page edits stay drafts until `pm sprint close` publishes them in one `records` commit with the sprint's code on main, and `--discard` drops a draft with its reason recorded.
 
+Merged as 8df5b34 (PR #103).
+
 - `pm commit` keeps a design page in the workspace's draft commit, tagged with one sprint; the tag survives a rename on `records`; a follow conflict keeps a mark that holds the close.
 - `pm sprint close` publishes every page drafted for the sprint, from every workspace and `drafts/*` branch, after its existing checks; an overlap or a conflict mark refuses it and changes nothing; a rerun is safe; `--discard` is durable.
 - Covers: published patterns are held to main and wait only on a draft that drops the lost one; the waiting list and the close's covers hold retired.
