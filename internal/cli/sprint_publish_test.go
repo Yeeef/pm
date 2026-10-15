@@ -273,7 +273,7 @@ func TestPmWhereListsAnOrphanedDraftsBranchAndTheClosePublishesIt(t *testing.T) 
 func TestCoversAreHeldToMainOnceAndToTheWorktreeWhileDrafted(t *testing.T) {
 	root, records, one, _ := workspaces(t)
 	origin := filepath.Join(filepath.Dir(root), "origin.git")
-	run(t, root, "git init -q --bare "+origin, "git remote add origin "+origin, "git push -q origin main",
+	run(t, root, "git init -q --bare "+origin, "git remote add origin "+origin, "git config pm.clone 0123456789ab", "git push -q origin main",
 		"git fetch -q origin")
 	edit(t, filepath.Join(records, "design/parser.md"), "project: demo\n", "project: demo\ncovers: [src/parser.go]\n")
 	run(t, records, "git commit -qam 'the parser page names its file'")
@@ -319,7 +319,7 @@ func TestAPublishedPatternMainLostWaitsOnTheDraftThatChangesIt(t *testing.T) {
 	root, records, one, _ := workspaces(t)
 	origin := filepath.Join(filepath.Dir(root), "origin.git")
 	writeFile(t, filepath.Join(root, "src/parser.go"), "package src\n")
-	run(t, root, "git add src", "git commit -qm parser", "git init -q --bare "+origin, "git remote add origin "+origin,
+	run(t, root, "git add src", "git commit -qm parser", "git init -q --bare "+origin, "git remote add origin "+origin, "git config pm.clone 0123456789ab",
 		"git push -q origin main", "git fetch -q origin")
 	edit(t, filepath.Join(records, "design/parser.md"), "project: demo\n", "project: demo\ncovers: [src/parser.go]\n")
 	run(t, records, "git commit -qam 'the parser page names its file'")
@@ -441,7 +441,7 @@ func TestABadDraftsBranchFailsOnlyItsOwnWorktree(t *testing.T) {
 	root, records, one, two := workspaces(t)
 	origin := filepath.Join(filepath.Dir(root), "origin.git")
 	writeFile(t, filepath.Join(root, "src/parser.go"), "package src\n")
-	run(t, root, "git add src", "git commit -qm parser", "git init -q --bare "+origin, "git remote add origin "+origin,
+	run(t, root, "git add src", "git commit -qm parser", "git init -q --bare "+origin, "git remote add origin "+origin, "git config pm.clone 0123456789ab",
 		"git push -q origin main", "git fetch -q origin")
 	edit(t, filepath.Join(records, "design/parser.md"), "project: demo\n", "project: demo\ncovers: [src/parser.go]\n")
 	run(t, records, "git commit -qam 'the parser page names its file'")

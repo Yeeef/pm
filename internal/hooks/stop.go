@@ -375,9 +375,16 @@ func workspaceStopReason(w store.Workspace, stderr io.Writer) string {
 	if len(dirty) == 0 {
 		return ""
 	}
+	stranded, err := w.Stranded()
+	if err != nil {
+		fmt.Fprintf(stderr, "pm hook stop: reading %s's stranded pages failed (%s)\n", w.Dir, err)
+	}
 	files := make([]string, len(dirty))
 	for i, p := range dirty {
 		files[i] = "- records/" + p
+		if sprint, ok := stranded[p]; ok {
+			files[i] = "- " + store.StrandedLine(p, sprint)
+		}
 		if b, err := os.ReadFile(filepath.Join(w.Dir, filepath.FromSlash(p))); err == nil && store.HasMarkers(string(b)) {
 			files[i] += " (conflict markers: keep both edits between the <<<<<<< and >>>>>>> lines, remove the markers)"
 		}

@@ -164,6 +164,13 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 			return "", err
 		}
 	}
+	cfg, err := config.Load(e.here)
+	if err != nil {
+		return "", err
+	}
+	if err := store.FetchOtherDrafts(e.records, cfg.Remote); err != nil { // before the records lock: it fetches
+		return "", err
+	}
 	r, err := e.load(false)
 	if err != nil {
 		return "", err

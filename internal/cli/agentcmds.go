@@ -94,6 +94,16 @@ func runAgent(name string, cmd agentCommand, p *Parsed, here string, stdin io.Re
 	return e.followWrite(stdout)
 }
 
+// closedSprints is which sprints the work store holds closed (store.Follow reads it).
+func (e *env) closedSprints() (store.SprintClosed, error) {
+	ws, err := e.work()
+	if err != nil {
+		return nil, err
+	}
+	items, err := ws.Items()
+	return store.ClosedSprints(items), err
+}
+
 // followWrite brings this worktree's records workspace, if it has one, onto the records branch the write just
 // committed on (store.Follow), and names a file the follow left with conflict markers.
 func (e *env) followWrite(stdout io.Writer) error {
@@ -104,7 +114,7 @@ func (e *env) followWrite(stdout io.Writer) error {
 	if _, err := e.work(); err != nil { // the records lock, which a write took as it connected
 		return err
 	}
-	f, err := store.Follow(e.records, *w)
+	f, err := store.Follow(e.records, *w, e.closedSprints)
 	if err != nil {
 		return fmt.Errorf("the write is committed on the records branch, but bringing the workspace %s onto it failed, "+
 			"which changed nothing there: %w", w.Dir, err)

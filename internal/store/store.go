@@ -4,8 +4,9 @@
 // commits exactly the files written. Published is the records the site renders: the records branch's tip, read with
 // git archive. drafts.go lists the drafts the site serves beside them as versions: the store's uncommitted edits, as
 // one draft, and each code worktree's records workspace (drafts_workspace.go), which follows the records branch and
-// holds its draft commit (drafts_follow.go). pm sprint close publishes a sprint's design pages from the draft commits
-// (drafts_publish.go).
+// holds its draft commit (drafts_follow.go), then each other clone's draft commit as last fetched. pm sprint close
+// publishes a sprint's design pages from the draft commits (drafts_publish.go). The pm service's sync pushes this
+// clone's draft commits to the remote under its clone id and fetches the other clones' (drafts_refs.go).
 //
 // It also keeps a design page's dates and the commits on the main branch to the page's covered files after them
 // (CodeChanges: one git log --first-parent per page with covers, run in the records store, which shares the code's
@@ -48,6 +49,33 @@ func run(dir string, args ...string) (stdout, stderr string, err error) {
 	var o, e bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &o, &e
 	err = cmd.Run()
+	return o.String(), e.String(), err
+}
+
+// NetTimeout bounds a git command that reaches the remote (netGit); a variable so tests can shorten it.
+var NetTimeout = 120 * time.Second
+
+// netGit is git in dir reaching the remote, as run, in its own process group, which NetTimeout kills whole: git starts
+// ssh or git-remote-https children that would outlive a kill of git alone, and a stalled remote must not hold the pm
+// service's sync or a close.
+func netGit(dir string, args ...string) (stdout, stderr string, err error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	var o, e bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &o, &e
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		return "", "", err
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err = <-done:
+	case <-time.After(NetTimeout):
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) //nolint:errcheck // the wait below reaps it either way
+		<-done
+		return o.String(), fmt.Sprintf("git %s timed out after %s", strings.Join(args, " "), NetTimeout), errorf("timed out")
+	}
 	return o.String(), e.String(), err
 }
 

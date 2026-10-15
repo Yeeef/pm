@@ -106,7 +106,7 @@ func PlanClose(here, dir, root string, sprint *records.Record, discard map[strin
 			"commit it there, or merge the PR that adds the file first; then pm sprint close %s again", id, remote,
 			branch, strings.Join(missing, ", "), id)
 	}
-	c.notes = append(c.notes, c.Skipped...)
+	c.notes = append(append(c.notes, c.Skipped...), c.Others...)
 	if err := c.othersEdits(dir); err != nil {
 		return nil, err
 	}

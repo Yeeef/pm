@@ -1,10 +1,14 @@
 package hooks
 
 import (
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Yeeef/pm/internal/store"
 )
 
 func TestTouchedCountsASubagentsPathOnceItsCallReturns(t *testing.T) {
@@ -32,5 +36,26 @@ func TestTouchedCountsASubagentsPathOnceItsCallReturns(t *testing.T) {
 		if (len(got) == 1) != c.want {
 			t.Errorf("%s: touched %v, want %v", name, got, c.want)
 		}
+	}
+}
+
+// A page a follow stranded (its sprint closed without it) is named in the Stop hook's reason with what to do.
+func TestTheStopHookSaysWhatToDoWithAStrandedPage(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(dir, "none"))
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatal(err, string(out))
+	}
+	for p, text := range map[string]string{"design/p.md": "x\n", ".git/pm-stranded": "design/p.md\tpm-1\n"} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, p)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, p), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reason := workspaceStopReason(store.Workspace{Dir: dir}, io.Discard)
+	if !strings.Contains(reason, "- "+store.StrandedLine("design/p.md", "pm-1")) {
+		t.Errorf("the reason does not name the stranded page and what to do:\n%s", reason)
 	}
 }

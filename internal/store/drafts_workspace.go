@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -264,6 +265,13 @@ func (w Workspace) Describe(store string) (string, error) {
 		edits += " (conflict markers in " + strings.Join(marked, ", ") + ")"
 	}
 	parts = append(parts, edits)
+	stranded, err := w.Stranded()
+	if err != nil {
+		return "", err
+	}
+	for _, rel := range slices.Sorted(maps.Keys(stranded)) {
+		parts = append(parts, StrandedLine(rel, stranded[rel]))
+	}
 	behind, err := Git(store, "rev-list", "--count", d.base+"..refs/heads/"+Branch)
 	if err != nil {
 		return "", err
@@ -337,9 +345,12 @@ func gitNewEnough(version string) error {
 // records branch changed it: a line "<path>\t<base>..<tip>", the records range it was kept over.
 const binariesFile = "pm-binaries"
 
-func (w Workspace) binariesPath() (string, error) {
+func (w Workspace) binariesPath() (string, error) { return w.gitFile(binariesFile) }
+
+// gitFile is the path of name in the workspace's git dir.
+func (w Workspace) gitFile(name string) (string, error) {
 	dir, err := Git(w.Dir, "rev-parse", "--absolute-git-dir")
-	return filepath.Join(dir, binariesFile), err
+	return filepath.Join(dir, name), err
 }
 
 // binaries is the noted binary files, each with its records range.
@@ -432,4 +443,141 @@ func (w Workspace) binaryConflict(rel string) bool {
 	m, err := w.binaries()
 	_, ok := m[rel]
 	return err == nil && ok
+}
+
+// strandedFile, in the workspace's git dir, notes each draft page a follow took out of the draft commit because its
+// sprint had closed (Follow): a line "<path>\t<sprint>", kept while the file stays uncommitted.
+const strandedFile = "pm-stranded"
+
+// Stranded is each uncommitted page of the workspace that a follow took out of its draft commit as its sprint had
+// closed, with that sprint: an edit no close will publish until it is committed under an open sprint.
+func (w Workspace) Stranded() (map[string]string, error) {
+	p, err := w.gitFile(strandedFile)
+	if err != nil {
+		return nil, err
+	}
+	b, err := os.ReadFile(p)
+	if errors.Is(err, fs.ErrNotExist) {
+		return map[string]string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	dirty, err := w.Dirty()
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		if rel, sprint, ok := strings.Cut(line, "\t"); ok && slices.Contains(dirty, rel) {
+			out[rel] = sprint
+		}
+	}
+	return out, nil
+}
+
+// noteStranded adds the pages of add to the noted ones and forgets those of done, and any no longer uncommitted.
+func (w Workspace) noteStranded(add map[string]string, done []string) error {
+	m, err := w.Stranded()
+	if err != nil {
+		return err
+	}
+	p, err := w.gitFile(strandedFile)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(p); errors.Is(err, fs.ErrNotExist) && len(add) == 0 {
+		return nil
+	}
+	maps.Copy(m, add)
+	for _, rel := range done {
+		delete(m, rel)
+	}
+	if len(m) == 0 {
+		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		// every stranded page was committed again or reverted: the kept draft is no longer needed
+		_, _, err := run(w.Dir, "update-ref", "-d", w.StrandedRef())
+		return err
+	}
+	var b strings.Builder
+	for _, rel := range slices.Sorted(maps.Keys(m)) {
+		b.WriteString(rel + "\t" + m[rel] + "\n")
+	}
+	return WriteAtomic(p, b.String())
+}
+
+// StrandedRef keeps the draft text of the pages a follow stranded, so removing the worktree, which deletes their
+// uncommitted files, loses nothing: pm deletes it only once each is committed again or reverted in the workspace.
+func (w Workspace) StrandedRef() string { return "refs/pm/workspaces/" + w.Name + "/stranded" }
+
+// keepStranded records the stranded pages' text, as the follow's merged draft commit full holds it, in StrandedRef: a
+// commit on the ref's last one, if any, with those pages laid over it and a line "Stranded: <path> <sprint>" each.
+func (w Workspace) keepStranded(store, full string, stranded map[string]string) error {
+	if len(stranded) == 0 {
+		return nil
+	}
+	pages := slices.Sorted(maps.Keys(stranded))
+	tree, parent, msg := full, full, "pm stranded: pages of "+w.Branch()+" whose sprint closed\n\n"
+	if old, err := Git(store, "rev-parse", "--verify", "--quiet", w.StrandedRef()); err == nil {
+		if tree, err = withFiles(store, old, full, pages); err != nil {
+			return err
+		}
+		parent = old
+		prev, err := Git(store, "log", "-1", "--format=%B", old)
+		if err != nil {
+			return err
+		}
+		for _, m := range strandedTag.FindAllStringSubmatch(prev, -1) {
+			if _, ok := stranded[m[1]]; !ok {
+				msg += m[0] + "\n"
+			}
+		}
+	}
+	for _, p := range pages {
+		msg += "Stranded: " + p + " " + stranded[p] + "\n"
+	}
+	head, err := gitIn(store, nil, msg, "commit-tree", tree+"^{tree}", "-p", parent, "-F", "-")
+	if err != nil {
+		return err
+	}
+	_, err = Git(store, "update-ref", w.StrandedRef(), head)
+	return err
+}
+
+var strandedTag = regexp.MustCompile(`(?m)^Stranded: (\S+) (\S+)$`)
+
+// StrandedRefs is pm where's and pm doctor's line for each kept stranded draft (StrandedRef): its pages and sprints,
+// and how to recover them.
+func StrandedRefs(store string) []string {
+	list, err := Git(store, "for-each-ref", "--format=%(refname)", "refs/pm/workspaces/")
+	if err != nil {
+		return []string{"stranded  unreadable: " + err.Error()}
+	}
+	var out []string
+	for _, ref := range strings.Split(list, "\n") {
+		if !strings.HasSuffix(ref, "/stranded") {
+			continue
+		}
+		msg, err := Git(store, "log", "-1", "--format=%B", ref)
+		if err != nil {
+			out = append(out, "stranded  "+ref+"  unreadable: "+err.Error())
+			continue
+		}
+		var pages []string
+		for _, m := range strandedTag.FindAllStringSubmatch(msg, -1) {
+			pages = append(pages, fmt.Sprintf("records/%s (sprint %s, closed)", m[1], m[2]))
+		}
+		out = append(out, fmt.Sprintf("stranded  %s  keeps %s: take each with git -C %s show %s:<path> into a "+
+			"workspace of yours and pm commit it under an open sprint; then git -C %s update-ref -d %s", ref,
+			strings.Join(pages, ", "), store, ref, store, ref))
+	}
+	return out
+}
+
+// StrandedLine is what to do about a stranded page, as pm where, the site and the Stop hook say it.
+func StrandedLine(rel, sprint string) string {
+	return fmt.Sprintf("records/%s was drafted for sprint %s, which closed without publishing this text: commit it "+
+		"under an open sprint that links the page (pm commit --sprint ID records/%s), or revert it", rel, sprint, rel)
 }

@@ -26,7 +26,7 @@ func isDesignPage(rel string) bool { return path.Dir(rel) == "design" && strings
 // close (pm sprint close publishes them); commit the named journals on the records branch in the store, refusing a
 // file the store has uncommitted edits to; follow again.
 func (e *env) commitWorkspace(w store.Workspace, message string, p *Parsed) (string, error) {
-	followed, err := store.Follow(e.records, w)
+	followed, err := store.Follow(e.records, w, e.closedSprints)
 	if err != nil {
 		return "", err
 	}
@@ -243,7 +243,7 @@ func (e *env) publishWorkspace(w store.Workspace, message string, rels []string,
 			}
 			return "", err
 		}
-		if _, err := store.Follow(e.records, w); err != nil {
+		if _, err := store.Follow(e.records, w, e.closedSprints); err != nil {
 			return "", err
 		}
 		head, err := store.Git(e.records, "rev-parse", "--short", "HEAD")

@@ -50,7 +50,7 @@ func read(t *testing.T, dir, rel string) string {
 
 func follow(t *testing.T, store string, w Workspace) Followed {
 	t.Helper()
-	f, err := Follow(store, w)
+	f, err := Follow(store, w, noneClosed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestAFollowThatFailsChangesNothing(t *testing.T) {
 	if err := os.WriteFile(lock, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Follow(store, w); err == nil {
+	if _, err := Follow(store, w, noneClosed); err == nil {
 		t.Fatal("the follow passed with its branch locked")
 	}
 	if err := os.Remove(lock); err != nil {
@@ -279,7 +279,7 @@ func TestAHandCommitInAWorkspaceIsRefused(t *testing.T) {
 	write(t, w.Dir, "docs/x.md", "x")
 	sh(t, w.Dir, "git add -A", "git commit -qm by-hand")
 	publish(t, store, "projects/demo.md", project+"more\n")
-	_, err := Follow(store, w)
+	_, err := Follow(store, w, noneClosed)
 	if err == nil || !strings.Contains(err.Error(), "a commit pm did not make on its base") {
 		t.Fatalf("Follow over a hand commit: %v", err)
 	}
@@ -440,3 +440,6 @@ func TestAGitOlderThanMergeTreesMergeBaseIsRefused(t *testing.T) {
 		t.Errorf("this machine's git: %v", err)
 	}
 }
+
+// noneClosed is a work store in which no sprint is closed.
+func noneClosed() (SprintClosed, error) { return func(string) bool { return false }, nil }

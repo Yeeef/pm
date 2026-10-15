@@ -183,7 +183,7 @@ func TestAnOrphanHoldingOnlyAConflictMarkSaysTheEditIsLost(t *testing.T) {
 	publish(t, store, "design/p.md", strings.Replace(lines, "c\n", "C published\n", 1))
 	follow(t, store, w)
 	sh(t, root, "git worktree remove --force --force "+w.Code)
-	got, err := Orphans(store)
+	got, err := Orphans(store), error(nil)
 	want := "drafts    drafts/wt  its worktree is gone; its edit of records/design/p.md for sprint pm-1 was left in " +
 		"conflict and is lost with the worktree; the mark holds that sprint's close until pm sprint close pm-1 " +
 		"--discard p"

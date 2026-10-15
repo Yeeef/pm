@@ -422,7 +422,8 @@ func RetireHooksPath(main string) (string, error) {
 // ---------------------------------------------------------------- the clone's and the worktree's setup
 
 // SetupClone makes the clone and this worktree ready, pm init's clone half, which session start runs in each new
-// worktree: unset an earlier pm's git hooks path, check out the records store if it is missing, give this worktree its
+// worktree: unset an earlier pm's git hooks path, check out the records store if it is missing, give the clone its id
+// once (store.MakeCloneID, its namespace for draft refs on the remote), give this worktree its
 // records/ (setupRecords), and let Codex's sandbox write both stores and commit. pm init then brings the pm service up
 // and has it attach the work store (SetupWork), which the service alone opens.
 func SetupClone(cwd, remote string) (string, error) {
@@ -466,6 +467,11 @@ func SetupClone(cwd, remote string) (string, error) {
 	if _, err := store.Find(cwd); err != nil {
 		return "", err
 	}
+	if said, err := store.MakeCloneID(main); err != nil {
+		return "", err
+	} else if said != "" {
+		out = append(out, said)
+	}
 	if Resolve(top) == Resolve(records) {
 		return "", refuse("%s is the store itself; run %s from a code worktree", top, setup)
 	}
@@ -508,6 +514,17 @@ func DoctorSetup(top, main, records, remote string, port int) ([]string, error) 
 		out = append(out, "store: "+err.Error())
 	}
 	out = append(out, doctorRecords(top, main, records)...)
+	if isDir(records) {
+		for _, l := range store.StrandedRefs(records) { // a stranded draft kept off its worktree, with its recovery
+			out = append(out, "records: "+strings.TrimSpace(strings.TrimPrefix(l, "stranded ")))
+		}
+	}
+	if id, err := store.CloneID(main); err != nil {
+		out = append(out, "clone id: "+err.Error())
+	} else if id == "" {
+		out = append(out, "clone id: this clone has none (git config pm.clone), which its draft refs on the remote "+
+			"need; run pm init")
+	}
 	if old, err := OldSparse(top); err != nil {
 		return nil, err
 	} else if old {

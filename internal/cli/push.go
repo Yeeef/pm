@@ -12,7 +12,7 @@ import (
 )
 
 // cmdPush is pm push: one run of the steps the pm service syncs every 10 minutes (the work store's sync, today's
-// summary, the records push), each step's line printed and its outcome kept in the push state; exit code 1 when a
+// summary, the records push, the draft refs), each step's line printed and its outcome kept in the push state; exit code 1 when a
 // step failed. It finds the records store itself, so a missing one is the records step's recorded failure.
 func cmdPush(cfg config.Config, here string, stdout io.Writer) error {
 	recordsPath, err := store.PathOf(here)
@@ -40,7 +40,14 @@ func cmdPush(cfg config.Config, here string, stdout io.Writer) error {
 			if err != nil {
 				return false, err.Error()
 			}
-			return pmsync.PushRecords(records, cfg.Remote)
+			return pmsync.PushRecords(records, cfg.Remote, pmsync.DialClosed(main))
+		}},
+		{Name: "drafts", Run: func() (bool, string) {
+			records, err := store.Find(here)
+			if err != nil {
+				return false, err.Error()
+			}
+			return pmsync.PushDrafts(records, cfg.Remote)
 		}},
 	}
 	code, out, err := pmsync.Push(main, steps)

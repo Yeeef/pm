@@ -788,7 +788,7 @@ func TestRunReturnsOnlyOnceTheGoroutinesItStartedEnded(t *testing.T) {
 	}
 }
 
-func TestSyncStepsSyncTheStoreSummarizeAndPushTheRecords(t *testing.T) {
+func TestSyncStepsSyncTheStoreSummarizeAndPushTheRecordsAndDrafts(t *testing.T) {
 	w, log := newFakeWork(), &syncBuffer{}
 	w.syncWarnings = []string{"warning: demo-1.1: the claim by s1 (t1) was overridden by the later claim of s2 (t2)"}
 	s := &server{d: Deps{Main: t.TempDir(), Records: filepath.Join(t.TempDir(), "none"), Remote: "origin",
@@ -797,11 +797,11 @@ func TestSyncStepsSyncTheStoreSummarizeAndPushTheRecords(t *testing.T) {
 	for _, step := range s.SyncSteps() {
 		ok, line := step.Run()
 		names, said = append(names, step.Name), append(said, line)
-		if step.Name != "records" && !ok {
+		if step.Name != "records" && step.Name != "drafts" && !ok {
 			t.Fatalf("%s failed: %s", step.Name, line)
 		}
 	}
-	if strings.Join(names, ",") != "work,summary,records" || said[0] != "up to date" || w.syncs != 1 || w.open != 0 {
+	if strings.Join(names, ",") != "work,summary,records,drafts" || said[0] != "up to date" || w.syncs != 1 || w.open != 0 {
 		t.Fatalf("steps %v said %v; syncs %d, open %v", names, said, w.syncs, w.open)
 	}
 	if !strings.Contains(log.String(), "\n"+w.syncWarnings[0]+"\n") && !strings.HasPrefix(log.String(), w.syncWarnings[0]+"\n") {
