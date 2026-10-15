@@ -125,21 +125,24 @@ func Markdown(values map[string][]string, v *Violations) string {
 	}
 	var labels []string
 	options := map[string]string{}
+	failed := map[string]bool{} // labels already refused: their costs and the default naming them add no rule
 	for _, o := range pairs(values, "option") {
 		label := o[0]
 		if !optionLabel.MatchString(label) {
 			v.Add("the option label %s is not letters and digits only, e.g. a, b or keep", strconv.Quote(label))
+			failed[label] = true
 			continue
 		}
 		if _, ok := options[label]; ok {
 			v.Add("two options have the label %s; give each option its own label", label)
+			failed[label] = true
 			continue
 		}
 		options[label] = needPart(v, "--option "+label, o[1])
 		labels = append(labels, label)
 	}
-	costs := needCosts(values, v, options, labels)
-	if len(labels) < 2 {
+	costs := needCosts(values, v, options, labels, failed)
+	if len(values["option"]) < 2 { // the options given, a refused label included: its rule is the label's
 		v.AddShape("give at least two --option flags; a decision needs a choice")
 	}
 	for _, opt := range labels {
@@ -148,7 +151,7 @@ func Markdown(values map[string][]string, v *Violations) string {
 	label, rest := "", ""
 	if defs := pairs(values, "default"); len(defs) == 1 {
 		label = defs[0][0]
-		if _, ok := options[label]; !ok {
+		if _, ok := options[label]; !ok && !failed[label] {
 			v.Add("--default %s names no option; the labels are %s", label, strings.Join(labels, ", "))
 		}
 		rest = needPart(v, "--default REASON", defs[0][1])
@@ -168,11 +171,16 @@ func Markdown(values map[string][]string, v *Violations) string {
 	return decisionNeedLayout(question, facts, labels, options, costs, label, rest)
 }
 
-// needCosts is each option's cost; each rule a --cost flag breaks, and each option left without one, goes to v.
-func needCosts(values map[string][]string, v *Violations, options map[string]string, labels []string) map[string]string {
+// needCosts is each option's cost; each rule a --cost flag breaks, and each option left without one, goes to v. A
+// cost for a label in failed, whose option was refused already, adds no rule of its own.
+func needCosts(values map[string][]string, v *Violations, options map[string]string, labels []string,
+	failed map[string]bool) map[string]string {
 	costs := map[string]string{}
 	for _, c := range pairs(values, "cost") {
 		label := c[0]
+		if failed[label] {
+			continue
+		}
 		if _, ok := options[label]; !ok {
 			v.Add("--cost %s names no option; the labels are %s", label, strings.Join(labels, ", "))
 			continue
@@ -184,7 +192,7 @@ func needCosts(values map[string][]string, v *Violations, options map[string]str
 		costs[label] = needPart(v, "--cost "+label, c[1])
 	}
 	for _, label := range labels {
-		if _, ok := costs[label]; !ok {
+		if _, ok := costs[label]; !ok && !failed[label] {
 			v.Add("option %s has no cost; add --cost %s '<what it costs>'", label, label)
 		}
 	}
