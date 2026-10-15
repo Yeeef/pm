@@ -26,6 +26,12 @@
             "statusMessage": "Loading pm init, pm where and pm show",
             "type": "command",
             "timeout": 30
+          },
+          {
+            "command": "pm prime --request-rule --hook-json",
+            "statusMessage": "Loading the rule for asking the owner",
+            "type": "command",
+            "timeout": 10
           }
         ],
         "matcher": "startup|resume|clear|compact"
@@ -114,6 +120,18 @@
           }
         ],
         "matcher": "request_user_input_async"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "pm hook session-end || exit 1",
+            "statusMessage": "Clearing this session's interactive mode",
+            "type": "command",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }
