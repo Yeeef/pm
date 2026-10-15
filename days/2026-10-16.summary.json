@@ -1,7 +1,7 @@
 {
  "date": "2026-10-16",
- "generated_at": "2026-10-15T22:50:02+00:00",
- "digest": "dd49e2e51d368abf",
+ "generated_at": "2026-10-15T23:00:26+00:00",
+ "digest": "72d26ad53b5cb085",
  "model": "claude-haiku-5-5",
- "text": "- **Sprint close and drafts:** Sprint close now publishes drafts from every workspace in one commit. It refuses to close on overlap or conflict.\n- **Docs rendering and checks:** Docs now typeset TeX math, and links resolve by slug. A docs index lists every doc, and pm check refuses dead record links and JSX in raw HTML.\n- **Command surface simplification:** An audit measured the pm command surface and ranked several simplifications. Work started to apply them, including a rewrite of the pm-cli design page.\n- **Record layer rollout:** A sprint opened to add per-clone draft refs and move this repo to the new record layer. A live check on this repo after the upgrade is planned."
+ "text": "- **Record publishing:** Design pages stay as drafts until sprint close, then publish with the sprint's code. Close refuses on overlap or conflict, and a discard records its reason.\n- **Command surface:** `pm --help` hides machinery commands behind `--help --all`, and `task close` requires a reason. The audit ranks a set of simplifications, and the pm-cli design page now shows the final state.\n- **Docs and links:** Docs now typeset TeX math, resolve links by slug, and a new index lists every doc. `pm check` now refuses dead record links and JSX in raw HTML."
 }
