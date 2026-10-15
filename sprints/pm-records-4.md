@@ -61,7 +61,32 @@ Held drafts with no publish step would strand design edits; tagging now means st
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check of workspaces (this branch's .go/pm 0.9.0-dev) in a scratch clone
+  of a scratch bare origin under /tmp/pmlive.HXHQ, HOME, CODEX_HOME and
+  CLAUDE_CONFIG_DIR there, the supervisor the harness's fake_sched (the
+  service really served on :47889). `pm init` in the main checkout, then `git
+  worktree add .claude/worktrees/{one,two}` and `pm init --session-start` in
+  each: "made …/one/records a records workspace on branch drafts/one", 0.12 s
+  and 0.11 s. Disjoint edits to records/sprints/demo-1.md (Goal paragraph a in
+  one, b in two): `pm commit` 0.06 s and 0.07 s, records log `dabc932 two:
+  goal b`, `f81837e one: goal a`, both paragraphs on records. Each worktree
+  edited design/parser.md's Problem differently, uncommitted:
+  design/parser.html 200 without either edit, its version bar listing
+  published, one ("worktree one on one, sprint repo-i7v0.1, session sess-one
+  live; uncommitted edits", with a fake transcript for sess-one) and two
+  ("worktree two on two, no live session; uncommitted edits"); drafts/one/…,
+  drafts/two/…, drafts/one/….diff.html and ….diff.html?vs=two all 200 with the
+  right edits. `pm commit` of the page from one: records commit d3e247f with
+  "Sprint: design/parser.md repo-i7v0.1"; the same from two refused:
+  "records/design/parser.md has conflict markers, which records changed under
+  your edit in d3e247f one: parser problem", markers in two only (0 in one and
+  in the store), no MERGE/REBASE state in either workspace, two's version then
+  "uncommitted edits, conflict", pm where "1 uncommitted files (conflict
+  markers in records/design/parser.md), on the records tip". A finding added
+  from one (0.05 s with the follow) and one from two merged into two's
+  uncommitted Done when edit. `pm commit` of a design page in the main
+  checkout refused ("is a design page: design pages are edited and committed
+  in a code worktree's records workspace"). Scratch dir removed after.
 
 ## Delivery report
 
