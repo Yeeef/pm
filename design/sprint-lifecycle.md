@@ -197,17 +197,16 @@ on a published page's pattern that matches no file on the remote's main (its
 remote-tracking branch, fetched first when a pattern matches nothing there,
 as it may be behind), and in a worktree on a draft page's pattern that
 matches no file the worktree tracks ([Record layer](record-layer.md)). A
-published pattern main lacks while a draft of the page in the clone changes
-its covers (a merged PR removed the file before its sprint closed) is listed
+published pattern main lacks while a draft of the page in the clone no longer
+holds it (a merged PR removed the file before its sprint closed) is listed
 as waiting on that sprint's close instead.
 
-`pm sprint close`, in both forms, holds each pattern that a page it publishes
-adds or changes, against the page as the records branch holds it, to the
-remote's main, fetched: one that matches no file there refuses the close,
+`pm sprint close`, in both forms, holds every pattern of a page it publishes
+to the remote's main, fetched: one that matches no file there refuses the close,
 naming page and pattern and the two ways out, fix the pattern in the
 workspace that drafts the page and commit it, or merge the PR that adds the
-file first. A pattern the page held already is `pm check`'s to hold, and
-with no new pattern nothing is fetched. The draft's sprint tag says whose
+file first. A pattern a draft keeps after main lost its file is held too, so
+the close never publishes one that `pm check` then fails on. The draft's sprint tag says whose
 each edit is, so no time window or records commit date decides it.
 
 ## Alternatives considered
@@ -221,9 +220,9 @@ each edit is, so no time window or records commit date decides it.
   patterns on main at once); two open sprints editing one page's covers held
   each other's pending patterns. Retired with publish at the close, whose
   draft tag attributes each edit to its sprint.
-- **Holding every pattern of a page the close publishes:** a pattern the page
-  already held is published and `pm check` holds it; holding it again at the
-  close adds a fetch and nothing else.
+- **Holding only the patterns a page the close publishes adds:** a draft that
+  keeps a pattern whose file a merged PR removed would publish it, and
+  `pm check` would then fail every session on it.
 - **Attributing each records commit to a session or a sprint:** records
   commits carry neither, a subagent shares its parent's session (one session
   runs several sprints at once), and the owner commits with none. Design
