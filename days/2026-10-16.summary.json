@@ -1,7 +1,7 @@
 {
  "date": "2026-10-16",
- "generated_at": "2026-10-15T22:29:36+00:00",
- "digest": "5a1257ae21329b25",
+ "generated_at": "2026-10-15T22:50:02+00:00",
+ "digest": "dd49e2e51d368abf",
  "model": "claude-haiku-5-5",
- "text": "- **Docs site rendering and links:** Docs typeset TeX math, and links between docs resolve by slug. The docs index lists every doc, and pm check refuses dead record links and JSX in raw HTML.\n- **Command surface audit:** An audit doc now measures the pm command surface, its usage and its drift from design intent. It ranks simplifications, and the audit sprint finished that day.\n- **Design pages and drafts:** The record-drafts page now describes the built state. Conflict marks hold a sprint close, and discards are recorded durably.\n- **Sprint records and decisions:** The quality project record has new owner decisions. Dead links in a harness page now point to an existing doc."
+ "text": "- **Sprint close and drafts:** Sprint close now publishes drafts from every workspace in one commit. It refuses to close on overlap or conflict.\n- **Docs rendering and checks:** Docs now typeset TeX math, and links resolve by slug. A docs index lists every doc, and pm check refuses dead record links and JSX in raw HTML.\n- **Command surface simplification:** An audit measured the pm command surface and ranked several simplifications. Work started to apply them, including a rewrite of the pm-cli design page.\n- **Record layer rollout:** A sprint opened to add per-clone draft refs and move this repo to the new record layer. A live check on this repo after the upgrade is planned."
 }
