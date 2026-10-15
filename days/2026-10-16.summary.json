@@ -1,7 +1,7 @@
 {
  "date": "2026-10-16",
- "generated_at": "2026-10-15T22:08:44+00:00",
- "digest": "3ac2aa989fc58d0c",
+ "generated_at": "2026-10-15T22:19:06+00:00",
+ "digest": "78ac67972388c8c9",
  "model": "claude-haiku-5-5",
- "text": "- **Docs rendering and navigation:** Docs now typeset TeX math. Links between docs resolve by slug. A docs index lists every doc.\n- **Record link checks:** `pm check` now refuses dead record links. It also refuses JSX in raw HTML.\n- **Record link repair:** Two dead links in a project record now point to the renamed feedback doc."
+ "text": "- **Docs and link checks:** Docs now typeset TeX math, and links between docs resolve by slug. A docs index lists every doc, and pm check rejects dead record links and raw HTML containing JSX.\n- **Design records:** Design pages for record drafts, sprint close, and covers now describe the built state. These pages publish when a sprint closes.\n- **Harness feedback links:** Dead links in a harness record now point to the renamed feedback doc.\n- **Command surface audit:** A new sprint opened to audit the pm command surface and propose simplifications. Work began to measure command surface and usage."
 }
