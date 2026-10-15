@@ -88,10 +88,15 @@ prime.md only names the two new rename commands; nothing the product page says a
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm design rename` and `pm doc rename` rename a design page or a doc (its slug, its title or both) and rewrite every link and waiver that names it, in one records commit.
+
+- Link forms rewritten: `.md` and `.html`, with anchors, link titles and angle brackets kept; links in code blocks and inline code are left as written.
+- Refusals: no flag given; an unknown or ambiguous target; an invalid or taken slug; an empty title; a rename that changes nothing; the feedback doc; an open PR review naming the page; uncommitted targets.
+- Not covered: reference-style links, slugs in prose, and redirects from old URLs.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `make test` and the PR's CI pass, with harness tests for both renames and every refusal. Met: `make test` gave 146 passed and 169 skipped; PR #100's CI passed 52 checks, the rest skipped by design. The tests are `test_design_rename_moves_the_page_and_rewrites_every_link_and_waiver` and `test_doc_rename_keeps_the_date_prefix_and_rewrites_every_link`, plus Go unit tests in `internal/records/rename_test.go`.
+- A live rename in a scratch clone, with `pm check` passing afterwards. Met (see Findings): the rename made one records commit and left no old links or waivers; `pm check` exited 0; the site gave 200 for `/design/grammar.html` and 404 for `/design/parser.html`.
