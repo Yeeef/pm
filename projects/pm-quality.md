@@ -45,6 +45,11 @@ A PR runs on macOS only the tests whose behaviour can differ by OS, plus the dar
 Owner, 2026-10-14: most tests generalize across OSes; the macOS runner (3 cores, 5 concurrent jobs) is the PR critical path; a post-merge full run still catches what the subset misses. Revises the 2026-10-11 keep-macOS-on-every-PR decision
 :::
 
+::: decision {source=owner date=2026-10-16}
+pm --help hides the machinery commands (hook, prime, push, service run, sync, export, day summarize, autopilot) behind pm --help --all; they stay dispatched and documented. This revises pm-harness 18 "help output stays as it is".
+The 2026-10-16 command audit found 13 machinery leaves typed 0-5 times each beside about 50 agent commands; the tree has grown from about 30 nodes when pm-harness 18 ruled to 81.
+:::
+
 ## Design pages
 
 > Where is the detail?
