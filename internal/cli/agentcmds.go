@@ -25,8 +25,10 @@ var agentCommands = map[string]agentCommand{
 	"finding add":      cmdFindingAdd,
 	"feedback add":     cmdFeedbackAdd,
 	"doc new":          cmdDocNew,
+	"doc rename":       cmdDocRename,
 	"design new":       cmdDesignNew,
 	"design unchanged": cmdDesignUnchanged,
+	"design rename":    cmdDesignRename,
 	"postmortem new":   cmdPostmortemNew,
 	"project open":     cmdProjectOpen,
 	"project close":    cmdProjectClose,
@@ -46,7 +48,8 @@ var agentCommands = map[string]agentCommand{
 // writes is the commands that write records: each runs under the records store's lock, the only lock a command that
 // writes both stores takes (the pm-go page, Store access).
 var writes = map[string]bool{"finding add": true, "feedback add": true, "decision add": true, "decision need": true,
-	"decision close": true, "action need": true, "action done": true, "doc new": true, "design new": true, "design unchanged": true,
+	"decision close": true, "action need": true, "action done": true, "doc new": true, "doc rename": true, "design new": true,
+	"design rename": true, "design unchanged": true,
 	"postmortem new": true, "project open": true, "sprint open": true, "sprint close": true,
 	"sprint move": true, "sprint edit": true, "task add": true,
 	"task close": true, "task move": true, "commit": true}

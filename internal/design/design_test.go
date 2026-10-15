@@ -92,6 +92,18 @@ func TestWaiversReadWhatWaiverTextWrites(t *testing.T) {
 	}
 }
 
+func TestRenameWaiversMovesOnlyTheRenamedPagesWaivers(t *testing.T) {
+	text := "::: decision {source=agent date=2026-10-12}\n" + WaiverText("parser", "Why.") + "\n:::\n" +
+		"::: decision {source=agent date=2026-10-12}\n" + WaiverText("parser-old", "Other.") + "\n:::\n" +
+		"Prose: The design page parser stays as it is for this sprint's code changes.\n"
+	want := "::: decision {source=agent date=2026-10-12}\n" + WaiverText("lexer", "Why.") + "\n:::\n" +
+		"::: decision {source=agent date=2026-10-12}\n" + WaiverText("parser-old", "Other.") + "\n:::\n" +
+		"Prose: The design page parser stays as it is for this sprint's code changes.\n"
+	if got := RenameWaivers(text, "parser", "lexer"); got != want {
+		t.Errorf("RenameWaivers =\n%s\nwant\n%s", got, want)
+	}
+}
+
 // --merged without --pr: a merge commit's files are those it brought against its first parent; a commit with one
 // parent (a squash or rebase merge, a direct commit) is refused, since its delivery's start is unknown.
 func TestMergeFilesReadsAMergeCommitAndRefusesASingleParentOne(t *testing.T) {
