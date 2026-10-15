@@ -115,6 +115,8 @@ dolt_test.go changes one comment naming the deliverers; the work store is unchan
 
 done: an owner's reply reaches the session that asked by the pm service's push alone, with the `pm show` flag and `pm reply read` as the safety net; `pm reply wait` and `pm hook inbox` are removed, delivered as [PR #90](https://github.com/Yeeef/pm/pull/90), merged as `08b6022`.
 
+Merged as 08b6022 (PR #90).
+
 - `pm reply wait <id>` and its service code (`WaitReply`, `ReplyPoll`, `MarkWithin`, `Mark` and the rest) removed; raise output and the site's "no push" card name the `pm show` flag and `pm reply read <id>`.
 - `pm hook inbox` removed: Claude Code runs no UserPromptSubmit hook, and Codex's runs only `pm hook ask --runtime codex`, which closes a question answered in chat (pm-harness sprint 118, merged first as #89).
 - `pm init`'s hook presence check now counts a pm hook this version does not write as drift, so a first install takes an earlier pm's hook out; `pm upgrade` takes it out of an installed repo; `pm doctor` reports it.
