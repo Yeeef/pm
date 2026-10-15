@@ -2,13 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"github.com/Yeeef/pm/internal/records"
+	"github.com/Yeeef/pm/internal/cli/needform"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 	"regexp"
-	"strconv"
-	"strings"
 	"unicode"
 )
 
@@ -39,143 +37,6 @@ func asksReview(text string) bool {
 }
 
 // ---------------------------------------------------------------- decision need and action need
-
-// violations collects every rule a need's form breaks, so the command refuses once with all of them rather than at
-// the first, which cost a retry per rule.
-type violations struct {
-	list  []string
-	shape bool // a violation asks for the decision need's shape (needShape), which the refusal then gives once
-}
-
-// add records a violation in the rule's own wording.
-func (v *violations) add(format string, a ...any) { v.list = append(v.list, fmt.Sprintf(format, a...)) }
-
-// addShape records a violation that ends with the decision need's shape.
-func (v *violations) addShape(format string, a ...any) {
-	v.add(format, a...)
-	v.shape = true
-}
-
-// err is the one refusal: a single violation as its rule words it, several as a list, the shape given once at the end.
-func (v *violations) err() error {
-	if len(v.list) == 0 {
-		return nil
-	}
-	tail := ""
-	if v.shape {
-		tail = needShape
-	}
-	if len(v.list) == 1 {
-		if tail != "" {
-			return refuse("%s; %s", v.list[0], tail)
-		}
-		return refuse("%s", v.list[0])
-	}
-	msg := fmt.Sprintf("this breaks %d rules; fix them all, then run it again:\n- %s", len(v.list),
-		strings.Join(v.list, "\n- "))
-	if tail != "" {
-		msg += "\n" + tail
-	}
-	return refuse("%s", msg)
-}
-
-// needPart is one part of a decision need, given by its flag: one non-empty line; a broken one goes to v.
-func needPart(v *violations, part, value string) string {
-	value = strip(value)
-	if value == "" {
-		v.addShape("%s is empty", part)
-	} else if len(records.SplitLines(value)) > 1 {
-		v.add("%s has more than one line; give each part one line", part)
-	}
-	return value
-}
-
-// pairs is a two-value flag's occurrences, each (label, text).
-func pairs(p *Parsed, dest string) [][2]string {
-	var out [][2]string
-	for _, v := range p.Values[dest] {
-		a, b, _ := strings.Cut(v, pairSep)
-		out = append(out, [2]string{a, b})
-	}
-	return out
-}
-
-// needText is every part a decision need's flags give, as given, for checks that run before its layout's.
-func needText(p *Parsed) string {
-	parts := append(append([]string{}, p.Values["question"]...), p.Values["fact"]...)
-	for _, dest := range []string{"option", "cost", "default"} {
-		for _, pr := range pairs(p, dest) {
-			parts = append(parts, pr[0], pr[1])
-		}
-	}
-	return strings.Join(parts, "\n")
-}
-
-// needMarkdown is a decision need's description in its one layout, from the parts its flags give (needShape); each
-// rule a part breaks goes to v, and the layout is empty while v holds any.
-func needMarkdown(p *Parsed, v *violations) string {
-	before := len(v.list)
-	for _, f := range []struct{ flag, dest string }{{"--question", "question"}, {"--default", "default"}} {
-		if len(p.Values[f.dest]) != 1 {
-			v.addShape("give exactly one %s", f.flag)
-		}
-	}
-	type part struct{ name, text string }
-	var parts []part
-	question := ""
-	if len(p.Values["question"]) == 1 {
-		question = needPart(v, "--question", p.Values["question"][0])
-		parts = append(parts, part{"the question", question})
-	}
-	var facts []string
-	for i, f := range p.Values["fact"] {
-		facts = append(facts, needPart(v, "--fact", f))
-		parts = append(parts, part{fmt.Sprintf("fact %d", i+1), facts[i]})
-	}
-	var labels []string
-	options := map[string]string{}
-	for _, o := range pairs(p, "option") {
-		label := o[0]
-		if !optionLabel.MatchString(label) {
-			v.add("the option label %s is not letters and digits only, e.g. a, b or keep", strconv.Quote(label))
-			continue
-		}
-		if _, ok := options[label]; ok {
-			v.add("two options have the label %s; give each option its own label", label)
-			continue
-		}
-		options[label] = needPart(v, "--option "+label, o[1])
-		labels = append(labels, label)
-	}
-	costs := needCosts(p, v, options, labels)
-	if len(labels) < 2 {
-		v.addShape("give at least two --option flags; a decision needs a choice")
-	}
-	for _, opt := range labels {
-		parts = append(parts, part{"option " + opt, options[opt]}, part{"the cost of option " + opt, costs[opt]})
-	}
-	label, rest := "", ""
-	if defs := pairs(p, "default"); len(defs) == 1 {
-		label = defs[0][0]
-		if _, ok := options[label]; !ok {
-			v.add("--default %s names no option; the labels are %s", label, strings.Join(labels, ", "))
-		}
-		rest = needPart(v, "--default REASON", defs[0][1])
-		parts = append(parts, part{"the default", rest})
-	}
-	for _, pt := range parts {
-		for _, s := range records.Sentences(pt.text) {
-			if found := records.Words(s); len(found) > sentenceLimit {
-				v.add("the sentence \"%s …\" in %s has %d words; the limit is %d (ASD-STE100); split it",
-					strings.Join(found[:6], " "), pt.name, len(found), sentenceLimit)
-			}
-		}
-	}
-	if len(v.list) > before {
-		return ""
-	}
-	return decisionNeedLayout(question, facts, labels, options, costs, label, rest)
-}
 
 // deliveryHint is how the raising agent hears the answer: the pm service pushes it into the session's inbox when there
 // is one (a Claude Code socket, or codex queue into a Codex session); else, and once the session has ended, pm show
@@ -215,10 +76,10 @@ func raisedBy() (*work.RaisedBy, error) {
 
 // raiseNeed raises a decision need or an action: a need item of that kind under --parent.
 func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
-	var v violations
+	var v needform.Violations
 	title := strip(p.Get("title"))
 	if title == "" {
-		v.add("--title is empty")
+		v.Add("--title is empty")
 	}
 	desc := ""
 	text := title + "\n"
@@ -226,22 +87,22 @@ func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 		desc = p.Get("text")
 		text += desc
 	} else {
-		text += needText(p)
+		text += needform.Text(p.Values)
 	}
 	if asksReview(text) {
-		v.add("this asks the owner to review or merge a PR; raise it with the review form, so its card links "+
+		v.Add("this asks the owner to review or merge a PR; raise it with the review form, so its card links "+
 			"the PR, the sprints and design pages and its wait wakes on the merge: %s. If it "+
 			"only mentions the PR, say what you ask without review, merge or approve", reviewForm)
 	}
 	if kind == work.Action && desc == "" {
-		v.add("the description is empty; pass it with %s: %s", textForms, actionShape)
+		v.Add("the description is empty; pass it with %s: %s", textForms, actionShape)
 	}
 	if kind == work.Decision {
-		desc = needMarkdown(p, &v)
+		desc = needform.Markdown(p.Values, &v)
 	}
 	r, err := e.load(false)
 	if err != nil {
-		if verr := v.err(); verr != nil { // the form's own rules need no store: refuse them first
+		if verr := refuseAll(&v); verr != nil { // the form's own rules need no store: refuse them first
 			return "", verr
 		}
 		return "", err
@@ -250,9 +111,9 @@ func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 	parent := r.item(parentID)
 	switch {
 	case parent == nil:
-		v.add("--parent %s is not in the work store", parentID)
+		v.Add("--parent %s is not in the work store", parentID)
 	case parent.Status == work.Closed:
-		v.add("--parent %s is closed; raise it under an open sprint or task", parentID)
+		v.Add("--parent %s is closed; raise it under an open sprint or task", parentID)
 	default:
 		inside := false
 		for _, a := range r.x.Ancestors(parentID) {
@@ -261,10 +122,10 @@ func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 			}
 		}
 		if !inside {
-			v.add("--parent %s is not inside a project with a record, so no page would show it", parentID)
+			v.Add("--parent %s is not inside a project with a record, so no page would show it", parentID)
 		}
 	}
-	if err := v.err(); err != nil {
+	if err := refuseAll(&v); err != nil {
 		return "", err
 	}
 	rb, err := raisedBy()
@@ -316,48 +177,4 @@ func cmdActionNeed(e *env, p *Parsed) (string, error) {
 		}
 	}
 	return raiseReview(e, p)
-}
-
-// needCosts is each option's cost; each rule a --cost flag breaks, and each option left without one, goes to v.
-func needCosts(p *Parsed, v *violations, options map[string]string, labels []string) map[string]string {
-	costs := map[string]string{}
-	for _, c := range pairs(p, "cost") {
-		label := c[0]
-		if _, ok := options[label]; !ok {
-			v.add("--cost %s names no option; the labels are %s", label, strings.Join(labels, ", "))
-			continue
-		}
-		if _, ok := costs[label]; ok {
-			v.add("option %s has two --cost flags; give each option one cost", label)
-			continue
-		}
-		costs[label] = needPart(v, "--cost "+label, c[1])
-	}
-	for _, label := range labels {
-		if _, ok := costs[label]; !ok {
-			v.add("option %s has no cost; add --cost %s '<what it costs>'", label, label)
-		}
-	}
-	return costs
-}
-
-func decisionNeedLayout(question string, facts, labels []string, options, costs map[string]string, label, rest string) string {
-	var b strings.Builder
-	b.WriteString("**Question:** " + question + "\n\n**Facts:**\n\n")
-	for _, f := range facts {
-		b.WriteString("- " + records.PlainItem(f) + "\n")
-	}
-	b.WriteString("\n**Options:**\n\n")
-	for _, opt := range labels {
-		text := options[opt]
-		first := records.Sentences(text)[0]
-		more := strip(text[len(first):])
-		b.WriteString("- **(" + opt + ") " + first + "** ")
-		if more != "" {
-			b.WriteString(more + " ")
-		}
-		b.WriteString("*Cost:* " + costs[opt] + "\n")
-	}
-	b.WriteString("\n**Default:** (" + label + "). " + rest)
-	return b.String()
 }
