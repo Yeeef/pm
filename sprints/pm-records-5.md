@@ -65,6 +65,11 @@ The design page pm-product stays as it is for this sprint's code changes.
 codex.go's CodexState move, uninstall's refusal naming pm sprint close and prime.md's close step change no install, pin, service or product behaviour the page describes
 :::
 
+::: decision {source=agent date=2026-10-16}
+A rename on records of a drafted page carries the page sprint tag to its new path at the follow, rather than turning the untagged path into a conflict.
+Carrying keeps the draft committed and attributed, so a close from any worktree publishes it; a conflict would make it an uncommitted edit that only its own worktree sees, and a close elsewhere would silently leave it out.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
