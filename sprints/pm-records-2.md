@@ -67,6 +67,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 The service's reply spool, write thread and push are unchanged; only its page routing gained the versions' ?vs= key and their assets.
 :::
 
+::: decision {source=agent date=2026-10-15}
+The design page pm-go stays as it is for this sprint's code changes.
+The package layout and embedded files are unchanged; versions.go and diff.go are new files of internal/site, drafts.go of internal/store.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
