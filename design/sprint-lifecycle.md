@@ -196,7 +196,10 @@ on main, so a published page's covers name files main has. `pm check` fails
 on a published page's pattern that matches no file on the remote's main (its
 remote-tracking branch, fetched first when a pattern matches nothing there,
 as it may be behind), and in a worktree on a draft page's pattern that
-matches no file the worktree tracks ([Record layer](record-layer.md)).
+matches no file the worktree tracks ([Record layer](record-layer.md)). A
+published pattern main lacks while a draft of the page in the clone changes
+its covers (a merged PR removed the file before its sprint closed) is listed
+as waiting on that sprint's close instead.
 
 `pm sprint close`, in both forms, holds each pattern that a page it publishes
 adds or changes, against the page as the records branch holds it, to the
