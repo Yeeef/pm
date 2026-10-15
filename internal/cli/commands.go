@@ -105,7 +105,7 @@ var tree = &command{
 				{
 					Name:        "add",
 					Help:        "append a decision to a project's or sprint's Decisions",
-					Description: "Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it.",
+					Description: "Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Flags: []string{"--decision"}, Dest: "decision", Metavar: []string{"TEXT"}, Required: true, Kind: value, Help: "the decision, in one line"},
@@ -135,7 +135,7 @@ var tree = &command{
 				{
 					Name:        "close",
 					Help:        "close a decision need whose answer sets no rule, with no decision record; the answer with --text",
-					Description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason \"…\". If setting the resolution fails, run it again; it does not repeat the reason.",
+					Description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason \"…\". If setting the resolution fails, run it again; it does not repeat the reason. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "need_id", Required: true, Kind: value, Help: "the decision need's id"},
@@ -170,7 +170,7 @@ var tree = &command{
 				{
 					Name:        "done",
 					Help:        "close an action once you see the owner did it",
-					Description: "Close an action once you see the owner did it. A PR review closes with --reason \"merged as <sha>\" once the PR is on main. A review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. Any other closed action is refused.",
+					Description: "Close an action once you see the owner did it. A PR review closes with --reason \"merged as <sha>\" once the PR is on main. A review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. Any other closed action is refused. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
 					Args: []arg{
 						{Dest: "need_id", Required: true, Kind: value, Help: "the action's id"},
 						{Flags: []string{"--reason"}, Dest: "reason", Required: true, Kind: value, Help: "what showed you it is done (a merged PR, a command's output)"},

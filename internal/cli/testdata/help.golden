@@ -180,7 +180,7 @@ usage: pm decision add [-h] --decision TEXT --reason TEXT
                        --level {project,sprint} [--project NAME] [--sprint ID]
                        [--until UNTIL] [--need ID | --confirmed]
 
-Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it.
+Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.
 
 options:
   -h, --help            show this help message and exit
@@ -214,7 +214,7 @@ options:
 usage: pm decision close [-h] --reason REASON [--text-file PATH | --text TEXT]
                          need_id
 
-Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason "…". If setting the resolution fails, run it again; it does not repeat the reason.
+Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason "…". If setting the resolution fails, run it again; it does not repeat the reason. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.
 
 positional arguments:
   need_id           the decision need's id
@@ -254,7 +254,7 @@ options:
 ===== pm action done --help
 usage: pm action done [-h] --reason REASON need_id
 
-Close an action once you see the owner did it. A PR review closes with --reason "merged as <sha>" once the PR is on main. A review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. Any other closed action is refused.
+Close an action once you see the owner did it. A PR review closes with --reason "merged as <sha>" once the PR is on main. A review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. Any other closed action is refused. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.
 
 positional arguments:
   need_id          the action's id
