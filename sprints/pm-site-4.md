@@ -48,7 +48,10 @@ A doc imported from a research notes repo renders on the site as written: TeX ma
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-15}
+The design page site-replies stays as it is for this sprint's code changes.
+serve.go only serves one more page path, docs/index.html; access, replies and the service are untouched
+:::
 
 ## Findings
 
