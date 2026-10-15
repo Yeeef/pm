@@ -468,90 +468,6 @@ def test_a_pr_that_changes_covered_code_waits_until_its_design_page_is_updated_o
     assert res.returncode == 0, res.stderr
 
 
-@pytest.mark.integration
-def test_sprint_close_refuses_a_design_page_naming_a_file_the_remote_main_lacks(repo, tmp_path):
-    """A page names a file before main has it while the PR that adds it is open (pm check lists it as waiting). At the
-    close, both forms fetch the remote's main and hold the covers patterns the sprint added or changed, on the sprint's
-    Design pages and on the pages its gate names, to it: one that matches nothing there is refused, naming page,
-    pattern and the fix, and the sprint closes once the file is on main. Pages made while the sprint is open are the
-    sprint's whole."""
-    push_main(repo, tmp_path, "src/parser/lex.go")
-    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
-    (repo.records / "design").mkdir()
-    repo.write("design/lexer.md", design_page("[src/lexer/**]", title="The lexer"))
-    repo.write("design/parser.md", design_page("[src/parser/**, src/parser/tables.go]"))
-    sprint1 = repo.records / "sprints/demo-1.md"
-    sprint1.write_text(sprint1.read_text().replace("## Design pages\n\n> Where is the detail?\n\nNone yet.",
-                                                   "## Design pages\n\n> Where is the detail?\n\n"
-                                                   "- [The parser](../design/parser.md)"))
-    repo.commit("the lexer page, and the parser page naming the tables file its PR was to add; the sprint lists it")
-    report(repo, "Done: shipped the thing.")
-    repo.set_pr(PR, "OPEN")
-    set_pr_files(repo, PR, ["src/parser/lex.go"])
-    assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F").returncode == 0
-    assert repo.pm("action", "done", "repo-demo.1.3", "--reason", f"merged as {SHA}").returncode == 0
-    assert repo.pm("check").returncode == 0
-    repo.mark()
-    refused(repo, "sprint", "close", "repo-demo.1",
-            match=r"^error: sprint repo-demo.1: covers patterns it added or changed since it opened name files "
-                  r'origin/main does not have: design/parser.md: covers pattern "src/parser/tables.go"\. Fix each '
-                  r"pattern to the file main has and commit the page with pm commit, or merge the PR that adds the file "
-                  r"first, which may be another sprint's that edited the page while this one was open; then run pm "
-                  r"sprint close repo-demo.1 again\n$")
-    push_main(repo, tmp_path, "src/parser/tables.go")
-    res = repo.pm("sprint", "close", "repo-demo.1")
-    assert res.returncode == 0, res.stderr
-
-    # --merged: the gate names the lexer page, which the sprint waived, not listed; its pattern is held to main too.
-    report(repo, "Done: moved the lexer.", name="demo-2")
-    assert repo.pm("design", "unchanged", "lexer", "--sprint", "repo-demo.2", "--reason", "R.").returncode == 0
-    set_pr_files(repo, PR2, ["src/lexer/lex.go"])
-    on_main = repo.git("rev-parse", "HEAD").strip()
-    repo.mark()
-    refused(repo, "sprint", "close", "repo-demo.2", "--merged", on_main, "--pr", PR2,
-            match=r"sprint repo-demo.2: covers patterns it added or changed since it opened name files origin/main "
-                  r'does not have: design/lexer.md: covers pattern "src/lexer/\*\*"\.')
-    on_main = push_main(repo, tmp_path, "src/lexer/lex.go")
-    res = repo.pm("sprint", "close", "repo-demo.2", "--merged", on_main, "--pr", PR2)
-    assert res.returncode == 0, res.stderr
-
-
-@pytest.mark.integration
-def test_a_sprint_closes_past_a_pending_pattern_another_sprint_added_but_not_past_its_own(repo, tmp_path):
-    """This repo's case: the CLI split's open PR (#62) added patterns to the pm CLI page for files only its branch has.
-    A later sprint that changes code the page covers updates the page and closes, since those patterns were on it
-    before the sprint opened; a pattern the sprint itself adds that names a file main lacks still holds its close."""
-    push_main(repo, tmp_path, "internal/cli/check.go")
-    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
-    (repo.records / "design").mkdir()
-    repo.write("design/pm-cli.md", design_page('["internal/cli/check.go", "internal/cli/sprint.go"]', title="pm CLI"))
-    commit_on(repo, "2026-09-30", "the split's patterns, from its open PR, before the sprint opened")
-    page = repo.records / "design/pm-cli.md"
-    page.write_text(design_page('["internal/cli/check.go", "internal/cli/sprint.go", "internal/cli/own.go"]',
-                                title="pm CLI").replace("## Design\n\nNone yet.", "## Design\n\npm check lists them."))
-    sprint1 = repo.records / "sprints/demo-1.md"
-    sprint1.write_text(sprint1.read_text().replace("## Design pages\n\n> Where is the detail?\n\nNone yet.",
-                                                   "## Design pages\n\n> Where is the detail?\n\n"
-                                                   "- [pm CLI](../design/pm-cli.md)"))
-    repo.commit("the sprint brings the page to the new state and names a file of its own")
-    report(repo, "Done: shipped the thing.")
-    repo.set_pr(PR, "OPEN")
-    set_pr_files(repo, PR, ["internal/cli/check.go"])
-    assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F").returncode == 0
-    assert repo.pm("action", "done", "repo-demo.1.3", "--reason", f"merged as {SHA}").returncode == 0
-    repo.mark()
-    res = refused(repo, "sprint", "close", "repo-demo.1",
-                  match=r"name files origin/main does not have: design/pm-cli.md: covers pattern "
-                        r'"internal/cli/own.go"\. ')
-    assert "internal/cli/sprint.go" not in res.stderr, res.stderr
-    page.write_text(page.read_text().replace(', "internal/cli/own.go"', ""))
-    repo.commit("the sprint drops its pattern for a file its PR did not add")
-    res = repo.pm("sprint", "close", "repo-demo.1")
-    assert res.returncode == 0, res.stderr
-    check = repo.pm("check")
-    assert check.returncode == 0 and 'design/pm-cli.md: covers pattern "internal/cli/sprint.go"' in check.stdout, check
-
-
 def test_the_gate_replayed_on_pr_47_names_the_pages_pm_codex_sprint_1_left_unchanged(repo):
     """pm-codex sprint 1's PR #47 changed reply delivery, session claims and the owner-request hook without editing
     their design pages. Replayed with its real file list and this repo's pages' covers, the review is refused naming
@@ -571,41 +487,33 @@ def test_the_gate_replayed_on_pr_47_names_the_pages_pm_codex_sprint_1_left_uncha
     assert {"reply-delivery", "owner-request-hook", "session-claims"} <= set(named), named
 
 
-WAITING = ("covers patterns match no tracked file, waiting on unmerged work; pm sprint close refuses a sprint only "
-           "on a pattern it added or changed while open that its merged PR leaves missing on the remote's main:\n")
-
-
-def test_check_lists_covers_patterns_that_match_nothing_as_waiting_and_lists_uncovered_sources(repo):
-    """pm check reads covers against the files git tracks. A page names a file before main has it while the PR that
-    adds it is open (pm-quality sprint 26: 27 such patterns failed pm check for every session), so a pattern that
-    matches none is listed as waiting on unmerged work and pm check passes; a malformed one still fails. With
-    design_sources set, it lists the tracked source files no page covers, and says when every one is covered; a source
-    pattern that matches nothing fails."""
+def test_check_holds_covers_to_main_and_lists_uncovered_sources(repo):
+    """A design page publishes at its sprint's close, once its code is on main, so pm check reads each published covers
+    pattern against the remote's main: here its remote-tracking ref, set by hand (the Go tests fetch a stale one and
+    refuse a pattern main lacks). A malformed pattern fails. With design_sources set, it lists the tracked source files
+    no page covers, and says when every one is covered; a source pattern that matches nothing fails."""
     for rel in ("src/parser/lex.go", "src/cli.go", "README.md"):
         (repo.root / rel).parent.mkdir(parents=True, exist_ok=True)
         (repo.root / rel).write_text("x\n")
     (repo.records / "design").mkdir()
-    repo.write("design/parser.md", design_page("[src/parser/**, src/old/**, src/cli/split.go]"))
-    repo.write("design/agents.md", design_page("[docs/agents-md/**]", title="Agents"))
-    repo.commit("code and pages naming files only unmerged branches have")
+    repo.write("design/parser.md", design_page("[src/parser/**]"))
+    repo.commit("code, and a page naming it")
+    repo.git("update-ref", "refs/remotes/origin/main", "HEAD")
     res = repo.pm("check")
-    assert res.returncode == 0, res.stderr
-    assert res.stdout.endswith("pages render\n3 " + WAITING + '  design/agents.md: covers pattern "docs/agents-md/**"\n'
-                               '  design/parser.md: covers pattern "src/old/**"\n'
-                               '  design/parser.md: covers pattern "src/cli/split.go"\n'), res.stdout
+    assert res.returncode == 0 and res.stdout.endswith("pages render\n"), res
     repo.write("design/parser.md", design_page("[src/parser/**, /src/old/**]"))
     res = repo.pm("check")
     assert res.returncode == 1 and ('design/parser: covers pattern "/src/old/**" is not relative to the repo root '
                                     "(no leading /)") in res.stderr, res
     repo.write("design/parser.md", design_page("[src/parser/**]"))
-    (repo.records / "design/agents.md").unlink()
     write_config(repo.root, design_sources=["src/**", "lib/**"])
-    repo.commit("a live pattern, and the sources, one of them dead")
+    repo.commit("the sources, one of them dead")
+    repo.git("update-ref", "refs/remotes/origin/main", "HEAD")
     res = repo.pm("check")
     assert res.returncode == 1 and res.stderr == ('error: design_sources pattern "lib/**" matches no tracked file; '
                                                   "fix or remove it\n")
     write_config(repo.root, design_sources=["src/**"])
-    repo.commit("a live pattern, and the sources")
+    repo.commit("the sources")
     res = repo.pm("check")
     assert res.returncode == 0, res.stderr
     assert res.stdout.endswith("pages render; 1 tracked source files (design_sources in .pm/config.toml) no design "
