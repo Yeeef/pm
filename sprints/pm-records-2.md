@@ -39,7 +39,7 @@ The owner reads each record's published version on the site, and every draft of 
 
 > Where is the detail?
 
-None yet.
+- [Record drafts and publishing](../design/record-drafts.md): Published view and versions; Workspaces (where they live)
 
 ## Progress
 
