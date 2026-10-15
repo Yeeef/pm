@@ -50,7 +50,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-15}
+The design page increment 1 is split: this sprint ships the published view and versions over the shared store; workspaces, follow and journal publish follow in the next sprint.
+The site side is independent of the workspaces and gives the owner the version view first; the claude -w live check that fixes where workspaces live runs here, before workspaces are built.
+:::
 
 ## Findings
 
