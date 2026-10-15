@@ -74,10 +74,15 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the record layer's design is agreed: the owner chose Model A, and the record-drafts page states it in its final state, with every version of a page readable on the site.
+
+- [Record drafts and publishing](../design/record-drafts.md): published view at a ref, per-worktree workspaces, follow, journal publish at `pm commit`, design pages published at their PR's merge, draft refs, the version bar, four build increments with checks; B and B′ under Alternatives.
+- [Shared records store](../design/records-store.md) and [Record layer](../design/record-layer.md) at the code's current state, the baseline the build starts from.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- The design page exists, validates and answers the five open questions: met. `pm check` renders all 232 pages; the page's section "The starting analysis's open questions" answers each of the five for Model A.
+- `records-store.md` and `record-layer.md` name no `.records`, `bin/pm setup`, Beads sync or GitHub copy to main: met. A grep for those terms matches only the Alternatives row of the retired copy on main.
+- The owner reviewed the design and the answer is a project decision: met. Need pm-c72a.1.3.1 answered "A"; the project record holds the owner decision. The owner added the per-version view, now goal 5 of the page.
