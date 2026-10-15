@@ -52,6 +52,7 @@ type uninstallPlan struct {
 	records, main, top string
 	removals           []install.Removal
 	trees, roots       []string
+	workspaces         []store.Workspace // each code worktree's records workspace, removed with its branch
 	codexPath          string
 	codexNew           *string
 	sparse             map[string]bool
@@ -80,10 +81,32 @@ func planUninstall(here string) (uninstallPlan, error) {
 		return uninstallPlan{}, err
 	}
 	var trees []string
+	var workspaces []store.Workspace
 	for _, t := range all {
-		if fsutil.Resolved(t) != fsutil.Resolved(records) {
-			trees = append(trees, t)
+		if fsutil.Resolved(t) == fsutil.Resolved(records) || store.IsWorkspace(t) {
+			continue
 		}
+		trees = append(trees, t)
+		w, err := store.WorkspaceAt(t)
+		if err != nil {
+			return uninstallPlan{}, err
+		}
+		if w == nil {
+			continue
+		}
+		if dirty, err := w.Dirty(); err != nil {
+			return uninstallPlan{}, err
+		} else if len(dirty) > 0 {
+			return uninstallPlan{}, fmt.Errorf("the records workspace %s holds uncommitted records (%s); commit them "+
+				"with pm commit there or revert them, then run pm uninstall again", w.Dir, strings.Join(dirty, ", "))
+		}
+		if pages, _, err := store.DraftPages(records, *w); err != nil {
+			return uninstallPlan{}, err
+		} else if len(pages) > 0 {
+			return uninstallPlan{}, fmt.Errorf("the records workspace %s holds a draft commit of design pages not "+
+				"published on the records branch; publish them, then run pm uninstall again", w.Dir)
+		}
+		workspaces = append(workspaces, *w)
 	}
 	var roots []string
 	if fsutil.IsDir(records) {
@@ -99,7 +122,8 @@ func planUninstall(here string) (uninstallPlan, error) {
 			return uninstallPlan{}, err
 		}
 	}
-	return uninstallPlan{c: c, records: records, main: main, top: top, removals: removals, trees: trees, roots: roots}, nil
+	return uninstallPlan{c: c, records: records, main: main, top: top, removals: removals, trees: trees, roots: roots,
+		workspaces: workspaces}, nil
 }
 
 func (u *uninstallPlan) prepare() error {
@@ -174,6 +198,15 @@ func (u uninstallPlan) removeClone() ([]string, error) {
 		if said != "" {
 			out = append(out, said)
 		}
+	}
+	for _, w := range u.workspaces {
+		if _, err := install.Git(main, "worktree", "remove", w.Dir); err != nil {
+			return nil, err
+		}
+		if _, err := install.Git(main, "branch", "-D", "--quiet", w.Branch()); err != nil {
+			return nil, err
+		}
+		out = append(out, fmt.Sprintf("removed the records workspace %s and its branch %s", w.Dir, w.Branch()))
 	}
 	if fsutil.IsDir(records) {
 		if _, err := install.Git(main, "worktree", "remove", records); err != nil {

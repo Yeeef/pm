@@ -1,6 +1,7 @@
 """pm clean on a temp clone with a bare origin: each worktree listed with keep or remove and the reason, and --apply
 removing exactly the remove set. The worktrees: dirty, unpushed, merged, squash-merged, pushed, locked by a live or a
-dead process, used by a live session; the main checkout, the store and the caller's worktree are always kept."""
+dead process, used by a live session; the main checkout, the store and the caller's worktree are always kept. A
+worktree's records workspace goes with it, and keeps it while the workspace has uncommitted edits."""
 
 import json
 import os
@@ -309,3 +310,26 @@ def test_clean_removes_the_interactive_mode_of_a_session_idle_for_a_day(clone):
         assert v["sess-gone"] == ("remove", "the session has been idle for a day")
         assert (modes / "sess-gone").exists() == (not args), args
     assert sorted(p.name for p in modes.iterdir()) == sorted(["sess-away", ROOT_THREAD])
+
+
+def test_clean_removes_a_records_workspace_with_its_worktree_and_keeps_one_with_uncommitted_edits(clone):
+    repo = clone
+    trees = {name: agent_tree(repo, name) for name in ("gone", "edited")}
+    for name, wt in trees.items():  # each worktree's records workspace, as pm init makes it
+        repo.git("worktree", "add", "-q", "-B", f"drafts/{name}", str(wt / "records"), "records")
+    sprint = trees["edited"] / "records/sprints/demo-1.md"
+    sprint.write_text(sprint.read_text() + "edited\n")
+    res = subprocess.run([*PM, "clean"], cwd=repo.root, env=repo.env, capture_output=True, text=True, check=False)
+    assert res.returncode == 0, res.stderr
+    lines = res.stdout.splitlines()
+    for name, wt in trees.items():
+        assert f"keep    {wt / 'records'}  (drafts/{name}): the records workspace of {wt}, removed with it" in lines, \
+            res.stdout
+    assert f"remove  {trees['gone']}  (gone): merged: its commits are on origin/main" in lines, res.stdout
+    assert f"keep    {trees['edited']}  (edited): its records workspace has uncommitted edits (1 paths)" in lines, \
+        res.stdout
+
+    clean(repo, "--apply")
+    assert "gone" not in worktrees(repo) and "drafts/gone" not in branches(repo)
+    assert "edited" in worktrees(repo) and "drafts/edited" in branches(repo) and sprint.read_text().endswith("edited\n")
+    assert (repo.store / "sprints/demo-1.md").is_file(), "the store stays"

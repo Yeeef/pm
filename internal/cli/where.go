@@ -92,12 +92,25 @@ func whereAll(here string) (string, error) {
 	}
 	if fsutil.Resolved(top) == fsutil.Resolved(storeDir) {
 		top = main
+	} else if store.IsWorkspace(top) {
+		top = filepath.Dir(top)
 	}
 	link := filepath.Join(top, "records")
+	ws, wsErr := store.WorkspaceAt(top)
 	var state string
 	switch {
+	case wsErr != nil:
+		state = wsErr.Error()
+	case ws != nil:
+		if state, err = ws.Describe(storeDir); err != nil {
+			state = "records workspace unreadable: " + err.Error()
+		}
+	case fsutil.IsLink(link) && fsutil.Resolved(link) == fsutil.Resolved(storeDir) && fsutil.Resolved(top) != fsutil.Resolved(main):
+		state = "records link to the shared store; " + whereSetup + " makes it this worktree's records workspace"
 	case fsutil.IsLink(link) && fsutil.Resolved(link) == fsutil.Resolved(storeDir):
 		state = "records link set up"
+	case !fsutil.Exists(link) && !fsutil.IsLink(link) && fsutil.Resolved(top) != fsutil.Resolved(main):
+		state = "no records workspace; run " + whereSetup
 	case !fsutil.Exists(link) && !fsutil.IsLink(link):
 		state = "no records link; run " + whereSetup
 	case !fsutil.IsLink(link) && whereGit(top, "ls-files", "--", "records") != "":

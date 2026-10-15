@@ -200,7 +200,7 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 		return "", refuse("not claiming %s here: %s is the main checkout; agents change code only in a worktree of their "+
 			"own. Make one with git, in any runtime, and work there: `git -C %s fetch %s %s && git -C %s worktree add -b "+
 			"<branch> %s/<name> %s/%s`, then `cd %s/%s/<name>` (in Claude Code, the EnterWorktree tool does the same); "+
-			"session start links its records/ (else run `pm init` there). A subagent works "+
+			"session start makes its records/ workspace (else run `pm init` there). A subagent works "+
 			"in its parent's worktree.",
 			id, root, root, cfg.Remote, cfg.MainBranch, root, worktreesDir, cfg.Remote, cfg.MainBranch, root, worktreesDir)
 	}

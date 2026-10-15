@@ -346,7 +346,7 @@ def install_everywhere(repo: Path, tmp: Path) -> Path:
     wt = tmp / "wt"
     git(repo, "worktree", "add", "-q", "-b", "feature", str(wt))
     res = pm(wt, "init", "--session-start")
-    assert res.returncode == 0 and (wt / "records").is_symlink(), res.stdout + res.stderr
+    assert res.returncode == 0 and (wt / "records/.git").is_file(), res.stdout + res.stderr
     assert doctor(repo)[0] == 0 and doctor(wt)[0] == 0
     return wt
 
@@ -367,6 +367,10 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     res = pm(existing, "uninstall")
     assert res.returncode == 1 and "uncommitted records" in res.stderr and store.is_dir() and sched_units(tmp_path)
     git(store, "checkout", "--", "sprints/a-1.md")
+    (wt / "records/sprints/a-1.md").write_text("changed in the workspace\n")
+    res = pm(existing, "uninstall")
+    assert res.returncode == 1 and f"the records workspace {wt / 'records'} holds uncommitted records" in res.stderr
+    git(wt / "records", "checkout", "--", "sprints/a-1.md")
 
     res = pm(existing, "uninstall")
     assert res.returncode == 0, res.stderr
@@ -374,6 +378,7 @@ def test_uninstall_removes_pms_parts_and_setup_only(existing: Path, tmp_path: Pa
     # the clone's and machine's setup is gone; the records branch and Beads stay
     assert not store.exists() and git(existing, "rev-parse", "records") == records_head
     assert git(existing, "worktree", "list", "--porcelain").count("worktree ") == 3
+    assert not (wt / "records").exists() and git(existing, "branch", "--list", "drafts/*") == ""
     for tree in (existing, wt):
         assert not (tree / "records").is_symlink()
         assert git(tree, "config", "--get", "--default=", "core.sparseCheckout").strip() in ("", "false")
