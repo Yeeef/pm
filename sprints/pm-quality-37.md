@@ -59,6 +59,11 @@ None yet.
   1.5% were syntax guesses; the top 20 of 65 commands used carry 91% of
   invocations.
 
+- `pm show --record X` without `--section` failed 41 of 42 times, the largest
+  single failure cluster; `decision need` failed 30% and `action need` 25%,
+  mostly guards refusing one rule per retry. A scope is named 5 ways, a need
+  closes 4 ways, and `task close` still defaults its reason to "Done".
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
