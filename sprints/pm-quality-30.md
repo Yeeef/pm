@@ -103,6 +103,8 @@ Owner chose this in chat over tuning concurrency: both jobs take 190-300 s on a 
 
 done: the agents md jobs no longer set a PR's CI time; per the owner's decision, PRs grade AGENTS.md in diff mode and the full grading and labelled cases run daily on main when AGENTS.md or the grader changed.
 
+Merged as 9aed332 (PR #97).
+
 - PR #97: `check` runs diff mode on every PR; the new `changed`, `full` and `cases` jobs run on a daily schedule and on demand.
 - Measured why tuning could not meet the target: the slowest `consistent` call (102-154 s) is the floor of a full-mode run.
 
