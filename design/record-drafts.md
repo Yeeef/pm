@@ -70,7 +70,7 @@ This page is the record layer's model for drafts and publishing: each code workt
 
 **Runtimes** ([Shared records store](records-store.md), Constraints)
 
-- Claude Code writes through `records/` only with the store in `permissions.additionalDirectories`; a `claude -w` session is refused "a different worktree" for any other git worktree, the store included.
+- Claude Code writes through `records/` only with the store in `permissions.additionalDirectories`; a `claude -w` session is refused "a different worktree" for any other git worktree, the store included. A workspace nested in the session's own worktree is writable without either: Claude Code 2.1.300 allowed Write and Edit at `<worktree>/records/…` from a `claude -w` session and from a plain one with no `additionalDirectories`; `-w` isolation goes by path prefix, not by git worktree.
 - Codex's sandbox keeps every git dir read-only unless that git dir is itself a writable root; pm lists the store and its git dir in `writable_roots`.
 
 ::: result {title="Measured on this clone"}
@@ -269,6 +269,6 @@ The service pushes `records` as today, and each draft commit to `refs/pm/drafts/
 
 > What is still unresolved?
 
-- Whether `claude -w` isolation refuses writes to a git worktree nested inside the session's own worktree; a live check decides whether workspaces work there.
+- Whether a sandboxed Codex agent can write and `git commit` in its nested workspace: a commit also writes the shared `.git` objects and refs. Untested: Codex's workspace-write sandbox fails before any command on the test host (bwrap under `kernel.apparmor_restrict_unprivileged_userns=1`); pm itself commits through `.codex/rules/pm.rules`, outside the sandbox, which worked.
 - Whether pm commits a workspace from inside Codex's sandbox (one writable root per workspace) or only through `.codex/rules/pm.rules`.
 - Whether the site should show other machines' committed drafts, which carry no live session.
