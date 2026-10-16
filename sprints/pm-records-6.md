@@ -43,6 +43,8 @@ A draft made in one clone shows on every other clone's site, a sprint closed fro
 - [pm CLI](../design/pm-cli.md): pm sprint close fetches the other clones' draft refs
 - [pm in Go](../design/pm-go.md): internal/sync pushes and fetches the draft refs
 - [pm as an installable product](../design/pm-product.md): pm init gives the clone its id
+- [Agent lifecycle](../design/agent-lifecycle.md): the Stop hook on the own workspace, its conflict markers and stranded pages
+- [Views and the site](../design/views-and-site.md): Versions lists other clones' drafts
 
 ## Progress
 
