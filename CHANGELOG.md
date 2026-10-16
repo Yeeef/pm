@@ -29,6 +29,23 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.2] - 2026-10-16
+
+A push step that a new pm release adds is no longer flagged overdue from the clone's first install.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.2/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.2`, then commit what it changes and merge it, as an ordinary PR.
+
+### Fixed
+
+- A sync step that a later pm adds (the draft refs' push, in 0.15.1) was flagged overdue in `pm show`, `pm where`
+  and the site from the day the clone first installed the pm service until its first run. Each step's overdue clock
+  now starts when the first pm service that runs it starts; a step that never succeeds is still flagged once it is
+  overdue.
+
 ## [0.15.1] - 2026-10-15
 
 A design-page draft made in one clone now shows on every other clone's site, and a sprint closed from any clone
@@ -1178,6 +1195,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.2]: https://github.com/Yeeef/pm/compare/pm-v0.15.1...pm-v0.15.2
 [0.15.1]: https://github.com/Yeeef/pm/compare/pm-v0.15.0...pm-v0.15.1
 [0.15.0]: https://github.com/Yeeef/pm/compare/pm-v0.14.0...pm-v0.15.0
 [0.14.0]: https://github.com/Yeeef/pm/compare/pm-v0.13.0...pm-v0.14.0
