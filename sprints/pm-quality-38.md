@@ -66,7 +66,10 @@ Pins 0.2.0 to 0.9.x write .pm/hooks sections that call them, and an older-pin se
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- PR #104's first CI run failed 3 harness tests only because the job crossed
+  midnight UTC: tests/test_pm.py sets `TODAY = date.today()` at import, while
+  pm stamps the date at write time. They passed on re-run with no code change;
+  the flake predates this sprint and needs its own task.
 
 ## Delivery report
 
