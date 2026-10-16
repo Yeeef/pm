@@ -77,6 +77,11 @@ The design page session-claims stays as it is for this sprint's code changes.
 Claims, holders and the show listings of held tasks are unchanged; show.go changed only the --record level, which the page does not describe.
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page sprint-lifecycle stays as it is for this sprint's code changes.
+The lifecycle is unchanged: task close already stamped its reason; requiring --reason and listing every need-form rule at once change no step.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
