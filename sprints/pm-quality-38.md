@@ -67,6 +67,11 @@ The design page pm-product stays as it is for this sprint's code changes.
 The page states the product model and layout; it names no help listing, prime noun list or command form that this sprint changed.
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page reply-delivery stays as it is for this sprint's code changes.
+Only the help texts of decision add, decision close and action done now name the undelivered-reply refusal; the delivery rule and the refusal are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
