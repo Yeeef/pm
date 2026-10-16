@@ -109,10 +109,18 @@ run.go changes only the sync steps (the drafts step); reply delivery is untouche
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: drafts travel between clones and a close from any clone publishes them, and this repo runs pm 0.15.2, the release that carries the whole record layer.
+
+- Per-clone draft refs `refs/pm/drafts/<clone>/<name>`, pushed with a lease and never forced; other clones list them as versions; `pm sprint close` fetches and publishes them (PR #105, merged as cd8d0e2).
+- A store only behind its remote fast-forwards, refusing any uncommitted or ignored path it would overwrite; a page tagged for a closed sprint is kept under a ref, never lost to `git worktree remove` (PR #105).
+- A sync step a newer pm adds starts its overdue clock with the service that runs it (PR #107, merged as d3719e9).
+- The pin moved 0.11.0 to 0.15.1 (PR #106, merged as 6d374b4), then to 0.15.2 (PR #108, merged as 41d85a7).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- A second clone lists the first clone's draft after one follow and one sync each, and a close from it publishes the draft: met. Go tests with two clones of one bare origin (`internal/store/drafts_refs_test.go`); live check with two scratch clones: A's draft pushed in 0.20 s, B's site listed it 0.25 s after B's sync, B's close made 1 records commit, A's next push deleted its ref (Findings).
+- A lease failure is flagged, never forced over: met. Go test; the other writer's sha stays on the remote.
+- CI green on the sprint's PRs, merged through `make merge-ready`: met. PRs #105, #106, #107 and #108, each merged with the command `make merge-ready` printed; three fresh-context reviews of #105, every correctness finding fixed with a test.
+- This repo pins the new release, and in a fresh worktree here `records/` is a workspace, an edit shows as that worktree's version, and `pm commit` publishes it: met. Pin 0.15.2, `pm check` renders all 245 pages; live check on this repo with the real service: workspace on `drafts/livecheck-records` in 0.14 s, the published page unchanged and the version and diff 200 before the commit, `pm commit` 0.31 s, published 2 s later (Findings).
