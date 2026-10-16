@@ -59,7 +59,7 @@ var Now = func() time.Time { return time.Now().UTC().Truncate(time.Second) }
 // iso is Python's datetime.isoformat() of an aware UTC time: 2026-10-08T21:32:48+00:00.
 func iso(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05+00:00") }
 
-// State is the push state file: a step's outcome by its name, and installed_at, when the service was installed.
+// State is the push state file: a step's outcome by its name, or only its first while it has not run (StartClocks).
 type State map[string]any
 
 // ReadState is the state file's contents; empty when there is none.
@@ -99,17 +99,53 @@ func WriteState(main string, s State) error {
 	return os.Rename(tmp, path)
 }
 
-// MarkInstalled stamps installed_at once, so a push that never succeeds is flagged overdue counted from the install.
-func MarkInstalled(main string) error {
+// StartClocks gives each step that has no outcome yet a first of now, the time its overdue clock starts from. The
+// service runs it at each start, its install's included, so a step that a later pm adds is counted from the start of
+// the first service that runs it, not from the clone's install; a step that already has one keeps it. A push under way
+// records every step itself, so StartClocks leaves the state to it.
+func StartClocks(main string) error {
+	unlock, ok, err := lock(main)
+	if err != nil || !ok {
+		return err
+	}
+	defer unlock()
 	s, err := ReadState(main)
 	if err != nil {
 		return err
 	}
-	if _, ok := s["installed_at"]; ok {
+	changed := false
+	for _, name := range Steps {
+		if _, ok := s[name]; !ok {
+			s[name] = map[string]string{"first": iso(Now())}
+			changed = true
+		}
+	}
+	if !changed {
 		return nil
 	}
-	s["installed_at"] = iso(Now())
 	return WriteState(main, s)
+}
+
+// lock takes the push lock without waiting: ok is false while another run holds it.
+func lock(main string) (unlock func(), ok bool, err error) {
+	_, _, path := Files(main)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, false, err
+	}
+	fd, err := syscall.Open(path, syscall.O_RDWR|syscall.O_CREAT, 0o600)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if cerr := syscall.Close(fd); cerr != nil {
+			return nil, false, cerr
+		}
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return func() { syscall.Close(fd) }, true, nil //nolint:errcheck // the close releases the lock; a failed close leaves nothing to undo
 }
 
 type stepState struct {
@@ -358,18 +394,15 @@ func PushDrafts(records, remote string) (bool, string) {
 // Push is one run, under a lock no second run waits for: each step in order, its outcome recorded; a failed step does
 // not stop the next. The code is non-zero when a step of Steps failed.
 func Push(main string, steps []Step) (int, string, error) {
-	_, log, lock := Files(main)
-	if err := os.MkdirAll(filepath.Dir(lock), 0o755); err != nil {
-		return 1, "", err
-	}
-	fd, err := syscall.Open(lock, syscall.O_RDWR|syscall.O_CREAT, 0o600)
+	_, log, _ := Files(main)
+	unlock, ok, err := lock(main)
 	if err != nil {
 		return 1, "", err
 	}
-	defer syscall.Close(fd)
-	if err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if !ok {
 		return 0, "another pm push holds the lock; skipped", nil
 	}
+	defer unlock()
 	state, err := ReadState(main)
 	if err != nil {
 		return 1, "", err
@@ -439,7 +472,7 @@ func unpushed(store, remote string) int {
 }
 
 // Flags is a line per step whose last run failed or whose last success is older than Overdue, counted from the
-// service's install when it never succeeded; none before both. store "" skips the count of unpushed records commits.
+// step's first (StartClocks, or its first run) when it never succeeded. store "" skips the count of unpushed records commits.
 func Flags(main, store, remote string) ([]string, error) {
 	state, err := ReadState(main)
 	if err != nil {
@@ -453,15 +486,11 @@ func Flags(main, store, remote string) ([]string, error) {
 			kind = "push"
 		}
 		s, ok := state.step(name)
-		if !ok {
-			installed, ok := state["installed_at"].(string)
-			if !ok {
-				continue
-			}
-			s = stepState{OK: true, First: installed}
+		if !ok { // no service that runs it has started yet: its clock has not started
+			continue
 		}
 		var line string
-		if !s.OK {
+		if s.At != "" && !s.OK {
 			line = fmt.Sprintf("%s %s failed at %s: %s", name, kind, s.At, s.Message)
 		} else {
 			since := s.First
@@ -516,7 +545,7 @@ func Describe(main string) ([]string, error) {
 	_, log, _ := Files(main)
 	var out []string
 	for _, name := range Steps {
-		if s, ok := state.step(name); ok {
+		if s, ok := state.step(name); ok && s.At != "" { // a step that has not run has only its first
 			word := "error"
 			if s.OK {
 				word = "ok"
