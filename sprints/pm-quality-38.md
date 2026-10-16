@@ -72,6 +72,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 Only the help texts of decision add, decision close and action done now name the undelivered-reply refusal; the delivery rule and the refusal are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page session-claims stays as it is for this sprint's code changes.
+Claims, holders and the show listings of held tasks are unchanged; show.go changed only the --record level, which the page does not describe.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
