@@ -89,18 +89,110 @@ func TestARunRecordsEachStepAndFlagsAFailure(t *testing.T) {
 func TestANeverSuccessfulPushIsOverdueFromTheInstall(t *testing.T) {
 	main := t.TempDir()
 	at(t, "2026-10-08T10:00:00Z")
-	if err := MarkInstalled(main); err != nil {
+	if err := StartClocks(main); err != nil {
 		t.Fatal(err)
 	}
-	if flags, _ := Flags(main, "", "origin"); len(flags) != 0 {
+	if flags := flagged(t, main); len(flags) != 0 {
 		t.Fatal(flags)
 	}
+	if d := described(t, main); len(d) != 1 || !strings.HasSuffix(d[0], "no push recorded yet") {
+		t.Fatal(d)
+	}
 	at(t, "2026-10-08T11:00:00Z")
-	MarkInstalled(main) // keeps the first install's time
-	flags, _ := Flags(main, "", "origin")
+	if err := StartClocks(main); err != nil { // a later start keeps each step's first
+		t.Fatal(err)
+	}
+	flags := flagged(t, main)
 	if len(flags) != 4 || !strings.HasPrefix(flags[2], "records push overdue: no successful push since 2026-10-08T10:00:00+00:00, 60 min ago") {
 		t.Fatal(flags)
 	}
+}
+
+// A step that a later pm adds (drafts, in 0.15.1) is counted from the start of the first service that runs it, not
+// from the clone's install: a state written by an older pm has installed_at and the other steps, no drafts.
+func TestAStepALaterPmAddsIsOverdueFromItsFirstStart(t *testing.T) {
+	main := t.TempDir()
+	ok := "2026-10-16T09:55:00+00:00"
+	done := map[string]any{"at": ok, "ok": true, "message": "done", "last_ok": ok, "first": "2026-10-01T00:00:00+00:00"}
+	if err := WriteState(main, State{"installed_at": "2026-10-01T00:00:00+00:00", "work": done, "summary": done, "records": done}); err != nil {
+		t.Fatal(err)
+	}
+	at(t, "2026-10-16T10:00:00Z")
+	if flags := flagged(t, main); len(flags) != 0 { // the new pm reads it before its service started
+		t.Fatal(flags)
+	}
+	if err := StartClocks(main); err != nil {
+		t.Fatal(err)
+	}
+	if flags := flagged(t, main); len(flags) != 0 {
+		t.Fatal(flags)
+	}
+	at(t, "2026-10-16T10:31:00Z") // the others pushed at 09:55: the overdue clock runs for all four
+	flags := flagged(t, main)
+	if len(flags) != 4 || !strings.HasPrefix(flags[3], "drafts push overdue: no successful push since 2026-10-16T10:00:00+00:00, 31 min ago") {
+		t.Fatal(flags)
+	}
+	steps := []Step{{"work", func() (bool, string) { return true, "" }}, {"summary", func() (bool, string) { return true, "" }},
+		{"records", func() (bool, string) { return true, "" }}, {"drafts", func() (bool, string) { return false, "lease failed" }}}
+	if _, _, err := Push(main, steps); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := state(t, main).step("drafts"); s.First != "2026-10-16T10:00:00+00:00" || s.LastOK != nil { // the run keeps the first
+		t.Fatal(s)
+	}
+	at(t, "2026-10-16T10:45:00Z")
+	if flags := flagged(t, main); len(flags) != 1 || !strings.HasPrefix(flags[0], "drafts push failed at 2026-10-16T10:31:00+00:00: lease failed") {
+		t.Fatal(flags)
+	}
+}
+
+// StartClocks leaves the state to a push under way, which records every step itself.
+func TestStartClocksLeavesTheStateToAPushUnderWay(t *testing.T) {
+	main := t.TempDir()
+	unlock, ok, err := lock(main)
+	if err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	if err := StartClocks(main); err != nil {
+		t.Fatal(err)
+	}
+	if s := state(t, main); len(s) != 0 {
+		t.Fatal(s)
+	}
+	unlock()
+	if err := StartClocks(main); err != nil {
+		t.Fatal(err)
+	}
+	if s := state(t, main); len(s) != 4 {
+		t.Fatal(s)
+	}
+}
+
+func flagged(t *testing.T, main string) []string {
+	t.Helper()
+	flags, err := Flags(main, "", "origin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return flags
+}
+
+func described(t *testing.T, main string) []string {
+	t.Helper()
+	d, err := Describe(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func state(t *testing.T, main string) State {
+	t.Helper()
+	s, err := ReadState(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
 }
 
 func git(t *testing.T, dir string, args ...string) {

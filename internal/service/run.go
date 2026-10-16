@@ -1069,9 +1069,12 @@ func (s *server) closed() (pmstore.SprintClosed, error) {
 	return pmstore.ClosedSprints(items), err
 }
 
-// syncer runs the sync every pmsync.Interval, logging each step's line; a run that fails is logged, and the next
-// one tries again.
+// syncer starts the clock of each step this pm runs that has none (pmsync.StartClocks), then runs the sync every
+// pmsync.Interval, logging each step's line; a run that fails is logged, and the next one tries again.
 func (s *server) syncer() {
+	if err := pmsync.StartClocks(s.d.Main); err != nil {
+		s.logf("sync: the steps' clocks: %v", err)
+	}
 	for {
 		if !s.sleep(pmsync.Interval) {
 			return

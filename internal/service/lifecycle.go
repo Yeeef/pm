@@ -330,9 +330,6 @@ func installLocked(main string, port int, exe string, keepPath bool) (string, er
 		}
 		said = fmt.Sprintf("systemd user service %s (%s)", name, unit)
 	}
-	if err := pmsync.MarkInstalled(main); err != nil {
-		return "", err
-	}
 	verb := "installed"
 	if up {
 		verb = "updated"
