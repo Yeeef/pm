@@ -62,6 +62,11 @@ The no-op commands pm hook git-post-checkout and pm hook git-pre-commit stay, hi
 Pins 0.2.0 to 0.9.x write .pm/hooks sections that call them, and an older-pin session resets core.hooksPath; removing them would break checkouts and block commits on the new pin.
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page pm-product stays as it is for this sprint's code changes.
+The page states the product model and layout; it names no help listing, prime noun list or command form that this sprint changed.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
