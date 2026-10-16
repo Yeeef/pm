@@ -113,14 +113,14 @@ def test_pm_help_hides_the_machinery_that_help_all_lists():
     service run the same way."""
     shown, every = nouns(), nouns("--all")
     assert set(every) - set(shown) == MACHINERY and set(shown) < set(every), (shown, every)
-    top = subprocess.run([*PM, "--help"], cwd="/", capture_output=True, text=True).stdout
+    top = subprocess.run([*PM, "--help"], cwd="/", capture_output=True, text=True, check=False).stdout
     assert "pm --help --all also lists the machinery commands" in top
     for cmd in (["hook"], ["prime"], ["sync"], ["day", "summarize"], ["service", "run"]):
-        res = subprocess.run([*PM, *cmd, "--help"], cwd="/", capture_output=True, text=True)
+        res = subprocess.run([*PM, *cmd, "--help"], cwd="/", capture_output=True, text=True, check=False)
         assert res.returncode == 0 and res.stdout.startswith(f"usage: pm {' '.join(cmd)} "), res.stdout + res.stderr
-    service = subprocess.run([*PM, "service", "--help"], cwd="/", capture_output=True, text=True).stdout
+    service = subprocess.run([*PM, "service", "--help"], cwd="/", capture_output=True, text=True, check=False).stdout
     assert "    run " not in service and "pm service --help --all also lists" in service
-    assert "    run " in subprocess.run([*PM, "service", "--help", "--all"], cwd="/", capture_output=True, text=True).stdout
+    assert "    run " in subprocess.run([*PM, "service", "--help", "--all"], cwd="/", capture_output=True, text=True, check=False).stdout
 
 
 def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
@@ -173,7 +173,7 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
         assert res.returncode == 0, res.stderr
         assert committed(repo, [message])
     assert repo.unchanged()
-    assert f"bead: repo-demo.1\n" in (repo.records / f"docs/{TODAY}-probe-sprint.md").read_text()
+    assert "bead: repo-demo.1\n" in (repo.records / f"docs/{TODAY}-probe-sprint.md").read_text()
     refused(repo, "doc", "new", "probe-task", "--title", "T", "--task", "repo-demo.1", text="Body.",
             match=r"--task repo-demo\.1 is a sprint, not a task")
     feedback = (repo.records / "docs/pm-feedback.md").read_text()
@@ -219,7 +219,7 @@ def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
         res = repo.pm("show", "--record", target)
         assert res.returncode == 0, res.stderr
         assert res.stdout.startswith("records/sprints/demo-1.md\n  bead: repo-demo.1\n"), res.stdout
-        assert f"  ## Goal  (" in res.stdout and f"pm show --record {target} --section Goal\n" in res.stdout
+        assert "  ## Goal  (" in res.stdout and f"pm show --record {target} --section Goal\n" in res.stdout
         assert f"pm show --record {target} --section 'Done when'\n" in res.stdout
 
     # folded: test_feedback_add_refuses_to_overwrite_another_record_at_the_feedback_doc_s_path
