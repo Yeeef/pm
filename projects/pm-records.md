@@ -47,4 +47,30 @@ The owner handed the project over in chat; their reviews stop gating each PR, so
 > Written when the project closes: what was achieved against the goal, what
 > was learned, what was retired, and links to the sprint delivery reports.
 
-Not closed yet.
+The goal is met on this repo, which runs pm 0.15.2: each worktree writes records in its own workspace, `pm commit` refuses an edit that overlaps another's, the owner reads the published records with every draft beside them as a labelled version, and a design page goes live only at its sprint's close, once its code is on main.
+
+**Against the goal**
+
+| Goal | Result | Evidence |
+|---|---|---|
+| The owner sees records change before they are committed | Met | Every worktree's workspace and every other clone's committed draft is a version of each page it changes, at `/drafts/<draft>/…`, with a diff by section; live on this repo: a hand edit showed as its worktree's version, the published page unchanged ([sprint 6](../sprints/pm-records-6.md)) |
+| Agents never step on each other's record edits | Met | A private workspace per worktree; follow by `git merge-tree` and `git merge-file`, never rebase, merge or stash; an overlap is refused naming the commit, markers only in the second workspace ([sprint 4](../sprints/pm-records-4.md)) |
+| Published and draft are told apart | Met | The site renders the `records` branch, never a working tree; a broken draft fails only its own version ([sprint 2](../sprints/pm-records-2.md)) |
+| A design page describes its code only once the code merges | Met | `pm sprint close` publishes the sprint's drafts in one `records` commit after its PRs and covers are on main; `--discard` drops one with its reason; sprint 6's close published its own two pages that way in 1.7 s ([sprint 5](../sprints/pm-records-5.md), [sprint 6](../sprints/pm-records-6.md)) |
+| Across clones | Met | Per-clone draft refs pushed with a lease, never forced; a close from any clone publishes them ([sprint 6](../sprints/pm-records-6.md)) |
+
+**Numbers measured:** a workspace at session start 0.11 to 0.14 s; `pm commit` from a workspace 0.06 to 0.31 s; a close publishing two drafts 0.58 s on a scratch clone, 1.7 s on this repo; a draft listed on another clone 0.25 s after its sync.
+
+**What was learned**
+
+- A per-file version check in `pm commit` refuses the second writer without separating the two edits; isolation needs a private copy per writer and a merge by hunk ([sprint 1](../sprints/pm-records-1.md)).
+- Publishing at sprint close, the owner's choice, beat publishing when the service sees the merge: the closing session can resolve a conflict, and no service step or PR polling is needed.
+- `claude -w` isolation goes by path prefix, so a workspace nested in the worktree is writable with no extra settings; Codex's sandboxed agent stays untested here, since its sandbox cannot start on this host.
+- The pin move from 0.11.0 needed one published covers pattern fixed first: under the new rules a page may not name code main lacks.
+- Fresh-context reviews found every data-loss risk before merge (a reflog-dependent base, `merge.autoStash`, stranded text lost to `git worktree remove`); each is fixed with a test.
+
+**What was retired:** the store's working tree as the site's source; the Stop hook's transcript match in worktrees; the covers waiting list and the close's covers hold; `pm init`'s Claude `additionalDirectories` entry for worktrees.
+
+**Left open** ([Record drafts and publishing](../design/record-drafts.md), Open questions; [Shared records store](../design/records-store.md)): whether a sandboxed Codex agent can commit in its workspace; two clones committing the same day's summary conflict in the records rebase.
+
+**Delivery reports:** [sprint 1](../sprints/pm-records-1.md), [sprint 2](../sprints/pm-records-2.md), [sprint 3](../sprints/pm-records-3.md) (design and doc rename, another session), [sprint 4](../sprints/pm-records-4.md), [sprint 5](../sprints/pm-records-5.md), [sprint 6](../sprints/pm-records-6.md).
