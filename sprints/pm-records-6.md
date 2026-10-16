@@ -70,6 +70,11 @@ The design page pm-in-codex stays as it is for this sprint's code changes.
 pieces.go changed only its package doc comment to name the clone id; the Codex hooks, rules and roots pm init writes are unchanged
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page site-replies stays as it is for this sprint's code changes.
+serve.go and the service gained the draft refs in the stamp and a drafts sync step; replies, the token and the access refusal are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
