@@ -123,6 +123,8 @@ serve.go and the service gained the draft refs in the stamp and a drafts sync st
 
 done: drafts travel between clones and a close from any clone publishes them, and this repo runs pm 0.15.2, the release that carries the whole record layer.
 
+Merged as cd8d0e2 (PR #105).
+
 - Per-clone draft refs `refs/pm/drafts/<clone>/<name>`, pushed with a lease and never forced; other clones list them as versions; `pm sprint close` fetches and publishes them (PR #105, merged as cd8d0e2).
 - A store only behind its remote fast-forwards, refusing any uncommitted or ignored path it would overwrite; a page tagged for a closed sprint is kept under a ref, never lost to `git worktree remove` (PR #105).
 - A sync step a newer pm adds starts its overdue clock with the service that runs it (PR #107, merged as d3719e9).

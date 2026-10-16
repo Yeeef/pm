@@ -114,7 +114,7 @@ The hooks behind it, by runtime:
 | PostToolUse, matcher `AskUserQuestion` (Claude Code), `request_user_input_async` (Codex) | `pm hook ask --runtime claude` (10 s) | `pm hook ask --runtime codex` (30 s) | Claude Code: closes the question with the dialog's answer. Codex: raises the question as a question need by its call id; the pm service carries the site's answer ([Owner questions](owner-questions.md)) |
 | UserPromptSubmit | none | `pm hook ask --runtime codex` (10 s) | The typed prompt closes the session's open questions as their chat answer ([Owner questions](owner-questions.md)) |
 | Stop | `pm hook owner-request --runtime claude` (judge: Haiku through `claude -p`, 30 s) | `pm hook owner-request --runtime codex` (judge: a small Codex model through `codex exec`, 45 s) | Blocks a reply that asks the owner only in chat; the judge runs on the session's own runtime. Off in a session in interactive mode, which `pm interactive` sets when the owner asks ([Owner request hook](owner-request-hook.md)) |
-| Stop | `pm hook stop` | the same | Blocks while records this session named are uncommitted |
+| Stop | `pm hook stop` | the same | Blocks while the worktree's records workspace has uncommitted edits, conflict markers or stranded pages; in the main checkout, while store records this session named are uncommitted |
 | SessionEnd | `pm hook session-end` (10 s) | the same; Codex fires it at the end of `codex exec` and about 90 s after its TUI exits | Removes the ended session's interactive-mode file ([Owner request hook](owner-request-hook.md)) |
 | SubagentStop | none | `pm hook stop` on the subagent's own rollout | The same, for a subagent whose tool inputs the parent's rollout holds encrypted |
 
@@ -359,9 +359,12 @@ Closing a task stamps its commit; two Stop hooks each block once, and on
   HEAD is newer than the claim, and warns when there is none or the working
   tree is dirty. It refuses a need; needs close through `pm decision` or
   `pm action done`.
-- The uncommitted-records hook names only dirty store files whose paths
-  appear in this session's tool calls, since other sessions write the same
-  store. In Codex it also runs at SubagentStop on the subagent's own
+- In a worktree, the uncommitted-records hook names the worktree's own
+  records workspace's uncommitted files: conflict markers, and pages
+  stranded because their sprint closed elsewhere, with how to commit them
+  under an open sprint. In the main checkout, which shares the store, it
+  names only dirty store files whose paths appear in this session's tool
+  calls. In Codex it also runs at SubagentStop on the subagent's own
   rollout, since the parent's rollout holds a subagent's tool inputs
   encrypted.
 - The owner-request check judges on the session's own runtime, so a
