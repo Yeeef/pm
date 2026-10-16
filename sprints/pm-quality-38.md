@@ -46,6 +46,7 @@ The audit [pm command surface: quality audit and simplifications](../docs/2026-1
 
 - [pm-cli](../design/pm-cli.md): the command families, the `show` levels with the record outline, hidden machinery, and the CLI naming grammar.
 - [decision-need-layout](../design/decision-need-layout.md): need forms refuse once with every broken rule; covers `internal/cli/needform`.
+- [agent-lifecycle](../design/agent-lifecycle.md): the `pm show` levels gain the record outline.
 
 ## Progress
 
