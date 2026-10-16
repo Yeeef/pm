@@ -1,7 +1,7 @@
 {
  "date": "2026-10-16",
- "generated_at": "2026-10-16T00:04:52+00:00",
- "digest": "5edc78f739cc29e3",
+ "generated_at": "2026-10-16T00:21:38+00:00",
+ "digest": "5392c5a646564b31",
  "model": "claude-haiku-5-5",
- "text": "- **Command surface simplified:** `pm --help` hides internal commands, and `task close` now requires a reason. `show` prints a record outline and resolves names.\n- **Design pages publish at sprint close:** Design page edits stay as drafts until `pm sprint close` publishes them in one commit. `--discard` drops a draft and records the reason.\n- **Drafts across clones and upgrade:** Draft pages now push, fetch and list per clone, and close publishes them. This repo runs the new record layer, and a live check passed.\n- **Docs and links on the site:** Docs now typeset math, render diagrams, and resolve links by slug. `pm check` refuses dead record links, and the two dead feedback links were fixed."
+ "text": "- **Design-page drafts across clones:** Design-page drafts now travel between clones, and a close from any clone publishes them. Pages that cannot publish are kept under a ref.\n- **Simpler pm commands:** `show --record` prints the record outline alone, and names resolve like paths. `task close` requires a reason, and `pm --help` hides machinery commands unless `--all` is given.\n- **Docs site and checks:** Docs now typeset math, link by slug, and appear in an index. `pm check` refuses dead record links and JSX in raw HTML.\n- **Command audit and review:** A quality audit measured the pm command surface against its usage and design intent. A review of the simplification pull request was requested from the owner."
 }
