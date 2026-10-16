@@ -65,6 +65,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 run.go changes only the sync steps (the drafts step); reply delivery is untouched
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page pm-in-codex stays as it is for this sprint's code changes.
+pieces.go changed only its package doc comment to name the clone id; the Codex hooks, rules and roots pm init writes are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
