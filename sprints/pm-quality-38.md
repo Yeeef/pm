@@ -82,6 +82,11 @@ The design page sprint-lifecycle stays as it is for this sprint's code changes.
 The lifecycle is unchanged: task close already stamped its reason; requiring --reason and listing every need-form rule at once change no step.
 :::
 
+::: decision {source=agent date=2026-10-16}
+The design page work-store stays as it is for this sprint's code changes.
+store_commands.go changed only how the store commands render help; the schema, writes and command mapping on the page are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
