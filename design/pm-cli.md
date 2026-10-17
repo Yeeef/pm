@@ -107,7 +107,7 @@ Reading: the refusal text is what an agent learns from, so it must carry the exp
 | State | `show`, `where`, `record link`, `day`, `check` | Read the project state level by level; list every location and its state; print a record's URL on the site; the generated day pages; validate the records without a write |
 | Records | `finding add`, `decision add`, `design new\|rename\|unchanged`, `doc new\|rename`, `postmortem new`, `feedback add`, `commit` | Insert into a named section, create a record with every section, or commit hand edits by path |
 | Work | `project open\|close`, `sprint open\|close\|edit\|move`, `task add\|claim\|close\|move\|ready\|edit\|release`, `dep add\|rm`, `comment add` | Items, holders, status and dependencies; an action that also has a record writes both |
-| Owner requests | `decision need\|close`, `action need\|done`, `need edit\|dismiss`, `reply read\|add` | Raise a need, a PR review (`action need --pr`), read the owner's reply, close a need ([Decision need layout](decision-need-layout.md), [Reply delivery](reply-delivery.md)) |
+| Owner requests | `decision need`, `action need`, `need edit\|close`, `reply read\|add` | Raise a need, a PR review (`action need --pr`), read the owner's reply, close a need ([Decision need layout](decision-need-layout.md), [Reply delivery](reply-delivery.md)) |
 | Setup and service | `init`, `doctor`, `upgrade`, `uninstall`, `clean`, `service install\|status\|restart\|stop\|logs`, `interactive`, `version` | Install and check pm in a repo, clone and worktree ([pm as an installable product](pm-product.md)); run the pm service; set this session's owner-request mode |
 | Machinery, under `pm --help --all` | `prime`, `hook …`, `push`, `sync`, `export`, `service run`, `day summarize`, `autopilot` | What the runtimes' hooks, the pm service and the scheduler run; dispatched and documented, not typed by agents |
 
@@ -136,7 +136,7 @@ Each level names the command for the next.
 
 - `pm task close <id> --reason "…"` stores the commit that holds the work in the close reason: HEAD when committed after the task started, else `--commit` (a commit here, `OWNER/REPO@SHA` or a PR URL). `--dropped` closes a task not done, with no commit.
 - `pm sprint close` and `pm project close` refuse while records have uncommitted changes, check the committed delivery report or Outcome, and close the item with the records commit in its reason. `pm sprint close` first fetches the other clones' draft refs, as it publishes the sprint's design-page drafts from them too ([Record drafts and publishing](record-drafts.md), Draft refs).
-- **A sprint closes on merge.** The agent writes and commits the delivery report first; `pm action need --pr` refuses a sprint whose report is not written, and puts the review under the first sprint, so the open review blocks the close. Once the PR is on main, the agent closes the review with `pm action done <id> --reason "merged as <sha>"`, and `pm sprint close` stamps "Merged as <sha> (PR #N)." into the Outcome. A PR merged with no review takes `pm sprint close <id> --merged <sha> [--pr URL]`, the sha on the remote's main. Both run the design-page gate on the PR's changed files ([Sprint lifecycle](sprint-lifecycle.md)).
+- **A sprint closes on merge.** The agent writes and commits the delivery report first; `pm action need --pr` refuses a sprint whose report is not written, and puts the review under the first sprint, so the open review blocks the close. Once the PR is on main, the agent closes the review with `pm need close <id> --reason "merged as <sha>"`, and `pm sprint close` stamps "Merged as <sha> (PR #N)." into the Outcome. A PR merged with no review takes `pm sprint close <id> --merged <sha> [--pr URL]`, the sha on the remote's main. Both run the design-page gate on the PR's changed files ([Sprint lifecycle](sprint-lifecycle.md)).
 - Not chosen: refusing a task close without a commit, since some tasks commit nothing; an interactive sprint close that writes the report, which hides the most important text behind prompts; asking GitHub whether a PR merged, since GitHub reports a stacked PR merged before it reaches main, and the review's close reason is the merge evidence.
 
 ### Naming
@@ -150,22 +150,22 @@ The grammar every command follows; a new command or flag uses it, and a deviatio
 | Add an item or a note | `add` | `task add`, `finding add`, `decision add`, `dep add`, `comment add`, `feedback add` |
 | Create a record from its template | `new` | `design new`, `doc new`, `postmortem new` |
 | Ask the owner | `need`, under the kind of need | `decision need`, `action need` |
-| Close | `close` for work items; `done` for a done action; `dismiss` for a need that became moot | `task close`, `sprint close`, `project close`, `decision close`; `action done`; `need dismiss` |
+| Close | `close`, for work items and for a need that sets no rule; a need that sets a rule closes through `decision add --need`; `--dropped` closes as not done | `task close`, `sprint close`, `project close`, `need close`; `task close --dropped`, `need close --dropped` |
 | Change | `edit` for a title or body, `move --to` for a parent, `rename --to` for a slug | `sprint edit`, `need edit`, `task move --to`, `design rename --to` |
-| Scope of a write | `--sprint ID`, `--task ID` or `--project NAME`, each meaning that container on every command | `finding add --sprint`, `doc new --sprint\|--task\|--project`, `postmortem new --sprint\|--project` |
-| Sub-item | `--parent ID`, only for an item of the same kind | `task add --parent <task>` |
+| Scope of a write | `--sprint ID`, `--task ID` or `--project NAME`, each meaning that container on every command; no other flag names a container (`--parent`, `--level` were removed) | `finding add --sprint`, `decision need --sprint\|--task`, `decision add --project\|--sprint`, `doc new --sprint\|--task\|--project` |
+| Sub-item | the scope flag of its parent's kind | `task add --task <task>` |
 | Body | `--text` or `--text-file`, exclusive; structured parts as flags, one line each; a close takes `--reason`; `commit` takes `-m` | `sprint open --text-file -`; `decision add --decision --reason` |
-| Positional id | Named for what it is: `task_id`, `sprint_id`, `need_id`, `slug`, `project`, `target` for a lookup that takes several kinds | `pm task close <task_id>`, `pm record link <target>` |
+| Positional id | Named for what it is: `task_id`, `sprint_id`, `need_id`, `slug`, `project`, `target` for a lookup that takes several kinds; `ID` on the work-store commands; `what` for `pm where`'s location | `pm task close <task_id>`, `pm project open <project>`, `pm record link <target>` |
 | Machinery | Hidden from `pm --help`, listed by `pm --help --all` | `pm hook stop`, `pm service run` |
 
 Where the surface still deviates:
 
 | Deviation | Grammar | State |
 |---|---|---|
-| `decision need` and `action need` take `--parent ID` for their sprint or task | `--sprint` or `--task` | Kept for now |
-| `decision add --level project\|sprint` beside `--project` or `--sprint`, which already name the level | The scope flag alone | Kept for now |
-| A need closes four ways: `decision add --need`, `decision close`, `action done`, `need dismiss` | One verb for a need that sets no rule; `decision add --need` for one that sets a rule | Kept for now |
 | `finding add` takes its text as a positional | A body form | Kept: one short line, failing 2.6% of calls |
+| The work-store commands name their positional `ID`, not the item's kind | `task_id`, `need_id`, … | Kept: their usage line is parsed for help; a rename is its own change |
+
+`TestEveryCommandFollowsTheNamingGrammar` (`internal/cli/commands_test.go`) holds every command, the work-store commands and forms included, to this table: a flag that names a container other than the three scope flags, a create verb under a noun it does not serve, a close verb other than `close`, or a positional name outside the table fails it. A removed form is refused, naming its replacement (`removedForms` in `cli.go`), never aliased.
 
 ### Agent hooks
 
@@ -239,7 +239,4 @@ Smaller alternatives sit beside the choice they lost to in Design, marked "Not c
 
 > What is still unresolved?
 
-- Whether `decision need` and `action need` move from `--parent` to `--sprint`/`--task`, and `decision add` drops `--level`: one scope vocabulary.
-- Whether one verb closes a need that sets no rule, in place of `decision close`, `action done` and `need dismiss`.
-- A CI check over `commands.go` that refuses a scope flag, create verb or positional name outside the Naming grammar, once those two are settled.
 - Whether Codex agents use the CLI differently: the usage figures hold no Codex invocations.

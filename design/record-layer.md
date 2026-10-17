@@ -212,7 +212,7 @@ record permanently; nothing is closed or moved.
 
 - **A decision later sprints must follow is a project decision.** Record it in the project record when it is made, or as soon as it turns out to apply beyond one sprint.
 - **Skip the cheap ones.** A choice that is cheap to reverse and nobody will ask about is not recorded; its commit message is enough.
-`pm decision add` requires `--level` and prints the rule (see [pm CLI](pm-cli.md)).
+`pm decision add` requires `--project` or `--sprint` and prints the rule (see [pm CLI](pm-cli.md)).
 
 ### The fenced-div vocabulary
 A fixed list. The renderer and CLI reject any other name or a missing required attribute.

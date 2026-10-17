@@ -246,8 +246,8 @@ records on the `records` branch, which each `pm` write commits itself.
   refuses a record that would not render, or one with uncommitted changes.
 - Findings are bullets in the sprint's Findings as they happen, with their
   numbers.
-- Decisions: `--level project` when later sprints must follow it,
-  `--level sprint` for this sprint's own work. The agent's own are
+- Decisions: `--project NAME` when later sprints must follow it,
+  `--sprint ID` for this sprint's own work. The agent's own are
   `source=agent`; `source=owner` only with `--need` (it answers a need) or
   `--confirmed`.
 - Goal, Done when, delivery reports and design pages are edited by hand in
@@ -264,11 +264,11 @@ When work waits on the owner, the agent picks the form by what it asks,
 not by whether the owner is in the chat, and splits a mixed ask; it raises a
 need and keeps working on other ready tasks:
 
-- **Decision need**, `pm decision need --title … --parent ID`: a ruling on a
+- **Decision need**, `pm decision need --title … --sprint ID`: a ruling on a
   project's or sprint's outcome that later sessions must follow; the owner
   must choose. Its body stands alone: the question, Options with their cost,
   a Default.
-- **Action need**, `pm action need --title … --parent ID`: the owner must do
+- **Action need**, `pm action need --title … --sprint ID`: the owner must do
   something only they can, such as run a command or apply a setting.
 - **PR review**, `pm action need --pr URL --sprint ID --focus …`: refused
   until the sprint's delivery report is written; a need that asks to
@@ -277,7 +277,7 @@ need and keeps working on other ready tasks:
   to do next, confirm a scope or plan, clarify what the owner meant):
   AskUserQuestion in Claude Code; `request_user_input_async` in Codex,
   `request_user_input` in its Plan mode; with no ask tool (`claude -p`, a
-  subagent), a decision need closed with `pm decision close` when its answer
+  subagent), a decision need closed with `pm need close` when its answer
   sets no rule. The owner-request check reads the
   turn's ask-tool calls from the transcript and treats their questions as
   open requests, so the reply's repeat of one does not block.
@@ -306,7 +306,7 @@ sequenceDiagram
   S->>B: stores the reply as a comment
   S->>A: pushes the reply and the next step into the inbox
   S->>B: sets picked_up, only once the push was accepted
-  A->>B: pm decision add --need ID, or decision close, or action done
+  A->>B: pm decision add --need ID, or need close
 ```
 
 The site that stores the reply delivers it: the session takes it as a new
@@ -315,7 +315,7 @@ run.
 
 - **PR merges** take the same path: every 60 s `pm serve` looks at each
   open review's PR through `gh`, and once its merge commit is on
-  `origin/main` pushes it once, naming `pm action done` and the
+  `origin/main` pushes it once, naming `pm need close` and the
   `git pull --ff-only` that updates the main checkout.
 - **A failed push** (timeout, socket briefly missing) stays undelivered;
   `pm serve` sweeps open requests every 60 s and pushes again. A repeat
@@ -331,12 +331,12 @@ run.
   the reply and marks it delivered.
   A resumed session binds a new socket; its start hook points its open
   requests at it, and the sweep delivers what the old one missed.
-- Closing a request (`pm decision add --need`, `pm decision close`,
-  `pm action done`) refuses while it holds an undelivered site reply, so no
+- Closing a decision need or an action (`pm decision add --need`,
+  `pm need close` without `--dropped`) refuses while it holds an undelivered site reply, so no
   close buries one.
 - An answer that sets a rule becomes a decision citing the need; one that
-  sets none closes with `pm decision close` and its reason. An action is
-  closed with `pm action done` once the agent sees it done. Only site
+  sets none closes with `pm need close` and its reason. An action is
+  closed with `pm need close` once the agent sees it done. Only site
   replies count as replies, so an answer given in chat, pm's own comments
   and an agent's comment leave nothing undelivered.
 - How a site reply is stored: [Replies on the site](site-replies.md); how
@@ -362,8 +362,8 @@ Closing a task stamps its commit; two Stop hooks each block once, and on
 
 - `pm task close` appends "(commit <sha>)" from `--commit` or from HEAD when
   HEAD is newer than the claim, and warns when there is none or the working
-  tree is dirty. It refuses a need; needs close through `pm decision` or
-  `pm action done`.
+  tree is dirty. It refuses a need; needs close through `pm need close` or
+  `pm decision add --need`.
 - In a worktree, the uncommitted-records hook names the worktree's own
   records workspace's uncommitted files: conflict markers, and pages
   stranded because their sprint closed elsewhere, with how to commit them

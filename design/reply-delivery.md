@@ -83,7 +83,7 @@ Root cause: the watched set was fixed at raise time, from printed text, and a wa
 
 **1. The owner replies on the site.** The agent raised a need and carried on, or went idle. The owner answers on the request's card. The reply travels to the session by the routes below.
 
-**2. The owner answers in chat.** The agent already has the answer: it records it (`pm decision add --need`, `pm decision close`, `pm action done`) and the close stamps pm's own answer comment at the close. That comment is no reply to deliver, so nothing is undelivered and the close is never refused.
+**2. The owner answers in chat.** The agent already has the answer: it records it (`pm decision add --need`, `pm need close`) and the close stamps pm's own answer comment at the close. That comment is no reply to deliver, so nothing is undelivered and the close is never refused.
 
 A question need (an ask-tool question, which `pm hook ask` raises) is answered either way too, but pm, not the agent, closes it with the first answer ([Owner questions](owner-questions.md)).
 
@@ -120,7 +120,7 @@ sequenceDiagram
     A->>W: pm show flags the reply (session start, or any later look)
     A->>W: pm reply read: delivered = reply count, once printed
   end
-  A->>W: pm decision add --need, decision close, or action done
+  A->>W: pm decision add --need, or need close
 ```
 
 Reading (a decision, action or review): the push is the one route into a running session; the flag and `pm reply read` read the same undelivered set and write the same delivered count, for whatever the push did not deliver.
@@ -143,7 +143,7 @@ The service's writer makes every write one at a time. After it stores a reply, i
 |---|---|
 | Host | Push only when `raised_by.host` is this machine; otherwise "not running: the session's inbox is on <host>" |
 | Connect | `PushTimeout` 5 s; a missing socket or a refused connection means the session is not running |
-| Write | One line, as above, with the reply text, its UTC stamps and the next command (`pm decision add --need …` or `pm decision close …`; for an action, `pm action done …`) |
+| Write | One line, as above, with the reply text, its UTC stamps and the next command (`pm decision add --need …` or `pm need close …`; for an action, `pm need close …`) |
 | Mark | Delivered is set only once the line is written. The store is not held across the push |
 
 For a Codex inbox the push is a `codex queue` call:
@@ -168,11 +168,11 @@ A sweep pushes again what an open need's session has not received: a failed push
 
 Session start injects `pm show`, which flags every open request holding an undelivered reply or merge (`[undelivered reply: pm reply read ID]`), so a reply whose session ended reaches the next session working on that project, and a session the service cannot push into sees it at its next `pm show`. `pm reply read [ID…]` prints undelivered replies and merges (without ids, this session's open requests; with ids, those, closed ones too) and marks them delivered; it does not wait.
 
-Closing a request through pm (`pm decision add --need`, `pm decision close`, `pm action done`) refuses while it holds an undelivered reply, so pm never buries one under a close.
+Closing a decision need or an action through pm (`pm decision add --need`, `pm need close` without `--dropped`) refuses while it holds an undelivered reply, so pm never buries one under a close.
 
 ### Merges of reviewed PRs
 
-At start and every `MergePoll` (60 s) the service checks each open review's PR: `gh pr view`, then `git fetch` and whether the merge commit is an ancestor of the remote's main (a PR merged into a stacked base is not). Each call has a 60 s timeout; a failing look is logged and retried at the next tick. A merge on main is stored on the review and delivered through the same routes as a reply, naming `pm action done` and the `git pull --ff-only` that updates the main checkout.
+At start and every `MergePoll` (60 s) the service checks each open review's PR: `gh pr view`, then `git fetch` and whether the merge commit is an ancestor of the remote's main (a PR merged into a stacked base is not). Each call has a 60 s timeout; a failing look is logged and retried at the next tick. A merge on main is stored on the review and delivered through the same routes as a reply, naming `pm need close` and the `git pull --ff-only` that updates the main checkout.
 
 ### Questions
 

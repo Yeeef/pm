@@ -97,13 +97,13 @@ Other constraints:
 | Asks the owner to | steer one session: what to do next, confirm a scope or plan, clarify what the owner meant | rule a project's or sprint's outcome that later sessions must follow: a design choice, a scope change, a trade-off | do a step only the owner can do |
 | Raised by | pm, from the runtime's ask tool (`pm hook ask`) | the agent, `pm decision need` | the agent, `pm action need` (`--pr` for a review) |
 | Parent | the newest open task its session holds, else none | a sprint or task | a sprint or task |
-| The answer is | an instruction to the session that asked | a decision the agent records (`pm decision add --need`) or closes as no rule | evidence the agent checks (`pm action done`) |
+| The answer is | an instruction to the session that asked | a decision the agent records (`pm decision add --need`) or closes as no rule | evidence the agent checks (`pm need close`) |
 | Who may act on the answer | only the session that asked | whichever session takes the reply | whichever session takes the reply |
 | Closed by | pm, with the first answer | the agent | the agent |
 | Lives | while its session can take the answer (Closing) | until answered | until done |
 
 - The agent picks the kind by what it asks, not by whether the owner is in the chat (owner decision 2026-10-14), and splits a mixed ask. "Do you want me to open a sprint for it?" is a question; "should interactive mode also turn off the uncommitted-records check?" is a decision, since it changes what the sprint builds.
-- With no ask tool (`claude -p`, a subagent), a question goes as a decision need: its options and default let the session go on, it shows on the site, and `pm decision close` closes an answer that sets no rule. An action need does not fit: answering is not a step the owner does.
+- With no ask tool (`claude -p`, a subagent), a question goes as a decision need: its options and default let the session go on, it shows on the site, and `pm need close` closes an answer that sets no rule. An action need does not fit: answering is not a step the owner does.
 - The owner-request hook checks that an ask reaches the owner, not its kind: a decision asked with the ask tool passes ([Owner-request Stop hook](owner-request-hook.md), One rule).
 - A question's answer records nothing in the records. If it rules the work, the agent records a decision with `--confirmed`.
 - The owner sees it on the site under "Sessions ask you", above the decisions, and in `pm show` (Answering on the site).
@@ -122,7 +122,7 @@ A question need is a need of kind `question` ([Work store](work-store.md), Data 
 | Title | `Session <the session id's first 8 characters> asks: <the first question>`, on one line, cut at 120 characters |
 | Description | each question with its header (`**Header**: text`), "(choose one or more)" on a multiple choice, then its options as a list (`- label: detail`) |
 | Checks | an ask exactly on a question need, which a session raised; a call key; one or more questions, each with a text; each option with a label, no label twice in a question |
-| Refused | `pm decision add --need`, `pm decision close`, `pm action done` and `pm need edit`, each naming `pm need dismiss`: the answer goes to the session that asked and records no decision |
+| Refused | `pm decision add --need` and `pm need edit`, each naming `pm need close`: the answer goes to the session that asked and records no decision |
 
 ### Raising
 
@@ -271,7 +271,7 @@ A question closes once. The store's close is a compare-and-set under its write l
 stateDiagram-v2
   [*] --> Open: pm hook ask raises the call
   Open --> Answered: the first answer, on the site or in the chat
-  Open --> Dismissed: Esc or the session stopping (SIGTERM), the Claude Code session gone, or pm need dismiss
+  Open --> Dismissed: Esc or the session stopping (SIGTERM), the Claude Code session gone, or pm need close
   Answered --> [*]
   Dismissed --> [*]
 ```
@@ -284,7 +284,7 @@ Reading: a question has one open state and two ends; nothing reopens it, and a C
 | Answered in the chat | answered, the answer as its comment | by the PostToolUse hook, from the tool's answers | by the UserPromptSubmit hook, with the prompt |
 | Hook stopped | dismissed, "the session stopped waiting for the answer: Esc in the dialog, or the session ended" | Claude Code stops the hook (SIGTERM, SIGINT, SIGHUP: Esc, the session ending, or its 24 h timeout): one close within 0.8 s, before Claude Code's kill at about 1.2 s; a need closed already stays | none |
 | Session ended | dismissed, "the session that asked has ended" | the service's sweep, when the session's messaging socket on this host is gone: a backstop for a hook that could not close | never: an idle Codex TUI looks the same as an ended session, and a late site answer still reaches it |
-| By hand | dismissed, the reason given | `pm need dismiss <id> --reason "…"` | the same; the only way to clear a stale Codex question |
+| By hand | dismissed, the reason given | `pm need close <id> --reason "…"` | the same; the only way to clear a stale Codex question |
 
 - A Codex site answer while the session is not live (its rollout unchanged for 30 minutes), on another host, or with no usable codex is not queued and the question stays open: the sweep tries again once the session's rollouts change.
 - A `codex queue` that fails after the service closed the question leaves the answer undelivered; the sweep queues it again (a question closed as answered on the site with replies beyond its delivered count).
@@ -337,6 +337,6 @@ None yet.
 
 > What is still unresolved?
 
-- **No dismiss control on the site's card.** A question from an abandoned Codex session stays until answered or `pm need dismiss`; the owner cannot clear it from the site.
+- **No dismiss control on the site's card.** A question from an abandoned Codex session stays until answered or `pm need close`; the owner cannot clear it from the site.
 - **Codex's blocking `request_user_input` (Plan mode).** It blocks inside Codex's app-server, which a second client reaches only with `app-server --listen` and a TUI started with `--remote`. PreToolUse fires for it, and in Default mode a PreToolUse deny with a reason reaches the model as the tool's output, so a hook could carry a site answer that way; whether that holds in Plan mode is untested.
 - **Sync and async.** What sets a question apart may be that a session waits on it now, which other kinds can share: see [Owner-request Stop hook](owner-request-hook.md), Open question 2.

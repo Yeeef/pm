@@ -114,6 +114,8 @@ The site names need close in its hints; what each page shows and how it renders 
 
 done: every pm command follows one naming grammar, and a test holds new commands to it (PR #114).
 
+Merged as bd980f4 (PR #114).
+
 - Scope flags are `--sprint`, `--task` and `--project` only: the need forms drop `--parent`, `decision add` drops `--level`, and `task add --parent` becomes `--task`.
 - `pm need close ID --reason` replaces `decision close`, `action done` and `need dismiss`; `--dropped` dismisses.
 - Removed forms are refused with the new form; `TestEveryCommandFollowsTheNamingGrammar` checks the command tree.

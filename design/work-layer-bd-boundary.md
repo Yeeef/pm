@@ -81,17 +81,17 @@ R reads, W writes. Line numbers are in `pm/src/pm/cli.py` unless a file is named
 |---|---|---|---|
 | Snapshot | `list --all --json` | `beads.py:27`, behind every `pm show`, the service, `pm commit` | R |
 | Comment bodies | `export` (all issues), cached by id and comment count | `beads.py:58` | R |
-| Comments | `comments <id> --json` | decision close, reply delivery, new replies | R |
-| Comments | `comments add <id> --file= --author=` | decision close, site reply | W |
+| Comments | `comments <id> --json` | need close, reply delivery, new replies | R |
+| Comments | `comments add <id> --file= --author=` | need close, site reply | W |
 | Lookup | `show <ids> --json` | `beads.py:68`, project and sprint open, reply | R |
 | Needs by session | `list --label human --metadata-field session=X --limit 0 --json` | `owner_request.py:114` (Stop hook), reply read | R |
 | Create | `create --type --parent --labels --title --description --metadata --external-ref --json` | needs, PR reviews, tasks, projects, sprints | W |
-| Close | `close <id> --reason=` | action done, task, sprint, project close | W |
+| Close | `close <id> --reason=` | need close, task, sprint, project close | W |
 | Holder | `update --claim --set-metadata claimed_by=… claimed_at=…` | task claim | W |
 | Move | `update --parent=` | task move | W |
-| Labels | `update --add-label=no-decision` | decision close | W |
+| Labels | `update --add-label=no-decision` | need close | W |
 | Metadata | `update --set-metadata` (`picked_up`, `merged`, `merge_reported`) | reply, service merge tracking | W |
-| Owner answer | `human respond <id> --response=` | decision add, decision close | W |
+| Owner answer | `human respond <id> --response=` | decision add, need close | W |
 | Location | `context --json` | `beads.py:74`, `pm where` | R |
 | Config | `config get/set agent.profile` | `hooks.py:163`, init, `pm where` | R/W |
 | Setup | `bootstrap --dry-run --json`, `bootstrap --yes`, `hooks install --beads`, `init --non-interactive` | `pm init` | W |

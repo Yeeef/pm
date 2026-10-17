@@ -50,7 +50,7 @@ Non-goals:
 
 ### Input form
 
-`pm decision need --title "…" --parent ID` takes each part as a flag, and reads no stdin. Each value is one line:
+`pm decision need --title "…" --sprint ID` takes each part as a flag, and reads no stdin. Each value is one line:
 
 | Flag | Count | Meaning |
 |---|---|---|
@@ -65,7 +65,7 @@ argparse refuses a missing flag and a flag with too few values. pm keeps each fl
 Example call:
 
 ```
-pm decision need --title 'Where the public site URL is stored' --parent yeeef-agents-9va.38 \
+pm decision need --title 'Where the public site URL is stored' --sprint yeeef-agents-9va.38 \
   --question 'Where does pm keep the public site URL?' \
   --fact 'Today, each clone keeps the URL in its git config.' \
   --fact 'You asked why the URL is not in `.pm/config.toml`.' \

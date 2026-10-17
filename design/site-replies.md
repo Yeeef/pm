@@ -98,7 +98,7 @@ sequenceDiagram
   S->>S: mark it done in the spool
   S->>A: push the reply into the session's inbox socket
   S->>B: picked_up = site replies, once the push was accepted
-  A->>B: pm decision add --need / pm action done
+  A->>B: pm decision add --need / pm need close
 ```
 
 The server that stores the reply also delivers it, into the inbox of the
@@ -147,8 +147,8 @@ for the agent while the request has more site replies (comments by
 `owner (site reply)`; pm's and agents' own comments are no replies) than its
 stored `picked_up` count, and the card then marks it not delivered. The agent
 then does what the rules already say: for a decision, `pm decision add
---need` (which closes the need) or `pm decision close`; for an action, it
-checks the evidence and runs `pm action done`.
+--need` (which closes the need) or `pm need close`; for an action, it
+checks the evidence and runs `pm need close`.
 
 ### Delivery
 `pm serve` pushes each stored reply into the inbox socket of the Claude Code

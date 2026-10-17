@@ -84,7 +84,7 @@ stateDiagram-v2
   Work --> Report: report written, pm commit
   Report --> Review: pm action need --pr
   Review --> Work: changes requested
-  Review --> Close: PR on main, pm action done
+  Review --> Close: PR on main, pm need close
   Work --> Close: no PR, or voided
   Close --> [*]: pm sprint close
 ```
@@ -143,7 +143,7 @@ a merged review tells the agent to fast-forward the main checkout with
 ### Close
 
 The agent confirms the merge commit is on `origin/main`, closes the review
-with `pm action done <review> --reason "merged as <sha>"`, and edits the
+with `pm need close <review> --reason "merged as <sha>"`, and edits the
 report by hand only if review changed the work. Open tasks are closed or
 moved (`pm task move`) first. `pm sprint close <id>` then requires every task
 closed and each review closed as merged (a dismissed one, a replaced PR's or a [TEST] review, is skipped), appends "Merged as <sha> (PR #N)." to the
@@ -163,7 +163,7 @@ closes without a review or a stamp, and publishes its pages the same way.
 
 A review closed without "merged as <sha>" (its PR merged into a stacked
 base, which later reached main inside another merge) is restamped with the
-same command, `pm action done <review> --reason "merged as <sha>"`: the sha
+same command, `pm need close <review> --reason "merged as <sha>"`: the sha
 must be on the remote's main, checked as `--merged` checks it, and the old
 reason stays after the new one ("…; first closed as: <old>"). A review
 already closed as merged, a dismissed one and any other closed action are

@@ -58,7 +58,7 @@ Non-goals:
 - The Codex judge, `codex exec --model gpt-5.6-luna` at medium reasoning effort, takes about 5.5 s (p90 14 s, 8 calls at a time); at low effort it missed 3 or 4 of 189 labelled runs. Its timeout is 40 s, inside the Codex entry's 45 s.
 - A `codex exec` child runs the hooks it finds, its own Stop included, so a judge that ran them would run the judge again. `--disable hooks` turns Codex's hook engine off; `--ignore-user-config` drops `$CODEX_HOME/config.toml` (its hooks, MCP servers, notify); `--ignore-rules` drops execpolicy rules. `$CODEX_HOME/AGENTS.md`, the user's own instructions, still loads: no flag turns it off (codex-rs 0.154 `codex-home/src/instructions`).
 - The judge sees only the reply and this session's open needs (title and the first 400 characters of the description). It knows nothing of sprints or tasks, so a rule that depends on them cannot be enforced.
-- A need's `--parent` must be an open item inside a project with a record. A project itself is refused ("not inside a project with a record"), so every need sits under a sprint or a task.
+- A need's `--sprint` or `--task` must be an open sprint or task inside a project with a record. A project itself is refused ("is a project, not a sprint"), so every need sits under a sprint or a task.
 - Codex runs only command hooks, and trusts each hook per file path and hash: a new or changed hook entry runs only after the owner approves it in `/hooks`.
 - Codex's Stop payload differs from Claude Code's in one key the hook reads: `last_assistant_message` is nullable (null for a turn that ended without a message). `session_id` is the root session's in both runtimes.
 - A Stop hook that fails (exit 1) lets the stop through in both runtimes; Codex does so silently. A check that cannot run is therefore lost, not blocking: so each session's judge runs on the runtime that session already has.
@@ -96,7 +96,7 @@ The rule, as all three texts state it:
 
    | Kind | What it asks | Form |
    |---|---|---|
-   | Question | steers this session: what to do next, confirm a scope or plan, clarify what the owner meant; its answer is an instruction to this session | the runtime's ask tool, never plain text; pm raises it on the site too ([Owner questions](owner-questions.md)). With no ask tool (`claude -p`, a subagent): a decision need, closed with `pm decision close` when its answer sets no rule |
+   | Question | steers this session: what to do next, confirm a scope or plan, clarify what the owner meant; its answer is an instruction to this session | the runtime's ask tool, never plain text; pm raises it on the site too ([Owner questions](owner-questions.md)). With no ask tool (`claude -p`, a subagent): a decision need, closed with `pm need close` when its answer sets no rule |
    | Decision | a ruling on a project's or sprint's outcome that later sessions must follow: a design choice, a scope change, a trade-off | `pm decision need`, which becomes a recorded decision |
    | Action | a step only the owner can do | `pm action need`; a PR review or merge is `pm action need --pr` |
 
@@ -215,7 +215,7 @@ The needless-ask reason (`owner_request_needless.txt`): take the authorized step
 | **The owner's prompt `pm interactive`, caught by a UserPromptSubmit hook** | A UserPromptSubmit hook writes the mode file on that exact prompt and blocks it; no command sets the mode | The file it writes is one an agent can write too, so the keyword protects nothing a command does not; two paths for one switch (owner decision 2026-10-14) |
 | **The mode read from the transcript** | The session is interactive when its latest owner prompt `pm interactive` or `pm autopilot` is `pm interactive`; no state | Protects the mode, since only the runtime writes owner prompts, but costs a transcript scan per stop (0.1 s for grep over a 410 MB transcript, warm) and a parser per runtime for which user entries are the owner's; the owner chose the simplest design (2026-10-14) |
 | **Pass when the session holds no claimed task and no open need** | Deterministic gate before the judge | Lets every request through in a planning or Q&A session where the owner may not be watching |
-| **Needs filed under the project** | A request outside any sprint becomes a project-level need | The owner ruled that every request is tracked work: open a sprint or task first (2026-10-10); pm also refuses a project as `--parent` |
+| **Needs filed under the project** | A request outside any sprint becomes a project-level need | The owner ruled that every request is tracked work: open a sprint or task first (2026-10-10); pm also refuses a project as `--sprint` or `--task` |
 | **Claude Code prompt hook** (`"type": "prompt"`, the earlier design) | Haiku reads the reply in-process | Cannot read the work store, so it checked that an id was cited, not that the need was open; Claude Code only |
 | **Phrase patterns** (sprint 13) | A phrase list plus a cited-id check | Missed requests worded differently; blocked a reply that cited its needs |
 | **Rule only** | The agent remembers | Four of six requests were asked only in chat |

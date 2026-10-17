@@ -210,8 +210,8 @@ Across clones, two copies can change the same item before they sync. The merge i
 | `comments` | union by comment id: rows, merged by Dolt |
 | `labels`, `blocked_by` | per entry, three-way: an entry is kept unless a side removed it from the base and the other side left it as in the base; an add on either side is kept. Rows, merged by Dolt |
 | `status` | `closed` wins |
-| `closed_at`, `closed_by`, `close_reason` | from the earlier close when both closed; else from the side that closed. As one group, three-way: a restamp (`pm action done` on a closed review) changes only `close_reason` on one side, and that side's group is kept; two clones that restamp the same item differently before a sync fail the merge (same `closed_at`, different groups) |
-| `resolution` | the side's value that is not null; when both set it, the later `updated_at` wins. So a resolution set after the close (`pm decision close` marks a closed need `no-decision`) is kept |
+| `closed_at`, `closed_by`, `close_reason` | from the earlier close when both closed; else from the side that closed. As one group, three-way: a restamp (`pm need close` on a closed review) changes only `close_reason` on one side, and that side's group is kept; two clones that restamp the same item differently before a sync fail the merge (same `closed_at`, different groups) |
+| `resolution` | the side's value that is not null; when both set it, the later `updated_at` wins. So a resolution set after the close (`pm need close` marks a closed need `no-decision`) is kept |
 | `holder` (the three `holder_*` columns as one) | a closed result has holder null (close beats claim). Else: a claim beats a release (one side null); between two claims, the later `claimed_at` wins, and `pm show` warns that a claim was overridden |
 | `started_at` | min (the earliest start) |
 | `updated_at` | max |
@@ -305,7 +305,7 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 |---|---|---|
 | `bd ready --exclude-type=epic` | `pm task ready [--sprint ID] [--json]` | ready tasks, as defined above; no flag needed to drop projects and sprints |
 | `bd show <id>` | `pm show <id> [--json]` | any item: fields, holder and liveness, blockers with reasons, children, needs, comments |
-| `bd create --parent <task>` | `pm task add --parent <task> --title "…"` | sub-task; `--sprint ID` stays for a sprint's task. Description through `--text` or `--text-file` |
+| `bd create --parent <task>` | `pm task add --task <task> --title "…"` | sub-task; `--sprint ID` stays for a sprint's task. Description through `--text` or `--text-file` |
 | `bd dep add <a> <b>` | `pm dep add <a> --on <b>` | `b` blocks `a`; refuses a cycle |
 | `bd dep remove <a> <b>` | `pm dep rm <a> --on <b>` | |
 | `bd update --title/--description` | `pm task edit <id> [--title "…"]` | description through `--text` or `--text-file`; a scope change is still `pm task move` or a sprint decision |
@@ -313,8 +313,8 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 | `bd unclaim` | `pm task release <id>` | clears this session's holder |
 | `bd comments add`, `bd comment` | `pm comment add <id>` | text through `--text` or `--text-file`; a `note` |
 | `bd close` | `pm task close` (exists) | |
-| `bd human dismiss` | `pm need dismiss <id> --reason "…"` | `resolution=dismissed`; for `[TEST]` needs, replaced reviews, needs that became moot and a question nobody will answer |
-| `bd human respond` (owner at a shell) | `pm reply add <id>` | owner's answer through `--text` or `--text-file`; a `reply` comment, as a reply on the site writes. The need stays open: the session that raised it reads the reply, then records it (`pm decision add --need`, `pm decision close`, `pm action done`), which closes it with its `resolution` |
+| `bd human dismiss` | `pm need close <id> --dropped --reason "…"` | `resolution=dismissed`; for `[TEST]` needs, replaced reviews, needs that became moot and a question nobody will answer |
+| `bd human respond` (owner at a shell) | `pm reply add <id>` | owner's answer through `--text` or `--text-file`; a `reply` comment, as a reply on the site writes. The need stays open: the session that raised it reads the reply, then records it (`pm decision add --need`, `pm need close`), which closes it with its `resolution` |
 | `bd list`, `bd search`, `bd count` | `pm show` filters; `pm export` | `pm export` prints the store as JSONL for ad hoc `jq` |
 | `bd remember`, `bd memories`, `bd forget` | none | see Session context |
 | `bd prime` | `pm prime` (exists) | see Session context |
@@ -336,9 +336,9 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 | Holder | `update --claim --set-metadata claimed_by=… claimed_at=…` | `work.Claim(id, session)`: compare-and-set in one write transaction |
 | Move | `update --parent=` | `work.Move(id, parent)`; the id stays |
 | Labels | `update --add-label=no-decision` | `work.SetResolution(id, "no-decision")` |
-| Close reason | none: new in pm | `work.SetCloseReason(id, reason)` on a closed item, called by `pm action done` to restamp a PR review closed without `merged as <sha>` |
+| Close reason | none: new in pm | `work.SetCloseReason(id, reason)` on a closed item, called by `pm need close` to restamp a PR review closed without `merged as <sha>` |
 | Metadata | `update --set-metadata` (`picked_up`, `merged`, `merge_reported`) | `work.UpdateNeed(id, …)`: `delivered`, `review_merged`, `review_merge_reported` |
-| Owner answer | `human respond <id> --response=` | `work.Answer(id, text)`, called by `pm decision add --need` and `pm decision close`: a `reply` comment, then close with `resolution=answered`; a reply from the site only adds the comment |
+| Owner answer | `human respond <id> --response=` | `work.Answer(id, text)`, called by `pm decision add --need` and `pm need close`: a `reply` comment, then close with `resolution=answered`; a reply from the site only adds the comment |
 | Location | `context --json` | `pm where` reads the store's own path and sync state |
 | Config | `config get/set agent.profile` | gone: pm has no agent profile (constraint 6) |
 | Setup | `bootstrap --dry-run --json`, `bootstrap --yes`, `hooks install --beads`, `init --non-interactive` | `pm init`: clone the remote's work store (`DOLT_CLONE`), or create one with the schema when the remote has none; pm installs no git hook |
