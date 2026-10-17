@@ -98,6 +98,12 @@ The site names need close in its hints; what each page shows and how it renders 
   grammar"), and `design open` ("open creates only under [project sprint]").
   It passes on the branch.
 
+- Removed forms are refused before parsing, with exit 2 and the new form: `pm
+  action done x --reason y` gives "pm action done was removed: pm need close
+  ID --reason …"; `pm decision need --parent x` gives "name the sprint with
+  --sprint ID or the task with --task ID". Twelve design pages named a removed
+  form and were updated as drafts.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
