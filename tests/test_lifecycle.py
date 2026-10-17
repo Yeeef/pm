@@ -10,14 +10,15 @@ import os
 import signal
 import socket
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
 import pytest
 
 from conftest import PM, VERSION, stop_services
-from test_init import (BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, HOOKS, PM_FILES, USER_CODEX,  # noqa: F401
-                       USER_SETTINGS, brand_new_repo, commands, env, existing, git, new_repo, pm, pm_free, snapshot)
+from test_init import (BEADS_HOOK, CLAUDE_PM, CODEX_MODE, GITIGNORE_BLOCK, HOOKS, PM_FILES,  # noqa: F401
+                       USER_CODEX, USER_CODEX_CONFIG, USER_SETTINGS, brand_new_repo, commands, env, existing, git, new_repo, pm, pm_free, snapshot)
 
 pytestmark = pytest.mark.integration  # each test runs pm init in a fresh repo with a remote and starts its service
 
@@ -113,6 +114,8 @@ REPO_CHANGES = {
                                    ".codex/hooks.json: pm's part differs"),
     "gitignore block": (lambda r: edit(r / ".gitignore", "/records\n", "/records/\n"),
                         ".gitignore: pm's part differs"),
+    "Codex mode key gone": (lambda r: edit(r / ".codex/config.toml", 'sandbox_mode = "workspace-write"\n', ""),
+                            ".codex/config.toml: pm's part differs"),
 }
 
 
@@ -187,6 +190,11 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     claude = json.loads((existing / ".claude/settings.json").read_text())
     assert all(commands(claude, e)[-len(c):] == c for e, c in CLAUDE_PM.items())
     assert (existing / ".gitignore").read_text() == "*.log\nbuild/\n" + GITIGNORE_BLOCK
+    # pm's Codex mode keys join the repo's own, and the approval_policy the repo set stays its own
+    codex = (existing / ".codex/config.toml").read_text()
+    assert codex.endswith("\n" + USER_CODEX_CONFIG), codex
+    assert tomllib.loads(codex) == tomllib.loads(USER_CODEX_CONFIG) | {
+        k: v for k, v in CODEX_MODE.items() if k != "approval_policy"}
     assert git(existing / ".pm/store/records", "ls-files").split() == ["sprints/a-1.md"]
     installed = snapshot(existing)
     assert all(installed[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
@@ -575,7 +583,8 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
     """pm doctor asks Codex (here the fake codex app-server) which of pm's hooks it would skip, and names each with
     the fix, failing; pm init (not at session start) names them too. Without codex on PATH, doctor says the trust was
     not checked and does not fail on it. It fails on a missing CLI only for summary_runtime's runtime, which the pm
-    service summarizes with: a machine with Codex alone passes once the repo summarizes on codex."""
+    service summarizes with: a machine with Codex alone passes once the repo summarizes on codex. On Linux it fails
+    where Codex's sandbox (codex sandbox, here the fake's) cannot start."""
     (tmp_path / "codex").mkdir()  # Codex ran on this machine: its home exists, so doctor asks it
     assert pm(new_repo, "init").returncode == 0
     git(new_repo, "add", "-A")
@@ -607,6 +616,12 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
         f"codex: Codex runs none of pm's hooks in {hooks}: it lists none of them, as it does until you trust the "
         f"project; open Codex in {new_repo}, trust the project, then trust pm's hooks in /hooks"), res.stdout
     assert run("doctor").returncode == 0  # the fake trusts every hook
+    if sys.platform == "linux":  # Codex's sandbox is bwrap there; the cause and fix that follow depend on the host
+        res = run("doctor", FAKE_CODEX_SANDBOX="bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted")
+        assert res.returncode == 1 and res.stdout.startswith(
+            "codex: Codex's sandbox cannot start here (codex sandbox -- true: bwrap: loopback: Failed RTM_NEWADDR: "
+            "Operation not permitted), so every command Codex runs sandboxed, apply_patch's edits included, fails; "), \
+            res.stdout
     # neither codex nor claude on PATH: the other fakes in a bin dir of their own, no dir that holds either
     fakes = tmp_path / "fakes-but-agents"
     fakes.mkdir()

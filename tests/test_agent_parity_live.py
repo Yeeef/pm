@@ -46,13 +46,15 @@ for the reply instead of waiting); test_ci holds that count to the scenarios pyt
 -n. PM_PARITY_TIMEOUT sets each session's limit in seconds (default 600). Each run prints its latency, and its output
 and transcript paths, kept under the test's tmp dir (-rA shows them).
 
-PM_PARITY_CODEX_SANDBOX sets Codex's mode: approve-for-me, or a sandbox mode with no approvals (workspace-write, the
-default, read-only, danger-full-access). A Codex user is expected to run approve-for-me (--approve-for-me, Codex's
-counterpart of Claude Code's auto mode): the workspace-write sandbox, approval on request, and each request to run
-outside the sandbox decided by Codex's automatic reviewer (a codex-auto-review model call). A host where bubblewrap
-cannot start (`bwrap: loopback: Failed RTM_NEWADDR`) runs no sandboxed command: under approve-for-me the session asks
-to run each failed command outside the sandbox and the reviewer allows it, but Codex's file edit tool (apply_patch)
-fails there before any review, so the Stop scenario fails; such a host passes the set only with danger-full-access.
+Codex runs in the repo's own mode, as a Codex user does: the auto mode `pm init` writes into the clone's
+.codex/config.toml (the workspace-write sandbox, approval on request, and each request to run outside the sandbox
+decided by Codex's automatic reviewer, a codex-auto-review model call), which Codex applies since the clone is trusted
+in the eval's CODEX_HOME; every scenario fails when a Codex turn's turn_context records another mode.
+PM_PARITY_CODEX_SANDBOX overrides it with a sandbox mode and no approvals (read-only, workspace-write,
+danger-full-access). A host where bubblewrap cannot start (`bwrap: loopback: Failed RTM_NEWADDR`) runs no sandboxed
+command: in auto mode the session asks to run each failed command outside the sandbox and the reviewer allows it
+(codex-cli 0.163.0 passed the set there; with 0.162 Codex's file edit tool, apply_patch, failed there before any
+review, and the Stop scenario with it).
 """
 
 from __future__ import annotations
@@ -65,6 +67,7 @@ import secrets
 import shutil
 import threading
 import time
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -72,7 +75,7 @@ from pathlib import Path
 
 import pytest
 
-from agents import Clone, Run, Tui, git
+from agents import CODEX_SANDBOX, Clone, Run, Tui, git
 from conftest import chunks
 
 pytestmark = [
@@ -114,6 +117,12 @@ class Checks:
             typed = [c for c in r.commands() if re.search(r"\bpm init\b", c)]
             print(f"\n{r.name}: {r.runtime} session {r.session or '?'}, exit {r.returncode}, {r.seconds:.1f}s, "
                   f"typed pm init: {'yes' if typed else 'no'}\n  output {r.stdout}\n  transcript {r.transcript}")
+        if not CODEX_SANDBOX:
+            repo = tomllib.loads((self.clone.root / ".codex/config.toml").read_text())
+            mode = (repo["approval_policy"], repo["approvals_reviewer"], repo["sandbox_mode"])
+            for r in self.runs:
+                if r.runtime == "codex":
+                    self(r.codex_modes() == {mode}, f"{r.name}: Codex ran in {r.codex_modes()}, not the repo's {mode}")
         runtime = [f"{r.name}: {r.runtime} failed on its own: {r.failure()}" for r in self.runs if r.failure()]
         assert not self.failed, "\n".join(runtime + self.failed)
 

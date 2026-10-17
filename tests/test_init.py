@@ -26,7 +26,12 @@ BEADS_HOOK = ("#!/usr/bin/env sh\n# --- BEGIN BEADS INTEGRATION v1.3.1 ---\n# be
               "# --- END BEADS INTEGRATION v1.3.1 ---\n")
 HOOKS = ".pm/hooks"  # an earlier pm's git hook files, which it pointed core.hooksPath at
 PM_FILES = [".pm/config.toml", ".pm/README.md", ".pm/.gitignore", ".claude/settings.json", ".codex/hooks.json",
-            ".codex/rules/pm.rules", ".gitignore"]
+            ".codex/rules/pm.rules", ".codex/config.toml", ".gitignore"]
+# Codex's auto mode, which pm sets in the repo's .codex/config.toml (the pm-codex sprint 5's owner decision)
+CODEX_MODE = {"approval_policy": "on-request", "approvals_reviewer": "auto_review", "sandbox_mode": "workspace-write"}
+# the repo's own Codex config: a key of pm's set to the repo's own value, which pm keeps, and a table, so pm's keys go
+# first
+USER_CODEX_CONFIG = 'model = "o3"\napproval_policy = "never"\n\n[profiles.deep]\nmodel = "o3-pro"\n'
 GITIGNORE_BLOCK = ("# --- BEGIN PM ---\n# each worktree's records/ is a link to the clone's records store\n/records\n"
                    "# per-machine Claude Code settings: pm adds the store's absolute path to them\n"
                    "/.claude/settings.local.json\n# --- END PM ---\n")
@@ -144,6 +149,7 @@ def test_init_bootstraps_a_brand_new_repo(new_repo: Path, tmp_path: Path):
     assert all(commands(codex, e) == c for e, c in CODEX_PM.items())
     status = [h["statusMessage"] for g in codex["hooks"]["SessionStart"] for h in g["hooks"] if h["command"] in RULES]
     assert status == [f"Loading pm rules ({n} of {len(RULES)})" for n in range(1, len(RULES) + 1)]
+    assert tomllib.loads((new_repo / ".codex/config.toml").read_text()) == CODEX_MODE
     assert (new_repo / ".gitignore").read_text() == GITIGNORE_BLOCK
     status = git(new_repo, "status", "--porcelain", "--untracked-files=all").split("\n")
     untracked = sorted(line[3:] for line in status
@@ -241,6 +247,7 @@ def existing(tmp_path: Path) -> Path:
     (seed / ".claude/settings.json").write_text(json.dumps(USER_SETTINGS, indent=2) + "\n")
     (seed / ".codex").mkdir()
     (seed / ".codex/hooks.json").write_text(json.dumps(USER_CODEX, indent=2) + "\n")
+    (seed / ".codex/config.toml").write_text(USER_CODEX_CONFIG)
     (seed / ".gitignore").write_text("*.log\nbuild/")  # no final newline
     git(seed, "add", "-A")
     git(seed, "commit", "-qm", "code")

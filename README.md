@@ -151,7 +151,18 @@ have only Codex); `uv` only for the one-time move of a clone off the pre-package
 `pm init` sets a repo up for Claude Code and Codex alike: it also writes `.codex/hooks.json`, pm's hooks for Codex,
 and `.codex/rules/pm.rules`, a Codex rule that runs `pm` (and nothing else) outside Codex's sandbox, since a pm
 command reaches the pm service through a socket that a network-off sandbox blocks. The rule allows every pm
-subcommand, so each runs outside the sandbox without asking for approval. Then, once per repo and machine:
+subcommand, so each runs outside the sandbox without asking for approval.
+
+It also sets Codex's auto mode, the config form of `--approve-for-me`, in the repo's `.codex/config.toml`:
+`approval_policy = "on-request"`, `approvals_reviewer = "auto_review"`, `sandbox_mode = "workspace-write"`. Commands
+run in the sandbox, and Codex's automatic reviewer decides each request to run one outside it. Your own
+`~/.codex/config.toml` is left alone. Codex applies the repo's file only once you trust the project (step 1); an
+untrusted project ignores it without a warning. To override a key, give it another value there: pm keeps it, and
+`pm doctor` does not name it; a deleted key is pm's again, and `pm init` or `pm upgrade` puts it back. On Linux the
+sandbox is bubblewrap, and `pm doctor` fails where it cannot start (Ubuntu 24.04 with no AppArmor profile for
+`bwrap`), with the fix for you to apply: every sandboxed command fails there, Codex's file edits included.
+
+Then, once per repo and machine:
 
 1. Open Codex in the repo's main checkout and trust the project. Codex reads `.codex/` from the main checkout, also
    for a session in a worktree, and runs none of a project's hooks or rules until the project is trusted.
