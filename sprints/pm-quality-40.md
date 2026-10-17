@@ -52,6 +52,11 @@ The harness pins the date pm stamps with PM_TEST_TODAY, read in store.Today and 
 store.Today already writes every date the tests compare, so one function and one harness line remove the class; tests reading the date back would need about 8 parsed assertions and still no cross-midnight proof.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page records-store stays as it is for this sprint's code changes.
+store.Today gains a test-only date pin that no help text names; with it unset the date is the wall date, so the store's design is unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
