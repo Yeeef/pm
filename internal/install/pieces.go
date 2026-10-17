@@ -5,7 +5,8 @@
 //
 // A piece is either a whole file pm owns (.pm/config.toml, .pm/README.md, .pm/.gitignore) or pm's part of a shared
 // file: its hook entries in .claude/settings.json and .codex/hooks.json (a hook is pm's when its command starts with
-// "pm prime" or "pm hook "), and its marked block in .gitignore. Each piece has Present, whether pm's part is there,
+// "pm prime" or "pm hook "), Codex's auto-mode keys in .codex/config.toml (a key set to another value is the user's),
+// and its marked block in .gitignore. Each piece has Present, whether pm's part is there,
 // Apply, the file with pm's part as this version writes it and every other byte kept, Part, pm's part alone (what pm
 // doctor compares with Part(Apply(text))), and Remove, the file without pm's part (nil: nothing else is left, so the
 // file goes). pm init applies a piece only when it is not present, so a second run changes nothing; pm upgrade applies
@@ -27,6 +28,7 @@
 // clone.go the clone's setup, which also gives the clone its id once (store.MakeCloneID), turns off the per-worktree
 // sparse checkout once the worktree tracks no records/, and unsets a core.hooksPath at .pm/hooks; workstore.go the
 // work store attached to the remote's refs/pm/work (cloned, or created and pushed); codex.go the Codex roots;
+// codexmode.go Codex's auto mode in the repo's .codex/config.toml;
 // codextrust.go and sessiontrust.go which of pm's hooks Codex trusts (SessionTrust, the state hook's check in a Codex
 // session, kept in .pm/run/codex-trust.json); codexsandbox.go whether Codex's Linux sandbox (bwrap) starts, which
 // pm doctor checks; binary.go pm copied into the bin dir; pins.go the launcher's pins that
@@ -745,6 +747,7 @@ func Pieces(s Settings) []Piece {
 		hooksPiece(".claude/settings.json", claudeHooks()),
 		hooksPiece(".codex/hooks.json", codexHooks()),
 		whole(".codex/rules/pm.rules", CodexRules),
+		codexModePiece(),
 		{".gitignore", marked(gitignoreBeginRe), gitignoreApply, sectionPart(gitignoreSection),
 			sectionRemove(".gitignore", gitignoreSection, gitignoreBeginRe, ""), 0o644},
 	}
@@ -1069,6 +1072,9 @@ func Removals(top string, s Settings) ([]Removal, error) {
 		n, err := p.Remove(*text)
 		if err != nil {
 			return nil, err
+		}
+		if n != nil && *n == *text { // pm's part is all the user's now: a Codex mode key set to their own value
+			continue
 		}
 		out = append(out, Removal{path, n})
 	}

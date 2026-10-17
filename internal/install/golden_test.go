@@ -99,6 +99,16 @@ var goldenTexts = map[string][]*string{
 	"gitignore": {nil, sp(""), sp("*.log\nbuild/"), sp("*.log\n"), sp("# --- BEGIN PM ---\n/records/\n# --- END PM ---\nkeep\n"),
 		sp("# --- BEGIN PM ---\nno end\n")},
 	"whole": {nil, sp(""), sp("old\n")},
+	// Codex's auto mode: none set, the user's keys with and without a table, a key of the user's own value, pm's keys
+	// as pm writes them, one of them changed or gone, and what pm refuses to edit
+	"codexmode": {nil, sp(""), sp("# mine\nmodel = \"o3\""), sp("# mine\nmodel = \"o3\"\n"),
+		sp("model = \"o3\"\napproval_policy = \"never\"\n\n[profiles.deep]\nmodel = \"o3-pro\"\n"),
+		sp(codexModeComment + "approval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\n" +
+			"sandbox_mode = \"workspace-write\"\n"),
+		sp("model = \"o3\"\n" + codexModeComment + "approval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\n" +
+			"\n[sandbox_workspace_write]\nnetwork_access = true\n"),
+		sp("approval_policy = \"on-request\" # mine\napprovals_reviewer = \"auto_review\"\n"),
+		sp("[profiles.deep]\napproval_policy = \"on-request\"\n"), sp("a = \"\"\"\n[x]\n\"\"\"\n"), sp("not toml [")},
 }
 
 var goldenCodexTexts = []string{"", "# mine\nmodel = \"o3\"\n",
@@ -116,6 +126,8 @@ func kindOf(rel string) string {
 		return "hook"
 	case ".gitignore":
 		return "gitignore"
+	case CodexModeRel:
+		return "codexmode"
 	}
 	return "whole"
 }

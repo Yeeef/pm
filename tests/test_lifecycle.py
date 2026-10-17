@@ -17,8 +17,8 @@ from pathlib import Path
 import pytest
 
 from conftest import PM, VERSION, stop_services
-from test_init import (BEADS_HOOK, CLAUDE_PM, GITIGNORE_BLOCK, HOOKS, PM_FILES, USER_CODEX,  # noqa: F401
-                       USER_SETTINGS, brand_new_repo, commands, env, existing, git, new_repo, pm, pm_free, snapshot)
+from test_init import (BEADS_HOOK, CLAUDE_PM, CODEX_MODE, GITIGNORE_BLOCK, HOOKS, PM_FILES,  # noqa: F401
+                       USER_CODEX, USER_CODEX_CONFIG, USER_SETTINGS, brand_new_repo, commands, env, existing, git, new_repo, pm, pm_free, snapshot)
 
 pytestmark = pytest.mark.integration  # each test runs pm init in a fresh repo with a remote and starts its service
 
@@ -114,6 +114,8 @@ REPO_CHANGES = {
                                    ".codex/hooks.json: pm's part differs"),
     "gitignore block": (lambda r: edit(r / ".gitignore", "/records\n", "/records/\n"),
                         ".gitignore: pm's part differs"),
+    "Codex mode key gone": (lambda r: edit(r / ".codex/config.toml", 'sandbox_mode = "workspace-write"\n', ""),
+                            ".codex/config.toml: pm's part differs"),
 }
 
 
@@ -188,6 +190,11 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     claude = json.loads((existing / ".claude/settings.json").read_text())
     assert all(commands(claude, e)[-len(c):] == c for e, c in CLAUDE_PM.items())
     assert (existing / ".gitignore").read_text() == "*.log\nbuild/\n" + GITIGNORE_BLOCK
+    # pm's Codex mode keys join the repo's own, and the approval_policy the repo set stays its own
+    codex = (existing / ".codex/config.toml").read_text()
+    assert codex.endswith("\n" + USER_CODEX_CONFIG), codex
+    assert tomllib.loads(codex) == tomllib.loads(USER_CODEX_CONFIG) | {
+        k: v for k, v in CODEX_MODE.items() if k != "approval_policy"}
     assert git(existing / ".pm/store/records", "ls-files").split() == ["sprints/a-1.md"]
     installed = snapshot(existing)
     assert all(installed[k] == v for k, v in before.items() if k not in PM_FILES), "files pm does not manage are kept"
