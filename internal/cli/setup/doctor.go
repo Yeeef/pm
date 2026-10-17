@@ -51,6 +51,9 @@ func Doctor(here string, stdout io.Writer) error {
 			"request from beyond this machine; set what is missing there (pm init --help)", config.Rel,
 			strings.Join(missing, ", ")))
 	}
+	if why := c.Unaddressed(); why != "" {
+		diffs = append(diffs, "config: "+why)
+	}
 	port, err := service.PortFor(main, int(c.Port))
 	if err != nil {
 		return err

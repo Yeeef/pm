@@ -413,6 +413,11 @@ func Init(p Arguments, here string, stdout io.Writer) error {
 			lines = append(lines, l)
 		}
 	}
+	if c, err := config.Load(here); err == nil && !sessionStart { // a typed pm init says what the config leaves unserved
+		if why := c.Unaddressed(); why != "" {
+			lines = append(lines, "warning: "+why)
+		}
+	}
 	if !sessionStart { // session start runs no Codex: it would cost seconds at every start
 		skips, _, err := install.CodexTrust(main, install.CodexTrustTimeout)
 		if err != nil {
