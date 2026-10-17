@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T20:24:00+00:00",
- "digest": "ef4a1de78137ae77",
+ "generated_at": "2026-10-17T20:34:31+00:00",
+ "digest": "79c304b38b86288a",
  "model": "claude-haiku-5-5",
- "text": "- **Site access and replies:** The site now listens on a network address. With access set to none, network viewers can read the site but not reply.\n- **Session questions and modes:** Agent questions now appear on the site, and the first answer reaches the session. `pm interactive` and `pm autopilot` set a per-session mode that turns off the owner-request judge.\n- **Codex auto mode:** A repo that pm sets up now runs Codex in auto mode. `pm doctor` names a host where the Codex sandbox cannot start, and gives the fix.\n- **Agent command help:** Common agent errors on the command surface are removed, and help shows the commands agents use. Opening a sprint now lists the design pages for its area."
+ "text": "- **Codex auto mode:** pm init now turns on Codex auto mode in the repo's tracked config file. pm doctor also names a host where the Codex sandbox cannot start.\n- **Site and session modes:** The site now serves on networks without Cloudflare, and agent questions can be answered there. Sessions can run in interactive or autopilot mode, which turns off the owner-request judge.\n- **Search and design pages:** pm search finds earlier sprints, decisions and design sections by topic. A new search design page sets when an index is needed, based on measured growth.\n- **Command grammar and tests:** Every command now takes the same scope flags, and one verb closes a need. Harness date checks read a pinned clock, so runs that cross midnight pass."
 }
