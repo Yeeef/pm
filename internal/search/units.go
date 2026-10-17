@@ -26,9 +26,9 @@ type Unit struct {
 // Kinds is the kinds of unit, as --kind takes them.
 var Kinds = []string{"sprint", "project", "decision", "design", "doc", "postmortem", "task", "need"}
 
-// skipped is the sprint and project sections that are no units: Progress is generated from the work store, and each
-// decision block in Decisions is a unit of its own.
-var skipped = map[string]bool{"Progress": true, "Decisions": true}
+// skipped is the sprint and project sections that are no units: Progress is generated from the work store, each
+// decision block in Decisions is a unit of its own, and Design pages lists links to pages indexed themselves.
+var skipped = map[string]bool{"Progress": true, "Decisions": true, "Design pages": true}
 
 var datedName = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}`)
 

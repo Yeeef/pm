@@ -304,11 +304,11 @@ func texts(t *testing.T, recs map[string]string, items ...item.Item) map[string]
 	return out
 }
 
-// A decision block indexes its record's title and its body, not the heading Decisions its address names; a sprint's Design pages, links to pages indexed themselves, is no
-// unit.
+// A decision block indexes its record's title and its body, not the heading Decisions its address names; a sprint's
+// Design pages, links to pages indexed themselves, is no unit.
 func TestADecisionIndexesItsTitleAndBodyAndDesignPagesIsNoUnit(t *testing.T) {
 	got := texts(t, map[string]string{"sprints/demo-1": "---\ntype: sprint\ntitle: One\nbead: s\n---\n\n" +
-		"## Decisions\n\n" +
+		"## Design pages\n\n- [Lexer](../design/lexer.md)\n\n## Decisions\n\n" +
 		"::: decision {source=agent date=2026-10-02}\nUse a library.\n:::\n"}, item.Item{ID: "s", Type: item.Sprint})
 	want := map[string]string{"demo-1 Decisions": "One\nUse a library."}
 	if !reflect.DeepEqual(got, want) {
