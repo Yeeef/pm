@@ -67,7 +67,11 @@ The owner asked to split the index and pm search into two sprints, so each ships
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check on this repo's store with the branch built as 0.15.2
+  (PM_LAUNCHED=0.15.2): the session's first claim in sprint 125 printed the
+  index, 9 pages (work-context from the sprint, 8 from pm-harness), 1.1 KB, in
+  0.099 s wall for the whole claim; the second claim in the same sprint
+  printed only the claim line.
 
 ## Delivery report
 
