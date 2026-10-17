@@ -63,7 +63,12 @@ The heading, section and outline parser moved from internal/cli into internal/re
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Quality on this repo's store with the exact Done-when wordings, branch built
+  as 0.15.4: design covers ranks pm-quality-22 at #2; claim history gives no
+  hit for pm-harness-22 (its record never says history); owner-request judge
+  ranks pm-harness-14 at #41, below the later sprints that built the judge
+  (pm-harness-62, 107, 119). Other wordings reach both: session claims puts
+  pm-harness-22 at #2, owner-request hook puts pm-harness-14 at #4.
 
 ## Delivery report
 
