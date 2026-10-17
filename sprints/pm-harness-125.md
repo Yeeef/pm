@@ -81,10 +81,18 @@ The owner asked to split the index and pm search into two sprints, so each ships
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm sprint open` and a session's first `pm task claim` in a sprint print the design pages that hold the area's current state, once per sprint per session.
+
+- `internal/cli/designindex`: the index and the first-claim rule. It is a new package because `internal/cli` would otherwise exceed its size cap, and the work-context page covers it.
+- `prime.md`'s claim bullet, the `--help` texts of `task claim` and `sprint open`, and a changelog entry.
+- PR #109.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| Go tests: first claim prints the index, a second claim does not; sprint open prints the project's pages; a project-level task gets the project's pages | yes | 5 tests in `internal/cli/designindex`, including a URL looked up only when there is a page; `make test-go` passes; CI `build-vet-test`, `race` and `work` pass on PR #109 |
+| Live check: one claim prints the index, a second claim in the same sprint does not | yes | On this repo's store, with the branch built as 0.15.2: the first claim printed 9 pages (1.1 KB, whole claim 0.099 s); the second claim printed only the claim line (Findings) |
+| The `prime.md` rules still fit the hook chunk cap | yes | `tests/test_hooks.py`: 25 passed; CI `light` and `integration` pass |
