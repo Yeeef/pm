@@ -55,6 +55,12 @@ prime.md keeps full procedures for the commands that carry most use and names th
 The audit measured prime.md at 3,218 words with its third hook chunk at 76% of the cap; the top 20 commands carry 91% of 3,768 invocations, and agents read refusals rather than --help (5 of 252 failures were followed by --help).
 :::
 
+::: decision {source=owner date=2026-10-17}
+pm need close ID --reason closes every need kind that sets no rule; decision close, action done and need dismiss are removed, each refused with a message naming need close. decision add --need stays the path that records a rule. This revises pm-harness 13, which put each close verb under its noun.
+Four verbs served one act: decision close ran 1 to 3 times and need dismiss 9 times in 11 days of transcripts, and a close under the wrong noun is refused.
+Answers `pm-d2k5.39.1.2`.
+:::
+
 ## Design pages
 
 > Where is the detail?
