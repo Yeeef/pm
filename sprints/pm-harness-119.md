@@ -187,7 +187,7 @@ the rubric change only renames item 9's first text from the rule in prime.md to 
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: `pm interactive` and `pm autopilot` set a per-session mode that turns the owner-request judge off, and session start gives the agent the rule for asking the owner that fits the mode (PR #91, head f09419d, pending merge).
+done: `pm interactive` and `pm autopilot` set a per-session mode that turns the owner-request judge off, and session start gives the agent the rule for asking the owner that fits the mode (PR #91, merged as d4fffdf).
 
 - `pm interactive` / `pm autopilot`: create and remove `<main checkout>/.pm/run/sessions/<session-id>`, using the session id from the environment, then print the new mode's rule. Both refuse without a session. Nothing stops an agent from running them (owner decision).
 - `pm hook owner-request`: skips the judge while the session's mode file exists. `pm hook stop` is unchanged.
@@ -208,4 +208,4 @@ done: `pm interactive` and `pm autopilot` set a per-session mode that turns the 
 | `test_clean.py` | met | Same CI run: a session idle for 25 h loses its mode file and one idle for 2 h keeps it, for Claude Code and Codex |
 | Live check: `claude -p` interactive vs autopilot | met | a13a7d2, scratch clone, Haiku: 4 passed in 111.79 s. After `pm interactive`: not blocked. After `pm autopilot`: blocked. The rule came as its own hook output (Findings). f09419d only reorders the SessionStart entries and fixes texts; the Codex trust order was checked with `hooks/list` (main's 13 hooks trusted, only the 2 new ones untrusted). The live check was not rerun on it |
 | Live check: ending a session removes the file | met | Same run: `claude -p` end, TUI `/exit` and `codex exec` end each removed the file; after `/compact` the TUI got the interactive rule |
-| PR on main | not yet | PR #91 at f09419d: CI green, `make merge-ready PR=91` ready, awaiting the owner's review |
+| PR on main | met | PR #91 merged as d4fffdf on 2026-10-15; the merged head 0ee9c2f is f09419d plus a merge of main and pm clean moved into `internal/cli/clean` for the size cap |
