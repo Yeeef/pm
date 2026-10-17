@@ -96,6 +96,11 @@ The design page records-store stays as it is for this sprint's code changes.
 pm where's site line adds the listen address; the records store is untouched
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page reply-delivery stays as it is for this sprint's code changes.
+who may post a reply changed (site-replies holds it); delivery of a stored reply to its session is unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
