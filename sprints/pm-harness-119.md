@@ -189,6 +189,8 @@ the rubric change only renames item 9's first text from the rule in prime.md to 
 
 done: `pm interactive` and `pm autopilot` set a per-session mode that turns the owner-request judge off, and session start gives the agent the rule for asking the owner that fits the mode (PR #91, merged as d4fffdf).
 
+Merged as d4fffdf (PR #91).
+
 - `pm interactive` / `pm autopilot`: create and remove `<main checkout>/.pm/run/sessions/<session-id>`, using the session id from the environment, then print the new mode's rule. Both refuse without a session. Nothing stops an agent from running them (owner decision).
 - `pm hook owner-request`: skips the judge while the session's mode file exists. `pm hook stop` is unchanged.
 - The request rule has left `prime.md`. It now lives in `prompts/request_rule_autopilot.txt` (sprint 118's rule) and `prompts/request_rule_interactive.txt`, and the SessionStart entry `pm prime --request-rule` prints the one for the session's mode on startup, resume, clear and compact. It comes after pm's existing entries, so Codex keeps their trust.
