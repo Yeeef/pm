@@ -1,0 +1,7 @@
+{
+ "date": "2026-10-17",
+ "generated_at": "2026-10-17T10:41:03+00:00",
+ "digest": "1a2fac6ea880e67d",
+ "model": "claude-haiku-5-5",
+ "text": "- **Quality sprint records:** The sprint report now names the removal of a git hook. A sprint decision from the owner is recorded in the sprint file."
+}
