@@ -37,6 +37,9 @@ An agent starting work sees, once, the design pages that hold its area's current
 > Where is the detail?
 
 - [Work context](../design/work-context.md): the design-page index at sprint open and first claim, `pm search`, and the procedure in `prime.md`
+- [Session claims](../design/session-claims.md): a session's first claim in a sprint prints the design pages
+- [Sprint lifecycle](../design/sprint-lifecycle.md): sprint open prints the project's design pages
+- [Agent lifecycle](../design/agent-lifecycle.md): the claim step reads the listed pages
 
 ## Progress
 
