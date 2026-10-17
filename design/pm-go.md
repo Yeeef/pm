@@ -269,7 +269,7 @@ A command never restarts the service: parallel commands would restart it many ti
 
 | Part | Choice |
 |---|---|
-| HTTP | `net/http` on `127.0.0.1:$PORT`; GET, HEAD and POST as `cli.Handler` does today. Goroutines replace the 3 threads (snapshot, reply writer, merge poll) |
+| HTTP | `net/http` on `$PORT` at the config's `listen` (127.0.0.1 when unset; 127.0.0.1 too beside another specific address); GET, HEAD and POST as `cli.Handler` does today. Goroutines replace the 3 threads (snapshot, reply writer, merge poll) |
 | Page assembly | `html/template`: one template per page kind, with the Markdown body passed in as `template.HTML` from goldmark's renderer. No hand-written escaper |
 | Markdown | `github.com/yuin/goldmark` (CommonMark 0.31.2; bd links v1.8.5) with `extension.Table` and `WithTableCellAlignMethod(TableCellAlignStyle)` (writes `style="text-align:…"` as markdown-it does); `html.WithUnsafe()` for records, a second renderer without it for comments and replies (`COMMENT_MD`); no linkify, no typographer, no auto heading ids |
 | Custom goldmark parts | front matter skip; heading ids for h2–h3 with the mdit-py-plugins `anchors` slug and duplicate suffixes; a `:::` container parser for `note`, `decision` and `result`, with the attribute parser from `records.attrs` and the required attributes (`BLOCK_ATTRS`); a `mermaid` fence renderer (`<pre class="mermaid">`); the link rewrite `.md(#…)` → `.html(#…)`; the TOC from the heading nodes |

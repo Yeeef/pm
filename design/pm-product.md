@@ -102,13 +102,16 @@ remote = "origin"
 main_branch = "main"
 port = 8000              # the service's site port; the PORT environment variable overrides it for one run
 # site_url = "https://pm.example.com"   # optional, written by pm init --site-url URL; without it links use http://localhost:<port>
+# listen = "0.0.0.0"       # optional, written by pm init --listen ADDR: the IP the site binds; 127.0.0.1 when unset
+# access = "none"          # cloudflare or none, written by pm init --access; required once listen is not loopback or site_url is set
+# access_team = "<team>.cloudflareaccess.com"; access_aud = "<AUD tag>"   # by hand, for access = "cloudflare"
 # summary_runtime = "codex"   # optional: the runtime pm day summarize asks, claude (the default) or codex; no fallback
 # design_sources = ["internal/**", "prime.md"]   # optional: the source files a design page should cover; pm check lists those no page's covers: match
 ```
 
 pm owns the file whole: `pm upgrade` rewrites it and `pm doctor` compares it with what the pinned version writes, the keys set by hand (`access_team`, `access_aud`, `summary_runtime`, `design_sources`) included. So every key the config reads is a key the writer keeps; a key it dropped would read as drift and be deleted by the next `pm upgrade`.
 
-The public site URL is a repo setting: every clone prints the same links, and `pm init --site-url URL` writes it, never a hand edit.
+The public site URL is a repo setting: every clone prints the same links, and `pm init --site-url URL` writes it, never a hand edit. Reach (`listen`), address (`site_url`) and gate (`access`) are three settings, each written by its `pm init` flag; who each lets in, and why `access` has no default: [Replies on the site](site-replies.md), Security.
 
 Agent-facing messages name pm's own commands (`pm service`, `pm check`), never `make` targets, so a repo needs no Makefile.
 
