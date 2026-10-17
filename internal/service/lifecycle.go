@@ -162,9 +162,10 @@ func enable(main, kind string) error {
 
 // Binds is the addresses the service binds for listen: listen, and beside a specific address other than 127.0.0.1
 // also 127.0.0.1, where this machine's probes (Answering), links (pm record link --local) and a tunnel reach it. A
-// wildcard (0.0.0.0, ::) takes 127.0.0.1's connections already, and binding both would conflict.
+// wildcard (0.0.0.0, ::) takes 127.0.0.1's connections already, and binding both would conflict. Addresses compare as
+// IPs, so ::ffff:127.0.0.1 is 127.0.0.1.
 func Binds(listen string) []string {
-	if ip := net.ParseIP(listen); listen == config.Loopback || (ip != nil && ip.IsUnspecified()) {
+	if ip := net.ParseIP(listen); ip != nil && (ip.Equal(net.ParseIP(config.Loopback)) || ip.IsUnspecified()) {
 		return []string{listen}
 	}
 	return []string{listen, config.Loopback}
