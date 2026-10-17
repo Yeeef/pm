@@ -57,7 +57,11 @@ store.Today already writes every date the tests compare, so one function and one
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Seven assertions in tests/test_pm.py compared pm's stamped date with `TODAY`
+  taken at import, and `TestDayActivityHoldsOnlyThatDaysEvents` dated its day
+  from `time.Now()` while git stamped commits with its own clock. With
+  `PM_TEST_TODAY` set to yesterday, the three tests that failed on PR #104
+  pass; built without the fix, they fail (3 failed).
 
 ## Delivery report
 
