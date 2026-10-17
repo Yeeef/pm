@@ -41,7 +41,8 @@ An owner on a company network can let colleagues open the site at `http://<host>
 
 > Where is the detail?
 
-None yet.
+- [Replies on the site](../design/site-replies.md): Security rewritten for `listen`, `site_url` and `access`; local trust by the peer and the `Host`; `access = "none"` read-only beyond this machine; the POST's order of checks.
+- [pm as a product](../design/pm-product.md): `listen` and `access` in the `config.toml` schema.
 
 ## Progress
 
