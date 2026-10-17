@@ -348,7 +348,7 @@
    "rel": ".codex/config.toml",
    "text": "",
    "present": "false",
-   "apply": "# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\nsandbox_mode = \"workspace-write\"\n",
+   "apply": "\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\nsandbox_mode = \"workspace-write\"\n",
    "remove": "",
    "drift": [
     ".codex/config.toml: pm's part is missing"
@@ -359,7 +359,7 @@
    "rel": ".codex/config.toml",
    "text": "# mine\nmodel = \"o3\"",
    "present": "false",
-   "apply": "# mine\nmodel = \"o3\"\n\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\nsandbox_mode = \"workspace-write\"\n",
+   "apply": "# mine\nmodel = \"o3\"\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\nsandbox_mode = \"workspace-write\"\n",
    "remove": "# mine\nmodel = \"o3\"",
    "drift": [
     ".codex/config.toml: pm's part is missing"
@@ -401,7 +401,7 @@
    "rel": ".codex/config.toml",
    "text": "model = \"o3\"\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
    "present": "false",
-   "apply": "approvals_reviewer = \"auto_review\"\n\nmodel = \"o3\"\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
+   "apply": "model = \"o3\"\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\napprovals_reviewer = \"auto_review\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
    "remove": "model = \"o3\"\nsandbox_mode = \"read-only\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
    "drift": [
     ".codex/config.toml: pm's part differs from what pm 0.9.9 writes"
@@ -413,7 +413,7 @@
    "text": "approval_policy = \"on-request\" # mine\napprovals_reviewer = \"auto_review\"\n",
    "present": "false",
    "apply": "approval_policy = \"on-request\" # mine\napprovals_reviewer = \"auto_review\"\n\n# Codex's auto mode, which pm sets: a value you change here stays yours\nsandbox_mode = \"workspace-write\"\n",
-   "remove": null,
+   "remove": "approval_policy = \"on-request\" # mine\napprovals_reviewer = \"auto_review\"\n",
    "drift": [
     ".codex/config.toml: pm's part differs from what pm 0.9.9 writes"
    ]
@@ -865,7 +865,7 @@
    "rel": ".codex/config.toml",
    "text": "",
    "present": "false",
-   "apply": "# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\nsandbox_mode = \"workspace-write\"\n",
+   "apply": "\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\nsandbox_mode = \"workspace-write\"\n",
    "remove": "",
    "drift": [
     ".codex/config.toml: pm's part is missing"
@@ -876,7 +876,7 @@
    "rel": ".codex/config.toml",
    "text": "# mine\nmodel = \"o3\"",
    "present": "false",
-   "apply": "# mine\nmodel = \"o3\"\n\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\nsandbox_mode = \"workspace-write\"\n",
+   "apply": "# mine\nmodel = \"o3\"\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\nsandbox_mode = \"workspace-write\"\n",
    "remove": "# mine\nmodel = \"o3\"",
    "drift": [
     ".codex/config.toml: pm's part is missing"
@@ -918,7 +918,7 @@
    "rel": ".codex/config.toml",
    "text": "model = \"o3\"\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
    "present": "false",
-   "apply": "approvals_reviewer = \"auto_review\"\n\nmodel = \"o3\"\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
+   "apply": "model = \"o3\"\n# Codex's auto mode, which pm sets: a value you change here stays yours\napproval_policy = \"on-request\"\nsandbox_mode = \"read-only\"\napprovals_reviewer = \"auto_review\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
    "remove": "model = \"o3\"\nsandbox_mode = \"read-only\"\n\n[sandbox_workspace_write]\nnetwork_access = true\n",
    "drift": [
     ".codex/config.toml: pm's part differs from what pm 0.9.9 writes"
@@ -930,7 +930,7 @@
    "text": "approval_policy = \"on-request\" # mine\napprovals_reviewer = \"auto_review\"\n",
    "present": "false",
    "apply": "approval_policy = \"on-request\" # mine\napprovals_reviewer = \"auto_review\"\n\n# Codex's auto mode, which pm sets: a value you change here stays yours\nsandbox_mode = \"workspace-write\"\n",
-   "remove": null,
+   "remove": "approval_policy = \"on-request\" # mine\napprovals_reviewer = \"auto_review\"\n",
    "drift": [
     ".codex/config.toml: pm's part differs from what pm 0.9.9 writes"
    ]

@@ -1073,7 +1073,7 @@ func Removals(top string, s Settings) ([]Removal, error) {
 		if err != nil {
 			return nil, err
 		}
-		if n != nil && *n == *text { // pm's part is all the user's now: a Codex mode key set to their own value
+		if n != nil && *n == *text { // pm's part is all the user's: Codex mode keys set outside pm's block
 			continue
 		}
 		out = append(out, Removal{path, n})
