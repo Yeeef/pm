@@ -62,6 +62,11 @@ The design page views-and-site stays as it is for this sprint's code changes.
 data-asof is cut to the millisecond instead of rounded, and the day activity test dates its commits; what the pages show is unchanged.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page site-replies stays as it is for this sprint's code changes.
+data-asof is cut to the millisecond instead of rounded; who may reach the service and how replies are served are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
