@@ -2000,6 +2000,37 @@ def test_task_claim_refuses_in_the_main_checkout_and_says_how_to_make_a_worktree
         repo.pm("task", "claim", "--help").stdout
 
 
+def test_sprint_open_and_a_sessions_first_claim_in_a_sprint_print_the_design_pages(repo):
+    """The design-page index (the work-context design page): the sprint's pages, then the project's, without repeats,
+    on a session's first claim in a sprint only; the project's on sprint open; a slug without a page as missing."""
+    (repo.records / "design").mkdir()
+    repo.write("design/parser.md", design_page("[internal/parser/**]"))
+    for rel, links in (("sprints/demo-1.md", "- [Parser](../design/parser.md)\n- [Gone](../design/gone.md)"),
+                       ("projects/demo.md", "- [Parser](../design/parser.md)")):
+        text = (repo.records / rel).read_text()
+        head, sep, tail = text.partition("## Design pages\n\n> Where is the detail?\n\nNone yet.")
+        assert sep, rel
+        repo.write(rel, head + "## Design pages\n\n> Where is the detail?\n\n" + links + tail)
+    repo.commit("design pages")
+    repo.set_issue("repo-demo.1.2", labels=[])
+    repo.add_issue({"id": "repo-demo.1.3", "title": "Another", "status": "open", "issue_type": "task",
+                    "parent": "repo-demo.1", "created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"})
+    wt = repo.worktree("feature")
+    res = claim(repo, "repo-demo.1.2", "sess-a", cwd=wt)
+    assert res.returncode == 0, res.stderr
+    lines = res.stdout.splitlines()
+    assert lines[0].startswith("claimed repo-demo.1.2 for session sess-a at ")
+    assert lines[1] == "design pages (read the ones your task touches):"
+    assert re.fullmatch(r"  parser  The parser  \S+/design/parser\.html", lines[2]), lines[2]
+    assert lines[3:] == ["  gone    missing"]
+    res = claim(repo, "repo-demo.1.3", "sess-a", cwd=wt)
+    assert res.returncode == 0 and len(res.stdout.splitlines()) == 1, res.stdout
+    res = repo.pm("sprint", "open", "demo", "--title", "Third", text=FRAME)
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.splitlines()[1:2] == ["design pages (read the ones your task touches):"]
+    assert re.fullmatch(r"  parser  The parser  \S+/design/parser\.html", res.stdout.splitlines()[2])
+
+
 # ---------------------------------------------------------------- pm push: what the service runs
 
 DAY2 = "---\ntype: day\ndate: 2026-10-02\n---\n\n## Today\n\n> What are we chasing today, and why now?\n\nMore.\n"
