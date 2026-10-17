@@ -104,7 +104,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
   - `pm show <id>`: one item, its holder and its needs. `pm where`: every location and its state; `pm where records` prints the store's path.
 - open a sprint: `pm sprint open <project> --title "…"`; body: the frame as `## Goal`, `## Scope` and `## Done when`.
 - add tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. A sub-task: `pm task add --parent <task> --title "…"`. A dependency: `pm dep add <id> --on <blocker>`.
-- claim a task: `pm task claim <id>`, from your own worktree. Do not take or brief work that another live session holds.
+- claim a task: `pm task claim <id>`, from your own worktree. Your first claim in a sprint prints its design pages: read the ones the task touches before changing their code. Do not take or brief work that another live session holds.
 - close a task: `pm task close <id> --reason "<what was done>"`. It names the commit that holds the work: HEAD when newer than the task, else `--commit REF` (a commit here, `OWNER/REPO@SHA` or a PR URL). A task not done: `pm task close <id> --dropped --reason "<why>"`, with no commit.
 - add a finding: `pm finding add --sprint ID "<text>"`, as it occurs, with its numbers. A large result table is a `::: result` block in the record.
 - add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`, with `--decision '…'` and `--reason '…'`, one line each, in single quotes. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
