@@ -112,10 +112,18 @@ The site names need close in its hints; what each page shows and how it renders 
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: every pm command follows one naming grammar, and a test holds new commands to it (PR #114).
+
+- Scope flags are `--sprint`, `--task` and `--project` only: the need forms drop `--parent`, `decision add` drops `--level`, and `task add --parent` becomes `--task`.
+- `pm need close ID --reason` replaces `decision close`, `action done` and `need dismiss`; `--dropped` dismisses.
+- Removed forms are refused with the new form; `TestEveryCommandFollowsTheNamingGrammar` checks the command tree.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Each owner decision need is answered and cited: met. Both answered on 2026-10-17 and recorded as pm-quality project decisions.
+- The need forms take `--sprint` or `--task`; `--parent` and `decision add --level` are refused, naming the new flag: met. Harness tests in `tests/test_pm.py`; a live check of the built binary prints the refusal, exit 2.
+- `pm need close` closes a decision, action or question need, and the three old verbs are refused, naming it: met. Harness tests; `pm action done` prints "pm action done was removed: pm need close ID --reason …", exit 2. A question closed by `need close` is covered by a Go test only.
+- The grammar test fails on an off-grammar flag and passes on main: met. The failures shown in Findings and the PR body.
+- No prime.md, `--help`, hook or prompt text names a removed form, and CI is green: met. `tests/test_hooks.py` and `tests/test_pm.py` 79 passed; PR #114's checks all pass.
