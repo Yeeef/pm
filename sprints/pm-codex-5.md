@@ -97,6 +97,16 @@ The repo file overrides the global config, so a different value is the only way 
   approval_policy on-request, approvals_reviewer auto_review, sandbox_policy
   workspace-write, all from the repo's .codex/config.toml.
 
+- make test-live-parity with Codex in the repo's own auto mode (no
+  --approve-for-me or other mode flag): 15 passed in 102.6 s. A new assertion
+  checked that every Codex turn's turn_context was on-request / auto_review /
+  workspace-write. The expected gap-11 apply_patch failure did not happen with
+  codex 0.163.0, although 'codex sandbox -- true' still fails here with the
+  bwrap loopback error. Across the Codex sessions: 41 escalated requests, none
+  denied, and one bwrap failure in each of 4 sessions. In the Stop scenario,
+  apply_patch on the records/ link path failed with 'Not a directory (os error
+  20)', and a retry on .pm/store/records/... succeeded.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
