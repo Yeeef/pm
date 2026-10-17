@@ -83,6 +83,15 @@ Answers `pm-bfli.5.1`.
   (served by the pm service, listening on 0.0.0.0, access none)'; pm record
   link printed http://byeeefy:42075/sprints/demo-1.html.
 
+- Live check, requests from the machine's LAN address 192.168.178.115 to port
+  42075: GET / with Host byeeefy:42075 got 200 with 0 reply tokens in the page
+  and the read-only rule in place of the form; GET / with Host localhost:42075
+  got 403 'refused: Host "localhost:42075" is neither this machine nor the
+  configured site_url'; POST /reply with the page's valid token got 403
+  'refused: replies are taken only from this machine: access = "none" …'. From
+  127.0.0.1 (Host localhost): GET / 200 with 1 token, POST /reply 303 and pm
+  reply read printed the reply. The [TEST] need is dismissed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
