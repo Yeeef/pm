@@ -15,7 +15,7 @@ from conftest import PM_BEFORE, VERSION, VERSION_BEFORE, help_tree, write_config
 
 COMMANDS = [("show",), ("where",), ("prime", "--subagent"), ("hook", "stop")]
 CONFIG = ".pm/config.toml"
-KEYS = ("version", "remote", "main_branch", "port", "site_url", "access_team", "access_aud", "summary_runtime", "design_sources")  # what the config accepts
+KEYS = ("version", "remote", "main_branch", "port", "site_url", "listen", "access", "access_team", "access_aud", "summary_runtime", "design_sources")  # what the config accepts
 
 
 def test_every_config_key_is_named_in_some_commands_help(repo):

@@ -60,7 +60,7 @@ func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io
 	defer h.Close()
 	dir, _ := work.Locations(main)
 	return service.Run(service.Deps{Main: main, Records: records, Remote: cfg.Remote, MainBranch: cfg.MainBranch,
-		SiteURL: cfg.SiteURL, AccessTeam: cfg.AccessTeam, AccessAud: cfg.AccessAud, Port: port, Pin: cfg.Path, Spool: filepath.Join(common, service.SpoolName), WorkDir: dir,
+		SiteURL: cfg.SiteURL, Listen: cfg.ListenAddr(), Access: cfg.Access, AccessTeam: cfg.AccessTeam, AccessAud: cfg.AccessAud, Port: port, Pin: cfg.Path, Spool: filepath.Join(common, service.SpoolName), WorkDir: dir,
 		Open: func() (work.Store, error) {
 			return work.DialSock(h.Sock(), main, work.Options{Prefix: filepath.Base(main)})
 		},
@@ -307,6 +307,8 @@ func (s *servedSite) FillReplies(page, token string, replies map[string]service.
 	}
 	return site.FillReplies(page, token, shown)
 }
+
+func (s *servedSite) FillReadOnly(page, rule string) string { return site.FillReadOnly(page, rule) }
 
 func (s *servedSite) FillStatus(page string, asOf time.Time, digest string, now time.Time) string {
 	return site.FillStatus(page, asOf, digest, now)

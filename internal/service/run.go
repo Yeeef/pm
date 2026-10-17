@@ -20,6 +20,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	gosync "sync"
 	"sync/atomic"
@@ -54,6 +55,9 @@ type Site interface {
 	// FillReplies replaces each awaiting card's reply slot with its form, carrying token for the POST, and shows the
 	// replies still on their way to the work store, by need id.
 	FillReplies(page, token string, replies map[string]Reply) string
+	// FillReadOnly replaces each reply slot with the note rule, for a viewer who may read but not reply: no form, no
+	// token.
+	FillReadOnly(page, rule string) string
 	// FillStatus fills the page's StatusSlot: the time its data is current as of, its digest (which the page's
 	// reload script compares with /version) and now.
 	FillStatus(page string, asOf time.Time, digest string, now time.Time) string
@@ -84,6 +88,8 @@ type Deps struct {
 	Main, Records      string // the main checkout, and the records store (named in StoreHeader)
 	Remote, MainBranch string // the config's
 	SiteURL            string // the config's site_url, "" when unset
+	Listen             string // the config's listen, else config.Loopback: the address the site binds (Binds)
+	Access             string // the config's access, "" when unset: see refusal
 	// AccessTeam and AccessAud are the config's Cloudflare Access keys, "" when unset (then every request through the
 	// tunnel is refused): see refusal.
 	AccessTeam, AccessAud string
@@ -215,8 +221,8 @@ func (s *server) poke() {
 	}
 }
 
-// Run is pm service run: serve the site on 127.0.0.1:Port and sync every pmsync.Interval, the first that long after
-// start. A request never waits on a store: it renders from the last snapshot, which the refresher keeps current. Each
+// Run is pm service run: serve the site on Binds(Listen) at Port and sync every pmsync.Interval, the first that long after
+// start; refused when the site is exposed (config.Config.Exposed) with no access. A request never waits on a store: it renders from the last snapshot, which the refresher keeps current. Each
 // look (every ServeCheck, sooner after a request or a reply) stamps the records and reads the work store's change
 // mark, and only when one moved reads the items; a state that fails to render is read again
 // under the records store's shared lock, and then served as the error, never as an old page. A reply is checked
@@ -230,36 +236,36 @@ func (s *server) poke() {
 // way runs to its end or its timeout, as the host's statement does).
 func Run(d Deps) error {
 	if d.Open == nil || d.Mark == nil || d.Sync == nil || d.GC == nil || d.Site == nil || d.Summarize == nil || d.Out == nil || d.Log == nil ||
-		d.Main == "" || d.Records == "" || d.Spool == "" || d.Pin == "" || d.WorkDir == "" {
+		d.Main == "" || d.Records == "" || d.Spool == "" || d.Pin == "" || d.WorkDir == "" || d.Listen == "" {
 		return errors.New("pm service run: a dependency is missing")
 	}
-	tok := make([]byte, 32)
-	if _, err := rand.Read(tok); err != nil {
-		return err
+	if missing := (config.Config{SiteURL: d.SiteURL, Listen: d.Listen, Access: d.Access}).AccessMissing(); slices.Contains(missing, "access") {
+		return &Error{fmt.Sprintf("the site is reachable beyond this machine (listen = %q, site_url = %q), but %s sets "+
+			"no access, so the pm service does not start: set access = \"cloudflare\" (Cloudflare Access verifies each "+
+			"request) or access = \"none\" (the network is the gate) there, with pm init --access, and restart the pm service",
+			d.Listen, d.SiteURL, config.Rel)}
 	}
-	s := &server{d: d, texts: Texts{d.Main, d.Remote, d.MainBranch}, token: base64.RawURLEncoding.EncodeToString(tok),
-		replies: map[string]Reply{}, merges: map[string]bool{}, swept: map[string]sweepState{},
-		queue: make(chan job, 1024), sweepDue: make(chan struct{}, 1), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
-		serveCheck: ServeCheck, mergePoll: MergePoll, moved: make(chan struct{})}
-	ctx, stop := context.WithCancel(context.Background())
-	s.stop, s.done = stop, ctx.Done()
-	defer s.stop()
-	_, err := exec.LookPath("gh")
-	s.gh = err == nil
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", d.Port))
+	s, err := newServer(d)
 	if err != nil {
 		return err
 	}
+	defer s.stop()
+	_, err = exec.LookPath("gh")
+	s.gh = err == nil
+	lns, err := listen(d.Listen, d.Port)
+	if err != nil {
+		return err
+	}
+	ln := lns[0]
 	srv := &http.Server{Handler: s, ReadHeaderTimeout: 30 * time.Second}
 	s.setSnap(s.refresh(nil)) // the first load has data to serve
 	pending, err := Pending(d.Spool)
 	if err != nil {
-		ln.Close()
-		return err
+		return errors.Join(err, closeAll(lns))
 	}
 	waits, err := s.serveWaits()
 	if err != nil {
-		return errors.Join(err, ln.Close())
+		return errors.Join(err, closeAll(lns))
 	}
 	s.spawn(s.writer)           // before the pending replies are queued, so any number of them fits
 	for _, e := range pending { // replies a crash or kill left pending
@@ -277,8 +283,15 @@ func Run(d Deps) error {
 	s.spawn(s.collector)
 	port := ln.Addr().(*net.TCPAddr).Port
 	fmt.Fprintf(d.Out, "Serving http://localhost:%d; each page states the age of its data, at most %d s behind unless "+
-		"it says so; the work store reread when it changes; pushing every %d min\n", port, ServeBehind,
-		int(pmsync.Interval.Minutes()))
+		"it says so; the work store reread when it changes; pushing every %d min%s\n", port, ServeBehind,
+		int(pmsync.Interval.Minutes()), (config.Config{Listen: d.Listen, Access: d.Access}).Reach("; "))
+	for _, l := range lns[1:] { // loopback beside a specific listen address: Shutdown closes it and ends this Serve
+		go func() {
+			if err := srv.Serve(l); !errors.Is(err, http.ErrServerClosed) {
+				s.logf("error: serving on %s: %v", l.Addr(), err)
+			}
+		}()
+	}
 	err = srv.Serve(ln)
 	s.stop()
 	_ = srv.Shutdown(context.Background()) // the requests under way end; the refresher already shut it down on a pin move
@@ -293,6 +306,21 @@ func Run(d Deps) error {
 	default:
 		return nil // replies still pending stay in the spool for the next start
 	}
+}
+
+// newServer is the server Run runs on d, with a new reply token; s.stop ends what it starts.
+func newServer(d Deps) (*server, error) {
+	tok := make([]byte, 32)
+	if _, err := rand.Read(tok); err != nil {
+		return nil, err
+	}
+	s := &server{d: d, texts: Texts{d.Main, d.Remote, d.MainBranch}, token: base64.RawURLEncoding.EncodeToString(tok),
+		replies: map[string]Reply{}, merges: map[string]bool{}, swept: map[string]sweepState{},
+		queue: make(chan job, 1024), sweepDue: make(chan struct{}, 1), wake: make(chan struct{}, 1), stopped: make(chan string, 1),
+		serveCheck: ServeCheck, mergePoll: MergePoll, moved: make(chan struct{})}
+	ctx, stop := context.WithCancel(context.Background())
+	s.stop, s.done = stop, ctx.Done()
+	return s, nil
 }
 
 // put queues a job for the writer; it never blocks a request (the queue holds 1,024), nor outlasts Run (a job put
@@ -441,9 +469,10 @@ func errorPage(title, heading, body string) string {
 		"<main>" + StatusSlot + "<h1>" + heading + "</h1>" + body + "</main>"
 }
 
-// page is the status and HTML of the page at path from the current snapshot, its reply slots filled and its status
-// slot left for FillStatus, and that snapshot.
-func (s *server) page(path string) (int, string, *snapshot) {
+// page is the status and HTML of the page at path from the current snapshot, its reply slots filled (for a readOnly
+// viewer with ReadOnlyRule in place of each form, and no token) and its status slot left for FillStatus, and that
+// snapshot.
+func (s *server) page(path string, readOnly bool) (int, string, *snapshot) {
 	snap := s.snap.Load()
 	if snap.err != "" {
 		return 500, errorPage("Render failed", "The site did not render", "<pre>"+html.EscapeString(snap.err)+
@@ -488,6 +517,9 @@ func (s *server) page(path string) (int, string, *snapshot) {
 		}
 	}
 	s.mu.Unlock()
+	if readOnly {
+		return r.code, s.d.Site.FillReadOnly(text, ReadOnlyRule), snap
+	}
 	return r.code, s.d.Site.FillReplies(text, s.token, shown), snap
 }
 
@@ -609,7 +641,7 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			u = &url.URL{Path: target}
 		}
-		_, text, snap := s.page(pageOf(u))
+		_, text, snap := s.page(pageOf(u), s.readOnly(r))
 		body, err := json.Marshal(struct {
 			AsOf float64 `json:"asof"`
 			Page string  `json:"page"`
@@ -624,7 +656,7 @@ func (s *server) get(w http.ResponseWriter, r *http.Request) {
 		s.image(w, strings.TrimPrefix(file, "/"), draft, ctype)
 		return
 	}
-	code, text, snap := s.page(pageOf(r.URL))
+	code, text, snap := s.page(pageOf(r.URL), s.readOnly(r))
 	text = s.d.Site.FillStatus(text, snap.asOf, digest(text), time.Now())
 	s.reply(w, code, "text/html; charset=utf-8", []byte(text))
 }
@@ -739,6 +771,10 @@ const MaxReply = 1 << 20
 func (s *server) post(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/reply" {
 		s.reply(w, 404, "text/plain; charset=utf-8", []byte("only /reply takes a POST\n"))
+		return
+	}
+	if s.readOnly(r) {
+		s.reply(w, 403, "text/plain; charset=utf-8", []byte("refused: "+ReadOnlyRule+"\n"))
 		return
 	}
 	raw, err := io.ReadAll(io.LimitReader(r.Body, MaxReply+1))

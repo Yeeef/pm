@@ -257,18 +257,55 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
     res = pm(existing, "init", "--site-url", "pm.example.com")
     assert res.returncode == 1 and "is not an http(s) base URL" in res.stderr and git(existing, "status", "--porcelain") == ""
+    # a site_url exposes the site, so it needs access; a --listen that is not an IP is refused, both before any write
     res = pm(existing, "init", "--site-url", "https://pm.example.com/")
-    assert res.returncode == 0 and "git add -- .pm/config.toml && " in res.stdout, res.stdout
-    assert tomllib.loads((existing / ".pm/config.toml").read_text())["site_url"] == "https://pm.example.com"
-    assert settings.read_bytes() == changed
-    # a site_url needs the Access keys: doctor names the missing ones, and the config holding them is pm's own
+    assert res.returncode == 1 and "with no access set, which the pm service does not start on: give --access " \
+        "cloudflare" in res.stderr and git(existing, "status", "--porcelain") == "", res.stderr
+    res = pm(existing, "init", "--listen", "my-host")
+    assert res.returncode == 1 and '--listen "my-host" is not an IP address' in res.stderr
+    # a network listen with no site_url serves nobody on the network (only site_url's host is): init and doctor say so
+    res = pm(existing, "init", "--listen", "0.0.0.0", "--access", "none")
+    warning = ('listen = "0.0.0.0", but no site_url is set, so the site refuses every request from the network: only '
+               "site_url's host is served beyond this machine; set the URL colleagues open with pm init --site-url")
+    assert res.returncode == 0 and f"warning: {warning}" in res.stdout, res.stdout
     code, lines = doctor(existing)
-    assert code == 1 and "config: site_url is set, but .pm/config.toml lacks access_team, access_aud, so the site " \
-                         "refuses every request to its host; set what is missing there (pm init --help)" in lines, lines
-    with (existing / ".pm/config.toml").open("a") as f:
-        f.write('access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
+    assert code == 1 and any(line.startswith(f"config: {warning}") for line in lines), lines
+    res = pm(existing, "init", "--listen", "", "--access", "cloudflare")
+    assert res.returncode == 0 and "warning" not in res.stdout and "listen cleared" in res.stdout, res.stdout
+    res = pm(existing, "init", "--site-url", "https://pm.example.com/", "--access", "cloudflare")
+    assert res.returncode == 0 and "git add -- .pm/config.toml && " in res.stdout, res.stdout
+    config = tomllib.loads((existing / ".pm/config.toml").read_text())
+    assert (config["site_url"], config["access"]) == ("https://pm.example.com", "cloudflare")
+    assert settings.read_bytes() == changed
+    # access = "cloudflare" needs the Access keys: doctor names the missing ones, and the config holding them is pm's own
+    code, lines = doctor(existing)
+    assert code == 1 and 'config: access = "cloudflare", but .pm/config.toml lacks access_team, access_aud, so the ' \
+                         "site refuses every request from beyond this machine; set what is missing there (pm init " \
+                         "--help)" in lines, lines
+    # a config from before access existed (the Access keys, no access) is named by doctor, and pm init (session start
+    # runs it) migrates it to access = "cloudflare", which it meant
+    config = existing / ".pm/config.toml"
+    text = config.read_text().replace('access = "cloudflare"\n', "")
+    old = text + 'access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\nsummary_runtime = "codex"\n'
+    config.write_text(old)
+    code, lines = doctor(existing)
+    assert code == 1 and "lacks access, so the pm service does not start; set it with pm init --access cloudflare or " \
+                         "--access none" in "\n".join(lines), lines
+    # the migrated config is the old one with access in the place pm's writer gives it (ConfigText), every other key
+    # kept, so doctor finds no drift in it
+    migrated = old.replace('access_team = ', 'access = "cloudflare"\naccess_team = ', 1)
+    res = pm(existing, "init", "--session-start")
+    assert res.returncode == 0 and 'access set to "cloudflare"' in res.stdout, res.stdout
+    assert config.read_text() == migrated
     code, lines = doctor(existing)
     assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs"]), lines
+    # pm upgrade, which moves the pin a restarted service reads, migrates the same config the same way
+    config.write_text(old)
+    res = pm(existing, "upgrade")
+    assert res.returncode == 0, res.stderr
+    assert config.read_text() == migrated
+    code, lines = doctor(existing)
+    assert not any(line.startswith(("repo: .pm/config.toml", "config:")) for line in lines), lines
 
 
 OLD_PRE_COMMIT = '#!/usr/bin/env sh\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit "$@" || exit $?\n# --- END PM ---\n'

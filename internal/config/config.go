@@ -6,6 +6,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -27,8 +28,15 @@ const (
 
 // keys are the config's keys and the Python type each must have, in KEYS order.
 var keys = map[string]string{"version": "str", "remote": "str", "main_branch": "str", "port": "int", "site_url": "str",
-	"access_team": "str", "access_aud": "str", "summary_runtime": "str",
+	"listen": "str", "access": "str", "access_team": "str", "access_aud": "str", "summary_runtime": "str",
 	"design_sources": "list"}
+
+// Accesses are access's values: how the site lets in a request from beyond this machine. cloudflare verifies the
+// Cloudflare Access token (access_team, access_aud); none lets it read, the network being the gate.
+var Accesses = []string{"cloudflare", "none"}
+
+// Loopback is the HTTP bind address when listen is unset: this machine only.
+const Loopback = "127.0.0.1"
 
 // SummaryRuntimes are summary_runtime's values: the agent runtime whose CLI pm day summarize asks.
 var SummaryRuntimes = []string{"claude", "codex"}
@@ -47,6 +55,8 @@ type Config struct {
 	MainBranch     string
 	Port           int64
 	SiteURL        string // "" when unset: links use http://localhost:<port>
+	Listen         string // the site's HTTP bind address, an IP; "" when unset: Loopback (ListenAddr)
+	Access         string // access, cloudflare or none; "" when unset
 	AccessTeam     string // the Cloudflare Access team domain, <team>.cloudflareaccess.com; "" when unset
 	AccessAud      string // the Access application's AUD tag; "" when unset
 	SummaryRuntime string // summary_runtime, claude or codex; "" when unset
@@ -64,12 +74,71 @@ func (c Config) Summary() string {
 	return c.SummaryRuntime
 }
 
-// AccessMissing is the Cloudflare Access keys a set site_url needs and the config lacks: the site verifies Access on
-// every request to site_url's host, and refuses them all without these.
+// Migrated is c with access = "cloudflare" when it sets the Cloudflare Access keys and no access, as a config from
+// before access existed meant; true when it changed. pm init and pm upgrade write it; nothing else infers access.
+func (c Config) Migrated() (Config, bool) {
+	if c.Access != "" || c.AccessTeam == "" {
+		return c, false
+	}
+	c.Access = "cloudflare"
+	return c, true
+}
+
+// ListenAddr is the address the site binds: listen, else Loopback.
+func (c Config) ListenAddr() string {
+	if c.Listen == "" {
+		return Loopback
+	}
+	return c.Listen
+}
+
+// Reach is where the site listens beyond 127.0.0.1, as pm where and the pm service's log state it: "" for the default
+// listen, else lead and "listening on <listen>, access <access>".
+func (c Config) Reach(lead string) string {
+	if c.ListenAddr() == Loopback {
+		return ""
+	}
+	access := c.Access
+	if access == "" {
+		access = "unset"
+	}
+	return lead + "listening on " + c.ListenAddr() + ", access " + access
+}
+
+// Unaddressed is why the site, listening beyond loopback with no site_url, serves nobody on the network, or "": a
+// request from beyond this machine is served only on site_url's host.
+func (c Config) Unaddressed() string {
+	if c.SiteURL != "" || IsLoopback(c.ListenAddr()) {
+		return ""
+	}
+	return fmt.Sprintf("listen = %q, but no site_url is set, so the site refuses every request from the network: only "+
+		"site_url's host is served beyond this machine; set the URL colleagues open with pm init --site-url "+
+		"http://<this machine's name>:<port>", c.ListenAddr())
+}
+
+// Exposed is whether a request from beyond this machine can reach the site: listen is not a loopback address, or
+// site_url is set (a tunnel brings its requests to loopback).
+func (c Config) Exposed() bool { return c.SiteURL != "" || !IsLoopback(c.ListenAddr()) }
+
+// IsLoopback is whether addr, an IP, is a loopback address (127.0.0.0/8, ::1).
+func IsLoopback(addr string) bool {
+	ip := net.ParseIP(addr)
+	return ip != nil && ip.IsLoopback()
+}
+
+// AccessMissing is the keys the site's gate needs and the config lacks: access once the site is exposed (the pm
+// service refuses to start without it), and with access = "cloudflare" the Cloudflare Access keys, without which the
+// site refuses every request from beyond this machine.
 func (c Config) AccessMissing() []string {
+	if c.Access == "" {
+		if c.Exposed() {
+			return []string{"access"}
+		}
+		return nil
+	}
 	var missing []string
 	for _, k := range [][2]string{{"access_team", c.AccessTeam}, {"access_aud", c.AccessAud}} {
-		if c.SiteURL != "" && k[1] == "" {
+		if c.Access == "cloudflare" && k[1] == "" {
 			missing = append(missing, k[0])
 		}
 	}
@@ -193,6 +262,18 @@ func Read(cwd string) (Config, error) {
 				strings.Join(SummaryRuntimes, ", "))}
 		}
 	}
+	listen, access := "", ""
+	if v, ok := data["listen"].(string); ok {
+		if listen = PyStrip(v); net.ParseIP(listen) == nil {
+			return Config{}, &Error{fmt.Sprintf("%s: listen is %q; set it to an IP address the site binds, like %s (this "+
+				"machine only) or 0.0.0.0 (every interface)", path, v, Loopback)}
+		}
+	}
+	if v, ok := data["access"].(string); ok {
+		if access = PyStrip(v); !slices.Contains(Accesses, access) {
+			return Config{}, &Error{fmt.Sprintf("%s: access is %q; set it to one of %s", path, v, strings.Join(Accesses, ", "))}
+		}
+	}
 	site, _ := data["site_url"].(string)
 	team, _ := data["access_team"].(string)
 	aud, _ := data["access_aud"].(string)
@@ -206,7 +287,7 @@ func Read(cwd string) (Config, error) {
 	}
 	return Config{Path: path, Version: data["version"].(string), Remote: data["remote"].(string),
 		MainBranch: data["main_branch"].(string), Port: data["port"].(int64),
-		SiteURL: strings.TrimRight(PyStrip(site), "/"), AccessTeam: PyStrip(team), AccessAud: PyStrip(aud),
+		SiteURL: strings.TrimRight(PyStrip(site), "/"), Listen: listen, Access: access, AccessTeam: PyStrip(team), AccessAud: PyStrip(aud),
 		SummaryRuntime: summary, DesignSources: sources}, nil
 }
 

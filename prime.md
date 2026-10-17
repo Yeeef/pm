@@ -121,7 +121,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - close a sprint: `pm sprint close <id>`, once its report is written, its tasks are closed and its PR review is closed as merged. For a PR merged with no review: `pm sprint close <id> --merged <sha> --pr URL`. It then publishes the sprint's design page drafts, from every worktree, in one records commit. A draft that overlaps another commit is named: run any pm write in that worktree, resolve the conflict markers, `pm commit --sprint <id>` the page, and close again; `--discard <slug> --reason "…"` drops the draft instead.
 - find a link: Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.
 - Report where pm got in your way: `pm feedback add [--project NAME]`, once, with what happened and what would have helped.
-- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and workspace, and the pm service. `pm init --site-url URL` sets the public site link.
+- setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and workspace, and the pm service. `pm init --site-url URL` sets the public site link; `--listen ADDR` and `--access cloudflare|none` set who reaches it.
 
 Less frequent, each detailed in its `--help`:
 

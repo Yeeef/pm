@@ -228,7 +228,7 @@ func cmdMode(here string, on bool, stdout io.Writer) error {
 
 func runInit(p *Parsed, here string, stdout io.Writer) error {
 	if imp := p.Given("import_bd", "import"); imp != nil { // the import alone, into the work store
-		if other := p.Given("session_start", "site_url"); other != nil {
+		if other := p.Given("session_start", "site_url", "listen", "access"); other != nil {
 			return &usageError{Cmd: p.Cmd, Msg: fmt.Sprintf("argument %s: not allowed with argument %s", imp.Name(), other.Name())}
 		}
 		if imp.Dest == "import_bd" {

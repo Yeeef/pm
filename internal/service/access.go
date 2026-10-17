@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -196,25 +197,51 @@ func decodePart(part string, v any) error {
 	return nil
 }
 
-// hostName is a Host header's name: without the port, lower case.
+// hostName is a Host header's name: without the port and an IPv6 address's brackets, lower case, as url.Hostname gives
+// site_url's.
 func hostName(host string) string {
-	if i := strings.LastIndex(host, ":"); i >= 0 {
-		host = host[:i]
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	} else { // no port: a bare name, a bracketed or a bare IPv6 address
+		host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
 	}
 	return strings.ToLower(host)
 }
 
-// refusal is why a request is refused, or "". The service binds 127.0.0.1, so a Host other than this machine's names
-// a rebinding domain, except site_url's: the tunnel brings that, so the request must carry a Cloudflare Access token
-// that verifies against the team's keys, for this application, unexpired. A request Cloudflare's edge forwarded
-// (EdgeHeader) needs the token whatever its Host, so a tunnel that rewrites Host to this machine's does not skip
-// Access. It fails closed: without the Access keys in the config, or the team's keys, every such request is refused.
-func (s *server) refusal(r *http.Request) string {
-	name := hostName(r.Host)
+// local is whether r comes from this machine: its TCP peer is a loopback address, Cloudflare's edge did not forward it
+// (EdgeHeader; cloudflared connects from loopback), and its Host names this machine. The peer decides, not the Host:
+// with a non-loopback listen, a client on the network could send Host: localhost. The Host is checked too, since a
+// browser here that a rebinding domain points at 127.0.0.1 connects from loopback.
+func local(r *http.Request) bool {
 	_, edge := r.Header[http.CanonicalHeaderKey(EdgeHeader)]
-	if (name == "127.0.0.1" || name == "localhost") && !edge {
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	name := hostName(r.Host)
+	return err == nil && config.IsLoopback(peer) && !edge && (name == "127.0.0.1" || name == "localhost" || name == "::1")
+}
+
+// readOnly is whether r may read but not reply: with access = "none" pm cannot tell the owner from anyone else on the
+// network, so a reply, which becomes an instruction to an agent session, is taken only from this machine.
+func (s *server) readOnly(r *http.Request) bool { return s.d.Access == "none" && !local(r) }
+
+// ReadOnlyRule is why a non-local viewer cannot reply under access = "none": the 403 a reply gets, and the note in
+// place of each reply form on its pages.
+const ReadOnlyRule = `replies are taken only from this machine: access = "none" in ` + config.Rel + ` lets the network ` +
+	`read the site, and pm cannot tell the owner from anyone else on it; reply on this machine, or set access = ` +
+	`"cloudflare"`
+
+// refusal is why a request is refused, or "". A local request is served. Any other must name site_url's host (else
+// its Host names a rebinding domain, or a peer on the network claims this machine's name), unless Cloudflare's edge forwarded it (EdgeHeader), so a tunnel that rewrites
+// Host to this machine's does not skip Access. Then access decides: "none" lets it in, the network being the gate,
+// except an edge-forwarded one, which came from the internet; "cloudflare" (or no access, which only a loopback,
+// site_url-less config has: then only a tunnel's request gets here) needs a Cloudflare Access token that verifies
+// against the team's keys, for this application, unexpired. It fails closed: without the Access keys in the config,
+// or the team's keys, every such request is refused.
+func (s *server) refusal(r *http.Request) string {
+	if local(r) {
 		return ""
 	}
+	name := hostName(r.Host)
+	_, edge := r.Header[http.CanonicalHeaderKey(EdgeHeader)]
 	public := ""
 	if u, err := url.Parse(s.d.SiteURL); err == nil {
 		public = strings.ToLower(u.Hostname())
@@ -226,6 +253,13 @@ func (s *server) refusal(r *http.Request) string {
 		}
 		return fmt.Sprintf("refused: Host %s is neither this machine nor the configured site_url; open the site at %s",
 			shown, s.siteURL())
+	}
+	if s.d.Access == "none" {
+		if edge {
+			return fmt.Sprintf(`refused: Cloudflare's edge forwarded this request, and access = "none" in %s lets in `+
+				`only the network's; set access = "cloudflare" to serve a tunnel`, config.Rel)
+		}
+		return ""
 	}
 	var missing []string
 	if s.d.AccessTeam == "" {
