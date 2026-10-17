@@ -67,6 +67,11 @@ The design page pm-cli stays as it is for this sprint's code changes.
 commands.go changes only pm init's and pm doctor's --help text; the command tree and the CLI's design are unchanged
 :::
 
+::: decision {source=agent date=2026-10-17}
+The parity eval keeps PM_PARITY_CODEX_SANDBOX as an opt-in override of the repo mode; unset, Codex runs on the repo .codex/config.toml.
+A host where bwrap cannot start may need danger-full-access to run the eval at all; the default path tests what users run, and an assertion checks the mode when the override is unset.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
