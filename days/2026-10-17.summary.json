@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T19:52:29+00:00",
- "digest": "19f5e6ee6df50262",
+ "generated_at": "2026-10-17T20:02:58+00:00",
+ "digest": "82c2402f5470942d",
  "model": "claude-haiku-5-5",
- "text": "- **Codex auto mode:** pm sets up repos to run Codex in auto mode from a tracked config file. pm doctor names a host where the Codex sandbox cannot start.\n- **Owner questions and modes:** Ask-tool questions now appear on the site, and the first answer reaches the session. pm interactive and pm autopilot turn off the owner-request judge for each session.\n- **Command surface and search:** pm --help and prime.md now show what agents use, and common command failures are removed. pm search now ranks earlier sprints, decisions and design sections by topic.\n- **Design-page index:** pm sprint open and a session's first task claim print the design pages that cover the area."
+ "text": "- **Codex auto mode:** pm init enables Codex auto mode in the repo's tracked config file. pm doctor names a host where Codex's sandbox cannot start, with its cause and fix. Uninstall removes only pm's values and leaves the rest of the file unchanged.\n- **Repo search:** pm search finds earlier sprints, decisions, and design sections by topic. The search index design page sets out stages, each with a measured trigger. Every ranking change must pass an evaluation against rg.\n- **Owner questions and modes:** Ask-tool questions from sessions now appear on the site under \"Sessions ask you.\" You can answer them on the site or in chat; the first answer reaches the session. pm interactive and pm autopilot set a per-session mode that disables the owner-request judge.\n- **Agent command surface:** The most common agent failures on pm's commands are removed. pm --help and prime.md now show the commands agents use."
 }
