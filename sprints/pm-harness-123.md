@@ -67,6 +67,8 @@ None yet.
 
 done: this repo's pin moves from 0.8.6 to 0.11.0, which carries sprint 118's ask-tool questions on the site (0.10.0) and replies by push alone (0.11.0).
 
+Merged as 70e5a81 (PR #96).
+
 - `pm upgrade --to 0.11.0` wrote the pin and the hook entries: Claude Code's PermissionRequest and PostToolUse on AskUserQuestion, Codex's PostToolUse on request_user_input_async and UserPromptSubmit, `pm hook inbox` out of both.
 - 0.11.0 installed on this machine; pins 0.5.0 to 0.8.5 that no checkout uses were pruned (593 MB).
 
