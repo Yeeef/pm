@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T19:42:04+00:00",
- "digest": "0e53c1878a876d78",
+ "generated_at": "2026-10-17T19:52:29+00:00",
+ "digest": "19f5e6ee6df50262",
  "model": "claude-haiku-5-5",
- "text": "- **Codex auto mode:** A repo that pm sets up now runs Codex in auto mode from its tracked config file. `pm doctor` now names a host where the Codex sandbox cannot start.\n- **Owner questions in sessions:** Questions from Claude Code and Codex now appear on the site and can be answered there or in chat. A per-session interactive or autopilot mode switches off the owner-request judge.\n- **Search and design lookup:** `pm search` finds earlier sprints, decisions and design sections by topic. At sprint open and first task claim, pm prints the design pages for the area.\n- **Command surface cleanup:** `pm --help` and prime.md now show the commands agents use. The most common agent failures on the command surface are removed."
+ "text": "- **Codex auto mode:** pm sets up repos to run Codex in auto mode from a tracked config file. pm doctor names a host where the Codex sandbox cannot start.\n- **Owner questions and modes:** Ask-tool questions now appear on the site, and the first answer reaches the session. pm interactive and pm autopilot turn off the owner-request judge for each session.\n- **Command surface and search:** pm --help and prime.md now show what agents use, and common command failures are removed. pm search now ranks earlier sprints, decisions and design sections by topic.\n- **Design-page index:** pm sprint open and a session's first task claim print the design pages that cover the area."
 }
