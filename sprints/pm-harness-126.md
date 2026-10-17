@@ -70,6 +70,11 @@ The heading, section and outline parser moved from internal/cli into internal/re
   (pm-harness-62, 107, 119). Other wordings reach both: session claims puts
   pm-harness-22 at #2, owner-request hook puts pm-harness-14 at #4.
 
+- Dropping each record's Design pages section from the units moved design
+  covers' pm-quality-22 from #7 to #2; those short link lists outranked the
+  sections with the substance. It moved pm-harness-14 from #8 to #41, because
+  its #8 hit was its own Design pages section.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
