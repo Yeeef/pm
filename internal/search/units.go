@@ -107,7 +107,7 @@ func recordUnits(rec *records.Record, target string, recs []*records.Record, x *
 	}
 	var out []Unit
 	parts, headings := sections(rec.Body, kind)
-	add := func(kind, date, heading, body string) {
+	add := func(kind, date, heading, body string, indexed ...string) { // indexed: the title, then these, then body
 		if body = clean(body); body == "" {
 			return
 		}
@@ -115,13 +115,14 @@ func recordUnits(rec *records.Record, target string, recs []*records.Record, x *
 		if heading != "" && headings[heading] == 1 { // pm show --section refuses a heading the record has twice
 			address += " " + records.ShellQuote(heading)
 		}
-		out = append(out, Unit{Kind: kind, Date: date, State: state, Address: address, Project: project,
-			Text: strings.Join([]string{rec.Title(), heading, body}, "\n"), snips: []string{body}})
+		text := strings.Join(append(append([]string{rec.Title()}, indexed...), body), "\n")
+		out = append(out, Unit{Kind: kind, Date: date, State: state, Address: address, Project: project, Text: text,
+			snips: []string{body}})
 	}
 	for _, s := range parts {
 		switch {
 		case kind != "sprint" && kind != "project" || !skipped[s.heading]:
-			add(kind, date, s.heading, s.body)
+			add(kind, date, s.heading, s.body, s.heading)
 		case s.heading == "Decisions":
 			for _, d := range records.Decisions(s.body) {
 				day := d.Attrs["date"]
@@ -151,9 +152,10 @@ func itemDate(it *item.Item) string {
 // that splits it) and its body.
 type section struct{ heading, body string }
 
-// sections splits a record body as its kind's units: at each ## heading; a design page's Design section also at each
-// ### heading, its text before the first ### keeping the heading Design. The headings are the ones pm show --record
-// parses (records.Headings), so a unit's address names a section it prints; with how many headings have each text.
+// sections splits a record body as its kind's units: at each # or ## heading; a design page's Design section also at
+// each ### heading, its text before the first ### keeping the heading Design. A body starts after its heading's own
+// lines. The headings are the ones pm show --record parses (records.Headings), so a unit's address names a section it
+// prints; with how many headings have each text.
 func sections(body, kind string) ([]section, map[string]int) {
 	lines := strings.Split(body, "\n")
 	heads := records.Headings(body)
@@ -161,10 +163,10 @@ func sections(body, kind string) ([]section, map[string]int) {
 	for _, h := range heads {
 		count[h.Text]++
 	}
-	text := func(from, to int) string { return strings.Join(lines[from:to], "\n") }
-	end := func(i int) int { // the line where heading i's section ends
+	text := func(from, to int) string { return strings.Join(lines[min(from, to):to], "\n") }
+	end := func(i, level int) int { // the line where heading i's section ends: the next heading of level or higher
 		for _, h := range heads[i+1:] {
-			if h.Level <= heads[i].Level {
+			if h.Level <= level {
 				return h.Line
 			}
 		}
@@ -172,31 +174,32 @@ func sections(body, kind string) ([]section, map[string]int) {
 	}
 	first := len(lines)
 	for _, h := range heads {
-		if h.Level == 2 {
+		if h.Level <= 2 {
 			first = h.Line
 			break
 		}
 	}
 	out := []section{{"", text(0, first)}}
 	for i, h := range heads {
-		if h.Level != 2 {
+		if h.Level > 2 {
 			continue
 		}
+		stop := end(i, 2)
 		if kind != "design" || h.Text != "Design" {
-			out = append(out, section{h.Text, text(h.Line+1, end(i))})
+			out = append(out, section{h.Text, text(h.Next, stop)})
 			continue
 		}
-		lead := end(i)
+		lead := stop
 		for _, s := range heads[i+1:] {
-			if s.Line < end(i) && s.Level == 3 {
+			if s.Line < stop && s.Level == 3 {
 				lead = s.Line
 				break
 			}
 		}
-		out = append(out, section{h.Text, text(h.Line+1, lead)})
+		out = append(out, section{h.Text, text(h.Next, lead)})
 		for j, s := range heads[i+1:] {
-			if s.Line < end(i) && s.Level == 3 {
-				out = append(out, section{s.Text, text(s.Line+1, end(i+1+j))})
+			if s.Line < stop && s.Level == 3 {
+				out = append(out, section{s.Text, text(s.Next, end(i+1+j, 3))})
 			}
 		}
 	}
