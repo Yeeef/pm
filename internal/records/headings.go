@@ -14,16 +14,19 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-// Heading is one heading of a record body: its level, its raw inline text and the line it starts on (0-based).
+// Heading is one heading of a record body: its level, its raw inline text, the line it starts on (0-based) and the
+// line after its own lines, where its section's body starts (a setext heading's underline is one of its lines).
 type Heading struct {
 	Level int
 	Text  string
 	Line  int
+	Next  int
 }
 
 var (
 	headingParser = goldmark.New(goldmark.WithExtensions(extension.Table)).Parser()
 	emptyATX      = regexp.MustCompile(`^ {0,3}#{1,6}(?:[ \t]+#*)?[ \t]*$`)
+	atxStart      = regexp.MustCompile(`^ {0,3}#{1,6}(?:[ \t]|$)`)
 )
 
 // Headings is each heading as the renderer parses the body (CommonMark, raw HTML and
@@ -49,7 +52,7 @@ func Headings(body string) []Heading {
 					break
 				}
 			}
-			out = append(out, Heading{h.Level, "", line})
+			out = append(out, Heading{Level: h.Level, Line: line, Next: line + 1})
 			after = line + 1
 			return ast.WalkSkipChildren, nil
 		}
@@ -57,7 +60,12 @@ func Headings(body string) []Heading {
 		// continuation lines with their indentation, where goldmark's segments drop it.
 		first, last := lines.At(0), lines.At(lines.Len()-1)
 		line := lineAt(first.Start)
-		out = append(out, Heading{h.Level, strings.TrimSpace(body[first.Start:last.Stop]), line})
+		next := line + 1
+		if !atxStart.MatchString(body[strings.LastIndex(body[:first.Start], "\n")+1:]) {
+			next = lineAt(last.Start) + 2 // setext: its text lines, then the underline
+		}
+		text := strings.TrimSpace(body[first.Start:last.Stop])
+		out = append(out, Heading{Level: h.Level, Text: text, Line: line, Next: next})
 		after = line + 1
 		return ast.WalkSkipChildren, nil
 	})

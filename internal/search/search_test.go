@@ -233,7 +233,7 @@ func TestUnitsFollowTheDesignPagesTable(t *testing.T) {
 		if u.Address == "lexer Tokens" && !strings.Contains(u.Text, "More lexer.") {
 			t.Errorf("a #### stays in its ### unit: %q", u.Text)
 		}
-		if u.Kind == "decision" && u.Text != "Demo\nDecisions\nUse a lexer library.\nIt is maintained." {
+		if u.Kind == "decision" && u.Text != "Demo\nUse a lexer library.\nIt is maintained." {
 			t.Errorf("decision text: %q", u.Text)
 		}
 	}
@@ -281,6 +281,51 @@ func TestAnAddressNamesWhatPmShowResolves(t *testing.T) {
 	}
 	sort.Strings(got)
 	want := []string{"design/demo Problem", "docs/2026-10-03-twice", "docs/2026-10-03-twice Other", "projects/demo Goal"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// texts is each unit's address and indexed text, for a record set given as rel → text.
+func texts(t *testing.T, recs map[string]string, items ...item.Item) map[string]string {
+	t.Helper()
+	var parsed []*records.Record
+	for rel, text := range recs {
+		rec, err := records.Parse(rel+".md", rel, text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed = append(parsed, rec)
+	}
+	out := map[string]string{}
+	for _, u := range Units(parsed, items, nil) {
+		out[u.Address] = u.Text
+	}
+	return out
+}
+
+// A decision block indexes its record's title and its body, not the heading Decisions its address names; a sprint's Design pages, links to pages indexed themselves, is no
+// unit.
+func TestADecisionIndexesItsTitleAndBodyAndDesignPagesIsNoUnit(t *testing.T) {
+	got := texts(t, map[string]string{"sprints/demo-1": "---\ntype: sprint\ntitle: One\nbead: s\n---\n\n" +
+		"## Decisions\n\n" +
+		"::: decision {source=agent date=2026-10-02}\nUse a library.\n:::\n"}, item.Item{ID: "s", Type: item.Sprint})
+	want := map[string]string{"demo-1 Decisions": "One\nUse a library."}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// A # heading starts a section as a ## does, so its text is indexed under it; a setext heading's underline is part of
+// the heading, not of its body.
+func TestALevelOneHeadingStartsASectionAndASetextUnderlineIsNoBody(t *testing.T) {
+	got := texts(t, map[string]string{"docs/2026-10-03-notes": "---\ntype: doc\ntitle: Notes\ndate: 2026-10-03\n" +
+		"project: demo\n---\n\n## Goal\n\nAlpha.\n\n# Appendix\n\nZeta.\n\nSetext\n------\n\nOmega.\n"})
+	want := map[string]string{
+		"docs/2026-10-03-notes Goal":     "Notes\nGoal\nAlpha.",
+		"docs/2026-10-03-notes Appendix": "Notes\nAppendix\nZeta.",
+		"docs/2026-10-03-notes Setext":   "Notes\nSetext\nOmega.",
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %q, want %q", got, want)
 	}
