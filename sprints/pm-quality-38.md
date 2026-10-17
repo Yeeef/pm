@@ -112,6 +112,8 @@ The owner ruled in chat: users can fix themselves as long as the release note is
 
 done: agents' top failure clusters on the pm command surface are removed, and `pm --help` and prime.md show what agents use (PR #104).
 
+Merged as 953b6fa (PR #104).
+
 - `pm show --record X` alone prints the record outline; sprint names resolve as targets.
 - Need forms refuse once with every broken rule.
 - `task close` requires `--reason`; `doc new --sprint|--task|--project`; one help renderer; honest usage lines; the no-op `hook git-post-checkout` and `git-pre-commit` removed, with the fix in the release note.

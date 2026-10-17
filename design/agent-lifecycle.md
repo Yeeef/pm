@@ -180,9 +180,10 @@ as its work needs:
 | Top | `pm show` (injected) | A failed push; tasks other live sessions hold (`[held by <sid>, <age>, live\|idle]`); the site; one line per open project with its open and running sprint counts and owner requests; one line per owner request, flagged `[undelivered reply: pm reply read ID]` when its site reply or PR merge did not reach its session |
 | Project | `pm show --project NAME` | The goal, owner requests in full, feedback, open sprints with their tasks and holders, sprints with no tasks, the last decisions |
 | Sprint | `pm show --sprint ID` | One sprint's frame, findings and tasks |
+| Record | `pm show --record …` | The record's outline: its header ids and each section with its line count and the command that reads it |
 | Section | `pm show --record … --section …` | One record section instead of a whole record |
 
-`bd ready --exclude-type=epic` lists unblocked tasks. The agent never starts
+`pm task ready` lists unblocked tasks. The agent never starts
 or briefs a task another live session holds, and work outside any sprint
 first becomes a small sprint.
 
