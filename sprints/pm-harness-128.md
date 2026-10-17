@@ -68,6 +68,15 @@ The owner asked how pm search beats rg; the index is worth building only if sear
   95%). Best of 3 queries R@10: pm search .551, rg .449, whole-record BM25 OR
   .588; difference +0.103 [+0.007, +0.206].
 
+- Same eval, extended labels (98 sprints, 237 targets, 162 design pages,
+  adding each sprint's existing Design pages links): pm search trails rg,
+  single query R@10 -0.072 [-0.139, -0.007], union of 3 -0.140 [-0.235,
+  -0.045]. Misses are ranking, not matching: in 71 of 79 extended cases where
+  rg's top 10 held the target, pm search matched it but ranked it below 10.
+  Short sprint sections outrank a design page split into many units;
+  all-terms-in-one-unit returns nothing for 26.5% of title-word queries
+  against 16.2% for rg.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
