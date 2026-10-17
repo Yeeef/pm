@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/designindex"
 	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/proc"
@@ -234,7 +235,8 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 	if h != nil && h.Session != sid {
 		was = "; took it over from idle session " + h.Session
 	}
-	return fmt.Sprintf("claimed %s for session %s at %s%s", id, sid, now, was), nil
+	index := designindex.Block(func() (string, error) { return designindex.Claim(r.recs, r.x, id, sid, e.siteURL) })
+	return fmt.Sprintf("claimed %s for session %s at %s%s", id, sid, now, was) + index, nil
 }
 
 // heldElsewhere refuses a write to task id while a live session other than sid holds it; then says what to ask that

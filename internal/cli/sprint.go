@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/designindex"
 	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/design"
@@ -112,7 +113,7 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", undoCreate(ws, made.ID, err)
 	}
-	return out, nil
+	return out + designindex.Block(func() (string, error) { return designindex.Of(r.recs, e.siteURL, prec) }), nil
 }
 
 // requireCommitted is the records commit a close names; the closed record itself must be committed.
