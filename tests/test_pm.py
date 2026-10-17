@@ -613,7 +613,7 @@ def test_a_need_names_its_sprint_or_task_and_a_removed_scope_flag_is_refused(rep
     refused(repo, "decision", "need", "--title", "Site URL", "--sprint", task, *SITE_URL,
             match=r"--sprint repo-demo.1.3 is a task, not a sprint; name a sprint with --sprint ID, a task with --task ID")
     refused(repo, "action", "need", "--title", "Restart", "--sprint", "repo-demo.1", "--task", task,
-            text=ACTION, match=r"--sprint and --task both given")
+            text=ACTION, match=r"an action belongs to one sprint or task: give --sprint ID or --task ID, once")
     sub = "name the sprint with --sprint ID or the task with --task ID"
     for args, message in (
             (("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL),
@@ -700,7 +700,7 @@ def test_need_close_closes_each_kind_of_need_and_the_old_close_verbs_are_refused
     done, dropped = "repo-demo.1.3", "repo-demo.1.4"
     repo.mark()
     refused(repo, "need", "close", done, "--reason", "restarted", "--text=Yes",
-            match=f"{done} is an action; only a decision need closes with the owner's answer")
+            match=f"{done} is of kind action; only a decision need closes with the owner's answer")
     refused(repo, "need", "close", dropped, "--dropped", "--reason", "moot", "--text=Yes",
             match="--dropped closes a need with no answer")
     res = repo.pm("need", "close", done, "--reason", "restarted")

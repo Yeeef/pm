@@ -169,14 +169,9 @@ func cmdActionNeed(e *env, p *Parsed) (string, error) {
 				return "", refuse("%s is only for a PR review; give --pr URL with it, or drop it", f.flag)
 			}
 		}
-		_, task := given(p, "task")
-		switch n := len(p.ValuesOf("sprint")); {
-		case n > 1:
-			return "", refuse("--sprint is given %d times; an action belongs to one sprint or task", n)
-		case n == 1 && task:
-			return "", refuse("--sprint and --task both given; an action belongs to one sprint or task")
-		case n == 0 && !task:
-			return "", refuse("--sprint ID or --task ID is required (or --pr for a PR review)")
+		if len(p.ValuesOf("sprint"))+len(p.ValuesOf("task")) != 1 {
+			return "", refuse("an action belongs to one sprint or task: give --sprint ID or --task ID, once (or --pr " +
+				"for a PR review)")
 		}
 		if _, ok := given(p, "title"); !ok {
 			return "", refuse("--title is required (or --pr for a PR review)")

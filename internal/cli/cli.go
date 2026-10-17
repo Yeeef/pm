@@ -64,47 +64,20 @@ type refusal struct{ msg string }
 
 func (r *refusal) Error() string { return r.msg }
 
-// removedForm is a flag (or, with flag "", a whole command) pm no longer has, and the refusal that names its
-// replacement. Removed forms are refused, never aliased, so a session's old habit meets the new form once.
-type removedForm struct {
-	path, flag, instead string
-}
-
 // removedForms are the forms the naming grammar (the pm-cli design page, Naming) removed.
-var removedForms = []removedForm{
-	{"decision need", "--parent", "name the sprint with --sprint ID or the task with --task ID"},
-	{"action need", "--parent", "name the sprint with --sprint ID or the task with --task ID"},
-	{"decision add", "--level", "--project NAME or --sprint ID alone names the decision's level"},
-	{"task add", "--parent", "a sub-task names its task with --task TASK"},
-	{"decision close", "", "a decision need whose answer sets no rule closes with pm need close ID --reason \"…\" " +
-		"and the answer as --text or --text-file"},
-	{"action done", "", "an action closes with pm need close ID --reason \"…\", a PR review with --reason " +
-		"\"merged as <sha>\""},
-	{"need dismiss", "", "a need that became moot closes with pm need close ID --dropped --reason \"…\""},
-}
-
-// refuseRemoved is the refusal of a removed form argv uses, "" when it uses none.
-func refuseRemoved(argv []string) string {
-	for _, f := range removedForms {
-		words := strings.Fields(f.path)
-		if len(argv) < len(words) || !slices.Equal(argv[:len(words)], words) {
-			continue
-		}
-		if f.flag == "" {
-			return fmt.Sprintf("pm %s was removed: %s", f.path, f.instead)
-		}
-		for _, a := range argv[len(words):] {
-			if a == f.flag || strings.HasPrefix(a, f.flag+"=") {
-				return fmt.Sprintf("pm %s %s was removed: %s", f.path, f.flag, f.instead)
-			}
-		}
-	}
-	return ""
+var removedForms = []parse.Removed{
+	{Path: "decision need", Flag: "--parent", Instead: "name the sprint with --sprint ID or the task with --task ID"},
+	{Path: "action need", Flag: "--parent", Instead: "name the sprint with --sprint ID or the task with --task ID"},
+	{Path: "decision add", Flag: "--level", Instead: "--project NAME or --sprint ID alone names the decision's level"},
+	{Path: "task add", Flag: "--parent", Instead: "a sub-task names its task with --task TASK"},
+	{Path: "decision close", Instead: "pm need close ID --reason \"…\", the answer as --text or --text-file"},
+	{Path: "action done", Instead: "pm need close ID --reason \"…\" (a PR review: --reason \"merged as <sha>\")"},
+	{Path: "need dismiss", Instead: "pm need close ID --dropped --reason \"…\" closes a need that became moot"},
 }
 
 // Execute runs pm with argv (without the program name) and returns the exit code.
 func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if msg := refuseRemoved(argv); msg != "" {
+	if msg := parse.RefuseRemoved(argv, removedForms); msg != "" {
 		fmt.Fprintf(stderr, "error: %s\n", msg)
 		return 2
 	}

@@ -62,13 +62,15 @@ func TestAQuestionIsClosedOnlyAsDismissed(t *testing.T) {
 	for _, id := range []string{"demo-pxy.1.1.1", "demo-ask1"} {
 		_, _, _, addErr := r.decisionSource(args("need", id), "d\nr")
 		_, editErr := cmdNeedEdit(e, args("need_id", id, "text", "a new body"))
-		_, answerErr := cmdNeedClose(e, args("need_id", id, "reason", "no rule", "text", "Yes"))
-		for name, err := range map[string]error{"decision add --need": addErr, "need edit": editErr,
-			"need close --text": answerErr} {
+		for name, err := range map[string]error{"decision add --need": addErr, "need edit": editErr} {
 			if err == nil || !strings.Contains(err.Error(), "session's question") ||
-				name != "need close --text" && !strings.Contains(err.Error(), "pm need close "+id) {
+				!strings.Contains(err.Error(), "pm need close "+id) {
 				t.Errorf("pm %s %s: %v", name, id, err)
 			}
+		}
+		if _, err := cmdNeedClose(e, args("need_id", id, "reason", "no rule", "text", "Yes")); err == nil ||
+			!strings.Contains(err.Error(), "is of kind question; only a decision need closes with the owner's answer") {
+			t.Errorf("pm need close --text %s: %v", id, err)
 		}
 		// pm need close without an answer dismisses it: it reaches the store's close, which this store refuses
 		if _, err := cmdNeedClose(e, args("need_id", id, "reason", "moot")); err == nil ||

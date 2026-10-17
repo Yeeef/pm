@@ -443,3 +443,26 @@ func (c *Command[T]) require(p *Parsed[T], missing []string, seen map[int]*Arg) 
 	}
 	return nil
 }
+
+// Removed is a flag, or with Flag "" a whole command, that pm no longer has, and the refusal's pointer to what
+// replaced it: a removed form is refused, never aliased, so an old habit meets the new form once.
+type Removed struct{ Path, Flag, Instead string }
+
+// RefuseRemoved is the refusal of the first of forms that argv uses, "" when it uses none.
+func RefuseRemoved(argv []string, forms []Removed) string {
+	for _, f := range forms {
+		words := strings.Fields(f.Path)
+		if len(argv) < len(words) || !slices.Equal(argv[:len(words)], words) {
+			continue
+		}
+		if f.Flag == "" {
+			return fmt.Sprintf("pm %s was removed: %s", f.Path, f.Instead)
+		}
+		for _, a := range argv[len(words):] {
+			if a == f.Flag || strings.HasPrefix(a, f.Flag+"=") {
+				return fmt.Sprintf("pm %s %s was removed: %s", f.Path, f.Flag, f.Instead)
+			}
+		}
+	}
+	return ""
+}

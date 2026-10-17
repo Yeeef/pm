@@ -13,11 +13,9 @@ import (
 // decisionTarget is the open project or sprint record a decision goes into, named by --project or --sprint (the
 // parser requires one), and its level: the flag's name.
 func (r *repo) decisionTarget(p *Parsed) (*records.Record, string, error) {
-	level := "sprint"
-	target, ok := given(p, level)
-	if !ok {
-		level = "project"
-		target, _ = given(p, level)
+	level, target := "project", p.Get("project")
+	if sprint, ok := given(p, "sprint"); ok {
+		level, target = "sprint", sprint
 	}
 	var rec *records.Record
 	var err error

@@ -118,7 +118,9 @@ func cmdNeedClose(e *env, p *Parsed) (string, error) {
 	id, reason := p.Get("need_id"), strip(p.Get("reason"))
 	_, answered := given(p, "text")
 	dropped := p.Get("dropped") != ""
-	if dropped && answered {
+	if reason == "" {
+		return "", refuse("--reason is empty; say why the need closes")
+	} else if dropped && answered {
 		return "", refuse("--dropped closes a need with no answer; drop %s", textForms)
 	}
 	r, err := e.load(false)
@@ -126,41 +128,21 @@ func cmdNeedClose(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	need := r.item(id)
-	if need == nil {
-		return "", refuse("%s is not in the work store", id)
-	}
-	if need.Type != work.Need {
-		return "", refuse("%s is a %s, not a need; a task closes with pm task close, a sprint with pm sprint close", id,
-			need.Type)
+	if need == nil || need.Type != work.Need {
+		return "", refuse("%s is no need in the work store; a task closes with pm task close", id)
 	}
 	kind := site.Kind(need)
 	if answered && kind != "decision" {
-		return "", refuse("%s is %s; only a decision need closes with the owner's answer: drop %s", id,
-			map[string]string{"action": "an action", "question": "a session's question"}[kind], textForms)
+		return "", refuse("%s is of kind %s; only a decision need closes with the owner's answer: drop %s", id, kind,
+			textForms)
 	}
-	switch {
-	case dropped || kind == "question":
-		if reason == "" {
-			return "", refuse("--reason is empty; say why it is dropped")
-		}
-		return dismissNeed(e, need, reason)
-	case kind == "action":
-		if reason == "" {
-			return "", refuse("--reason is empty; say what showed you the owner did it")
-		}
+	if kind == "action" && !dropped {
 		return closeAction(e, r, need, reason)
-	default:
-		if reason == "" {
-			return "", refuse("--reason is empty; say why the answer sets no rule")
-		}
+	} else if kind == "decision" && !dropped {
 		return closeDecisionNeed(e, r, need, reason, p.Get("text"))
 	}
-}
-
-// dismissNeed closes an open need as dismissed, with no answer: pm sprint close skips a dismissed review.
-func dismissNeed(e *env, need *work.Item, reason string) (string, error) {
-	if need.Status != work.Open {
-		return "", refuse("%s is closed already (%s)", need.ID, need.Resolution)
+	if need.Status != work.Open { // dismissed: a question, or any need --dropped
+		return "", refuse("%s is closed already (%s)", id, need.Resolution)
 	}
 	ws, err := e.work()
 	if err != nil {
