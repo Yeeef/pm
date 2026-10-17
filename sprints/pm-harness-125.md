@@ -59,6 +59,11 @@ Renamed the sprint from "Work context: design-page index at claim and pm search"
 This sprint now ships only the design-page index, so its title names only that.
 :::
 
+::: decision {source=owner date=2026-10-17}
+pm search moves to its own sprint (126); this sprint ships only the design-page index.
+The owner asked to split the index and pm search into two sprints, so each ships as its own PR.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
