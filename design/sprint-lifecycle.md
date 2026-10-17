@@ -96,7 +96,7 @@ sprint without a PR goes from work straight to close.
 
 `pm sprint open --title … <project>` reads Goal, Scope (**In** and **Out**)
 and Done when from its body (`--text-file - <<'EOF'`), creates the Beads epic and the sprint record, and
-commits the record on the records branch.
+commits the record on the records branch. It then prints the project's design pages, so the frame's Design pages section starts from them ([Work context](work-context.md)).
 
 ### Plan
 

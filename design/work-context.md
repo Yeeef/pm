@@ -2,6 +2,8 @@
 type: design
 title: "Work context: design-page index and pm search"
 project: pm-harness
+covers:
+  - "internal/cli/designindex/**"
 ---
 
 ## Problem

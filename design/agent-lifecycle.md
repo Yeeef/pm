@@ -215,6 +215,10 @@ one). A subagent runs with its parent's session id, so it claims and closes
 its own task without a conflict. Raw `bd update --claim` skips the check and
 records no session, so the harness never uses it.
 
+A session's first claim in a sprint prints the sprint's and project's design
+pages, once ([Work context](work-context.md)); the agent reads the ones its
+task touches before changing their code.
+
 ### Work
 
 ```mermaid

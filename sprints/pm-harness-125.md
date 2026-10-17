@@ -96,6 +96,8 @@ prime.md gained one clause on the claim bullet; the product page's model and goa
 
 done: `pm sprint open` and a session's first `pm task claim` in a sprint print the design pages that hold the area's current state, once per sprint per session.
 
+Merged as 8a20717 (PR #109).
+
 - `internal/cli/designindex`: the index and the first-claim rule. It is a new package because `internal/cli` would otherwise exceed its size cap, and the work-context page covers it.
 - `prime.md`'s claim bullet, the `--help` texts of `task claim` and `sprint open`, and a changelog entry.
 - PR #109.

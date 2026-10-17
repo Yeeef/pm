@@ -83,7 +83,7 @@ A command's session, from its environment:
 
 ### Claiming
 
-`pm task claim <id>` makes the session (`--session`, else the resolved one) the task's holder, with the time, in one compare-and-set write ([Work store](../design/work-store.md)). It fails hard when no session id is available, and refuses in the main checkout. The same session, its subagents included, may re-claim. There is no `--force`.
+`pm task claim <id>` makes the session (`--session`, else the resolved one) the task's holder, with the time, in one compare-and-set write ([Work store](../design/work-store.md)). It fails hard when no session id is available, and refuses in the main checkout. The same session, its subagents included, may re-claim. There is no `--force`. The session's first claim in a sprint also prints the sprint's and project's design pages ([Work context](work-context.md)).
 
 ### Liveness
 
