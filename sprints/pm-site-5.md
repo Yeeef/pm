@@ -52,7 +52,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-17}
+Three independent settings: listen (bind address, default 127.0.0.1), site_url (the printed link and the one allowed non-local Host), access (cloudflare or none, required when listen is not loopback or site_url is set). An existing config with access_team set and no access is migrated to access = "cloudflare" by pm init.
+Cloudflare is a gate, not a reach: its tunnel connects from loopback, so "expose beyond localhost" and "use Cloudflare" are not the two axes. Reach, address and gate are, as in Grafana (http_addr, root_url, auth) and Jupyter (ip, custom_display_url, token). A required access with no inferred default fails closed.
+:::
 
 ## Findings
 
