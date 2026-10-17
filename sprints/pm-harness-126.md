@@ -75,6 +75,10 @@ The heading, section and outline parser moved from internal/cli into internal/re
   sections with the substance. It moved pm-harness-14 from #8 to #41, because
   its #8 hit was its own Design pages section.
 
+- Wall time per query on this repo's store: 0.15-0.16 s (4 runs each), against
+  0.10-0.15 s for pm show; all 1,370 record addresses printed for pm search
+  the open with pm show --record.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
