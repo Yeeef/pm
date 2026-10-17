@@ -105,6 +105,17 @@ func (c Config) Reach(lead string) string {
 	return lead + "listening on " + c.ListenAddr() + ", access " + access
 }
 
+// Unaddressed is why the site, listening beyond loopback with no site_url, serves nobody on the network, or "": a
+// request from beyond this machine is served only on site_url's host.
+func (c Config) Unaddressed() string {
+	if c.SiteURL != "" || IsLoopback(c.ListenAddr()) {
+		return ""
+	}
+	return fmt.Sprintf("listen = %q, but no site_url is set, so the site refuses every request from the network: only "+
+		"site_url's host is served beyond this machine; set the URL colleagues open with pm init --site-url "+
+		"http://<this machine's name>:<port>", c.ListenAddr())
+}
+
 // Exposed is whether a request from beyond this machine can reach the site: listen is not a loopback address, or
 // site_url is set (a tunnel brings its requests to loopback).
 func (c Config) Exposed() bool { return c.SiteURL != "" || !IsLoopback(c.ListenAddr()) }

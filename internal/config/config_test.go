@@ -130,3 +130,23 @@ func TestMigratedGivesAccessKeysWithNoAccessCloudflare(t *testing.T) {
 		}
 	}
 }
+
+// A non-loopback listen with no site_url serves nobody beyond this machine: a request from the network must name
+// site_url's host. Unaddressed says so, naming --site-url; it is "" otherwise.
+func TestUnaddressedNamesSiteURLForANetworkListenWithoutOne(t *testing.T) {
+	for _, c := range []struct {
+		in   config.Config
+		said bool
+	}{
+		{config.Config{Listen: "0.0.0.0", Access: "none"}, true},
+		{config.Config{Listen: "192.168.1.5", Access: "cloudflare"}, true},
+		{config.Config{Listen: "0.0.0.0", Access: "none", SiteURL: "http://devbox:8123"}, false},
+		{config.Config{}, false},
+		{config.Config{SiteURL: "https://pm.example.com", Access: "cloudflare"}, false},
+	} {
+		got := c.in.Unaddressed()
+		if (got != "") != c.said || (c.said && !strings.Contains(got, "pm init --site-url")) {
+			t.Errorf("%+v: %q", c.in, got)
+		}
+	}
+}

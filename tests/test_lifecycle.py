@@ -263,6 +263,15 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
         "cloudflare" in res.stderr and git(existing, "status", "--porcelain") == "", res.stderr
     res = pm(existing, "init", "--listen", "my-host")
     assert res.returncode == 1 and '--listen "my-host" is not an IP address' in res.stderr
+    # a network listen with no site_url serves nobody on the network (only site_url's host is): init and doctor say so
+    res = pm(existing, "init", "--listen", "0.0.0.0", "--access", "none")
+    warning = ('listen = "0.0.0.0", but no site_url is set, so the site refuses every request from the network: only '
+               "site_url's host is served beyond this machine; set the URL colleagues open with pm init --site-url")
+    assert res.returncode == 0 and f"warning: {warning}" in res.stdout, res.stdout
+    code, lines = doctor(existing)
+    assert code == 1 and any(line.startswith(f"config: {warning}") for line in lines), lines
+    res = pm(existing, "init", "--listen", "", "--access", "cloudflare")
+    assert res.returncode == 0 and "warning" not in res.stdout and "listen cleared" in res.stdout, res.stdout
     res = pm(existing, "init", "--site-url", "https://pm.example.com/", "--access", "cloudflare")
     assert res.returncode == 0 and "git add -- .pm/config.toml && " in res.stdout, res.stdout
     config = tomllib.loads((existing / ".pm/config.toml").read_text())
