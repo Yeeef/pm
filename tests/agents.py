@@ -6,7 +6,8 @@ the records store, and the pm service, which the fake supervisor runs. The agent
 - Claude Code with the user's login (their Claude config dir, as the judge's live eval runs it), user settings left
   out (`--setting-sources project,local`), so the session gets the hooks `pm init` wrote and nothing else;
 - Codex with CODEX_HOME a temp dir holding a copy of the user's auth.json and a config this module writes: the clone
-  trusted, and each of pm's hooks trusted by its hash, as the Codex user's own trust review would leave it.
+  trusted, so Codex applies the repo's `.codex/config.toml` (pm's auto mode), and each of pm's hooks trusted by its
+  hash, as the Codex user's own trust review would leave it.
 
 Every copy of a login (Codex's auth.json, Claude Code's .credentials.json for an interactive Claude session's config
 dir of its own) is made by login_copy: mode 600, removed when the clone closes, which its fixture runs after a failed
@@ -42,21 +43,23 @@ from conftest import PM, REAL, fake_env, stop_services
 
 CLAUDE_DIR = Path(REAL["CLAUDE_CONFIG_DIR"] or Path(REAL["HOME"]) / ".claude")
 REAL_CODEX_AUTH = Path(REAL["CODEX_HOME"] or Path(REAL["HOME"]) / ".codex") / "auth.json"
-# The mode Codex runs its commands in: a sandbox mode with no approvals (read-only, workspace-write,
-# danger-full-access), or approve-for-me, Codex's counterpart of Claude Code's auto mode and what a Codex user is
-# expected to run: the workspace-write sandbox, approval on request, and each request decided by Codex's automatic
-# reviewer. On a host where Codex's bubblewrap sandbox cannot start, every sandboxed command fails.
-CODEX_SANDBOX = os.environ.get("PM_PARITY_CODEX_SANDBOX", "workspace-write")
-assert CODEX_SANDBOX in ("read-only", "workspace-write", "danger-full-access", "approve-for-me"), \
-    f"PM_PARITY_CODEX_SANDBOX: no Codex mode {CODEX_SANDBOX!r}"
+# The mode Codex runs its commands in. Unset, it is the repo's own: the auto mode `pm init` writes into the clone's
+# .codex/config.toml (the workspace-write sandbox, approval on request, each request decided by Codex's automatic
+# reviewer), which Codex applies since the clone is trusted, and which a Codex user runs. Set, it is that sandbox mode
+# with no approvals, overriding the repo's (danger-full-access on a host where Codex's bubblewrap sandbox cannot start).
+CODEX_SANDBOX = os.environ.get("PM_PARITY_CODEX_SANDBOX", "")
+assert CODEX_SANDBOX in ("", "read-only", "workspace-write", "danger-full-access"), \
+    f"PM_PARITY_CODEX_SANDBOX: no Codex sandbox mode {CODEX_SANDBOX!r}"
 
 
 def codex_mode(interactive: bool) -> list[str]:
-    """Codex's arguments for CODEX_SANDBOX: --approve-for-me, else the sandbox mode, and for the TUI no approvals.
-    `codex exec` takes them before `resume`, which takes no -s."""
-    if CODEX_SANDBOX == "approve-for-me":
-        return ["--approve-for-me"]
-    return ["-s", CODEX_SANDBOX, "-a", "never"] if interactive else ["-c", f'sandbox_mode="{CODEX_SANDBOX}"']
+    """Codex's arguments for CODEX_SANDBOX: none for the repo's own mode, else the sandbox mode, and for the TUI no
+    approvals. `codex exec` takes them before `resume`, which takes no -s."""
+    if not CODEX_SANDBOX:
+        return []
+    if interactive:
+        return ["-s", CODEX_SANDBOX, "-a", "never"]
+    return ["-c", f'sandbox_mode="{CODEX_SANDBOX}"', "-c", 'approval_policy="never"']
 CLAUDE_MODEL = os.environ.get("PM_PARITY_CLAUDE_MODEL", "haiku")
 CODEX_MODEL = os.environ.get("PM_PARITY_CODEX_MODEL", "")  # "" is Codex's default for the login
 # What the agent's environment must not inherit from the session that runs the tests: a runtime's session and its
@@ -198,6 +201,12 @@ class Run:
                                                                             "local_shell_call"):
                     out.append(json.dumps(p.get("arguments") or p.get("input") or p.get("action")))
         return out
+
+    def codex_modes(self) -> set[tuple[str, str, str]]:
+        """The modes a Codex session's turns ran in, as its rollout's turn_context entries record them: approval
+        policy, approvals reviewer, sandbox mode."""
+        return {(p.get("approval_policy"), p.get("approvals_reviewer"), (p.get("sandbox_policy") or {}).get("type"))
+                for e in self.entries if e.get("type") == "turn_context" for p in [e.get("payload") or {}]}
 
     def failure(self) -> str:
         """The runtime's own error for the run, from its output, else "": Codex's turn.failed (a usage limit, say),

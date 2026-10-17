@@ -33,8 +33,9 @@ test-live: go-build
 # Check that a real Claude Code session and a real Codex session get the same pm guarantees, and work one sprint
 # together, in scratch clones (tests/test_agent_parity_live.py); needs claude and codex on PATH, both logged in. Its
 # scenarios run at once, one worker each; -rA prints each one's latencies and transcript paths.
-# PM_PARITY_CODEX_SANDBOX sets Codex's mode: approve-for-me (what a Codex user runs, like Claude Code's auto mode) or
-# a sandbox mode with no approvals (default workspace-write; danger-full-access where bubblewrap cannot start).
+# Codex runs in the auto mode pm init writes into the clone's .codex/config.toml, as a Codex user does;
+# PM_PARITY_CODEX_SANDBOX overrides it with a sandbox mode and no approvals (danger-full-access where bubblewrap
+# cannot start).
 test-live-parity: go-build
 	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -n 15 -rA -k agent_parity_live $(ARGS)
 
