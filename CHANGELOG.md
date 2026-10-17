@@ -29,6 +29,31 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.5] - 2026-10-17
+
+pm sets Codex's auto mode in the repo's `.codex/config.toml`, and pm doctor names a Linux host where Codex's sandbox
+cannot start.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.5/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.5`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- `pm init` and `pm upgrade` write Codex's auto mode into the repo's tracked `.codex/config.toml`:
+  `approval_policy = "on-request"`, `approvals_reviewer = "auto_review"` and `sandbox_mode = "workspace-write"`, so a
+  Codex session in a repo it trusts runs commands in the workspace-write sandbox and the automatic reviewer decides
+  each approval request. Your other keys in the file stay, and so does a value you give one of these three keys:
+  `pm doctor` names only a missing key, `pm upgrade` adds only that, and `pm uninstall` removes only pm's block, its
+  comment and the keys under it that hold pm's values, giving your file back as it was. Your own
+  `~/.codex/config.toml` is left as it was.
+- On Linux, where Codex is installed and has run, `pm doctor` runs `codex sandbox -- true` and fails when bubblewrap
+  cannot make its namespaces, the case in which every command Codex runs sandboxed, `apply_patch` included, fails.
+  Under Ubuntu 24.04's AppArmor restriction on unprivileged user namespaces, its line gives the AppArmor profile for
+  bwrap to add, or the sysctl to lift; pm doctor changes neither itself.
+
 ## [0.15.4] - 2026-10-17
 
 An agent starting work now sees the design pages of its area: `pm sprint open` and a session's first `pm task claim`
@@ -1263,6 +1288,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.5]: https://github.com/Yeeef/pm/compare/pm-v0.15.4...pm-v0.15.5
 [0.15.4]: https://github.com/Yeeef/pm/compare/pm-v0.15.3...pm-v0.15.4
 [0.15.3]: https://github.com/Yeeef/pm/compare/pm-v0.15.2...pm-v0.15.3
 [0.15.2]: https://github.com/Yeeef/pm/compare/pm-v0.15.1...pm-v0.15.2
