@@ -63,6 +63,11 @@ store.Today already writes every date the tests compare, so one function and one
   `PM_TEST_TODAY` set to yesterday, the three tests that failed on PR #104
   pass; built without the fix, they fail (3 failed).
 
+- CI found a fourth clock race of the same kind: the site printed `data-asof`
+  with `%.3f`, which rounds, so data read at .2566 s showed as .257, after the
+  test's write at .25699 s. `data-asof` is now cut to the millisecond; the
+  golden test feeds a fraction that rounding would carry up.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
