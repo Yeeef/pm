@@ -83,6 +83,13 @@ The owner asked how pm search beats rg; the index is worth building only if sear
   or excluding Design pages sections changes no metric measurably (|delta| <=
   0.015).
 
+- Scale method: synthetic 10x and 100x corpora replicate this store (records
+  and pm export items) and rename a share of word types per copy so the
+  vocabulary follows Heaps' law fitted on the store (K 9.43, beta 0.517, R2
+  0.995). Machine: 32 cores, 62 GB, NVMe; Go 1.26.9, optimized build; medians
+  of 5-7 fresh processes. Scripts: the session scratchpad's scale/ directory
+  (not kept in the repo).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
