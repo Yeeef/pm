@@ -92,6 +92,16 @@ Answers `pm-bfli.5.1`.
   127.0.0.1 (Host localhost): GET / 200 with 1 token, POST /reply 303 and pm
   reply read printed the reply. The [TEST] need is dismissed.
 
+- Live check, Cloudflare mode and migration in the same scratch clone: with
+  site_url https://pm.example.com and access_team/access_aud but no access, pm
+  init --session-start wrote access = "cloudflare" ('as its access_team
+  means'); after pm service restart a tunnel-like request (loopback peer,
+  Cf-Connecting-IP, Host pm.example.com, no token) got 403 'carries no
+  Cloudflare Access token', localhost 200, and the LAN address no longer
+  connected (listen back to loopback). The scratch service was stopped;
+  nothing listens on :42075. This repo's own tunnel was not exercised: its
+  service runs the 0.15.5 pin.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
