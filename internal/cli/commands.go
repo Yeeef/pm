@@ -354,7 +354,7 @@ var tree = &command{
 				{
 					Name:        "open",
 					Help:        "create a sprint epic and record; frame with --text ('## Goal', '## Scope' with **In:**/**Out:**, '## Done when')",
-					Description: "Create a sprint epic and its record from the frame, then print the design pages the project's record lists: slug, title and link, or missing for a slug no design page has.",
+					Description: "Create a sprint epic and its record from the frame, then print the design pages the project's record lists: slug, title and link, or missing for a slug no design page has; last, the line prior work: pm search <topic>.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "project", Required: true, Kind: value, Help: "project record name, e.g. pm-harness"},
@@ -445,7 +445,7 @@ var tree = &command{
 				{
 					Name:        "claim",
 					Help:        "claim a task for this agent session",
-					Description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one. On the session's first claim in the task's sprint (no other task there held or closed by it; for a task directly under a project, in the project), prints the design pages the sprint's record, then the project's, list: slug, title and link, or missing for a slug no design page has.",
+					Description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one. On the session's first claim in the task's sprint (no other task there held or closed by it; for a task directly under a project, in the project), prints the design pages the sprint's record, then the project's, list: slug, title and link, or missing for a slug no design page has; last, the line prior work: pm search <topic>.",
 					Args: []arg{
 						{Dest: "task_id", Required: true, Kind: value, Help: "the task's id"},
 						{Flags: []string{"--session"}, Dest: "session", Metavar: []string{"ID"}, Kind: value, Help: "the session to record; default: this session's id from the environment"},

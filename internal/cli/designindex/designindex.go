@@ -13,6 +13,9 @@ import (
 	"github.com/Yeeef/pm/internal/records"
 )
 
+// priorWork is the index's last line: the command that finds earlier work on a topic across every project.
+const priorWork = "prior work: pm search <topic>"
+
 // Block is the index build gives, as a block that starts on a new line; when build fails (the site's URL or the
 // records cannot be read), one line naming the error instead, since the open or claim it follows is already done.
 func Block(build func() (string, error)) string {
@@ -25,8 +28,8 @@ func Block(build func() (string, error)) string {
 
 // Of is the pages the records from list in their Design pages sections, the first record's first, without repeats: a
 // heading, then one line per page with its slug, title and link (the site's URL + the page's Out(), as pm show links a
-// record), or `missing` for a slug that names no design record in recs. "" when they list none; url, the site's URL,
-// is resolved only when there is a page to print.
+// record), or `missing` for a slug that names no design record in recs; last, the line that points at pm search. Only
+// that line when they list none; url, the site's URL, is resolved only when there is a page to print.
 func Of(recs []*records.Record, url func() (string, error), from ...*records.Record) (string, error) {
 	var slugs []string
 	for _, rec := range from {
@@ -37,7 +40,7 @@ func Of(recs []*records.Record, url func() (string, error), from ...*records.Rec
 		}
 	}
 	if slugs == nil {
-		return "", nil
+		return "\n" + priorWork, nil
 	}
 	site, err := url()
 	if err != nil {
@@ -66,7 +69,7 @@ func Of(recs []*records.Record, url func() (string, error), from ...*records.Rec
 		}
 		lines = append(lines, line)
 	}
-	return strings.Join(lines, "\n"), nil
+	return strings.Join(append(lines, priorWork), "\n"), nil
 }
 
 // Claim is the index session sid's claim of task id prints: the pages of the task's sprint, then of its project, when
