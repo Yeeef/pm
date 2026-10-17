@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T12:12:27+00:00",
- "digest": "7ba67745e8b61b46",
+ "generated_at": "2026-10-17T12:52:46+00:00",
+ "digest": "3fc3181c7fce7217",
  "model": "claude-haiku-5-5",
- "text": "- **Ask-tool questions:** Session questions now appear on the site under \"Sessions ask you.\" Owners can answer there or in the session chat. The first answer reaches the session. This repo now uses the newer pm release, which accepts replies by push alone.\n- **Design-page index:** pm now writes a design-page index when a sprint opens and when a session first claims work. Work-context pages now list covers. A review of the index change was requested. A live check of the index ran on this repo's store.\n- **Command surface simplification:** `pm --help` and the prime guide now show the commands that agents use. The most frequent agent failures on the command surface are removed.\n- **Topic search work:** Sprint 126 opened to find prior sprints, decisions and design sections by topic. Work on search quality and wall time started."
+ "text": "- **Ask-tool questions on the site:** Questions from a session's ask tool now appear on the site under \"Sessions ask you\". The owner can answer them on the site or in the session's chat. The first answer reaches the session.\n- **Pin and review requests:** This repo's pm pin moved to 0.11.0. It carries the site question feature and replies by push alone. The owner closed a request to review PR #109 and a request to trust pm's Codex hooks in this repo.\n- **Design-page index:** `pm sprint open` and a session's first task claim in a sprint now print the design pages for the area's current state, once per sprint per session.\n- **Command surface simplified:** Agents' top failure clusters on the pm command surface are removed. `pm --help` and prime.md now show the commands agents use. The owner closed a request to review PR #104."
 }
