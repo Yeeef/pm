@@ -1,4 +1,4 @@
-version = "0.15.2"   # the pm version every session must run
+version = "0.15.4"   # the pm version every session must run
 remote = "origin"
 main_branch = "main"
 port = 8001         # the site port; the PORT environment variable overrides it for one run
