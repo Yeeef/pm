@@ -86,10 +86,16 @@ data-asof is cut to the millisecond instead of rounded, and the day activity tes
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: harness date checks read one pinned clock, so a run that crosses midnight UTC no longer fails them (PR #113).
+
+- `PM_TEST_TODAY` pins `store.Today` for the harness; conftest sets it once per run.
+- The day activity Go test dates its git commits on the day it checks.
+- The site's `data-asof` is cut to the millisecond, not rounded.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- No date or time computed at import is compared with pm's output: met. `TODAY` now reads the run's pinned date; the seven assertions and the day test are listed in Findings.
+- The three tests that failed on PR #104 pass with the clock past midnight: met. `test_the_dates_pm_stamps_hold_the_harness_s_date_after_midnight` sets the harness date to yesterday; with `PM_TEST_TODAY=<yesterday>` the three pass, and without the fix they fail (3 failed).
+- `make test` passes and CI is green: met. 153 passed, 169 skipped (live); PR #113 checks all pass.
