@@ -61,6 +61,12 @@ Four verbs served one act: decision close ran 1 to 3 times and need dismiss 9 ti
 Answers `pm-d2k5.39.1.2`.
 :::
 
+::: decision {source=owner date=2026-10-17}
+Every pm command names its scope with --sprint, --task and --project only: decision need and action need drop --parent, decision add drops --level. Removed flags are refused with a message naming the new flag, with no alias. This revises pm-quality 21 for scope flags.
+A scope was named five ways, a measured source of agent confusion; one vocabulary lets a grammar test hold new commands to it.
+Answers `pm-d2k5.39.1.1`.
+:::
+
 ## Design pages
 
 > Where is the detail?
