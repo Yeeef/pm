@@ -76,6 +76,11 @@ The design page agent-lifecycle stays as it is for this sprint's code changes.
 prime.md gained one clause naming pm init --listen and --access; the session lifecycle the page describes is unchanged
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page pm-cli stays as it is for this sprint's code changes.
+two pm init flags and help text; the command surface, nouns and hook table the page holds are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
