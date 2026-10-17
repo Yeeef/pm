@@ -257,3 +257,31 @@ func TestRunRefusesAnUnknownProjectAndTakesAProjectsId(t *testing.T) {
 		t.Errorf("-n 3: got %d lines, want the header, 3 hits and the hint:\n%s", len(lines), byName)
 	}
 }
+
+// An address pm show --record would refuse is not printed: a design page named as a project is given by its path, and
+// a heading the record has twice by the record alone.
+func TestAnAddressNamesWhatPmShowResolves(t *testing.T) {
+	texts := map[string]string{
+		"projects/demo": "---\ntype: project\ntitle: Demo\nbead: p\n---\n\n## Goal\n\nThe lexer.\n",
+		"design/demo":   "---\ntype: design\ntitle: Demo design\nproject: demo\n---\n\n## Problem\n\nThe lexer.\n",
+		"docs/2026-10-03-twice": "---\ntype: doc\ntitle: Twice\ndate: 2026-10-03\nproject: demo\n---\n\n" +
+			"## Scope\n\nThe lexer.\n\n## Other\n\n### Scope\n\nMore.\n",
+	}
+	var recs []*records.Record
+	for rel, text := range texts {
+		rec, err := records.Parse(rel+".md", rel, text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		recs = append(recs, rec)
+	}
+	var got []string
+	for _, u := range Units(recs, []item.Item{{ID: "p", Type: item.Project}}, nil) {
+		got = append(got, u.Address)
+	}
+	sort.Strings(got)
+	want := []string{"design/demo Problem", "docs/2026-10-03-twice", "docs/2026-10-03-twice Other", "projects/demo Goal"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

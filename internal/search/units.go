@@ -35,9 +35,19 @@ var datedName = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}`)
 // Units is every unit of the records and the items. dates holds the design pages' dates by rel (store.DesignDates).
 func Units(recs []*records.Record, items []item.Item, dates map[string]store.Dates) []Unit {
 	x := records.NewItems(items)
+	named := map[string]int{} // how many sprint, project and design records have each name
+	for _, rec := range recs {
+		if t := rec.Type(); t == "sprint" || t == "project" || t == "design" {
+			named[rec.Name()]++
+		}
+	}
 	var out []Unit
 	for _, rec := range recs {
-		out = append(out, recordUnits(rec, recs, x, dates)...)
+		target := rec.Name() // pm show --record takes a sprint's, project's or design page's name when only one has it
+		if t := rec.Type(); t == "doc" || t == "postmortem" || named[target] > 1 {
+			target = rec.Rel
+		}
+		out = append(out, recordUnits(rec, target, recs, x, dates)...)
 	}
 	projects := map[string]string{} // a project item's id → its record's name
 	for _, rec := range recs {
@@ -65,9 +75,11 @@ func Units(recs []*records.Record, items []item.Item, dates map[string]store.Dat
 	return out
 }
 
-// recordUnits is a record's units, none for a record of no unit kind (a day page).
-func recordUnits(rec *records.Record, recs []*records.Record, x *records.Items, dates map[string]store.Dates) []Unit {
-	kind, target := rec.Type(), rec.Name()
+// recordUnits is a record's units, none for a record of no unit kind (a day page); target is how pm show --record
+// names the record.
+func recordUnits(rec *records.Record, target string, recs []*records.Record, x *records.Items,
+	dates map[string]store.Dates) []Unit {
+	kind := rec.Type()
 	date, state := "-", "-"
 	switch kind {
 	case "sprint", "project":
@@ -79,7 +91,6 @@ func recordUnits(rec *records.Record, recs []*records.Record, x *records.Items, 
 			date = d.Updated
 		}
 	case "doc", "postmortem":
-		target = rec.Rel
 		from := rec.Meta["date"].Str // a doc's header date; a postmortem's file name starts with its date
 		if kind == "postmortem" {
 			from = rec.Name()
@@ -95,18 +106,19 @@ func recordUnits(rec *records.Record, recs []*records.Record, x *records.Items, 
 		project = p.Name()
 	}
 	var out []Unit
+	parts, headings := sections(rec.Body, kind)
 	add := func(kind, date, heading, body string) {
 		if body = clean(body); body == "" {
 			return
 		}
 		address := records.ShellQuote(target)
-		if heading != "" {
+		if heading != "" && headings[heading] == 1 { // pm show --section refuses a heading the record has twice
 			address += " " + records.ShellQuote(heading)
 		}
 		out = append(out, Unit{Kind: kind, Date: date, State: state, Address: address, Project: project,
 			Text: strings.Join([]string{rec.Title(), heading, body}, "\n"), snips: []string{body}})
 	}
-	for _, s := range sections(rec.Body, kind) {
+	for _, s := range parts {
 		switch {
 		case kind != "sprint" && kind != "project" || !skipped[s.heading]:
 			add(kind, date, s.heading, s.body)
@@ -141,10 +153,14 @@ type section struct{ heading, body string }
 
 // sections splits a record body as its kind's units: at each ## heading; a design page's Design section also at each
 // ### heading, its text before the first ### keeping the heading Design. The headings are the ones pm show --record
-// parses (records.Headings), so a unit's address names a section it prints.
-func sections(body, kind string) []section {
+// parses (records.Headings), so a unit's address names a section it prints; with how many headings have each text.
+func sections(body, kind string) ([]section, map[string]int) {
 	lines := strings.Split(body, "\n")
 	heads := records.Headings(body)
+	count := map[string]int{}
+	for _, h := range heads {
+		count[h.Text]++
+	}
 	text := func(from, to int) string { return strings.Join(lines[from:to], "\n") }
 	end := func(i int) int { // the line where heading i's section ends
 		for _, h := range heads[i+1:] {
@@ -184,7 +200,7 @@ func sections(body, kind string) []section {
 			}
 		}
 	}
-	return out
+	return out, count
 }
 
 // placeholders is the bodies of a section with nothing in it yet.
