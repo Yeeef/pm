@@ -87,6 +87,11 @@ The design page work-store stays as it is for this sprint's code changes.
 store_commands.go changed only how the store commands render help; the schema, writes and command mapping on the page are unchanged.
 :::
 
+::: decision {source=owner date=2026-10-17}
+Remove pm hook git-post-checkout and pm hook git-pre-commit now; the release note tells users of a clone with leftover hook sections how to fix it. This replaces the sprint decision to keep them.
+The owner ruled in chat: users can fix themselves as long as the release note is clear; two dead commands are not worth carrying for clones that mix pins of 0.9.x or older with this release.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
