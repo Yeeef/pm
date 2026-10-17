@@ -37,7 +37,7 @@ A design for `pm search` that stays fast and exact as the records and the work s
 
 > Where is the detail?
 
-None yet.
+- [Search index](../design/search-index.md): the RFC: stages and their triggers, retrieval model 2, the index in the pm service, persistence, hybrid ranking, and the eval against `rg`
 
 ## Progress
 
