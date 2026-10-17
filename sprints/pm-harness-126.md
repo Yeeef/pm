@@ -87,10 +87,18 @@ The heading, section and outline parser moved from internal/cli into internal/re
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: `pm search` ships, and the design-page index now names it, but the quality bar holds for 1 of its 3 topics with the exact wordings.
+
+- `internal/search`: units, tokenizer with S-stemmer, all-terms match, BM25. `internal/cli/search.go` wires it, and the heading parser moved to `internal/records` to stay under `internal/cli`'s size cap.
+- The index's `prior work: pm search <topic>` line, the `prime.md` open-a-sprint clause, `--help` text and golden, and a changelog entry.
+- PR #112.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| Go tests: a seeded unit with the query terms ranks first; `--kind` and `--project` filter; output stops at `-n`; no hit prints the no-match line and exits 0 | yes | `internal/search` tests, including a 3-unit BM25 corpus scored by hand; `make test-go` 20 packages pass; CI on PR #112 green |
+| Three topics with a known prior sprint list it in the top 5, and one run takes under 1 s | partly | Time: met, 0.15–0.16 s per query. Ranking: design covers puts pm-quality-22 at #2. claim history never hits pm-harness-22, which never says "history". owner-request judge puts pm-harness-14 at #41, below the later sprints that built the judge. Other wordings reach both (Findings). |
+| The `prime.md` rules still fit the hook chunk cap | yes | `tests/test_hooks.py`: 25 passed; CI `light` passes |
