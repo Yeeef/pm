@@ -298,6 +298,8 @@ Project rule (2026-10-14): a transcript is read only when no event gives the fac
 
 done: an ask-tool question (Claude Code's AskUserQuestion, Codex's request_user_input_async) is a question need shown on the site under "Sessions ask you", answerable there or in the session's chat, and the first answer reaches the session.
 
+Merged as d5ba1a9 (PR #89).
+
 - A fourth need kind, `question`, with its questions and options (schema 4); only an open question may lack a parent.
 - Raising: `pm hook ask --runtime claude` on PermissionRequest of AskUserQuestion, beside the open dialog, 24 h timeout; `pm hook ask --runtime codex` on PostToolUse of request_user_input_async, keyed by its call id.
 - Closing from hook events, never from a transcript or rollout read: Claude Code's PostToolUse of AskUserQuestion closes a dialog answer; the SIGTERM Claude Code sends the waiting hook on Esc or a stopped session closes the question as dismissed; Codex's UserPromptSubmit closes the session's open questions with the typed prompt.
