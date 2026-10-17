@@ -57,6 +57,11 @@ The design page records-store stays as it is for this sprint's code changes.
 store.Today gains a test-only date pin that no help text names; with it unset the date is the wall date, so the store's design is unchanged.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page views-and-site stays as it is for this sprint's code changes.
+data-asof is cut to the millisecond instead of rounded, and the day activity test dates its commits; what the pages show is unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
