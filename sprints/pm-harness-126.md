@@ -58,6 +58,11 @@ The design page record-layer stays as it is for this sprint's code changes.
 The heading, section and outline parser moved from internal/cli into internal/records unchanged; the record format and its checks are the same.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+prime.md's new clause is on the open-a-sprint bullet; a session's start, claim and hand-back are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
