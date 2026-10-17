@@ -153,6 +153,6 @@ func whereAll(here string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	out = append(out, fmt.Sprintf("site      %s (served by the pm service)", url))
+	out = append(out, fmt.Sprintf("site      %s (served by the pm service%s)", url, cfg.Reach(", ")))
 	return strings.Join(out, "\n"), nil
 }

@@ -285,6 +285,12 @@ func (f *fakeSite) FillReplies(page, token string, replies map[string]Reply) str
 	})
 }
 
+func (f *fakeSite) FillReadOnly(page, rule string) string {
+	return slot.ReplaceAllStringFunc(page, func(m string) string {
+		return fmt.Sprintf("[read-only %s: %s]", slot.FindStringSubmatch(m)[1], rule)
+	})
+}
+
 func (f *fakeSite) FillStatus(page string, asOf time.Time, digest string, now time.Time) string {
 	return strings.Replace(page, StatusSlot, "[status "+digest+"]", 1)
 }
@@ -350,7 +356,7 @@ func helperService(main string) int {
 	var port int
 	fmt.Sscan(os.Getenv("PORT"), &port)
 	pin := filepath.Join(main, ".pm/config.toml")
-	err := Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Port: port, Pin: pin,
+	err := Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Listen: "127.0.0.1", Port: port, Pin: pin,
 		Spool: filepath.Join(main, ".git", SpoolName), WorkDir: main, Open: w.Open, Mark: w.Mark, Sync: w.Sync, GC: w.GC,
 		Site: &fakeSite{}, Summarize: func() (bool, string) { return true, "nothing to summarize" },
 		Style: []byte("body{}"), Out: os.Stdout, Log: os.Stderr})

@@ -160,15 +160,57 @@ func enable(main, kind string) error {
 	return checked("systemctl", "--user", "enable", filepath.Base(UnitFile(main, kind)))
 }
 
-// PortFree is whether a server could bind 127.0.0.1:port now, as the service does: with SO_REUSEADDR (Go sets it on
-// a listener), so a port whose last connections linger in TIME_WAIT, as after this clone's service stopped, is free.
-func PortFree(port int) bool {
-	l, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(port))
+// Binds is the addresses the service binds for listen: listen, and beside a specific address other than 127.0.0.1
+// also 127.0.0.1, where this machine's probes (Answering), links (pm record link --local) and a tunnel reach it. A
+// wildcard (0.0.0.0, ::) takes 127.0.0.1's connections already, and binding both would conflict.
+func Binds(listen string) []string {
+	if ip := net.ParseIP(listen); listen == config.Loopback || (ip != nil && ip.IsUnspecified()) {
+		return []string{listen}
+	}
+	return []string{listen, config.Loopback}
+}
+
+// listen binds each of Binds(addr) at port, the first one's port when port is 0; on a failure none stays bound.
+func listen(addr string, port int) ([]net.Listener, error) {
+	var lns []net.Listener
+	for _, a := range Binds(addr) {
+		if first, ok := firstAddr(lns); ok {
+			port = first.Port
+		}
+		l, err := net.Listen("tcp", net.JoinHostPort(a, strconv.Itoa(port)))
+		if err != nil {
+			return nil, errors.Join(err, closeAll(lns))
+		}
+		lns = append(lns, l)
+	}
+	return lns, nil
+}
+
+// firstAddr is the first listener's TCP address; false when there is none.
+func firstAddr(lns []net.Listener) (*net.TCPAddr, bool) {
+	if len(lns) == 0 {
+		return nil, false
+	}
+	a, ok := lns[0].Addr().(*net.TCPAddr)
+	return a, ok
+}
+
+func closeAll(lns []net.Listener) error {
+	var errs []error
+	for _, l := range lns {
+		errs = append(errs, l.Close())
+	}
+	return errors.Join(errs...)
+}
+
+// PortFree is whether a server could bind port on Binds(addr) now, and let it go, as the service does: with SO_REUSEADDR (Go sets it
+// on a listener), so a port whose last connections linger in TIME_WAIT, as after this clone's service stopped, is free.
+func PortFree(addr string, port int) bool {
+	lns, err := listen(addr, port)
 	if err != nil {
 		return false
 	}
-	l.Close()
-	return true
+	return closeAll(lns) == nil
 }
 
 // Served is what answers on a port: the store it renders and the pm build it runs, by StoreHeader and VersionHeader
@@ -193,11 +235,11 @@ var probe = Answering
 // store is the clone's records store, resolved: what its service names in StoreHeader.
 func store(main string) string { return resolve(filepath.Join(main, config.Store)) }
 
-// CheckPort refuses a site port another server holds. This clone's own pm service on it is fine (pm init run again),
+// CheckPort refuses a site port another server holds on Binds(listen). This clone's own pm service on it is fine (pm init run again),
 // and so is a port this clone's installed unit serves on where nothing answers: its own service hung, which install
 // restarts.
-func CheckPort(main string, port int) error {
-	if PortFree(port) {
+func CheckPort(main, listen string, port int) error {
+	if PortFree(listen, port) {
 		return nil
 	}
 	served := probe(port)
@@ -216,7 +258,7 @@ func CheckPort(main string, port int) error {
 		what = "a server that is not pm"
 	}
 	return refuse("the site port :%d is held by %s, so the pm service could not serve there; pm init wrote nothing. "+
-		"Run PORT=%d pm init (a free port), or stop what holds :%d", port, what, FreePort(), port)
+		"Run PORT=%d pm init (a free port), or stop what holds :%d", port, what, FreePort(listen), port)
 }
 
 // LockInstall holds the clone's install lock, <main checkout>/.pm/run/install.lock, waiting for another holder: two

@@ -257,16 +257,32 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
     # --site-url is the one repo write a later pm init makes, on request; a bad URL is refused before any write
     res = pm(existing, "init", "--site-url", "pm.example.com")
     assert res.returncode == 1 and "is not an http(s) base URL" in res.stderr and git(existing, "status", "--porcelain") == ""
+    # a site_url exposes the site, so it needs access; a --listen that is not an IP is refused, both before any write
     res = pm(existing, "init", "--site-url", "https://pm.example.com/")
+    assert res.returncode == 1 and "with no access set, which the pm service does not start on: give --access " \
+        "cloudflare" in res.stderr and git(existing, "status", "--porcelain") == "", res.stderr
+    res = pm(existing, "init", "--listen", "my-host")
+    assert res.returncode == 1 and '--listen "my-host" is not an IP address' in res.stderr
+    res = pm(existing, "init", "--site-url", "https://pm.example.com/", "--access", "cloudflare")
     assert res.returncode == 0 and "git add -- .pm/config.toml && " in res.stdout, res.stdout
-    assert tomllib.loads((existing / ".pm/config.toml").read_text())["site_url"] == "https://pm.example.com"
+    config = tomllib.loads((existing / ".pm/config.toml").read_text())
+    assert (config["site_url"], config["access"]) == ("https://pm.example.com", "cloudflare")
     assert settings.read_bytes() == changed
-    # a site_url needs the Access keys: doctor names the missing ones, and the config holding them is pm's own
+    # access = "cloudflare" needs the Access keys: doctor names the missing ones, and the config holding them is pm's own
     code, lines = doctor(existing)
-    assert code == 1 and "config: site_url is set, but .pm/config.toml lacks access_team, access_aud, so the site " \
-                         "refuses every request to its host; set what is missing there (pm init --help)" in lines, lines
-    with (existing / ".pm/config.toml").open("a") as f:
-        f.write('access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
+    assert code == 1 and 'config: access = "cloudflare", but .pm/config.toml lacks access_team, access_aud, so the ' \
+                         "site refuses every request from beyond this machine; set what is missing there (pm init " \
+                         "--help)" in lines, lines
+    # a config from before access existed (the Access keys, no access) is named by doctor, and pm init (session start
+    # runs it) migrates it to access = "cloudflare", which it meant
+    text = (existing / ".pm/config.toml").read_text().replace('access = "cloudflare"\n', "")
+    (existing / ".pm/config.toml").write_text(text + 'access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
+    code, lines = doctor(existing)
+    assert code == 1 and "lacks access, so the pm service does not start; set it with pm init --access cloudflare or " \
+                         "--access none" in "\n".join(lines), lines
+    res = pm(existing, "init", "--session-start")
+    assert res.returncode == 0 and 'access set to "cloudflare"' in res.stdout, res.stdout
+    assert tomllib.loads((existing / ".pm/config.toml").read_text())["access"] == "cloudflare"
     code, lines = doctor(existing)
     assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs"]), lines
 

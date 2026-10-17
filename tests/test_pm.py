@@ -1696,7 +1696,7 @@ def test_service_refuses_the_public_host_without_access_and_serves_localhost(rep
         assert "X-PM-Store" not in refused and "X-PM-Version" not in refused, refused
         return code, body
 
-    write_config(repo.root, site_url="https://pm.example.com", access_aud="aud-tag")
+    write_config(repo.root, site_url="https://pm.example.com", access="cloudflare", access_aud="aud-tag")
     with serving(repo) as (url, _):
         assert get(url, "")[0] == 200
         for path in ("", "style.css", "version"):
@@ -1708,8 +1708,8 @@ def test_service_refuses_the_public_host_without_access_and_serves_localhost(rep
         assert code == 403 and "lacks access_team" in said
         code, said = get(url, "", "evil.example")  # a rebinding domain reads no page
         assert code == 403 and "is neither this machine" in said
-    write_config(repo.root, site_url="https://pm.example.com", access_team="team.cloudflareaccess.com",
-                 access_aud="aud-tag")
+    write_config(repo.root, site_url="https://pm.example.com", access="cloudflare",
+                 access_team="team.cloudflareaccess.com", access_aud="aud-tag")
     with serving(repo) as (url, _):
         token = page_token(url)
         code, _, said = post_reply(url, {"token": token, "id": "repo-demo.1.2", "text": "Small."},

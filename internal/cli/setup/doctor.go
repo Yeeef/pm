@@ -12,6 +12,7 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 	"io"
 	"os/exec"
+	"slices"
 	"strings"
 )
 
@@ -40,9 +41,15 @@ func Doctor(here string, stdout io.Writer) error {
 	for _, d := range repo {
 		diffs = append(diffs, fmt.Sprintf("repo: %s; run %s to rewrite it", d, fix))
 	}
-	if missing := c.AccessMissing(); len(missing) > 0 {
-		diffs = append(diffs, fmt.Sprintf("config: site_url is set, but %s lacks %s, so the site refuses every request "+
-			"to its host; set what is missing there (pm init --help)", config.Rel, strings.Join(missing, ", ")))
+	switch missing := c.AccessMissing(); {
+	case slices.Contains(missing, "access"):
+		diffs = append(diffs, fmt.Sprintf("config: the site is reachable beyond this machine (listen = %q, site_url = %q), "+
+			"but %s lacks access, so the pm service does not start; set it with pm init --access cloudflare or --access none",
+			c.ListenAddr(), c.SiteURL, config.Rel))
+	case len(missing) > 0:
+		diffs = append(diffs, fmt.Sprintf("config: access = \"cloudflare\", but %s lacks %s, so the site refuses every "+
+			"request from beyond this machine; set what is missing there (pm init --help)", config.Rel,
+			strings.Join(missing, ", ")))
 	}
 	port, err := service.PortFor(main, int(c.Port))
 	if err != nil {
