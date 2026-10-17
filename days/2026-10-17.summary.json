@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T13:03:00+00:00",
- "digest": "644fce5728dc4f52",
+ "generated_at": "2026-10-17T13:19:14+00:00",
+ "digest": "509198fc62bfb397",
  "model": "claude-haiku-5-5",
- "text": "- **Agent questions on site:** Questions that agents ask now appear on the site. A user can answer on the site or in chat, and the first answer reaches the session. This repo's pm pin now includes the change.\n- **Design-page index:** `pm sprint open` and a session's first task claim now print the design pages for the area. Each sprint prints them once per session.\n- **Simpler pm command surface:** The top agent failure clusters on the pm command surface are removed. `pm --help` and the agent primer now show the commands agents use.\n- **Codex configuration:** An experiment confirmed that Codex applies the three auto-mode keys from a trusted repo's config. Work started so pm init, doctor, upgrade and uninstall manage those keys."
+ "text": "- **Codex auto mode setup:** pm init and upgrade write Codex's auto-mode keys to the repo config. pm uninstall removes only pm's values. pm doctor now names a missing key and a host where Codex's sandbox cannot start.\n- **Questions on the site:** Questions from Claude Code and Codex now appear under \"Sessions ask you.\" Owners can answer them there or in the session's chat, and the first answer reaches the session.\n- **Design pages in pm output:** `pm sprint open` and a session's first claim now print the design pages for the area. Work started on pm search, which finds prior sprints, decisions and design sections by topic.\n- **Command surface cleanup:** The top agent failure clusters on pm's command surface are removed. `pm --help` and prime.md now show the commands agents use."
 }
