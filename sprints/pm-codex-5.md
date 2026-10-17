@@ -41,6 +41,7 @@ A Codex session in a repo that pm set up runs in Codex's auto mode: commands run
 > Where is the detail?
 
 - [pm in Codex](../design/pm-in-codex.md)
+- [pm as a product](../design/pm-product.md)
 
 ## Progress
 
