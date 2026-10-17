@@ -28,7 +28,8 @@
 // sparse checkout once the worktree tracks no records/, and unsets a core.hooksPath at .pm/hooks; workstore.go the
 // work store attached to the remote's refs/pm/work (cloned, or created and pushed); codex.go the Codex roots;
 // codextrust.go and sessiontrust.go which of pm's hooks Codex trusts (SessionTrust, the state hook's check in a Codex
-// session, kept in .pm/run/codex-trust.json); binary.go pm copied into the bin dir; pins.go the launcher's pins that
+// session, kept in .pm/run/codex-trust.json); codexsandbox.go whether Codex's Linux sandbox (bwrap) starts, which
+// pm doctor checks; binary.go pm copied into the bin dir; pins.go the launcher's pins that
 // no checkout on the machine pins, which pm upgrade prunes and pm doctor names; legacy.go the pre-package harness's
 // pieces, found and refused; jsonobject.go a JSON settings file read and rewritten with every key in its order; git.go
 // the git calls, among them the records branch's bootstrap (CreateRecordsBranch). golden_test.go holds the pieces on a

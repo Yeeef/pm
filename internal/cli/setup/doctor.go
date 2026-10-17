@@ -76,9 +76,15 @@ func Doctor(here string, stdout io.Writer) error {
 		return err
 	}
 	diffs = append(diffs, skips...)
+	sandbox, sandboxNote := install.CodexSandbox(install.CodexSandboxTimeout)
+	if sandbox != "" {
+		diffs = append(diffs, sandbox)
+	}
 	notes := append(launch.ReleaseLine(c.Version), install.UnusedPins(main)...) // lines that inform, exit code aside
-	if note != "" {
-		notes = append([]string{note}, notes...)
+	for _, n := range []string{sandboxNote, note} {
+		if n != "" {
+			notes = append([]string{n}, notes...)
+		}
 	}
 	if len(diffs) > 0 {
 		fmt.Fprintln(stdout, strings.Join(append(diffs, notes...), "\n"))

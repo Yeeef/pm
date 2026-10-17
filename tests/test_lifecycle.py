@@ -10,6 +10,7 @@ import os
 import signal
 import socket
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -575,7 +576,8 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
     """pm doctor asks Codex (here the fake codex app-server) which of pm's hooks it would skip, and names each with
     the fix, failing; pm init (not at session start) names them too. Without codex on PATH, doctor says the trust was
     not checked and does not fail on it. It fails on a missing CLI only for summary_runtime's runtime, which the pm
-    service summarizes with: a machine with Codex alone passes once the repo summarizes on codex."""
+    service summarizes with: a machine with Codex alone passes once the repo summarizes on codex. On Linux it fails
+    where Codex's sandbox (codex sandbox, here the fake's) cannot start."""
     (tmp_path / "codex").mkdir()  # Codex ran on this machine: its home exists, so doctor asks it
     assert pm(new_repo, "init").returncode == 0
     git(new_repo, "add", "-A")
@@ -607,6 +609,12 @@ def test_doctor_and_init_name_the_pm_hooks_codex_skips(new_repo: Path, tmp_path:
         f"codex: Codex runs none of pm's hooks in {hooks}: it lists none of them, as it does until you trust the "
         f"project; open Codex in {new_repo}, trust the project, then trust pm's hooks in /hooks"), res.stdout
     assert run("doctor").returncode == 0  # the fake trusts every hook
+    if sys.platform == "linux":  # Codex's sandbox is bwrap there; the cause and fix that follow depend on the host
+        res = run("doctor", FAKE_CODEX_SANDBOX="bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted")
+        assert res.returncode == 1 and res.stdout.startswith(
+            "codex: Codex's sandbox cannot start here (codex sandbox -- true: bwrap: loopback: Failed RTM_NEWADDR: "
+            "Operation not permitted), so every command Codex runs sandboxed, apply_patch's edits included, fails; "), \
+            res.stdout
     # neither codex nor claude on PATH: the other fakes in a bin dir of their own, no dir that holds either
     fakes = tmp_path / "fakes-but-agents"
     fakes.mkdir()

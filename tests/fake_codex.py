@@ -17,7 +17,10 @@ with that text on stderr.
 
 `codex queue --thread T --message M`, which the pm service runs to hand a Codex session the owner's answer: appends
 {"queue": its arguments, "codex_home": $CODEX_HOME} to $FAKE_CODEX_LOG as one JSON line and says it queued the message
-for thread T, as codex 0.154 does."""
+for thread T, as codex 0.154 does.
+
+`codex sandbox ... -- true`, which pm doctor runs to see that Codex's sandbox starts: succeeds, or, when
+$FAKE_CODEX_SANDBOX is set, fails with that text on stderr, as a bwrap that cannot make its namespaces does."""
 
 import json
 import os
@@ -56,8 +59,13 @@ if sys.argv[1:2] == ["queue"]:
         f.write(json.dumps({"queue": args, "codex_home": os.environ.get("CODEX_HOME")}) + "\n")
     print(f"Queued message 01a1-q for thread {args[args.index('--thread') + 1]}.")
     sys.exit(0)
+if sys.argv[1:2] == ["sandbox"]:
+    if os.environ.get("FAKE_CODEX_SANDBOX"):
+        print(os.environ["FAKE_CODEX_SANDBOX"], file=sys.stderr)
+        sys.exit(1)
+    sys.exit(0)
 if sys.argv[1:] != ["app-server"]:
-    sys.exit(f"fake codex: only --version, app-server, exec and queue, not {sys.argv[1:]}")
+    sys.exit(f"fake codex: only --version, app-server, exec, queue and sandbox, not {sys.argv[1:]}")
 if os.environ.get("FAKE_CODEX_APP_LOG"):
     with open(os.environ["FAKE_CODEX_APP_LOG"], "a") as f:
         f.write(json.dumps({"cwd": os.getcwd()}) + "\n")
