@@ -47,7 +47,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-17}
+The harness pins the date pm stamps with PM_TEST_TODAY, read in store.Today and set once per run by conftest; no help text names it, and unset it is the wall date.
+store.Today already writes every date the tests compare, so one function and one harness line remove the class; tests reading the date back would need about 8 parsed assertions and still no cross-midnight proof.
+:::
 
 ## Findings
 
