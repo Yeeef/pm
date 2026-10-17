@@ -61,6 +61,8 @@ None yet.
 
 done: this repo pins pm 0.15.4 once PR #110 merges.
 
+Merged as 0345cc8 (PR #110).
+
 - `.pm/config.toml` moves `version` from 0.15.2 to 0.15.4 (`pm upgrade --to 0.15.4`); no other file changes.
 
 ### Against "Done when"
