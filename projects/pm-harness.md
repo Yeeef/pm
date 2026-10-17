@@ -609,6 +609,11 @@ pm reads a session's transcript (Claude Code JSONL, Codex rollout) only when no 
 Owner in chat, 2026-10-14: designs keep reaching for transcript reads that turn out unneeded (sprint 118: the Codex ask hook first read the rollout at Stop until PostToolUse proved to fire for the ask tool; the Claude ask hook tails the transcript for a dialog answer that PostToolUse may give as an event). A transcript is an undocumented format read by polling.
 :::
 
+::: decision {source=owner date=2026-10-17}
+A pm search ranking change ships only when recall@10 over the agent's 2-3 wordings merged does not fall (paired bootstrap 95% CI not below 0) and tokens read rise by no more than about 10%; MRR, nDCG@10, zero-result rate and latency are diagnostics.
+The job is that an agent sees the prior work that matters at low context cost: what it reads is the default 10 lines across the wordings prime.md asks for, and tokens are the edge over rg.
+:::
+
 ## Design pages
 
 > Where is the detail?
