@@ -92,7 +92,11 @@ The site names need close in its hints; what each page shows and how it renders 
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- The grammar test `TestEveryCommandFollowsTheNamingGrammar` fails on each
+  off-grammar change tried and not committed: `--parent` or `--epic` on
+  `finding add` ("names a container"), a `dismiss` verb ("no verb of the
+  grammar"), and `design open` ("open creates only under [project sprint]").
+  It passes on the branch.
 
 ## Delivery report
 
