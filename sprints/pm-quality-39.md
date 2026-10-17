@@ -82,6 +82,11 @@ The design page session-claims stays as it is for this sprint's code changes.
 task add --parent became --task and store help names changed; claims, holders and their listings are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page views-and-site stays as it is for this sprint's code changes.
+The site names need close in its hints; what each page shows and how it renders are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
