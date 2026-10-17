@@ -40,7 +40,18 @@ Wave 2 of the [command audit](../docs/2026-10-16-pm-command-quality-audit.md). A
 
 > Where is the detail?
 
-None yet.
+- [pm CLI](../design/pm-cli.md): Naming, with the grammar test; Owner requests; Open questions
+- [Agent lifecycle](../design/agent-lifecycle.md): decision scope flags; needs close with pm need close
+- [Decision need layout](../design/decision-need-layout.md): decision need --sprint
+- [Owner questions](../design/owner-questions.md): a question closes with pm need close
+- [Owner-request hook](../design/owner-request-hook.md): a need's --sprint or --task
+- [Record layer](../design/record-layer.md): decision add --project or --sprint
+- [Reply delivery](../design/reply-delivery.md): pm need close in the next lines and refusals
+- [Site replies](../design/site-replies.md): pm need close
+- [Sprint lifecycle](../design/sprint-lifecycle.md): a review closes with pm need close
+- [Work layer and bd](../design/work-layer-bd-boundary.md): need close
+- [Work layer](../design/work-layer.md): need commands
+- [Work store](../design/work-store.md): task add --task, pm need close --dropped
 
 ## Progress
 
