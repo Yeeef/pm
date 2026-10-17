@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -117,6 +119,98 @@ func TestAnAbbreviatedOptionIsRefused(t *testing.T) {
 		if want := "pm: error: " + tt.msg + "\n"; code != 2 || !strings.HasPrefix(errb.String(), "usage: pm [-h]") ||
 			!strings.HasSuffix(errb.String(), want) {
 			t.Errorf("pm %s: exit %d, stderr %q; want exit 2 ending %q", strings.Join(tt.argv, " "), code, errb.String(), want)
+		}
+	}
+}
+
+// The naming grammar (the pm-cli design page, Naming), as the checks TestEveryCommandFollowsTheNamingGrammar makes.
+var (
+	// scopeFlags is each scope flag and its metavars: the container it names, on every command.
+	scopeFlags = map[string][]string{"--sprint": {"ID"}, "--task": {"ID", "TASK"}, "--project": {"NAME"}}
+	// itemRefs is what marks a flag as naming a container: one of these metavars, or a dest that names a level.
+	itemRefs = map[string]bool{"ID": true, "TASK": true, "SPRINT": true, "PROJECT": true, "parent": true,
+		"level": true, "epic": true, "sprint": true, "task": true, "project": true}
+	// citeFlags name an item or a session without scoping the write: the need a decision answers, the session that
+	// acts, and the new parent of a move (move --to).
+	citeFlags = map[string]bool{"--need": true, "--session": true, "--to": true}
+	// createVerbs is each create verb and the nouns it serves; nil serves every noun.
+	createVerbs = map[string][]string{"open": {"project", "sprint"}, "add": nil,
+		"new": {"design", "doc", "postmortem"}, "need": {"decision", "action"}}
+	// offVerbs are create or close verbs outside the grammar: a container opens, an item is added, a record is new,
+	// and everything closes with close.
+	offVerbs = map[string]bool{"create": true, "make": true, "start": true, "raise": true, "done": true,
+		"dismiss": true, "resolve": true, "finish": true, "complete": true}
+	// positionals is every positional name the grammar allows: id is the work-store commands' item id, what pm
+	// where's location, and words finding add's text (a deviation the page keeps).
+	positionals = map[string]bool{"task_id": true, "sprint_id": true, "need_id": true, "slug": true, "project": true,
+		"target": true, "ids": true, "paths": true, "id": true, "what": true, "words": true}
+)
+
+// grammarViolations is what in command c, at path, breaks the naming grammar.
+func grammarViolations(path []string, c *command) []string {
+	var out []string
+	name := strings.Join(path, " ")
+	if verb := path[len(path)-1]; len(path) >= 2 {
+		if nouns, ok := createVerbs[verb]; ok && nouns != nil && !slices.Contains(nouns, path[len(path)-2]) {
+			out = append(out, fmt.Sprintf("pm %s: %q creates only under %v", name, verb, nouns))
+		}
+		if offVerbs[verb] {
+			out = append(out, fmt.Sprintf("pm %s: %q is no verb of the grammar", name, verb))
+		}
+	}
+	for _, a := range c.Args {
+		if len(a.Flags) == 0 {
+			if !positionals[a.Dest] {
+				out = append(out, fmt.Sprintf("pm %s: positional %q is not a grammar name", name, a.Dest))
+			}
+			continue
+		}
+		flag := a.Flags[len(a.Flags)-1]
+		ref := itemRefs[a.Dest]
+		for _, m := range a.Metavar {
+			ref = ref || itemRefs[m]
+		}
+		metas, scope := scopeFlags[flag]
+		switch {
+		case citeFlags[flag]:
+		case scope && (len(a.Metavar) != 1 || !slices.Contains(metas, a.Metavar[0])):
+			out = append(out, fmt.Sprintf("pm %s: %s takes %v, not %v", name, flag, metas, a.Metavar))
+		case ref && !scope:
+			out = append(out, fmt.Sprintf("pm %s: %s names a container; a scope is --sprint ID, --task ID or "+
+				"--project NAME", name, flag))
+		}
+	}
+	return out
+}
+
+// TestEveryCommandFollowsTheNamingGrammar: every command in the tree, the work-store commands and their forms
+// included, names its scope with --sprint, --task or --project, creates with a verb of the grammar under the nouns it
+// serves, closes with close, and names its positionals as the grammar does; so an off-grammar command fails here.
+func TestEveryCommandFollowsTheNamingGrammar(t *testing.T) {
+	var walk func(c *command, path []string)
+	walk = func(c *command, path []string) {
+		if c.Store != nil {
+			fs := pflag.NewFlagSet(strings.Join(path, " "), pflag.ContinueOnError)
+			if c.Store.flags != nil {
+				c.Store.flags(fs)
+			}
+			c = storeHelpCommand(c.Store, fs)
+		}
+		if len(path) > 0 {
+			for _, v := range grammarViolations(path, c) {
+				t.Error(v)
+			}
+		}
+		for _, s := range c.Subs {
+			walk(s, append(append([]string{}, path...), s.Name))
+		}
+	}
+	walk(tree, nil)
+	for name, sc := range storeForms {
+		fs := pflag.NewFlagSet(name, pflag.ContinueOnError)
+		sc.flags(fs)
+		for _, v := range grammarViolations(strings.Fields(name)[:2], storeHelpCommand(sc, fs)) {
+			t.Error(v)
 		}
 	}
 }

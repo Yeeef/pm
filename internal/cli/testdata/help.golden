@@ -432,12 +432,12 @@ options:
   -h, --help    show this help message and exit
 ===== pm project open --help
 usage: pm project open [-h] --title TITLE [--text-file PATH | --text TEXT]
-                       name
+                       project
 
 Create a project epic and its record, with the Goal from --text. The owner confirms the goal in their own words before you open the project; a request from the owner that states the goal confirms it.
 
 positional arguments:
-  name
+  project           the project's name
 
 options:
   -h, --help        show this help message and exit
@@ -445,12 +445,12 @@ options:
   --text-file PATH  required: the project's Goal; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
 ===== pm project close --help
-usage: pm project close [-h] name
+usage: pm project close [-h] project
 
 Close a project epic at the committed records. Close every sprint first. Write the record's '## Outcome' first, by hand: the results against the goal in numbers, what was learned, what was retired, and links to the sprints' delivery reports.
 
 positional arguments:
-  name
+  project     the project's name
 
 options:
   -h, --help  show this help message and exit

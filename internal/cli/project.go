@@ -12,7 +12,7 @@ import (
 )
 
 func cmdProjectOpen(e *env, p *Parsed) (string, error) {
-	name := p.Get("name")
+	name := p.Get("project")
 	if !slugRE.MatchString(name) {
 		return "", refuse("project name %s must be lowercase words joined by '-'", strconv.Quote(name))
 	}
@@ -66,7 +66,7 @@ func cmdProjectClose(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	name := p.Get("name")
+	name := p.Get("project")
 	prec, err := r.project(name)
 	if err != nil {
 		return "", err

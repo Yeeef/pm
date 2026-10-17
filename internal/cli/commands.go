@@ -318,7 +318,7 @@ var tree = &command{
 					Description: "Create a project epic and its record, with the Goal from --text. The owner confirms the goal in their own words before you open the project; a request from the owner that states the goal confirms it.",
 					Groups:      []bool{false},
 					Args: []arg{
-						{Dest: "name", Required: true, Kind: value},
+						{Dest: "project", Required: true, Kind: value, Help: "the project's name"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
 						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: the project's Goal; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
@@ -329,7 +329,7 @@ var tree = &command{
 					Help:        "close a project epic at the committed records",
 					Description: "Close a project epic at the committed records. Close every sprint first. Write the record's '## Outcome' first, by hand: the results against the goal in numbers, what was learned, what was retired, and links to the sprints' delivery reports.",
 					Args: []arg{
-						{Dest: "name", Required: true, Kind: value},
+						{Dest: "project", Required: true, Kind: value, Help: "the project's name"},
 					},
 				},
 			},
