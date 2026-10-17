@@ -612,8 +612,8 @@ var tree = &command{
 				{
 					Name:        "run",
 					Hidden:      true,
-					Help:        "the service's process, run by its supervisor: serve the site on localhost:$PORT and push every 10 minutes",
-					Description: "Serve the site on localhost:$PORT (default: port in .pm/config.toml): a page is at most 10 s behind the records and the work store and states its data's age; an open page never reloads itself but shows within ~10 s that newer data exists, loaded on reload. Every 10 minutes, the first 10 after start, run pm push. Exits once .pm/config.toml pins another pm version, so the supervisor starts the installed pm again, which runs the new pin. The supervisor runs it; run it by hand only to debug, or on another PORT.",
+					Help:        "the service's process, run by its supervisor: serve the site on $PORT at the config's listen address (127.0.0.1 when unset) and push every 10 minutes",
+					Description: "Serve the site on $PORT (default: port in .pm/config.toml) at listen in .pm/config.toml (127.0.0.1 when unset; beside another specific address 127.0.0.1 too), letting in each request as access says (pm init --help); refused when listen is not loopback or site_url is set and access is not: a page is at most 10 s behind the records and the work store and states its data's age; an open page never reloads itself but shows within ~10 s that newer data exists, loaded on reload. Every 10 minutes, the first 10 after start, run pm push. Exits once .pm/config.toml pins another pm version, so the supervisor starts the installed pm again, which runs the new pin. The supervisor runs it; run it by hand only to debug, or on another PORT.",
 				},
 			},
 		},
