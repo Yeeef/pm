@@ -169,3 +169,24 @@ func TestApplyNeverOverwritesARecordItCannotRead(t *testing.T) {
 		t.Errorf("the record changed: %q", b)
 	}
 }
+
+func TestTodayIsTheWallDateUnlessTheHarnessPinsIt(t *testing.T) {
+	t.Setenv(TodayEnv, "")
+	before := time.Now().Format(time.DateOnly)
+	got := Today()
+	if after := time.Now().Format(time.DateOnly); got != before && got != after {
+		t.Errorf("unpinned Today() = %q, want the wall date %q (or %q past midnight)", got, before, after)
+	}
+	t.Setenv(TodayEnv, "1999-12-31")
+	if got := Today(); got != "1999-12-31" {
+		t.Errorf("pinned Today() = %q, want the pin", got)
+	}
+	t.Setenv(TodayEnv, "1999-12-31T23:59:59Z")
+	defer func() {
+		if r := recover(); r != `PM_TEST_TODAY="1999-12-31T23:59:59Z" is not a YYYY-MM-DD date` {
+			t.Errorf("a malformed pin: recovered %v", r)
+		}
+	}()
+	Today()
+	t.Error("a malformed pin did not panic")
+}
