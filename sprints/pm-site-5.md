@@ -74,7 +74,14 @@ Answers `pm-bfli.5.1`.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check, network mode (scratch origin and clone under /tmp/pml.8mG9, HOME
+  and CODEX_HOME there, fake supervisor as tests/conftest.py's; pm 0.9.0-dev
+  from 3d54ff5 of this branch): pm init --listen 0.0.0.0 alone was refused
+  before any write, naming --access; pm init --listen 0.0.0.0 --access none
+  --site-url http://byeeefy:42075, then pm service restart: the log says
+  'listening on 0.0.0.0, access none' and pm where 'site http://byeeefy:42075
+  (served by the pm service, listening on 0.0.0.0, access none)'; pm record
+  link printed http://byeeefy:42075/sprints/demo-1.html.
 
 ## Delivery report
 
