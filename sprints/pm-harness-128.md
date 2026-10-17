@@ -77,6 +77,12 @@ The owner asked how pm search beats rg; the index is worth building only if sear
   all-terms-in-one-unit returns nothing for 26.5% of title-word queries
   against 16.2% for rg.
 
+- Tokens an agent reads to the first relevant record (median, queries both
+  found): pm search 189; rg file list 26 but with no content; rg -i -n lines
+  of the files up to that hit 9,384 (no -m or head, an upper bound). Including
+  or excluding Design pages sections changes no metric measurably (|delta| <=
+  0.015).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
