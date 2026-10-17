@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T13:40:07+00:00",
- "digest": "ad8d13ede0d7f044",
+ "generated_at": "2026-10-17T19:31:45+00:00",
+ "digest": "f5c937e51ccfe4f5",
  "model": "claude-haiku-5-5",
- "text": "- **Codex auto mode:** pm init and upgrade now write auto-mode keys into .codex/config.toml, and uninstall removes only pm's values. pm doctor now names a host where Codex's sandbox cannot start, with its fix.\n- **Site question answers:** An ask-tool question now appears on the site under \"Sessions ask you.\" The first answer, on the site or in chat, reaches the session.\n- **Past work lookup:** pm sprint open and a session's first task claim now print the design pages for the area. A new search command finds earlier sprints, decisions and design sections by topic.\n- **Agent command surface:** Agents' top command failure clusters are removed, and help shows the commands agents use. Work also started on one CLI grammar and on clock-independent date checks."
+ "text": "- **Codex auto mode:** `pm init` turns on Codex auto mode in the repo. `pm doctor` names a host where the Codex sandbox cannot start.\n- **Design pages and search:** `pm sprint open` and a session's first claim now print the design pages for the area. A new `pm search` is in review; it finds past sprints, decisions and design sections by topic.\n- **Command surface for agents:** `pm --help` and the prime guide now show the commands agents use. The most common agent failures on the command surface are removed.\n- **Site questions and pm updates:** Session questions now appear on the site and can be answered there or in chat. This repo now uses the newer pm release, which also lets a push alone deliver replies."
 }
