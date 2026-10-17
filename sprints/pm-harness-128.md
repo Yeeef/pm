@@ -90,6 +90,12 @@ The owner asked how pm search beats rg; the index is worth building only if sear
   of 5-7 fresh processes. Scripts: the session scratchpad's scale/ directory
   (not kept in the repo).
 
+- Full scan of PR #112's design, one query, warm: 1x 0.11 s on 1 core and 0.04
+  s on 32 cores (41 MB RSS); 10x 0.96 s and 0.22 s (297 MB); 100x 15.0 s and
+  2.2 s (2.9 GB). The split phase is superlinear: records.ProjectOf rebuilds
+  the list of project records per record, 6.2 s of 15 s at 100x in a CPU
+  profile.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
