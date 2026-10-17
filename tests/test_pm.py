@@ -2032,6 +2032,41 @@ def test_sprint_open_and_a_sessions_first_claim_in_a_sprint_print_the_design_pag
     assert res.stdout.splitlines()[3:] == ["prior work: pm search <topic>"]
 
 
+def test_search_prints_the_units_holding_every_word_best_first(repo):
+    """pm search (the pm-search design page): a task and a doc section that hold the word, the task first (two hits in
+    a short unit), in aligned columns under the count; --kind keeps one kind; no hit prints one line and exits 0; an
+    empty query, an unknown project and an unknown kind are refused."""
+    repo.add_issue({"id": "repo-demo.1.3", "title": "Parse the lexer tokens", "status": "closed", "issue_type": "task",
+                    "parent": "repo-demo.1", "close_reason": "A lexer library does it.",
+                    "created_at": "2026-10-02T12:00:00Z", "updated_at": "2026-10-03T12:00:00Z",
+                    "closed_at": "2026-10-03T12:00:00Z"})
+    (repo.records / "docs").mkdir()
+    repo.write("docs/2026-10-02-parsing.md", "---\ntype: doc\ntitle: Parsing\ndate: 2026-10-02\nproject: demo\n---\n\n"
+               "## Summary\n\nWe read the input. Then a hand-written lexer splits the text into many small tokens, "
+               "which the parser reads one at a time.\n")
+    repo.commit("a doc")
+    sentence = "Then a hand-written lexer splits the text into many small tokens, which the parser reads one at a time."
+    rows = [("task", "2026-10-03", "done", "repo-demo.1.3", "Parse the lexer tokens"),
+            ("doc", "2026-10-02", "-", "docs/2026-10-02-parsing Summary", sentence[:79].rstrip() + "…")]
+    widths = [max(len(r[c]) for r in rows) for c in range(4)]
+    want = ["2 units hold all of: lexer",
+            *["".join(r[c].ljust(widths[c] + 2) for c in range(4)) + r[4] for r in rows],
+            "read one: pm show --record <record> --section <section>; an item: pm show <id>"]
+    res = repo.pm("search", "lexer")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.splitlines() == want
+    res = repo.pm("search", "Lexer", "--kind", "doc", "-n", "1")
+    assert res.stdout.splitlines()[:2] == ["1 unit holds all of: Lexer", "  ".join(rows[1])], res.stdout
+    res = repo.pm("search", "lexer", "--project", "old")
+    assert (res.returncode, res.stdout) == (0, "no unit holds all of: lexer; try other words\n"), res.stderr
+    res = repo.pm("search", "lexer", "--project", "nope")
+    assert (res.returncode, res.stderr) == (1, 'error: no project "nope"; projects: demo, old\n')
+    res = repo.pm("search")
+    assert res.returncode == 1 and "give one or more words to search for" in res.stderr, res.stderr
+    res = repo.pm("search", "lexer", "--kind", "sprints")
+    assert res.returncode == 2 and "invalid choice: 'sprints'" in res.stderr, res.stderr
+
+
 # ---------------------------------------------------------------- pm push: what the service runs
 
 DAY2 = "---\ntype: day\ndate: 2026-10-02\n---\n\n## Today\n\n> What are we chasing today, and why now?\n\nMore.\n"

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/search"
 )
 
 // chunkNumbers is pm prime --rules's choices: 1 to the number of rules chunks.
@@ -39,6 +40,17 @@ var tree = &command{
 				{Flags: []string{"--record"}, Dest: "record", Metavar: []string{"PATH"}, Kind: value, Help: "the record to read (a path, sprint id or name, project name or design slug); alone, its outline: header ids and each section with its line count"},
 				{Flags: []string{"--section"}, Dest: "section", Metavar: []string{"NAME"}, Kind: value, Help: "with --record: print that one section, heading included"},
 				{Flags: []string{"--refresh-inbox"}, Dest: "refresh_inbox", Kind: switchOn, Help: "first point this session's open requests at its current inbox ($CLAUDE_CODE_MESSAGING_SOCKET); the session-start hook passes it, since a resumed session binds a new one"},
+			},
+		},
+		{
+			Name:        "search",
+			Help:        "find earlier sprints, decisions, design sections, docs, tasks and needs on a topic, best first",
+			Description: "Find, across every project, the units that hold every word of the query: each ## section of a sprint, project, doc or postmortem record (Progress and Decisions left out; a doc with none is one unit), each ::: decision block, each ### of a design page's Design and each other ##, and each task and need (title, description and close reason). A word matches its plural (an s-stemmer: pages finds page); a term with a space, a / or a . (a phrase or a path) must also appear as written. Hits are ranked by BM25 over all units, so --kind and --project change no score; ties go newest first. Prints how many units hold the query, then one line per hit: kind, date, state, the address pm show --record takes (or the item id) and the first sentence that holds a query word. No hit prints one line and exits 0: try other words. Before framing a sprint, search its topic in two or three wordings.",
+			Args: []arg{
+				{Dest: "terms", Metavar: []string{"TERM"}, Arity: many, Kind: value, Help: "the words a unit must all hold; quote a phrase"},
+				{Flags: []string{"--kind"}, Dest: "kind", Choices: search.Kinds, Kind: repeated, Help: "keep only units of this kind (repeatable)"},
+				{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "keep only the units of this project (its name or id): its records, design pages and docs, and the items under it"},
+				{Flags: []string{"-n", "--limit"}, Dest: "limit", Metavar: []string{"N"}, Kind: value, IsInt: true, Def: "10", Help: "print at most N hits (default 10)"},
 			},
 		},
 		{
