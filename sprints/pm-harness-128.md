@@ -103,6 +103,11 @@ The owner asked how pm search beats rg; the index is worth building only if sear
   one record 0.4 / 1.4 / 12 ms. Same count and top 10 as the scan on all 110
   queries compared.
 
+- Growth over the last 8 days: 133 KB of Markdown, 95 units and 45 items per
+  day; at that rate a year from now is about 24x today's Markdown (linear
+  extrapolation from 16 days of history). git diff --name-only between records
+  commits a day apart: 1.6 ms.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
