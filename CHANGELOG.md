@@ -29,6 +29,24 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.4] - 2026-10-17
+
+An agent starting work now sees the design pages of its area: `pm sprint open` and a session's first `pm task claim`
+in a sprint list them.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.4/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.4`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- `pm sprint open` prints the design pages its project's record lists, one line each: slug, title and link.
+- `pm task claim` prints, on the session's first claim in the task's sprint, the design pages the sprint's record and
+  then the project's list, without repeats; a task directly under a project gets the project's. A slug that names no
+  design page shows as `missing`. `prime.md` says to read the pages the task touches before changing their code.
+
 ## [0.15.3] - 2026-10-17
 
 pm's commands cost agents fewer retries: `pm show --record` alone prints the record's outline, the need forms list
@@ -1245,6 +1263,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.4]: https://github.com/Yeeef/pm/compare/pm-v0.15.3...pm-v0.15.4
 [0.15.3]: https://github.com/Yeeef/pm/compare/pm-v0.15.2...pm-v0.15.3
 [0.15.2]: https://github.com/Yeeef/pm/compare/pm-v0.15.1...pm-v0.15.2
 [0.15.1]: https://github.com/Yeeef/pm/compare/pm-v0.15.0...pm-v0.15.1
