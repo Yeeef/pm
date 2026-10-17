@@ -115,10 +115,18 @@ The repo file overrides the global config, so a different value is the only way 
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a repo that pm sets up runs Codex in auto mode from its tracked `.codex/config.toml`, and `pm doctor` names a host where Codex's sandbox cannot start.
+
+- `pm init` and `pm upgrade` write pm's block: `approval_policy = "on-request"`, `approvals_reviewer = "auto_review"`, `sandbox_mode = "workspace-write"`. `pm doctor` names a missing key. A key with another value is the user's override, which is kept. `pm uninstall` removes only pm's block, so the user's file comes back byte for byte.
+- `pm doctor` runs `codex sandbox -- true` on Linux and names the AppArmor profile or sysctl fix when bwrap cannot start.
+- The parity live eval runs Codex with the repo's own config and asserts the mode on every Codex turn.
+- PR [#111](https://github.com/Yeeef/pm/pull/111).
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **Effective config in a scratch clone set up by `pm init`: met.** `codex exec` printed `approval: on-request` and `sandbox: workspace-write`, and the rollout `turn_context` read on-request / auto_review / workspace-write (Findings). Controls with an untrusted repo, no file, and a read-only file show the values come from the repo file.
+- **Golden test covers the piece, `make test` passes, harness checks doctor/upgrade/uninstall: met.** `internal/install/testdata/pieces.json` has the new inputs. `make test`: 152 passed. Integration `-k 'uninstall or upgrade or doctor or bootstraps'`: 14 passed. CI on #111: all jobs pass.
+- **`make test-live-parity`: met.** 15 passed in 102.6 s on this host. No assertion was weakened, and one was added for the mode. The expected apply_patch failure did not reproduce (Findings).
+- **README and pm-in-codex page describe the mode; changed design pages listed: met.** pm-in-codex is listed under Design pages and drafted for this sprint.
