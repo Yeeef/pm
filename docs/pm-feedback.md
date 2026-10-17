@@ -234,3 +234,9 @@ Two sessions edited the same design pages concurrently (pm-quality sprint 34 rem
 About project `pm-harness`.
 
 The agents-md cases CI job is flaky: its clean case fails non_inferable in about 1 of 4 runs on main too (6/24 on origin/main 8ad2720, 4/24 on PR 89's branch), the grader's 3 haiku votes flagging a different CLAUDE.md line each time. PR 89 hit it 3 times in 6 CI runs and each needed a rerun and a diagnosis. More votes, or a stricter rubric line for Map rows and pointers, would make it a check a PR can trust.
+
+### 2026-10-17 19:31 UTC, session `5a20faa3-c194-5184-9354-ff9d753c223a`
+
+About project `pm-quality`.
+
+A mistaken `pm task close --dropped --reason x` closed a finished task as dismissed, and nothing can correct it: there is no `pm task reopen`, and `pm task edit` sets only the title and description. I left a correcting comment. A `pm task reopen <id> --reason` (or a re-close that changes the resolution) would let an agent fix a wrong close; the 10-11 feedback entry asked for the same.
