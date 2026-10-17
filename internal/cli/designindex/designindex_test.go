@@ -1,6 +1,7 @@
 package designindex
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -8,7 +9,11 @@ import (
 	"github.com/Yeeef/pm/internal/records"
 )
 
-const indexURL = "https://pm.example.com"
+// siteURL is the site's URL as the command resolves it.
+func siteURL() (string, error) { return "https://pm.example.com", nil }
+
+// brokenURL is a site URL that cannot be resolved, as with PORT=abc.
+func brokenURL() (string, error) { return "", errors.New("PORT is not a number") }
 
 // store is the records and the items of a test.
 type store struct {
@@ -65,7 +70,7 @@ func indexRepo(t *testing.T, change func(map[string]*item.Item)) *store {
 
 func claimIndexOf(t *testing.T, r *store, id string) string {
 	t.Helper()
-	out, err := Claim(r.recs, r.x, id, "me", indexURL)
+	out, err := Claim(r.recs, r.x, id, "me", siteURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,10 +132,25 @@ func TestATaskDirectlyUnderAProjectGetsTheProjectsPages(t *testing.T) {
 
 func TestSprintOpenPrintsTheProjectsPages(t *testing.T) {
 	r := indexRepo(t, nil)
-	if got := Of(r.recs, indexURL, byBead(r.recs, "p")); got != projectIndex {
+	if got, err := Of(r.recs, siteURL, byBead(r.recs, "p")); err != nil || got != projectIndex {
 		t.Fatalf("got %q\nwant %q", got, projectIndex)
 	}
-	if got := Of(r.recs, indexURL, byBead(r.recs, "s2")); got != "" {
+	if got, err := Of(r.recs, siteURL, byBead(r.recs, "s2")); err != nil || got != "" {
 		t.Fatalf("no pages listed: got %q, want nothing", got)
+	}
+}
+
+func TestTheSiteURLIsResolvedOnlyWhenThereIsAPageToPrint(t *testing.T) {
+	second := indexRepo(t, func(x map[string]*item.Item) { x["a"].Holder = &item.Holder{Session: "me"} })
+	if got := Block(func() (string, error) { return Claim(second.recs, second.x, "b", "me", brokenURL) }); got != "" {
+		t.Errorf("second claim: got %q, want nothing", got)
+	}
+	r := indexRepo(t, nil)
+	if got := Block(func() (string, error) { return Of(r.recs, brokenURL, byBead(r.recs, "s2")) }); got != "" {
+		t.Errorf("no pages listed: got %q, want nothing", got)
+	}
+	want := "\ndesign pages not listed: PORT is not a number"
+	if got := Block(func() (string, error) { return Claim(r.recs, r.x, "a", "me", brokenURL) }); got != want {
+		t.Errorf("first claim: got %q, want %q", got, want)
 	}
 }

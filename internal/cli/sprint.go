@@ -113,10 +113,7 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", undoCreate(ws, made.ID, err)
 	}
-	url, urlErr := showSiteURL(e.here, store.MainOf(e.records))
-	return out + designindex.Block(url, urlErr, func(url string) (string, error) {
-		return designindex.Of(r.recs, url, prec), nil
-	}), nil
+	return out + designindex.Block(func() (string, error) { return designindex.Of(r.recs, e.siteURL, prec) }), nil
 }
 
 // requireCommitted is the records commit a close names; the closed record itself must be committed.

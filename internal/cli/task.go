@@ -235,10 +235,7 @@ func cmdTaskClaim(e *env, p *Parsed) (string, error) {
 	if h != nil && h.Session != sid {
 		was = "; took it over from idle session " + h.Session
 	}
-	url, urlErr := showSiteURL(e.here, store.MainOf(e.records))
-	index := designindex.Block(url, urlErr, func(url string) (string, error) {
-		return designindex.Claim(r.recs, r.x, id, sid, url)
-	})
+	index := designindex.Block(func() (string, error) { return designindex.Claim(r.recs, r.x, id, sid, e.siteURL) })
 	return fmt.Sprintf("claimed %s for session %s at %s%s", id, sid, now, was) + index, nil
 }
 

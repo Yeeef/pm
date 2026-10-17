@@ -5,6 +5,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/service"
+	"github.com/Yeeef/pm/internal/store"
 )
 
 // showPort is Python's port(): $PORT for one run, else the installed service's port, else the config's.
@@ -31,3 +32,6 @@ func showSiteURL(here, main string) (string, error) {
 	}
 	return fmt.Sprintf("http://localhost:%d", port), nil
 }
+
+// siteURL is the site's URL for this store, as pm show links a record.
+func (e *env) siteURL() (string, error) { return showSiteURL(e.here, store.MainOf(e.records)) }
