@@ -19,6 +19,7 @@ A design for `pm search` that stays fast and exact as the records and the work s
 - A design page for a persistent, incrementally updated search index: where it lives, how it stays exact against the records branch and the work store, the data structures, the query path, persistence and restart, drafts workspaces, and a semantic (hybrid) layer as a later stage.
 - Measurements from throwaway prototypes in a scratch directory: scan versus index at 1×, 10× and 100× this store (build time, memory, on-disk size, query latency, cost of an incremental update), and the store's growth rate from history.
 - Stages from today's scan to the full design, each with the measured threshold that triggers it.
+- How `pm search` is judged against `rg`: an offline retrieval eval, with labels taken from the records' own cross-references and queries written by a model, run now on this store for `pm search` and `rg`; and the design of a live agent A/B eval.
 
 **Out:**
 - Product code, and any change to `pm search`'s output or semantics.
@@ -29,6 +30,7 @@ A design for `pm search` that stays fast and exact as the records and the work s
 > What evidence will show the goal is met?
 
 - The design page exists, `pm check` passes, and every number on it comes from a measurement in Findings, with the command, the machine, and the corpus size.
+- The retrieval eval's numbers for `pm search` and `rg` (recall@5, recall@10, MRR, and output tokens until the first relevant hit) are in Findings, with the label set's size and how it was built.
 - The page gives, for each stage, the corpus size or latency that triggers it, and the memory and disk it costs at 10× and 100×.
 
 ## Design pages
