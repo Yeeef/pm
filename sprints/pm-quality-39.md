@@ -77,6 +77,11 @@ The design page records-store stays as it is for this sprint's code changes.
 Only a comment in internal/store/store.go names the new verb; the records store is unchanged.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page session-claims stays as it is for this sprint's code changes.
+task add --parent became --task and store help names changed; claims, holders and their listings are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
