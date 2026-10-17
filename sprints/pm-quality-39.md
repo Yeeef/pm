@@ -62,7 +62,10 @@ Wave 2 of the [command audit](../docs/2026-10-16-pm-command-quality-audit.md). A
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-17}
+The design page pm-go stays as it is for this sprint's code changes.
+Only a code comment in internal/work/dolt.go and a test's command form changed; the Go port's design is unchanged.
+:::
 
 ## Findings
 
