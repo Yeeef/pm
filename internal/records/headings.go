@@ -34,7 +34,7 @@ func Headings(body string) []Heading {
 	lineAt := func(off int) int { return strings.Count(body[:off], "\n") }
 	var out []Heading
 	after := 0 // the line after the last heading found: where an empty heading's search starts
-	ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		h, ok := n.(*ast.Heading)
 		if !entering || !ok {
 			return ast.WalkContinue, nil
@@ -61,6 +61,9 @@ func Headings(body string) []Heading {
 		after = line + 1
 		return ast.WalkSkipChildren, nil
 	})
+	if err != nil { // the walker returns none
+		panic(err)
+	}
 	return out
 }
 
