@@ -53,6 +53,11 @@ This sprint also adds the index line "prior work: pm search <topic>" that sprint
 The pm search design page puts it in the release that ships the command; sprint 125 kept it Out only because search did not exist yet.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page record-layer stays as it is for this sprint's code changes.
+The heading, section and outline parser moved from internal/cli into internal/records unchanged; the record format and its checks are the same.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
