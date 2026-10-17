@@ -86,6 +86,11 @@ The design page pm-in-codex stays as it is for this sprint's code changes.
 pieces.go's Settings carries listen and access into the config text; nothing Codex-specific changed
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page pm-versioning stays as it is for this sprint's code changes.
+config.go gained listen and access; the pin, launch and version rules are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
