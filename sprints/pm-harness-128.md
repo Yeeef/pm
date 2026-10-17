@@ -108,6 +108,11 @@ The owner asked how pm search beats rg; the index is worth building only if sear
   extrapolation from 16 days of history). git diff --name-only between records
   commits a day apart: 1.6 ms.
 
+- Alternatives: SQLite FTS5 (modernc, pure Go) at 10x: p50 187 us per query,
+  50 MB database, built in 0.86 s, about 80x slower than the in-memory index.
+  go-mysql-server FULLTEXT as pinned: natural-language mode only (no BM25, no
+  boolean mode, no stemming); not benchmarked. Bleve not attempted.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
