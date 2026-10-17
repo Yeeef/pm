@@ -142,10 +142,22 @@ who may post a reply changed (site-replies holds it); delivery of a stored reply
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the site can serve a network without Cloudflare, with reach (`listen`), address (`site_url`) and gate (`access`) as three settings, and a network viewer under `access = "none"` reads but does not reply.
+
+- `listen` (an IP, 127.0.0.1 when unset; 127.0.0.1 also bound beside another specific address) and `access` (`cloudflare` or `none`, required once the site is exposed) in `.pm/config.toml`, written by `pm init --listen` and `--access`.
+- Local trust by the TCP peer (loopback), a `Host` naming this machine and no `Cf-Connecting-IP`; a LAN peer sending `Host: localhost` is refused.
+- `access = "none"`: pages for a network viewer show the rule in place of each reply form and carry no token; their `POST /reply` gets a 403 naming the rule (the owner's decision).
+- `pm init` and `pm upgrade` migrate a config with `access_team` and no `access` to `access = "cloudflare"`; the service refuses to start exposed without `access`; `pm doctor` names a missing key and warns of a network `listen` with no `site_url`; `pm where` and the service log state a non-loopback `listen`.
+
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **Met.** In a scratch clone with `listen = "0.0.0.0"`, `access = "none"` and `site_url = "http://byeeefy:42075"`, `GET /` from the machine's LAN address 192.168.178.115 with Host `byeeefy:42075` got 200, and `pm record link` printed `http://byeeefy:42075/sprints/demo-1.html` (Findings).
+- **Met.** The same request with `Host: localhost:42075` got 403 (the rebinding refusal), live and in `TestALoopbackPeerNamingThisMachineIsLocalAndAnEdgeForwardedRequestNeedsTheTokenWhateverItsHost`.
+- **Met.** Replies follow the owner's rule (local only): the LAN `POST /reply` with a valid token got 403 naming the rule; from 127.0.0.1 it got 303 and was stored; `TestUnderAccessNoneANetworkViewerReadsWithNoReplyFormAndItsReplyIsRefused` covers the forms, the token and `/version`.
+- **Partly met; the rest waits for the pin move.** `access_test.go`'s Cloudflare cases pass unchanged in substance, and in the scratch clone a tunnel-like request (loopback, `Cf-Connecting-IP`, no token) got 403 "carries no Cloudflare Access token" after `pm init --session-start` migrated the config to `access = "cloudflare"`. This repo's own tunnel was not exercised: its service runs the 0.15.5 pin. That check runs once the pin-move PR, which `pm upgrade` gives `access = "cloudflare"`, is merged.
+- **Met.** A non-loopback `listen` with no `access` is refused: `pm init --listen 0.0.0.0` wrote nothing and named `--access`; `TestTheServiceRefusesToStartExposedWithNoAccess`; `pm doctor` names it (`test_init_and_upgrade_keep_what_is_not_pms`).
+- Checks: `make test-go` (19 packages ok), `make lint` (0 issues), `make test` (152 passed, 169 skipped), the touched integration tests (7 passed).
+
