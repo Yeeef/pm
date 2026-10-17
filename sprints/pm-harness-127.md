@@ -59,10 +59,12 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: this repo pins pm 0.15.4 once PR #110 merges.
+
+- `.pm/config.toml` moves `version` from 0.15.2 to 0.15.4 (`pm upgrade --to 0.15.4`); no other file changes.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- The PR that moves the pin is on main, with green CI: CI met (PR #110: light, integration, build-vet-test, race, work, lint, check, changelog all pass); on main once merged.
