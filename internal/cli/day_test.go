@@ -25,6 +25,9 @@ func TestDayActivityHoldsOnlyThatDaysEvents(t *testing.T) {
 		t.Helper()
 		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
 		cmd.Dir = dir
+		// the commits land on day even when the test runs across midnight
+		stamp := at.Format(time.RFC3339)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_DATE="+stamp, "GIT_COMMITTER_DATE="+stamp)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
