@@ -114,7 +114,7 @@ done: agents' top failure clusters on the pm command surface are removed, and `p
 
 - `pm show --record X` alone prints the record outline; sprint names resolve as targets.
 - Need forms refuse once with every broken rule.
-- `task close` requires `--reason`; `doc new --sprint|--task|--project`; one help renderer; honest usage lines.
+- `task close` requires `--reason`; `doc new --sprint|--task|--project`; one help renderer; honest usage lines; the no-op `hook git-post-checkout` and `git-pre-commit` removed, with the fix in the release note.
 - `pm --help` hides the machinery commands behind `pm --help --all`.
 - prime.md from 3,218 to 2,884 words; the pm-cli design page rewritten with the CLI naming grammar.
 
