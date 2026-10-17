@@ -57,6 +57,11 @@ Three independent settings: listen (bind address, default 127.0.0.1), site_url (
 Cloudflare is a gate, not a reach: its tunnel connects from loopback, so "expose beyond localhost" and "use Cloudflare" are not the two axes. Reach, address and gate are, as in Grafana (http_addr, root_url, auth) and Jupyter (ip, custom_display_url, token). A required access with no inferred default fails closed.
 :::
 
+::: decision {source=agent date=2026-10-17}
+A request is local only when its TCP peer is loopback and it carries no Cf-Connecting-IP; the Host header no longer grants local trust.
+Today local trust rests on Host, safe only because the socket is loopback-bound. With a LAN bind any colleague could send Host: localhost and skip every check.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
