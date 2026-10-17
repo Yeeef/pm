@@ -49,7 +49,10 @@ An agent starting work sees the design pages that hold its area's current state,
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-17}
+Moved yeeef-agents-9va.135.2 to yeeef-agents-9va.136: The owner split the work into two sprints: the design-page index stays in sprint 125, pm search moves to sprint 126.
+The two are independent and ship as separate PRs.
+:::
 
 ## Findings
 
