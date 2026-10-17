@@ -62,6 +62,11 @@ pm search moves to its own sprint (126); this sprint ships only the design-page 
 The owner asked to split the index and pm search into two sprints, so each ships as its own PR.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page pm-cli stays as it is for this sprint's code changes.
+Only the --help descriptions of task claim and sprint open changed; the page's command table and conventions hold.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
