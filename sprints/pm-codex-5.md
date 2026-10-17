@@ -61,7 +61,18 @@ Only pm repos change and the setting travels with the repo; codex 0.162.1 parses
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- codex-cli 0.163.0 applies all three keys from a trusted repo's
+  .codex/config.toml, and codex exec does not override them. Command: cd
+  <repo> && CODEX_HOME=<scratch home> codex exec 'run echo hi and stop', and
+  the session rollout's turn_context. Trusted with file: approval on-request,
+  approvals_reviewer auto_review, sandbox workspace-write. Untrusted with
+  file: never / user / read-only (whole file ignored, with no warning).
+  Trusted with no file: never / user / workspace-write. Trusted with
+  sandbox_mode=read-only: read-only, so sandbox_mode is read from the file.
+  approvals_reviewer=bogus_reviewer fails the config load with exit 1
+  (accepted: user, auto_review, guardian_subagent). Only codex exec and codex
+  debug prompt-input were run, not the interactive TUI; the scratch repos had
+  a .git marker but no commit.
 
 ## Delivery report
 
