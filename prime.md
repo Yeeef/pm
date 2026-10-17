@@ -103,18 +103,18 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
   - Drill down one level at a time, only as far as your work needs: `pm show --project NAME`, then `pm show --sprint ID`, then `pm show --record <sprint id, project name, design slug or path>` for the record's outline, then the same with `--section <name>` for one section. Do not read the whole file for one part.
   - `pm show <id>`: one item, its holder and its needs. `pm where`: every location and its state; `pm where records` prints the store's path.
 - open a sprint: `pm sprint open <project> --title "…"`; body: the frame as `## Goal`, `## Scope` and `## Done when`.
-- add tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. A sub-task: `pm task add --parent <task> --title "…"`. A dependency: `pm dep add <id> --on <blocker>`.
+- add tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. A sub-task: `pm task add --task <task> --title "…"`. A dependency: `pm dep add <id> --on <blocker>`.
 - claim a task: `pm task claim <id>`, from your own worktree. Your first claim in a sprint prints its design pages: read the ones the task touches before changing their code. Do not take or brief work that another live session holds.
 - close a task: `pm task close <id> --reason "<what was done>"`. It names the commit that holds the work: HEAD when newer than the task, else `--commit REF` (a commit here, `OWNER/REPO@SHA` or a PR URL). A task not done: `pm task close <id> --dropped --reason "<why>"`, with no commit.
 - add a finding: `pm finding add --sprint ID "<text>"`, as it occurs, with its numbers. A large result table is a `::: result` block in the record.
-- add a decision: `pm decision add --level project --project NAME`, or `--level sprint --sprint ID`, with `--decision '…'` and `--reason '…'`, one line each, in single quotes. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
+- add a decision: `pm decision add --project NAME` for a rule later sprints follow, or `--sprint ID` for this sprint's own work, with `--decision '…'` and `--reason '…'`, one line each, in single quotes. With `--need <id>` it cites the answered need and closes it. Use `--confirmed` instead for an answer that the owner gave in chat.
 - **Hand edits.** Goal, Scope, Done when, the delivery report, design pages, docs and postmortems are edited by hand in `records/`, design pages only in a worktree's. Then commit them: `pm commit -m "…" <path>…`. It checks the whole store. With no path, it lists what is uncommitted and commits nothing. `pm check` checks the store without a commit. A design page stays your worktree's draft, tagged with the open sprint that links it (`--sprint ID` with several), until that sprint's close publishes it.
-- need a decision from owner: `pm decision need --title "…" --parent ID`, with each part as a flag, one line each, in single quotes:
+- need a decision from owner: `pm decision need --title "…" --sprint ID` (or `--task ID`), with each part as a flag, one line each, in single quotes:
   - one `--question '…'`;
   - one or more `--fact '…'`;
   - two or more `--option LABEL '<what it does>'`, each with its `--cost LABEL '<what it costs>'`;
   - one `--default LABEL '<why>'`.
-- need an action from owner: `pm action need --title "…" --parent ID`; body: what to do and why. When it is done, check the evidence, then run `pm action done <id> --reason "<what showed it>"`.
+- need an action from owner: `pm action need --title "…" --sprint ID` (or `--task ID`); body: what to do and why. When it is done, check the evidence, then run `pm action done <id> --reason "<what showed it>"`.
 - need a PR review from owner: `pm action need --pr URL --sprint ID --focus "…"`, once the sprint's delivery report is written and committed. A design page whose `covers:` match a changed file must be updated and listed in the sprint's Design pages, or waived with `pm design unchanged <slug> --sprint ID --reason "…"`. Once the PR is on main, close the review with `pm action done <id> --reason "merged as <sha>"`.
 - Read a reply from owner with `pm reply read <id>` first. A need does not close while it holds a reply that has not reached a session.
 - close a need that sets no rule: a decision need with `pm decision close <id> --reason "<why>"`, its body the answer; a need that became moot, or a replaced PR's review, with `pm need dismiss <id> --reason "…"`.

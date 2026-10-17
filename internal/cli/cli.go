@@ -5,7 +5,7 @@
 // has its own file (task.go, sprint.go, decision.go, …), the setup package holds pm init, doctor, upgrade and
 // uninstall, the clean package pm clean, needform a decision need's parts, rules and layout, and fsutil the path
 // helpers cli and setup share. store_commands.go holds the work-store commands' bodies, and the forms show ID and task
-// add --parent TASK, the one argv Execute routes before the tree (storeFormOf); their --help goes through the tree's
+// add --task TASK, the one argv Execute routes before the tree (storeFormOf); their --help goes through the tree's
 // renderer (storeHelpCommand). Every command pm runs is in the tree, so in pm --help --all (pm --help leaves out the
 // Hidden machinery): commands_test.go fails otherwise.
 // help_golden_test.go holds every command's --help to testdata/help.golden, and doc_test.go fails on a func whose doc
@@ -64,8 +64,45 @@ type refusal struct{ msg string }
 
 func (r *refusal) Error() string { return r.msg }
 
+// removedForm is a flag (or, with flag "", a whole command) pm no longer has, and the refusal that names its
+// replacement. Removed forms are refused, never aliased, so a session's old habit meets the new form once.
+type removedForm struct {
+	path, flag, instead string
+}
+
+// removedForms are the forms the naming grammar (the pm-cli design page, Naming) removed.
+var removedForms = []removedForm{
+	{"decision need", "--parent", "name the sprint with --sprint ID or the task with --task ID"},
+	{"action need", "--parent", "name the sprint with --sprint ID or the task with --task ID"},
+	{"decision add", "--level", "--project NAME or --sprint ID alone names the decision's level"},
+	{"task add", "--parent", "a sub-task names its task with --task TASK"},
+}
+
+// refuseRemoved is the refusal of a removed form argv uses, "" when it uses none.
+func refuseRemoved(argv []string) string {
+	for _, f := range removedForms {
+		words := strings.Fields(f.path)
+		if len(argv) < len(words) || !slices.Equal(argv[:len(words)], words) {
+			continue
+		}
+		if f.flag == "" {
+			return fmt.Sprintf("pm %s was removed: %s", f.path, f.instead)
+		}
+		for _, a := range argv[len(words):] {
+			if a == f.flag || strings.HasPrefix(a, f.flag+"=") {
+				return fmt.Sprintf("pm %s %s was removed: %s", f.path, f.flag, f.instead)
+			}
+		}
+	}
+	return ""
+}
+
 // Execute runs pm with argv (without the program name) and returns the exit code.
 func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if msg := refuseRemoved(argv); msg != "" {
+		fmt.Fprintf(stderr, "error: %s\n", msg)
+		return 2
+	}
 	// every command that may act as a session, the self-parsing ones included, refuses an ambiguous one first; a hook
 	// reads its session from its input (and fails open), and help and version act as none
 	if len(argv) > 0 && argv[0] != "hook" && argv[0] != "prime" && argv[0] != "version" &&

@@ -85,7 +85,7 @@ func TestEveryCommandPmRunsIsListedInHelp(t *testing.T) {
 			continue
 		}
 		words := strings.Fields(name)
-		of := leaf(strings.Join(words[:len(words)-1], " ")) // pm show ID's is pm show, pm task add --parent's pm task add
+		of := leaf(strings.Join(words[:len(words)-1], " ")) // pm show ID's is pm show, pm task add --task's pm task add
 		if of == nil || !strings.Contains(strings.Join(strings.Fields(of.HelpText()), " "), "pm "+name) {
 			t.Errorf("the form pm %s is not named in its tree command's --help", name)
 		}

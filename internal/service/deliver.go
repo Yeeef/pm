@@ -118,7 +118,7 @@ func (t Texts) replyText(n *work.Item, replies []work.Comment) string {
 	case k == "question":
 		next = "it answers the question you asked; go on with it (an answer to a question records no decision)"
 	case k == "decision":
-		next = fmt.Sprintf("record the answer: pm decision add --need %s --level … --decision '<the answer>' "+
+		next = fmt.Sprintf("record the answer: pm decision add --need %s --sprint ID|--project NAME --decision '<the answer>' "+
 			"--reason '<why>' if it sets a rule, else pm decision close %s --reason \"<why it sets no rule>\" "+
 			"--text-file - <<'EOF' (the answer, then EOF)", id, id)
 	default:

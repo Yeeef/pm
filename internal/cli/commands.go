@@ -105,14 +105,13 @@ var tree = &command{
 				{
 					Name:        "add",
 					Help:        "append a decision to a project's or sprint's Decisions",
-					Description: "Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
-					Groups:      []bool{false},
+					Description: "Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing the scope: --project NAME if a later sprint must follow it; --sprint ID if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
+					Groups:      []bool{false, true},
 					Args: []arg{
 						{Flags: []string{"--decision"}, Dest: "decision", Metavar: []string{"TEXT"}, Required: true, Kind: value, Help: "the decision, in one line"},
 						{Flags: []string{"--reason"}, Dest: "reason", Metavar: []string{"TEXT"}, Required: true, Kind: value, Help: "why it holds, in one line"},
-						{Flags: []string{"--level"}, Dest: "level", Choices: []string{"project", "sprint"}, Required: true, Kind: value, Help: "no default: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse"},
-						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "the project record name (with --level project)"},
-						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "the sprint's id (with --level sprint)"},
+						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Group: 2, Help: "a project decision, in this project's record: a later sprint must follow it"},
+						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Group: 2, Help: "a sprint decision, in this sprint's record: it is about this sprint's own work"},
 						{Flags: []string{"--until"}, Dest: "until", Kind: value, Help: "a known condition to revisit the decision"},
 						{Flags: []string{"--need"}, Dest: "need", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "source=owner: the decision answers this decision need, and closes it if it is open"},
 						{Flags: []string{"--confirmed"}, Dest: "confirmed", Kind: switchOn, Group: 1, Help: "source=owner: the owner confirmed it"},
@@ -121,7 +120,8 @@ var tree = &command{
 				{
 					Name:        "need",
 					Help:        "ask the owner for a decision under a sprint or task; its parts as flags",
-					Description: "Raise a decision need under a sprint or task. Its parts are flags, one line each, and stdin is not read: one --question, one or more --fact, two or more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON that names the option taken if the owner does not answer. Put each value in single quotes: in double quotes the shell runs a `code span` as a command. pm writes the description in one Markdown layout and refuses fewer than two options, a repeated label, an option without exactly one cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with pm decision add --need, or close a small answer with pm decision close.",
+					Groups:      []bool{true},
+					Description: "Raise a decision need under a sprint (--sprint ID) or a task (--task ID). Its parts are flags, one line each, and stdin is not read: one --question, one or more --fact, two or more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON that names the option taken if the owner does not answer. Put each value in single quotes: in double quotes the shell runs a `code span` as a command. pm writes the description in one Markdown layout and refuses fewer than two options, a repeated label, an option without exactly one cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with pm decision add --need, or close a small answer with pm decision close.",
 					Args: []arg{
 						{Flags: []string{"--question"}, Dest: "question", Metavar: []string{"TEXT"}, Required: true, Kind: repeated, Help: "what the owner decides, as one question"},
 						{Flags: []string{"--fact"}, Dest: "fact", Metavar: []string{"TEXT"}, Required: true, Kind: repeated, Help: "a fact the owner needs to decide; repeat it for each fact"},
@@ -129,7 +129,8 @@ var tree = &command{
 						{Flags: []string{"--cost"}, Dest: "cost", Metavar: []string{"LABEL", "TEXT"}, Arity: two, Required: true, Kind: repeated, Help: "what the option with this label costs; one for each option"},
 						{Flags: []string{"--default"}, Dest: "default", Metavar: []string{"LABEL", "REASON"}, Arity: two, Required: true, Kind: repeated, Help: "the option taken if the owner does not answer, and why"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
-						{Flags: []string{"--parent"}, Dest: "parent", Metavar: []string{"ID"}, Required: true, Kind: value, Help: "the sprint or task the decision belongs to"},
+						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the open sprint the decision belongs to"},
+						{Flags: []string{"--task"}, Dest: "task", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the open task the decision belongs to"},
 					},
 				},
 				{
@@ -154,13 +155,13 @@ var tree = &command{
 				{
 					Name:        "need",
 					Help:        "ask the owner to do something under a sprint or task, or to review a PR (--pr); description with --text",
-					Description: "Raise an action under a sprint or task. The description (--text) says what to do and why. With --pr it is a PR review instead: every sprint named must be open with its delivery report written (Outcome and 'Against \"Done when\"') and committed; a GitHub PR must target the main branch, as a stacked PR's merge does not reach main (raise the review on the PR that does, or retarget it); the review goes under the first and blocks its close until the PR merges and you close the review with pm action done <id> --reason \"merged as <sha>\"; the site's card links the PR, each sprint's record and delivery report, and the design pages named with --design plus those the sprints' records list, and shows the focus; --text then holds optional extra context. When a design page's covers: match a file the PR changes (GitHub's pull request files API, through gh; a renamed file's old path counts too), it refuses until one of the sprints updated the page and links it in its Design pages, or waived it with pm design unchanged; the review's text then links each covering page. Close it with pm action done once you see it done.",
+					Description: "Raise an action under a sprint (--sprint ID) or a task (--task ID). The description (--text) says what to do and why. With --pr it is a PR review instead: every sprint named must be open with its delivery report written (Outcome and 'Against \"Done when\"') and committed; a GitHub PR must target the main branch, as a stacked PR's merge does not reach main (raise the review on the PR that does, or retarget it); the review goes under the first and blocks its close until the PR merges and you close the review with pm action done <id> --reason \"merged as <sha>\"; the site's card links the PR, each sprint's record and delivery report, and the design pages named with --design plus those the sprints' records list, and shows the focus; --text then holds optional extra context. When a design page's covers: match a file the PR changes (GitHub's pull request files API, through gh; a renamed file's old path counts too), it refuses until one of the sprints updated the page and links it in its Design pages, or waived it with pm design unchanged; the review's text then links each covering page. Close it with pm action done once you see it done.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Flags: []string{"--title"}, Dest: "title", Kind: value, Help: "required without --pr; with --pr, default: Review PR #<n>"},
-						{Flags: []string{"--parent"}, Dest: "parent", Metavar: []string{"ID"}, Kind: value, Help: "the sprint or task the action belongs to (required without --pr; not allowed with it)"},
+						{Flags: []string{"--task"}, Dest: "task", Metavar: []string{"ID"}, Kind: value, Help: "without --pr: the open task the action belongs to, in place of --sprint; not allowed with --pr"},
 						{Flags: []string{"--pr"}, Dest: "pr", Metavar: []string{"URL"}, Kind: value, Help: "the pull request to review; requires --sprint and --focus"},
-						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: repeated, Help: "with --pr: an open sprint the PR delivers, its report written (repeatable)"},
+						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: repeated, Help: "without --pr: the open sprint the action belongs to (once); with --pr: an open sprint the PR delivers, its report written (repeatable)"},
 						{Flags: []string{"--focus"}, Dest: "focus", Kind: value, Help: "with --pr: what to look at first: risky changes, open choices"},
 						{Flags: []string{"--design"}, Dest: "design", Metavar: []string{"SLUG"}, Kind: repeated, Help: "with --pr: a design page behind the PR (repeatable, optional)"},
 						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "without --pr, required: what the owner should do and why; with --pr, optional extra context; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
@@ -414,12 +415,12 @@ var tree = &command{
 			Subs: []*command{
 				{
 					Name:        "add",
-					Help:        "create a task in an open sprint, or a sub-task (--parent); description with --text (optional)",
-					Description: "Create a task in an open sprint. pm task add --parent TASK --title TITLE, in place of --sprint, adds a sub-task under the open task TASK instead (pm task add --parent TASK --help).",
+					Help:        "create a task in an open sprint, or a sub-task (--task); description with --text (optional)",
+					Description: "Create a task in an open sprint. pm task add --task TASK --title TITLE, in place of --sprint, adds a sub-task under the open task TASK instead (pm task add --task TASK --help).",
 					Groups:      []bool{true, false},
 					Args: []arg{
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the open sprint's id"},
-						{Flags: []string{"--parent"}, Dest: "parent", Metavar: []string{"TASK"}, Kind: value, Group: 1, Help: "the open task a sub-task is a part of, in place of --sprint (pm task add --parent TASK --help)"},
+						{Flags: []string{"--task"}, Dest: "task", Metavar: []string{"TASK"}, Kind: value, Group: 1, Help: "the open task a sub-task is a part of, in place of --sprint (pm task add --task TASK --help)"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
 						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 2, Help: "optional: the task's description; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 2, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},

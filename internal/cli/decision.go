@@ -10,19 +10,14 @@ import (
 	"strings"
 )
 
-// decisionTarget is the open project or sprint record a decision of --level goes into, named by its flag.
-func (r *repo) decisionTarget(p *Parsed) (*records.Record, error) {
-	level := p.Get("level") // required by the parser
-	flag, other := "--sprint", "--project"
-	if level == "project" {
-		flag, other = "--project", "--sprint"
-	}
-	if _, ok := given(p, other[2:]); ok {
-		return nil, refuse("%s does not match --level %s; name the target with %s", other, level, flag)
-	}
-	target, ok := given(p, flag[2:])
+// decisionTarget is the open project or sprint record a decision goes into, named by --project or --sprint (the
+// parser requires one), and its level: the flag's name.
+func (r *repo) decisionTarget(p *Parsed) (*records.Record, string, error) {
+	level := "sprint"
+	target, ok := given(p, level)
 	if !ok {
-		return nil, refuse("--level %s needs %s; nothing is inferred", level, flag)
+		level = "project"
+		target, _ = given(p, level)
 	}
 	var rec *records.Record
 	var err error
@@ -32,15 +27,15 @@ func (r *repo) decisionTarget(p *Parsed) (*records.Record, error) {
 		rec, err = r.sprint(target)
 	}
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	bead := rec.Bead()
 	if it := r.item(bead); it == nil {
-		return nil, refuse("%s %s has bead %s, which is not in the work store", level, target, bead)
+		return nil, "", refuse("%s %s has bead %s, which is not in the work store", level, target, bead)
 	} else if it.Status == work.Closed {
-		return nil, refuse("%s %s (%s) is closed; record the decision in an open %s", level, target, bead, level)
+		return nil, "", refuse("%s %s (%s) is closed; record the decision in an open %s", level, target, bead, level)
 	}
-	return rec, nil
+	return rec, level, nil
 }
 
 // decisionLine is one part of a decision given by its flag: one non-empty line that opens no block.
@@ -75,7 +70,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	rec, err := r.decisionTarget(p)
+	rec, level, err := r.decisionTarget(p)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +96,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	done := fmt.Sprintf("added a source=%s %s decision to %s", source, p.Get("level"), r.rel(rec.Path))
+	done := fmt.Sprintf("added a source=%s %s decision to %s", source, level, r.rel(rec.Path))
 	w := []store.Write{{Path: rec.Path, Text: updated}}
 	if need != nil && need.Resolution == work.NoDecision { // a rule after all: it is answered, as its decision says
 		cited := *need
