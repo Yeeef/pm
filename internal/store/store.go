@@ -607,5 +607,19 @@ func Apply(store string, writes []Write, message, undo, prefix string) error {
 	return nil
 }
 
-// Today is the local date, as Python's date.today().isoformat() gives it.
-func Today() string { return time.Now().Format("2006-01-02") }
+// TodayEnv pins Today for the test harness, which sets it once per run so that the dates pm stamps and the ones its
+// tests expect come from one clock even when the run crosses midnight. It is a test hook: no help text names it, and
+// with it unset Today is the wall clock's date.
+const TodayEnv = "PM_TEST_TODAY"
+
+// Today is the local date, as Python's date.today().isoformat() gives it, or the date TodayEnv pins; a pin that is not
+// a YYYY-MM-DD date panics, since a test hook set wrong is a broken harness, not a date to guess.
+func Today() string {
+	if pin := os.Getenv(TodayEnv); pin != "" {
+		if _, err := time.Parse(time.DateOnly, pin); err != nil {
+			panic(fmt.Sprintf("%s=%q is not a YYYY-MM-DD date", TodayEnv, pin))
+		}
+		return pin
+	}
+	return time.Now().Format(time.DateOnly)
+}

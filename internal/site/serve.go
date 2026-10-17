@@ -213,7 +213,9 @@ func FillStatus(page string, asOf time.Time, digest string, now time.Time) strin
 		text += "; other sessions are writing, so it is behind"
 		behind = " behind"
 	}
+	// data-asof is cut to the millisecond, never rounded up: rounded, it could state a time after a change the page
+	// does not show
 	line := fmt.Sprintf(`<p class="asof%s" data-asof="%.3f" data-page="%s">%s</p>`+"\n<script>%s</script>", behind,
-		float64(asOf.UnixMicro())/1e6, digest, text, statusScript)
+		float64(asOf.UnixMilli())/1e3, digest, text, statusScript)
 	return strings.Replace(page, StatusSlot, line, 1)
 }

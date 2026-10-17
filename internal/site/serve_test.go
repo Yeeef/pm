@@ -29,7 +29,7 @@ func TestGoldenFillRepliesAndStatus(t *testing.T) {
 		"x&3": {State: "failed", Text: `a "b" 'c' <d>`, RID: "r-3", Error: "it's <bad>"},
 		"x-4": {State: "sent", Text: "x"},
 		"x-6": {State: "failed", Text: "Ship it?: No\nWhich checks?: lint, <go>", RID: "r-6", Error: "store down"}}
-	asOf := time.Unix(1760000000, 123456000)
+	asOf := time.Unix(1760000000, 123756000) // data-asof states .123: cut, not rounded up
 	got := FillStatus(FillReplies(page, "tok'en", replies), asOf, "abcd", asOf.Add(12600*time.Millisecond))
 	if *update {
 		if err := os.WriteFile("testdata/serve/filled.html", []byte(got), 0o644); err != nil {
