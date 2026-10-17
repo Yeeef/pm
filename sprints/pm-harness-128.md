@@ -96,6 +96,13 @@ The owner asked how pm search beats rg; the index is worth building only if sear
   the list of project records per record, 6.2 s of 15 s at 100x in a CPU
   profile.
 
+- In-memory inverted index (postings of unit id and tf): build 19 ms / 171 ms
+  / 1.78 s on 1 core at 1x / 10x / 100x (6 / 26 / 220 ms on 32); heap 3.9 / 21
+  / 188 MB; varint-delta file 0.6 / 5.8 / 56 MB, cold load 6 / 31 / 235 ms;
+  top-10 AND query p50 0.6 / 2.4 / 15 us, p99 2.0 / 7.4 / 64 us; re-indexing
+  one record 0.4 / 1.4 / 12 ms. Same count and top 10 as the scan on all 110
+  queries compared.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
