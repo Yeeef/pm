@@ -74,6 +74,16 @@ Only pm repos change and the setting travels with the repo; codex 0.162.1 parses
   debug prompt-input were run, not the interactive TUI; the scratch repos had
   a .git marker but no commit.
 
+- codex 0.163.0 on Linux runs its codex-linux-sandbox helper, which runs the
+  system /usr/bin/bwrap (0.9.0) with --unshare-user --unshare-pid
+  --unshare-ipc --unshare-net. On this host (Ubuntu 24.04.1,
+  kernel.apparmor_restrict_unprivileged_userns=1, no AppArmor profile for
+  bwrap) 'codex sandbox -c sandbox_mode="read-only" -- true' fails with
+  'bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted' in about 46
+  ms; pm doctor now runs this probe and exits 1. The suggested unconfined
+  bwrap profile passes apparmor_parser -Q -K; it was not loaded here, so it is
+  not confirmed that it fixes the probe.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
