@@ -47,7 +47,10 @@ An agent can find earlier sprints, decisions, design sections, docs and work ite
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-17}
+This sprint also adds the index line "prior work: pm search <topic>" that sprint 125 left out until search shipped.
+The pm search design page puts it in the release that ships the command; sprint 125 kept it Out only because search did not exist yet.
+:::
 
 ## Findings
 
