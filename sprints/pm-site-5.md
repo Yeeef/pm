@@ -81,6 +81,11 @@ The design page pm-cli stays as it is for this sprint's code changes.
 two pm init flags and help text; the command surface, nouns and hook table the page holds are unchanged
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page pm-in-codex stays as it is for this sprint's code changes.
+pieces.go's Settings carries listen and access into the config text; nothing Codex-specific changed
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
