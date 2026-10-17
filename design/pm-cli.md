@@ -104,7 +104,7 @@ Reading: the refusal text is what an agent learns from, so it must carry the exp
 
 | Family | Commands | What they do |
 |---|---|---|
-| State | `show`, `where`, `record link`, `day`, `check` | Read the project state level by level; list every location and its state; print a record's URL on the site; the generated day pages; validate the records without a write |
+| State | `show`, `search`, `where`, `record link`, `day`, `check` | Read the project state level by level; find the sections, decisions and items on a topic across projects ([pm search](pm-search.md)); list every location and its state; print a record's URL on the site; the generated day pages; validate the records without a write |
 | Records | `finding add`, `decision add`, `design new\|rename\|unchanged`, `doc new\|rename`, `postmortem new`, `feedback add`, `commit` | Insert into a named section, create a record with every section, or commit hand edits by path |
 | Work | `project open\|close`, `sprint open\|close\|edit\|move`, `task add\|claim\|close\|move\|ready\|edit\|release`, `dep add\|rm`, `comment add` | Items, holders, status and dependencies; an action that also has a record writes both |
 | Owner requests | `decision need\|close`, `action need\|done`, `need edit\|dismiss`, `reply read\|add` | Raise a need, a PR review (`action need --pr`), read the owner's reply, close a need ([Decision need layout](decision-need-layout.md), [Reply delivery](reply-delivery.md)) |
