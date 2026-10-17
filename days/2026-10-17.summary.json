@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T11:41:30+00:00",
- "digest": "34d5325e5821932d",
+ "generated_at": "2026-10-17T11:51:48+00:00",
+ "digest": "7af03a58d056e7eb",
  "model": "claude-haiku-5-5",
- "text": "- **Agent command failures:** The most common agent failures on the pm command surface are removed. The change merged after the owner's review.\n- **Help and prime guidance:** `pm --help` and prime.md now show the commands agents use."
+ "text": "- **Ask-tool questions on site:** Ask-tool questions now appear on the site under \"Sessions ask you.\" The first answer, given on the site or in chat, reaches the session.\n- **Simpler pm command surface:** The top agent failure clusters on the pm command are removed, and `pm --help` shows what agents use. The owner reviewed and merged the change.\n- **Prior-work search:** A new sprint opened for pm search. It will find past sprints, decisions and design sections by topic."
 }
