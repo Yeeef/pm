@@ -93,6 +93,8 @@ data-asof is cut to the millisecond instead of rounded; who may reach the servic
 
 done: harness date checks read one pinned clock, so a run that crosses midnight UTC no longer fails them (PR #113).
 
+Merged as a8d34ce (PR #113).
+
 - `PM_TEST_TODAY` pins `store.Today` for the harness; conftest sets it once per run.
 - The day activity Go test dates its git commits on the day it checks.
 - The site's `data-asof` is cut to the millisecond, not rounded.
