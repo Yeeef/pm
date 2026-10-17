@@ -121,10 +121,17 @@ The owner asked how pm search beats rg; the index is worth building only if sear
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the [Search index](../design/search-index.md) RFC gives `pm search` six stages, each with a measured trigger and its cost at 10× and 100×, and an eval against `rg` that gates every ranking change.
+
+- The eval shows PR #112's search beats `rg` only with three query wordings, and whole-record BM25 OR has the best recall. Stage 1 is therefore a retrieval model that ranks records and points at their best unit.
+- The scan holds to about 10×, which is about 20 weeks away at the measured rate. An in-memory index in the pm service holds 100× in 188 MB, answering in microseconds.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| The design page exists, `pm check` passes, and every number comes from a measurement in Findings | yes | [Search index](../design/search-index.md); `pm check` renders all pages (it lists 2 needform files no page covers, which predates this sprint); the numbers are in Findings with the machine, the method and the corpus sizes; the estimates are labelled as estimates on the page |
+| The retrieval eval's numbers for `pm search` and `rg` | yes | Findings: 68 strict and 98 extended labelled sprints, R@5, R@10, MRR, nDCG@10 and tokens to the first relevant record, with paired bootstrap CIs |
+| Each stage's trigger, and its memory and disk at 10× and 100× | yes | The page's Stages table, and the index table in Constraints and key facts |
