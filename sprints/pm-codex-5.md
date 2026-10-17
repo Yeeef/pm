@@ -89,6 +89,14 @@ The repo file overrides the global config, so a different value is the only way 
   bwrap profile passes apparmor_parser -Q -K; it was not loaded here, so it is
   not confirmed that it fixes the probe.
 
+- Live check in a scratch clone (harness agents.Clone: scratch bare origin,
+  HOME and CODEX_HOME under a temp dir, only auth.json copied), set up by pm
+  init from the branch build and trusted in CODEX_HOME: 'codex exec "run echo
+  hi and stop"' (codex 0.163.0) printed 'approval: on-request' and 'sandbox:
+  workspace-write [workdir, /tmp, $TMPDIR]', and the rollout turn_context read
+  approval_policy on-request, approvals_reviewer auto_review, sandbox_policy
+  workspace-write, all from the repo's .codex/config.toml.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
