@@ -72,6 +72,11 @@ The design page pm-product stays as it is for this sprint's code changes.
 prime.md now names need close and the --sprint/--task flags; the product model, layers and objects the page states are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page records-store stays as it is for this sprint's code changes.
+Only a comment in internal/store/store.go names the new verb; the records store is unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
