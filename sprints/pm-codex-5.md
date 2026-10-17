@@ -128,6 +128,8 @@ A host where bwrap cannot start may need danger-full-access to run the eval at a
 
 done: a repo that pm sets up runs Codex in auto mode from its tracked `.codex/config.toml`, and `pm doctor` names a host where Codex's sandbox cannot start.
 
+Merged as 2a59ef7 (PR #111).
+
 - `pm init` and `pm upgrade` write pm's block: `approval_policy = "on-request"`, `approvals_reviewer = "auto_review"`, `sandbox_mode = "workspace-write"`. `pm doctor` names a missing key. A key with another value is the user's override, which is kept. `pm uninstall` removes only pm's block, so the user's file comes back byte for byte.
 - `pm doctor` runs `codex sandbox -- true` on Linux and names the AppArmor profile or sysctl fix when bwrap cannot start.
 - The parity live eval runs Codex with the repo's own config and asserts the mode on every Codex turn.
