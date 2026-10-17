@@ -62,6 +62,11 @@ A key in the repo .codex/config.toml is pm s only while it holds pm s value; any
 The repo file overrides the global config, so a different value is the only way a user can override the mode, and an override must survive pm upgrade; this matches how pm keeps user-owned writable_roots and hooks.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page pm-cli stays as it is for this sprint's code changes.
+commands.go changes only pm init's and pm doctor's --help text; the command tree and the CLI's design are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
