@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T20:13:22+00:00",
- "digest": "d8d632f981c68330",
+ "generated_at": "2026-10-17T20:24:00+00:00",
+ "digest": "ef4a1de78137ae77",
  "model": "claude-haiku-5-5",
- "text": "- **Agent session tools:** Ask-tool questions now appear on the site, and the first answer reaches the session. Per-session modes now turn off the owner-request judge, and a new design-page index prints at sprint open.\n- **Codex auto mode:** pm sets up Codex auto mode in a repo's tracked config file. `pm doctor` names a host where the Codex sandbox cannot start, and it gives the fix.\n- **Command surface:** Commands share one scope vocabulary, and `need close` replaces older close verbs. A test now checks every command against the naming grammar.\n- **Record search:** `pm search` finds past sprints, decisions and design sections by topic. A new design page plans how search grows, and a retrieval eval gates every ranking change."
+ "text": "- **Site access and replies:** The site now listens on a network address. With access set to none, network viewers can read the site but not reply.\n- **Session questions and modes:** Agent questions now appear on the site, and the first answer reaches the session. `pm interactive` and `pm autopilot` set a per-session mode that turns off the owner-request judge.\n- **Codex auto mode:** A repo that pm sets up now runs Codex in auto mode. `pm doctor` names a host where the Codex sandbox cannot start, and gives the fix.\n- **Agent command help:** Common agent errors on the command surface are removed, and help shows the commands agents use. Opening a sprint now lists the design pages for its area."
 }
