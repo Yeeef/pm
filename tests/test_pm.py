@@ -614,6 +614,8 @@ def test_a_need_names_its_sprint_or_task_and_a_removed_scope_flag_is_refused(rep
             match=r"--sprint repo-demo.1.3 is a task, not a sprint; name a sprint with --sprint ID, a task with --task ID")
     refused(repo, "action", "need", "--title", "Restart", "--sprint", "repo-demo.1", "--task", task,
             text=ACTION, match=r"an action belongs to one sprint or task: give --sprint ID or --task ID, once")
+    refused(repo, "action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--task", task, "--focus", "F",
+            match=r"--task is not allowed with --pr")
     sub = "name the sprint with --sprint ID or the task with --task ID"
     for args, message in (
             (("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL),

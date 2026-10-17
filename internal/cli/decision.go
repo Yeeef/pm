@@ -211,7 +211,7 @@ func (r *repo) decisionSource(p *Parsed, body string) (string, string, *work.Ite
 	var need *work.Item
 	needID, withNeed := given(p, "need")
 	if withNeed && needID != "" {
-		if need, err = r.humanIssue(needID, "decision"); err != nil {
+		if need, err = r.decisionNeed(needID); err != nil {
 			return "", "", nil, err
 		}
 		if need.Status == work.Closed && need.Resolution == work.Dismissed {

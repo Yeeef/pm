@@ -154,8 +154,8 @@ func cmdNeedClose(e *env, p *Parsed) (string, error) {
 	return fmt.Sprintf("dismissed %s: %s", need.ID, reason), nil
 }
 
-// humanIssue is the need id, refused unless it waits for want (decision or action); a question never does.
-func (r *repo) humanIssue(id, want string) (*work.Item, error) {
+// decisionNeed is the need id, refused unless it is a decision need: an action or a question records no decision.
+func (r *repo) decisionNeed(id string) (*work.Item, error) {
 	need := r.item(id)
 	if need == nil {
 		return nil, refuse("%s is not in the work store", id)
@@ -164,16 +164,11 @@ func (r *repo) humanIssue(id, want string) (*work.Item, error) {
 		return nil, refuse("%s is not a need; record your own decision with pm decision add "+
 			"without --need", id)
 	}
-	if k := site.Kind(need); k != want {
-		if k == "question" {
-			return nil, refuse("%s is a session's question, whose answer goes to the session that asked and records no "+
-				"decision; close it with pm need close %s --reason \"…\"", id, id)
-		}
-		if k == "action" {
-			return nil, refuse("%s is an action; close it with pm need close %s --reason \"…\"", id, id)
-		}
-		return nil, refuse("%s is a decision need; answer it with pm decision add --need %s, or pm need close %s if "+
-			"the answer sets no rule", id, id, id)
+	if k := site.Kind(need); k == "question" {
+		return nil, refuse("%s is a session's question, whose answer goes to the session that asked and records no "+
+			"decision; close it with pm need close %s --reason \"…\"", id, id)
+	} else if k == "action" {
+		return nil, refuse("%s is an action; close it with pm need close %s --reason \"…\"", id, id)
 	}
 	return need, nil
 }

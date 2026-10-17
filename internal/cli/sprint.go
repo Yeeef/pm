@@ -308,8 +308,8 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 			return nil, err
 		}
 		if agentMerge {
-			return nil, refuse("sprint %s holds PR review %s (%s), whose close stamps the merge; close it with pm action "+
-				"done %s --reason \"merged as <sha>\" if it is not closed yet, then run pm sprint close %s without --merged",
+			return nil, refuse("sprint %s holds PR review %s (%s), whose close stamps the merge; close it with pm need "+
+				"close %s --reason \"merged as <sha>\" if it is not closed yet, then run pm sprint close %s without --merged",
 				id, rv.ID, rv.Need.Review.PR, rv.ID, id)
 		}
 		m := mergedAs.FindStringSubmatch(rv.CloseReason)

@@ -459,6 +459,9 @@ func RefuseRemoved(argv []string, forms []Removed) string {
 			return fmt.Sprintf("pm %s was removed: %s", f.Path, f.Instead)
 		}
 		for _, a := range argv[len(words):] {
+			if a == "--" { // what follows is positionals
+				break
+			}
 			if a == f.Flag || strings.HasPrefix(a, f.Flag+"=") {
 				return fmt.Sprintf("pm %s %s was removed: %s", f.Path, f.Flag, f.Instead)
 			}
