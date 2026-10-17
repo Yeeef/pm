@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T13:29:45+00:00",
- "digest": "de53806a6bd4dd3e",
+ "generated_at": "2026-10-17T13:40:07+00:00",
+ "digest": "ad8d13ede0d7f044",
  "model": "claude-haiku-5-5",
- "text": "- **Codex auto mode setup:** pm init now turns on Codex's auto mode in a repo's config file. pm doctor names a missing key and a host where Codex's sandbox cannot start.\n- **Ask-tool questions on site:** Questions that Claude Code and Codex ask now appear on the site under \"Sessions ask you.\" The first answer, from the site or chat, reaches the session.\n- **Design pages and search:** Opening a sprint and a session's first task claim now print the current design pages for the area. Work started on pm search, which finds prior sprints, decisions and design sections by topic.\n- **Command surface cleanup:** Top failure clusters on pm's command surface are removed. pm --help and prime.md now show the commands agents use."
+ "text": "- **Codex auto mode:** pm init and upgrade now write auto-mode keys into .codex/config.toml, and uninstall removes only pm's values. pm doctor now names a host where Codex's sandbox cannot start, with its fix.\n- **Site question answers:** An ask-tool question now appears on the site under \"Sessions ask you.\" The first answer, on the site or in chat, reaches the session.\n- **Past work lookup:** pm sprint open and a session's first task claim now print the design pages for the area. A new search command finds earlier sprints, decisions and design sections by topic.\n- **Agent command surface:** Agents' top command failure clusters are removed, and help shows the commands agents use. Work also started on one CLI grammar and on clock-independent date checks."
 }
