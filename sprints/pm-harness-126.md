@@ -37,6 +37,7 @@ An agent can find earlier sprints, decisions, design sections, docs and work ite
 
 - [Work context](../design/work-context.md): `pm search` and the open-a-sprint clause of the procedure
 - [pm search](../design/pm-search.md): the units, tokenizer, match, ranking and output of `pm search`
+- [pm CLI](../design/pm-cli.md): `search` in the State family
 
 ## Progress
 
