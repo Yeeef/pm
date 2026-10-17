@@ -614,6 +614,11 @@ A pm search ranking change ships only when recall@10 over the agent's 2-3 wordin
 The job is that an agent sees the prior work that matters at low context cost: what it reads is the default 10 lines across the wordings prime.md asks for, and tokens are the edge over rg.
 :::
 
+::: decision {source=owner date=2026-10-17}
+pm search is evaluated on (A) citation labels widened to every record citing earlier work, as-of corpus, time-split with a frozen held-out newest third, about 250+ cases, as the gate; (B) a judged pool of about 50 queries with graded, section-level labels (LLM judge, owner spot-checks about 20%); (C) the live agent A/B before large changes.
+Citations alone are incomplete relevance judgments; a time split and frozen inputs keep tuning from fitting the test, and about 250 cases bring the CI near +/-0.05.
+:::
+
 ## Design pages
 
 > Where is the detail?
