@@ -275,16 +275,28 @@ def test_init_and_upgrade_keep_what_is_not_pms(existing: Path, tmp_path: Path):
                          "--help)" in lines, lines
     # a config from before access existed (the Access keys, no access) is named by doctor, and pm init (session start
     # runs it) migrates it to access = "cloudflare", which it meant
-    text = (existing / ".pm/config.toml").read_text().replace('access = "cloudflare"\n', "")
-    (existing / ".pm/config.toml").write_text(text + 'access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\n')
+    config = existing / ".pm/config.toml"
+    text = config.read_text().replace('access = "cloudflare"\n', "")
+    old = text + 'access_team = "team.cloudflareaccess.com"\naccess_aud = "aud-tag"\nsummary_runtime = "codex"\n'
+    config.write_text(old)
     code, lines = doctor(existing)
     assert code == 1 and "lacks access, so the pm service does not start; set it with pm init --access cloudflare or " \
                          "--access none" in "\n".join(lines), lines
+    # the migrated config is the old one with access in the place pm's writer gives it (ConfigText), every other key
+    # kept, so doctor finds no drift in it
+    migrated = old.replace('access_team = ', 'access = "cloudflare"\naccess_team = ', 1)
     res = pm(existing, "init", "--session-start")
     assert res.returncode == 0 and 'access set to "cloudflare"' in res.stdout, res.stdout
-    assert tomllib.loads((existing / ".pm/config.toml").read_text())["access"] == "cloudflare"
+    assert config.read_text() == migrated
     code, lines = doctor(existing)
     assert code == 1 and reported(lines, ["repo: .claude/settings.json: pm's part differs"]), lines
+    # pm upgrade, which moves the pin a restarted service reads, migrates the same config the same way
+    config.write_text(old)
+    res = pm(existing, "upgrade")
+    assert res.returncode == 0, res.stderr
+    assert config.read_text() == migrated
+    code, lines = doctor(existing)
+    assert not any(line.startswith(("repo: .pm/config.toml", "config:")) for line in lines), lines
 
 
 OLD_PRE_COMMIT = '#!/usr/bin/env sh\n# --- BEGIN PM v0.3.0 ---\npm hook git-pre-commit "$@" || exit $?\n# --- END PM ---\n'
