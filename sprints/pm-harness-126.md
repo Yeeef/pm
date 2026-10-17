@@ -63,6 +63,11 @@ The design page agent-lifecycle stays as it is for this sprint's code changes.
 prime.md's new clause is on the open-a-sprint bullet; a session's start, claim and hand-back are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page pm-product stays as it is for this sprint's code changes.
+One clause in prime.md; what pm is as a product and how it installs are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
