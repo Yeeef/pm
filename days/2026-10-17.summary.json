@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T10:41:03+00:00",
- "digest": "1a2fac6ea880e67d",
+ "generated_at": "2026-10-17T11:41:30+00:00",
+ "digest": "34d5325e5821932d",
  "model": "claude-haiku-5-5",
- "text": "- **Quality sprint records:** The sprint report now names the removal of a git hook. A sprint decision from the owner is recorded in the sprint file."
+ "text": "- **Agent command failures:** The most common agent failures on the pm command surface are removed. The change merged after the owner's review.\n- **Help and prime guidance:** `pm --help` and prime.md now show the commands agents use."
 }
