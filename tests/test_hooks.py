@@ -214,9 +214,9 @@ def flags_named(text: str):
 
 def test_every_flag_prime_md_and_the_help_texts_name_parses():
     """A flag named after `pm <command>` in prime.md, the request-rule texts (prompts/request_rule_*.txt) or any --help
-    is one that command parses: its own --help lists it. The two forms `Execute` routes before the tree (`pm show ID`, `pm task add --parent`) have their own help."""
+    is one that command parses: its own --help lists it. The two forms `Execute` routes before the tree (`pm show ID`, `pm task add --task`) have their own help."""
     tree = help_tree()
-    forms = {("show", "ID"): ("show", "ID"), ("task", "add", "--parent"): ("task", "add", "--parent", "TASK")}
+    forms = {("show", "ID"): ("show", "ID"), ("task", "add", "--task"): ("task", "add", "--task", "TASK")}
     helps = tree | {form: subprocess.run([*PM, *argv, "--help"], cwd="/", check=True, capture_output=True,
                                          text=True).stdout for form, argv in forms.items()}
     rule_texts = {f"prompts/{p.name}": p.read_text() for p in sorted((CHECKOUT / "prompts").glob("request_rule_*.txt"))}
@@ -231,8 +231,8 @@ def test_every_flag_prime_md_and_the_help_texts_name_parses():
             rest = words[len(path):]
             if path == ("show",) and rest and not rest[0].startswith(("-", "[")):
                 path = ("show", "ID")
-            elif path == ("task", "add") and "--parent" in flags:
-                path = ("task", "add", "--parent")
+            elif path == ("task", "add") and "--task" in flags:
+                path = ("task", "add", "--task")
             for flag in flags:
                 checked += 1
                 if flag not in options_of(helps[path]):

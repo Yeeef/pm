@@ -271,8 +271,8 @@ func WaiverText(slug, reason string) string {
 func RenameCheck(items []item.Item, slug, to string) (func(string) string, error) {
 	for _, it := range items {
 		if r := it.Need; it.Status != item.Closed && r != nil && r.Review != nil && slices.Contains(r.Review.Designs, slug) {
-			return nil, fmt.Errorf("the open PR review %s names design page %s (--design); close it with pm action "+
-				"done, or dismiss it, before the page is renamed", it.ID, slug)
+			return nil, fmt.Errorf("the open PR review %s names design page %s (--design); close it with pm need "+
+				"close (--dropped if it is not done) before the page is renamed", it.ID, slug)
 		}
 	}
 	if to == "" {

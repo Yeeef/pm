@@ -74,7 +74,8 @@ func raisedBy() (*work.RaisedBy, error) {
 	return rb, nil
 }
 
-// raiseNeed raises a decision need or an action: a need item of that kind under --parent.
+// raiseNeed raises a decision need or an action: a need item of that kind under the sprint --sprint names or the task
+// --task names (the caller checked that exactly one is given).
 func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 	var v needform.Violations
 	title := strip(p.Get("title"))
@@ -107,13 +108,21 @@ func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 		}
 		return "", err
 	}
-	parentID := p.Get("parent")
+	flag, want := "--sprint", work.Sprint
+	parentID, ok := given(p, "sprint")
+	if !ok {
+		flag, want = "--task", work.Task
+		parentID = p.Get("task")
+	}
 	parent := r.item(parentID)
 	switch {
 	case parent == nil:
-		v.Add("--parent %s is not in the work store", parentID)
+		v.Add("%s %s is not in the work store", flag, parentID)
+	case parent.Type != want:
+		v.Add("%s %s is a %s, not a %s; name a sprint with --sprint ID, a task with --task ID", flag, parentID,
+			parent.Type, want)
 	case parent.Status == work.Closed:
-		v.Add("--parent %s is closed; raise it under an open sprint or task", parentID)
+		v.Add("%s %s is closed; raise it under an open sprint or task", flag, parentID)
 	default:
 		inside := false
 		for _, a := range r.x.Ancestors(parentID) {
@@ -122,7 +131,7 @@ func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 			}
 		}
 		if !inside {
-			v.Add("--parent %s is not inside a project with a record, so no page would show it", parentID)
+			v.Add("%s %s is not inside a project with a record, so no page would show it", flag, parentID)
 		}
 	}
 	if err := refuseAll(&v); err != nil {
@@ -143,11 +152,11 @@ func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 	}
 	id := made.ID
 	if kind == work.Action {
-		return fmt.Sprintf("raised action %s under %s; %s; once you see the owner has done it: pm action done %s "+
+		return fmt.Sprintf("raised action %s under %s; %s; once you see the owner has done it: pm need close %s "+
 			"--reason \"<what you saw>\"", id, parentID, deliveryHint(id), id), nil
 	}
 	return fmt.Sprintf("raised decision need %s under %s; %s; once the owner answers: pm decision add --need %s "+
-		"--level … --decision '<the answer>' --reason '<why>' if it sets a rule, else pm decision close %s --reason "+
+		"--sprint ID|--project NAME --decision '<the answer>' --reason '<why>' if it sets a rule, else pm need close %s --reason "+
 		"\"<why it sets no rule>\" --text-file - <<'EOF' (the answer, then EOF)", id, parentID, deliveryHint(id), id, id), nil
 }
 
@@ -155,21 +164,22 @@ func cmdDecisionNeed(e *env, p *Parsed) (string, error) { return raiseNeed(e, p,
 
 func cmdActionNeed(e *env, p *Parsed) (string, error) {
 	if _, ok := given(p, "pr"); !ok {
-		for _, f := range []struct{ flag, dest string }{{"--sprint", "sprint"}, {"--focus", "focus"}, {"--design", "design"}} {
+		for _, f := range []struct{ flag, dest string }{{"--focus", "focus"}, {"--design", "design"}} {
 			if _, ok := given(p, f.dest); ok {
 				return "", refuse("%s is only for a PR review; give --pr URL with it, or drop it", f.flag)
 			}
 		}
-		if _, ok := given(p, "parent"); !ok {
-			return "", refuse("--parent is required (or --pr for a PR review)")
+		if len(p.ValuesOf("sprint"))+len(p.ValuesOf("task")) != 1 {
+			return "", refuse("an action belongs to one sprint or task: give --sprint ID or --task ID, once (or --pr " +
+				"for a PR review)")
 		}
 		if _, ok := given(p, "title"); !ok {
 			return "", refuse("--title is required (or --pr for a PR review)")
 		}
 		return raiseNeed(e, p, work.Action)
 	}
-	if _, ok := given(p, "parent"); ok {
-		return "", refuse("--parent is not allowed with --pr; a PR review goes under the first sprint it delivers")
+	if _, ok := given(p, "task"); ok {
+		return "", refuse("--task is not allowed with --pr; a PR review goes under the first sprint it delivers")
 	}
 	for _, f := range []struct{ flag, dest string }{{"--sprint", "sprint"}, {"--focus", "focus"}} {
 		if _, ok := given(p, f.dest); !ok {

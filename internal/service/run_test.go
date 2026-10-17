@@ -489,8 +489,8 @@ func TestAReplyIsSpooledStoredOnceAndPushedIntoTheSessionsInbox(t *testing.T) {
 	}
 	got := receive(t, lines)
 	want := "pm: owner reply to decision p-1.2.1 (Pick a port), relayed from the site:\n  [2026-10-08T12:00:00Z] Use 8123.\n" +
-		"  Why: free.\nnext: record the answer: pm decision add --need p-1.2.1 --level … --decision '<the answer>' " +
-		"--reason '<why>' if it sets a rule, else pm decision close p-1.2.1 --reason \"<why it sets no rule>\" " +
+		"  Why: free.\nnext: record the answer: pm decision add --need p-1.2.1 --sprint ID|--project NAME --decision '<the answer>' " +
+		"--reason '<why>' if it sets a rule, else pm need close p-1.2.1 --reason \"<why it sets no rule>\" " +
 		"--text-file - <<'EOF' (the answer, then EOF)"
 	if got != want {
 		t.Fatalf("inbox got\n%s\nwant\n%s", got, want)
@@ -679,7 +679,7 @@ func TestTheSweepDeliversWhatAFailedPushLeftAndSkipsAGoneSession(t *testing.T) {
 	w := newFakeWork(waiting, gone)
 	s := serve(t, w, "")
 	got := receive(t, lines)
-	if !strings.HasPrefix(got, "pm: owner reply to action p-1.2.1 (Pick a port), relayed from the site:\n  [2026-10-08T09:00:00Z] done: see the log\nnext: check the evidence, then pm action done p-1.2.1") {
+	if !strings.HasPrefix(got, "pm: owner reply to action p-1.2.1 (Pick a port), relayed from the site:\n  [2026-10-08T09:00:00Z] done: see the log\nnext: check the evidence, then pm need close p-1.2.1") {
 		t.Fatalf("sweep pushed %q", got)
 	}
 	eventually(t, "marked delivered", func() bool { return w.item("p-1.2.1").Need.Delivered == 1 })
@@ -740,7 +740,7 @@ func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {
 	w := newFakeWork(need("p-1.2.1", work.Review, path))
 	serve(t, w, main)
 	got := receive(t, lines)
-	want := "pm: PR #7 of review p-1.2.1 (Pick a port) merged to main as " + sha + "\nnext: pm action done p-1.2.1 " +
+	want := "pm: PR #7 of review p-1.2.1 (Pick a port) merged to main as " + sha + "\nnext: pm need close p-1.2.1 " +
 		"--reason \"merged as " + sha + "\", then update the main checkout: git -C " + main + " pull --ff-only origin main"
 	if got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)

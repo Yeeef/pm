@@ -290,7 +290,7 @@ func (r *repo) closedSprintReviews(id string) ([]*work.Item, error) {
 			listing[i] = fmt.Sprintf("%s (%s)", k.ID, statusText(k))
 		}
 		return nil, refuse("open tasks in the sprint: %s; close each with pm task close or move it with pm task move (a PR "+
-			"review closes with pm action done <id> --reason \"merged as <sha>\" once the PR is on main)",
+			"review closes with pm need close <id> --reason \"merged as <sha>\" once the PR is on main)",
 			strings.Join(listing, ", "))
 	}
 	return reviews, nil
@@ -308,8 +308,8 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 			return nil, err
 		}
 		if agentMerge {
-			return nil, refuse("sprint %s holds PR review %s (%s), whose close stamps the merge; close it with pm action "+
-				"done %s --reason \"merged as <sha>\" if it is not closed yet, then run pm sprint close %s without --merged",
+			return nil, refuse("sprint %s holds PR review %s (%s), whose close stamps the merge; close it with pm need "+
+				"close %s --reason \"merged as <sha>\" if it is not closed yet, then run pm sprint close %s without --merged",
 				id, rv.ID, rv.Need.Review.PR, rv.ID, id)
 		}
 		m := mergedAs.FindStringSubmatch(rv.CloseReason)
@@ -320,7 +320,7 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 			}
 			return nil, refuse("PR review %s (%s) is closed as %s, not 'merged as <sha>'; a sprint closes only once each PR "+
 				"delivering it is on main, so the close stamps its merge commit into the Outcome; once its work is on main, "+
-				"restamp it: pm action done %s --reason \"merged as <sha>\"", rv.ID, rv.Need.Review.PR, strconv.Quote(why), rv.ID)
+				"restamp it: pm need close %s --reason \"merged as <sha>\"", rv.ID, rv.Need.Review.PR, strconv.Quote(why), rv.ID)
 		}
 		pr := rv.Need.Review.PR
 		if strings.Contains(pr, "/pull/") {

@@ -147,7 +147,7 @@ A change to setup, the hooks, the site or replies gets a live check besides its 
 "Done when" names (`pm show --sprint ID`).
 
 - **A need raised during a test or a live check starts its title with `[TEST]`**; once the check is done, close it with
-  `pm need dismiss <id> --reason "[TEST] done"`.
+  `pm need close <id> --dropped --reason "[TEST] done"`.
 - **A check of `pm init`, `pm push` or the service runs in a scratch clone of a scratch origin** under a temp directory
   with `HOME` and `CODEX_HOME` there, as the fixtures do, never on a real clone's store or service.
 - The session-start path is checked in a scratch worktree: `git worktree add --no-checkout` then `git reset --hard`

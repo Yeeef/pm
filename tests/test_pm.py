@@ -280,7 +280,7 @@ def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
     assert repo.items()["repo-demo.1.3"]["parent"] == "repo-demo.1" and "under repo-demo.1;" in res.stdout
     repo.mark()
     refused(repo, "sprint", "close", "repo-demo.1", match=r"open tasks in the sprint: repo-demo.1.3 \(open\)")
-    assert repo.pm("action", "done", "repo-demo.1.3", "--reason", f"merged as {SHA}").returncode == 0
+    assert repo.pm("need", "close", "repo-demo.1.3", "--reason", f"merged as {SHA}").returncode == 0
     repo.mark()
     res = repo.pm("sprint", "close", "repo-demo.1")
     assert res.returncode == 0, res.stderr
@@ -308,7 +308,7 @@ def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
     assert repo.pm("sprint", "open", "demo", "--title", "Third", text=FRAME).returncode == 0
     report(repo, "Done: shipped the thing.", name="demo-3")
     assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.2", "--focus", "F").returncode == 0
-    assert repo.pm("action", "done", "repo-demo.2.1", "--reason", f"merged as {SHA}").returncode == 0
+    assert repo.pm("need", "close", "repo-demo.2.1", "--reason", f"merged as {SHA}").returncode == 0
     repo.mark()
     refused(repo, "sprint", "close", "repo-demo.3", "--merged", off_main, "--pr", PR,
             match=rf"--merged {off_main} is not on origin/main; give the merge commit once the PR is on main")
@@ -344,9 +344,9 @@ def test_a_review_of_a_pr_that_does_not_target_main_is_refused_naming_the_fix(re
 
 
 @pytest.mark.integration
-def test_action_done_restamps_a_review_closed_before_its_pr_reached_main(repo, tmp_path):
+def test_need_close_restamps_a_review_closed_before_its_pr_reached_main(repo, tmp_path):
     """A review closed while its PR had merged only into a stacked base holds its sprint's close; once the work is on
-    main, pm action done <review> --reason "merged as <sha>" restamps it, keeping the old reason, and the sprint closes.
+    main, pm need close <review> --reason "merged as <sha>" restamps it, keeping the old reason, and the sprint closes.
     A reason without it, a sha not on main, a review closed as merged and any other closed action are refused."""
     repo.git("init", "-q", "--bare", str(tmp_path / "origin.git"))
     repo.git("remote", "add", "origin", str(tmp_path / "origin.git"))
@@ -361,27 +361,27 @@ def test_action_done_restamps_a_review_closed_before_its_pr_reached_main(repo, t
     report(repo, "Done: shipped the thing.")
     repo.set_pr(PR, "OPEN")
     assert repo.pm("action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--focus", "F").returncode == 0
-    assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
+    assert repo.pm("action", "need", "--title", "Restart", "--sprint", "repo-demo.1", text=ACTION).returncode == 0
     review, action, first = "repo-demo.1.3", "repo-demo.1.4", "PR merged into stacked as d74c717, not yet on main"
-    assert repo.pm("action", "done", review, "--reason", first).returncode == 0
-    assert repo.pm("action", "done", action, "--reason", "restarted").returncode == 0
+    assert repo.pm("need", "close", review, "--reason", first).returncode == 0
+    assert repo.pm("need", "close", action, "--reason", "restarted").returncode == 0
     repo.mark()
     refused(repo, "sprint", "close", "repo-demo.1", match=rf"PR review {review} \({PR}\) is closed as \"{first}\", not "
-                                                         rf"'merged as <sha>'; .* restamp it: pm action done {review} "
+                                                         rf"'merged as <sha>'; .* restamp it: pm need close {review} "
                                                          r"--reason \"merged as <sha>\"")
-    refused(repo, "action", "done", review, "--reason", "it landed",
+    refused(repo, "need", "close", review, "--reason", "it landed",
             match=rf"review {review} is closed as \"{first}\", without 'merged as <sha>'; once its work is on main, "
-                  rf"restamp it with pm action done {review} --reason \"merged as <sha>\"")
-    refused(repo, "action", "done", review, "--reason", f"merged as {off_main}",
+                  rf"restamp it with pm need close {review} --reason \"merged as <sha>\"")
+    refused(repo, "need", "close", review, "--reason", f"merged as {off_main}",
             match=rf"merged as {off_main} is not on origin/main; give the merge commit once the PR is on main")
-    refused(repo, "action", "done", action, "--reason", f"merged as {on_main[:7]}", match=rf"action {action} is "
+    refused(repo, "need", "close", action, "--reason", f"merged as {on_main[:7]}", match=rf"action {action} is "
                                                                                           r"already closed")
-    res = repo.pm("action", "done", review, "--reason", f"merged as {on_main[:7]}")
+    res = repo.pm("need", "close", review, "--reason", f"merged as {on_main[:7]}")
     assert res.returncode == 0, res.stderr
     restamped = f"merged as {on_main[:7]}; first closed as: {first}"
     assert repo.changes() == {review: {"close_reason": restamped}}
     repo.mark()
-    refused(repo, "action", "done", review, "--reason", f"merged as {on_main[:7]}",
+    refused(repo, "need", "close", review, "--reason", f"merged as {on_main[:7]}",
             match=rf"action {review} is already closed")
     res = repo.pm("sprint", "close", "repo-demo.1")
     assert res.returncode == 0, res.stderr
@@ -467,7 +467,7 @@ def test_a_pr_that_changes_covered_code_waits_until_its_design_page_is_updated_o
     review = repo.items()["repo-demo.1.3"]
     assert review["description"].endswith("Design pages covering the changed code:\n- [The parser]"
                                           "(http://localhost:8000/design/parser.html): updated in the sprint"), review
-    assert repo.pm("action", "done", "repo-demo.1.3", "--reason", f"merged as {SHA}").returncode == 0
+    assert repo.pm("need", "close", "repo-demo.1.3", "--reason", f"merged as {SHA}").returncode == 0
     res = repo.pm("sprint", "close", "repo-demo.1")
     assert res.returncode == 0, res.stderr
 
@@ -477,7 +477,7 @@ def test_a_pr_that_changes_covered_code_waits_until_its_design_page_is_updated_o
     res = repo.pm("action", "need", "--pr", PR2, "--sprint", "repo-demo.2", "--focus", "F")
     assert res.returncode == 0, res.stderr
     assert "Design pages covering" not in repo.items()["repo-demo.2.1"]["description"]
-    assert repo.pm("action", "done", "repo-demo.2.1", "--reason", f"merged as {SHA}").returncode == 0
+    assert repo.pm("need", "close", "repo-demo.2.1", "--reason", f"merged as {SHA}").returncode == 0
     set_pr_files(repo, PR2, ["README.md", {"filename": "src/lexer/lex.go", "previous_filename": "src/parser/lex.go"}])
     repo.mark()
     refused(repo, "sprint", "close", "repo-demo.2",
@@ -560,7 +560,7 @@ def test_check_holds_covers_to_main_and_lists_uncovered_sources(repo):
 
 DECISION = "Use the small parser."
 REASON = "It is enough for the record set and adds no dependency."
-ADD = ("decision", "add", "--level", "project", "--project", "demo")
+ADD = ("decision", "add", "--project", "demo")
 TODAY = os.environ["PM_TEST_TODAY"]  # the date pm stamps, which conftest pins for the run
 
 
@@ -584,18 +584,49 @@ def test_a_codex_session_never_takes_the_claude_code_inbox_it_inherits(repo):
     route instead, the CODEX_HOME the pm service queues the reply under (a push to the socket would land in the Claude
     Code session), and it is told the reply is queued into it."""
     repo.env = dict(repo.env, CODEX_SESSION_ID="cx-root", CLAUDE_CODE_MESSAGING_SOCKET="/run/claude-parent.sock")
-    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    res = repo.pm("decision", "need", "--title", "Site URL", "--sprint", "repo-demo.1", *SITE_URL)
     assert res.returncode == 0, res.stderr
     assert "the pm service queues the owner's reply into this Codex session (codex queue)" in res.stdout, res.stdout
     raised = repo.items()["repo-demo.1.3"]["need"]["raised_by"]
     assert raised["session"] == "cx-root" and raised["inbox"] == f"codex-queue:{repo.env['CODEX_HOME']}", raised
     # the Claude Code session itself stores its inbox, and is told the reply is pushed into it
     repo.env = dict(repo.env, CODEX_SESSION_ID="", CLAUDE_CODE_SESSION_ID="cl-1")
-    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    res = repo.pm("decision", "need", "--title", "Site URL", "--sprint", "repo-demo.1", *SITE_URL)
     assert ("the pm service pushes the owner's reply into this session; if the session has ended by then, pm show "
             "flags it for the next one, which reads it with pm reply read repo-demo.1.4;") in res.stdout, \
         res.stdout + res.stderr
     assert repo.items()["repo-demo.1.4"]["need"]["raised_by"]["inbox"] == "/run/claude-parent.sock"
+
+
+def test_a_need_names_its_sprint_or_task_and_a_removed_scope_flag_is_refused(repo):
+    """pm decision need and pm action need take --sprint ID or --task ID, checked against the item's type; the removed
+    --parent, pm decision add --level and pm task add --parent are refused, each naming the flag that replaced it."""
+    assert repo.pm("task", "add", "--sprint", "repo-demo.1", "--title", "Parse").returncode == 0
+    task = "repo-demo.1.3"
+    res = repo.pm("decision", "need", "--title", "Site URL", "--task", task, *SITE_URL)
+    assert res.returncode == 0, res.stderr
+    res = repo.pm("action", "need", "--title", "Restart", "--task", task, text=ACTION)
+    assert res.returncode == 0, res.stderr
+    kinds = sorted(i["need"]["kind"] for i in repo.items().values() if i.get("parent") == task and i.get("need"))
+    assert kinds == ["action", "decision"], kinds
+    repo.mark()
+    refused(repo, "decision", "need", "--title", "Site URL", "--sprint", task, *SITE_URL,
+            match=r"--sprint repo-demo.1.3 is a task, not a sprint; name a sprint with --sprint ID, a task with --task ID")
+    refused(repo, "action", "need", "--title", "Restart", "--sprint", "repo-demo.1", "--task", task,
+            text=ACTION, match=r"an action belongs to one sprint or task: give --sprint ID or --task ID, once")
+    refused(repo, "action", "need", "--pr", PR, "--sprint", "repo-demo.1", "--task", task, "--focus", "F",
+            match=r"--task is not allowed with --pr")
+    sub = "name the sprint with --sprint ID or the task with --task ID"
+    for args, message in (
+            (("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL),
+             f"pm decision need --parent was removed: {sub}"),
+            (("action", "need", "--title", "Restart", "--parent=repo-demo.1", "--text=x"),
+             f"pm action need --parent was removed: {sub}"),
+            (("decision", "add", "--level", "project", "--project", "demo", "--decision", "x", "--reason", "y"),
+             "pm decision add --level was removed: --project NAME or --sprint ID alone names the decision's level"),
+            (("task", "add", "--parent", task, "--title", "T"),
+             "pm task add --parent was removed: a sub-task names its task with --task TASK")):
+        refused(repo, *args, match=re.escape(message))
 
 
 def without(flags: tuple, *drop: tuple[str, str]) -> tuple:
@@ -633,7 +664,7 @@ ANSWER = "Port 8767."
 
 
 def test_a_decision_recorded_for_a_no_decision_need_marks_it_answered(repo):
-    """pm decision close names its undo: a decision that cites the need, which marks it answered."""
+    """pm need close names its undo: a decision that cites the need, which marks it answered."""
     # folded: test_decision_add_refuses_a_malformed_part_and_writes_nothing
     # The decision and its reason are flags, one line each; a malformed one is refused before any write.
     for flags, error in [
@@ -648,7 +679,7 @@ def test_a_decision_recorded_for_a_no_decision_need_marks_it_answered(repo):
         assert repo.unchanged() and repo.store_log() == heads
         assert repo.git("status", "--porcelain", cwd=repo.store) == ""
 
-    res = repo.pm("decision", "close", "repo-demo.1.2", "--reason", "It sets no rule.", text=ANSWER)
+    res = repo.pm("need", "close", "repo-demo.1.2", "--reason", "It sets no rule.", text=ANSWER)
     assert res.returncode == 0, res.stderr
     assert res.stdout.strip().endswith("; if it sets a rule after all, record it with pm decision add --need "
                                        "repo-demo.1.2, which marks the need answered")
@@ -657,6 +688,32 @@ def test_a_decision_recorded_for_a_no_decision_need_marks_it_answered(repo):
     assert res.stdout.startswith("marked need repo-demo.1.2 answered and added a source=owner project decision")
     assert repo.items()["repo-demo.1.2"]["resolution"] == "answered"
     assert repo.pm("check").returncode == 0
+
+
+def test_need_close_closes_each_kind_of_need_and_the_old_close_verbs_are_refused(repo):
+    """pm need close picks the resolution by the need's kind: an action closes as done, a decision need as no-decision
+    with its answer (test above); --dropped closes any open need as dismissed, with no answer. pm decision close, pm
+    action done and pm need dismiss are refused, each naming pm need close."""
+    for verb in (("decision", "close"), ("action", "done"), ("need", "dismiss")):
+        refused(repo, *verb, "repo-demo.1.2", "--reason", "x",
+                match=rf"^error: pm {' '.join(verb)} was removed: .*pm need close ID ")
+    for _ in range(2):
+        assert repo.pm("action", "need", "--title", "Restart", "--sprint", "repo-demo.1", text=ACTION).returncode == 0
+    done, dropped = "repo-demo.1.3", "repo-demo.1.4"
+    repo.mark()
+    refused(repo, "need", "close", done, "--reason", "restarted", "--text=Yes",
+            match=f"{done} is of kind action; only a decision need closes with the owner's answer")
+    refused(repo, "need", "close", dropped, "--dropped", "--reason", "moot", "--text=Yes",
+            match="--dropped closes a need with no answer")
+    res = repo.pm("need", "close", done, "--reason", "restarted")
+    assert res.returncode == 0 and res.stdout == f"closed action {done}: restarted\n", res.stderr
+    res = repo.pm("need", "close", dropped, "--dropped", "--reason", "[TEST] done")
+    assert res.returncode == 0 and res.stdout == f"dismissed {dropped}: [TEST] done\n", res.stderr
+    assert {i: (repo.items()[i]["status"], repo.items()[i]["resolution"]) for i in (done, dropped)} == \
+        {done: ("closed", "done"), dropped: ("closed", "dismissed")}
+    repo.mark()
+    refused(repo, "need", "close", dropped, "--dropped", "--reason", "again",
+            match=f"{dropped} is closed already \\(dismissed\\)")
 
 
 # ---------------------------------------------------------------- pm sprint move
@@ -681,7 +738,7 @@ def test_sprint_move_takes_the_sprint_whole_and_a_rerun_finishes_a_move_cut_shor
     The records step fails after the work-store write (the store's sprints/ read-only: the fault point); pm show is
     consistent then, and the same command run again finishes the move from the move note."""
     site_project(repo)
-    for args in (("decision", "add", "--level", "sprint", "--sprint", "repo-demo.1", "--decision", "Parse first.",
+    for args in (("decision", "add", "--sprint", "repo-demo.1", "--decision", "Parse first.",
                   "--reason", "The site needs tables."), ("finding", "add", "--sprint", "repo-demo.1", "It parses 9 of 10.")):
         assert repo.pm(*args).returncode == 0
     old = (repo.records / "sprints/demo-1.md").read_text()
@@ -831,7 +888,7 @@ def test_the_dates_pm_stamps_hold_the_harness_s_date_after_midnight(repo):
     assert repo.pm("feedback", "add", text="A rule cost a retry.").returncode == 0
     feedback = (repo.records / "docs/pm-feedback.md").read_text()
     assert feedback.startswith(f"---\ntype: doc\ntitle: pm feedback\ndate: {setup}\n---\n\n")
-    res = repo.pm(*ADD[:2], "--level", "sprint", "--sprint", "repo-demo.1", "--decision", DECISION, "--reason", REASON)
+    res = repo.pm(*ADD[:2], "--sprint", "repo-demo.1", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
     record = (repo.records / "sprints/demo-1.md").read_text()
     assert f"::: decision {{source=agent date={setup}}}\n{DECISION}" in record
@@ -875,7 +932,7 @@ def test_design_rename_moves_the_page_and_rewrites_every_link_and_waiver(repo):
     repo.mark()
     refused(repo, "design", "rename", "parser", "--to", "grammar",
             match=r"the open PR review repo-demo\.1\.3 names design page parser \(--design\); close it")
-    assert repo.pm("need", "dismiss", "repo-demo.1.3", "--reason", "[TEST] done").returncode == 0
+    assert repo.pm("need", "close", "repo-demo.1.3", "--dropped", "--reason", "[TEST] done").returncode == 0
     repo.mark()
     refused(repo, "design", "rename", "parser", match="give --to NEW_SLUG, --title")
     refused(repo, "design", "rename", "nope", "--to", "x", match=r'no design page "nope"; known: lexer, parser')
@@ -950,20 +1007,20 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
     repo.set_pr(PR, "OPEN")
     # folded: test_decision_need_refuses_a_malformed_part_and_writes_nothing
     for flags, error in MALFORMED_NEEDS:
-        res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *flags)
+        res = repo.pm("decision", "need", "--title", "Site URL", "--sprint", "repo-demo.1", *flags)
         assert res.returncode != 0 and error in res.stderr, res.stderr
         assert repo.unchanged() and "repo-demo.1.3" not in repo.items()
     # every broken rule is listed in one refusal, each in its own wording, not only the first
-    refused(repo, "decision", "need", "--title", "Site URL", "--parent", "repo-demo.9",
+    refused(repo, "decision", "need", "--title", "Site URL", "--sprint", "repo-demo.9",
             *without(SITE_URL, ("--cost", "a")), "--fact", " ".join(["word"] * 26) + ".",
             match=r"this breaks 3 rules; fix them all, then run it again:\n"
                   r"- option a has no cost; add --cost a '<what it costs>'\n"
                   r"- the sentence \"word word word word word word …\" in fact 3 has 26 words; the limit is 25 "
                   r"\(ASD-STE100\); split it\n"
-                  r"- --parent repo-demo.9 is not in the work store$")
+                  r"- --sprint repo-demo.9 is not in the work store$")
 
-    assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
-    res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
+    assert repo.pm("action", "need", "--title", "Restart", "--sprint", "repo-demo.1", text=ACTION).returncode == 0
+    res = repo.pm("decision", "need", "--title", "Site URL", "--sprint", "repo-demo.1", *SITE_URL)
     assert res.returncode == 0, res.stderr
     # a session pm has no inbox for gets no push: it is told where the reply shows
     assert ("this session gets no push of the owner's reply (no inbox pm can push to): pm show flags it once it is "
@@ -997,7 +1054,7 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
     repo.mark()
     refused(repo, "need", "edit", action, text="Restart it twice.",
             match=f"{action} holds the owner's reply, which answers the body it has; raise a new need")
-    assert repo.pm("need", "dismiss", decision, "--reason", "[TEST] done").returncode == 0
+    assert repo.pm("need", "close", decision, "--dropped", "--reason", "[TEST] done").returncode == 0
     repo.mark()
     refused(repo, "need", "edit", decision, *SITE_URL, match=rf"{decision} is closed \(dismissed\)")
 
@@ -1229,7 +1286,7 @@ def test_write_on_one_branch_is_visible_on_another_without_merge(repo):
             wait_for(lambda: lines, "the merge pushed")
             wait_for(lambda: repo.items()["repo-demo.1.3"]["need"]["review"]["merge_reported"] == sha, "the merge marked")
         assert inbox_text(lines[0]) == (f"pm: PR #7 of review repo-demo.1.3 (Review PR #7) merged to main as {sha}\n"
-                                    f"next: pm action done repo-demo.1.3 --reason \"merged as {sha}\", then update the "
+                                    f"next: pm need close repo-demo.1.3 --reason \"merged as {sha}\", then update the "
                                     f"main checkout: {pull_main(repo)}")
         assert repo.items()["repo-demo.1.3"]["need"]["review"]["merged"] == sha
         assert repo.items()["repo-demo.1.3"]["status"] == "open", "the agent closes the review, not the pm service"
@@ -1244,8 +1301,8 @@ def test_write_on_one_branch_is_visible_on_another_without_merge(repo):
 
 # Every command that once read stdin, with its minimal arguments and a --text it accepts.
 TEXT_COMMANDS = [
-    (["decision", "close", "repo-demo.1.2", "--reason", "sets no rule"], "Small."),
-    (["action", "need", "--title", "Q", "--parent", "repo-demo.1"], "Restart the site: the proxy moved."),
+    (["need", "close", "repo-demo.1.2", "--reason", "sets no rule"], "Small."),
+    (["action", "need", "--title", "Q", "--sprint", "repo-demo.1"], "Restart the site: the proxy moved."),
     (["doc", "new", "probe", "--title", "Probe", "--project", "demo"], "Body."),
     (["project", "open", "fresh", "--title", "Fresh"], "Why we do it."),
     (["sprint", "open", "demo", "--title", "Third"], FRAME),
@@ -1288,7 +1345,7 @@ OPEN_STDIN_ALONE = [text_command(n, t) for n, t in [
     ("action need", False), ("action need", True), ("doc new", False), ("feedback add", False),
     ("project open", False), ("sprint open", False), ("task move", False)]]
 OPEN_STDIN_TOGETHER = [text_command(n, t) for n, t in [
-    ("task move", True), ("decision close", False), ("decision close", True), ("doc new", True),
+    ("task move", True), ("need close", False), ("need close", True), ("doc new", True),
     ("feedback add", True), ("project open", True), ("sprint open", True), ("task add", False), ("task add", True)]]
 
 
@@ -1601,7 +1658,7 @@ def page_token(url: str, page: str = "") -> str:
 def test_reply_on_a_card_is_stored_on_its_issue_as_one_comment(repo, served):
     """A decision's answer and an action's evidence each land on their own issue, which stays open for the agent;
     each reply is one Beads write, the comment, and no label."""
-    assert repo.pm("action", "need", "--title", "Restart the site", "--parent", "repo-demo.1", text=ACTION).returncode == 0
+    assert repo.pm("action", "need", "--title", "Restart the site", "--sprint", "repo-demo.1", text=ACTION).returncode == 0
     day = until_shown(lambda: urllib.request.urlopen(f"{served}/days/2026-10-01.html").read().decode(),
                       lambda p: p.count('<form class="reply" method="post" action="/reply"') == 2, time.time())
     assert '<input type="hidden" name="id" value="repo-demo.1.2">' in day
@@ -1787,7 +1844,7 @@ def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
     raised with its output piped through grep, and a second reply to a request already delivered."""
     with session_inbox() as (inbox, lines):
         env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET=inbox)
-        raise_ = shlex.join([*PM, "decision", "need", *NEED, "--parent", "repo-demo.1"])
+        raise_ = shlex.join([*PM, "decision", "need", *NEED, "--sprint", "repo-demo.1"])
         script = (f"{raise_} --title A >/dev/null && {raise_} --title B >/dev/null && "
                   f"{raise_} --title C | grep -o 'raised decision need [^ ;]*'")
         res = subprocess.run(["bash", "-c", script], cwd=repo.root, env=env, capture_output=True, text=True,
@@ -1824,7 +1881,7 @@ def test_every_reply_is_pushed_into_the_session_that_asked(repo, served):
     # flags it for the next session, and pm reply read prints it once and marks it delivered.
     # (needs repo-demo.1.3 to .1.5 are raised above, so this one is repo-demo.1.6)
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1", CLAUDE_CODE_MESSAGING_SOCKET="/nonexistent/pm/s")
-    assert repo.pm("decision", "need", "--title", "Parser?", "--parent", "repo-demo.1", *NEED).returncode == 0
+    assert repo.pm("decision", "need", "--title", "Parser?", "--sprint", "repo-demo.1", *NEED).returncode == 0
     until_shown(lambda: load(f"{served}/"), lambda p: 'value="repo-demo.1.6"' in p, time.time())
     assert post_reply(served, {"token": page_token(served), "id": "repo-demo.1.6", "text": "Small, until tables."})[0] == 303
     page = until_shown(lambda: load(f"{served}/"), lambda p: "Small, until tables." in p and "Saving" not in p, None)
@@ -1873,11 +1930,11 @@ def test_reply_read_prints_each_undelivered_reply_and_merge_once(repo):
     assert res.stdout == (
         "pm: owner reply to decision repo-demo.1.3 (Parser?), relayed from the site:\n"
         "  [2026-10-03T12:00:00Z] Small, until tables.\n"
-        "next: record the answer: pm decision add --need repo-demo.1.3 --level … --decision '<the answer>' --reason "
-        "'<why>' if it sets a rule, else pm decision close repo-demo.1.3 --reason \"<why it sets no rule>\" "
+        "next: record the answer: pm decision add --need repo-demo.1.3 --sprint ID|--project NAME --decision '<the answer>' --reason "
+        "'<why>' if it sets a rule, else pm need close repo-demo.1.3 --reason \"<why it sets no rule>\" "
         "--text-file - <<'EOF' (the answer, then EOF)\n"
         f"pm: PR #7 of review repo-demo.1.4 (Review PR #7) merged to main as {SHA}\n"
-        f"next: pm action done repo-demo.1.4 --reason \"merged as {SHA}\", then update the main checkout: "
+        f"next: pm need close repo-demo.1.4 --reason \"merged as {SHA}\", then update the main checkout: "
         f"{pull_main(repo)}\n")
     items = repo.items()
     assert {i: list(c) for i, c in repo.changes().items()} == {"repo-demo.1.3": ["need"], "repo-demo.1.4": ["need"]}
@@ -1924,7 +1981,7 @@ def test_show_refresh_inbox_points_a_sessions_needs_at_its_own_inbox(repo):
 
 
 def test_a_need_closed_by_its_decision_or_its_no_decision_close_records_the_session(repo):
-    """pm decision add --need and pm decision close close the need as task close does: closed_by is the session."""
+    """pm decision add --need and pm need close close the need as task close does: closed_by is the session."""
     stamps = {"created_at": "2026-10-01T12:00:00Z", "updated_at": "2026-10-01T12:00:00Z"}
     for nid in ("repo-demo.1.3", "repo-demo.1.4"):
         repo.add_issue({"id": nid, "title": "Parser?", "status": "open", "issue_type": "task",
@@ -1932,7 +1989,7 @@ def test_a_need_closed_by_its_decision_or_its_no_decision_close_records_the_sess
     repo.env = dict(repo.env, CODEX_SESSION_ID="sess-cx")
     res = repo.pm(*ADD, "--need", "repo-demo.1.3", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
-    res = repo.pm("decision", "close", "repo-demo.1.4", "--reason", "It sets no rule.", text="Small, until tables.")
+    res = repo.pm("need", "close", "repo-demo.1.4", "--reason", "It sets no rule.", text="Small, until tables.")
     assert res.returncode == 0, res.stderr
     items = repo.items()
     assert items["repo-demo.1.3"]["closed_by"] == items["repo-demo.1.4"]["closed_by"] == "sess-cx"
@@ -2129,7 +2186,7 @@ def test_push_pushes_beads_and_new_records_commits(pushed):
 STORE_COMMANDS = [
     ["show"], ["show", "--project", "demo"], ["show", "--sprint", "repo-demo.1"], ["show", "repo-demo.1"],
     ["export"], ["check"], ["commit", "-m", "x"], ["day", "summarize"],
-    ["task", "add", "--sprint", "repo-demo.1", "--title", "T"], ["task", "add", "--parent", "repo-demo.1.2",
+    ["task", "add", "--sprint", "repo-demo.1", "--title", "T"], ["task", "add", "--task", "repo-demo.1.2",
                                                                     "--title", "T"],
     ["task", "close", "repo-demo.1.2", "--reason", "x"], ["task", "claim", "repo-demo.1.2"],
     ["task", "move", "repo-demo.1.2", "--to", "repo-demo.2", "--text=a\nb"], ["task", "ready"],
@@ -2144,14 +2201,14 @@ STORE_COMMANDS = [
      "--text=## Goal\n\nx\n\n## Scope\n\n**In:** a.\n\n**Out:** b.\n\n## Done when\n\n- x."],
     ["sprint", "close", "repo-demo.1"], ["sprint", "edit", "repo-demo.1", "--title", "S", "--text=a\nb"],
     ["need", "edit", "repo-demo.1.2", "--text=x"],
-    ["decision", "add", "--level", "project", "--project", "demo", "--decision", "x", "--reason", "y"],
-    ["decision", "need", "--title", "Q?", "--parent", "repo-demo.1", "--question", "q", "--fact", "f",
+    ["decision", "add", "--project", "demo", "--decision", "x", "--reason", "y"],
+    ["decision", "need", "--title", "Q?", "--sprint", "repo-demo.1", "--question", "q", "--fact", "f",
      "--option", "a", "a", "--cost", "a", "c", "--option", "b", "b", "--cost", "b", "c", "--default", "a", "why"],
-    ["decision", "close", "repo-demo.1.2", "--reason", "x", "--text=x"],
-    ["action", "need", "--title", "Do", "--parent", "repo-demo.1", "--text=x"],
-    ["action", "done", "repo-demo.1.2", "--reason", "x"], ["reply", "read", "repo-demo.1.2"],
+    ["need", "close", "repo-demo.1.2", "--reason", "x", "--text=x"],
+    ["action", "need", "--title", "Do", "--sprint", "repo-demo.1", "--text=x"],
+    ["reply", "read", "repo-demo.1.2"],
     ["dep", "add", "repo-demo.1.2", "--on", "repo-demo.2"], ["dep", "rm", "repo-demo.1.2", "--on", "repo-demo.1.1"],
-    ["comment", "add", "repo-demo.1.2", "--text=x"], ["need", "dismiss", "repo-demo.1.2", "--reason", "x"],
+    ["comment", "add", "repo-demo.1.2", "--text=x"], ["need", "close", "repo-demo.1.2", "--dropped", "--reason", "x"],
     ["reply", "add", "repo-demo.1.2", "--text=x"], ["sync"],
 ]
 

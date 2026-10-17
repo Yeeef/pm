@@ -2,7 +2,7 @@ Your reply asks the owner for something that no open request of this session cov
 First do it yourself: read the file, run the command, find the transcript, take the step the rules authorize. Only what only the owner can do is a request.
 Ask each request left in the form that fits what it asks, splitting a mixed ask, then end your reply (it needs no id). A need's parent is the task or sprint it belongs to; if there is none, create one first (pm task add --sprint ID --title "...", or pm sprint open <project> for work no open sprint fits):
 - a question that steers this session (what to do next, confirm a scope or plan, clarify what the owner meant): ask with {ask_tool}, never as a question in plain text; the owner sees it on the site too. With no ask tool (claude -p, a subagent), raise it as a decision need;
-- a decision on a project's or sprint's outcome that later sessions must follow (a design choice, a scope change, a trade-off): pm decision need --title "..." --parent <sprint or task id> --question '...' --fact '...' --option <label> '...' --cost <label> '...' (two or more options) --default <label> '<why>';
-- an action only the owner can do (run, apply, configure, ...): pm action need --title "..." --parent <id> --text-file - <<'EOF', then what to do and why, then EOF;
+- a decision on a project's or sprint's outcome that later sessions must follow (a design choice, a scope change, a trade-off): pm decision need --title "..." --sprint ID (or --task ID) --question '...' --fact '...' --option <label> '...' --cost <label> '...' (two or more options) --default <label> '<why>';
+- an action only the owner can do (run, apply, configure, ...): pm action need --title "..." --sprint ID (or --task ID) --text-file - <<'EOF', then what to do and why, then EOF;
 - a PR review or merge: pm action need --pr URL --sprint ID --focus "...".
 Then end your reply, with no plain-text question to the owner left in it.

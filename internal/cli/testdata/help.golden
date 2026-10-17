@@ -165,40 +165,36 @@ options:
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
   --session ID      the session to record; default: this session's id from the environment
 ===== pm decision --help
-usage: pm decision [-h] {add,need,close} ...
+usage: pm decision [-h] {add,need} ...
 
 positional arguments:
-  {add,need,close}
-    add             append a decision to a project's or sprint's Decisions
-    need            ask the owner for a decision under a sprint or task; its parts as flags
-    close           close a decision need whose answer sets no rule, with no decision record; the answer with --text
+  {add,need}
+    add       append a decision to a project's or sprint's Decisions
+    need      ask the owner for a decision under a sprint or task; its parts as flags
 
 options:
-  -h, --help        show this help message and exit
+  -h, --help  show this help message and exit
 ===== pm decision add --help
-usage: pm decision add [-h] --decision TEXT --reason TEXT
-                       --level {project,sprint} [--project NAME] [--sprint ID]
-                       [--until UNTIL] [--need ID | --confirmed]
+usage: pm decision add [-h] --decision TEXT --reason TEXT (--project NAME |
+                       --sprint ID) [--until UNTIL] [--need ID | --confirmed]
 
-Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.
+Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing the scope: --project NAME if a later sprint must follow it; --sprint ID if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.
 
 options:
-  -h, --help            show this help message and exit
-  --decision TEXT       the decision, in one line
-  --reason TEXT         why it holds, in one line
-  --level {project,sprint}
-                        no default: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse
-  --project NAME        the project record name (with --level project)
-  --sprint ID           the sprint's id (with --level sprint)
-  --until UNTIL         a known condition to revisit the decision
-  --need ID             source=owner: the decision answers this decision need, and closes it if it is open
-  --confirmed           source=owner: the owner confirmed it
+  -h, --help       show this help message and exit
+  --decision TEXT  the decision, in one line
+  --reason TEXT    why it holds, in one line
+  --project NAME   a project decision, in this project's record: a later sprint must follow it
+  --sprint ID      a sprint decision, in this sprint's record: it is about this sprint's own work
+  --until UNTIL    a known condition to revisit the decision
+  --need ID        source=owner: the decision answers this decision need, and closes it if it is open
+  --confirmed      source=owner: the owner confirmed it
 ===== pm decision need --help
 usage: pm decision need [-h] --question TEXT --fact TEXT --option LABEL TEXT
                         --cost LABEL TEXT --default LABEL REASON --title TITLE
-                        --parent ID
+                        (--sprint ID | --task ID)
 
-Raise a decision need under a sprint or task. Its parts are flags, one line each, and stdin is not read: one --question, one or more --fact, two or more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON that names the option taken if the owner does not answer. Put each value in single quotes: in double quotes the shell runs a `code span` as a command. pm writes the description in one Markdown layout and refuses fewer than two options, a repeated label, an option without exactly one cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with pm decision add --need, or close a small answer with pm decision close.
+Raise a decision need under a sprint (--sprint ID) or a task (--task ID). Its parts are flags, one line each, and stdin is not read: one --question, one or more --fact, two or more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON that names the option taken if the owner does not answer. Put each value in single quotes: in double quotes the shell runs a `code span` as a command. pm writes the description in one Markdown layout and refuses fewer than two options, a repeated label, an option without exactly one cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with pm decision add --need, or close a small answer with pm need close.
 
 options:
   -h, --help            show this help message and exit
@@ -209,76 +205,51 @@ options:
   --default LABEL REASON
                         the option taken if the owner does not answer, and why
   --title TITLE
-  --parent ID           the sprint or task the decision belongs to
-===== pm decision close --help
-usage: pm decision close [-h] --reason REASON [--text-file PATH | --text TEXT]
-                         need_id
-
-Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason "…". If setting the resolution fails, run it again; it does not repeat the reason. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.
-
-positional arguments:
-  need_id           the decision need's id
-
-options:
-  -h, --help        show this help message and exit
-  --reason REASON   why the answer sets no rule, in a sentence
-  --text-file PATH  the owner's answer, as they gave it; required unless the owner already closed the need; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
-  --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
+  --sprint ID           the open sprint the decision belongs to
+  --task ID             the open task the decision belongs to
 ===== pm action --help
-usage: pm action [-h] {need,done} ...
+usage: pm action [-h] {need} ...
 
 positional arguments:
-  {need,done}
-    need       ask the owner to do something under a sprint or task, or to review a PR (--pr); description with --text
-    done       close an action once you see the owner did it
+  {need}
+    need      ask the owner to do something under a sprint or task, or to review a PR (--pr); description with --text
 
 options:
-  -h, --help   show this help message and exit
+  -h, --help  show this help message and exit
 ===== pm action need --help
-usage: pm action need [-h] [--title TITLE] [--parent ID] [--pr URL]
+usage: pm action need [-h] [--title TITLE] [--task ID] [--pr URL]
                       [--sprint ID] [--focus FOCUS] [--design SLUG]
                       [--text-file PATH | --text TEXT]
 
-Raise an action under a sprint or task. The description (--text) says what to do and why. With --pr it is a PR review instead: every sprint named must be open with its delivery report written (Outcome and 'Against "Done when"') and committed; a GitHub PR must target the main branch, as a stacked PR's merge does not reach main (raise the review on the PR that does, or retarget it); the review goes under the first and blocks its close until the PR merges and you close the review with pm action done <id> --reason "merged as <sha>"; the site's card links the PR, each sprint's record and delivery report, and the design pages named with --design plus those the sprints' records list, and shows the focus; --text then holds optional extra context. When a design page's covers: match a file the PR changes (GitHub's pull request files API, through gh; a renamed file's old path counts too), it refuses until one of the sprints updated the page and links it in its Design pages, or waived it with pm design unchanged; the review's text then links each covering page. Close it with pm action done once you see it done.
+Raise an action under a sprint (--sprint ID) or a task (--task ID). The description (--text) says what to do and why. With --pr it is a PR review instead: every sprint named must be open with its delivery report written (Outcome and 'Against "Done when"') and committed; a GitHub PR must target the main branch, as a stacked PR's merge does not reach main (raise the review on the PR that does, or retarget it); the review goes under the first and blocks its close until the PR merges and you close the review with pm need close <id> --reason "merged as <sha>"; the site's card links the PR, each sprint's record and delivery report, and the design pages named with --design plus those the sprints' records list, and shows the focus; --text then holds optional extra context. When a design page's covers: match a file the PR changes (GitHub's pull request files API, through gh; a renamed file's old path counts too), it refuses until one of the sprints updated the page and links it in its Design pages, or waived it with pm design unchanged; the review's text then links each covering page. Close it with pm need close once you see it done.
 
 options:
   -h, --help        show this help message and exit
   --title TITLE     required without --pr; with --pr, default: Review PR #<n>
-  --parent ID       the sprint or task the action belongs to (required without --pr; not allowed with it)
+  --task ID         without --pr: the open task the action belongs to, in place of --sprint; not allowed with --pr
   --pr URL          the pull request to review; requires --sprint and --focus
-  --sprint ID       with --pr: an open sprint the PR delivers, its report written (repeatable)
+  --sprint ID       without --pr: the open sprint the action belongs to (once); with --pr: an open sprint the PR delivers, its report written (repeatable)
   --focus FOCUS     with --pr: what to look at first: risky changes, open choices
   --design SLUG     with --pr: a design page behind the PR (repeatable, optional)
   --text-file PATH  without --pr, required: what the owner should do and why; with --pr, optional extra context; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
-===== pm action done --help
-usage: pm action done [-h] --reason REASON need_id
-
-Close an action once you see the owner did it. A PR review closes with --reason "merged as <sha>" once the PR is on main. A review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. Any other closed action is refused. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.
-
-positional arguments:
-  need_id          the action's id
-
-options:
-  -h, --help       show this help message and exit
-  --reason REASON  what showed you it is done (a merged PR, a command's output)
 ===== pm need --help
-usage: pm need [-h] {edit,dismiss} ...
+usage: pm need [-h] {edit,close} ...
 
 positional arguments:
-  {edit,dismiss}
-    edit          rewrite an open action's or decision need's body before the owner replies
-    dismiss       close an open need as dismissed: a [TEST] need, a replaced review, or one that became moot
+  {edit,close}
+    edit        rewrite an open action's or decision need's body before the owner replies
+    close       close a need that sets no rule: a decision need with its answer, an action once done, a PR review once merged, or any need as --dropped
 
 options:
-  -h, --help      show this help message and exit
+  -h, --help    show this help message and exit
 ===== pm need edit --help
 usage: pm need edit [-h] [--text-file PATH | --text TEXT] [--question TEXT]
                     [--fact TEXT] [--option LABEL TEXT] [--cost LABEL TEXT]
                     [--default LABEL REASON]
                     need_id
 
-Rewrite the body of an open need that holds no reply yet: an action's description (--text), or a decision need's parts, given as pm decision need takes them (--question, --fact, --option, --cost, --default; pm decision need --help), which pm lays out and checks the same way. The title stays. Refuses a closed need, a need that holds a reply (the owner answered the body it had: raise a new need and dismiss this one with pm need dismiss), and a PR review, whose card pm builds from its PR, sprints and focus.
+Rewrite the body of an open need that holds no reply yet: an action's description (--text), or a decision need's parts, given as pm decision need takes them (--question, --fact, --option, --cost, --default; pm decision need --help), which pm lays out and checks the same way. The title stays. Refuses a closed need, a need that holds a reply (the owner answered the body it had: raise a new need and close this one with pm need close --dropped), and a PR review, whose card pm builds from its PR, sprints and focus.
 
 positional arguments:
   need_id               the open need's id
@@ -293,17 +264,22 @@ options:
   --cost LABEL TEXT     what the option with this label costs; one for each option
   --default LABEL REASON
                         the option taken if the owner does not answer, and why
-===== pm need dismiss --help
-usage: pm need dismiss [-h] --reason REASON ID
+===== pm need close --help
+usage: pm need close [-h] --reason REASON [--dropped] [--text-file PATH |
+                     --text TEXT]
+                     need_id
 
-Close an open need as dismissed, with no answer: a [TEST] need, a replaced review, or a decision or action that became moot. pm sprint close skips a dismissed review.
+Close a need that sets no rule, with --reason; its kind picks the resolution. A decision need closes as no-decision with the owner's answer as the body, as they gave it (--text or --text-file); on a need the owner already closed, only the resolution and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead; answers that set no rule: a name, a port, which of two equal files; if you are not sure, record a decision. An action closes as done once you see the owner did it. A PR review closes as done with --reason "merged as <sha>" once the PR is on main; a review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. A session's question closes as dismissed: its answer went to the session that asked. --dropped closes any open need as dismissed instead, with no answer: a [TEST] need, a replaced review, or a decision or action that became moot; pm sprint close skips a dismissed review. Except with --dropped or for a question, it refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first. If setting a decision need's resolution fails, run it again; it does not repeat the reason.
 
 positional arguments:
-  ID               the open need's id
+  need_id           the need's id
 
 options:
-  -h, --help       show this help message and exit
-  --reason REASON  why it is dismissed
+  -h, --help        show this help message and exit
+  --reason REASON   why it closes, in a sentence: why the answer sets no rule, what showed you the action done (merged as <sha> for a review), or why it is dropped
+  --dropped         close it as dismissed, with no answer: a [TEST] need, a replaced review, or one that became moot
+  --text-file PATH  a decision need's answer, as the owner gave it; required for an open decision need; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
+  --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
 ===== pm reply --help
 usage: pm reply [-h] {read,add} ...
 
@@ -456,12 +432,12 @@ options:
   -h, --help    show this help message and exit
 ===== pm project open --help
 usage: pm project open [-h] --title TITLE [--text-file PATH | --text TEXT]
-                       name
+                       project
 
 Create a project epic and its record, with the Goal from --text. The owner confirms the goal in their own words before you open the project; a request from the owner that states the goal confirms it.
 
 positional arguments:
-  name
+  project           the project's name
 
 options:
   -h, --help        show this help message and exit
@@ -469,12 +445,12 @@ options:
   --text-file PATH  required: the project's Goal; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
 ===== pm project close --help
-usage: pm project close [-h] name
+usage: pm project close [-h] project
 
 Close a project epic at the committed records. Close every sprint first. Write the record's '## Outcome' first, by hand: the results against the goal in numbers, what was learned, what was retired, and links to the sprints' delivery reports.
 
 positional arguments:
-  name
+  project     the project's name
 
 options:
   -h, --help  show this help message and exit
@@ -509,7 +485,7 @@ usage: pm sprint close [-h] [--merged SHA] [--pr URL] [--discard SLUG]
                        [--reason REASON]
                        sprint_id
 
-Close a sprint epic at the committed records. Refuses until the Delivery report is written and every task is closed, and each PR review naming the sprint is closed with pm action done <id> --reason "merged as <sha>" once its PR is on main; it asks GitHub only for the files each PR changes, and refuses, as pm action need --pr does, while a design page covering one is neither updated nor waived with pm design unchanged (with --merged and no --pr, the files a merge commit brought against its first parent; a commit with one parent, a squash or rebase merge, is refused there, as its delivery cannot be told, so give --pr). A PR an agent merged has no review: --merged SHA [--pr URL] gives its merge commit, which must be on the remote's main branch (pm fetches it first), and stamps 'Merged as <sha>.' ('Merged as <sha> (PR #N).' with --pr); it refuses a sprint that holds a PR review, whose close stamps the merge instead. Then it publishes the sprint's design pages: every page a draft commit of this clone tags with the sprint (pm commit drafts them in a worktree's records workspace), from every worktree and every drafts/ branch whose worktree is gone, merged onto the records branch. It refuses, changing nothing, while this worktree's records workspace has uncommitted edits to a page the sprint links; while a draft overlaps what the records branch published since the draft's base, or another draft of the sprint, naming the commits or the branch and the fix (a pm write in that worktree brings the records branch in, leaving conflict markers to resolve and pm commit); and while a page to publish has a covers: pattern that matches no file on the remote's main (fetched): fix the pattern, or merge the PR that adds the file first. --discard SLUG --reason "…" drops the sprint's drafts of that page instead, puts back this workspace's uncommitted edits to it, and records the reason as pm design unchanged does; repeat both for several pages. One records commit then holds the pages, the 'Merged as' stamp in the Outcome for each review, and the waivers; the drafts lose the published pages, a drafts/ branch with no worktree left empty is deleted, and the close reason names the commit. A sprint with no PR publishes the same way. Run again after a stop, it finds nothing left to publish. Only the Outcome's first paragraph becomes the close reason.
+Close a sprint epic at the committed records. Refuses until the Delivery report is written and every task is closed, and each PR review naming the sprint is closed with pm need close <id> --reason "merged as <sha>" once its PR is on main; it asks GitHub only for the files each PR changes, and refuses, as pm action need --pr does, while a design page covering one is neither updated nor waived with pm design unchanged (with --merged and no --pr, the files a merge commit brought against its first parent; a commit with one parent, a squash or rebase merge, is refused there, as its delivery cannot be told, so give --pr). A PR an agent merged has no review: --merged SHA [--pr URL] gives its merge commit, which must be on the remote's main branch (pm fetches it first), and stamps 'Merged as <sha>.' ('Merged as <sha> (PR #N).' with --pr); it refuses a sprint that holds a PR review, whose close stamps the merge instead. Then it publishes the sprint's design pages: every page a draft commit of this clone tags with the sprint (pm commit drafts them in a worktree's records workspace), from every worktree and every drafts/ branch whose worktree is gone, merged onto the records branch. It refuses, changing nothing, while this worktree's records workspace has uncommitted edits to a page the sprint links; while a draft overlaps what the records branch published since the draft's base, or another draft of the sprint, naming the commits or the branch and the fix (a pm write in that worktree brings the records branch in, leaving conflict markers to resolve and pm commit); and while a page to publish has a covers: pattern that matches no file on the remote's main (fetched): fix the pattern, or merge the PR that adds the file first. --discard SLUG --reason "…" drops the sprint's drafts of that page instead, puts back this workspace's uncommitted edits to it, and records the reason as pm design unchanged does; repeat both for several pages. One records commit then holds the pages, the 'Merged as' stamp in the Outcome for each review, and the waivers; the drafts lose the published pages, a drafts/ branch with no worktree left empty is deleted, and the close reason names the commit. A sprint with no PR publishes the same way. Run again after a stop, it finds nothing left to publish. Only the Outcome's first paragraph becomes the close reason.
 
 positional arguments:
   sprint_id        the sprint's id
@@ -553,7 +529,7 @@ usage: pm task [-h] {add,close,claim,move,ready,edit,release} ...
 
 positional arguments:
   {add,close,claim,move,ready,edit,release}
-    add                 create a task in an open sprint, or a sub-task (--parent); description with --text (optional)
+    add                 create a task in an open sprint, or a sub-task (--task); description with --text (optional)
     close               close a task with a reason naming its commit, or drop it
     claim               claim a task for this agent session
     move                move a task to another open sprint, or into a sprint from directly under a project; reason with --text
@@ -564,15 +540,15 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
 ===== pm task add --help
-usage: pm task add [-h] (--sprint ID | --parent TASK) --title TITLE
+usage: pm task add [-h] (--sprint ID | --task TASK) --title TITLE
                    [--text-file PATH | --text TEXT]
 
-Create a task in an open sprint. pm task add --parent TASK --title TITLE, in place of --sprint, adds a sub-task under the open task TASK instead (pm task add --parent TASK --help).
+Create a task in an open sprint. pm task add --task TASK --title TITLE, in place of --sprint, adds a sub-task under the open task TASK instead (pm task add --task TASK --help).
 
 options:
   -h, --help        show this help message and exit
   --sprint ID       the open sprint's id
-  --parent TASK     the open task a sub-task is a part of, in place of --sprint (pm task add --parent TASK --help)
+  --task TASK       the open task a sub-task is a part of, in place of --sprint (pm task add --task TASK --help)
   --title TITLE
   --text-file PATH  optional: the task's description; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file

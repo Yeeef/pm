@@ -19,20 +19,10 @@ func noteAuthor() string {
 	return "owner"
 }
 
-func cmdActionDone(e *env, p *Parsed) (string, error) {
-	reason := strip(p.Get("reason"))
-	if reason == "" {
-		return "", refuse("--reason is empty; say what showed you the owner did it")
-	}
-	r, err := e.load(false)
-	if err != nil {
-		return "", err
-	}
-	id := p.Get("need_id")
-	need, err := r.humanIssue(id, "action")
-	if err != nil {
-		return "", err
-	}
+// closeAction closes an action or PR review as done, once the session saw it done; a review closed without "merged
+// as <sha>" takes that reason later (restampReview).
+func closeAction(e *env, r *repo, need *work.Item, reason string) (string, error) {
+	id := need.ID
 	if need.Status == work.Closed {
 		return restampReview(e, r, need, reason)
 	}
@@ -63,7 +53,7 @@ func restampReview(e *env, r *repo, need *work.Item, reason string) (string, err
 	m := mergedAs.FindStringSubmatch(reason)
 	if m == nil {
 		return "", refuse("review %s is closed as %s, without 'merged as <sha>'; once its work is on main, restamp it "+
-			"with pm action done %s --reason \"merged as <sha>\"", id, strconv.Quote(old), id)
+			"with pm need close %s --reason \"merged as <sha>\"", id, strconv.Quote(old), id)
 	}
 	if _, err := onMain(e, "merged as", m[1]); err != nil {
 		return "", err

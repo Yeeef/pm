@@ -47,7 +47,7 @@ func reviewPR(n *work.Item) string {
 }
 
 // siteReplies is a need's owner replies, oldest first: its comments of kind reply made before it closed. The reply
-// work.Answer writes as a session records the answer (pm decision add --need, pm decision close) is stamped with the
+// work.Answer writes as a session records the answer (pm decision add --need, pm need close) is stamped with the
 // close itself and is the session's own: it is no reply to deliver, as bd's "Response:" note is none for Python pm.
 func siteReplies(n *work.Item) []work.Comment {
 	var out []work.Comment
@@ -118,11 +118,11 @@ func (t Texts) replyText(n *work.Item, replies []work.Comment) string {
 	case k == "question":
 		next = "it answers the question you asked; go on with it (an answer to a question records no decision)"
 	case k == "decision":
-		next = fmt.Sprintf("record the answer: pm decision add --need %s --level … --decision '<the answer>' "+
-			"--reason '<why>' if it sets a rule, else pm decision close %s --reason \"<why it sets no rule>\" "+
+		next = fmt.Sprintf("record the answer: pm decision add --need %s --sprint ID|--project NAME --decision '<the answer>' "+
+			"--reason '<why>' if it sets a rule, else pm need close %s --reason \"<why it sets no rule>\" "+
 			"--text-file - <<'EOF' (the answer, then EOF)", id, id)
 	default:
-		next = fmt.Sprintf("check the evidence, then pm action done %s --reason \"<what you saw>\", or ask again if it "+
+		next = fmt.Sprintf("check the evidence, then pm need close %s --reason \"<what you saw>\", or ask again if it "+
 			"falls short", id)
 		if reviewPR(n) != "" {
 			next += "; once its PR is on main, update the main checkout: " + t.pullMain()
@@ -142,7 +142,7 @@ func (t Texts) mergeText(n *work.Item, sha string) string {
 	if m := prNumber.FindStringSubmatch(pr); m != nil {
 		pr = "#" + m[1]
 	}
-	return fmt.Sprintf("pm: PR %s of review %s (%s) merged to %s as %s\nnext: pm action done %s --reason \"merged as "+
+	return fmt.Sprintf("pm: PR %s of review %s (%s) merged to %s as %s\nnext: pm need close %s --reason \"merged as "+
 		"%s\", then update the main checkout: %s", pr, n.ID, n.Title, t.MainBranch, sha, n.ID, sha, t.pullMain())
 }
 

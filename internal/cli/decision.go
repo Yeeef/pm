@@ -10,19 +10,12 @@ import (
 	"strings"
 )
 
-// decisionTarget is the open project or sprint record a decision of --level goes into, named by its flag.
-func (r *repo) decisionTarget(p *Parsed) (*records.Record, error) {
-	level := p.Get("level") // required by the parser
-	flag, other := "--sprint", "--project"
-	if level == "project" {
-		flag, other = "--project", "--sprint"
-	}
-	if _, ok := given(p, other[2:]); ok {
-		return nil, refuse("%s does not match --level %s; name the target with %s", other, level, flag)
-	}
-	target, ok := given(p, flag[2:])
-	if !ok {
-		return nil, refuse("--level %s needs %s; nothing is inferred", level, flag)
+// decisionTarget is the open project or sprint record a decision goes into, named by --project or --sprint (the
+// parser requires one), and its level: the flag's name.
+func (r *repo) decisionTarget(p *Parsed) (*records.Record, string, error) {
+	level, target := "project", p.Get("project")
+	if sprint, ok := given(p, "sprint"); ok {
+		level, target = "sprint", sprint
 	}
 	var rec *records.Record
 	var err error
@@ -32,15 +25,15 @@ func (r *repo) decisionTarget(p *Parsed) (*records.Record, error) {
 		rec, err = r.sprint(target)
 	}
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	bead := rec.Bead()
 	if it := r.item(bead); it == nil {
-		return nil, refuse("%s %s has bead %s, which is not in the work store", level, target, bead)
+		return nil, "", refuse("%s %s has bead %s, which is not in the work store", level, target, bead)
 	} else if it.Status == work.Closed {
-		return nil, refuse("%s %s (%s) is closed; record the decision in an open %s", level, target, bead, level)
+		return nil, "", refuse("%s %s (%s) is closed; record the decision in an open %s", level, target, bead, level)
 	}
-	return rec, nil
+	return rec, level, nil
 }
 
 // decisionLine is one part of a decision given by its flag: one non-empty line that opens no block.
@@ -75,7 +68,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	rec, err := r.decisionTarget(p)
+	rec, level, err := r.decisionTarget(p)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +94,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	done := fmt.Sprintf("added a source=%s %s decision to %s", source, p.Get("level"), r.rel(rec.Path))
+	done := fmt.Sprintf("added a source=%s %s decision to %s", source, level, r.rel(rec.Path))
 	w := []store.Write{{Path: rec.Path, Text: updated}}
 	if need != nil && need.Resolution == work.NoDecision { // a rule after all: it is answered, as its decision says
 		cited := *need
@@ -153,21 +146,10 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 // noDecision is the note a need gets when its answer sets no rule.
 const noDecisionNote = "No decision record: "
 
-func cmdDecisionClose(e *env, p *Parsed) (string, error) {
-	answer := p.Get("text")
-	why := strip(p.Get("reason"))
-	if why == "" {
-		return "", refuse("--reason is empty; say why the answer sets no rule")
-	}
-	r, err := e.load(false)
-	if err != nil {
-		return "", err
-	}
-	id := p.Get("need_id")
-	need, err := r.humanIssue(id, "decision")
-	if err != nil {
-		return "", err
-	}
+// closeDecisionNeed closes a decision need whose answer sets no rule as no-decision, with the owner's answer; on a
+// need the owner already closed, it sets only the resolution and the reason, as a comment.
+func closeDecisionNeed(e *env, r *repo, need *work.Item, why, answer string) (string, error) {
+	id := need.ID
 	if need.Resolution == work.NoDecision {
 		return "", refuse("need %s is already marked no-decision", id)
 	}
@@ -176,7 +158,7 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 	}
 	if need.Status != work.Closed && answer == "" {
 		return "", refuse("the answer is empty; pass the owner's answer, as they gave it, with %s; a need that became "+
-			"moot before the owner answered closes with pm need dismiss %s --reason \"…\"", textForms, id)
+			"moot before the owner answered closes with pm need close %s --dropped --reason \"…\"", textForms, id)
 	}
 	if err := refuseUnread(need); err != nil {
 		return "", err
@@ -198,7 +180,7 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	retry := fmt.Sprintf("run the same command again to label it: pm decision close %s --reason \"%s\"", id, why)
+	retry := fmt.Sprintf("run the same command again to label it: pm need close %s --reason \"%s\"", id, why)
 	var done, failed string
 	if need.Status == work.Closed {
 		if !slices.ContainsFunc(need.Comments, func(c work.Comment) bool { return strings.Contains(c.Text, note) }) {
@@ -229,7 +211,7 @@ func (r *repo) decisionSource(p *Parsed, body string) (string, string, *work.Ite
 	var need *work.Item
 	needID, withNeed := given(p, "need")
 	if withNeed && needID != "" {
-		if need, err = r.humanIssue(needID, "decision"); err != nil {
+		if need, err = r.decisionNeed(needID); err != nil {
 			return "", "", nil, err
 		}
 		if need.Status == work.Closed && need.Resolution == work.Dismissed {

@@ -19,7 +19,7 @@ const (
 	Shape = "a decision need takes its parts as flags, one line each: one --question, one or more --fact, two or " +
 		"more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON naming " +
 		"the option taken if the owner does not answer. Put each value in single quotes, so code spans stay, e.g.:\n" +
-		"  pm decision need --title 'Where the site URL lives' --parent ID \\\n" +
+		"  pm decision need --title 'Where the site URL lives' --sprint ID \\\n" +
 		"    --question 'Where does pm keep the public site URL?' \\\n" +
 		"    --fact 'Today, each clone keeps the URL in its git config.' \\\n" +
 		"    --fact 'You asked why the URL is not in `.pm/config.toml`.' \\\n" +

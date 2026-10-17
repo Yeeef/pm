@@ -5,7 +5,7 @@
 // has its own file (task.go, sprint.go, decision.go, …), the setup package holds pm init, doctor, upgrade and
 // uninstall, the clean package pm clean, needform a decision need's parts, rules and layout, and fsutil the path
 // helpers cli and setup share. store_commands.go holds the work-store commands' bodies, and the forms show ID and task
-// add --parent TASK, the one argv Execute routes before the tree (storeFormOf); their --help goes through the tree's
+// add --task TASK, the one argv Execute routes before the tree (storeFormOf); their --help goes through the tree's
 // renderer (storeHelpCommand). Every command pm runs is in the tree, so in pm --help --all (pm --help leaves out the
 // Hidden machinery): commands_test.go fails otherwise.
 // help_golden_test.go holds every command's --help to testdata/help.golden, and doc_test.go fails on a func whose doc
@@ -64,8 +64,23 @@ type refusal struct{ msg string }
 
 func (r *refusal) Error() string { return r.msg }
 
+// removedForms are the forms the naming grammar (the pm-cli design page, Naming) removed.
+var removedForms = []parse.Removed{
+	{Path: "decision need", Flag: "--parent", Instead: "name the sprint with --sprint ID or the task with --task ID"},
+	{Path: "action need", Flag: "--parent", Instead: "name the sprint with --sprint ID or the task with --task ID"},
+	{Path: "decision add", Flag: "--level", Instead: "--project NAME or --sprint ID alone names the decision's level"},
+	{Path: "task add", Flag: "--parent", Instead: "a sub-task names its task with --task TASK"},
+	{Path: "decision close", Instead: "pm need close ID --reason \"…\", the answer as --text or --text-file"},
+	{Path: "action done", Instead: "pm need close ID --reason \"…\" (a PR review: --reason \"merged as <sha>\")"},
+	{Path: "need dismiss", Instead: "pm need close ID --dropped --reason \"…\" closes a need that became moot"},
+}
+
 // Execute runs pm with argv (without the program name) and returns the exit code.
 func Execute(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if msg := parse.RefuseRemoved(argv, removedForms); msg != "" {
+		fmt.Fprintf(stderr, "error: %s\n", msg)
+		return 2
+	}
 	// every command that may act as a session, the self-parsing ones included, refuses an ambiguous one first; a hook
 	// reads its session from its input (and fails open), and help and version act as none
 	if len(argv) > 0 && argv[0] != "hook" && argv[0] != "prime" && argv[0] != "version" &&

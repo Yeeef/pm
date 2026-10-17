@@ -18,8 +18,8 @@ import (
 	"slices"
 )
 
-// The work-store commands: task ready, edit and release, dep add and rm, comment add, need dismiss, reply add and sync,
-// leaves of the command tree in commands.go, and two forms of tree commands, pm show ID and pm task add --parent TASK.
+// The work-store commands: task ready, edit and release, dep add and rm, comment add, reply add and sync,
+// leaves of the command tree in commands.go, and two forms of tree commands, pm show ID and pm task add --task TASK.
 // Each parses its own arguments with pflag and prints its own help, connects to the pm service that holds the store
 // once, and disconnects at exit.
 
@@ -47,7 +47,7 @@ type storeCall struct {
 }
 
 // storeForms are the two forms of tree commands that are work-store commands: pm show with an item id, and pm task
-// add with --parent. Their tree command's help names them.
+// add with --task. Their tree command's help names them.
 var storeForms = map[string]*storeCommand{
 	"show ID": {
 		usage: "show ID [--json]",
@@ -57,12 +57,12 @@ var storeForms = map[string]*storeCommand{
 		id:    "the item's id, any type",
 		run:   showItem,
 	},
-	"task add --parent": {
-		usage: "task add --parent TASK --title TITLE [--text TEXT | --text-file FILE]",
+	"task add --task": {
+		usage: "task add --task TASK --title TITLE [--text TEXT | --text-file FILE]",
 		about: "Add a sub-task under the open task TASK; a sprint's task is pm task add --sprint ID. Its description " +
 			"is the body: --text, or --text-file - <<'EOF' … EOF.",
 		flags: func(fs *pflag.FlagSet) {
-			fs.String("parent", "", "the open task it is a part of (required)")
+			fs.String("task", "", "the open task it is a part of (required)")
 			fs.String("title", "", "the sub-task's title (required)")
 			textFlags(fs, "the description")
 		},
@@ -98,15 +98,15 @@ func textFlags(fs *pflag.FlagSet, what string) {
 }
 
 // storeFormOf is the form argv names, if any, and its arguments after the name: pm show with an id first, and pm task
-// add with --parent. Any other pm show or pm task add is the command tree's.
+// add with --task. Any other pm show or pm task add is the command tree's.
 func storeFormOf(argv []string) (string, []string, bool) {
 	if len(argv) >= 2 && argv[0] == "show" && !strings.HasPrefix(argv[1], "-") {
 		return "show ID", argv[1:], true
 	}
 	if len(argv) >= 2 && argv[0] == "task" && argv[1] == "add" {
 		for _, a := range argv[2:] {
-			if a == "--parent" || strings.HasPrefix(a, "--parent=") {
-				return "task add --parent", argv[2:], true
+			if a == "--task" || strings.HasPrefix(a, "--task=") {
+				return "task add --task", argv[2:], true
 			}
 		}
 	}
@@ -419,11 +419,11 @@ func showItem(c *storeCall) error {
 	return err
 }
 
-// subTaskAdd is pm task add --parent TASK: a sub-task under an open task.
+// subTaskAdd is pm task add --task TASK: a sub-task under an open task.
 func subTaskAdd(c *storeCall) error {
-	parent, title := strings.TrimSpace(c.flag("parent")), strings.TrimSpace(c.flag("title"))
+	parent, title := strings.TrimSpace(c.flag("task")), strings.TrimSpace(c.flag("title"))
 	if parent == "" {
-		return errors.New("--parent TASK is empty")
+		return errors.New("--task TASK is empty")
 	}
 	if title == "" {
 		return errors.New("--title is required")
@@ -540,21 +540,6 @@ func (c *storeCall) openNeed(id string) error {
 	if it.Status != work.Open {
 		return fmt.Errorf("%s is closed already (%s)", id, it.Resolution)
 	}
-	return nil
-}
-
-func needDismiss(c *storeCall) error {
-	id, reason := c.args[0], strings.TrimSpace(c.flag("reason"))
-	if reason == "" {
-		return errors.New("--reason REASON is required")
-	}
-	if err := c.openNeed(id); err != nil {
-		return err
-	}
-	if err := c.d.Close(id, reason, work.Dismissed, c.session); err != nil {
-		return err
-	}
-	fmt.Fprintf(c.stdout, "dismissed %s\n", id)
 	return nil
 }
 

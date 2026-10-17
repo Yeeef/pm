@@ -326,7 +326,7 @@ func TestShowIDPrintsTheItemItsHolderBlockersChildrenNeedsAndComments(t *testing
 
 func TestTaskAddParentAddsASubTaskUnderAnOpenTask(t *testing.T) {
 	f := newFixture(t)
-	out := must(f.run("the body\n", "task", "add", "--parent", f.t1.ID, "--title", "part one", "--text-file", "-"))
+	out := must(f.run("the body\n", "task", "add", "--task", f.t1.ID, "--title", "part one", "--text-file", "-"))
 	id := f.t1.ID + ".2" // .1 is the need under it
 	if out != "created task "+id+" under task "+f.t1.ID+"; claim it with pm task claim "+id+"\n" {
 		t.Fatalf("out = %q", out)
@@ -334,9 +334,9 @@ func TestTaskAddParentAddsASubTaskUnderAnOpenTask(t *testing.T) {
 	if it := f.get(id); it.Type != work.Task || it.Parent != f.t1.ID || it.Title != "part one" || it.Description != "the body" {
 		t.Fatalf("made %+v", it)
 	}
-	f.refuses("is a sprint, not a task", "task", "add", "--parent", f.s1.ID, "--title", "x")
-	f.refuses("task "+f.closed.ID+" is closed", "task", "add", "--parent", f.closed.ID, "--title", "x")
-	f.refuses("--title is required", "task", "add", "--parent", f.t1.ID)
+	f.refuses("is a sprint, not a task", "task", "add", "--task", f.s1.ID, "--title", "x")
+	f.refuses("task "+f.closed.ID+" is closed", "task", "add", "--task", f.closed.ID, "--title", "x")
+	f.refuses("--title is required", "task", "add", "--task", f.t1.ID)
 	if _, _, ok := storeFormOf([]string{"task", "add", "--sprint", f.s1.ID, "--title", "x"}); ok {
 		t.Error("pm task add --sprint is the command tree's")
 	}
