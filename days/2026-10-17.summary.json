@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T20:02:58+00:00",
- "digest": "82c2402f5470942d",
+ "generated_at": "2026-10-17T20:13:22+00:00",
+ "digest": "d8d632f981c68330",
  "model": "claude-haiku-5-5",
- "text": "- **Codex auto mode:** pm init enables Codex auto mode in the repo's tracked config file. pm doctor names a host where Codex's sandbox cannot start, with its cause and fix. Uninstall removes only pm's values and leaves the rest of the file unchanged.\n- **Repo search:** pm search finds earlier sprints, decisions, and design sections by topic. The search index design page sets out stages, each with a measured trigger. Every ranking change must pass an evaluation against rg.\n- **Owner questions and modes:** Ask-tool questions from sessions now appear on the site under \"Sessions ask you.\" You can answer them on the site or in chat; the first answer reaches the session. pm interactive and pm autopilot set a per-session mode that disables the owner-request judge.\n- **Agent command surface:** The most common agent failures on pm's commands are removed. pm --help and prime.md now show the commands agents use."
+ "text": "- **Agent session tools:** Ask-tool questions now appear on the site, and the first answer reaches the session. Per-session modes now turn off the owner-request judge, and a new design-page index prints at sprint open.\n- **Codex auto mode:** pm sets up Codex auto mode in a repo's tracked config file. `pm doctor` names a host where the Codex sandbox cannot start, and it gives the fix.\n- **Command surface:** Commands share one scope vocabulary, and `need close` replaces older close verbs. A test now checks every command against the naming grammar.\n- **Record search:** `pm search` finds past sprints, decisions and design sections by topic. A new design page plans how search grows, and a retrieval eval gates every ranking change."
 }
