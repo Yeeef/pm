@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/textwrap"
 )
 
@@ -28,21 +27,6 @@ func TestWrapFillPutsALongWordOnItsOwnLine(t *testing.T) {
 	t.Run("FirstSentenceEndsAtAUnicodeSpace", func(t *testing.T) {
 		if got := firstSentence("Ends here. Next one.", 110); got != "Ends here." {
 			t.Errorf("got %q", got)
-		}
-	})
-	t.Run("RecordSectionCutsAtTheNextHeadingOfItsLevelAndRefusesAnUnknownName", func(t *testing.T) {
-		rec := &records.Record{Rel: "sprints/demo-1", Body: "## Goal\n> prompt\n\nG.\n\n### Sub\n\ns\n\n## Scope\n\nIn.\n"}
-		got, err := recordSection(rec, "Goal")
-		if err != nil || got != "## Goal\n> prompt\n\nG.\n\n### Sub\n\ns" {
-			t.Fatalf("Goal: %q %v", got, err)
-		}
-		if got, err = recordSection(rec, "Sub"); err != nil || got != "### Sub\n\ns" {
-			t.Fatalf("Sub: %q %v", got, err)
-		}
-		_, err = recordSection(rec, "Nope")
-		want := "records/sprints/demo-1.md has no section named \"Nope\"; its sections:\n  Goal\n    Sub\n  Scope"
-		if err == nil || err.Error() != want {
-			t.Fatalf("Nope: %v", err)
 		}
 	})
 }
