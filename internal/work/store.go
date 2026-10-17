@@ -22,9 +22,9 @@ type Store interface {
 	Edit(id string, title, description *string) error
 	// Close closes an open item: its reason, resolution and closing session; it clears the holder.
 	Close(id, reason string, resolution Resolution, session string) error
-	// SetResolution sets a closed item's resolution (pm decision close marks a closed need no-decision).
+	// SetResolution sets a closed item's resolution (pm need close marks a closed need no-decision).
 	SetResolution(id string, resolution Resolution) error
-	// SetCloseReason sets a closed item's close reason (pm action done restamps a closed PR review with its merge).
+	// SetCloseReason sets a closed item's close reason (pm need close restamps a closed PR review with its merge).
 	SetCloseReason(id, reason string) error
 	// Move gives a task or a need a new parent; its id stays.
 	Move(id, parent string) error

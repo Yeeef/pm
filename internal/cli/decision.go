@@ -148,21 +148,10 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 // noDecision is the note a need gets when its answer sets no rule.
 const noDecisionNote = "No decision record: "
 
-func cmdDecisionClose(e *env, p *Parsed) (string, error) {
-	answer := p.Get("text")
-	why := strip(p.Get("reason"))
-	if why == "" {
-		return "", refuse("--reason is empty; say why the answer sets no rule")
-	}
-	r, err := e.load(false)
-	if err != nil {
-		return "", err
-	}
-	id := p.Get("need_id")
-	need, err := r.humanIssue(id, "decision")
-	if err != nil {
-		return "", err
-	}
+// closeDecisionNeed closes a decision need whose answer sets no rule as no-decision, with the owner's answer; on a
+// need the owner already closed, it sets only the resolution and the reason, as a comment.
+func closeDecisionNeed(e *env, r *repo, need *work.Item, why, answer string) (string, error) {
+	id := need.ID
 	if need.Resolution == work.NoDecision {
 		return "", refuse("need %s is already marked no-decision", id)
 	}
@@ -171,7 +160,7 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 	}
 	if need.Status != work.Closed && answer == "" {
 		return "", refuse("the answer is empty; pass the owner's answer, as they gave it, with %s; a need that became "+
-			"moot before the owner answered closes with pm need dismiss %s --reason \"…\"", textForms, id)
+			"moot before the owner answered closes with pm need close %s --dropped --reason \"…\"", textForms, id)
 	}
 	if err := refuseUnread(need); err != nil {
 		return "", err
@@ -193,7 +182,7 @@ func cmdDecisionClose(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	retry := fmt.Sprintf("run the same command again to label it: pm decision close %s --reason \"%s\"", id, why)
+	retry := fmt.Sprintf("run the same command again to label it: pm need close %s --reason \"%s\"", id, why)
 	var done, failed string
 	if need.Status == work.Closed {
 		if !slices.ContainsFunc(need.Comments, func(c work.Comment) bool { return strings.Contains(c.Text, note) }) {

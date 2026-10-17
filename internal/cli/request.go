@@ -152,11 +152,11 @@ func raiseNeed(e *env, p *Parsed, kind work.NeedKind) (string, error) {
 	}
 	id := made.ID
 	if kind == work.Action {
-		return fmt.Sprintf("raised action %s under %s; %s; once you see the owner has done it: pm action done %s "+
+		return fmt.Sprintf("raised action %s under %s; %s; once you see the owner has done it: pm need close %s "+
 			"--reason \"<what you saw>\"", id, parentID, deliveryHint(id), id), nil
 	}
 	return fmt.Sprintf("raised decision need %s under %s; %s; once the owner answers: pm decision add --need %s "+
-		"--sprint ID|--project NAME --decision '<the answer>' --reason '<why>' if it sets a rule, else pm decision close %s --reason "+
+		"--sprint ID|--project NAME --decision '<the answer>' --reason '<why>' if it sets a rule, else pm need close %s --reason "+
 		"\"<why it sets no rule>\" --text-file - <<'EOF' (the answer, then EOF)", id, parentID, deliveryHint(id), id, id), nil
 }
 

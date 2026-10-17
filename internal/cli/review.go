@@ -102,7 +102,7 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("raised review %s under %s; %s; the pm service pushes the PR's merge to main the same way; once "+
-		"the PR is on main: pm action done %s --reason \"merged as <sha>\"", made.ID, parent, deliveryHint(made.ID),
+		"the PR is on main: pm need close %s --reason \"merged as <sha>\"", made.ID, parent, deliveryHint(made.ID),
 		made.ID), nil
 }
 

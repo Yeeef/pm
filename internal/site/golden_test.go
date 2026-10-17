@@ -303,7 +303,7 @@ func TestCheckRefusesEachBrokenRecord(t *testing.T) {
 		{"no-project", map[string]string{"design/parser.md": strings.Replace(design, "project: demo", "project: nowhere", 1)}, nil,
 			"design/parser: no project record found"},
 		{"uncited-need", nil, []string{uncited},
-			`need demo.1.9 (Pick a parser) is closed but no decision cites it; record the owner's answer with pm decision add --need demo.1.9, or, if the answer sets no rule, close it with pm decision close demo.1.9 --reason "<why>"`},
+			`need demo.1.9 (Pick a parser) is closed but no decision cites it; record the owner's answer with pm decision add --need demo.1.9, or, if the answer sets no rule, close it with pm need close demo.1.9 --reason "<why>"`},
 		{"uncited-question", nil, []string{strings.Replace(uncited, `"kind": "decision", "raised_by": null`,
 			`"kind": "question", "raised_by": {"session": "s1", "inbox": null, "host": null}`, 1)},
 			"no error"}, // a question's answer steers its session and sets no rule a decision cites

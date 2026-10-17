@@ -76,6 +76,11 @@ var removedForms = []removedForm{
 	{"action need", "--parent", "name the sprint with --sprint ID or the task with --task ID"},
 	{"decision add", "--level", "--project NAME or --sprint ID alone names the decision's level"},
 	{"task add", "--parent", "a sub-task names its task with --task TASK"},
+	{"decision close", "", "a decision need whose answer sets no rule closes with pm need close ID --reason \"…\" " +
+		"and the answer as --text or --text-file"},
+	{"action done", "", "an action closes with pm need close ID --reason \"…\", a PR review with --reason " +
+		"\"merged as <sha>\""},
+	{"need dismiss", "", "a need that became moot closes with pm need close ID --dropped --reason \"…\""},
 }
 
 // refuseRemoved is the refusal of a removed form argv uses, "" when it uses none.

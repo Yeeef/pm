@@ -60,7 +60,7 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 	}
 	if work.HasReply(need) {
 		return "", refuse("%s holds the owner's reply, which answers the body it has; raise a new need for the changed "+
-			"ask, and close this one with pm need dismiss %s --reason \"…\"", id, id)
+			"ask, and close this one with pm need close %s --dropped --reason \"…\"", id, id)
 	}
 	parts := needform.Text(p.Values)
 	_, textGiven := given(p, "text")
@@ -69,10 +69,10 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 	switch need.Need.Kind {
 	case work.Question:
 		return "", refuse("%s is a session's question, whose card pm builds from the ask tool's call; ask again with the "+
-			"ask tool and dismiss this one with pm need dismiss %s --reason \"…\"", id, id)
+			"ask tool and close this one with pm need close %s --reason \"…\"", id, id)
 	case work.Review:
 		return "", refuse("%s is a PR review, whose card pm builds from its PR, sprints and focus; raise the review "+
-			"again with %s and dismiss this one with pm need dismiss %s --reason \"…\"", id, reviewForm, id)
+			"again with %s and close this one with pm need close %s --dropped --reason \"…\"", id, reviewForm, id)
 	case work.Action:
 		if parts != "" {
 			return "", refuse("%s is an action; its body is the description, given with %s, not a decision need's "+
@@ -111,6 +111,67 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 
 // ---------------------------------------------------------------- answering needs
 
+// cmdNeedClose closes a need that sets no rule, its resolution picked by its kind: a decision need as no-decision with
+// the owner's answer, an action or PR review as done, a question as dismissed; --dropped closes any open need as
+// dismissed, with no answer.
+func cmdNeedClose(e *env, p *Parsed) (string, error) {
+	id, reason := p.Get("need_id"), strip(p.Get("reason"))
+	_, answered := given(p, "text")
+	dropped := p.Get("dropped") != ""
+	if dropped && answered {
+		return "", refuse("--dropped closes a need with no answer; drop %s", textForms)
+	}
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	need := r.item(id)
+	if need == nil {
+		return "", refuse("%s is not in the work store", id)
+	}
+	if need.Type != work.Need {
+		return "", refuse("%s is a %s, not a need; a task closes with pm task close, a sprint with pm sprint close", id,
+			need.Type)
+	}
+	kind := site.Kind(need)
+	if answered && kind != "decision" {
+		return "", refuse("%s is %s; only a decision need closes with the owner's answer: drop %s", id,
+			map[string]string{"action": "an action", "question": "a session's question"}[kind], textForms)
+	}
+	switch {
+	case dropped || kind == "question":
+		if reason == "" {
+			return "", refuse("--reason is empty; say why it is dropped")
+		}
+		return dismissNeed(e, need, reason)
+	case kind == "action":
+		if reason == "" {
+			return "", refuse("--reason is empty; say what showed you the owner did it")
+		}
+		return closeAction(e, r, need, reason)
+	default:
+		if reason == "" {
+			return "", refuse("--reason is empty; say why the answer sets no rule")
+		}
+		return closeDecisionNeed(e, r, need, reason, p.Get("text"))
+	}
+}
+
+// dismissNeed closes an open need as dismissed, with no answer: pm sprint close skips a dismissed review.
+func dismissNeed(e *env, need *work.Item, reason string) (string, error) {
+	if need.Status != work.Open {
+		return "", refuse("%s is closed already (%s)", need.ID, need.Resolution)
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	if err := ws.Close(need.ID, reason, work.Dismissed, currentSession()); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("dismissed %s: %s", need.ID, reason), nil
+}
+
 // humanIssue is the need id, refused unless it waits for want (decision or action); a question never does.
 func (r *repo) humanIssue(id, want string) (*work.Item, error) {
 	need := r.item(id)
@@ -124,12 +185,12 @@ func (r *repo) humanIssue(id, want string) (*work.Item, error) {
 	if k := site.Kind(need); k != want {
 		if k == "question" {
 			return nil, refuse("%s is a session's question, whose answer goes to the session that asked and records no "+
-				"decision; close it with pm need dismiss %s --reason \"…\"", id, id)
+				"decision; close it with pm need close %s --reason \"…\"", id, id)
 		}
 		if k == "action" {
-			return nil, refuse("%s is an action; close it with pm action done %s", id, id)
+			return nil, refuse("%s is an action; close it with pm need close %s --reason \"…\"", id, id)
 		}
-		return nil, refuse("%s is a decision need; answer it with pm decision add --need %s, or pm decision close %s if "+
+		return nil, refuse("%s is a decision need; answer it with pm decision add --need %s, or pm need close %s if "+
 			"the answer sets no rule", id, id, id)
 	}
 	return need, nil

@@ -11,9 +11,9 @@ import (
 	"github.com/Yeeef/pm/internal/work/worktest"
 )
 
-// A session's question is no decision or action: pm need edit, pm decision add --need, pm decision close and pm
-// action done each refuse it, naming pm need dismiss; pm show lists it with its kind, and a question asked outside any
-// task at the top level.
+// A session's question is no decision or action: pm need edit and pm decision add --need refuse it, naming pm need
+// close, which refuses an answer for it and closes it as dismissed; pm show lists it with its kind, and a question asked
+// outside any task at the top level.
 
 // questionItems is a project, a sprint, a task, a question under the task and one under nothing.
 func questionItems() []work.Item {
@@ -36,7 +36,7 @@ func questionItems() []work.Item {
 	}
 }
 
-func TestAQuestionIsClosedOnlyByNeedDismiss(t *testing.T) {
+func TestAQuestionIsClosedOnlyAsDismissed(t *testing.T) {
 	items := questionItems()
 	if err := work.Check(items); err != nil {
 		t.Fatal(err)
@@ -62,14 +62,18 @@ func TestAQuestionIsClosedOnlyByNeedDismiss(t *testing.T) {
 	for _, id := range []string{"demo-pxy.1.1.1", "demo-ask1"} {
 		_, _, _, addErr := r.decisionSource(args("need", id), "d\nr")
 		_, editErr := cmdNeedEdit(e, args("need_id", id, "text", "a new body"))
-		_, closeErr := cmdDecisionClose(e, args("need_id", id, "reason", "no rule", "text", "Yes"))
-		_, doneErr := cmdActionDone(e, args("need_id", id, "reason", "seen"))
+		_, answerErr := cmdNeedClose(e, args("need_id", id, "reason", "no rule", "text", "Yes"))
 		for name, err := range map[string]error{"decision add --need": addErr, "need edit": editErr,
-			"decision close": closeErr, "action done": doneErr} {
+			"need close --text": answerErr} {
 			if err == nil || !strings.Contains(err.Error(), "session's question") ||
-				!strings.Contains(err.Error(), "pm need dismiss "+id) {
+				name != "need close --text" && !strings.Contains(err.Error(), "pm need close "+id) {
 				t.Errorf("pm %s %s: %v", name, id, err)
 			}
+		}
+		// pm need close without an answer dismisses it: it reaches the store's close, which this store refuses
+		if _, err := cmdNeedClose(e, args("need_id", id, "reason", "moot")); err == nil ||
+			!strings.Contains(err.Error(), "read-only") {
+			t.Errorf("pm need close %s: %v", id, err)
 		}
 	}
 }

@@ -1192,7 +1192,7 @@ func (d *Dolt) Close(id, reason string, resolution Resolution, session string) e
 	})
 }
 
-// SetResolution sets a closed item's resolution (pm decision close marks a closed need no-decision).
+// SetResolution sets a closed item's resolution (pm need close marks a closed need no-decision).
 func (d *Dolt) SetResolution(id string, resolution Resolution) error {
 	return d.update("set the resolution of", id, func(it *Item, _ *Index) error {
 		if it.Status != Closed {
@@ -1203,7 +1203,7 @@ func (d *Dolt) SetResolution(id string, resolution Resolution) error {
 	})
 }
 
-// SetCloseReason sets a closed item's close reason (pm action done restamps a closed PR review with its merge).
+// SetCloseReason sets a closed item's close reason (pm need close restamps a closed PR review with its merge).
 func (d *Dolt) SetCloseReason(id, reason string) error {
 	return d.update("set the close reason of", id, func(it *Item, _ *Index) error {
 		if it.Status != Closed {

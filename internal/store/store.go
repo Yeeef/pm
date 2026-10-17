@@ -97,7 +97,7 @@ func Git(dir string, args ...string) (string, error) {
 }
 
 // FetchMain fetches the remote's main branch in the checkout root into its remote-tracking ref, which it returns
-// (refs/remotes/<remote>/<branch>): what pm sprint close and pm action done check a merge against.
+// (refs/remotes/<remote>/<branch>): what pm sprint close and pm need close check a merge against.
 func FetchMain(root, remote, branch string) (string, error) {
 	ref := "refs/remotes/" + remote + "/" + branch
 	_, err := Git(root, "fetch", "--quiet", remote, "+refs/heads/"+branch+":"+ref)

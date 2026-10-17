@@ -158,7 +158,7 @@ func checkMergeCloseFieldsFromTheEarlierClose(t *testing.T) {
 }
 
 func checkMergeResolutionNotNullThenLaterUpdatedAt(t *testing.T) {
-	// A closed need: one side marks it no-decision after the close (pm decision close), the other leaves it; then
+	// A closed need: one side marks it no-decision after the close (pm need close), the other leaves it; then
 	// both set it, and the later updated_at wins.
 	b, o, th := sides(5, 9)
 	for _, it := range []*Item{&b, &o, &th} {

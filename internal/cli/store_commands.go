@@ -18,7 +18,7 @@ import (
 	"slices"
 )
 
-// The work-store commands: task ready, edit and release, dep add and rm, comment add, need dismiss, reply add and sync,
+// The work-store commands: task ready, edit and release, dep add and rm, comment add, reply add and sync,
 // leaves of the command tree in commands.go, and two forms of tree commands, pm show ID and pm task add --task TASK.
 // Each parses its own arguments with pflag and prints its own help, connects to the pm service that holds the store
 // once, and disconnects at exit.
@@ -540,21 +540,6 @@ func (c *storeCall) openNeed(id string) error {
 	if it.Status != work.Open {
 		return fmt.Errorf("%s is closed already (%s)", id, it.Resolution)
 	}
-	return nil
-}
-
-func needDismiss(c *storeCall) error {
-	id, reason := c.args[0], strings.TrimSpace(c.flag("reason"))
-	if reason == "" {
-		return errors.New("--reason REASON is required")
-	}
-	if err := c.openNeed(id); err != nil {
-		return err
-	}
-	if err := c.d.Close(id, reason, work.Dismissed, c.session); err != nil {
-		return err
-	}
-	fmt.Fprintf(c.stdout, "dismissed %s\n", id)
 	return nil
 }
 

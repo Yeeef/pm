@@ -1382,7 +1382,7 @@ func CheckNeedsAnswered(recs []*Record, items *Items, ids map[string]bool) error
 		}
 		if inside && !cited {
 			return errorf("need %s (%s) is closed but no decision cites it; record the owner's answer with pm "+
-				"decision add --need %s, or, if the answer sets no rule, close it with pm decision close %s --reason "+
+				"decision add --need %s, or, if the answer sets no rule, close it with pm need close %s --reason "+
 				"\"<why>\"", it.ID, it.Title, it.ID, it.ID)
 		}
 	}

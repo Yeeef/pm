@@ -121,7 +121,7 @@ var tree = &command{
 					Name:        "need",
 					Help:        "ask the owner for a decision under a sprint or task; its parts as flags",
 					Groups:      []bool{true},
-					Description: "Raise a decision need under a sprint (--sprint ID) or a task (--task ID). Its parts are flags, one line each, and stdin is not read: one --question, one or more --fact, two or more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON that names the option taken if the owner does not answer. Put each value in single quotes: in double quotes the shell runs a `code span` as a command. pm writes the description in one Markdown layout and refuses fewer than two options, a repeated label, an option without exactly one cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with pm decision add --need, or close a small answer with pm decision close.",
+					Description: "Raise a decision need under a sprint (--sprint ID) or a task (--task ID). Its parts are flags, one line each, and stdin is not read: one --question, one or more --fact, two or more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON that names the option taken if the owner does not answer. Put each value in single quotes: in double quotes the shell runs a `code span` as a command. pm writes the description in one Markdown layout and refuses fewer than two options, a repeated label, an option without exactly one cost, a cost or default that names no option, and a sentence of more than 25 words. Record the answer with pm decision add --need, or close a small answer with pm need close.",
 					Args: []arg{
 						{Flags: []string{"--question"}, Dest: "question", Metavar: []string{"TEXT"}, Required: true, Kind: repeated, Help: "what the owner decides, as one question"},
 						{Flags: []string{"--fact"}, Dest: "fact", Metavar: []string{"TEXT"}, Required: true, Kind: repeated, Help: "a fact the owner needs to decide; repeat it for each fact"},
@@ -131,18 +131,6 @@ var tree = &command{
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the open sprint the decision belongs to"},
 						{Flags: []string{"--task"}, Dest: "task", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the open task the decision belongs to"},
-					},
-				},
-				{
-					Name:        "close",
-					Help:        "close a decision need whose answer sets no rule, with no decision record; the answer with --text",
-					Description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason \"…\". If setting the resolution fails, run it again; it does not repeat the reason. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
-					Groups:      []bool{false},
-					Args: []arg{
-						{Dest: "need_id", Required: true, Kind: value, Help: "the decision need's id"},
-						{Flags: []string{"--reason"}, Dest: "reason", Required: true, Kind: value, Help: "why the answer sets no rule, in a sentence"},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "the owner's answer, as they gave it; required unless the owner already closed the need; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
-						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
 			},
@@ -155,7 +143,7 @@ var tree = &command{
 				{
 					Name:        "need",
 					Help:        "ask the owner to do something under a sprint or task, or to review a PR (--pr); description with --text",
-					Description: "Raise an action under a sprint (--sprint ID) or a task (--task ID). The description (--text) says what to do and why. With --pr it is a PR review instead: every sprint named must be open with its delivery report written (Outcome and 'Against \"Done when\"') and committed; a GitHub PR must target the main branch, as a stacked PR's merge does not reach main (raise the review on the PR that does, or retarget it); the review goes under the first and blocks its close until the PR merges and you close the review with pm action done <id> --reason \"merged as <sha>\"; the site's card links the PR, each sprint's record and delivery report, and the design pages named with --design plus those the sprints' records list, and shows the focus; --text then holds optional extra context. When a design page's covers: match a file the PR changes (GitHub's pull request files API, through gh; a renamed file's old path counts too), it refuses until one of the sprints updated the page and links it in its Design pages, or waived it with pm design unchanged; the review's text then links each covering page. Close it with pm action done once you see it done.",
+					Description: "Raise an action under a sprint (--sprint ID) or a task (--task ID). The description (--text) says what to do and why. With --pr it is a PR review instead: every sprint named must be open with its delivery report written (Outcome and 'Against \"Done when\"') and committed; a GitHub PR must target the main branch, as a stacked PR's merge does not reach main (raise the review on the PR that does, or retarget it); the review goes under the first and blocks its close until the PR merges and you close the review with pm need close <id> --reason \"merged as <sha>\"; the site's card links the PR, each sprint's record and delivery report, and the design pages named with --design plus those the sprints' records list, and shows the focus; --text then holds optional extra context. When a design page's covers: match a file the PR changes (GitHub's pull request files API, through gh; a renamed file's old path counts too), it refuses until one of the sprints updated the page and links it in its Design pages, or waived it with pm design unchanged; the review's text then links each covering page. Close it with pm need close once you see it done.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Flags: []string{"--title"}, Dest: "title", Kind: value, Help: "required without --pr; with --pr, default: Review PR #<n>"},
@@ -168,15 +156,6 @@ var tree = &command{
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
-				{
-					Name:        "done",
-					Help:        "close an action once you see the owner did it",
-					Description: "Close an action once you see the owner did it. A PR review closes with --reason \"merged as <sha>\" once the PR is on main. A review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. Any other closed action is refused. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
-					Args: []arg{
-						{Dest: "need_id", Required: true, Kind: value, Help: "the action's id"},
-						{Flags: []string{"--reason"}, Dest: "reason", Required: true, Kind: value, Help: "what showed you it is done (a merged PR, a command's output)"},
-					},
-				},
 			},
 		},
 		{
@@ -187,7 +166,7 @@ var tree = &command{
 				{
 					Name:        "edit",
 					Help:        "rewrite an open action's or decision need's body before the owner replies",
-					Description: "Rewrite the body of an open need that holds no reply yet: an action's description (--text), or a decision need's parts, given as pm decision need takes them (--question, --fact, --option, --cost, --default; pm decision need --help), which pm lays out and checks the same way. The title stays. Refuses a closed need, a need that holds a reply (the owner answered the body it had: raise a new need and dismiss this one with pm need dismiss), and a PR review, whose card pm builds from its PR, sprints and focus.",
+					Description: "Rewrite the body of an open need that holds no reply yet: an action's description (--text), or a decision need's parts, given as pm decision need takes them (--question, --fact, --option, --cost, --default; pm decision need --help), which pm lays out and checks the same way. The title stays. Refuses a closed need, a need that holds a reply (the owner answered the body it had: raise a new need and close this one with pm need close --dropped), and a PR review, whose card pm builds from its PR, sprints and focus.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "need_id", Required: true, Kind: value, Help: "the open need's id"},
@@ -201,14 +180,16 @@ var tree = &command{
 					},
 				},
 				{
-					Name: "dismiss",
-					Help: "close an open need as dismissed: a [TEST] need, a replaced review, or one that became moot",
-					Store: &storeCommand{
-						usage: "need dismiss ID --reason REASON",
-						about: "Close an open need as dismissed, with no answer: a [TEST] need, a replaced review, or a decision or action that became moot. pm sprint close skips a dismissed review.",
-						flags: func(fs *pflag.FlagSet) { fs.String("reason", "", "why it is dismissed (required)") },
-						id:    "the open need's id",
-						run:   needDismiss,
+					Name:        "close",
+					Help:        "close a need that sets no rule: a decision need with its answer, an action once done, a PR review once merged, or any need as --dropped",
+					Description: "Close a need that sets no rule, with --reason; its kind picks the resolution. A decision need closes as no-decision with the owner's answer as the body, as they gave it (--text or --text-file); on a need the owner already closed, only the resolution and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead; answers that set no rule: a name, a port, which of two equal files; if you are not sure, record a decision. An action closes as done once you see the owner did it. A PR review closes as done with --reason \"merged as <sha>\" once the PR is on main; a review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. A session's question closes as dismissed: its answer went to the session that asked. --dropped closes any open need as dismissed instead, with no answer: a [TEST] need, a replaced review, or a decision or action that became moot; pm sprint close skips a dismissed review. Except with --dropped or for a question, it refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first. If setting a decision need's resolution fails, run it again; it does not repeat the reason.",
+					Groups:      []bool{false},
+					Args: []arg{
+						{Dest: "need_id", Required: true, Kind: value, Help: "the need's id"},
+						{Flags: []string{"--reason"}, Dest: "reason", Required: true, Kind: value, Help: "why it closes, in a sentence: why the answer sets no rule, what showed you the action done (merged as <sha> for a review), or why it is dropped"},
+						{Flags: []string{"--dropped"}, Dest: "dropped", Kind: switchOn, Help: "close it as dismissed, with no answer: a [TEST] need, a replaced review, or one that became moot"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "a decision need's answer, as the owner gave it; required for an open decision need; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
 			},
@@ -373,7 +354,7 @@ var tree = &command{
 				{
 					Name:        "close",
 					Help:        "close a sprint epic once its report is written, every task is closed and each PR review is closed as merged",
-					Description: "Close a sprint epic at the committed records. Refuses until the Delivery report is written and every task is closed, and each PR review naming the sprint is closed with pm action done <id> --reason \"merged as <sha>\" once its PR is on main; it asks GitHub only for the files each PR changes, and refuses, as pm action need --pr does, while a design page covering one is neither updated nor waived with pm design unchanged (with --merged and no --pr, the files a merge commit brought against its first parent; a commit with one parent, a squash or rebase merge, is refused there, as its delivery cannot be told, so give --pr). A PR an agent merged has no review: --merged SHA [--pr URL] gives its merge commit, which must be on the remote's main branch (pm fetches it first), and stamps 'Merged as <sha>.' ('Merged as <sha> (PR #N).' with --pr); it refuses a sprint that holds a PR review, whose close stamps the merge instead. Then it publishes the sprint's design pages: every page a draft commit of this clone tags with the sprint (pm commit drafts them in a worktree's records workspace), from every worktree and every drafts/ branch whose worktree is gone, merged onto the records branch. It refuses, changing nothing, while this worktree's records workspace has uncommitted edits to a page the sprint links; while a draft overlaps what the records branch published since the draft's base, or another draft of the sprint, naming the commits or the branch and the fix (a pm write in that worktree brings the records branch in, leaving conflict markers to resolve and pm commit); and while a page to publish has a covers: pattern that matches no file on the remote's main (fetched): fix the pattern, or merge the PR that adds the file first. --discard SLUG --reason \"…\" drops the sprint's drafts of that page instead, puts back this workspace's uncommitted edits to it, and records the reason as pm design unchanged does; repeat both for several pages. One records commit then holds the pages, the 'Merged as' stamp in the Outcome for each review, and the waivers; the drafts lose the published pages, a drafts/ branch with no worktree left empty is deleted, and the close reason names the commit. A sprint with no PR publishes the same way. Run again after a stop, it finds nothing left to publish. Only the Outcome's first paragraph becomes the close reason.",
+					Description: "Close a sprint epic at the committed records. Refuses until the Delivery report is written and every task is closed, and each PR review naming the sprint is closed with pm need close <id> --reason \"merged as <sha>\" once its PR is on main; it asks GitHub only for the files each PR changes, and refuses, as pm action need --pr does, while a design page covering one is neither updated nor waived with pm design unchanged (with --merged and no --pr, the files a merge commit brought against its first parent; a commit with one parent, a squash or rebase merge, is refused there, as its delivery cannot be told, so give --pr). A PR an agent merged has no review: --merged SHA [--pr URL] gives its merge commit, which must be on the remote's main branch (pm fetches it first), and stamps 'Merged as <sha>.' ('Merged as <sha> (PR #N).' with --pr); it refuses a sprint that holds a PR review, whose close stamps the merge instead. Then it publishes the sprint's design pages: every page a draft commit of this clone tags with the sprint (pm commit drafts them in a worktree's records workspace), from every worktree and every drafts/ branch whose worktree is gone, merged onto the records branch. It refuses, changing nothing, while this worktree's records workspace has uncommitted edits to a page the sprint links; while a draft overlaps what the records branch published since the draft's base, or another draft of the sprint, naming the commits or the branch and the fix (a pm write in that worktree brings the records branch in, leaving conflict markers to resolve and pm commit); and while a page to publish has a covers: pattern that matches no file on the remote's main (fetched): fix the pattern, or merge the PR that adds the file first. --discard SLUG --reason \"…\" drops the sprint's drafts of that page instead, puts back this workspace's uncommitted edits to it, and records the reason as pm design unchanged does; repeat both for several pages. One records commit then holds the pages, the 'Merged as' stamp in the Outcome for each review, and the waivers; the drafts lose the published pages, a drafts/ branch with no worktree left empty is deleted, and the close reason names the commit. A sprint with no PR publishes the same way. Run again after a stop, it finds nothing left to publish. Only the Outcome's first paragraph becomes the close reason.",
 					Args: []arg{
 						{Dest: "sprint_id", Required: true, Kind: value, Help: "the sprint's id"},
 						{Flags: []string{"--merged"}, Dest: "merged", Metavar: []string{"SHA"}, Kind: value, Help: "the merge commit of the sprint's PR, merged with no PR review: a commit on the remote's main branch"},

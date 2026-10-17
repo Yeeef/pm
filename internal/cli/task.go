@@ -61,8 +61,8 @@ func cmdTaskClose(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	if task.Type == work.Need {
-		return "", refuse("%s is a need; answer a decision with pm decision add --need %s (or pm "+
-			"decision close if the answer sets no rule), close an action with pm action done %s", id, id, id)
+		return "", refuse("%s is a need; record a decision it answers with pm decision add --need %s, and close a need "+
+			"that sets no rule with pm need close %s --reason \"…\"", id, id, id)
 	}
 	if err := heldElsewhere(id, task, currentSession(),
 		" to close it, or to release it with pm task release "+id); err != nil {

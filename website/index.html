@@ -154,7 +154,7 @@
 <span class="t-gap"></span><span class="t-p">$ </span><span class="t-cmd">pm task close acme-q1.3.4 --reason "Parser done"</span>
 <span class="t-err">error:</span> acme-q1.3.4 is held by live session 5f0c2d1e-8a7b-4c3d-9e2f-1a6b7c8d9e0f (claimed 12m ago; its transcript was written in the last 30 minutes); leave it, or ask that session to close it, or to release it with pm task release acme-q1.3.4
 <span class="t-gap"></span><span class="t-p">$ </span><span class="t-cmd">pm sprint close acme-q1.3</span>
-<span class="t-err">error:</span> open tasks in the sprint: acme-q1.3.5 (in_progress); close each with pm task close or move it with pm task move (a PR review closes with pm action done &lt;id&gt; --reason "merged as &lt;sha&gt;" once the PR is on main)
+<span class="t-err">error:</span> open tasks in the sprint: acme-q1.3.5 (in_progress); close each with pm task close or move it with pm task move (a PR review closes with pm need close &lt;id&gt; --reason "merged as &lt;sha&gt;" once the PR is on main)
 <span class="t-gap"></span><span class="t-p">$ </span><span class="t-cmd">pm decision need --title "Cache layer" --sprint acme-q1.3 --question '…' --fact '…' --option redis '…' --cost redis '…' --default redis '…'</span>
 <span class="t-err">error:</span> give at least two --option flags; a decision needs a choice; a decision need takes its parts as flags, one line each: <span class="t-dim">…</span>
 <span class="t-gap"></span><span class="t-hook">Stop hook · pm hook owner-request · blocked</span>
