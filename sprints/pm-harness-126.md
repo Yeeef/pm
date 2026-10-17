@@ -68,6 +68,11 @@ The design page pm-product stays as it is for this sprint's code changes.
 One clause in prime.md; what pm is as a product and how it installs are unchanged.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page reply-delivery stays as it is for this sprint's code changes.
+show.go only calls the heading parser from its new home in internal/records; reply delivery is untouched.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
