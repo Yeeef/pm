@@ -46,7 +46,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=owner date=2026-10-17}
+The sprint also designs and runs an evaluation of pm search against rg.
+The owner asked how pm search beats rg; the index is worth building only if search beats grep.
+:::
 
 ## Findings
 
