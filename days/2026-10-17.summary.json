@@ -1,7 +1,7 @@
 {
  "date": "2026-10-17",
- "generated_at": "2026-10-17T20:34:31+00:00",
- "digest": "79c304b38b86288a",
+ "generated_at": "2026-10-17T22:05:28+00:00",
+ "digest": "1439627d66a86213",
  "model": "claude-haiku-5-5",
- "text": "- **Codex auto mode:** pm init now turns on Codex auto mode in the repo's tracked config file. pm doctor also names a host where the Codex sandbox cannot start.\n- **Site and session modes:** The site now serves on networks without Cloudflare, and agent questions can be answered there. Sessions can run in interactive or autopilot mode, which turns off the owner-request judge.\n- **Search and design pages:** pm search finds earlier sprints, decisions and design sections by topic. A new search design page sets when an index is needed, based on measured growth.\n- **Command grammar and tests:** Every command now takes the same scope flags, and one verb closes a need. Harness date checks read a pinned clock, so runs that cross midnight pass."
+ "text": "- **Owner questions and access:** The site serves on networks without Cloudflare, and read-only views appear when access is none. Agent questions now appear on the site, and per-session modes turn off the owner-request judge.\n- **Codex auto mode:** pm init sets Codex to auto mode in the repo's tracked config file. pm doctor now names a host where Codex's sandbox cannot start.\n- **Search and agent context:** pm search finds earlier sprints, decisions and design sections by topic, and it is in owner review. A new design page plans how search scales, with an evaluation against rg that gates ranking changes.\n- **Command naming grammar:** Every pm command now uses one scope vocabulary: --sprint, --task and --project. pm need close replaces older verbs for closing needs, and a test checks new commands follow the grammar."
 }
