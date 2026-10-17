@@ -8,6 +8,7 @@ second clone) and `pushed` (a bare origin plus a second clone, for pm push)."""
 from __future__ import annotations
 
 import contextlib
+import datetime
 import functools
 import json
 import os
@@ -560,7 +561,7 @@ def test_check_holds_covers_to_main_and_lists_uncovered_sources(repo):
 DECISION = "Use the small parser."
 REASON = "It is enough for the record set and adds no dependency."
 ADD = ("decision", "add", "--level", "project", "--project", "demo")
-TODAY = __import__("datetime").date.today().isoformat()
+TODAY = os.environ["PM_TEST_TODAY"]  # the date pm stamps, which conftest pins for the run
 
 
 NEED = ("--question", "Which parser should we use?", "--fact", "Records hold no tables yet.",
@@ -818,6 +819,25 @@ def test_sprint_edit_renames_the_sprint_in_both_stores_and_records_why(repo):
     repo.mark()
     refused(repo, "sprint", "edit", "repo-demo.2", "--title", "Later", text=RENAME_REASON,
             match="sprint repo-demo.2 is closed; only an open sprint is renamed")
+
+
+def test_the_dates_pm_stamps_hold_the_harness_s_date_after_midnight(repo):
+    """The run that failed PR #104's CI took TODAY before midnight and had pm write after it. Here the harness's date
+    is the day before the wall clock's, as when TODAY was taken at 23:59:59 and pm writes at 00:00:01: the feedback
+    doc's date, a sprint decision (pm decision add; pm sprint edit and pm design unchanged write theirs the same way)
+    and a doc's name all carry the harness's date, so the tests' TODAY still matches."""
+    setup = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    repo.env = dict(repo.env, PM_TEST_TODAY=setup, CLAUDE_CODE_SESSION_ID="sess-1")
+    assert repo.pm("feedback", "add", text="A rule cost a retry.").returncode == 0
+    feedback = (repo.records / "docs/pm-feedback.md").read_text()
+    assert feedback.startswith(f"---\ntype: doc\ntitle: pm feedback\ndate: {setup}\n---\n\n")
+    res = repo.pm(*ADD[:2], "--level", "sprint", "--sprint", "repo-demo.1", "--decision", DECISION, "--reason", REASON)
+    assert res.returncode == 0, res.stderr
+    record = (repo.records / "sprints/demo-1.md").read_text()
+    assert f"::: decision {{source=agent date={setup}}}\n{DECISION}" in record
+    res = repo.pm("doc", "new", "probe", "--title", "Probe", "--project", "demo", text="Body.")
+    assert res.returncode == 0 and res.stdout == f"created records/docs/{setup}-probe.md\n", res.stderr
+    assert repo.pm("check").returncode == 0
 
 
 def design_and_doc_to_rename(repo):

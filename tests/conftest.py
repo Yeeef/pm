@@ -20,7 +20,8 @@ served by a per-test pm service; the pm under test is the Go binary `make go-bui
   bytes), puts .go first on the test process's own PATH for the git hooks pm installs, and points its HOME,
   CODEX_HOME, CLAUDE_CONFIG_DIR and XDG_CONFIG_HOME at a temp dir, so git and the pm hooks it runs never touch the
   user's files; an autouse check fails a test that changes the user's Codex config or pm service units. REAL keeps
-  the user's own values, which the live evals run with.
+  the user's own values, which the live evals run with. It pins PM_TEST_TODAY, the date pm stamps on records
+  (store.Today), to the run's start: a test compares a date pm wrote only with that pin, never with its own clock.
 - light_unless_integration (autouse) fails a test not marked `integration` that starts what integration_only names:
   the pm service, the whole site (Repo.pages), a clone's setup (pm init, upgrade, uninstall, doctor), a git remote
   (clone, fetch, pull, push, a bare repo), pm push, or the session-start hook (pm prime without --rules,
@@ -33,6 +34,7 @@ served by a per-test pm service; the pm under test is the Go binary `make go-bui
 from __future__ import annotations
 
 import contextlib
+import datetime
 import json
 import os
 import re
@@ -653,6 +655,9 @@ def pytest_configure(config):
     home = config.pm_home = Path(tempfile.mkdtemp(prefix="pm-tests-home-"))
     # the pm under test first on PATH, for what runs `pm` with the inherited environment: the git hooks pm installs
     os.environ["PATH"] = f"{BIN}{os.pathsep}{os.environ['PATH']}"
+    # one date for the whole run, the xdist workers taking the controller's: pm stamps it and the tests expect it, so a
+    # run that crosses midnight cannot split them
+    os.environ.setdefault("PM_TEST_TODAY", datetime.date.today().isoformat())
     os.environ.update(HOME=str(home / "home"), CODEX_HOME=str(home / "codex"), CLAUDE_CONFIG_DIR=str(home / "claude"),
                       XDG_CONFIG_HOME=str(home / "home/.config"), XDG_DATA_HOME=str(home / "home/.local/share"),
                       **UV_DIRS)
