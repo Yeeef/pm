@@ -29,6 +29,38 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.6] - 2026-10-17
+
+Every command names its scope with `--sprint`, `--task` or `--project`, and one verb, `pm need close`, closes a need
+that sets no rule.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.6/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.6`, then commit what it changes and merge it, as an ordinary PR.
+
+### Breaking changes
+
+- A need names its sprint or task with `--sprint ID` or `--task ID`, in place of `--parent`, and a decision's
+  level is the scope flag alone. Migration:
+  `pm decision need --parent ID …` → `pm decision need --sprint ID …` (or `--task ID`);
+  `pm action need --parent ID …` → `pm action need --sprint ID …` (or `--task ID`);
+  `pm decision add --level project --project NAME …` → `pm decision add --project NAME …`;
+  `pm decision add --level sprint --sprint ID …` → `pm decision add --sprint ID …`;
+  `pm task add --parent TASK …` → `pm task add --task TASK …`.
+- `pm need close ID --reason "…"` closes a decision need whose answer sets no rule (with the answer as its body), an
+  action, a PR review and a question; `--dropped` closes any open need as dismissed. Migration:
+  `pm decision close ID --reason "…" --text-file -` → `pm need close ID --reason "…" --text-file -`;
+  `pm action done ID --reason "merged as <sha>"` → `pm need close ID --reason "merged as <sha>"`;
+  `pm need dismiss ID --reason "…"` → `pm need close ID --dropped --reason "…"`.
+- Each removed flag and verb is refused, naming the form that replaced it; none is kept as an alias.
+
+### Changed
+
+- The positional argument of `pm project open` and `pm project close` is named `project` in their help, as the
+  naming grammar names it.
+
 ## [0.15.5] - 2026-10-17
 
 pm sets Codex's auto mode in the repo's `.codex/config.toml`, and pm doctor names a Linux host where Codex's sandbox
@@ -1288,6 +1320,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.6]: https://github.com/Yeeef/pm/compare/pm-v0.15.5...pm-v0.15.6
 [0.15.5]: https://github.com/Yeeef/pm/compare/pm-v0.15.4...pm-v0.15.5
 [0.15.4]: https://github.com/Yeeef/pm/compare/pm-v0.15.3...pm-v0.15.4
 [0.15.3]: https://github.com/Yeeef/pm/compare/pm-v0.15.2...pm-v0.15.3
