@@ -339,11 +339,12 @@ func UnitPorts() map[int]bool {
 // FirstPort is where a new repo's site port starts: the first free one from here.
 var FirstPort = 8000
 
-// FreePort is the first port from FirstPort up that is free and no pm service unit on this machine names.
-func FreePort() int {
+// FreePort is the first port from FirstPort up that is free on Binds(listen) and no pm service unit on this machine
+// names.
+func FreePort(listen string) int {
 	taken := UnitPorts()
 	port := FirstPort
-	for taken[port] || !PortFree(port) {
+	for taken[port] || !PortFree(listen, port) {
 		port++
 	}
 	return port

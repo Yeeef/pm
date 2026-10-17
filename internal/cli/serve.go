@@ -54,7 +54,7 @@ func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io
 	defer h.Close()
 	dir, _ := work.Locations(main)
 	return service.Run(service.Deps{Main: main, Records: records, Remote: cfg.Remote, MainBranch: cfg.MainBranch,
-		SiteURL: cfg.SiteURL, AccessTeam: cfg.AccessTeam, AccessAud: cfg.AccessAud, Port: port, Pin: cfg.Path, Spool: filepath.Join(common, service.SpoolName), WorkDir: dir,
+		SiteURL: cfg.SiteURL, Listen: cfg.ListenAddr(), Access: cfg.Access, AccessTeam: cfg.AccessTeam, AccessAud: cfg.AccessAud, Port: port, Pin: cfg.Path, Spool: filepath.Join(common, service.SpoolName), WorkDir: dir,
 		Open: func() (work.Store, error) {
 			return work.DialSock(h.Sock(), main, work.Options{Prefix: filepath.Base(main)})
 		},

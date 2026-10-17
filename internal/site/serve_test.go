@@ -45,6 +45,15 @@ func TestGoldenFillRepliesAndStatus(t *testing.T) {
 	}
 }
 
+// A read-only viewer's page holds the rule, escaped, in place of every reply slot: no form, no token.
+func TestFillReadOnlyPutsTheRuleInPlaceOfEveryForm(t *testing.T) {
+	got := FillReadOnly("<a><!--pm-reply x-1 decision--><!--pm-reply x-2 question--></a>", `access = "none"`)
+	note := `<p class="k">No reply from here: access = &quot;none&quot;.</p>`
+	if got != "<a>"+note+note+"</a>" {
+		t.Errorf("got %s", got)
+	}
+}
+
 // TestAReplyToASessionWithNoInboxWaitsForIt: a session that stores no inbox gets no push, so a reply to its need is
 // not "not running": the card after the reply and the need's thread say it waits for that session, which pm show flags
 // it to and pm reply read prints it for; a need with an inbox, a Claude Code socket or a Codex route, keeps the not-delivered text.
