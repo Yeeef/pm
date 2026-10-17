@@ -56,6 +56,11 @@ pm enables Codex auto mode (approval_policy on-request, approvals_reviewer auto_
 Only pm repos change and the setting travels with the repo; codex 0.162.1 parses these keys from a trusted repo's .codex/config.toml (bad value rejected, good values load).
 :::
 
+::: decision {source=agent date=2026-10-17}
+A key in the repo .codex/config.toml is pm s only while it holds pm s value; any other value is the user s override, which doctor ignores, upgrade keeps and uninstall leaves.
+The repo file overrides the global config, so a different value is the only way a user can override the mode, and an override must survive pm upgrade; this matches how pm keeps user-owned writable_roots and hooks.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
