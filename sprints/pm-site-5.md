@@ -71,6 +71,11 @@ Colleagues asked to look, not to steer; an unauthenticated write path into agent
 Answers `pm-bfli.5.1`.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+prime.md gained one clause naming pm init --listen and --access; the session lifecycle the page describes is unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
