@@ -15,7 +15,7 @@ import (
 	"github.com/Yeeef/pm/internal/ask"
 )
 
-var nouns = []string{"show", "prime", "task", "hook", "push", "commit"}
+var nouns = []string{"show", "task", "commit"}
 
 func TestChunksFitTheCapAndAddUpToTheHead(t *testing.T) {
 	chunks, err := Chunks(nouns)

@@ -79,18 +79,23 @@ FAKE_CODEX = Path(__file__).resolve().parent / "fake_codex.py"
 RULES = CHECKOUT / "prime.md"
 CAP = 10_000
 RULE_STARTS = ("# pm rules", "## 3. Records", "# How")
-MACHINERY = {"prime", "hook", "push"}  # what the runtimes and the scheduler call, not agents
+# what the runtimes' hooks, the scheduler and the pm service run, not agents: the nouns pm --help hides and
+# pm --help --all lists (test_pm_help_hides_the_machinery_that_help_all_lists holds the two equal)
+MACHINERY = {"day", "sync", "push", "autopilot", "export", "prime", "hook"}
 
 
-def nouns() -> list[str]:
-    """pm's commands as pm --help lists them."""
-    usage = subprocess.run([*PM, "--help"], cwd="/", check=True, capture_output=True, text=True).stdout
+def nouns(*flags: str) -> list[str]:
+    """pm's commands as pm --help lists them; with "--all", the hidden machinery too."""
+    usage = subprocess.run([*PM, "--help", *flags], cwd="/", check=True, capture_output=True, text=True).stdout
     return re.search(r"\{([a-z,-]+)\}", usage).group(1).split(",")
 
 
 def help_tree(*cmd: str) -> dict[tuple[str, ...], str]:
-    """pm <cmd> --help and that of every command under it, by command path (() for pm --help)."""
+    """pm <cmd> --help and that of every command under it, the hidden machinery included (a noun's --help --all), by
+    command path (() for pm --help --all)."""
     text = subprocess.run([*PM, *cmd, "--help"], cwd="/", check=True, capture_output=True, text=True).stdout
+    if re.search(r"\{([a-z,-]+)\} \.\.\.", text.split("\n\n", 1)[0]):  # a noun: list its machinery too
+        text = subprocess.run([*PM, *cmd, "--help", "--all"], cwd="/", check=True, capture_output=True, text=True).stdout
     subs = re.search(r"\{([a-z,-]+)\} \.\.\.", text.split("\n\n", 1)[0])  # the usage's commands, not a choice
     tree = {cmd: text}
     for sub in subs.group(1).split(",") if subs else []:
@@ -99,7 +104,7 @@ def help_tree(*cmd: str) -> dict[tuple[str, ...], str]:
 
 
 def commands() -> str:
-    return "# Commands\n\n`pm` nouns: " + ", ".join(f"`{n}`" for n in nouns() if n not in MACHINERY) + "."
+    return "# Commands\n\n`pm` nouns: " + ", ".join(f"`{n}`" for n in nouns()) + "."
 
 
 def rules() -> str:

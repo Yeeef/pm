@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import CHECKOUT, PM, VERSION, fake_env, project, sprint, wait_for, write_config
+from conftest import CHECKOUT, MACHINERY, PM, VERSION, fake_env, nouns, project, sprint, wait_for, write_config
 
 
 def reply_body(text: str) -> str:
@@ -107,6 +107,22 @@ def test_sprint_and_project_close_once_their_reports_are_written_and_their_work_
                                             f"Shipped both sprints. (commit {store_head(repo)})"}}
 
 
+def test_pm_help_hides_the_machinery_that_help_all_lists():
+    """pm --help leaves out what the runtimes' hooks, the scheduler and the pm service run (MACHINERY) and says that
+    pm --help --all lists it; each hidden command still runs and keeps its own --help, and pm service --help hides
+    service run the same way."""
+    shown, every = nouns(), nouns("--all")
+    assert set(every) - set(shown) == MACHINERY and set(shown) < set(every), (shown, every)
+    top = subprocess.run([*PM, "--help"], cwd="/", capture_output=True, text=True, check=False).stdout
+    assert "pm --help --all also lists the machinery commands" in top
+    for cmd in (["hook"], ["prime"], ["sync"], ["day", "summarize"], ["service", "run"]):
+        res = subprocess.run([*PM, *cmd, "--help"], cwd="/", capture_output=True, text=True, check=False)
+        assert res.returncode == 0 and res.stdout.startswith(f"usage: pm {' '.join(cmd)} "), res.stdout + res.stderr
+    service = subprocess.run([*PM, "service", "--help"], cwd="/", capture_output=True, text=True, check=False).stdout
+    assert "    run " not in service and "pm service --help --all also lists" in service
+    assert "    run " in subprocess.run([*PM, "service", "--help", "--all"], cwd="/", capture_output=True, text=True, check=False).stdout
+
+
 def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
     """Each write that makes or extends a record: its file, its one store commit, and its work-store change."""
     # folded: test_finding_add_refuses_a_text_that_starts_with_two_dashes_and_two_texts
@@ -138,6 +154,8 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
     writes = [
         (("doc", "new", "probe", "--title", "Probe: one", "--project", "demo"), "Body.",
          f"pm: created records/docs/{TODAY}-probe.md"),
+        (("doc", "new", "probe-sprint", "--title", "Probe: two", "--sprint", "repo-demo.1"), "Body.",
+         f"pm: created records/docs/{TODAY}-probe-sprint.md"),
         (("design", "new", "parser", "--title", "The parser", "--project", "demo"), "",
          "pm: created records/design/parser.md; fill in its sections by hand in records/, then pm commit -m \"…\" "
          "records/design/parser.md"),
@@ -155,6 +173,9 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
         assert res.returncode == 0, res.stderr
         assert committed(repo, [message])
     assert repo.unchanged()
+    assert "bead: repo-demo.1\n" in (repo.records / f"docs/{TODAY}-probe-sprint.md").read_text()
+    refused(repo, "doc", "new", "probe-task", "--title", "T", "--task", "repo-demo.1", text="Body.",
+            match=r"--task repo-demo\.1 is a sprint, not a task")
     feedback = (repo.records / "docs/pm-feedback.md").read_text()
     assert feedback.count("UTC, session `sess-1`") == 2
     assert "About project `demo`, sprint `repo-demo.1`.\n\nThe refusal" in feedback
@@ -189,7 +210,17 @@ def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
     refused(repo, "show", "--project", "demo", "--json", match="--project prints text only; drop --json")
     refused(repo, "show", "--project", "demo", "--sprint", "repo-demo.1", match="--sprint prints text only, one sprint")
     refused(repo, "show", "--project", "demo", "--record", "demo", "--section", "Goal",
-            match="--record and --section go together, without --sprint, --project or --json")
+            match="--section needs --record, and --record goes without --sprint, --project or --json")
+    refused(repo, "show", "--section", "Goal",
+            match="--section needs --record, and --record goes without --sprint, --project or --json")
+    # --record alone prints the outline: the header and each section with its line count and the command for it;
+    # a sprint's id and its name (<project>-<n>) both name its record.
+    for target in ("repo-demo.1", "demo-1"):
+        res = repo.pm("show", "--record", target)
+        assert res.returncode == 0, res.stderr
+        assert res.stdout.startswith("records/sprints/demo-1.md\n  bead: repo-demo.1\n"), res.stdout
+        assert "  ## Goal  (" in res.stdout and f"pm show --record {target} --section Goal\n" in res.stdout
+        assert f"pm show --record {target} --section 'Done when'\n" in res.stdout
 
     # folded: test_feedback_add_refuses_to_overwrite_another_record_at_the_feedback_doc_s_path
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
@@ -902,6 +933,14 @@ def test_need_edit_rewrites_an_open_need_s_body_until_the_owner_replies(repo):
         res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *flags)
         assert res.returncode != 0 and error in res.stderr, res.stderr
         assert repo.unchanged() and "repo-demo.1.3" not in repo.items()
+    # every broken rule is listed in one refusal, each in its own wording, not only the first
+    refused(repo, "decision", "need", "--title", "Site URL", "--parent", "repo-demo.9",
+            *without(SITE_URL, ("--cost", "a")), "--fact", " ".join(["word"] * 26) + ".",
+            match=r"this breaks 3 rules; fix them all, then run it again:\n"
+                  r"- option a has no cost; add --cost a '<what it costs>'\n"
+                  r"- the sentence \"word word word word word word …\" in fact 3 has 26 words; the limit is 25 "
+                  r"\(ASD-STE100\); split it\n"
+                  r"- --parent repo-demo.9 is not in the work store$")
 
     assert repo.pm("action", "need", "--title", "Restart", "--parent", "repo-demo.1", text=ACTION).returncode == 0
     res = repo.pm("decision", "need", "--title", "Site URL", "--parent", "repo-demo.1", *SITE_URL)
@@ -960,6 +999,9 @@ def test_task_close_dropped_records_why_and_needs_no_commit(repo):
     add_task(repo)
     (repo.root / "wip.txt").write_text("not committed\n")
     refused(repo, "task", "close", "repo-demo.1.3", "--dropped", match=r"--dropped needs --reason")
+    refused(repo, "task", "close", "repo-demo.1.3",
+            match=r"--reason is required: what was done, in a sentence; pm adds the commit that holds the work, or "
+                  r"close a task not done with --dropped --reason \"<why>\"")
     refused(repo, "task", "close", "repo-demo.1.3", "--dropped", "--reason", "x", "--commit", "HEAD",
             match=r"--dropped closes repo-demo\.1\.3 as not done, so no commit holds its work; drop --commit")
     res = repo.pm("task", "close", "repo-demo.1.3", "--dropped", "--reason", "A library parses it.")
@@ -983,27 +1025,27 @@ def test_task_close_resolves_another_repos_commit_or_a_pr_with_gh(repo):
     merged, open_pr = "https://github.com/Yeeef/pm/pull/7", "https://github.com/Yeeef/pm/pull/9"
     repo.set_pr(merged, "MERGED", sha)
     repo.set_pr(open_pr, "OPEN")
-    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "Yeeef/pm@fedcba9",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done", "--commit", "Yeeef/pm@fedcba9",
             match=r"--commit Yeeef/pm@fedcba9 is not a commit of Yeeef/pm on GitHub: gh api "
                   r"repos/Yeeef/pm/commits/fedcba9 failed: gh: No commit found for SHA: fedcba9")
-    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "https://github.com/Yeeef/pm/pull/8",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done", "--commit", "https://github.com/Yeeef/pm/pull/8",
             match=r"--commit https://github.com/Yeeef/pm/pull/8 is not a pull request on GitHub: gh pr view")
     repo.set_pr("https://github.com/Yeeef/pm/pull/10", "CLOSED")
-    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "https://github.com/Yeeef/pm/pull/10",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done", "--commit", "https://github.com/Yeeef/pm/pull/10",
             match=r"--commit https://github.com/Yeeef/pm/pull/10 was closed without merging, so it holds no work")
-    refused(repo, "task", "close", "repo-demo.1.3", "--commit", "no-such-ref",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done", "--commit", "no-such-ref",
             match=r"--commit no-such-ref is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL")
     res = repo.pm("task", "close", "repo-demo.1.3", "--reason", "Parser written.", "--commit", "Yeeef/pm@0123456")
     assert res.returncode == 0, res.stderr
-    assert repo.pm("task", "close", "repo-demo.1.4", "--commit", merged).returncode == 0
-    assert repo.pm("task", "close", "repo-demo.1.5", "--commit", open_pr).returncode == 0
+    assert repo.pm("task", "close", "repo-demo.1.4", "--reason", "Done", "--commit", merged).returncode == 0
+    assert repo.pm("task", "close", "repo-demo.1.5", "--reason", "Done", "--commit", open_pr).returncode == 0
     items = repo.items()
     assert items["repo-demo.1.3"]["close_reason"] == "Parser written. (commit Yeeef/pm@0123456)"
     assert items["repo-demo.1.4"]["close_reason"] == f"Done (PR {merged}, merged as Yeeef/pm@0123456)"
     assert items["repo-demo.1.5"]["close_reason"] == f"Done (PR {open_pr})"
     # a branch of this repo named like OWNER/REPO@SHA is this repo's commit: no gh call
     repo.git("branch", "Yeeef/pm@cafe1234")
-    assert repo.pm("task", "close", "repo-demo.1.6", "--commit", "Yeeef/pm@cafe1234").returncode == 0
+    assert repo.pm("task", "close", "repo-demo.1.6", "--reason", "Done", "--commit", "Yeeef/pm@cafe1234").returncode == 0
     head = repo.git("rev-parse", "--short", "HEAD").strip()
     assert repo.items()["repo-demo.1.6"]["close_reason"] == f"Done (commit {head})"
 
@@ -1011,12 +1053,12 @@ def test_task_close_resolves_another_repos_commit_or_a_pr_with_gh(repo):
 def test_task_close_refuses_a_task_another_live_session_holds(repo):
     add_task(repo)  # held by sess-a
     transcript(repo, "sess-a", 60)
-    refused(repo, "task", "close", "repo-demo.1.3",
+    refused(repo, "task", "close", "repo-demo.1.3", "--reason", "Done",
             match=r"repo-demo\.1\.3 is held by live session sess-a \(claimed \S+ ago; its transcript was written in the "
                   r"last 30 minutes\); leave it, or ask that session to close it, or to release it with pm task release "
                   r"repo-demo\.1\.3")
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-a")  # the holder itself closes it
-    res = repo.pm("task", "close", "repo-demo.1.3")
+    res = repo.pm("task", "close", "repo-demo.1.3", "--reason", "Done")
     assert res.returncode == 0, res.stderr
     assert repo.items()["repo-demo.1.3"]["status"] == "closed"
 

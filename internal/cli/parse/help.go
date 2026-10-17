@@ -54,11 +54,22 @@ func usagePart(a Arg) string {
 	return a.Flags[0] + " " + formatArgs(a, strings.ToUpper(a.Dest))
 }
 
+// subs is the subcommands help lists: the visible ones, or with all the hidden ones too.
+func (c *Command[T]) subs(all bool) []*Command[T] {
+	var out []*Command[T]
+	for _, s := range c.Subs {
+		if all || !s.Hidden {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // choicesText is a subcommand list as usage and help show it: {a,b,c}.
-func (c *Command[T]) choicesText() string {
-	names := make([]string, len(c.Subs))
-	for i, s := range c.Subs {
-		names[i] = s.Name
+func (c *Command[T]) choicesText(all bool) string {
+	var names []string
+	for _, s := range c.subs(all) {
+		names = append(names, s.Name)
 	}
 	return "{" + strings.Join(names, ",") + "}"
 }
@@ -66,7 +77,7 @@ func (c *Command[T]) choicesText() string {
 // usageParts is the usage line's parts after the prog, the units it wraps at: [-h], each
 // optional (a mutually exclusive group's members each a part, all but the last ending in " |", the first opening the
 // group's bracket and the last closing it), then the positionals and the subcommands; nOpt is the optionals' count.
-func (c *Command[T]) usageParts() (parts []string, nOpt int) {
+func (c *Command[T]) usageParts(all bool) (parts []string, nOpt int) {
 	parts = []string{"[-h]"}
 	for i := 0; i < len(c.Args); i++ {
 		a := c.Args[i]
@@ -107,7 +118,7 @@ func (c *Command[T]) usageParts() (parts []string, nOpt int) {
 		}
 	}
 	if c.Subs != nil {
-		parts = append(parts, c.choicesText()+" ...")
+		parts = append(parts, c.choicesText(all)+" ...")
 	}
 	return parts, nOpt
 }
@@ -115,9 +126,12 @@ func (c *Command[T]) usageParts() (parts []string, nOpt int) {
 // Usage is the usage line after "usage: ", wrapped to the terminal's width less 2: when "usage: " and the line are
 // longer, the parts go on lines indented under the first part after the prog, the positionals starting a line of their
 // own; a prog wider than three quarters of the width puts every part on the lines under it.
-func (c *Command[T]) Usage() string {
+func (c *Command[T]) Usage() string { return c.usage(false) }
+
+// usage is Usage, its subcommands with the hidden ones when all.
+func (c *Command[T]) usage(all bool) string {
 	prog := c.Prog()
-	parts, nOpt := c.usageParts()
+	parts, nOpt := c.usageParts(all)
 	line := prog + " " + strings.Join(parts, " ")
 	const prefix = "usage: "
 	width := terminalColumns() - 2
@@ -208,8 +222,14 @@ func section(title string, items []helpItem, column int) string {
 	return b.String()
 }
 
-// HelpText is the command's --help text.
-func (c *Command[T]) HelpText() string {
+// HelpText is the command's --help text, without its hidden subcommands.
+func (c *Command[T]) HelpText() string { return c.helpText(false) }
+
+// HelpTextAll is the command's --help --all text: its hidden subcommands listed too.
+func (c *Command[T]) HelpTextAll() string { return c.helpText(true) }
+
+// helpText is the --help text; a noun with hidden subcommands lists them only with all, and says so without it.
+func (c *Command[T]) helpText(all bool) string {
 	var positionals, options []helpItem
 	for _, a := range c.Args {
 		if a.Positional() {
@@ -223,8 +243,8 @@ func (c *Command[T]) HelpText() string {
 		}
 	}
 	if c.Subs != nil {
-		positionals = append(positionals, helpItem{2, c.choicesText(), ""})
-		for _, s := range c.Subs {
+		positionals = append(positionals, helpItem{2, c.choicesText(all), ""})
+		for _, s := range c.subs(all) {
 			positionals = append(positionals, helpItem{4, s.Name, collapse(s.Help)})
 		}
 	}
@@ -245,7 +265,7 @@ func (c *Command[T]) HelpText() string {
 	}
 	column := min(longest+2, helpPosition)
 
-	parts := []string{"usage: " + c.Usage() + "\n"}
+	parts := []string{"usage: " + c.usage(all) + "\n"}
 	if c.Description != "" {
 		if c.Raw {
 			parts = append(parts, c.Description+"\n")
@@ -259,6 +279,10 @@ func (c *Command[T]) HelpText() string {
 	parts = append(parts, section("options", options, column))
 	if c.Epilog != "" {
 		parts = append(parts, collapse(c.Epilog)+"\n")
+	}
+	if !all && len(c.subs(true)) > len(c.subs(false)) {
+		parts = append(parts, c.Prog()+" --help --all also lists the machinery commands: what the runtimes' hooks, "+
+			"the scheduler and the pm service run, not agents.\n")
 	}
 	return strings.Join(parts, "\n")
 }

@@ -281,7 +281,7 @@ def test_upgrade_retires_the_main_branchs_records_copy(new_repo: Path, tmp_path:
     write(new_repo / "records/sprints/a-1.md", "copy\n")
     git(new_repo, "add", "-A")
     git(new_repo, "add", "-f", "records")
-    # the old section's pm hook git-pre-commit is retired: it lets this commit, which stages records/, through
+    # pm init unset core.hooksPath, so the old pre-commit section does not run on this commit, which stages records/
     res = subprocess.run(["git", "commit", "-qm", "pm with main's records/ copy"], cwd=new_repo, env=env(tmp_path),
                          capture_output=True, text=True, check=False)
     assert res.returncode == 0, res.stderr

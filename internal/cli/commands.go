@@ -31,18 +31,19 @@ var tree = &command{
 		{
 			Name:        "show",
 			Help:        "compact status of open projects for agents, level by level",
-			Description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).",
+			Description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).",
 			Args: []arg{
 				{Flags: []string{"--json"}, Dest: "json", Kind: switchOn, Help: "every level's data as one JSON object"},
 				{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "one open project (its name or id): its goal, owner requests in full, the repo's pm feedback doc, open sprints with their tasks, and last decisions"},
 				{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "one sprint's frame, findings and tasks"},
-				{Flags: []string{"--record"}, Dest: "record", Metavar: []string{"PATH"}, Kind: value, Help: "with --section: the record to read (a path, sprint id, project name or design slug)"},
+				{Flags: []string{"--record"}, Dest: "record", Metavar: []string{"PATH"}, Kind: value, Help: "the record to read (a path, sprint id or name, project name or design slug); alone, its outline: header ids and each section with its line count"},
 				{Flags: []string{"--section"}, Dest: "section", Metavar: []string{"NAME"}, Kind: value, Help: "with --record: print that one section, heading included"},
 				{Flags: []string{"--refresh-inbox"}, Dest: "refresh_inbox", Kind: switchOn, Help: "first point this session's open requests at its current inbox ($CLAUDE_CODE_MESSAGING_SOCKET); the session-start hook passes it, since a resumed session binds a new one"},
 			},
 		},
 		{
 			Name:    "day",
+			Hidden:  true,
 			Help:    "day pages: generated from the day's activity; nobody writes a day record",
 			SubDest: "sub",
 			Subs: []*command{
@@ -104,12 +105,12 @@ var tree = &command{
 				{
 					Name:        "add",
 					Help:        "append a decision to a project's or sprint's Decisions",
-					Description: "Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it.",
+					Description: "Append a ::: decision block, dated today, to the Decisions of the named project or sprint: the --decision line, then the --reason line. Each is one line, in single quotes (in double quotes the shell runs a `code span` as a command). Choosing --level: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse. Source is agent unless --need or --confirmed. With --need, the decision is the owner's answer to that decision need: the block ends 'Answers `<need-id>`.', and the need is closed as answered with the same text unless the owner already closed it. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Flags: []string{"--decision"}, Dest: "decision", Metavar: []string{"TEXT"}, Required: true, Kind: value, Help: "the decision, in one line"},
 						{Flags: []string{"--reason"}, Dest: "reason", Metavar: []string{"TEXT"}, Required: true, Kind: value, Help: "why it holds, in one line"},
-						{Flags: []string{"--level"}, Dest: "level", Choices: []string{"project", "sprint"}, Kind: value, Help: "required, no default: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse"},
+						{Flags: []string{"--level"}, Dest: "level", Choices: []string{"project", "sprint"}, Required: true, Kind: value, Help: "no default: project if a later sprint must follow it; sprint if it is about this sprint's own work; skip choices cheap to reverse"},
 						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "the project record name (with --level project)"},
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "the sprint's id (with --level sprint)"},
 						{Flags: []string{"--until"}, Dest: "until", Kind: value, Help: "a known condition to revisit the decision"},
@@ -134,7 +135,7 @@ var tree = &command{
 				{
 					Name:        "close",
 					Help:        "close a decision need whose answer sets no rule, with no decision record; the answer with --text",
-					Description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason \"…\". If setting the resolution fails, run it again; it does not repeat the reason.",
+					Description: "Close the need with the owner's answer and the reason, as no-decision; on a need the owner already closed, only the resolution no-decision and the reason (as a comment) are set, and no answer is needed. An answer that sets a rule is recorded with pm decision add --need instead. Answers that set no rule: a name, a port, which of two equal files. If you are not sure, record a decision. A need that became moot before the owner answered has no answer to close it with: close it with pm need dismiss <id> --reason \"…\". If setting the resolution fails, run it again; it does not repeat the reason. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "need_id", Required: true, Kind: value, Help: "the decision need's id"},
@@ -169,7 +170,7 @@ var tree = &command{
 				{
 					Name:        "done",
 					Help:        "close an action once you see the owner did it",
-					Description: "Close an action once you see the owner did it. A PR review closes with --reason \"merged as <sha>\" once the PR is on main. A review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. Any other closed action is refused.",
+					Description: "Close an action once you see the owner did it. A PR review closes with --reason \"merged as <sha>\" once the PR is on main. A review closed without it, as when its PR merged into a stacked base, takes it later the same way: <sha> must be on the remote's main branch (pm fetches it first), and the old reason stays after the new one. Any other closed action is refused. Refuses while the need holds a site reply not delivered yet: read it with pm reply read <id> first.",
 					Args: []arg{
 						{Dest: "need_id", Required: true, Kind: value, Help: "the action's id"},
 						{Flags: []string{"--reason"}, Dest: "reason", Required: true, Kind: value, Help: "what showed you it is done (a merged PR, a command's output)"},
@@ -205,7 +206,7 @@ var tree = &command{
 						usage: "need dismiss ID --reason REASON",
 						about: "Close an open need as dismissed, with no answer: a [TEST] need, a replaced review, or a decision or action that became moot. pm sprint close skips a dismissed review.",
 						flags: func(fs *pflag.FlagSet) { fs.String("reason", "", "why it is dismissed (required)") },
-						args:  1,
+						id:    "the open need's id",
 						run:   needDismiss,
 					},
 				},
@@ -231,7 +232,7 @@ var tree = &command{
 						usage: "reply add ID (--text TEXT | --text-file FILE)",
 						about: "The owner's answer to an open need, at a shell: a reply, as a reply on the site writes. The need stays open; the session that raised it reads the reply and records it, which closes the need.",
 						flags: func(fs *pflag.FlagSet) { textFlags(fs, "the answer") },
-						args:  1,
+						id:    "the open need's id",
 						run:   replyAdd,
 					},
 				},
@@ -249,7 +250,8 @@ var tree = &command{
 					Args: []arg{
 						{Dest: "slug", Required: true, Kind: value, Help: "what the doc is for, lowercase words joined by '-'"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
-						{Flags: []string{"--bead"}, Dest: "bead", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the sprint or task the doc belongs to"},
+						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the sprint the doc belongs to"},
+						{Flags: []string{"--task"}, Dest: "task", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the task the doc belongs to"},
 						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Group: 1, Help: "the project the doc belongs to"},
 						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 2, Help: "required: the doc's Markdown body; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 2, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
@@ -413,21 +415,22 @@ var tree = &command{
 					Name:        "add",
 					Help:        "create a task in an open sprint, or a sub-task (--parent); description with --text (optional)",
 					Description: "Create a task in an open sprint. pm task add --parent TASK --title TITLE, in place of --sprint, adds a sub-task under the open task TASK instead (pm task add --parent TASK --help).",
-					Groups:      []bool{false},
+					Groups:      []bool{true, false},
 					Args: []arg{
-						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Required: true, Kind: value, Help: "the open sprint's id"},
+						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Group: 1, Help: "the open sprint's id"},
+						{Flags: []string{"--parent"}, Dest: "parent", Metavar: []string{"TASK"}, Kind: value, Group: 1, Help: "the open task a sub-task is a part of, in place of --sprint (pm task add --parent TASK --help)"},
 						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value},
-						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "optional: the task's description; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
-						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 2, Help: "optional: the task's description; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 2, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
 				{
 					Name:        "close",
 					Help:        "close a task with a reason naming its commit, or drop it",
-					Description: "Close a task as done. The reason ends with what holds the work: '(commit <hash>)' for HEAD if it was committed after the task started, else the --commit given: a commit of this repo, OWNER/REPO@SHA for another repo's commit, or a PR URL, the last two resolved with gh; one that does not resolve, or a PR closed without merging, is refused. Without --commit, a warning when HEAD is older than the task or the working tree has uncommitted changes. --dropped closes it as not done instead (resolution dismissed, shown as dropped and left out of a sprint's task counts), with a required --reason and no commit; a task it blocks no longer waits on it. Refuses a task that another live session holds, as pm task claim does; that session closes it or releases it with pm task release.",
+					Description: "Close a task as done, with a required --reason saying what was done. The reason ends with what holds the work: '(commit <hash>)' for HEAD if it was committed after the task started, else the --commit given: a commit of this repo, OWNER/REPO@SHA for another repo's commit, or a PR URL, the last two resolved with gh; one that does not resolve, or a PR closed without merging, is refused. Without --commit, a warning when HEAD is older than the task or the working tree has uncommitted changes. --dropped closes it as not done instead (resolution dismissed, shown as dropped and left out of a sprint's task counts), with a required --reason and no commit; a task it blocks no longer waits on it. Refuses a task that another live session holds, as pm task claim does; that session closes it or releases it with pm task release.",
 					Args: []arg{
 						{Dest: "task_id", Required: true, Kind: value, Help: "the task's id"},
-						{Flags: []string{"--reason"}, Dest: "reason", Kind: value, Help: "what was done (default: Done); with --dropped, required: why it is not done"},
+						{Flags: []string{"--reason"}, Dest: "reason", Kind: value, Help: "required: what was done; with --dropped, why it is not done"},
 						{Flags: []string{"--commit"}, Dest: "commit", Metavar: []string{"REF"}, Kind: value, Help: "what holds the work: a commit of this repo, OWNER/REPO@SHA or a PR URL (default: HEAD, if newer than the task)"},
 						{Flags: []string{"--dropped"}, Dest: "dropped", Kind: switchOn, Help: "close it as not done: no commit, a reason required"},
 					},
@@ -476,8 +479,8 @@ var tree = &command{
 							fs.String("title", "", "the new title")
 							textFlags(fs, "the new description")
 						},
-						args: 1,
-						run:  taskEdit,
+						id:  "the task's id",
+						run: taskEdit,
 					},
 				},
 				{
@@ -486,7 +489,7 @@ var tree = &command{
 					Store: &storeCommand{
 						usage: "task release ID",
 						about: "Clear the holder of a task this session ($CLAUDE_CODE_SESSION_ID, $CODEX_SESSION_ID or $CODEX_THREAD_ID, as pm task claim takes it) holds.",
-						args:  1,
+						id:    "the task's id",
 						run:   taskRelease,
 					},
 				},
@@ -504,7 +507,7 @@ var tree = &command{
 						usage: "dep add ID --on BLOCKER",
 						about: "BLOCKER blocks ID: ID, and every task under it, waits until BLOCKER closes. Refuses a blocker that does not exist and a cycle over blocked_by, ancestors included.",
 						flags: onFlag,
-						args:  1,
+						id:    "the item that waits",
 						run:   func(c *storeCall) error { return dep(c, true) },
 					},
 				},
@@ -515,7 +518,7 @@ var tree = &command{
 						usage: "dep rm ID --on BLOCKER",
 						about: "BLOCKER no longer blocks ID.",
 						flags: onFlag,
-						args:  1,
+						id:    "the item that waits",
 						run:   func(c *storeCall) error { return dep(c, false) },
 					},
 				},
@@ -533,7 +536,7 @@ var tree = &command{
 						usage: "comment add ID (--text TEXT | --text-file FILE)",
 						about: "Add a note to an item: --text, or --text-file - <<'EOF' … EOF. Its author is this session, or owner when no session runs the command.",
 						flags: func(fs *pflag.FlagSet) { textFlags(fs, "the note") },
-						args:  1,
+						id:    "the item's id",
 						run:   commentAdd,
 					},
 				},
@@ -549,7 +552,7 @@ var tree = &command{
 					Help:        "print a record's page URL on the served site; the only link to give for a record",
 					Description: "Print the URL of a record's page on the site the pm service serves on localhost:$PORT (default: the installed service's port, else the port in .pm/config.toml), printed with the repo's site_url instead when .pm/config.toml sets one; --local prints the localhost URL even then, for a check on this machine that the public site's login would stop (a headless browser). The pm service's pages follow the records within 10 s and state their data's age, so no render step is needed. Fails with the command that fixes it when nothing serves there, or when what answers is not the pm service for this store.",
 					Args: []arg{
-						{Dest: "target", Required: true, Kind: value, Help: "a sprint or project id, a project name, a design slug, or a record path (records/<…>.md; records/ and .md optional)"},
+						{Dest: "target", Required: true, Kind: value, Help: "a sprint or project id, a sprint name (<project>-<n>), a project name, a design slug, or a record path (records/<…>.md; records/ and .md optional)"},
 						{Flags: []string{"--local"}, Dest: "local", Kind: switchOn, Help: "print http://127.0.0.1:<port>/…, the URL the service answers on here, even when site_url is set"},
 					},
 				},
@@ -561,8 +564,9 @@ var tree = &command{
 			Description: "Check that every record renders with the work store, writing nothing; pm commit runs the same check. In a worktree with a records workspace it checks the published records with this workspace's drafts over them. It lists the tracked source files no design page covers: those the path patterns of design_sources in .pm/config.toml match (e.g. design_sources = [\"internal/**\", \"prime.md\"]; unset, no list), and fails on a design_sources pattern that matches no tracked file. It fails on a design page's covers: pattern that matches no file where the page holds it: a published page's on the remote's main (its remote-tracking branch, fetched when a pattern matches nothing there), since a page publishes at its sprint's close once its code is on main; a draft page's in this worktree's tracked files. A published pattern main lacks while a draft of the page in this clone no longer holds it (a merged PR removed the file, its sprint not closed yet) does not fail: it is listed as waiting on that sprint's close, naming the sprint. A drafts/ branch pm cannot read (a commit made by hand) is named in a warning and left out. A malformed pattern fails.",
 		},
 		{
-			Name: "sync",
-			Help: "sync the work store with the remote now, as the pm service does every 10 minutes",
+			Name:   "sync",
+			Hidden: true,
+			Help:   "sync the work store with the remote now, as the pm service does every 10 minutes",
 			Store: &storeCommand{
 				usage: "sync",
 				about: "Sync the work store with the repo's remote now: the pm service pulls, resolves conflicts by the merge rules and pushes, as it does every 10 minutes. A conflict no rule settles fails, names the item and field, and leaves the store as it was.",
@@ -606,6 +610,7 @@ var tree = &command{
 				},
 				{
 					Name:        "run",
+					Hidden:      true,
 					Help:        "the service's process, run by its supervisor: serve the site on localhost:$PORT and push every 10 minutes",
 					Description: "Serve the site on localhost:$PORT (default: port in .pm/config.toml): a page is at most 10 s behind the records and the work store and states its data's age; an open page never reloads itself but shows within ~10 s that newer data exists, loaded on reload. Every 10 minutes, the first 10 after start, run pm push. Exits once .pm/config.toml pins another pm version, so the supervisor starts the installed pm again, which runs the new pin. The supervisor runs it; run it by hand only to debug, or on another PORT.",
 				},
@@ -640,6 +645,7 @@ var tree = &command{
 		},
 		{
 			Name:        "push",
+			Hidden:      true,
 			Help:        "sync the work store, summarize today and push the records branch; what the pm service runs every 10 minutes, not a session command",
 			Description: "Sync the work store with the remote, then summarize today (pm day summarize only when today's activity changed), then push the records branch when the store is ahead of <remote>/records: fetch, rebase onto it if it moved (under the store lock; a rebase that stops is aborted, leaving the store as it was), push. Each step has a 120s timeout; a second run while one holds the lock exits at once. Each step's outcome goes to <clone>/.pm/run/push.json (read by pm show, pm where, pm service status and the site) and <clone>/.pm/run/push.log, a line per step.",
 		},
@@ -665,11 +671,13 @@ var tree = &command{
 		},
 		{
 			Name:        "autopilot",
+			Hidden:      true,
 			Help:        "turn the owner-request Stop check back on for this session, the default, and print the autopilot request rule; a no-op in autopilot",
 			Description: "Turn the owner-request Stop check back on for this session: it removes <main checkout>/.pm/run/sessions/<session id>, which pm interactive wrote, the session from the environment, and refuses when none is set; then it prints the request rule of autopilot. Autopilot is every session's default; in a session already in it, nothing changes and the first line says so. Run it when the owner asks.",
 		},
 		{
 			Name:        "export",
+			Hidden:      true,
 			Help:        "print every item of the work store, one JSON object per line, ordered by id; pm init --import reads it in another clone",
 			Description: "Print every item of this clone's work store, one JSON object per line, ordered by id. pm init --import FILE in another clone reads it, to move a project's items into a new repo's store.",
 			Args: []arg{
@@ -682,6 +690,7 @@ var tree = &command{
 		},
 		{
 			Name:   "prime",
+			Hidden: true,
 			Help:   fmt.Sprintf("pm's rules, then the rule for asking the owner in this session's mode, then pm init, pm where and pm show: the context a session starts with; the SessionStart hooks run --rules 1 to --rules %d, --request-rule and --state, and an agent may run it by hand", len(hooks.Starts)),
 			Groups: []bool{false},
 			Args: []arg{
@@ -694,6 +703,7 @@ var tree = &command{
 		},
 		{
 			Name:    "hook",
+			Hidden:  true,
 			Help:    "what a runtime hook runs: the hook input JSON on stdin; installs nothing",
 			SubDest: "sub",
 			Subs: []*command{
@@ -720,17 +730,6 @@ var tree = &command{
 				{
 					Name: "session-end",
 					Help: "SessionEnd: remove the ended session's interactive-mode file (pm interactive --help)",
-				},
-				{
-					Name: "git-post-checkout",
-					Help: "retired: does nothing; an earlier pm's section in .pm/hooks/post-checkout runs it until pm init unsets core.hooksPath or pm upgrade removes that section; session start sets each new worktree up",
-					Args: []arg{
-						{Dest: "git_args", Arity: many, Kind: value, Help: "the hook's arguments, which it ignores"},
-					},
-				},
-				{
-					Name: "git-pre-commit",
-					Help: "retired: does nothing; an earlier pm's section in .pm/hooks/pre-commit runs it until pm upgrade removes that section",
 				},
 			},
 		},

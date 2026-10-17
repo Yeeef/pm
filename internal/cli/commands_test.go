@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/spf13/pflag"
 )
 
 // help is pm <argv> --help's output, failing the test unless it exits 0.
@@ -40,8 +42,8 @@ func leaf(path string) *command {
 	return c
 }
 
-// Every command pm dispatches is in pm --help: the tree is the dispatcher, so pm --help and each pm <noun> --help must
-// list every command under them; every work-store command is a leaf of the tree, or one of the two forms that argv
+// Every command pm dispatches is in pm --help --all: the tree is the dispatcher, so pm --help --all and each
+// pm <noun> --help --all must list every command under them, and pm --help each but the hidden machinery; every work-store command is a leaf of the tree, or one of the two forms that argv
 // reaches before the tree, which its tree command's help names; and every agent command's body is a leaf's.
 func TestEveryCommandPmRunsIsListedInHelp(t *testing.T) {
 	var walk func(c *command, path []string)
@@ -49,16 +51,29 @@ func TestEveryCommandPmRunsIsListedInHelp(t *testing.T) {
 		if c.Subs == nil {
 			return
 		}
-		text := help(t, path...)
+		text, all := help(t, path...), help(t, append(append([]string{}, path...), "--all")...)
 		for _, s := range c.Subs {
-			if !lists(text, s.Name) {
-				t.Errorf("pm %s --help does not list %s", strings.Join(path, " "), s.Name)
+			if !lists(all, s.Name) {
+				t.Errorf("pm %s --help --all does not list %s", strings.Join(path, " "), s.Name)
+			}
+			if lists(text, s.Name) == s.Hidden { // a hidden one is machinery: only --help --all lists it
+				t.Errorf("pm %s --help lists %s: %v, but it is hidden: %v", strings.Join(path, " "), s.Name,
+					!s.Hidden, s.Hidden)
 			}
 			walk(s, append(append([]string{}, path...), s.Name))
 		}
 	}
 	walk(tree, nil)
 	for name, sc := range storeCommands {
+		// its help is the shared renderer's: the usage line with [-h], each flag with its usage's metavar
+		fs := pflag.NewFlagSet(name, pflag.ContinueOnError)
+		if sc.flags != nil {
+			sc.flags(fs)
+		}
+		if text := storeHelpCommand(sc, fs).HelpText(); !strings.HasPrefix(text, "usage: pm "+strings.Fields(name)[0]) ||
+			!strings.Contains(text, " [-h]") {
+			t.Errorf("pm %s --help is not the shared renderer's:\n%s", name, text)
+		}
 		if c := leaf(name); c != nil {
 			if c.Store != sc || c.Subs != nil {
 				t.Errorf("pm %s is in the tree but not as its work-store command", name)

@@ -20,9 +20,8 @@ import (
 // cmdShow is pm show: every level.
 func cmdShow(e *env, p *Parsed) (string, error) {
 	if p.Get("record") != "" || p.Get("section") != "" {
-		if p.Get("record") == "" || p.Get("section") == "" || p.Get("sprint") != "" || p.Get("project") != "" ||
-			p.Get("json") != "" {
-			return "", refuse("--record and --section go together, without --sprint, --project or --json")
+		if p.Get("record") == "" || p.Get("sprint") != "" || p.Get("project") != "" || p.Get("json") != "" {
+			return "", refuse("--section needs --record, and --record goes without --sprint, --project or --json")
 		}
 		recs, err := records.Read(e.records, nil)
 		if err != nil {
@@ -31,6 +30,9 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 		rec, err := linkTarget(e, recs, p.Get("record"))
 		if err != nil {
 			return "", err
+		}
+		if p.Get("section") == "" {
+			return recordOutline(rec, p.Get("record")), nil
 		}
 		return recordSection(rec, p.Get("section"))
 	}

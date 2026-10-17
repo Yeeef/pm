@@ -3,9 +3,11 @@
 // builds it on cobra, and each leaf parses its own arguments with pflag (cobra's flag parsing is off on leaves):
 // required arguments, mutually exclusive groups, choices, positional counts, and --option LABEL TEXT. Each noun's body
 // has its own file (task.go, sprint.go, decision.go, …), the setup package holds pm init, doctor, upgrade and
-// uninstall, the clean package pm clean, and fsutil the path helpers cli and setup share. store_commands.go holds the
-// work-store commands' bodies, and the forms show ID and task add --parent TASK, the one argv Execute routes before the
-// tree (storeFormOf). Every command pm runs is in the tree, so in pm --help: commands_test.go fails otherwise.
+// uninstall, the clean package pm clean, needform a decision need's parts, rules and layout, and fsutil the path
+// helpers cli and setup share. store_commands.go holds the work-store commands' bodies, and the forms show ID and task
+// add --parent TASK, the one argv Execute routes before the tree (storeFormOf); their --help goes through the tree's
+// renderer (storeHelpCommand). Every command pm runs is in the tree, so in pm --help --all (pm --help leaves out the
+// Hidden machinery): commands_test.go fails otherwise.
 // help_golden_test.go holds every command's --help to testdata/help.golden, and doc_test.go fails on a func whose doc
 // comment does not start with its name.
 package cli
@@ -45,11 +47,14 @@ const (
 	pairSep                             = parse.PairSep
 )
 
-// Nouns lists the commands in their help order.
+// Nouns lists the commands pm --help lists, in its order: the machinery (Hidden) left out, as pm prime's noun list
+// leaves it out.
 func Nouns() []string {
-	out := make([]string, len(tree.Subs))
-	for i, s := range tree.Subs {
-		out[i] = s.Name
+	var out []string
+	for _, s := range tree.Subs {
+		if !s.Hidden {
+			out = append(out, s.Name)
+		}
 	}
 	return out
 }
@@ -157,10 +162,6 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return setup.Upgrade(p, here, stdout)
 	case "uninstall":
 		return setup.Uninstall(here, stdout)
-	case "hook git-post-checkout":
-		return setup.GitPostCheckout()
-	case "hook git-pre-commit":
-		return setup.GitPreCommit()
 	case "check":
 		return cmdCheck(here, stdout)
 	case "where":

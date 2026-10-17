@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -87,15 +88,68 @@ func recordSection(rec *records.Record, name string) (string, error) {
 		}
 		return "", refuse("records/%s.md %s named %s; its sections:\n%s", rec.Rel, why, strconv.Quote(name), strings.Join(names, "\n"))
 	}
-	lvl, start := found[0].level, found[0].line
+	return sectionText(lines, heads, found[0]), nil
+}
+
+// sectionText is a heading's section: from its line through the next heading of the same or a higher level.
+func sectionText(lines []string, heads []showHeading, h showHeading) string {
 	end := len(lines)
-	for _, h := range heads {
-		if h.line > start && h.level <= lvl {
-			end = h.line
+	for _, o := range heads {
+		if o.line > h.line && o.level <= h.level {
+			end = o.line
 			break
 		}
 	}
-	return config.PyStrip(strings.Join(lines[start:min(end, len(lines))], "\n")), nil
+	return config.PyStrip(strings.Join(lines[h.line:min(end, len(lines))], "\n"))
+}
+
+// recordOutline is what pm show --record prints without --section: the record's path, its header fields, and each
+// heading with its section's line count and the command that prints that section, so an agent reads one part, not
+// the whole file.
+func recordOutline(rec *records.Record, target string) string {
+	out := []string{"records/" + rec.Rel + ".md"}
+	keys := make([]string, 0, len(rec.Meta))
+	for k := range rec.Meta {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := rec.Meta[k]
+		if v.Kind == records.KindList {
+			items := make([]string, len(v.List))
+			for i, it := range v.List {
+				items[i] = it.Str
+			}
+			out = append(out, fmt.Sprintf("  %s: %s", k, strings.Join(items, ", ")))
+			continue
+		}
+		out = append(out, fmt.Sprintf("  %s: %s", k, v.Str))
+	}
+	lines, heads := strings.Split(rec.Body, "\n"), showHeadings(rec.Body)
+	if len(heads) == 0 {
+		return strings.Join(append(out, "no sections"), "\n")
+	}
+	out = append(out, "sections, each with its line count and the command that prints it:")
+	for _, h := range heads {
+		n := strings.Count(sectionText(lines, heads, h), "\n") + 1
+		out = append(out, fmt.Sprintf("%s%s %s  (%d lines)  pm show --record %s --section %s",
+			strings.Repeat("  ", max(h.level-1, 1)), strings.Repeat("#", h.level), h.text, n, shellQuote(target),
+			shellQuote(h.text)))
+	}
+	return strings.Join(out, "\n")
+}
+
+var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
+
+// shellQuote is Python's shlex.quote.
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if shellSafe.MatchString(s) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
 // showPosix is Python's Path(p).as_posix() for a relative path: empty and "." parts dropped.
@@ -113,8 +167,8 @@ func showPosix(p string) string {
 }
 
 // linkTarget is the record a target names: a record path (records/ and .md optional), a sprint or project id, a
-// project name or a design slug; the old path of a sprint pm sprint move moved names its record now. A target that
-// fits several records is refused, never guessed.
+// sprint name (<project>-<n>), a project name or a design slug; the old path of a sprint pm sprint move moved names
+// its record now. A target that fits several records is refused, never guessed.
 func linkTarget(e *env, recs []*records.Record, target string) (*records.Record, error) {
 	var found []*records.Record
 	store := e.records
@@ -150,13 +204,13 @@ func linkTarget(e *env, recs []*records.Record, target string) (*records.Record,
 		for _, r := range recs {
 			bead, typed := r.ID("bead")
 			if ((r.Type() == "sprint" || r.Type() == "project") && typed && bead == target) ||
-				((r.Type() == "project" || r.Type() == "design") && r.Name() == target) {
+				((r.Type() == "project" || r.Type() == "sprint" || r.Type() == "design") && r.Name() == target) {
 				found = append(found, r)
 			}
 		}
 	}
 	if len(found) == 0 {
-		return nil, refuse("no record matches %s; give a sprint id, a project name, a design slug or a record path "+
+		return nil, refuse("no record matches %s; give a sprint id or name, a project name, a design slug or a record path "+
 			"such as records/sprints/<name>.md", strconv.Quote(target))
 	}
 	if len(found) > 1 {

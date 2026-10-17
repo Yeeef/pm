@@ -42,11 +42,19 @@ func cmdTaskAdd(e *env, p *Parsed) (string, error) {
 }
 
 func cmdTaskClose(e *env, p *Parsed) (string, error) {
+	id := p.Get("task_id")
+	reason := strip(p.Get("reason"))
+	if reason == "" {
+		if p.Get("dropped") != "" {
+			return "", refuse("--dropped needs --reason: why %s is dropped and not done", id)
+		}
+		return "", refuse("--reason is required: what was done, in a sentence; pm adds the commit that holds the " +
+			"work, or close a task not done with --dropped --reason \"<why>\"")
+	}
 	r, err := e.load(false)
 	if err != nil {
 		return "", err
 	}
-	id := p.Get("task_id")
 	task, err := r.openTask(id)
 	if err != nil {
 		return "", err
@@ -59,21 +67,14 @@ func cmdTaskClose(e *env, p *Parsed) (string, error) {
 		" to close it, or to release it with pm task release "+id); err != nil {
 		return "", err
 	}
-	reason := strip(p.Get("reason"))
 	ref, _ := given(p, "commit")
 	resolution := work.Done
 	if p.Get("dropped") != "" {
 		if ref != "" {
 			return "", refuse("--dropped closes %s as not done, so no commit holds its work; drop --commit", id)
 		}
-		if reason == "" {
-			return "", refuse("--dropped needs --reason: why %s is dropped and not done", id)
-		}
 		resolution = work.Dismissed
 	} else {
-		if reason == "" {
-			reason = "Done"
-		}
 		commit := ""
 		if ref != "" {
 			if commit, err = closeCommit(r.root, ref); err != nil {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/needform"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/site"
@@ -16,20 +17,7 @@ import (
 // it with its resolution (the work-store page, Commands).
 
 const (
-	levelRule = "project if a later sprint must follow it; sprint if it is about this sprint's own work; " +
-		"skip choices cheap to reverse"
-	needShape = "a decision need takes its parts as flags, one line each: one --question, one or more --fact, two or " +
-		"more --option LABEL TEXT, one --cost LABEL TEXT for each option, and one --default LABEL REASON naming " +
-		"the option taken if the owner does not answer. Put each value in single quotes, so code spans stay, e.g.:\n" +
-		"  pm decision need --title 'Where the site URL lives' --parent ID \\\n" +
-		"    --question 'Where does pm keep the public site URL?' \\\n" +
-		"    --fact 'Today, each clone keeps the URL in its git config.' \\\n" +
-		"    --fact 'You asked why the URL is not in `.pm/config.toml`.' \\\n" +
-		"    --option a 'In `.pm/config.toml`. A pm command still writes it.' --cost a 'the repo has one URL.' \\\n" +
-		"    --option b 'In each clone, as today.' --cost b 'you must give the URL to each new clone.' \\\n" +
-		"    --default a 'All clones then give the same link.'"
-	sentenceLimit = 25 // ASD-STE100: the most words in a descriptive sentence
-	actionShape   = "an action's description says what the owner should do and why, e.g.:\n" +
+	actionShape = "an action's description says what the owner should do and why, e.g.:\n" +
 		"  Restart the site on port 8767: the new proxy expects it there."
 	reviewForm = `pm action need --pr URL --sprint ID --focus "…" [--design SLUG]`
 )
@@ -40,10 +28,17 @@ var (
 	prLink      = regexp.MustCompile(`(?i)https://github\.com/[\p{L}\p{N}_.-]+/[\p{L}\p{N}_.-]+/pull/\p{Nd}+`)
 	prNumbered  = regexp.MustCompile(`(?i)PR` + records.PyS + `*#\p{Nd}+`)
 	reviewAsked = regexp.MustCompile(`(?i)(review|merg|approv)`)
-	optionLabel = regexp.MustCompile(`^[A-Za-z0-9]+$`)
 	urlRE       = regexp.MustCompile(`^https?://[^\t\n\v\f\r \x1c-\x1f\x85\p{Z}]+$`)
 	pullNumber  = regexp.MustCompile(`/pull/(\p{Nd}+)`)
 )
+
+// refuseAll is the one refusal for every rule v holds, nil when it holds none.
+func refuseAll(v *needform.Violations) error {
+	if m := v.Message(); m != "" {
+		return refuse("%s", m)
+	}
+	return nil
+}
 
 // cmdNeedEdit rewrites an open action's or decision need's body, with raiseNeed's checks, until the owner replies.
 func cmdNeedEdit(e *env, p *Parsed) (string, error) {
@@ -67,9 +62,10 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 		return "", refuse("%s holds the owner's reply, which answers the body it has; raise a new need for the changed "+
 			"ask, and close this one with pm need dismiss %s --reason \"…\"", id, id)
 	}
-	parts := needText(p)
+	parts := needform.Text(p.Values)
 	_, textGiven := given(p, "text")
 	var desc string
+	var v needform.Violations
 	switch need.Need.Kind {
 	case work.Question:
 		return "", refuse("%s is a session's question, whose card pm builds from the ask tool's call; ask again with the "+
@@ -83,21 +79,22 @@ func cmdNeedEdit(e *env, p *Parsed) (string, error) {
 				"parts", id, textForms)
 		}
 		if desc = p.Get("text"); desc == "" {
-			return "", refuse("the description is empty; pass it with %s: %s", textForms, actionShape)
+			v.Add("the description is empty; pass it with %s: %s", textForms, actionShape)
 		}
 	case work.Decision:
 		if textGiven {
 			return "", refuse("%s is a decision need; its body is its parts, given as flags, not --text: %s", id,
-				needShape)
+				needform.Shape)
 		}
-		if desc, err = needMarkdown(p); err != nil {
-			return "", err
-		}
+		desc = needform.Markdown(p.Values, &v)
 	}
 	if asksReview(need.Title + "\n" + p.Get("text") + parts) {
-		return "", refuse("this asks the owner to review or merge a PR; raise it with the review form, so its card links "+
+		v.Add("this asks the owner to review or merge a PR; raise it with the review form, so its card links "+
 			"the PR, the sprints and design pages and its wait wakes on the merge: %s. If it only mentions the PR, say "+
 			"what you ask without review, merge or approve", reviewForm)
+	}
+	if err := refuseAll(&v); err != nil {
+		return "", err
 	}
 	if desc == need.Description {
 		return "", refuse("%s has this body already", id)
