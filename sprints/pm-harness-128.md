@@ -58,7 +58,15 @@ The owner asked how pm search beats rg; the index is worth building only if sear
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Retrieval eval, pm search (PR #112 build) vs rg 15.1.0 on this store at
+  records commit 41db306c. Labels: 68 sprints whose Goal or Scope cite earlier
+  records (87 targets: 73 sprints, 12 design pages, 2 docs), citing record
+  excluded; 3 queries per sprint written by claude-haiku-5-5 from the title
+  and the Goal's first sentence, links removed. Single query R@10: pm search
+  .314, rg AND by match count .301, BM25 over whole records with OR .368;
+  difference pm search minus rg +0.012 [-0.047, +0.071] (paired bootstrap
+  95%). Best of 3 queries R@10: pm search .551, rg .449, whole-record BM25 OR
+  .588; difference +0.103 [+0.007, +0.206].
 
 ## Delivery report
 
