@@ -35,7 +35,7 @@ An agent can find earlier sprints, decisions, design sections, docs and work ite
 
 > Where is the detail?
 
-None yet.
+- [Work context](../design/work-context.md): `pm search` and the open-a-sprint clause of the procedure
 
 ## Progress
 

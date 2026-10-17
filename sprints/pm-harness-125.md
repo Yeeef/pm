@@ -8,7 +8,7 @@ bead: yeeef-agents-9va.135
 
 > What should be true when this sprint ends, and why now?
 
-An agent starting work sees the design pages that hold its area's current state, and can find earlier sprints, decisions, docs and work items on a topic in one command. Today it drills down one project and finds anything sideways only by thinking to grep `records/`, while the design-page check runs only at the PR and the close. Design: [Work context](../design/work-context.md).
+An agent starting work sees, once, the design pages that hold its area's current state. Today it drills down one project and reaches a design page only by thinking to look, while the design-page check (`covers:`) runs only at the PR and the close. Design: [Work context](../design/work-context.md), Design-page index. `pm search` is sprint 126.
 
 ## Scope
 
@@ -17,20 +17,18 @@ An agent starting work sees the design pages that hold its area's current state,
 
 **In:**
 - `pm sprint open` and the first `pm task claim` a session makes in a sprint print the design-page index (title, slug, link), as the design page gives.
-- `pm search <terms…> [--kind] [--project] [-n]`: BM25 over record sections, decision blocks, design `###` sections, docs, postmortems and work-store task and need titles, one capped line per hit.
-- `prime.md`: the two clauses of the design page's Procedure; `--help` texts and goldens; the new files in the page's `covers:`.
+- `prime.md`: the claim clause of the design page's Procedure; `--help` texts and goldens; the new files in the page's `covers:`.
 
 **Out:**
+- `pm search` (sprint 126); the index's `prior work` line names it only once sprint 126 has shipped.
 - Marking decisions superseded, and printing decisions at claim.
-- A hook that injects records per prompt; semantic search; a persistent index.
-- Searching a worktree's drafts workspace.
+- A hook that injects records per prompt.
 
 ## Done when
 
 > What evidence will show the goal is met?
 
-- Go tests: the index prints on a session's first claim in a sprint and not on its second; `pm sprint open` prints the project's pages; search ranks a seeded unit with the query terms first and caps output at `-n`.
-- On this repo's store, `pm search` for three topics with a known prior sprint (claim history, design covers, owner-request judge) lists that sprint's record or decision in its top 5, and one run takes under 1 s (wall time recorded in Findings).
+- Go tests: the index prints on a session's first claim in a sprint and not on its second; `pm sprint open` prints the project's pages; a task directly under a project gets the project's pages.
 - The live check in a scratch worktree: one claim prints the index, a second claim in the same sprint does not.
 - The `prime.md` rules still fit the hook chunk cap (`tests/test_hooks.py` passes).
 
