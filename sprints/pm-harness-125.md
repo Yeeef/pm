@@ -67,6 +67,11 @@ The design page pm-cli stays as it is for this sprint's code changes.
 Only the --help descriptions of task claim and sprint open changed; the page's command table and conventions hold.
 :::
 
+::: decision {source=agent date=2026-10-17}
+The design page pm-product stays as it is for this sprint's code changes.
+prime.md gained one clause on the claim bullet; the product page's model and goals are unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
