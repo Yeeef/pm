@@ -888,7 +888,7 @@ def test_the_dates_pm_stamps_hold_the_harness_s_date_after_midnight(repo):
     assert repo.pm("feedback", "add", text="A rule cost a retry.").returncode == 0
     feedback = (repo.records / "docs/pm-feedback.md").read_text()
     assert feedback.startswith(f"---\ntype: doc\ntitle: pm feedback\ndate: {setup}\n---\n\n")
-    res = repo.pm(*ADD[:2], "--level", "sprint", "--sprint", "repo-demo.1", "--decision", DECISION, "--reason", REASON)
+    res = repo.pm(*ADD[:2], "--sprint", "repo-demo.1", "--decision", DECISION, "--reason", REASON)
     assert res.returncode == 0, res.stderr
     record = (repo.records / "sprints/demo-1.md").read_text()
     assert f"::: decision {{source=agent date={setup}}}\n{DECISION}" in record
