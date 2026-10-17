@@ -494,7 +494,7 @@ options:
 usage: pm sprint open [-h] --title TITLE [--text-file PATH | --text TEXT]
                       project
 
-Create a sprint epic and its record from the frame, then print the design pages the project's record lists: slug, title and link, or missing for a slug no design page has.
+Create a sprint epic and its record from the frame, then print the design pages the project's record lists: slug, title and link, or missing for a slug no design page has; last, the line prior work: pm search <topic>.
 
 positional arguments:
   project           project record name, e.g. pm-harness
@@ -592,7 +592,7 @@ options:
 ===== pm task claim --help
 usage: pm task claim [-h] [--session ID] task_id
 
-Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one. On the session's first claim in the task's sprint (no other task there held or closed by it; for a task directly under a project, in the project), prints the design pages the sprint's record, then the project's, list: slug, title and link, or missing for a slug no design page has.
+Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one. On the session's first claim in the task's sprint (no other task there held or closed by it; for a task directly under a project, in the project), prints the design pages the sprint's record, then the project's, list: slug, title and link, or missing for a slug no design page has; last, the line prior work: pm search <topic>.
 
 positional arguments:
   task_id       the task's id

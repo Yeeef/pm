@@ -2022,13 +2022,14 @@ def test_sprint_open_and_a_sessions_first_claim_in_a_sprint_print_the_design_pag
     assert lines[0].startswith("claimed repo-demo.1.2 for session sess-a at ")
     assert lines[1] == "design pages (read the ones your task touches):"
     assert re.fullmatch(r"  parser  The parser  \S+/design/parser\.html", lines[2]), lines[2]
-    assert lines[3:] == ["  gone    missing"]
+    assert lines[3:] == ["  gone    missing", "prior work: pm search <topic>"]
     res = claim(repo, "repo-demo.1.3", "sess-a", cwd=wt)
     assert res.returncode == 0 and len(res.stdout.splitlines()) == 1, res.stdout
     res = repo.pm("sprint", "open", "demo", "--title", "Third", text=FRAME)
     assert res.returncode == 0, res.stderr
     assert res.stdout.splitlines()[1:2] == ["design pages (read the ones your task touches):"]
     assert re.fullmatch(r"  parser  The parser  \S+/design/parser\.html", res.stdout.splitlines()[2])
+    assert res.stdout.splitlines()[3:] == ["prior work: pm search <topic>"]
 
 
 # ---------------------------------------------------------------- pm push: what the service runs
