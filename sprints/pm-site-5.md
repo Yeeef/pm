@@ -43,6 +43,8 @@ An owner on a company network can let colleagues open the site at `http://<host>
 
 - [Replies on the site](../design/site-replies.md): Security rewritten for `listen`, `site_url` and `access`; local trust by the peer and the `Host`; `access = "none"` read-only beyond this machine; the POST's order of checks.
 - [pm as an installable product](../design/pm-product.md): `listen` and `access` in the `config.toml` schema.
+- [pm in Go](../design/pm-go.md): the HTTP row binds `listen`, not 127.0.0.1 only.
+- [Views and the site](../design/views-and-site.md): the reply POST's check names `access`.
 
 ## Progress
 
