@@ -62,6 +62,12 @@ A request is local only when its TCP peer is loopback and it carries no Cf-Conne
 Today local trust rests on Host, safe only because the socket is loopback-bound. With a LAN bind any colleague could send Host: localhost and skip every check.
 :::
 
+::: decision {source=owner date=2026-10-17}
+With access = "none", non-local viewers only read: their pages hide the reply forms, and POST /reply from a non-loopback peer gets a 403 naming the rule.
+Colleagues asked to look, not to steer; an unauthenticated write path into agent sessions must not open as a side effect of sharing pages.
+Answers `pm-bfli.5.1`.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
