@@ -162,10 +162,6 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return setup.Upgrade(p, here, stdout)
 	case "uninstall":
 		return setup.Uninstall(here, stdout)
-	case "hook git-post-checkout":
-		return setup.GitPostCheckout()
-	case "hook git-pre-commit":
-		return setup.GitPreCommit()
 	case "check":
 		return cmdCheck(here, stdout)
 	case "where":

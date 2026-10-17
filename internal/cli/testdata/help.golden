@@ -975,17 +975,14 @@ options:
   --subagent      only pm's git rule for agents, one line: the last SubagentStart hook, beside the rules chunks
   --hook-json     read the SessionStart or SubagentStart input on stdin and print the hook's JSON envelope, as Claude Code and Codex read it
 ===== pm hook --help
-usage: pm hook [-h]
-               {stop,owner-request,ask,session-end,git-post-checkout,git-pre-commit} ...
+usage: pm hook [-h] {stop,owner-request,ask,session-end} ...
 
 positional arguments:
-  {stop,owner-request,ask,session-end,git-post-checkout,git-pre-commit}
+  {stop,owner-request,ask,session-end}
     stop                Stop: block once while records are uncommitted: in a worktree, any in its own records workspace (each named, conflict markers too); in the main checkout, those in the store that this session's tool calls name, leaving out a record that only a still-running subagent's prompt names
     owner-request       Stop: block once while the reply asks the owner for something no open need or action of this session covers
     ask                 PermissionRequest and PostToolUse of AskUserQuestion (Claude Code), PostToolUse of request_user_input_async and UserPromptSubmit (Codex): raise the session's ask-tool question as a question need the owner can answer on the site too, and close it with the first answer
     session-end         SessionEnd: remove the ended session's interactive-mode file (pm interactive --help)
-    git-post-checkout   retired: does nothing; an earlier pm's section in .pm/hooks/post-checkout runs it until pm init unsets core.hooksPath or pm upgrade removes that section; session start sets each new worktree up
-    git-pre-commit      retired: does nothing; an earlier pm's section in .pm/hooks/pre-commit runs it until pm upgrade removes that section
 
 options:
   -h, --help            show this help message and exit
@@ -1014,19 +1011,6 @@ options:
                         the session's runtime; pm init writes claude in .claude/settings.json and codex in .codex/hooks.json
 ===== pm hook session-end --help
 usage: pm hook session-end [-h]
-
-options:
-  -h, --help  show this help message and exit
-===== pm hook git-post-checkout --help
-usage: pm hook git-post-checkout [-h] [git_args ...]
-
-positional arguments:
-  git_args    the hook's arguments, which it ignores
-
-options:
-  -h, --help  show this help message and exit
-===== pm hook git-pre-commit --help
-usage: pm hook git-pre-commit [-h]
 
 options:
   -h, --help  show this help message and exit

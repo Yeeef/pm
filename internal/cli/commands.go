@@ -731,17 +731,6 @@ var tree = &command{
 					Name: "session-end",
 					Help: "SessionEnd: remove the ended session's interactive-mode file (pm interactive --help)",
 				},
-				{
-					Name: "git-post-checkout",
-					Help: "retired: does nothing; an earlier pm's section in .pm/hooks/post-checkout runs it until pm init unsets core.hooksPath or pm upgrade removes that section; session start sets each new worktree up",
-					Args: []arg{
-						{Dest: "git_args", Arity: many, Kind: value, Help: "the hook's arguments, which it ignores"},
-					},
-				},
-				{
-					Name: "git-pre-commit",
-					Help: "retired: does nothing; an earlier pm's section in .pm/hooks/pre-commit runs it until pm upgrade removes that section",
-				},
 			},
 		},
 		{

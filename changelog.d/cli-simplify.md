@@ -8,6 +8,12 @@ rules `pm prime` prints are shorter.
   refusal says what the reason holds; a task not done still closes with `--dropped --reason "…"`.
 - `pm doc new --bead ID` is gone: give `--sprint ID` or `--task ID` (or `--project NAME`, as before). Each is checked
   for its item type.
+- `pm hook git-post-checkout` and `pm hook git-pre-commit` are gone; both did nothing since 0.10.0 and 0.9.1. A
+  clone whose `.pm/hooks/pre-commit` or `post-checkout` still holds a pm section from 0.9.x or older, with
+  `core.hooksPath` naming `.pm/hooks`, now fails that hook in a checkout on this release: the commit is refused, and
+  a checkout prints an error. `pm doctor` names a leftover section or hooks path. To fix it, run `pm upgrade` in each
+  checkout that still pins 0.9.x or older, or by hand delete pm's `# --- BEGIN PM` … `# --- END PM ---` section from
+  each file in `.pm/hooks` and run `git config --unset core.hooksPath`. Until then, `git commit --no-verify` commits.
 
 ### Added
 
