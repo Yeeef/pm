@@ -197,10 +197,13 @@ func decodePart(part string, v any) error {
 	return nil
 }
 
-// hostName is a Host header's name: without the port, lower case.
+// hostName is a Host header's name: without the port and an IPv6 address's brackets, lower case, as url.Hostname gives
+// site_url's.
 func hostName(host string) string {
-	if i := strings.LastIndex(host, ":"); i >= 0 {
-		host = host[:i]
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	} else { // no port: a bare name, a bracketed or a bare IPv6 address
+		host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
 	}
 	return strings.ToLower(host)
 }
@@ -213,7 +216,7 @@ func local(r *http.Request) bool {
 	_, edge := r.Header[http.CanonicalHeaderKey(EdgeHeader)]
 	peer, _, err := net.SplitHostPort(r.RemoteAddr)
 	name := hostName(r.Host)
-	return err == nil && config.IsLoopback(peer) && !edge && (name == "127.0.0.1" || name == "localhost" || name == "[::1]")
+	return err == nil && config.IsLoopback(peer) && !edge && (name == "127.0.0.1" || name == "localhost" || name == "::1")
 }
 
 // readOnly is whether r may read but not reply: with access = "none" pm cannot tell the owner from anyone else on the

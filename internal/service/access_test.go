@@ -512,3 +512,42 @@ func TestBindsAddLoopbackBesideASpecificAddress(t *testing.T) {
 		}
 	}
 }
+
+// Binds compares addresses, not spellings: 127.0.0.1 written another way binds once, so its port is free.
+func TestBindsTakesAnyLoopbackSpellingOf127001Once(t *testing.T) {
+	for _, listen := range []string{"::ffff:127.0.0.1", "127.000.000.001"} {
+		if ip := net.ParseIP(listen); ip == nil {
+			continue // a spelling this Go does not parse is refused by config.Read
+		}
+		if got := Binds(listen); !slices.Equal(got, []string{listen}) {
+			t.Errorf("Binds(%s) = %v, want it alone", listen, got)
+		}
+	}
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("%v is not a TCP address", l.Addr())
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !PortFree("::ffff:127.0.0.1", addr.Port) {
+		t.Errorf("listen ::ffff:127.0.0.1: port %d not free", addr.Port)
+	}
+}
+
+// hostName is a Host header's name without the port, brackets or case, with or without a port.
+func TestHostNameStripsThePortAndIPv6Brackets(t *testing.T) {
+	for host, want := range map[string]string{"[::1]": "::1", "[::1]:8000": "::1", "LocalHost": "localhost",
+		"localhost:1": "localhost", "pm.example.com:443": "pm.example.com", "": "", "::1": "::1"} {
+		if got := hostName(host); got != want {
+			t.Errorf("hostName(%q) = %q, want %q", host, got, want)
+		}
+	}
+	if !local(from("[::1]:5", "[::1]")) || !local(from("127.0.0.1:5", "[::1]:8000")) {
+		t.Error("an IPv6 loopback Host from a loopback peer is not local")
+	}
+}
