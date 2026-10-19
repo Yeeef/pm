@@ -335,7 +335,7 @@ var tree = &command{
 				{
 					Name:        "reopen",
 					Help:        "set a closed project open again; reason with --text",
-					Description: "Set a closed project open again: its work-store epic first, then one records commit that puts the record's '## Outcome' back to 'Not closed yet.', so the next pm project close needs a fresh one (the old text stays in git history), and adds the reopen, with the close reason it had, as a decision to the project's Decisions: source=agent, or source=owner with --confirmed. When the records step fails, the epic is closed again. The reason (--text) states why, on at least two lines. Refuses a project that is open. Its sprints stay closed; pm sprint reopen reopens one, or pm sprint open adds one.",
+					Description: "Set a closed project open again: its work-store epic first, then one records commit that puts the record's '## Outcome' back to 'Not closed yet.', so the next pm project close needs a fresh one (the old text stays in git history), and adds the reopen, with the close reason it had, as a decision to the project's Decisions: source=agent, or source=owner with --confirmed. When the records step fails, the epic is closed again with its old close reason, at a new close time. The reason (--text) states why, on at least two lines. Refuses a project that is open. Its sprints stay closed; pm sprint reopen reopens one, or pm sprint open adds one.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "project", Required: true, Kind: value, Help: "the project's name"},
@@ -402,7 +402,7 @@ var tree = &command{
 				{
 					Name:        "reopen",
 					Help:        "set a closed sprint open again; reason with --text",
-					Description: "Set a closed sprint open again: its work-store epic first, then one records commit that puts the record's '## Delivery report' back to 'Not closed yet.' in both parts, so the next pm sprint close needs a fresh report (the old one stays in git history), and adds the reopen, with the close reason it had, as a decision to the sprint's Decisions: source=agent, or source=owner with --confirmed. When the records step fails, the epic is closed again. The reason (--text) states why, on at least two lines. Refuses a sprint that is open, and a sprint whose project is closed: reopen the project first with pm project reopen. Its tasks stay closed; add new work with pm task add.",
+					Description: "Set a closed sprint open again: its work-store epic first, then one records commit that puts the record's '## Delivery report' back to 'Not closed yet.' in both parts, so the next pm sprint close needs a fresh report (the old one stays in git history), and adds the reopen, with the close reason it had, as a decision to the sprint's Decisions: source=agent, or source=owner with --confirmed. When the records step fails, the epic is closed again with its old close reason, at a new close time. The reason (--text) states why, on at least two lines. Refuses a sprint that is open, and a sprint whose project is closed: reopen the project first with pm project reopen. Its tasks stay closed; add new work with pm task add.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "sprint_id", Required: true, Kind: value, Help: "the sprint's id"},

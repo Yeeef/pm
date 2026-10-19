@@ -125,6 +125,7 @@ def test_a_closed_project_and_sprint_reopen_with_the_reason_and_close_again_on_a
     report(repo, "Done: shipped the thing.")
     assert repo.pm("sprint", "close", "repo-demo.1").returncode == 0
     sprint_closed = f"Done: shipped the thing. (records commit {store_head(repo)})"
+    sprint_head = (repo.records / "sprints/demo-1.md").read_text().partition("## Delivery report\n")[0]
     assert repo.pm("sprint", "close", "repo-demo.2").returncode == 0
     project = repo.records / "projects/demo.md"
     fresh_project = project.read_text()
@@ -157,11 +158,14 @@ def test_a_closed_project_and_sprint_reopen_with_the_reason_and_close_again_on_a
     res = repo.pm("sprint", "reopen", "repo-demo.1", text=REOPEN_REASON)
     assert res.returncode == 0, res.stderr
     assert repo.changes() == {"repo-demo.1": {"status": "open", **CLOSE_FIELDS}}
-    text = sprint.read_text()
-    assert (f"::: decision {{source=agent date={TODAY}}}\nReopened the sprint, closed as \"{sprint_closed}\": "
-            f"{REOPEN_REASON}\n:::") in text
-    delivery = text.partition("## Delivery report\n")[2]
-    assert "shipped the thing" not in delivery and delivery.count("\n\nNot closed yet.\n") == 2
+    decision = (f"::: decision {{source=agent date={TODAY}}}\nReopened the sprint, closed as \"{sprint_closed}\": "
+                f"{REOPEN_REASON}\n:::")
+    delivery = ("## Delivery report\n\n> Written at close. Each part holds \"Not closed yet.\" until then.\n\n"
+                "### Outcome\n\n> Done, partial or voided, plus one sentence; then, optionally, bullets of what "
+                "shipped.\n\nNot closed yet.\n\n### Against \"Done when\"\n\n> Each item, met or not, with its "
+                "evidence (a page, a command, a number).\n\nNot closed yet.\n")
+    assert "inside this sprint, and why?\n\nNone yet.\n" in sprint_head  # the decision replaces the placeholder
+    assert sprint.read_text() == sprint_head.replace("and why?\n\nNone yet.\n", f"and why?\n\n{decision}\n") + delivery
     repo.mark()
 
     # Closed again, each on a fresh report.

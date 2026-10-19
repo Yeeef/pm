@@ -127,7 +127,8 @@ func cmdProjectReopen(e *env, p *Parsed) (string, error) {
 
 // reopen sets a closed project or sprint open again, as pm sprint edit renames one: the work store first, then one
 // records commit that puts the close-time section back to "Not closed yet." (records.Reopened), so the next close needs
-// a fresh one, and adds the reason as a decision of the record; a failed records step closes the item again.
+// a fresh one, and adds the reason as a decision of the record; a failed records step closes the item again with its
+// old close reason, resolution and closer, at a new close time.
 func (r *repo) reopen(e *env, p *Parsed, rec *records.Record, kind, label, section string) (string, error) {
 	id := rec.Bead()
 	it := r.item(id)
