@@ -94,3 +94,20 @@ func PostmortemText(title, day, target string) string {
 	return "---\ntype: postmortem\ntitle: " + title + "\ndate: " + day + "\n" + target + "\n---\n\n" +
 		emptySections(PostmortemPrompts)
 }
+
+// Reopened is a project's or a sprint's record text with its close-time section, a project's Outcome or a sprint's
+// Delivery report, as a new record has it: each part "Not closed yet.", so the next close needs a fresh one. The rest
+// of the text is unchanged; the old section stays in git history.
+func Reopened(text, kind string) (string, error) {
+	section, fresh := "Outcome", ProjectText("", "", "")
+	if kind == "sprint" {
+		section, fresh = "Delivery report", SprintText("", "", nil)
+	}
+	have, ok := SectionRange(text, section)
+	if !ok {
+		return "", errorf("no '## %s' section", section)
+	}
+	want, _ := SectionRange(fresh, section)
+	lines := strings.Split(text, "\n")
+	return strings.Join(splice(lines, have.Start, have.End, strings.Split(fresh, "\n")[want.Start:want.End]), "\n"), nil
+}

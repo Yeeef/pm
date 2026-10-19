@@ -421,15 +421,16 @@ options:
   --sprint ID     the sprint the incident hit, open or closed
   --project NAME  the project the incident hit
 ===== pm project --help
-usage: pm project [-h] {open,close} ...
+usage: pm project [-h] {open,close,reopen} ...
 
 positional arguments:
-  {open,close}
-    open        create a project epic and record; Goal with --text
-    close       close a project epic at the committed records
+  {open,close,reopen}
+    open               create a project epic and record; Goal with --text
+    close              close a project epic at the committed records
+    reopen             set a closed project open again; reason with --text
 
 options:
-  -h, --help    show this help message and exit
+  -h, --help           show this help message and exit
 ===== pm project open --help
 usage: pm project open [-h] --title TITLE [--text-file PATH | --text TEXT]
                        project
@@ -454,15 +455,30 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
-===== pm sprint --help
-usage: pm sprint [-h] {open,close,edit,move} ...
+===== pm project reopen --help
+usage: pm project reopen [-h] [--confirmed] [--text-file PATH | --text TEXT]
+                         project
+
+Set a closed project open again: its work-store epic first, then one records commit that puts the record's '## Outcome' back to 'Not closed yet.', so the next pm project close needs a fresh one (the old text stays in git history), and adds the reopen, with the close reason it had, as a decision to the project's Decisions: source=agent, or source=owner with --confirmed. When the records step fails, the epic is closed again with its old close reason, at a new close time. The reason (--text) states why, on at least two lines. Refuses a project that is open. Its sprints stay closed; pm sprint reopen reopens one, or pm sprint open adds one.
 
 positional arguments:
-  {open,close,edit,move}
+  project           the project's name
+
+options:
+  -h, --help        show this help message and exit
+  --confirmed       source=owner: the owner asked for the reopen
+  --text-file PATH  required: why the project reopens, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
+  --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
+===== pm sprint --help
+usage: pm sprint [-h] {open,close,edit,move,reopen} ...
+
+positional arguments:
+  {open,close,edit,move,reopen}
     open                create a sprint epic and record; frame with --text ('## Goal', '## Scope' with **In:**/**Out:**, '## Done when')
     close               close a sprint epic once its report is written, every task is closed and each PR review is closed as merged
     edit                rename an open sprint; reason with --text
     move                move an open sprint, with its tasks, frame, decisions and findings, to another open project; reason with --text
+    reopen              set a closed sprint open again; reason with --text
 
 options:
   -h, --help            show this help message and exit
@@ -523,6 +539,20 @@ options:
   -h, --help        show this help message and exit
   --to PROJECT      the open project the sprint moves to, by record name, e.g. pm-harness
   --text-file PATH  required: why the sprint moves, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
+  --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
+===== pm sprint reopen --help
+usage: pm sprint reopen [-h] [--confirmed] [--text-file PATH | --text TEXT]
+                        sprint_id
+
+Set a closed sprint open again: its work-store epic first, then one records commit that puts the record's '## Delivery report' back to 'Not closed yet.' in both parts, so the next pm sprint close needs a fresh report (the old one stays in git history), and adds the reopen, with the close reason it had, as a decision to the sprint's Decisions: source=agent, or source=owner with --confirmed. When the records step fails, the epic is closed again with its old close reason, at a new close time. The reason (--text) states why, on at least two lines. Refuses a sprint that is open, and a sprint whose project is closed: reopen the project first with pm project reopen. Its tasks stay closed; add new work with pm task add.
+
+positional arguments:
+  sprint_id         the sprint's id
+
+options:
+  -h, --help        show this help message and exit
+  --confirmed       source=owner: the owner asked for the reopen
+  --text-file PATH  required: why the sprint reopens, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
 ===== pm task --help
 usage: pm task [-h] {add,close,claim,move,ready,edit,release} ...

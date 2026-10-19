@@ -1,7 +1,8 @@
-// Package item is the work store's item model: the Item type and its fields' types, the natural order of ids, and
-// the sprint moves a sprint's comments record. It is the Data model section of the work-store design page: a fixed
-// set of typed fields, no free metadata bag. It links no Dolt, so the code that only reads items (records, site)
-// builds and tests without the engine; package work, the store on embedded Dolt, aliases each name here.
+// Package item is the work store's item model: the Item type and its fields' types, the natural order of ids, the
+// sprint moves a sprint's comments record, and the JSON lines pm export prints (export.go). It is the Data model
+// section of the work-store design page: a fixed set of typed fields, no free metadata bag. It links no Dolt, so the
+// code that only reads items (records, site) builds and tests without the engine; package work, the store on embedded
+// Dolt, aliases each name here.
 package item
 
 import (

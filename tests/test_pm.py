@@ -108,6 +108,81 @@ def test_sprint_and_project_close_once_their_reports_are_written_and_their_work_
                                             f"Shipped both sprints. (commit {store_head(repo)})"}}
 
 
+REOPEN_REASON = "The owner asked for one more sprint under this goal.\nA new project would split its history in two."
+CLOSE_FIELDS = {"resolution": None, "close_reason": None, "closed_by": None}
+
+
+def test_a_closed_project_and_sprint_reopen_with_the_reason_and_close_again_on_a_fresh_report(repo):
+    """pm project reopen and pm sprint reopen set a closed item open again, in one records commit that puts the
+    close-time section back to 'Not closed yet.' and records the reason, with the old close reason, as a decision; the
+    next close then needs a fresh report. Each refusal writes nothing."""
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")  # the closes record a closing session
+    refused(repo, "project", "reopen", "demo", text=REOPEN_REASON,
+            match=r"project demo \(repo-demo\) is open; only a closed project is reopened")
+    refused(repo, "sprint", "reopen", "repo-demo.1", text=REOPEN_REASON,
+            match="sprint repo-demo.1 is open; only a closed sprint is reopened")
+    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
+    report(repo, "Done: shipped the thing.")
+    assert repo.pm("sprint", "close", "repo-demo.1").returncode == 0
+    sprint_closed = f"Done: shipped the thing. (records commit {store_head(repo)})"
+    sprint_head = (repo.records / "sprints/demo-1.md").read_text().partition("## Delivery report\n")[0]
+    assert repo.pm("sprint", "close", "repo-demo.2").returncode == 0
+    project = repo.records / "projects/demo.md"
+    fresh_project = project.read_text()
+    project.write_text(fresh_project.replace("Not closed yet.", "Shipped both sprints."))
+    repo.commit("outcome")
+    assert repo.pm("project", "close", "demo").returncode == 0
+    project_closed = f"Shipped both sprints. (commit {store_head(repo)})"
+    repo.mark()
+
+    refused(repo, "sprint", "reopen", "repo-demo.1", text=REOPEN_REASON,
+            match="sprint repo-demo.1 is in project demo, which is closed; reopen the project first with pm project "
+                  "reopen demo")
+    refused(repo, "project", "reopen", "demo", text="One line.", match="the decision body is a single line")
+    res = repo.pm("project", "reopen", "demo", "--confirmed", text=REOPEN_REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo": {"status": "open", **CLOSE_FIELDS}}
+    message = ("pm: reopened project repo-demo; its Outcome is 'Not closed yet.' again, and records/projects/demo.md "
+               "holds the reason as a project decision")
+    assert committed(repo, [message])
+    decision = (f"::: decision {{source=owner date={TODAY}}}\nReopened the project, closed as \"{project_closed}\": "
+                f"{REOPEN_REASON}\n:::")
+    outcome = ("## Outcome\n\n> Written when the project closes: what was achieved against the goal, what\n> was "
+               "learned, what was retired, and links to the sprint delivery reports.\n\nNot closed yet.\n")
+    got = project.read_text().replace("\n\n" + decision, "", 1)  # the rest as it was, the Outcome as a new record's
+    assert got == fresh_project.partition("## Outcome\n")[0] + outcome
+    assert repo.pm("check").returncode == 0
+    repo.mark()
+
+    sprint = repo.records / "sprints/demo-1.md"
+    res = repo.pm("sprint", "reopen", "repo-demo.1", text=REOPEN_REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo.1": {"status": "open", **CLOSE_FIELDS}}
+    decision = (f"::: decision {{source=agent date={TODAY}}}\nReopened the sprint, closed as \"{sprint_closed}\": "
+                f"{REOPEN_REASON}\n:::")
+    delivery = ("## Delivery report\n\n> Written at close. Each part holds \"Not closed yet.\" until then.\n\n"
+                "### Outcome\n\n> Done, partial or voided, plus one sentence; then, optionally, bullets of what "
+                "shipped.\n\nNot closed yet.\n\n### Against \"Done when\"\n\n> Each item, met or not, with its "
+                "evidence (a page, a command, a number).\n\nNot closed yet.\n")
+    assert "inside this sprint, and why?\n\nNone yet.\n" in sprint_head  # the decision replaces the placeholder
+    assert sprint.read_text() == sprint_head.replace("and why?\n\nNone yet.\n", f"and why?\n\n{decision}\n") + delivery
+    repo.mark()
+
+    # Closed again, each on a fresh report.
+    refused(repo, "sprint", "close", "repo-demo.1",
+            match=r"records/sprints/demo-1.md: the committed Delivery report Outcome is still 'Not closed yet.'")
+    report(repo, "Done: shipped the second step.")
+    assert repo.pm("sprint", "close", "repo-demo.1").returncode == 0
+    repo.mark()
+    refused(repo, "project", "close", "demo",
+            match=r"records/projects/demo.md: the committed ## Outcome is still 'Not closed yet.'")
+    project.write_text(project.read_text().replace("Not closed yet.", "Shipped three steps."))
+    repo.commit("outcome again")
+    assert repo.pm("project", "close", "demo").returncode == 0
+    assert {i: repo.items()[i]["status"] for i in ("repo-demo", "repo-demo.1")} == {"repo-demo": "closed",
+                                                                                   "repo-demo.1": "closed"}
+
+
 def test_pm_help_hides_the_machinery_that_help_all_lists():
     """pm --help leaves out what the runtimes' hooks, the scheduler and the pm service run (MACHINERY) and says that
     pm --help --all lists it; each hidden command still runs and keeps its own --help, and pm service --help hides
@@ -2200,6 +2275,7 @@ STORE_COMMANDS = [
     ["sprint", "open", "demo", "--title", "S",
      "--text=## Goal\n\nx\n\n## Scope\n\n**In:** a.\n\n**Out:** b.\n\n## Done when\n\n- x."],
     ["sprint", "close", "repo-demo.1"], ["sprint", "edit", "repo-demo.1", "--title", "S", "--text=a\nb"],
+    ["project", "reopen", "demo", "--text=a\nb"], ["sprint", "reopen", "repo-demo.1", "--text=a\nb"],
     ["need", "edit", "repo-demo.1.2", "--text=x"],
     ["decision", "add", "--project", "demo", "--decision", "x", "--reason", "y"],
     ["decision", "need", "--title", "Q?", "--sprint", "repo-demo.1", "--question", "q", "--fact", "f",

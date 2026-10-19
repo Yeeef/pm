@@ -154,6 +154,7 @@ func TestClaimIsACompareAndSet(t *testing.T) {
 	if err := d.SetCloseReason(task.ID, "done it twice"); err != nil || get(t, d, task.ID).CloseReason != "done it twice" {
 		t.Fatal(err)
 	}
+	checkReopenClearsTheClose(t, d, task.ID)
 
 	// A move note is read only from pm's own comments: a session's note in the same words is no move.
 	t.Run("SprintMovesReadsOnlyPmsNotes", checkSprintMovesReadsOnlyPmsNotes)
@@ -350,6 +351,21 @@ func checkEachWriteIsOneDoltCommit(t *testing.T) {
 	}
 	if _, err := d.Get(task.ID, "demo-none"); err == nil {
 		t.Error("Get of a missing id passed")
+	}
+}
+
+// checkReopenClearsTheClose reopens the closed item id: open with no close field; a second reopen fails.
+func checkReopenClearsTheClose(t *testing.T, d *Dolt, id string) {
+	t.Helper()
+	if err := d.Reopen(id); err != nil {
+		t.Fatal(err)
+	}
+	if got := get(t, d, id); got.Status != Open || got.Resolution != "" || got.CloseReason != "" || got.ClosedBy != "" ||
+		!got.ClosedAt.IsZero() {
+		t.Fatalf("reopen: %+v", got)
+	}
+	if err := d.Reopen(id); err == nil || !strings.Contains(err.Error(), "only a closed item is reopened") {
+		t.Fatalf("an open item reopened: %v", err)
 	}
 }
 
