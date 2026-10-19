@@ -38,7 +38,12 @@ A closed project or sprint can be reopened with `pm project reopen` and `pm spri
 
 > Where is the detail?
 
-None yet.
+- [Sprint lifecycle](../design/sprint-lifecycle.md): Reopen; the stage diagram's reopen
+- [pm CLI](../design/pm-cli.md): Naming, the reopen verb; Command families
+- [Work store: pm's own replacement for Beads](../design/work-store.md): Inside pm, Reopen
+- [Record layer](../design/record-layer.md): a reopen puts the close-time section back
+- [pm in Go](../design/pm-go.md): the served package; internal/item holds pm export's lines
+- [Views and the site](../design/views-and-site.md): covers internal/cli/served
 
 ## Progress
 
