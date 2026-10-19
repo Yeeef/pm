@@ -17,8 +17,9 @@ func Export(w io.Writer, items []Item) error {
 		if err != nil {
 			return err
 		}
-		bw.Write(b)
-		bw.WriteByte('\n')
+		if _, err := bw.Write(append(b, '\n')); err != nil {
+			return err
+		}
 	}
 	return bw.Flush()
 }

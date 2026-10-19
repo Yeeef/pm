@@ -165,7 +165,7 @@ func TestReopenedPutsBackOnlyTheCloseTimeSection(t *testing.T) {
 			"### Against \"Done when\"\n\n- D: met.\n"},
 	} {
 		section := map[string]string{"project": "## Outcome\n", "sprint": "## Delivery report\n"}[c.kind]
-		before := c.fresh[:strings.Index(c.fresh, section)]
+		before, _, _ := strings.Cut(c.fresh, section)
 		got, err := Reopened(before+c.closed, c.kind)
 		if err != nil || got != c.fresh {
 			t.Fatalf("%s: %v\n%s", c.kind, err, got)

@@ -115,8 +115,8 @@ func stampTree(h io.Writer, root string, required bool) error {
 			return err
 		}
 		fmt.Fprintf(h, "%s\x00%d\x00", p, len(data))
-		h.Write(data)
-		return nil
+		_, err = h.Write(data)
+		return err
 	})
 }
 
