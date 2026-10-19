@@ -1,7 +1,7 @@
 {
  "date": "2026-10-19",
- "generated_at": "2026-10-19T07:51:04+00:00",
- "digest": "3747845fe84fb00a",
+ "generated_at": "2026-10-19T19:13:40+00:00",
+ "digest": "a19e57893d26c57a",
  "model": "claude-haiku-5-5",
- "text": "- **Reopen support:** The work store can reopen a closed item. The tool reopens a closed project or sprint. Help text, the prime.md guide, goldens and the changelog now cover this.\n- **Reopen tests:** Black-box tests now check the reopen round trip. They also check the refusal cases.\n- **Owner review:** A review of the reopen change was requested from the owner."
+ "text": "- **Project and sprint reopen:** A closed project or sprint now reopens with `pm project reopen` or `pm sprint reopen`. The reason is recorded as a decision, and the close section returns for a fresh close.\n- **Work store:** The work store can now reopen a closed item.\n- **Tests and design docs:** Black-box tests now cover the reopen round trip and its refusals. The help text, prime file, golden outputs, changelog and design pages describe the new commands.\n- **Sprint report:** The sprint delivery report now includes CI."
 }
