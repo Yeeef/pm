@@ -103,6 +103,12 @@ serve.go only builds the site from its new package, internal/cli/served; the rep
   internal/work's tests import records, so a records change would select the
   slow work tests (tests/test_ci.py caught it); it was dropped.
 
+- The fresh-context review found that a reopen on one clone merged against a
+  reopen-and-close on the other produced an open item with close fields
+  (status, close group and resolution merged apart), which the item check
+  refuses; mergeClose now lets closed win when one side closed anew and clears
+  close fields on an open result (MergeAReopenOnOneSideStandsWhole).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
