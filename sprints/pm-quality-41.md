@@ -74,6 +74,11 @@ The design page record-drafts stays as it is for this sprint's code changes.
 commit_workspace_test.go only calls the served site under its new package name
 :::
 
+::: decision {source=agent date=2026-10-19}
+The design page reply-delivery stays as it is for this sprint's code changes.
+decision.go changes only a comment that said the work store has no reopen
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
