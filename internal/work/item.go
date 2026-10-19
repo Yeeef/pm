@@ -3,7 +3,7 @@
 // callers name them as work's. store.go fixes the Store interface that the service code builds against.
 //
 // The files: schema.go the schema; check.go the invariant checks; ids.go the ids; ready.go ready and blocked;
-// importbd.go the bd import; export.go pm export and its import (pm init --import); sync.go the sync through the git
+// importbd.go the bd import; export.go the import of pm export's lines (pm init --import), whose form is item's; sync.go the sync through the git
 // remote under refs/pm/work, and the child-id compare-and-swap on the scratch branch pm-cas, which a sprint move
 // (move.go) runs too; merge.go the merge rules. host.go is the host, which only pm service run starts: the Dolt engine
 // held open and served on <main>/.pm/run/work.sock with pm_version(), pm_sync(), pm_create(?), pm_move_sprint(?) and
@@ -19,7 +19,11 @@
 package work
 
 // imported as model: work's tests have a helper named item
-import model "github.com/Yeeef/pm/internal/item"
+import (
+	"io"
+
+	model "github.com/Yeeef/pm/internal/item"
+)
 
 type (
 	Type        = model.Type
@@ -69,6 +73,9 @@ func HasReply(it *Item) bool { return model.HasReply(it) }
 
 // CompareIDs is item.CompareIDs.
 func CompareIDs(a, b string) int { return model.CompareIDs(a, b) }
+
+// Export is item.Export.
+func Export(w io.Writer, items []Item) error { return model.Export(w, items) }
 
 // SprintMoves is item.SprintMoves.
 func SprintMoves(it *Item) []SprintMove { return model.SprintMoves(it) }
