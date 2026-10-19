@@ -59,6 +59,11 @@ The design page agent-lifecycle stays as it is for this sprint's code changes.
 prime.md gains one How line naming the reopen commands; the agent lifecycle is unchanged
 :::
 
+::: decision {source=agent date=2026-10-19}
+The design page decision-need-layout stays as it is for this sprint's code changes.
+decision.go changes only a comment that said the work store has no reopen
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
