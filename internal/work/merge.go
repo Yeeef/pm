@@ -148,11 +148,20 @@ func mergeIdentity(b, o, t, m *Item) error {
 
 func mergeClose(b, o, t, m *Item) error {
 	id := o.ID
-	// status: closed wins.
+	// status: closed wins, both when the sides differ and when one side reopened it (pm sprint reopen) while the
+	// other closed it anew; an open result has no close fields.
 	if v, ok := three(b.Status, o.Status, t.Status); ok {
 		m.Status = v
 	} else {
 		m.Status = Closed
+	}
+	closedAnew := func(it *Item) bool { return it.Status == Closed && closeOf(it) != closeOf(b) }
+	if m.Status == Open && (closedAnew(o) || closedAnew(t)) {
+		m.Status = Closed
+	}
+	if m.Status == Open {
+		m.ClosedAt, m.ClosedBy, m.CloseReason = time.Time{}, "", ""
+		return nil
 	}
 
 	// closed_at, closed_by, close_reason: from the earlier close when both closed, else from the side that closed.
@@ -185,8 +194,11 @@ func mergeClose(b, o, t, m *Item) error {
 
 func mergeResolution(b, o, t, m *Item) error {
 	id := o.ID
-	// resolution: the side's value that is not null; when both set it, the later updated_at wins.
-	if v, ok := three(b.Resolution, o.Resolution, t.Resolution); ok {
+	// resolution: none on an open result; on a closed one, the side's value that is not null, and when both set it,
+	// the later updated_at wins.
+	if m.Status == Open {
+		m.Resolution = ""
+	} else if v, ok := three(b.Resolution, o.Resolution, t.Resolution); ok && v != "" {
 		m.Resolution = v
 	} else {
 		switch {
