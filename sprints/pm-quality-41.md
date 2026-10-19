@@ -79,6 +79,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 decision.go changes only a comment that said the work store has no reopen
 :::
 
+::: decision {source=agent date=2026-10-19}
+The design page session-claims stays as it is for this sprint's code changes.
+dolt.go gains Store.Reopen, which leaves holders as they are; move.go gains pm sprint reopen, which claims nothing
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
