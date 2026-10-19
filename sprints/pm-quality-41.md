@@ -54,7 +54,10 @@ A closed project or sprint can be reopened with `pm project reopen` and `pm spri
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-19}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+prime.md gains one How line naming the reopen commands; the agent lifecycle is unchanged
+:::
 
 ## Findings
 
