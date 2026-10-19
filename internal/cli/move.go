@@ -356,6 +356,30 @@ func cmdSprintEdit(e *env, p *Parsed) (string, error) {
 	return out, nil
 }
 
+// cmdSprintReopen sets a closed sprint open again (reopen); it refuses a sprint whose project is closed.
+func cmdSprintReopen(e *env, p *Parsed) (string, error) {
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	id := p.Get("sprint_id")
+	rec, err := r.sprint(id)
+	if err != nil {
+		return "", err
+	}
+	if sp := r.item(id); sp != nil && sp.Status == work.Closed {
+		if up := r.item(sp.Parent); up != nil && up.Status == work.Closed {
+			prec, err := r.projectRecord(up.ID)
+			if err != nil {
+				return "", err
+			}
+			return "", refuse("sprint %s is in project %s, which is closed; reopen the project first with pm project "+
+				"reopen %s", id, prec.Name(), prec.Name())
+		}
+	}
+	return r.reopen(e, p, rec, "sprint", "sprint "+id, "Delivery report")
+}
+
 func (r *repo) finishSprintMove(sp *work.Item, rec *records.Record, id, toName string) (string, error) {
 	if rec.Name() == sprintName(toName, sp.Number) {
 		return "", refuse("sprint %s is in project %s already, as sprint %d (%s)", id, toName, sp.Number,

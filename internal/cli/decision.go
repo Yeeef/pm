@@ -136,7 +136,7 @@ func cmdDecisionAdd(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	out, err := r.apply(w, fmt.Sprintf("closed need %s and %s", needID, done), "pm: ")
-	if err != nil { // the work store has no reopen: say what stands and how to finish
+	if err != nil { // the answer, a reply comment, stays in the work store: say what stands and how to finish
 		return "", fmt.Errorf("%w; the work-store step stands: %s is closed as answered with this decision; record the "+
 			"decision again with pm decision add --need %s and the same flags", err, needID, needID)
 	}

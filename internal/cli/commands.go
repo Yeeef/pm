@@ -332,6 +332,18 @@ var tree = &command{
 						{Dest: "project", Required: true, Kind: value, Help: "the project's name"},
 					},
 				},
+				{
+					Name:        "reopen",
+					Help:        "set a closed project open again; reason with --text",
+					Description: "Set a closed project open again: its work-store epic first, then one records commit that puts the record's '## Outcome' back to 'Not closed yet.', so the next pm project close needs a fresh one (the old text stays in git history), and adds the reopen, with the close reason it had, as a decision to the project's Decisions: source=agent, or source=owner with --confirmed. When the records step fails, the epic is closed again. The reason (--text) states why, on at least two lines. Refuses a project that is open. Its sprints stay closed; pm sprint reopen reopens one, or pm sprint open adds one.",
+					Groups:      []bool{false},
+					Args: []arg{
+						{Dest: "project", Required: true, Kind: value, Help: "the project's name"},
+						{Flags: []string{"--confirmed"}, Dest: "confirmed", Kind: switchOn, Help: "source=owner: the owner asked for the reopen"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: why the project reopens, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
+					},
+				},
 			},
 		},
 		{
@@ -384,6 +396,18 @@ var tree = &command{
 						{Dest: "sprint_id", Required: true, Kind: value, Help: "the sprint's id"},
 						{Flags: []string{"--to"}, Dest: "to", Metavar: []string{"PROJECT"}, Required: true, Kind: value, Help: "the open project the sprint moves to, by record name, e.g. pm-harness"},
 						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: why the sprint moves, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
+					},
+				},
+				{
+					Name:        "reopen",
+					Help:        "set a closed sprint open again; reason with --text",
+					Description: "Set a closed sprint open again: its work-store epic first, then one records commit that puts the record's '## Delivery report' back to 'Not closed yet.' in both parts, so the next pm sprint close needs a fresh report (the old one stays in git history), and adds the reopen, with the close reason it had, as a decision to the sprint's Decisions: source=agent, or source=owner with --confirmed. When the records step fails, the epic is closed again. The reason (--text) states why, on at least two lines. Refuses a sprint that is open, and a sprint whose project is closed: reopen the project first with pm project reopen. Its tasks stay closed; add new work with pm task add.",
+					Groups:      []bool{false},
+					Args: []arg{
+						{Dest: "sprint_id", Required: true, Kind: value, Help: "the sprint's id"},
+						{Flags: []string{"--confirmed"}, Dest: "confirmed", Kind: switchOn, Help: "source=owner: the owner asked for the reopen"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: why the sprint reopens, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},

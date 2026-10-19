@@ -32,10 +32,12 @@ var agentCommands = map[string]agentCommand{
 	"postmortem new":   cmdPostmortemNew,
 	"project open":     cmdProjectOpen,
 	"project close":    cmdProjectClose,
+	"project reopen":   cmdProjectReopen,
 	"sprint open":      cmdSprintOpen,
 	"sprint close":     cmdSprintClose,
 	"sprint move":      cmdSprintMove,
 	"sprint edit":      cmdSprintEdit,
+	"sprint reopen":    cmdSprintReopen,
 	"need edit":        cmdNeedEdit,
 	"need close":       cmdNeedClose,
 	"decision add":     cmdDecisionAdd,
@@ -50,7 +52,7 @@ var writes = map[string]bool{"finding add": true, "feedback add": true, "decisio
 	"need close": true, "action need": true, "doc new": true, "doc rename": true, "design new": true,
 	"design rename": true, "design unchanged": true,
 	"postmortem new": true, "project open": true, "sprint open": true, "sprint close": true,
-	"sprint move": true, "sprint edit": true, "task add": true,
+	"sprint move": true, "sprint edit": true, "project reopen": true, "sprint reopen": true, "task add": true,
 	"task close": true, "task move": true, "commit": true}
 
 // runAgent runs an agent command as Python's main() does: the body from --text-file first (a slow pipe holds no

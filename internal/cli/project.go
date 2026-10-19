@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func cmdProjectOpen(e *env, p *Parsed) (string, error) {
@@ -109,6 +110,71 @@ func cmdProjectClose(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("closed %s: %s", epicID, reason), nil
+}
+
+// cmdProjectReopen sets a closed project open again, as pm sprint reopen does a sprint (reopen).
+func cmdProjectReopen(e *env, p *Parsed) (string, error) {
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	rec, err := r.project(p.Get("project"))
+	if err != nil {
+		return "", err
+	}
+	return r.reopen(e, p, rec, "project", fmt.Sprintf("project %s (%s)", rec.Name(), rec.Bead()), "Outcome")
+}
+
+// reopen sets a closed project or sprint open again, as pm sprint edit renames one: the work store first, then one
+// records commit that puts the close-time section back to "Not closed yet." (records.Reopened), so the next close needs
+// a fresh one, and adds the reason as a decision of the record; a failed records step closes the item again.
+func (r *repo) reopen(e *env, p *Parsed, rec *records.Record, kind, label, section string) (string, error) {
+	id := rec.Bead()
+	it := r.item(id)
+	if it == nil {
+		return "", refuse("%s is not in the work store", label)
+	}
+	if it.Status != work.Closed {
+		return "", refuse("%s is open; only a closed %s is reopened", label, kind)
+	}
+	reason := p.Get("text")
+	if err := decisionBody(reason); err != nil {
+		return "", err
+	}
+	source := "agent"
+	if p.Get("confirmed") != "" {
+		source = "owner"
+	}
+	text, err := records.Reopened(rec.Text, kind)
+	if err == nil {
+		text, err = records.InsertEntry(text, "Decisions", decisionBlock(source,
+			fmt.Sprintf("Reopened the %s, closed as \"%s\": %s", kind, it.CloseReason, reason)))
+	}
+	if err != nil {
+		return "", err
+	}
+	open := *it
+	open.Status, open.Resolution, open.CloseReason, open.ClosedBy, open.ClosedAt = work.Open, "", "", "", time.Time{}
+	w := []store.Write{{Path: rec.Path, Text: text}}
+	if err := r.checkPlanned(w, r.with(open)); err != nil {
+		return "", err
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	if err := ws.Reopen(id); err != nil {
+		return "", err
+	}
+	out, err := r.apply(w, fmt.Sprintf("reopened %s %s; its %s is '%s' again, and %s holds the reason as a %s decision",
+		kind, id, section, records.NotClosed, r.rel(rec.Path), kind), "pm: ")
+	if err != nil {
+		if cerr := ws.Close(id, it.CloseReason, it.Resolution, it.ClosedBy); cerr != nil {
+			return "", fmt.Errorf("%w; closing %s again failed too: %v", err, id, cerr)
+		}
+		return "", fmt.Errorf("%w; the work-store step is undone: %s is closed again", err, id)
+	}
+	return out, nil
 }
 
 // ---------------------------------------------------------------- tasks

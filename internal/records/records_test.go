@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -151,5 +152,31 @@ func TestReadSummariesLeavesOutASummaryGoneWhenRead(t *testing.T) {
 	}
 	if len(got) != 1 || got["2026-10-09"] == nil {
 		t.Fatalf("summaries %v, want 2026-10-09's alone", got)
+	}
+}
+
+// TestReopenedPutsBackOnlyTheCloseTimeSection: a closed project's and a closed sprint's record, reopened, read as the
+// new record did in the close-time section and as before everywhere else.
+func TestReopenedPutsBackOnlyTheCloseTimeSection(t *testing.T) {
+	sprint := SprintText("S", "x.1", map[string]string{"Goal": "G", "Scope": "**In:** a\n\n**Out:** b", "Done when": "D"})
+	for _, c := range []struct{ kind, fresh, closed string }{
+		{"project", ProjectText("P", "x", "G"), "## Outcome\n\n> o\n\nShipped it.\n\nMore.\n"},
+		{"sprint", sprint, "## Delivery report\n\n### Outcome\n\ndone, it shipped.\n\nMerged as abc.\n\n" +
+			"### Against \"Done when\"\n\n- D: met.\n"},
+	} {
+		section := map[string]string{"project": "## Outcome\n", "sprint": "## Delivery report\n"}[c.kind]
+		before := c.fresh[:strings.Index(c.fresh, section)]
+		got, err := Reopened(before+c.closed, c.kind)
+		if err != nil || got != c.fresh {
+			t.Fatalf("%s: %v\n%s", c.kind, err, got)
+		}
+		// A section after the close-time one stays, one blank line below it.
+		got, err = Reopened(before+c.closed+"\n## Later\n\nKept.\n", c.kind)
+		if err != nil || got != c.fresh+"\n## Later\n\nKept.\n" {
+			t.Fatalf("%s, a later section: %v\n%s", c.kind, err, got)
+		}
+	}
+	if _, err := Reopened("---\ntype: project\n---\n\n## Goal\n\nG\n", "project"); err == nil {
+		t.Fatal("a record without an Outcome section was reopened")
 	}
 }
