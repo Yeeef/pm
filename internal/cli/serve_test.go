@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/cli/served"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/service"
 	"github.com/Yeeef/pm/internal/store"
@@ -69,7 +70,7 @@ func TestStampAndTextsSurviveGitRewritingTheRecordsMidWalk(t *testing.T) {
 	run("tag", "b")
 	run("checkout", "-q", "--detach", "a") // a's tree, with HEAD detached so each checkout below moves only files
 
-	s, err := newServedSite(dir, "t", "origin/main")
+	s, err := served.New(dir, "t", "origin/main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func TestLoadNeverPassesARecordSetMissingAFileGitRewrote(t *testing.T) {
 	run("tag", "b")
 	run("checkout", "-q", "--detach", "a")
 
-	s, err := newServedSite(dir, "t", "origin/main")
+	s, err := served.New(dir, "t", "origin/main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +325,7 @@ func run(t *testing.T, dir string, cmds ...string) {
 func TestACommittedEditIsPublishedAndLeavesNoDraftAtTheNextLook(t *testing.T) {
 	root := clone(t)
 	records := filepath.Join(root, ".pm/store/records")
-	s, err := newServedSite(records, "t", "origin/main")
+	s, err := served.New(records, "t", "origin/main")
 	if err != nil {
 		t.Fatal(err)
 	}

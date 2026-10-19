@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
+	"github.com/Yeeef/pm/internal/cli/served"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
@@ -291,7 +292,7 @@ func TestTheSiteListsEachWorkspaceAsAVersionLabelledWithItsWorktree(t *testing.T
 	entry := fmt.Sprintf(`{"type":"user","timestamp":%q,"cwd":%q,"sessionId":"s1","message":{"content":"go"}}`+"\n",
 		time.Now().UTC().Format(time.RFC3339Nano), one.Code)
 	writeFile(t, filepath.Join(claude, "projects/p/s1.jsonl"), entry)
-	s, err := newServedSite(storeDir, "t", "origin/main")
+	s, err := served.New(storeDir, "t", "origin/main")
 	if err != nil {
 		t.Fatal(err)
 	}
