@@ -29,6 +29,24 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.7] - 2026-10-19
+
+A closed project or sprint can be reopened, keeping its history in one record.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.7/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.7`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- `pm project reopen <name>` and `pm sprint reopen <id>` set a closed project or sprint open again. Each takes the
+  reason as its body, on two lines or more, and records it, with the close reason it had, as a decision in the
+  reopened record (`--confirmed` marks it source=owner). The record's Outcome, or the sprint's delivery report, goes
+  back to "Not closed yet.", so the next close needs a fresh one; the old text stays in git history. A sprint of a
+  closed project is refused until `pm project reopen` reopens the project.
+
 ## [0.15.6] - 2026-10-17
 
 Every command names its scope with `--sprint`, `--task` or `--project`, and one verb, `pm need close`, closes a need
@@ -1320,6 +1338,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.7]: https://github.com/Yeeef/pm/compare/pm-v0.15.6...pm-v0.15.7
 [0.15.6]: https://github.com/Yeeef/pm/compare/pm-v0.15.5...pm-v0.15.6
 [0.15.5]: https://github.com/Yeeef/pm/compare/pm-v0.15.4...pm-v0.15.5
 [0.15.4]: https://github.com/Yeeef/pm/compare/pm-v0.15.3...pm-v0.15.4
