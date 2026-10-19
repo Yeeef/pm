@@ -1,7 +1,7 @@
 {
  "date": "2026-10-19",
- "generated_at": "2026-10-19T07:10:16+00:00",
- "digest": "55f18f722576a237",
+ "generated_at": "2026-10-19T07:30:31+00:00",
+ "digest": "6cefbf71db7f22da",
  "model": "claude-haiku-5-5",
- "text": "- **Reopen closed items:** A new sprint opened to add reopening of closed projects and sprints. Work started on the reopen store, the reopen commands, and black-box tests."
+ "text": "- **Reopening closed work:** Work started to reopen closed items, projects and sprints. Black-box tests for reopening also started.\n- **Quality sprint setup:** A new sprint opened for project quality work. The records keep all of its design pages unchanged."
 }
