@@ -128,6 +128,6 @@ done: a closed project or sprint reopens with `pm project reopen` / `pm sprint r
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- `make test` and `make test-go` pass, and the PR's CI is green: met locally (`make test` 156 passed, 169 skipped live; `make test-go` 19 packages ok, work 33 tests in 8 shards, race 10); CI on [PR #116](https://github.com/Yeeef/pm/pull/116).
+- `make test` and `make test-go` pass, and the PR's CI is green: met locally (`make test` 156 passed, 169 skipped live; `make test-go` 19 packages ok, work 33 tests in 8 shards, race 10); CI green on [PR #116](https://github.com/Yeeef/pm/pull/116) (10 checks pass, 4 skipped as not selected; lint-go first failed on the moved lines' unchecked writes and a test's complexity, fixed).
 - A black-box test closes, reopens and closes again a project and a sprint: met, `test_a_closed_project_and_sprint_reopen_with_the_reason_and_close_again_on_a_fresh_report` (status open, decision in the record, records compared whole, a fresh report needed for the second close).
 - Black-box tests see each refusal's text: met in the same test (open project, open sprint, sprint of a closed project, one-line reason), and `test_every_store_command_fails_hard_with_the_service_stopped` covers both commands.
