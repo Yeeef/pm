@@ -1,7 +1,7 @@
 {
  "date": "2026-10-19",
- "generated_at": "2026-10-19T07:40:50+00:00",
- "digest": "a33146fe2e9784a4",
+ "generated_at": "2026-10-19T07:51:04+00:00",
+ "digest": "3747845fe84fb00a",
  "model": "claude-haiku-5-5",
- "text": "- **Reopening closed work:** Closed projects and sprints can now be reopened, and the work store reopens closed items. Tests cover the reopen round trip and its refusals.\n- **Design page review:** Several design pages were reviewed and kept as they are.\n- **Sprint records:** A delivery report was published and review findings were recorded. A new sprint opened for reopening closed projects and sprints."
+ "text": "- **Reopen support:** The work store can reopen a closed item. The tool reopens a closed project or sprint. Help text, the prime.md guide, goldens and the changelog now cover this.\n- **Reopen tests:** Black-box tests now check the reopen round trip. They also check the refusal cases.\n- **Owner review:** A review of the reopen change was requested from the owner."
 }
