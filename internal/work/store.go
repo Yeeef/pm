@@ -26,6 +26,8 @@ type Store interface {
 	SetResolution(id string, resolution Resolution) error
 	// SetCloseReason sets a closed item's close reason (pm need close restamps a closed PR review with its merge).
 	SetCloseReason(id, reason string) error
+	// Reopen sets a closed item open again: no close reason, resolution, closing session or close time.
+	Reopen(id string) error
 	// Move gives a task or a need a new parent; its id stays.
 	Move(id, parent string) error
 	// MoveSprint moves an open sprint to an open project and returns it as it is after: its id stays, its number is

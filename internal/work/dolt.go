@@ -1214,6 +1214,18 @@ func (d *Dolt) SetCloseReason(id, reason string) error {
 	})
 }
 
+// Reopen sets a closed item open again (pm project reopen, pm sprint reopen): it clears the close reason, resolution,
+// closing session and close time. An open item fails.
+func (d *Dolt) Reopen(id string) error {
+	return d.update("reopen", id, func(it *Item, _ *Index) error {
+		if it.Status != Closed {
+			return itemError(id, "is open; only a closed item is reopened")
+		}
+		it.Status, it.Resolution, it.CloseReason, it.ClosedBy, it.ClosedAt = Open, "", "", "", time.Time{}
+		return nil
+	})
+}
+
 // Move gives a task or a need a new parent (pm task move takes any open item that is no project or sprint); its id
 // stays.
 func (d *Dolt) Move(id, parent string) error {

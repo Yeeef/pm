@@ -154,6 +154,16 @@ func TestClaimIsACompareAndSet(t *testing.T) {
 	if err := d.SetCloseReason(task.ID, "done it twice"); err != nil || get(t, d, task.ID).CloseReason != "done it twice" {
 		t.Fatal(err)
 	}
+	if err := d.Reopen(task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got = get(t, d, task.ID); got.Status != Open || got.Resolution != "" || got.CloseReason != "" ||
+		got.ClosedBy != "" || !got.ClosedAt.IsZero() {
+		t.Fatalf("reopen: %+v", got)
+	}
+	if err := d.Reopen(task.ID); err == nil || !strings.Contains(err.Error(), "only a closed item is reopened") {
+		t.Fatalf("an open item reopened: %v", err)
+	}
 
 	// A move note is read only from pm's own comments: a session's note in the same words is no move.
 	t.Run("SprintMovesReadsOnlyPmsNotes", checkSprintMovesReadsOnlyPmsNotes)

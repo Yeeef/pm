@@ -74,6 +74,8 @@ func TestMergeOtherScalarsTheLaterUpdatedAt(t *testing.T) {
 
 	t.Run("MergeStatusClosedWins", checkMergeStatusClosedWins)
 
+	t.Run("MergeAReopenOnOneSideStandsWhole", checkMergeAReopenOnOneSideStandsWhole)
+
 	t.Run("MergeCloseFieldsFromTheEarlierClose", checkMergeCloseFieldsFromTheEarlierClose)
 
 	t.Run("MergeResolutionNotNullThenLaterUpdatedAt", checkMergeResolutionNotNullThenLaterUpdatedAt)
@@ -141,6 +143,22 @@ func checkMergeStatusClosedWins(t *testing.T) {
 			m.ClosedBy != "s1" {
 			t.Fatalf("%s closed: %+v", closer, m)
 		}
+	}
+}
+
+// checkMergeAReopenOnOneSideStandsWhole: a closed item one side reopened (pm sprint reopen) and the other only renamed
+// merges open, with no close field left.
+func checkMergeAReopenOnOneSideStandsWhole(t *testing.T) {
+	b, o, th := sides(5, 6)
+	for _, it := range []*Item{&b, &o, &th} {
+		it.Status, it.Resolution, it.CloseReason, it.ClosedAt, it.ClosedBy = Closed, Done, "shipped", sec(1), "s1"
+	}
+	o.Status, o.Resolution, o.CloseReason, o.ClosedAt, o.ClosedBy = Open, "", "", time.Time{}, ""
+	th.Title = "renamed"
+	m, _ := merged(t, b, o, th)
+	if m.Status != Open || m.Resolution != "" || m.CloseReason != "" || !m.ClosedAt.IsZero() || m.ClosedBy != "" ||
+		m.Title != "renamed" {
+		t.Fatalf("%+v", m)
 	}
 }
 
