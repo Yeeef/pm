@@ -94,7 +94,14 @@ serve.go only builds the site from its new package, internal/cli/served; the rep
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- The size caps left no room for the feature: internal/cli held 7359 of its
+  7365-line ratchet and internal/work exactly 5000 of 5000. Two
+  behavior-preserving moves made room (the served site to internal/cli/served,
+  169 lines; pm export's writer to internal/item, 130 lines); after the
+  feature cli holds 7307 (the new ratchet) and work 4873. A first try moved
+  the bd import's record reader to internal/records, but that made
+  internal/work's tests import records, so a records change would select the
+  slow work tests (tests/test_ci.py caught it); it was dropped.
 
 ## Delivery report
 
