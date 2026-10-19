@@ -69,6 +69,11 @@ The design page pm-product stays as it is for this sprint's code changes.
 prime.md gains one How line naming the reopen commands; setup and the product are unchanged
 :::
 
+::: decision {source=agent date=2026-10-19}
+The design page record-drafts stays as it is for this sprint's code changes.
+commit_workspace_test.go only calls the served site under its new package name
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
