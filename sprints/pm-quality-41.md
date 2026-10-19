@@ -84,6 +84,11 @@ The design page session-claims stays as it is for this sprint's code changes.
 dolt.go gains Store.Reopen, which leaves holders as they are; move.go gains pm sprint reopen, which claims nothing
 :::
 
+::: decision {source=agent date=2026-10-19}
+The design page site-replies stays as it is for this sprint's code changes.
+serve.go only builds the site from its new package, internal/cli/served; the reply forms and access are unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
