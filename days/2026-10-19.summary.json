@@ -1,7 +1,7 @@
 {
  "date": "2026-10-19",
- "generated_at": "2026-10-19T07:30:31+00:00",
- "digest": "6cefbf71db7f22da",
+ "generated_at": "2026-10-19T07:40:50+00:00",
+ "digest": "a33146fe2e9784a4",
  "model": "claude-haiku-5-5",
- "text": "- **Reopening closed work:** Work started to reopen closed items, projects and sprints. Black-box tests for reopening also started.\n- **Quality sprint setup:** A new sprint opened for project quality work. The records keep all of its design pages unchanged."
+ "text": "- **Reopening closed work:** Closed projects and sprints can now be reopened, and the work store reopens closed items. Tests cover the reopen round trip and its refusals.\n- **Design page review:** Several design pages were reviewed and kept as they are.\n- **Sprint records:** A delivery report was published and review findings were recorded. A new sprint opened for reopening closed projects and sprints."
 }
