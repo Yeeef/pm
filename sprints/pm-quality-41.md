@@ -117,10 +117,17 @@ serve.go only builds the site from its new package, internal/cli/served; the rep
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a closed project or sprint reopens with `pm project reopen` / `pm sprint reopen`, recording the reason as a decision and putting its close-time section back for a fresh close.
+
+- `Store.Reopen`, and a merge rule under which closed wins against a reopen when the other side closed anew
+- `pm project reopen <name>`, `pm sprint reopen <id>`: reason body, `--confirmed`, refusals for an open item and for a sprint of a closed project
+- room under the size caps: the served site to `internal/cli/served`, `pm export`'s writer to `internal/item`
+- help, golden, prime.md, changelog entry, six design pages
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `make test` and `make test-go` pass, and the PR's CI is green: met locally (`make test` 156 passed, 169 skipped live; `make test-go` 19 packages ok, work 33 tests in 8 shards, race 10); CI on [PR #116](https://github.com/Yeeef/pm/pull/116).
+- A black-box test closes, reopens and closes again a project and a sprint: met, `test_a_closed_project_and_sprint_reopen_with_the_reason_and_close_again_on_a_fresh_report` (status open, decision in the record, records compared whole, a fresh report needed for the second close).
+- Black-box tests see each refusal's text: met in the same test (open project, open sprint, sprint of a closed project, one-line reason), and `test_every_store_command_fails_hard_with_the_service_stopped` covers both commands.
