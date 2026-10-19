@@ -86,11 +86,14 @@ stateDiagram-v2
   Review --> Work: changes requested
   Review --> Close: PR on main, pm need close
   Work --> Close: no PR, or voided
-  Close --> [*]: pm sprint close
+  Close --> Closed: pm sprint close
+  Closed --> Plan: pm sprint reopen
+  Closed --> [*]
 ```
 
-A sprint moves through six stages; review can send it back to work, and a
-sprint without a PR goes from work straight to close.
+A sprint moves through six stages to closed; review can send it back to work,
+a sprint without a PR goes from work straight to close, and a reopen sends a
+closed sprint back to plan.
 
 ### Open
 
@@ -168,6 +171,32 @@ must be on the remote's main, checked as `--merged` checks it, and the old
 reason stays after the new one ("…; first closed as: <old>"). A review
 already closed as merged, a dismissed one and any other closed action are
 refused.
+
+### Reopen
+
+`pm sprint reopen <id>` and `pm project reopen <name>` set a closed sprint or
+project open again, for the owner's "reopen it", so the history stays in one
+record instead of a continuation project. The body is the reason, two lines
+or more, as `pm sprint move` and `pm sprint edit` take it. The work store is
+written first (`Store.Reopen`: open, no close reason, resolution, closing
+session or close time); then one records commit puts the close-time section,
+the sprint's Delivery report or the project's Outcome, back to the new
+record's text, each part "Not closed yet.", and adds the reopen to the
+record's Decisions with the close reason it had: source agent, or owner with
+`--confirmed`. A failed records step closes the item again with its old
+reason, resolution and closer, at a new close time. The next close so needs a fresh report or Outcome, written against
+the reopened scope; the old text stays in git history.
+
+| Refusal | Why |
+|---|---|
+| The item is open | Only a closed item is reopened |
+| A sprint whose project is closed | An open sprint under a closed project breaks the project close's rule; the refusal names `pm project reopen <project>` |
+| A one-line reason | The reason is a decision body |
+
+A reopened project's sprints stay closed, and a reopened sprint's tasks stay
+closed: new work is a new sprint or task. A reopen on one clone merges whole
+against the other clone's unchanged close, since each field changed on one
+side only ([Work store](work-store.md), merge rules).
 
 ### Design pages follow the code
 

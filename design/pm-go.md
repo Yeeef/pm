@@ -10,6 +10,7 @@ covers:
   - "internal/config/**"
   - "internal/proc/**"
   - "internal/cli/serve*.go"
+  - "internal/cli/served/**"
   - "internal/cli/service.go"
   - "internal/service/run*.go"
   - "internal/service/gc.go"
@@ -124,9 +125,10 @@ Reading: only `work` touches Dolt: in the service it opens the engine and serves
 | `internal/cli/parse` | pflag argument parsing, explicit positional/group/required checks, two-value option normalization and compatible help/error rendering |
 | `internal/cli/setup` | Init, doctor, upgrade, uninstall and git-hook command stages, using `internal/install` for managed pieces and clone setup |
 | `internal/cli/fsutil` | Filesystem predicates and path resolution shared by commands and setup |
+| `internal/cli/served` | The site as the pm service serves it (`service.Site`): the published records and the drafts under one stamp, rendered on demand |
 | `internal/config` | `.pm/config.toml` read, pin check, `PORT`; `summary_runtime` (`claude` or `codex`, unset reads as `claude`; any other value fails hard) |
 | `internal/launch` | Pins, downloading release binaries, `exec`; a pin below 0.2.0 refused |
-| `internal/work` | The `Item` type and the store interface; Dolt schema and migrations, validation, ids and minting, ready and blocked, merge rules on conflict rows, the host (the engine and its socket server) and the client (one connection per command), `--import-bd`, `export` |
+| `internal/work` | The `Item` type and the store interface; Dolt schema and migrations, validation, ids and minting, ready and blocked, merge rules on conflict rows, the host (the engine and its socket server) and the client (one connection per command), `--import-bd`, `--import`; `internal/item` holds the item model and the lines `pm export` prints |
 | `internal/records` | Record parse, sections, blocks, templates, checks; a design page's `covers:` and its doublestar matcher |
 | `internal/design` | The design pages' hold on the code they cover: `pm check`'s covers and coverage checks, and the gate `pm action need --pr` and `pm sprint close` run on a PR's changed files, with the waiver form `pm design unchanged` writes |
 | `internal/store` | The `records` store: find it, flock, atomic multi-file writes, commit |

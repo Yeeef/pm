@@ -141,7 +141,9 @@ Findings are a plain list and stay in the sprint record; no structure yet.
 
 Every record carries all of its sections from the start, including the ones
 written at close, so the file shows the record's full schema. A close-time
-section holds "Not closed yet." until it is written.
+section holds "Not closed yet." until it is written. `pm project reopen` and
+`pm sprint reopen` put a closed record's close-time section back to the new
+record's text, so the next close needs a fresh one.
 
 ### The design page
 

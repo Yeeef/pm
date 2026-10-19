@@ -106,7 +106,7 @@ Reading: the refusal text is what an agent learns from, so it must carry the exp
 |---|---|---|
 | State | `show`, `where`, `record link`, `day`, `check` | Read the project state level by level; list every location and its state; print a record's URL on the site; the generated day pages; validate the records without a write |
 | Records | `finding add`, `decision add`, `design new\|rename\|unchanged`, `doc new\|rename`, `postmortem new`, `feedback add`, `commit` | Insert into a named section, create a record with every section, or commit hand edits by path |
-| Work | `project open\|close`, `sprint open\|close\|edit\|move`, `task add\|claim\|close\|move\|ready\|edit\|release`, `dep add\|rm`, `comment add` | Items, holders, status and dependencies; an action that also has a record writes both |
+| Work | `project open\|close\|reopen`, `sprint open\|close\|edit\|move\|reopen`, `task add\|claim\|close\|move\|ready\|edit\|release`, `dep add\|rm`, `comment add` | Items, holders, status and dependencies; an action that also has a record writes both |
 | Owner requests | `decision need`, `action need`, `need edit\|close`, `reply read\|add` | Raise a need, a PR review (`action need --pr`), read the owner's reply, close a need ([Decision need layout](decision-need-layout.md), [Reply delivery](reply-delivery.md)) |
 | Setup and service | `init`, `doctor`, `upgrade`, `uninstall`, `clean`, `service install\|status\|restart\|stop\|logs`, `interactive`, `version` | Install and check pm in a repo, clone and worktree ([pm as an installable product](pm-product.md)); run the pm service; set this session's owner-request mode |
 | Machinery, under `pm --help --all` | `prime`, `hook …`, `push`, `sync`, `export`, `service run`, `day summarize`, `autopilot` | What the runtimes' hooks, the pm service and the scheduler run; dispatched and documented, not typed by agents |
@@ -152,6 +152,7 @@ The grammar every command follows; a new command or flag uses it, and a deviatio
 | Ask the owner | `need`, under the kind of need | `decision need`, `action need` |
 | Close | `close`, for work items and for a need that sets no rule; a need that sets a rule closes through `decision add --need`; `--dropped` closes as not done | `task close`, `sprint close`, `project close`, `need close`; `task close --dropped`, `need close --dropped` |
 | Change | `edit` for a title or body, `move --to` for a parent, `rename --to` for a slug | `sprint edit`, `need edit`, `task move --to`, `design rename --to` |
+| Reopen a closed container | `reopen`, with the reason as its body | `project reopen`, `sprint reopen` |
 | Scope of a write | `--sprint ID`, `--task ID` or `--project NAME`, each meaning that container on every command; no other flag names a container (`--parent`, `--level` were removed) | `finding add --sprint`, `decision need --sprint\|--task`, `decision add --project\|--sprint`, `doc new --sprint\|--task\|--project` |
 | Sub-item | the scope flag of its parent's kind | `task add --task <task>` |
 | Body | `--text` or `--text-file`, exclusive; structured parts as flags, one line each; a close takes `--reason`; `commit` takes `-m` | `sprint open --text-file -`; `decision add --decision --reason` |

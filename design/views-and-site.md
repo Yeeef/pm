@@ -9,6 +9,7 @@ covers:
   - "prompts/day_summary.txt"
   - "internal/ask/ask.go"
   - "internal/cli/serve*.go"
+  - "internal/cli/served/**"
   - "internal/service/run*.go"
 ---
 

@@ -119,6 +119,8 @@ serve.go only builds the site from its new package, internal/cli/served; the rep
 
 done: a closed project or sprint reopens with `pm project reopen` / `pm sprint reopen`, recording the reason as a decision and putting its close-time section back for a fresh close.
 
+Merged as 5d8b86d (PR #116).
+
 - `Store.Reopen`, and a merge rule under which closed wins against a reopen when the other side closed anew
 - `pm project reopen <name>`, `pm sprint reopen <id>`: reason body, `--confirmed`, refusals for an open item and for a sprint of a closed project
 - room under the size caps: the served site to `internal/cli/served`, `pm export`'s writer to `internal/item`
