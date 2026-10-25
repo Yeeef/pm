@@ -8,7 +8,7 @@ bead: pm-d2k5.43
 
 > What should be true when this sprint ends, and why now?
 
-An agent can report its development experience in the repo it works in, not only friction with pm: `pm feedback add --repo` appends an entry to the repo's one repo feedback doc, and pm gives a fixed starting set of questions to answer. Why now: the owner asked for it. pm feedback shows where pm gets in the way, but nothing collects what slows agents down in the repo's own code, docs and tools.
+An agent can report its development experience in the repo it works in, not only friction with pm: `pm feedback add --repo` appends an entry to the repo's one repo feedback doc, and its `--help` gives a starting set of questions to answer. Why now: the owner asked for it. pm feedback shows where pm gets in the way, but nothing collects what slows agents down in the repo's own code, docs and tools.
 
 ## Scope
 
@@ -18,7 +18,7 @@ An agent can report its development experience in the repo it works in, not only
 **In:**
 - `pm feedback add --repo`: appends to `records/docs/repo-feedback.md`, kept apart from `records/docs/pm-feedback.md`, with the same entry form and the same `--project`, `--sprint` and `--task` scoping.
 - The starting question set, in one file under `prompts/` and embedded: navigating and understanding the code, docs and tools; what blocked or slowed understanding or implementation; stale or missing docs; slow or hard-to-find commands; what to fix first.
-- `pm feedback --help`, `pm feedback questions` and `prime.md` name the questions and when to answer them: once per sprint, when its delivery report is written.
+- `pm feedback add --help` lists the questions; `prime.md` says when to answer them: once per sprint, when its delivery report is written.
 - `pm show` and the site show the repo feedback doc beside the pm one.
 
 **Out:**
@@ -30,7 +30,7 @@ An agent can report its development experience in the repo it works in, not only
 > What evidence will show the goal is met?
 
 - `pm feedback add --repo --text=…` in a test repo writes `records/docs/repo-feedback.md` and leaves the pm feedback doc alone; the harness test passes.
-- `pm feedback questions` prints the set, and `pm feedback --help` and `prime.md` name it; the golden tests pass.
+- `pm feedback add --help` lists the questions and `prime.md` names when to answer; the golden tests pass.
 - `pm show` prints a repo feedback line with the entry count and the doc's URL.
 - The PR's CI is green.
 
@@ -38,7 +38,7 @@ An agent can report its development experience in the repo it works in, not only
 
 > Where is the detail?
 
-- [pm CLI](../design/pm-cli.md): `pm feedback add --repo`, `pm feedback questions` and the `repo feedback:` line of `pm show`.
+- [pm CLI](../design/pm-cli.md): `pm feedback add --repo` and the `repo feedback:` line of `pm show`.
 
 ## Progress
 
@@ -114,10 +114,10 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: agents can give feedback on the repo itself with `pm feedback add --repo`, answering the questions `pm feedback questions` prints.
+done: agents can give feedback on the repo itself with `pm feedback add --repo`, answering the questions its `--help` lists.
 
 - `records/docs/repo-feedback.md`, kept apart from the pm feedback doc; both docs are now one table in `internal/records/feedback.go`.
-- `prompts/repo_feedback_questions.txt`: five questions (navigation, blockers, docs, tools, next fix).
+- `pm feedback add --help`: five questions (navigation, blockers, docs, tools, next fix); no separate questions command, per the owner's decision.
 - `prime.md`: answer them once per sprint, when the delivery report is written.
 - `pm show`: a `repo feedback:` line, and `repo_feedback` in `--json`.
 
@@ -125,7 +125,7 @@ done: agents can give feedback on the repo itself with `pm feedback add --repo`,
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- `--repo` writes `records/docs/repo-feedback.md` and leaves the pm doc alone: met; `test_feedback_on_the_repo_goes_to_its_own_doc_and_answers_the_questions` passes (`tests/test_pm.py -k feedback`: 4 passed).
-- `pm feedback questions` prints the set; `--help` and `prime.md` name it: met; the same test checks the output, `help.golden` was regenerated, and `make test-go` passes; `tests/test_hooks.py`: 25 passed.
+- `--repo` writes `records/docs/repo-feedback.md` and leaves the pm doc alone: met; `test_feedback_on_the_repo_goes_to_its_own_doc` passes (`tests/test_pm.py -k feedback`: 4 passed).
+- `pm feedback add --help` lists the questions and `prime.md` names when to answer: met; `help.golden` was regenerated, and `make test-go` passes; `tests/test_hooks.py`: 25 passed.
 - `pm show` prints the repo feedback line with count and URL: met; the same test checks the text at both levels and `--json`.
 - The PR's CI is green: see PR #118's checks before its merge.
