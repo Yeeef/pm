@@ -30,7 +30,8 @@ A pm repo can raise, close and stamp a PR review whose PR is in another GitHub r
 
 > Where is the detail?
 
-None yet.
+- [Sprint lifecycle](../design/sprint-lifecycle.md): Close, a review of another repo's PR
+- [Reply delivery](../design/reply-delivery.md): Merges of reviewed PRs
 
 ## Progress
 
