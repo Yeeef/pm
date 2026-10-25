@@ -94,6 +94,11 @@ The design page sprint-lifecycle stays as it is for this sprint's code changes.
 writes.go only switched to the feedback doc table; the sprint lifecycle names no feedback doc
 :::
 
+::: decision {source=owner date=2026-10-25}
+Repo feedback has no pm feedback questions command; its questions live in pm feedback add --help and prime.md names them in one line
+Plain pm feedback has no questions command either; a separate command adds surface for text the help already carries
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
