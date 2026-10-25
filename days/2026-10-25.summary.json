@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T14:31:47+00:00",
- "digest": "9ff8b1cfd992f654",
+ "generated_at": "2026-10-25T14:52:14+00:00",
+ "digest": "1a9a32da80dfbbcf",
  "model": "claude-haiku-5-5",
- "text": "- **Agent sprint proposals:** Agents can now propose sprints for what the repo needs. The owner can accept or dismiss each proposal in the CLI or on the site. The owner chose proposals as the only route for repo improvements, so repo feedback was dropped. A live check in a scratch clone passed all steps.\n- **Search retrieval:** Model 2 for pm search ranks whole records and items with BM25. Each hit shows at its best matching unit, under a header of match counts. The eval gate passed against the earlier baseline. It did not beat rg or newest-first on the strict repeated test. The confidence intervals include zero.\n- **Cross-repo PR reviews:** A pm review of another GitHub repo's pull request can now be raised and closed through gh. The merge watcher stores that pull request's merge. This repo now pins the newer pm release.\n- **Site overview order:** The overview lists open projects first. Closed projects fold into one collapsed section at the bottom."
+ "text": "- **Search retrieval:** pm search now ranks whole records and items together, and each hit shows its best matching part. Model 2 passes the baseline eval but fails the strict test against rg and newest-first.\n- **Agent sprint proposals:** Agents can now propose, accept and dismiss sprints from pm and the site. The owner chose this route over repo feedback, so repo feedback was dropped.\n- **Other-repo reviews:** pm now raises and closes a review of another GitHub repo's PR, and the merge watcher records its merge. The repo's pm version pin also moved to a new release.\n- **Project overview page:** The overview lists open projects first. Closed projects now fold into one collapsed section at the bottom."
 }
