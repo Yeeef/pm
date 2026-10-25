@@ -1,7 +1,8 @@
 // Package proc runs a command as Python pm's subprocess.run(capture_output=True, text=True, timeout=…) does, and
 // reports a failure to start or a timeout as the Python exception would: its type name and its message, with values
 // quoted as Go quotes them. pm prints both in hook lines and refusals ("pm show did not run at session start
-// (FileNotFoundError: [Errno 2] …)").
+// (FileNotFoundError: [Errno 2] …)"). gh.go runs gh, and reads GitHub through it: which repo a remote names, whether a
+// PR is another repo's, a PR's merge into its repo's default branch, and the commit or PR a task close names.
 package proc
 
 import (

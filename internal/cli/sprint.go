@@ -161,7 +161,7 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 			return "", refuse("--pr %s is not a URL; give the pull request's link", strconv.Quote(pr))
 		}
 		var err error
-		if mergedSHA, err = onMain(e, "--merged", strip(merged)); err != nil { // before the records lock: it fetches
+		if mergedSHA, err = mergeOf(e, pr, "--merged", strip(merged), true); err != nil { // before the records lock
 			return "", err
 		}
 	}
@@ -322,11 +322,11 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 				"delivering it is on main, so the close stamps its merge commit into the Outcome; once its work is on main, "+
 				"restamp it: pm need close %s --reason \"merged as <sha>\"", rv.ID, rv.Need.Review.PR, strconv.Quote(why), rv.ID)
 		}
-		pr := rv.Need.Review.PR
-		if strings.Contains(pr, "/pull/") {
-			pr = site.PRLabel(pr)
+		label, err := r.prLabel(rv.Need.Review.PR)
+		if err != nil {
+			return nil, err
 		}
-		merges = append(merges, sprintMerge{m[1][:7], pr})
+		merges = append(merges, sprintMerge{m[1][:7], label})
 	}
 	if agentMerge {
 		named, files := "commit "+mergedSHA[:7], design.MergeFiles(r.root, mergedSHA)
@@ -336,16 +336,26 @@ func (r *repo) sprintMerges(id string, reviews []*work.Item, agentMerge bool, me
 		if _, err := r.designGate(named, []string{id}, files); err != nil {
 			return nil, err
 		}
-		label := ""
-		if prGiven {
-			label = pr
-			if strings.Contains(pr, "/pull/") {
-				label = site.PRLabel(pr)
-			}
+		label, err := r.prLabel(pr)
+		if err != nil {
+			return nil, err
 		}
 		merges = append(merges, sprintMerge{mergedSHA[:7], label})
 	}
 	return merges, nil
+}
+
+// prLabel is how the Outcome's stamp names pr: "PR #N" for this repo's GitHub PR, "OWNER/REPO#N" for another repo's
+// (otherRepo), else pr itself ("" without --pr).
+func (r *repo) prLabel(pr string) (string, error) {
+	other, err := otherRepo(r.root, pr)
+	if err != nil || !strings.Contains(pr, "/pull/") {
+		return pr, err
+	}
+	if other != "" {
+		return other + "#" + pullNumber.FindStringSubmatch(pr)[1], nil
+	}
+	return site.PRLabel(pr), nil
 }
 
 // discards is --discard's pages, each with its --reason, in one line.

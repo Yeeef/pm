@@ -14,11 +14,12 @@ import (
 )
 
 // designGate is the design-page gate (design.Gate) on the files a PR changes, for the sprints it delivers, each with
-// the pages the clone's drafts hold for it. When no design page has covers there is nothing to gate, and files is not
-// called.
+// the pages the clone's drafts hold for it. When no design page has covers, or pr is another repo's PR, there is
+// nothing to gate, and files is not called.
 func (r *repo) designGate(pr string, sprintIDs []string, files func() ([]string, error)) ([]design.Verdict, error) {
-	if !design.Covered(r.recs) {
-		return nil, nil
+	// another repo's PR changes none of this repo's paths, which the covers name
+	if other, err := otherRepo(r.root, pr); err != nil || other != "" || !design.Covered(r.recs) {
+		return nil, err
 	}
 	drafted, warnings, err := store.Drafted(r.records)
 	if err != nil {

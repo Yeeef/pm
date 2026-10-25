@@ -47,7 +47,8 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 	if err := r.reviewReports(sprints); err != nil {
 		return "", err
 	}
-	if err := prReachesMain(e.here, r.root, pr); err != nil {
+	note, err := prReachesMain(e.here, r.root, pr)
+	if err != nil {
 		return "", err
 	}
 	parent := sprints[0]
@@ -102,8 +103,8 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("raised review %s under %s; %s; the pm service pushes the PR's merge to main the same way; once "+
-		"the PR is on main: pm need close %s --reason \"merged as <sha>\"", made.ID, parent, deliveryHint(made.ID),
-		made.ID), nil
+		"the PR is on main: pm need close %s --reason \"merged as <sha>\"%s", made.ID, parent, deliveryHint(made.ID),
+		made.ID, note), nil
 }
 
 func (r *repo) reviewReports(sprints []string) error {
@@ -141,26 +142,39 @@ func (r *repo) reviewReports(sprints []string) error {
 	return nil
 }
 
-// prReachesMain refuses a GitHub PR whose base is not the main branch: a stacked PR merges into another PR's branch,
-// so its review could never close as merged on main.
-func prReachesMain(here, root, pr string) error {
-	if !pullURL.MatchString(pr) {
-		return nil
-	}
+// prReachesMain is proc.PRReachesMain on the config's remote and main branch: the raise's note, or its refusal.
+func prReachesMain(here, root, pr string) (string, error) {
 	cfg, err := config.Load(here)
 	if err != nil {
-		return err
+		return "", err
 	}
-	var got struct {
-		Base string `json:"baseRefName"`
+	return proc.PRReachesMain(root, cfg.Remote, cfg.MainBranch, pr)
+}
+
+// otherRepo is the OWNER/REPO of pr when it is another repo's GitHub PR (proc.OtherRepoPR, on the config's remote).
+func otherRepo(root, pr string) (string, error) {
+	cfg, err := config.Load(root)
+	if err != nil {
+		return "", err
 	}
-	if err := proc.GHJSON(root, &got, "pr", "view", pr, "--json", "baseRefName"); err != nil {
-		return refuse("--pr %s: pm reads its base branch from GitHub, and cannot: %v", pr, err)
+	return proc.OtherRepoPR(root, cfg.Remote, pr)
+}
+
+// mergeOf is the full sha that sha (given names it in a refusal) names as pr's merge: for another repo's PR, its merge
+// commit as gh gives it (proc.OtherMerge); for this repo's, a commit on the remote's main (onMain), checked only with
+// main.
+func mergeOf(e *env, pr, given, sha string, main bool) (string, error) {
+	root, err := store.CodeRoot(e.here, e.records)
+	if err != nil {
+		return "", err
 	}
-	if got.Base != cfg.MainBranch {
-		return refuse("--pr %s merges into %s, not %s, so its merge does not deliver the sprint; raise the review on "+
-			"the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)", pr, strconv.Quote(got.Base),
-			cfg.MainBranch, cfg.MainBranch, pr, cfg.MainBranch)
+	switch other, err := otherRepo(root, pr); {
+	case err != nil:
+		return "", err
+	case other != "":
+		return proc.OtherMerge(root, other, pr, given, sha)
+	case main:
+		return onMain(e, given, sha)
 	}
-	return nil
+	return sha, nil
 }

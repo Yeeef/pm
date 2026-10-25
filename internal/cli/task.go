@@ -9,7 +9,6 @@ import (
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -129,49 +128,14 @@ func cmdTaskClose(e *env, p *Parsed) (string, error) {
 	return fmt.Sprintf("closed %s: %s", id, reason), nil
 }
 
-var (
-	otherRepoCommit = regexp.MustCompile(`^([\w.-]+/[\w.-]+)@([0-9a-fA-F]{4,40})$`)
-	pullURL         = regexp.MustCompile(`^https://github\.com/([\w.-]+/[\w.-]+)/pull/[0-9]+$`)
-)
-
-// closeCommit is how a close names the work --commit ref gives: "commit <short>" for a commit of this repo,
-// "commit OWNER/REPO@<short>" for OWNER/REPO@SHA and "PR <url>" (with its merge commit once merged) for a PR URL, the
-// last two resolved on GitHub with gh. A ref that does not resolve is refused.
+// closeCommit is how a close names the work --commit ref gives: "commit <short>" for a commit of this repo, else as
+// proc.GitHubRef names a commit or PR on GitHub. A ref that does not resolve is refused.
 func closeCommit(root, ref string) (string, error) {
 	if out, err := store.Git(root, "rev-parse", "--verify", "--quiet", "--short", ref+"^{commit}"); err == nil {
 		return "commit " + out, nil // this repo's first: a branch may be named like OWNER/REPO@SHA
 	}
-	if m := otherRepoCommit.FindStringSubmatch(ref); m != nil {
-		var c struct {
-			SHA string `json:"sha"`
-		}
-		if err := proc.GHJSON(root, &c, "api", "repos/"+m[1]+"/commits/"+m[2]); err != nil {
-			return "", refuse("--commit %s is not a commit of %s on GitHub: %v", ref, m[1], err)
-		}
-		if len(c.SHA) < 7 {
-			return "", refuse("--commit %s is not a commit of %s on GitHub: gh api gave no sha", ref, m[1])
-		}
-		return "commit " + m[1] + "@" + c.SHA[:7], nil
-	}
-	if m := pullURL.FindStringSubmatch(strings.TrimSuffix(ref, "/")); m != nil {
-		ref = strings.TrimSuffix(ref, "/")
-		var pr struct {
-			State       string `json:"state"`
-			MergeCommit *struct {
-				OID string `json:"oid"`
-			} `json:"mergeCommit"`
-		}
-		if err := proc.GHJSON(root, &pr, "pr", "view", ref, "--json", "state,mergeCommit"); err != nil {
-			return "", refuse("--commit %s is not a pull request on GitHub: %v", ref, err)
-		}
-		switch {
-		case pr.State == "MERGED" && pr.MergeCommit != nil && len(pr.MergeCommit.OID) >= 7:
-			return "PR " + ref + ", merged as " + m[1] + "@" + pr.MergeCommit.OID[:7], nil
-		case pr.State == "CLOSED":
-			return "", refuse("--commit %s was closed without merging, so it holds no work; name the commit or PR "+
-				"that does, or close the task with --dropped", ref)
-		}
-		return "PR " + ref, nil
+	if named, err := proc.GitHubRef(root, ref); named != "" || err != nil {
+		return named, err
 	}
 	return "", refuse("--commit %s is not a commit of this repo, an OWNER/REPO@SHA on GitHub or a PR URL", ref)
 }
