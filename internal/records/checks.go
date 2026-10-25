@@ -68,7 +68,9 @@ func (x *Items) Children(parent string) []*item.Item {
 }
 
 // Unstarted is item.Unstarted with the item's children: a sprint labelled proposal with no task under it.
-func (x *Items) Unstarted(it *item.Item) bool { return item.Unstarted(it, x.Children(it.ID)) }
+func (x *Items) Unstarted(it *item.Item) bool {
+	return it.Type == item.Sprint && item.Unstarted(it, x.Children(it.ID)) // the type first: Children scans every item
+}
 
 // Proposal is whether it is an open sprint that is a proposal nobody started.
 func (x *Items) Proposal(it *item.Item) bool { return it.Status == item.Open && x.Unstarted(it) }

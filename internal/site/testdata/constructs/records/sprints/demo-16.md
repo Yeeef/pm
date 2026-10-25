@@ -47,7 +47,9 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-- Proposal evidence: a render of 40 records parses each twice.
+- Proposal evidence:
+
+  a render of 40 records parses each twice.
 
 ## Delivery report
 

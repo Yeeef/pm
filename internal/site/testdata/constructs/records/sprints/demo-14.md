@@ -47,7 +47,9 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-- Proposal evidence: `go test -count 20 ./internal/work -run Sync` failed 2 of 20 runs.
+- Proposal evidence:
+
+  `go test -count 20 ./internal/work -run Sync` failed 2 of 20 runs.
 
 ## Delivery report
 

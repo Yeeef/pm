@@ -76,7 +76,7 @@ func State(it *Item, items *Items) string {
 	}
 	if isEpic(it) {
 		for _, k := range items.All() {
-			if k.Parent == it.ID && (k.Holder != nil || k.Status == item.Closed) {
+			if k.Parent == it.ID && (k.Holder != nil || k.Status == item.Closed && !items.Unstarted(k)) {
 				return "running"
 			}
 		}

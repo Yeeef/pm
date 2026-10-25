@@ -19,7 +19,7 @@ from conftest import CHECKOUT, PM, write_config
 
 FRAME = ("## Goal\n\nMake the sync test pass on every run. It fails one run in ten.\n\n## Scope\n\n**In:** the test.\n\n"
          "**Out:** the sync itself.\n\n## Done when\n\n- `go test -count 20` passes 20 of 20.\n\n")
-EVIDENCE = "## Evidence\n\n`go test -count 20 ./internal/work -run Sync` failed 2 of 20:\n\n```\nFAIL sync\n```\n"
+EVIDENCE = "## Evidence\n\n```\nFAIL sync\n```\n\n`go test -count 20 ./internal/work -run Sync` failed 2 of 20.\n"
 CASES = json.loads((CHECKOUT / "internal/cli/testdata/proposal_commands.json").read_text())
 
 
@@ -54,8 +54,8 @@ def test_propose_writes_the_labelled_sprint_its_record_and_the_evidence_finding(
     assert (item["type"], item["status"], item["labels"]) == ("sprint", "open", ["proposal"])
     record = (repo.records / "sprints/demo-4.md").read_text()
     assert "Make the sync test pass on every run." in record
-    assert ("- Proposal evidence: `go test -count 20 ./internal/work -run Sync` failed 2 of 20:\n\n  ```\n"
-            "  FAIL sync\n  ```\n") in record
+    assert ("- Proposal evidence:\n\n  ```\n  FAIL sync\n  ```\n\n  `go test -count 20 ./internal/work -run Sync` failed 2 "
+            "of 20.\n") in record
     assert repo.pm("check").returncode == 0
 
 

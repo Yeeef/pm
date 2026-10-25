@@ -56,12 +56,12 @@ func SprintText(title, bead string, frame map[string]string) string {
 	findings := NoneYet
 	if ev := frame["Evidence"]; ev != "" { // a proposal's: its first finding, indented so a fence stays in the bullet
 		lines := strings.Split(ev, "\n")
-		for i := 1; i < len(lines); i++ {
+		for i := range lines {
 			if lines[i] != "" {
 				lines[i] = "  " + lines[i]
 			}
 		}
-		findings = "- Proposal evidence: " + strings.Join(lines, "\n")
+		findings = "- Proposal evidence:\n\n" + strings.Join(lines, "\n")
 	}
 	return "---\ntype: sprint\ntitle: " + title + "\nbead: " + bead + "\n---\n\n" +
 		"## Goal\n\n" + p["Goal"] + "\n\n" + frame["Goal"] + "\n\n" +
