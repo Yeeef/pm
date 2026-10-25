@@ -116,6 +116,8 @@ pre.diff .add{background:var(--done-bg);color:var(--done)}
 pre.diff .del{background:var(--block-bg);color:var(--block)}
 details.same{margin:.4rem 0}
 details.same summary{cursor:pointer;color:var(--muted);font-size:.9rem}
+details.closed-projects{margin-top:2.6rem}
+details.closed-projects>summary{cursor:pointer;font:600 1.35rem/1.25 var(--display);color:var(--muted)}
 
 /* classes used by hand-built mock blocks inside design pages */
 .split{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
