@@ -38,7 +38,7 @@ An agent can report its development experience in the repo it works in, not only
 
 > Where is the detail?
 
-None yet.
+- [pm CLI](../design/pm-cli.md): `pm feedback add --repo`, `pm feedback questions` and the `repo feedback:` line of `pm show`.
 
 ## Progress
 
