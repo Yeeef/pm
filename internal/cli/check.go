@@ -58,8 +58,8 @@ func cmdCheck(here string, stdout io.Writer) error {
 	}
 	drift := ""
 	if d := records.TitleDrift(recs, x); d != nil {
-		drift = fmt.Sprintf("; %d project records whose title the work store does not hold; run each fix:\n  %s", len(d),
-			strings.Join(d, "\n  "))
+		drift = fmt.Sprintf("\n%d project records whose title the work store does not hold; fix each with pm project "+
+			"edit, which takes the reason as its body (--text-file - <<'EOF' … EOF):\n  %s", len(d), strings.Join(d, "\n  "))
 	}
 	cfg, err := config.Read(here) // its pin is checked before any command runs
 	if err != nil {
@@ -77,7 +77,7 @@ func cmdCheck(here string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "checked the records in %s: all %d pages render%s%s%s\n", recordsDir, n, drift, report,
-		waiting)
+	_, err = fmt.Fprintf(stdout, "checked the records in %s: all %d pages render%s%s%s\n", recordsDir, n, report, waiting,
+		drift)
 	return err
 }

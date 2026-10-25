@@ -187,7 +187,7 @@ func TestTitleDriftNamesEachProjectWhoseHeaderTheWorkStoreDoesNotHold(t *testing
 	var recs []*Record
 	for rel, text := range map[string]string{
 		"projects/same":  ProjectText("Same", "x-same", "G"),
-		"projects/drift": ProjectText(YAMLStr(`New "one"`), "x-drift", "G"),
+		"projects/drift": ProjectText(YAMLStr(`New "one" isn't $HOME`), "x-drift", "G"),
 		"projects/gone":  ProjectText("Gone", "x-gone", "G"),
 		"sprints/same-1": SprintText("Other", "x-same.1", map[string]string{"Goal": "G", "Scope": "S", "Done when": "D"}),
 	} {
@@ -200,8 +200,8 @@ func TestTitleDriftNamesEachProjectWhoseHeaderTheWorkStoreDoesNotHold(t *testing
 	items := NewItems([]item.Item{{ID: "x-same", Type: item.Project, Title: "Same"},
 		{ID: "x-drift", Type: item.Project, Title: "Old", Status: item.Closed},
 		{ID: "x-same.1", Type: item.Sprint, Title: "Sprint 1: S"}})
-	want := []string{`projects/drift.md: title "New \"one\"", work store x-drift "Old"; fix: pm project edit drift ` +
-		`--title "New \"one\""`}
+	want := []string{`projects/drift.md: title "New \"one\" isn't $HOME", work store x-drift "Old"; fix with: pm ` +
+		`project edit drift --title 'New "one" isn'\''t $HOME'`}
 	if got := TitleDrift(recs, items); !reflect.DeepEqual(got, want) {
 		t.Fatalf("TitleDrift = %q, want %q", got, want)
 	}

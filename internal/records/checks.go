@@ -209,9 +209,9 @@ func Validate(rec *Record, recs []*Record, items *Items) error {
 }
 
 // TitleDrift is each project record, open or closed, whose title header differs from its work-store item's title, as
-// `<rel>.md: title "<header>", work store <id> "<title>"; fix: pm project edit <name> --title "<header>"`: the
-// header is the side a hand edit changes, so the fix carries it to the work store. A record whose item is missing is
-// left to Validate.
+// `<rel>.md: title "<header>", work store <id> "<title>"; fix with: pm project edit <name> --title '<header>'`, the
+// title single-quoted for the shell so a paste keeps its $ and backticks: the header is the side a hand edit changes,
+// so the fix carries it to the work store. A record whose item is missing is left to Validate.
 func TitleDrift(recs []*Record, items *Items) []string {
 	var out []string
 	for _, rec := range recs {
@@ -220,8 +220,8 @@ func TitleDrift(recs []*Record, items *Items) []string {
 		}
 		it := items.Get(rec.Bead())
 		if header := rec.Meta["title"].Str; it != nil && header != it.Title {
-			out = append(out, fmt.Sprintf("%s.md: title %q, work store %s %q; fix: pm project edit %s --title %q",
-				rec.Rel, header, it.ID, it.Title, rec.Name(), header))
+			out = append(out, fmt.Sprintf("%s.md: title %q, work store %s %q; fix with: pm project edit %s --title '%s'",
+				rec.Rel, header, it.ID, it.Title, rec.Name(), strings.ReplaceAll(header, "'", `'\''`)))
 		}
 	}
 	return out

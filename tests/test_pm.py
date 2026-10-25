@@ -708,6 +708,13 @@ def test_check_holds_covers_to_main_and_lists_uncovered_sources(repo):
     repo.commit("every source covered")
     res = repo.pm("check")
     assert res.returncode == 0 and res.stdout.endswith("; a design page covers every tracked source file\n"), res
+    path = repo.records / "projects/demo.md"  # title drift: its own line after the design report, quoted for a paste
+    path.write_text(path.read_text().replace("title: Demo\n", 'title: "It\'s $HOME `x`"\n', 1))
+    repo.commit("hand edit")
+    res = repo.pm("check")
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.endswith("; a design page covers every tracked source file" + DRIFT.format(
+        header="It's $HOME `x`", shell="It'\\''s $HOME `x`").removeprefix("pages render")), res.stdout
 
 
 # ---------------------------------------------------------------- needs: answer with a decision or close
@@ -1081,6 +1088,24 @@ def test_project_edit_renames_the_project_in_both_stores_and_records_why(repo):
     project_renamed(repo, "old", "Retired", "Old", source="owner")
 
 
+DRIFT = ("pages render\n1 project records whose title the work store does not hold; fix each with pm project edit, "
+         "which takes the reason as its body (--text-file - <<'EOF' … EOF):\n  projects/demo.md: title \"{header}\", "
+         "work store repo-demo \"Demo\"; fix with: pm project edit demo --title '{shell}'\n")
+
+
+def test_project_edit_writes_only_the_header_when_the_work_store_holds_the_title(repo):
+    """With the work store holding the new title already and the header the old one, pm project edit sets the header
+    and records the rename from the header's title; the work store is not written."""
+    repo.set_issue("repo-demo", title="Parse: tables too")
+    repo.mark()
+    res = repo.pm("project", "edit", "demo", "--title", "Parse: tables too", text=RENAME_REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.unchanged()  # no write at all, its stamps included
+    assert committed(repo, ['pm: renamed project demo (repo-demo) to "Parse: tables too" and added a project '
+                            "decision to records/projects/demo.md"])
+    project_renamed(repo, "demo", "Parse: tables too", "Demo")
+
+
 def test_check_names_a_hand_edited_project_title_and_project_edit_fixes_it(repo):
     """A project's title header edited by hand drifts from the work store: pm check passes but names it with the fix,
     and pm project edit to the header's title then writes the work store and the decision, the header as it was."""
@@ -1090,9 +1115,7 @@ def test_check_names_a_hand_edited_project_title_and_project_edit_fixes_it(repo)
     assert res.returncode == 0, res.stderr  # the drift blocks no commit
     check = repo.pm("check")
     assert check.returncode == 0, check.stderr
-    assert ('; 1 project records whose title the work store does not hold; run each fix:\n  projects/demo.md: title '
-            '"Hand: edited", work store repo-demo "Demo"; fix: pm project edit demo --title "Hand: edited"\n'
-            ) in check.stdout, check.stdout
+    assert check.stdout.endswith(DRIFT.format(header="Hand: edited", shell="Hand: edited")), check.stdout
     repo.mark()
 
     res = repo.pm("project", "edit", "demo", "--title", "Hand: edited", text=RENAME_REASON)
