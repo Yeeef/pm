@@ -107,6 +107,18 @@ Model 2 rewrites code that is not on main yet, and PR #112 merges only once this
   AND newest first 13 for the file list and 2,447 for its rg -n lines (n=117);
   334 against 9,656 for whole-record BM25 read as rg -n lines (n=210).
 
+- Variants of model 2, strict best of 3 against rg AND newest first, R@10 /
+  MRR: as the design page wrote it, one mean length over records and items,
+  .610 / .427, -0.082 [-0.192, +0.027] / -0.078 [-0.184, +0.030]: tasks and
+  needs, short beside records, took 40% of the top-10 lines. Each set
+  normalized by its own mean length (shipped in fcd1631): .705 / .531, items
+  7% of the top 10. Plus the whole record body as the document (prompts,
+  Progress, Design pages): .719 / .537, +0.027 [-0.068, +0.123] / +0.031
+  [-0.069, +0.133]. Plus the title counted three times: .705 / .526, no gain.
+  None passes; the gate was not changed. Measured with tests/search_eval's
+  searchrun on the working tree before fcd1631, the variants switched by
+  environment variables that were then removed.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
