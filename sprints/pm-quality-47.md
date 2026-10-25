@@ -76,6 +76,11 @@ prime.md only adds pm project edit to the move-or-rename line; the agent lifecyc
   rebase onto 0.16.0 the package is 7227 lines and the ratchet is lowered to
   that.
 
+- A fresh-context review found no correctness bugs and three low findings, all
+  fixed: the drift hint is now runnable as printed, with shell single quotes
+  and the body form; it starts on its own line after the design report; the
+  case where the store already holds the title has a test.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
