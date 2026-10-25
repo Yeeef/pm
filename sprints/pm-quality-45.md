@@ -8,7 +8,7 @@ bead: pm-d2k5.45
 
 > What should be true when this sprint ends, and why now?
 
-An agent that finds something in the repo worth fixing or improving, outside its task, records it as a sprint proposal: `pm sprint propose` writes a full sprint frame plus the evidence it saw, in a proposed state that is not running work. The owner accepts a proposal, which makes it an ordinary open sprint, or dismisses it with a reason. Why now: the owner wants agents to raise this work directly, and chose proposals as the one mechanism for it (pm-quality project decision); today such findings stay in chat or are lost.
+An agent that finds something in the repo worth fixing or improving, outside its task, records it as a sprint proposal: `pm sprint propose` writes a full sprint frame plus the evidence it saw, as an open sprint labelled proposal that nobody has started. The site collects proposals in one collapsed Proposed section; `pm show` lists none. A proposal becomes ordinary work when someone adds its first task, or is dropped with a reason. Why now: the owner wants agents to raise this work directly, and chose proposals as the one mechanism for it (pm-quality project decision); today such findings stay in chat or are lost.
 
 ## Scope
 
@@ -16,10 +16,10 @@ An agent that finds something in the repo worth fixing or improving, outside its
 > details go in a design page.
 
 **In:**
-- `pm sprint propose <project> --title "…"`: the frame (`## Goal`, `## Scope`, `## Done when`) plus an evidence line; it lists the project's open sprints and proposals first, so an agent can cite one instead of raising a duplicate.
-- A proposed state in the work store: not claimable, not counted as open or running work in `pm show`, with its own short list there.
-- The owner accepts or dismisses a proposal from the site; an agent the owner asked can run the same from the CLI.
-- `prime.md`: propose when you can name a concrete fix and its check; a rough frame is fine, the owner edits it at accept. `pm feedback` stays for pm itself.
+- `pm sprint propose <project> --title "…"`: the frame (`## Goal`, `## Scope`, `## Done when`) plus an `## Evidence` section; its output lists the project's proposals and open sprints, so an agent can drop its own as a duplicate of one.
+- A proposal is an open sprint with the label `proposal` and no task: `pm show` (every level, `--json` too) and `pm task ready` leave it out; `pm show --sprint ID` and `pm show ID` show it by id. Adding its first task starts it; `pm sprint close --dropped --reason` drops it.
+- The site shows proposals in one collapsed Proposed section.
+- `prime.md`: propose when you can name a concrete fix and its check; start a proposal only when the owner asks. `pm feedback` stays for pm itself.
 - A design page for the proposal lifecycle.
 
 **Out:**
@@ -31,8 +31,8 @@ An agent that finds something in the repo worth fixing or improving, outside its
 
 > What evidence will show the goal is met?
 
-- In a test repo, `pm sprint propose` writes a proposal that `pm show` lists apart from open sprints and `pm task ready` does not offer; accept makes it an open sprint, dismiss closes it with its reason; the harness tests pass.
-- The site shows the proposals with accept and dismiss, checked live in a scratch clone.
+- In a test repo, `pm sprint propose` writes a proposal that `pm show` (text and `--json`) and `pm task ready` leave out and `pm show --sprint ID` shows; its first task starts it, after which `pm show` lists it; `--dropped` closes it with its reason; the harness tests pass.
+- The site shows proposals in a collapsed Proposed section, checked live in a scratch clone.
 - `prime.md` and `--help` name the rule; the golden and hook tests pass.
 - The PR's CI is green.
 
@@ -40,7 +40,7 @@ An agent that finds something in the repo worth fixing or improving, outside its
 
 > Where is the detail?
 
-- [Sprint proposals](../design/sprint-proposals.md): the proposal lifecycle: a sprint status, the commands, the site's verdict, the tests.
+- [Sprint proposals](../design/sprint-proposals.md): the proposal lifecycle: the `proposal` label and derived state, the commands, what `pm show` and the site show, the tests.
 
 ## Progress
 
