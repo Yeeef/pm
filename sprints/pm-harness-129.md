@@ -135,10 +135,16 @@ Model 2 rewrites code that is not on main yet, and PR #112 merges only once this
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+partial: the eval harness and retrieval model 2 are built and model 2 beats stage 0, but it does not beat the best `rg` variant on the gate, so PR #112 stays held.
+
+- `tests/search_eval/` and `make search-eval`: the offline retrieval eval with its labels, queries, items and records commit frozen beside it; stage 0 reproduces sprint 128's numbers within their CIs.
+- Retrieval model 2 in `pm search` on PR #112: records and items as BM25 documents on any word, each set normalized by its own mean length, each hit at its best unit, a header with the all-words and some-words counts.
+- The [Search index](../design/search-index.md), [pm search](../design/pm-search.md) and [Work context](../design/work-context.md) pages at model 2 and its eval result; the live agent eval's third arm.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- **Harness reproduces stage 0: met.** `make search-eval SEARCH_EVAL_PM="stage0=83c3785 model2=fcd1631"` runs on the frozen inputs in about 40 s on 32 cores. Strict single-query R@10: `pm search` stage 0 .282 [.214, .355], which holds sprint 128's .314; `rg` AND by match count .326 [.251, .406], which holds .301. The label sets are larger than sprint 128's (73 sprints / 95 targets against 68 / 87; extended 111 / 260 against 98 / 237): the extractor also reads item ids and project-qualified `sprint N`, and dates design pages by the first sprint linking them (Findings).
+- **Model 2 meets the gate: not met.** Strict set, best of 3 queries, against stage 0: R@10 +0.196 [+0.116, +0.285], MRR +0.114 [+0.045, +0.182] (met). Against the best `rg` variant, AND newest first: R@10 +0.014 [−0.089, +0.116], MRR +0.026 [−0.079, +0.133] (not above 0). Three principled variants were measured and none passes (one mean length, the whole record body, a weighted title); the gate was not changed. Extended-set numbers are in Findings: model 2 ties `rg` OR by match count on R@10 (+0.002 [−0.061, +0.067]) and leads it on MRR (+0.085 [+0.010, +0.160]).
+- **Go tests, `make test`, under 1 s: met.** `internal/search` tests cover the hand-computed BM25 scores of the record documents, a record holding the words in different sections shown at its best unit, records and items each at their own mean length, `--kind` (decision units included) and `--project` with unchanged scores, phrase and path filters, `-n`, the header counts and the no-match line; `tests/test_pm.py`'s search test drives the binary. `make test`: 157 passed, 169 skipped; `make test-go`: exit 0. One query on this store: 0.15–0.19 s end to end.
