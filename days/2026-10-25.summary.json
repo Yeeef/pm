@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T09:00:56+00:00",
- "digest": "7b5a046446e68a88",
+ "generated_at": "2026-10-25T09:11:27+00:00",
+ "digest": "ac429b1d77c6ee9a",
  "model": "claude-haiku-5-5",
- "text": "- **Agent repo feedback:** Agents can now give feedback on the repo with pm feedback add --repo. The separate pm feedback questions command was removed, and its questions now appear in the help for pm feedback add.\n- **Project overview page:** The overview now lists open projects first. Closed projects appear in one collapsed section at the bottom.\n- **Search evaluation harness:** A checked-in offline eval now reproduces the earlier search results. Work started on the second retrieval model.\n- **Cross-repo pull request review:** A pull request in another repo can now be reviewed through gh. The merge watcher now records its merges."
+ "text": "- **Search ranking and evaluation:** Search now ranks records and items together by term relevance, and shows each hit at its best match. A checked-in offline eval harness now reproduces the previous search results with frozen labels.\n- **Repo feedback for agents:** Agents can now give feedback about the repository itself, using a new flag on the add command. The former questions command is gone, and its questions now appear in the add help text.\n- **Cross-repo pull request review:** A pm review can now cover a pull request in another GitHub repository. The merge watcher now stores that pull request's merge.\n- **Project overview page:** The site overview lists open projects first. Closed projects now sit in a collapsed section at the bottom."
 }
