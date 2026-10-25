@@ -79,6 +79,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 only the feedback doc table and its repo feedback twin changed; this page names neither
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page session-claims stays as it is for this sprint's code changes.
+only the feedback doc table and its repo feedback twin changed; this page names neither
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
