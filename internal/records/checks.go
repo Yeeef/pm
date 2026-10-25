@@ -208,6 +208,25 @@ func Validate(rec *Record, recs []*Record, items *Items) error {
 	return CheckGenerated(rec)
 }
 
+// TitleDrift is each project record, open or closed, whose title header differs from its work-store item's title, as
+// `<rel>.md: title "<header>", work store <id> "<title>"; fix: pm project edit <name> --title "<header>"`: the
+// header is the side a hand edit changes, so the fix carries it to the work store. A record whose item is missing is
+// left to Validate.
+func TitleDrift(recs []*Record, items *Items) []string {
+	var out []string
+	for _, rec := range recs {
+		if rec.Type() != "project" {
+			continue
+		}
+		it := items.Get(rec.Bead())
+		if header := rec.Meta["title"].Str; it != nil && header != it.Title {
+			out = append(out, fmt.Sprintf("%s.md: title %q, work store %s %q; fix: pm project edit %s --title %q",
+				rec.Rel, header, it.ID, it.Title, rec.Name(), header))
+		}
+	}
+	return out
+}
+
 // Summary is a day's generated summary, as pm day summarize writes it.
 type Summary struct {
 	Date        string `json:"date"`

@@ -126,7 +126,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 Less frequent, each detailed in its `--help`:
 
 - open a project: `pm project open <name> --title "…"`; body: a one-paragraph Goal, once the owner confirmed the goal in their own words. Close it with `pm project close <name>` once every sprint is closed and its Outcome is written by hand and committed.
-- move or rename work: `pm task move`, `pm sprint move`, `pm sprint edit`; each takes the reason as its body and records it as a decision.
+- move or rename work: `pm task move`, `pm sprint move`, `pm sprint edit`, `pm project edit`; each takes the reason as its body and records it as a decision.
 - reopen closed work: `pm project reopen <name>`, `pm sprint reopen <id>` (a sprint of a closed project: reopen the project first); each takes the reason as its body, records it as a decision (`--confirmed` when the owner asked for it) and puts the Outcome or the delivery report back to "Not closed yet." for the next close.
 - fix a need's body before the owner replies: `pm need edit <id>`.
 - create a record with every section, then edit it by hand and `pm commit`: `pm design new <slug> --title "…" --project NAME`, `pm doc new <slug> --title "…" --sprint ID\|--task ID\|--project NAME`, `pm postmortem new`. `pm design rename` and `pm doc rename` rewrite every link.

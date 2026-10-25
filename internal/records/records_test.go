@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/Yeeef/pm/internal/item"
 )
 
 // The expected results of the scanning functions on a table of edge cases, in testdata/expected.json: YAML 1.1
@@ -178,5 +180,29 @@ func TestReopenedPutsBackOnlyTheCloseTimeSection(t *testing.T) {
 	}
 	if _, err := Reopened("---\ntype: project\n---\n\n## Goal\n\nG\n", "project"); err == nil {
 		t.Fatal("a record without an Outcome section was reopened")
+	}
+}
+
+func TestTitleDriftNamesEachProjectWhoseHeaderTheWorkStoreDoesNotHold(t *testing.T) {
+	var recs []*Record
+	for rel, text := range map[string]string{
+		"projects/same":  ProjectText("Same", "x-same", "G"),
+		"projects/drift": ProjectText(YAMLStr(`New "one"`), "x-drift", "G"),
+		"projects/gone":  ProjectText("Gone", "x-gone", "G"),
+		"sprints/same-1": SprintText("Other", "x-same.1", map[string]string{"Goal": "G", "Scope": "S", "Done when": "D"}),
+	} {
+		rec, err := Parse(rel+".md", rel, text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		recs = append(recs, rec)
+	}
+	items := NewItems([]item.Item{{ID: "x-same", Type: item.Project, Title: "Same"},
+		{ID: "x-drift", Type: item.Project, Title: "Old", Status: item.Closed},
+		{ID: "x-same.1", Type: item.Sprint, Title: "Sprint 1: S"}})
+	want := []string{`projects/drift.md: title "New \"one\"", work store x-drift "Old"; fix: pm project edit drift ` +
+		`--title "New \"one\""`}
+	if got := TitleDrift(recs, items); !reflect.DeepEqual(got, want) {
+		t.Fatalf("TitleDrift = %q, want %q", got, want)
 	}
 }

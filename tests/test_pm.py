@@ -1032,6 +1032,77 @@ def test_sprint_edit_renames_the_sprint_in_both_stores_and_records_why(repo):
             match="sprint repo-demo.2 is closed; only an open sprint is renamed")
 
 
+def project_renamed(repo, name, title, old, source="agent"):
+    """The project record's title header is `title`, its name and path unchanged, and its Decisions hold the rename
+    from `old`, with the reason, from `source`."""
+    text = (repo.records / f"projects/{name}.md").read_text()
+    header = f'"{title}"' if ":" in title else title  # YAML quotes only a title that needs it
+    assert text.startswith(f"---\ntype: project\ntitle: {header}\nbead: repo-{name}\n---\n"), text
+    assert (f"::: decision {{source={source} date={TODAY}}}\nRenamed the project from \"{old}\" to \"{title}\": "
+            f"{RENAME_REASON}\n:::") in text
+
+
+def test_project_edit_renames_the_project_in_both_stores_and_records_why(repo):
+    """pm project edit --title: the work-store title, then one records commit that sets the record's title header and
+    adds the rename as a project decision (source=owner with --confirmed); a closed project is renamed too, a failed
+    records step puts the old title back, and each refusal writes nothing."""
+    refused(repo, "project", "edit", "nope", "--title", "X", text=RENAME_REASON,
+            match='no project record named "nope"')
+    refused(repo, "project", "edit", "demo", "--title", " ", text=RENAME_REASON, match="--title is empty")
+    refused(repo, "project", "edit", "demo", "--title", "Demo", text=RENAME_REASON,
+            match='project demo is titled "Demo" already')
+    refused(repo, "project", "edit", "demo", "--title", "Tables", text="One line.",
+            match="the decision body is a single line")
+
+    projects = repo.store / "projects"
+    projects.chmod(0o555)  # the fault point: the records step cannot write the record
+    try:
+        res = repo.pm("project", "edit", "demo", "--title", "Tables", text=RENAME_REASON)
+    finally:
+        projects.chmod(0o755)
+    assert res.returncode != 0
+    assert 'the work-store step is undone: repo-demo is titled "Demo" again' in res.stderr, res.stderr
+    assert repo.items()["repo-demo"]["title"] == "Demo" and repo.git("status", "--porcelain", cwd=repo.store) == ""
+    repo.mark()
+
+    res = repo.pm("project", "edit", "demo", "--title", "Parse: tables too", text=RENAME_REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo": {"title": "Parse: tables too"}}
+    assert committed(repo, ['pm: renamed project demo (repo-demo) to "Parse: tables too" and added a project '
+                            "decision to records/projects/demo.md"])
+    project_renamed(repo, "demo", "Parse: tables too", "Demo")
+    check = repo.pm("check")
+    assert check.returncode == 0 and "title" not in check.stdout, check
+    repo.mark()
+
+    res = repo.pm("project", "edit", "old", "--title", "Retired", "--confirmed", text=RENAME_REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-old": {"title": "Retired"}}  # closed, and still closed
+    project_renamed(repo, "old", "Retired", "Old", source="owner")
+
+
+def test_check_names_a_hand_edited_project_title_and_project_edit_fixes_it(repo):
+    """A project's title header edited by hand drifts from the work store: pm check passes but names it with the fix,
+    and pm project edit to the header's title then writes the work store and the decision, the header as it was."""
+    path = repo.records / "projects/demo.md"
+    path.write_text(path.read_text().replace("title: Demo\n", 'title: "Hand: edited"\n', 1))
+    res = repo.pm("commit", "-m", "Retitle by hand", "records/projects/demo.md")
+    assert res.returncode == 0, res.stderr  # the drift blocks no commit
+    check = repo.pm("check")
+    assert check.returncode == 0, check.stderr
+    assert ('; 1 project records whose title the work store does not hold; run each fix:\n  projects/demo.md: title '
+            '"Hand: edited", work store repo-demo "Demo"; fix: pm project edit demo --title "Hand: edited"\n'
+            ) in check.stdout, check.stdout
+    repo.mark()
+
+    res = repo.pm("project", "edit", "demo", "--title", "Hand: edited", text=RENAME_REASON)
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo": {"title": "Hand: edited"}}
+    project_renamed(repo, "demo", "Hand: edited", "Demo")
+    check = repo.pm("check")
+    assert check.returncode == 0 and "title" not in check.stdout, check
+
+
 def test_the_dates_pm_stamps_hold_the_harness_s_date_after_midnight(repo):
     """The run that failed PR #104's CI took TODAY before midnight and had pm write after it. Here the harness's date
     is the day before the wall clock's, as when TODAY was taken at 23:59:59 and pm writes at 00:00:01: the feedback
