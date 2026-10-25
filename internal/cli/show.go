@@ -276,7 +276,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 		}
 		var sprints []*showSprint
 		for _, sp := range r.x.Children(epic) {
-			if sp.Type != work.Sprint {
+			if sp.Type != work.Sprint || r.x.Proposal(sp) { // a proposal is on the site, never in pm show
 				continue
 			}
 			rec := sprintRecs[sp.ID]

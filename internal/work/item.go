@@ -67,6 +67,8 @@ const (
 	Note  = model.Note
 
 	MoveAuthor = model.MoveAuthor
+
+	ProposalLabel = model.ProposalLabel
 )
 
 // HasReply is item.HasReply.

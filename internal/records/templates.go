@@ -49,9 +49,20 @@ var (
 	}
 )
 
-// SprintText is a new sprint record: the frame's Goal, Scope and Done when, every other section empty.
+// SprintText is a new sprint record: the frame's Goal, Scope and Done when, every other section empty but Findings,
+// which holds a proposal's Evidence (pm sprint propose) as its first finding.
 func SprintText(title, bead string, frame map[string]string) string {
 	p := SprintPrompts
+	findings := NoneYet
+	if ev := frame["Evidence"]; ev != "" { // a proposal's: its first finding, indented so a fence stays in the bullet
+		lines := strings.Split(ev, "\n")
+		for i := 1; i < len(lines); i++ {
+			if lines[i] != "" {
+				lines[i] = "  " + lines[i]
+			}
+		}
+		findings = "- Proposal evidence: " + strings.Join(lines, "\n")
+	}
 	return "---\ntype: sprint\ntitle: " + title + "\nbead: " + bead + "\n---\n\n" +
 		"## Goal\n\n" + p["Goal"] + "\n\n" + frame["Goal"] + "\n\n" +
 		"## Scope\n\n" + p["Scope"] + "\n\n" + frame["Scope"] + "\n\n" +
@@ -59,7 +70,7 @@ func SprintText(title, bead string, frame map[string]string) string {
 		"## Design pages\n\n" + p["Design pages"] + "\n\n" + NoneYet + "\n\n" +
 		"## Progress\n\n" + p["Progress"] + "\n\n" +
 		"## Decisions\n\n" + p["Decisions"] + "\n\n" + NoneYet + "\n\n" +
-		"## Findings\n\n" + p["Findings"] + "\n\n" + NoneYet + "\n\n" +
+		"## Findings\n\n" + p["Findings"] + "\n\n" + findings + "\n\n" +
 		"## Delivery report\n\n" + p["Delivery report"] + "\n\n" +
 		"### Outcome\n\n" + p["Outcome"] + "\n\n" + NotClosed + "\n\n" +
 		"### Against \"Done when\"\n\n" + p[`Against "Done when"`] + "\n\n" + NotClosed + "\n"

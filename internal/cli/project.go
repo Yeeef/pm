@@ -91,7 +91,10 @@ func cmdProjectClose(e *env, p *Parsed) (string, error) {
 	}
 	var open []string
 	for _, k := range r.x.Children(epicID) {
-		if k.Status != work.Closed {
+		if r.x.Proposal(k) {
+			open = append(open, fmt.Sprintf("%s (%s; a proposal: pm sprint close %s --dropped --reason \"…\")", k.ID,
+				k.Title, k.ID))
+		} else if k.Status != work.Closed {
 			open = append(open, fmt.Sprintf("%s (%s)", k.ID, k.Title))
 		}
 	}
