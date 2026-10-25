@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T08:40:13+00:00",
- "digest": "a798dbd0dfe4ef37",
+ "generated_at": "2026-10-25T08:50:35+00:00",
+ "digest": "2288628fd38703ba",
  "model": "claude-haiku-5-5",
- "text": "- **Overview page:** The overview now lists open projects first. Closed projects sit in a collapsed section at the bottom. The change passed CI, and the owner closed its review request before it merged.\n- **Review and feedback tools:** Work started to verify a pull request review in another repo. Work also started so agents can give feedback on the repo itself.\n- **Search retrieval:** A new sprint opened to rank whole records. An offline eval harness also opened, to compare results against rg."
+ "text": "- **Project overview order:** The overview now lists open projects first. Closed projects appear in one collapsed section at the bottom.\n- **Repo feedback for agents:** Agents can give feedback on the repo itself. The change passed CI and waits for owner review.\n- **Project search retrieval:** Work started on a second retrieval model for project search. It ranks whole records. An offline eval will compare it with the current search.\n- **Cross-repo PR review:** A delivery report records how to close a PR review in another repo. Checking that flow started."
 }
