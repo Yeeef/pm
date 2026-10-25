@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T10:09:05+00:00",
- "digest": "2097ab0ce169aea1",
+ "generated_at": "2026-10-25T10:39:27+00:00",
+ "digest": "26e28632dd430fde",
  "model": "claude-haiku-5-5",
- "text": "- **Search ranking:** Search now ranks whole records and items, showing each hit at its best unit. The new ranking fails the eval gate against the rg and newest-first baselines.\n- **Sprint proposals and feedback:** The owner chose sprint proposals as the one way to improve the repo. Repo feedback was dropped, and its questions moved into the feedback help text.\n- **Reviews and tooling:** Reviews of another repo's pull request now run through gh, and the merge is stored. This repo's pin moved to a newer pm release, which also wrote Codex's auto mode into its config.\n- **Site overview:** The site overview lists open projects first. Closed projects now sit in a collapsed section at the bottom."
+ "text": "- **Search ranking:** Search now ranks whole records and items together. Each hit shows at its best matching part. The header shows counts of all and some matches. The new ranking passed the evaluation gate against the baseline. It did not beat ripgrep or newest-first on the strict test. Design pages and a delivery report were written.\n- **Repo feedback and proposals:** Repo feedback was dropped. The owner chose sprint proposals as the only route for repo changes. The feedback questions moved into the add command's help text. A design page for sprint proposals was written. Proposal commands and a site list were started.\n- **Cross-repo reviews and pins:** A pm review of another GitHub repo's pull request now works. The merge is verified and stored. This repo now pins the newest pm release. Its Codex auto mode setting was also written.\n- **Overview page order:** The overview lists open projects first. Closed projects fold into one collapsed section at the bottom."
 }
