@@ -4,7 +4,7 @@ PYRUN := $(UV) run --quiet
 
 .PHONY: test test-full test-live test-live-parity test-live-agents-md agents-md-check test-go go-build go-fmt go-vet go-test go-test-but-work go-test-work \
 	go-test-work-macos \
-	go-build-pm go-test-race go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py
+	go-build-pm go-test-race go-test-race-service go-test-race-work merge-ready lint lint-go lint-deadcode lint-py search-eval
 
 # ARGS goes to pytest: make test-full ARGS="-k serve" runs only the integration tests a change touches.
 ARGS ?=
@@ -29,6 +29,13 @@ test-full: go-build
 # per case (default 3); PM_LIVE_RUNTIMES=codex runs one runtime.
 test-live: go-build
 	PM_LIVE_TESTS=1 $(PYRUN) python tests/run.py -s -k owner_request_prompt_live
+
+# Run pm search's offline retrieval eval (tests/search_eval/eval.py) on its frozen labels, queries and corpus, against
+# the rg variants and whole-record BM25; run after a ranking change, never in CI. SEARCH_EVAL_PM names the pm search
+# builds as LABEL=REV (worktree: this checkout), the last compared with the first; RG=<path> picks the ripgrep.
+SEARCH_EVAL_PM ?= base=origin/main new=worktree
+search-eval:
+	$(UV) run --quiet tests/search_eval/eval.py run $(foreach p,$(SEARCH_EVAL_PM),--pm $(p)) $(ARGS)
 
 # Check that a real Claude Code session and a real Codex session get the same pm guarantees, and work one sprint
 # together, in scratch clones (tests/test_agent_parity_live.py); needs claude and codex on PATH, both logged in. Its

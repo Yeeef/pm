@@ -32,9 +32,9 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 			return "", err
 		}
 		if p.Get("section") == "" {
-			return recordOutline(rec, p.Get("record")), nil
+			return records.Outline(rec, p.Get("record")), nil
 		}
-		return recordSection(rec, p.Get("section"))
+		return records.Section(rec, p.Get("section"))
 	}
 	r, err := e.load(true)
 	if err != nil {

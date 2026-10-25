@@ -79,13 +79,15 @@ func claimIndexOf(t *testing.T, r *store, id string) string {
 
 var projectIndex = "\ndesign pages (read the ones your task touches):\n" +
 	"  work-context   Work context   https://pm.example.com/design/work-context.html\n" +
-	"  records-store  Records store  https://pm.example.com/design/records-store.html"
+	"  records-store  Records store  https://pm.example.com/design/records-store.html\n" +
+	"prior work: pm search <topic>"
 
 func TestFirstClaimInASprintPrintsTheSprintsPagesThenTheProjectsWithoutRepeats(t *testing.T) {
 	want := "\ndesign pages (read the ones your task touches):\n" +
 		"  records-store  Records store  https://pm.example.com/design/records-store.html\n" +
 		"  gone           missing\n" +
-		"  work-context   Work context   https://pm.example.com/design/work-context.html"
+		"  work-context   Work context   https://pm.example.com/design/work-context.html\n" +
+		"prior work: pm search <topic>"
 	if got := claimIndexOf(t, indexRepo(t, nil), "a"); got != want {
 		t.Fatalf("got %q\nwant %q", got, want)
 	}
@@ -135,8 +137,8 @@ func TestSprintOpenPrintsTheProjectsPages(t *testing.T) {
 	if got, err := Of(r.recs, siteURL, byBead(r.recs, "p")); err != nil || got != projectIndex {
 		t.Fatalf("got %q\nwant %q", got, projectIndex)
 	}
-	if got, err := Of(r.recs, siteURL, byBead(r.recs, "s2")); err != nil || got != "" {
-		t.Fatalf("no pages listed: got %q, want nothing", got)
+	if got, err := Of(r.recs, siteURL, byBead(r.recs, "s2")); err != nil || got != "\nprior work: pm search <topic>" {
+		t.Fatalf("no pages listed: got %q, want the prior-work line alone", got)
 	}
 }
 
@@ -146,8 +148,8 @@ func TestTheSiteURLIsResolvedOnlyWhenThereIsAPageToPrint(t *testing.T) {
 		t.Errorf("second claim: got %q, want nothing", got)
 	}
 	r := indexRepo(t, nil)
-	if got := Block(func() (string, error) { return Of(r.recs, brokenURL, byBead(r.recs, "s2")) }); got != "" {
-		t.Errorf("no pages listed: got %q, want nothing", got)
+	if got := Block(func() (string, error) { return Of(r.recs, brokenURL, byBead(r.recs, "s2")) }); got != "\nprior work: pm search <topic>" {
+		t.Errorf("no pages listed: got %q, want the prior-work line alone", got)
 	}
 	want := "\ndesign pages not listed: PORT is not a number"
 	if got := Block(func() (string, error) { return Claim(r.recs, r.x, "a", "me", brokenURL) }); got != want {

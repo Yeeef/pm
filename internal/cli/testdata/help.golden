@@ -1,12 +1,13 @@
 ===== pm --help
 usage: pm [-h]
-          {show,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,service,doctor,upgrade,uninstall,init,where,clean,interactive,version,commit} ...
+          {show,search,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,service,doctor,upgrade,uninstall,init,where,clean,interactive,version,commit} ...
 
 pm: the write path for project records, and project actions that touch both records and the work store.
 
 positional arguments:
-  {show,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,service,doctor,upgrade,uninstall,init,where,clean,interactive,version,commit}
+  {show,search,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,service,doctor,upgrade,uninstall,init,where,clean,interactive,version,commit}
     show                compact status of open projects for agents, level by level
+    search              find earlier sprints, decisions, design sections, docs, tasks and needs on a topic, best first
     finding             sprint findings
     feedback            feedback on pm itself
     decision            decisions: record one, or ask the owner for one
@@ -42,13 +43,14 @@ pm runs the pm version the repo pins in .pm/config.toml: another version's relea
 pm --help --all also lists the machinery commands: what the runtimes' hooks, the scheduler and the pm service run, not agents.
 ===== pm --help --all
 usage: pm [-h]
-          {show,day,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,sync,service,doctor,upgrade,uninstall,init,push,where,clean,interactive,autopilot,export,version,prime,hook,commit} ...
+          {show,search,day,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,sync,service,doctor,upgrade,uninstall,init,push,where,clean,interactive,autopilot,export,version,prime,hook,commit} ...
 
 pm: the write path for project records, and project actions that touch both records and the work store.
 
 positional arguments:
-  {show,day,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,sync,service,doctor,upgrade,uninstall,init,push,where,clean,interactive,autopilot,export,version,prime,hook,commit}
+  {show,search,day,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,sync,service,doctor,upgrade,uninstall,init,push,where,clean,interactive,autopilot,export,version,prime,hook,commit}
     show                compact status of open projects for agents, level by level
+    search              find earlier sprints, decisions, design sections, docs, tasks and needs on a topic, best first
     day                 day pages: generated from the day's activity; nobody writes a day record
     finding             sprint findings
     feedback            feedback on pm itself
@@ -101,6 +103,23 @@ options:
   --record PATH    the record to read (a path, sprint id or name, project name or design slug); alone, its outline: header ids and each section with its line count
   --section NAME   with --record: print that one section, heading included
   --refresh-inbox  first point this session's open requests at its current inbox ($CLAUDE_CODE_MESSAGING_SOCKET); the session-start hook passes it, since a resumed session binds a new one
+===== pm search --help
+usage: pm search [-h]
+                 [--kind {sprint,project,decision,design,doc,postmortem,task,need}]
+                 [--project NAME] [-n N]
+                 [TERM ...]
+
+Find, across every project, the records and items that hold any word of the query, best first. Each sprint, project, design, doc and postmortem record is one document, and so is each task and need (its title, description and close reason); BM25 ranks them over all of them, records and items each against their own mean length, so a record that holds more of the words, and rarer ones, ranks higher wherever in it they fall. A word matches its plural (an s-stemmer: pages finds page); a term with a space, a / or a . (a phrase or a path) must also appear in the record as written. Each hit's line points at its best unit for the query: a ## section of the record (Progress, Decisions and Design pages left out; a doc with none is one unit), a ::: decision block, a ### of a design page's Design, or the item. Prints how many hits hold every word and how many hold some, then one line per hit: kind, date, state, the address pm show --record takes (or the item id) and the unit's first sentence that holds a query word. --kind and --project change no score; ties go newest first. No hit prints one line and exits 0: try other words. Before framing a sprint, search its topic in two or three wordings.
+
+positional arguments:
+  TERM                  the words to find, any of them; quote a phrase
+
+options:
+  -h, --help            show this help message and exit
+  --kind {sprint,project,decision,design,doc,postmortem,task,need}
+                        show only units of this kind: a record whose units of it hold no word is left out (repeatable)
+  --project NAME        keep only this project's hits (its name or id): its records, design pages and docs, and the items under it
+  -n, --limit N         print at most N hits (default 10)
 ===== pm day --help
 usage: pm day [-h] {summarize} ...
 
@@ -486,7 +505,7 @@ options:
 usage: pm sprint open [-h] --title TITLE [--text-file PATH | --text TEXT]
                       project
 
-Create a sprint epic and its record from the frame, then print the design pages the project's record lists: slug, title and link, or missing for a slug no design page has.
+Create a sprint epic and its record from the frame, then print the design pages the project's record lists: slug, title and link, or missing for a slug no design page has; last, the line prior work: pm search <topic>.
 
 positional arguments:
   project           project record name, e.g. pm-harness
@@ -598,7 +617,7 @@ options:
 ===== pm task claim --help
 usage: pm task claim [-h] [--session ID] task_id
 
-Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one. On the session's first claim in the task's sprint (no other task there held or closed by it; for a task directly under a project, in the project), prints the design pages the sprint's record, then the project's, list: slug, title and link, or missing for a slug no design page has.
+Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one. On the session's first claim in the task's sprint (no other task there held or closed by it; for a task directly under a project, in the project), prints the design pages the sprint's record, then the project's, list: slug, title and link, or missing for a slug no design page has; last, the line prior work: pm search <topic>.
 
 positional arguments:
   task_id       the task's id

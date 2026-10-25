@@ -10,6 +10,7 @@ import (
 
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/hooks"
+	"github.com/Yeeef/pm/internal/search"
 )
 
 // chunkNumbers is pm prime --rules's choices: 1 to the number of rules chunks.
@@ -39,6 +40,17 @@ var tree = &command{
 				{Flags: []string{"--record"}, Dest: "record", Metavar: []string{"PATH"}, Kind: value, Help: "the record to read (a path, sprint id or name, project name or design slug); alone, its outline: header ids and each section with its line count"},
 				{Flags: []string{"--section"}, Dest: "section", Metavar: []string{"NAME"}, Kind: value, Help: "with --record: print that one section, heading included"},
 				{Flags: []string{"--refresh-inbox"}, Dest: "refresh_inbox", Kind: switchOn, Help: "first point this session's open requests at its current inbox ($CLAUDE_CODE_MESSAGING_SOCKET); the session-start hook passes it, since a resumed session binds a new one"},
+			},
+		},
+		{
+			Name:        "search",
+			Help:        "find earlier sprints, decisions, design sections, docs, tasks and needs on a topic, best first",
+			Description: "Find, across every project, the records and items that hold any word of the query, best first. Each sprint, project, design, doc and postmortem record is one document, and so is each task and need (its title, description and close reason); BM25 ranks them over all of them, records and items each against their own mean length, so a record that holds more of the words, and rarer ones, ranks higher wherever in it they fall. A word matches its plural (an s-stemmer: pages finds page); a term with a space, a / or a . (a phrase or a path) must also appear in the record as written. Each hit's line points at its best unit for the query: a ## section of the record (Progress, Decisions and Design pages left out; a doc with none is one unit), a ::: decision block, a ### of a design page's Design, or the item. Prints how many hits hold every word and how many hold some, then one line per hit: kind, date, state, the address pm show --record takes (or the item id) and the unit's first sentence that holds a query word. --kind and --project change no score; ties go newest first. No hit prints one line and exits 0: try other words. Before framing a sprint, search its topic in two or three wordings.",
+			Args: []arg{
+				{Dest: "words", Metavar: []string{"TERM"}, Arity: many, Kind: value, Help: "the words to find, any of them; quote a phrase"},
+				{Flags: []string{"--kind"}, Dest: "kind", Choices: search.Kinds, Kind: repeated, Help: "show only units of this kind: a record whose units of it hold no word is left out (repeatable)"},
+				{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "keep only this project's hits (its name or id): its records, design pages and docs, and the items under it"},
+				{Flags: []string{"-n", "--limit"}, Dest: "limit", Metavar: []string{"N"}, Kind: value, IsInt: true, Def: "10", Help: "print at most N hits (default 10)"},
 			},
 		},
 		{
@@ -354,7 +366,7 @@ var tree = &command{
 				{
 					Name:        "open",
 					Help:        "create a sprint epic and record; frame with --text ('## Goal', '## Scope' with **In:**/**Out:**, '## Done when')",
-					Description: "Create a sprint epic and its record from the frame, then print the design pages the project's record lists: slug, title and link, or missing for a slug no design page has.",
+					Description: "Create a sprint epic and its record from the frame, then print the design pages the project's record lists: slug, title and link, or missing for a slug no design page has; last, the line prior work: pm search <topic>.",
 					Groups:      []bool{false},
 					Args: []arg{
 						{Dest: "project", Required: true, Kind: value, Help: "project record name, e.g. pm-harness"},
@@ -445,7 +457,7 @@ var tree = &command{
 				{
 					Name:        "claim",
 					Help:        "claim a task for this agent session",
-					Description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one. On the session's first claim in the task's sprint (no other task there held or closed by it; for a task directly under a project, in the project), prints the design pages the sprint's record, then the project's, list: slug, title and link, or missing for a slug no design page has.",
+					Description: "Claim an open task: make the session (--session, else $CLAUDE_CODE_SESSION_ID or Codex's $CODEX_SESSION_ID, else its $CODEX_THREAD_ID's root thread; with both runtimes' set, that of the nearest Claude Code or Codex process pm runs under) its holder, with the time. Refuses when another live session holds it: one whose transcript was written in the last 30 minutes. A subagent shares its session's id, so it may claim what its session holds. Refuses in the main checkout, since agents change code only in a worktree of their own, and says how to make one. On the session's first claim in the task's sprint (no other task there held or closed by it; for a task directly under a project, in the project), prints the design pages the sprint's record, then the project's, list: slug, title and link, or missing for a slug no design page has; last, the line prior work: pm search <topic>.",
 					Args: []arg{
 						{Dest: "task_id", Required: true, Kind: value, Help: "the task's id"},
 						{Flags: []string{"--session"}, Dest: "session", Metavar: []string{"ID"}, Kind: value, Help: "the session to record; default: this session's id from the environment"},

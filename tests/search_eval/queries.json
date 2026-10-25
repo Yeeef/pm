@@ -1,0 +1,561 @@
+{
+ "writer": "claude -p --model haiku",
+ "prompt": "An agent is about to frame this sprint, and first searches the project's records (earlier sprints, decisions, design pages, docs) for prior work on its topic. Write 3 different keyword search queries it would type, each 1 to 4 words, no quotes and no operators.\n\nSprint title: {title}\nGoal: {goal}\n\nAnswer with a JSON array of 3 strings and nothing else.",
+ "sprints": {
+  "sprints/pm-codex-1": [
+   "Codex integration",
+   "pm harness",
+   "owner replies"
+  ],
+  "sprints/pm-codex-2": [
+   "Stop judge Codex",
+   "day summarize runtime",
+   "owner request judge"
+  ],
+  "sprints/pm-codex-3": [
+   "Codex auto mode",
+   "approve-for-me eval",
+   "Codex approval review"
+  ],
+  "sprints/pm-codex-4": [
+   "pm 0.8.0 release",
+   "codex hooks trust",
+   "pm-codex sprint 2"
+  ],
+  "sprints/pm-codex-5": [
+   "pm init codex",
+   "codex auto mode",
+   "config.toml sandbox"
+  ],
+  "sprints/pm-harness-10": [
+   "one-command clone setup",
+   "beads git hooks",
+   "records store checkout"
+  ],
+  "sprints/pm-harness-100": [
+   "numeric sort sprints",
+   "sprint task ordering",
+   "sort by id"
+  ],
+  "sprints/pm-harness-102": [
+   "pm repo migration",
+   "pm public repo",
+   "pm split out"
+  ],
+  "sprints/pm-harness-104": [
+   "pm service",
+   "Dolt store lock",
+   "work store socket"
+  ],
+  "sprints/pm-harness-105": [
+   "servedSite Stamp",
+   "records file race",
+   "pm serve change check"
+  ],
+  "sprints/pm-harness-106": [
+   "pm-harness tracking",
+   "sprint framing",
+   "unfinished pm work"
+  ],
+  "sprints/pm-harness-107": [
+   "owner request hook",
+   "pm owner requests",
+   "AskUserQuestion reprompt"
+  ],
+  "sprints/pm-harness-109": [
+   "Python pm retirement",
+   "pm parity harness",
+   "Go pm sprint"
+  ],
+  "sprints/pm-harness-11": [
+   "always current site",
+   "stale page",
+   "beads status"
+  ],
+  "sprints/pm-harness-113": [
+   "pm sprint marketing site",
+   "pm website GitHub Pages",
+   "pm agent swarm dashboard"
+  ],
+  "sprints/pm-harness-116": [
+   "PM release policy",
+   "release policy automation",
+   "release decision criteria"
+  ],
+  "sprints/pm-harness-117": [
+   "pin move releases",
+   "old pins prune",
+   "release steps binary"
+  ],
+  "sprints/pm-harness-118": [
+   "ask tool question",
+   "decision need action need",
+   "ask user question answer"
+  ],
+  "sprints/pm-harness-119": [
+   "pm interactive autopilot",
+   "owner-request judge",
+   "Stop hook"
+  ],
+  "sprints/pm-harness-12": [
+   "sandboxed sessions records",
+   "records store write",
+   "pm commit records"
+  ],
+  "sprints/pm-harness-120": [
+   "open project without asking",
+   "owner-requested work",
+   "agent auto-open sprint"
+  ],
+  "sprints/pm-harness-122": [
+   "post-checkout hook",
+   "core.hooksPath",
+   "session-start hook"
+  ],
+  "sprints/pm-harness-123": [
+   "pm 0.10.0 ask tool",
+   "sprint 118 ask questions",
+   "pm-harness pm pin"
+  ],
+  "sprints/pm-harness-125": [
+   "design page index",
+   "sprint open prior work",
+   "area current state design"
+  ],
+  "sprints/pm-harness-126": [
+   "prior sprints topic",
+   "design decisions",
+   "work items search"
+  ],
+  "sprints/pm-harness-128": [
+   "search index RFC",
+   "pm search performance",
+   "search index design"
+  ],
+  "sprints/pm-harness-13": [
+   "owner decisions pending",
+   "owner actions pending",
+   "sprint awaiting owner"
+  ],
+  "sprints/pm-harness-15": [
+   "rendered record links",
+   "sprint links rendering",
+   "design page links"
+  ],
+  "sprints/pm-harness-16": [
+   "owner requests",
+   "sprint answer owner",
+   "decision evidence site"
+  ],
+  "sprints/pm-harness-19": [
+   "sprint merge close",
+   "delivery report draft",
+   "PR merge main"
+  ],
+  "sprints/pm-harness-20": [
+   "faster site reloads",
+   "page render caching",
+   "bd list performance"
+  ],
+  "sprints/pm-harness-21": [
+   "scoped beads reads",
+   "pm beads issues",
+   "beads read performance"
+  ],
+  "sprints/pm-harness-22": [
+   "duplicate work sessions",
+   "sprint coordination",
+   "in-progress claim"
+  ],
+  "sprints/pm-harness-23": [
+   "design pages dates",
+   "git history records",
+   "design page timestamps"
+  ],
+  "sprints/pm-harness-24": [
+   "waiter wake on answer",
+   "pm decision need",
+   "PR review merge wake"
+  ],
+  "sprints/pm-harness-25": [
+   "harness rules",
+   "sprint decisions",
+   "design docs"
+  ],
+  "sprints/pm-harness-26": [
+   "owner-request hook",
+   "short ids",
+   "stop hook reply"
+  ],
+  "sprints/pm-harness-27": [
+   "review request PR",
+   "PR review template",
+   "merge wait sprint"
+  ],
+  "sprints/pm-harness-28": [
+   "Beads team-maintainer",
+   "team maintainer profile",
+   "Beads commit push sync"
+  ],
+  "sprints/pm-harness-31": [
+   "clone Desktop path",
+   "scheduled push job",
+   "macOS protected folders"
+  ],
+  "sprints/pm-harness-36": [
+   "Beads fork",
+   "bd replace pm",
+   "pm sprint decision"
+  ],
+  "sprints/pm-harness-40": [
+   "owner reply delivery",
+   "reply delivery retry",
+   "owner replies session"
+  ],
+  "sprints/pm-harness-42": [
+   "sprint close",
+   "draft banner",
+   "sprint report"
+  ],
+  "sprints/pm-harness-44": [
+   "pm tool package",
+   "sprint pm install",
+   "pm prime hooks"
+  ],
+  "sprints/pm-harness-45": [
+   "pm init upgrade doctor",
+   "pm uninstall",
+   "sprint pm install GitHub"
+  ],
+  "sprints/pm-harness-46": [
+   "yeeef-agents pm",
+   "pm install pin",
+   "legacy pm migration"
+  ],
+  "sprints/pm-harness-49": [
+   "Owner request check",
+   "Beads open needs",
+   "Stop hook owner"
+  ],
+  "sprints/pm-harness-5": [
+   "design page schema",
+   "design page template",
+   "design sections format"
+  ],
+  "sprints/pm-harness-51": [
+   "decision needs layout",
+   "decision card format",
+   "sprint decision needs"
+  ],
+  "sprints/pm-harness-52": [
+   "worktree records link",
+   "records store worktree",
+   "sprint worktree records"
+  ],
+  "sprints/pm-harness-54": [
+   "agent lifecycle reply delivery",
+   "sprint 40 replies",
+   "owner reply session"
+  ],
+  "sprints/pm-harness-56": [
+   "records link worktree",
+   "main records copy",
+   "records layout decision"
+  ],
+  "sprints/pm-harness-57": [
+   "pm show levels",
+   "sprint prior work",
+   "project state disclosure"
+  ],
+  "sprints/pm-harness-58": [
+   "records permission prompt",
+   "records directory edits",
+   "claude code records"
+  ],
+  "sprints/pm-harness-6": [
+   "pm CLI",
+   "sprint framing",
+   "harness rules enforcement"
+  ],
+  "sprints/pm-harness-60": [
+   "pm stdin hang",
+   "pm open stdin",
+   "hung write agent"
+  ],
+  "sprints/pm-harness-61": [
+   "heavy integration tests CI",
+   "integration tests sprint",
+   "CI test runs"
+  ],
+  "sprints/pm-harness-63": [
+   "pm migration",
+   "installed pm",
+   "Linux clone sync"
+  ],
+  "sprints/pm-harness-64": [
+   "pm settings",
+   "pm setup install",
+   "pm help commands"
+  ],
+  "sprints/pm-harness-7": [
+   "pm CLI",
+   "bd harness rules",
+   "single-step bd actions"
+  ],
+  "sprints/pm-harness-70": [
+   "pm decision need",
+   "decision need flags",
+   "pm need CLI"
+  ],
+  "sprints/pm-harness-75": [
+   "worktree isolation",
+   "agent worktree",
+   "git worktree sessions"
+  ],
+  "sprints/pm-harness-76": [
+   "records copy main",
+   "records link worktree",
+   "pm sparse checkout"
+  ],
+  "sprints/pm-harness-77": [
+   "pm work store",
+   "Beads replacement",
+   "work store design"
+  ],
+  "sprints/pm-harness-78": [
+   "Go port work store",
+   "work store Dolt",
+   "bd import export"
+  ],
+  "sprints/pm-harness-79": [
+   "Go port cutover",
+   "beads removal",
+   "pm migration Dolt"
+  ],
+  "sprints/pm-harness-8": [
+   "compact views agents",
+   "sprint context loading",
+   "pm views records"
+  ],
+  "sprints/pm-harness-81": [
+   "Dolt garbage collection",
+   "pm service gc",
+   "Dolt store size"
+  ],
+  "sprints/pm-harness-83": [
+   "Go port parity",
+   "implementation-neutral tests",
+   "pm pytest suite"
+  ],
+  "sprints/pm-harness-84": [
+   "Go port skeleton",
+   "sprint command tree",
+   "work.Item type"
+  ],
+  "sprints/pm-harness-85": [
+   "Go port records",
+   "pm record parser",
+   "sprint P4 go"
+  ],
+  "sprints/pm-harness-86": [
+   "Go port pm",
+   "agent commands",
+   "pm record task"
+  ],
+  "sprints/pm-harness-87": [
+   "Go port agent commands",
+   "Go pm Python parity",
+   "agent commands sprint"
+  ],
+  "sprints/pm-harness-89": [
+   "Go port work-store",
+   "bd sync git remote",
+   "P7 sprint decisions"
+  ],
+  "sprints/pm-harness-9": [
+   "records shared worktrees",
+   "pm store worktree",
+   "live records branch"
+  ],
+  "sprints/pm-harness-90": [
+   "Go port pm",
+   "pm service sprint",
+   "background service daemon"
+  ],
+  "sprints/pm-harness-91": [
+   "Go port install",
+   "Go launcher pin",
+   "release Go version"
+  ],
+  "sprints/pm-harness-98": [
+   "pm release hooks",
+   "release process",
+   "git hooks skip"
+  ],
+  "sprints/pm-quality-1": [
+   "Go pm records",
+   "option C records",
+   "main records copy"
+  ],
+  "sprints/pm-quality-10": [
+   "Stop hook block",
+   "owner-request judge",
+   "subagent record writing"
+  ],
+  "sprints/pm-quality-11": [
+   "clone pm service",
+   "pm uninstall localhost",
+   "sprint service stop"
+  ],
+  "sprints/pm-quality-13": [
+   "2026-10-10 sprint wave",
+   "pm-quality review follow-ups",
+   "low-severity defects"
+  ],
+  "sprints/pm-quality-15": [
+   "goroutine shutdown",
+   "Run returns",
+   "work store close"
+  ],
+  "sprints/pm-quality-16": [
+   "worktree pin upgrade",
+   "pin move stranded worktrees",
+   "pm upgrade pin"
+  ],
+  "sprints/pm-quality-17": [
+   "gofmt CI check",
+   "go formatting lint",
+   "unformatted Go files"
+  ],
+  "sprints/pm-quality-2": [
+   "servedSite Stamp",
+   "records file race",
+   "pm serve stamp"
+  ],
+  "sprints/pm-quality-21": [
+   "internal/cli split",
+   "python port leftovers",
+   "writes.go refactor"
+  ],
+  "sprints/pm-quality-22": [
+   "design page waiver",
+   "design page covered code",
+   "sprint design doc update"
+  ],
+  "sprints/pm-quality-24": [
+   "race CI job",
+   "flaky race test",
+   "race detector CI"
+  ],
+  "sprints/pm-quality-26": [
+   "pm check covers",
+   "unmerged branches",
+   "sprint pm check"
+  ],
+  "sprints/pm-quality-27": [
+   "CI pipeline speed",
+   "macOS runner queue",
+   "CI runtime 90 seconds"
+  ],
+  "sprints/pm-quality-28": [
+   "sprint close pending patterns",
+   "other sessions pending",
+   "sprint close checks"
+  ],
+  "sprints/pm-quality-3": [
+   "pm CI slow check",
+   "PR check duration",
+   "CI pipeline speed"
+  ],
+  "sprints/pm-quality-30": [
+   "agents md CI",
+   "AGENTS.md grader",
+   "CI check cases"
+  ],
+  "sprints/pm-quality-31": [
+   "macOS CI runner",
+   "Go test sprint",
+   "sprint 27 compute"
+  ],
+  "sprints/pm-quality-32": [
+   "selective go test",
+   "path-based test selection",
+   "CI test impact"
+  ],
+  "sprints/pm-quality-33": [
+   "AGENTS.md check determinism",
+   "AGENTS.md grading",
+   "PR gate verdict"
+  ],
+  "sprints/pm-quality-34": [
+   "pm reply wait",
+   "pm hook inbox",
+   "owner reply push"
+  ],
+  "sprints/pm-quality-35": [
+   "code and test metrics",
+   "metrics doc origin main",
+   "sprint metrics measurement"
+  ],
+  "sprints/pm-quality-36": [
+   "make test-go flaky",
+   "test-go main CI",
+   "go test flakiness"
+  ],
+  "sprints/pm-quality-38": [
+   "pm command surface",
+   "audit pm commands",
+   "prime help drift"
+  ],
+  "sprints/pm-quality-39": [
+   "command audit wave 2",
+   "CLI scope flags",
+   "close verb naming"
+  ],
+  "sprints/pm-quality-4": [
+   "move sprint project",
+   "sprint move command",
+   "open sprint transfer"
+  ],
+  "sprints/pm-quality-6": [
+   "pm clean worktrees",
+   "agent worktree cleanup",
+   "worktree removal policy"
+  ],
+  "sprints/pm-quality-8": [
+   "pm task close",
+   "task move override",
+   "foreign commit orphan"
+  ],
+  "sprints/pm-records-2": [
+   "published view",
+   "page versions",
+   "draft versions"
+  ],
+  "sprints/pm-records-3": [
+   "rename design page",
+   "doc slug rename",
+   "page title links"
+  ],
+  "sprints/pm-records-4": [
+   "per-worktree records workspace",
+   "worktree records isolation",
+   "journal publish labelled versions"
+  ],
+  "sprints/pm-records-5": [
+   "design page publish",
+   "sprint close merge",
+   "design page drafts"
+  ],
+  "sprints/pm-records-6": [
+   "draft sync clones",
+   "sprint close publish",
+   "record layer release"
+  ],
+  "sprints/pm-site-4": [
+   "math rendering",
+   "MDX diagrams",
+   "docs index"
+  ]
+ }
+}

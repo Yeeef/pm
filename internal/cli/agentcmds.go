@@ -15,6 +15,7 @@ type agentCommand func(e *env, p *Parsed) (string, error)
 // agentCommands is the commands Go pm runs on the records and the work store, by name.
 var agentCommands = map[string]agentCommand{
 	"show":             cmdShow,
+	"search":           cmdSearch,
 	"day summarize":    cmdDaySummarize,
 	"record link":      cmdRecordLink,
 	"commit":           cmdCommit,
