@@ -73,6 +73,8 @@ None yet.
 done: the overview lists the open projects first and folds the closed ones into one collapsed "Closed projects (N)"
 section at the bottom.
 
+Merged as abca398 (PR #117).
+
 - `RenderIndex` splits projects by their work-store status; a project record with no item counts as open.
 - Two stylesheet rules give the section's summary the weight of a project heading, muted.
 - The constructs golden overview, a new site test, the Views and site design page, a changelog entry.
