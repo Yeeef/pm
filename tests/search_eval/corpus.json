@@ -1,0 +1,5 @@
+{
+ "records_commit": "41db306c5ef28f452e0bdf3cab1f3ac9ea38d5cd",
+ "items_cutoff": "2026-10-17T19:33:58Z",
+ "note": "The corpus is the records tree of records_commit (the records branch, 2026-10-17, as sprint pm-harness-128 measured) and the items of items.jsonl.gz, pm export lines of the work store created before items_cutoff (that commit's time), their texts as exported on 2026-10-25."
+}

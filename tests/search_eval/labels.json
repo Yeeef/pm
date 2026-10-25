@@ -1,0 +1,1555 @@
+{
+ "records": {
+  "design/agent-lifecycle": "2026-10-06T21:44:13Z",
+  "design/agent-sync": "",
+  "design/agents-md-evaluation": "2026-10-13T19:09:16Z",
+  "design/decision-need-layout": "2026-10-06T22:24:14Z",
+  "design/owner-questions": "2026-10-13T20:35:26Z",
+  "design/owner-request-hook": "2026-10-04T21:17:21Z",
+  "design/pm-cli": "2026-10-04T00:17:44Z",
+  "design/pm-go": "2026-10-08T02:53:54Z",
+  "design/pm-harness": "2026-10-01T21:22:58Z",
+  "design/pm-in-codex": "2026-10-10T04:29:46Z",
+  "design/pm-product": "2026-10-06T00:58:05Z",
+  "design/pm-search": "2026-10-17T11:50:56Z",
+  "design/pm-versioning": "2026-10-09T12:49:08Z",
+  "design/record-drafts": "2026-10-14T20:43:48Z",
+  "design/record-layer": "2026-10-01T21:22:58Z",
+  "design/records-store": "2026-10-04T02:45:03Z",
+  "design/release-policy": "2026-10-13T19:06:27Z",
+  "design/reply-delivery": "2026-10-06T01:42:41Z",
+  "design/session-claims": "2026-10-10T04:29:46Z",
+  "design/site-replies": "2026-10-05T00:50:27Z",
+  "design/sprint-lifecycle": "2026-10-06T02:16:01Z",
+  "design/views-and-site": "2026-10-01T21:22:58Z",
+  "design/work-context": "2026-10-15T21:56:26Z",
+  "design/work-layer": "2026-10-01T21:22:58Z",
+  "design/work-layer-bd-boundary": "2026-10-06T00:59:13Z",
+  "design/work-store": "2026-10-08T02:53:54Z",
+  "docs/2026-10-03-beads-decision-type": "2026-10-03",
+  "docs/2026-10-04-hooks-for-pm": "2026-10-04",
+  "docs/2026-10-05-clone-move-inventory": "2026-10-05",
+  "docs/2026-10-05-duplicate-session-work": "2026-10-05",
+  "docs/2026-10-05-generic-defaults-vs-harness": "2026-10-05",
+  "docs/2026-10-05-server-clone-plan": "2026-10-05",
+  "docs/2026-10-07-pm-pitch-deck": "2026-10-07",
+  "docs/2026-10-07-records-layout-readers": "2026-10-07",
+  "docs/2026-10-09-go-pm-cut-over-runbook": "2026-10-09",
+  "docs/2026-10-09-linux-server-runbook": "2026-10-09",
+  "docs/2026-10-10-pm-feedback-triage": "2026-10-10",
+  "docs/2026-10-11-test-value-audit": "2026-10-11",
+  "docs/2026-10-12-pm-quality-metrics": "2026-10-12",
+  "docs/2026-10-14-long-horizon-benchmark-survey": "2026-10-14",
+  "docs/2026-10-14-record-layer-concurrency": "2026-10-14",
+  "docs/2026-10-16-pm-command-quality-audit": "2026-10-16",
+  "docs/pm-feedback": "2026-10-07",
+  "postmortems/2026-10-04-version-skew-breakage": "2026-10-04",
+  "postmortems/2026-10-07-site-unstyled-after-main-pull": "2026-10-07",
+  "projects/pm-codex": "2026-10-10T04:28:40Z",
+  "projects/pm-eval": "2026-10-14T18:07:34Z",
+  "projects/pm-harness": "2026-10-01T21:22:56Z",
+  "projects/pm-quality": "2026-10-10T04:28:37Z",
+  "projects/pm-records": "2026-10-14T20:27:47Z",
+  "projects/pm-site": "2026-10-10T04:36:16Z",
+  "sprints/pm-codex-1": "2026-10-10T04:29:46Z",
+  "sprints/pm-codex-2": "2026-10-12T18:49:55Z",
+  "sprints/pm-codex-3": "2026-10-13T18:47:27Z",
+  "sprints/pm-codex-4": "2026-10-13T19:05:32Z",
+  "sprints/pm-codex-5": "2026-10-13T19:18:56Z",
+  "sprints/pm-eval-1": "2026-10-14T18:07:43Z",
+  "sprints/pm-harness-1": "2026-10-01T21:22:58Z",
+  "sprints/pm-harness-10": "2026-10-04T14:14:30Z",
+  "sprints/pm-harness-100": "2026-10-09T04:17:34Z",
+  "sprints/pm-harness-101": "2026-10-09T04:17:44Z",
+  "sprints/pm-harness-102": "2026-10-09T12:49:08Z",
+  "sprints/pm-harness-103": "2026-10-09T16:06:35Z",
+  "sprints/pm-harness-104": "2026-10-09T16:13:30Z",
+  "sprints/pm-harness-105": "2026-10-10T00:36:12Z",
+  "sprints/pm-harness-106": "2026-10-10T00:54:41Z",
+  "sprints/pm-harness-107": "2026-10-10T01:18:58Z",
+  "sprints/pm-harness-108": "2026-10-10T02:32:39Z",
+  "sprints/pm-harness-109": "2026-10-10T02:44:08Z",
+  "sprints/pm-harness-11": "2026-10-04T14:24:12Z",
+  "sprints/pm-harness-110": "2026-10-10T02:55:09Z",
+  "sprints/pm-harness-111": "2026-10-10T03:19:35Z",
+  "sprints/pm-harness-112": "2026-10-11T17:15:26Z",
+  "sprints/pm-harness-113": "2026-10-11T17:16:09Z",
+  "sprints/pm-harness-114": "2026-10-12T18:24:57Z",
+  "sprints/pm-harness-115": "2026-10-12T20:02:00Z",
+  "sprints/pm-harness-116": "2026-10-13T19:06:27Z",
+  "sprints/pm-harness-117": "2026-10-13T19:48:47Z",
+  "sprints/pm-harness-118": "2026-10-13T20:35:26Z",
+  "sprints/pm-harness-119": "2026-10-13T20:50:30Z",
+  "sprints/pm-harness-12": "2026-10-04T14:27:01Z",
+  "sprints/pm-harness-120": "2026-10-13T20:53:43Z",
+  "sprints/pm-harness-121": "2026-10-14T21:01:32Z",
+  "sprints/pm-harness-122": "2026-10-14T21:19:30Z",
+  "sprints/pm-harness-123": "2026-10-14T22:44:16Z",
+  "sprints/pm-harness-124": "2026-10-15T07:13:42Z",
+  "sprints/pm-harness-125": "2026-10-15T21:56:26Z",
+  "sprints/pm-harness-126": "2026-10-17T11:50:56Z",
+  "sprints/pm-harness-127": "2026-10-17T13:04:47Z",
+  "sprints/pm-harness-128": "2026-10-17T19:29:22Z",
+  "sprints/pm-harness-13": "2026-10-04T14:56:51Z",
+  "sprints/pm-harness-14": "2026-10-04T21:17:21Z",
+  "sprints/pm-harness-15": "2026-10-04T21:53:04Z",
+  "sprints/pm-harness-16": "2026-10-05T00:50:27Z",
+  "sprints/pm-harness-17": "2026-10-05T02:17:50Z",
+  "sprints/pm-harness-18": "2026-10-05T02:26:57Z",
+  "sprints/pm-harness-19": "2026-10-05T03:07:00Z",
+  "sprints/pm-harness-20": "2026-10-05T13:49:41Z",
+  "sprints/pm-harness-21": "2026-10-05T14:33:40Z",
+  "sprints/pm-harness-22": "2026-10-05T14:59:14Z",
+  "sprints/pm-harness-23": "2026-10-05T15:04:13Z",
+  "sprints/pm-harness-24": "2026-10-05T15:41:50Z",
+  "sprints/pm-harness-25": "2026-10-05T15:48:26Z",
+  "sprints/pm-harness-26": "2026-10-05T17:36:25Z",
+  "sprints/pm-harness-27": "2026-10-05T18:25:09Z",
+  "sprints/pm-harness-28": "2026-10-05T18:36:54Z",
+  "sprints/pm-harness-29": "2026-10-05T18:47:20Z",
+  "sprints/pm-harness-3": "2026-10-03T23:51:28Z",
+  "sprints/pm-harness-30": "2026-10-05T18:47:23Z",
+  "sprints/pm-harness-31": "2026-10-05T19:57:27Z",
+  "sprints/pm-harness-32": "2026-10-05T21:22:27Z",
+  "sprints/pm-harness-33": "2026-10-06T00:58:05Z",
+  "sprints/pm-harness-34": "2026-10-06T00:58:08Z",
+  "sprints/pm-harness-35": "2026-10-06T00:58:13Z",
+  "sprints/pm-harness-36": "2026-10-06T00:59:13Z",
+  "sprints/pm-harness-37": "2026-10-06T01:05:38Z",
+  "sprints/pm-harness-38": "2026-10-06T01:21:06Z",
+  "sprints/pm-harness-39": "2026-10-06T01:39:58Z",
+  "sprints/pm-harness-40": "2026-10-06T01:42:41Z",
+  "sprints/pm-harness-41": "2026-10-06T01:49:06Z",
+  "sprints/pm-harness-42": "2026-10-06T02:16:01Z",
+  "sprints/pm-harness-43": "2026-10-06T15:37:25Z",
+  "sprints/pm-harness-44": "2026-10-06T16:03:11Z",
+  "sprints/pm-harness-45": "2026-10-06T16:03:15Z",
+  "sprints/pm-harness-46": "2026-10-06T16:03:17Z",
+  "sprints/pm-harness-47": "2026-10-06T21:08:32Z",
+  "sprints/pm-harness-48": "2026-10-06T21:44:13Z",
+  "sprints/pm-harness-49": "2026-10-06T22:09:11Z",
+  "sprints/pm-harness-5": "2026-10-04T00:10:53Z",
+  "sprints/pm-harness-50": "2026-10-06T22:13:40Z",
+  "sprints/pm-harness-51": "2026-10-06T22:24:14Z",
+  "sprints/pm-harness-52": "2026-10-06T22:34:24Z",
+  "sprints/pm-harness-53": "2026-10-06T22:59:02Z",
+  "sprints/pm-harness-54": "2026-10-06T23:43:18Z",
+  "sprints/pm-harness-55": "2026-10-07T00:02:42Z",
+  "sprints/pm-harness-56": "2026-10-07T00:17:43Z",
+  "sprints/pm-harness-57": "2026-10-07T00:47:49Z",
+  "sprints/pm-harness-58": "2026-10-07T01:08:15Z",
+  "sprints/pm-harness-59": "2026-10-07T03:21:21Z",
+  "sprints/pm-harness-6": "2026-10-04T00:17:44Z",
+  "sprints/pm-harness-60": "2026-10-07T13:26:32Z",
+  "sprints/pm-harness-61": "2026-10-07T15:25:45Z",
+  "sprints/pm-harness-62": "2026-10-07T19:10:30Z",
+  "sprints/pm-harness-63": "2026-10-07T19:35:29Z",
+  "sprints/pm-harness-64": "2026-10-07T20:07:11Z",
+  "sprints/pm-harness-65": "2026-10-07T22:04:13Z",
+  "sprints/pm-harness-66": "2026-10-07T23:40:21Z",
+  "sprints/pm-harness-67": "2026-10-07T23:49:00Z",
+  "sprints/pm-harness-68": "2026-10-08T00:07:12Z",
+  "sprints/pm-harness-69": "2026-10-08T00:14:47Z",
+  "sprints/pm-harness-7": "2026-10-04T01:01:53Z",
+  "sprints/pm-harness-70": "2026-10-08T00:19:45Z",
+  "sprints/pm-harness-71": "2026-10-08T00:24:47Z",
+  "sprints/pm-harness-72": "2026-10-08T00:26:19Z",
+  "sprints/pm-harness-73": "2026-10-08T02:36:05Z",
+  "sprints/pm-harness-74": "2026-10-08T02:36:23Z",
+  "sprints/pm-harness-75": "2026-10-08T02:47:45Z",
+  "sprints/pm-harness-76": "2026-10-08T02:50:00Z",
+  "sprints/pm-harness-77": "2026-10-08T02:53:54Z",
+  "sprints/pm-harness-78": "2026-10-08T02:54:15Z",
+  "sprints/pm-harness-79": "2026-10-08T02:54:23Z",
+  "sprints/pm-harness-8": "2026-10-04T01:38:36Z",
+  "sprints/pm-harness-80": "2026-10-08T03:05:06Z",
+  "sprints/pm-harness-81": "2026-10-08T03:37:29Z",
+  "sprints/pm-harness-82": "2026-10-08T03:51:52Z",
+  "sprints/pm-harness-83": "2026-10-08T04:02:22Z",
+  "sprints/pm-harness-84": "2026-10-08T04:02:34Z",
+  "sprints/pm-harness-85": "2026-10-08T04:02:48Z",
+  "sprints/pm-harness-86": "2026-10-08T04:02:53Z",
+  "sprints/pm-harness-87": "2026-10-08T04:03:01Z",
+  "sprints/pm-harness-88": "2026-10-08T04:03:04Z",
+  "sprints/pm-harness-89": "2026-10-08T04:03:18Z",
+  "sprints/pm-harness-9": "2026-10-04T02:45:03Z",
+  "sprints/pm-harness-90": "2026-10-08T04:03:26Z",
+  "sprints/pm-harness-91": "2026-10-08T04:03:37Z",
+  "sprints/pm-harness-92": "2026-10-08T04:04:46Z",
+  "sprints/pm-harness-93": "2026-10-08T04:16:21Z",
+  "sprints/pm-harness-94": "2026-10-08T18:50:28Z",
+  "sprints/pm-harness-95": "2026-10-08T21:58:19Z",
+  "sprints/pm-harness-96": "2026-10-08T22:08:48Z",
+  "sprints/pm-harness-97": "2026-10-08T22:09:48Z",
+  "sprints/pm-harness-98": "2026-10-09T03:12:52Z",
+  "sprints/pm-harness-99": "2026-10-09T04:06:17Z",
+  "sprints/pm-quality-1": "2026-10-10T04:29:58Z",
+  "sprints/pm-quality-10": "2026-10-10T13:22:27Z",
+  "sprints/pm-quality-11": "2026-10-10T13:22:43Z",
+  "sprints/pm-quality-12": "2026-10-10T14:09:11Z",
+  "sprints/pm-quality-13": "2026-10-10T14:10:55Z",
+  "sprints/pm-quality-14": "2026-10-10T15:28:54Z",
+  "sprints/pm-quality-15": "2026-10-10T17:53:46Z",
+  "sprints/pm-quality-16": "2026-10-10T18:28:50Z",
+  "sprints/pm-quality-17": "2026-10-10T19:12:39Z",
+  "sprints/pm-quality-18": "2026-10-11T18:24:03Z",
+  "sprints/pm-quality-19": "2026-10-11T18:24:08Z",
+  "sprints/pm-quality-2": "2026-10-10T04:30:10Z",
+  "sprints/pm-quality-20": "2026-10-11T18:24:22Z",
+  "sprints/pm-quality-21": "2026-10-11T19:28:11Z",
+  "sprints/pm-quality-22": "2026-10-12T18:58:31Z",
+  "sprints/pm-quality-23": "2026-10-13T19:09:16Z",
+  "sprints/pm-quality-24": "2026-10-13T19:28:47Z",
+  "sprints/pm-quality-25": "2026-10-13T20:10:54Z",
+  "sprints/pm-quality-26": "2026-10-13T21:03:28Z",
+  "sprints/pm-quality-27": "2026-10-13T21:08:45Z",
+  "sprints/pm-quality-28": "2026-10-13T21:32:52Z",
+  "sprints/pm-quality-29": "2026-10-13T22:06:56Z",
+  "sprints/pm-quality-3": "2026-10-10T04:30:22Z",
+  "sprints/pm-quality-30": "2026-10-14T07:07:43Z",
+  "sprints/pm-quality-31": "2026-10-14T07:08:58Z",
+  "sprints/pm-quality-32": "2026-10-14T11:06:11Z",
+  "sprints/pm-quality-33": "2026-10-14T12:59:49Z",
+  "sprints/pm-quality-34": "2026-10-14T19:21:31Z",
+  "sprints/pm-quality-35": "2026-10-14T19:28:06Z",
+  "sprints/pm-quality-36": "2026-10-14T20:53:44Z",
+  "sprints/pm-quality-37": "2026-10-15T22:10:39Z",
+  "sprints/pm-quality-38": "2026-10-15T22:21:55Z",
+  "sprints/pm-quality-39": "2026-10-17T13:01:31Z",
+  "sprints/pm-quality-4": "2026-10-10T04:39:42Z",
+  "sprints/pm-quality-40": "2026-10-17T13:01:36Z",
+  "sprints/pm-quality-5": "2026-10-10T13:06:13Z",
+  "sprints/pm-quality-6": "2026-10-10T13:10:39Z",
+  "sprints/pm-quality-7": "2026-10-10T13:21:33Z",
+  "sprints/pm-quality-8": "2026-10-10T13:21:50Z",
+  "sprints/pm-quality-9": "2026-10-10T13:22:09Z",
+  "sprints/pm-records-1": "2026-10-14T20:43:48Z",
+  "sprints/pm-records-2": "2026-10-15T07:19:31Z",
+  "sprints/pm-records-3": "2026-10-15T10:47:52Z",
+  "sprints/pm-records-4": "2026-10-15T19:25:23Z",
+  "sprints/pm-records-5": "2026-10-15T21:36:27Z",
+  "sprints/pm-records-6": "2026-10-15T22:48:34Z",
+  "sprints/pm-site-1": "2026-10-10T04:37:20Z",
+  "sprints/pm-site-2": "2026-10-10T13:23:02Z",
+  "sprints/pm-site-3": "2026-10-11T18:52:13Z",
+  "sprints/pm-site-4": "2026-10-15T20:07:43Z"
+ },
+ "sprints": {
+  "sprints/pm-codex-1": {
+   "opened": "2026-10-10T04:29:46Z",
+   "title": "Codex integration for pm",
+   "goal": "An agent running in Codex works on the pm harness with the same guarantees as one in Claude Code: it gets the session context, waits for owner replies, cannot leave records uncommitted or owner requests only in chat, and commits records from inside Codex's sandbox.",
+   "strict": [
+    "sprints/pm-harness-34"
+   ],
+   "extended": [
+    "sprints/pm-harness-34",
+    "design/reply-delivery",
+    "design/owner-request-hook",
+    "design/pm-product",
+    "design/agent-lifecycle",
+    "design/site-replies",
+    "design/pm-cli",
+    "design/pm-go",
+    "design/records-store",
+    "design/work-store",
+    "design/pm-harness"
+   ]
+  },
+  "sprints/pm-codex-2": {
+   "opened": "2026-10-12T18:49:55Z",
+   "title": "The judge and the day summary run on Codex too",
+   "goal": "The owner-request Stop judge runs on the session's own runtime, Haiku for Claude Code and a small Codex model for Codex, and pm day summarize runs on a runtime the repo names.",
+   "strict": [
+    "sprints/pm-codex-1"
+   ],
+   "extended": [
+    "sprints/pm-codex-1",
+    "design/owner-request-hook",
+    "design/views-and-site",
+    "design/pm-in-codex",
+    "design/pm-product",
+    "design/pm-cli",
+    "design/agent-lifecycle",
+    "design/pm-go",
+    "design/session-claims"
+   ]
+  },
+  "sprints/pm-codex-3": {
+   "opened": "2026-10-13T18:47:27Z",
+   "title": "Codex's auto mode in the live eval, and the release that ships the Codex work",
+   "goal": "The live parity eval runs Codex the way a careful user does: with --approve-for-me, Codex's automatic approval review, the counterpart of Claude Code's auto mode, instead of full access.",
+   "strict": [],
+   "extended": [
+    "design/pm-in-codex"
+   ]
+  },
+  "sprints/pm-codex-4": {
+   "opened": "2026-10-13T19:05:32Z",
+   "title": "Ship 0.8.0 here: pin move, service, Codex trust, and closing sprint 2",
+   "goal": "This repo runs pm 0.8.0, the first release with the Codex work: its pin moved, its service restarted with codex on PATH, and pm's Codex hooks trusted, so a Codex session here gets every pm guarantee. pm-codex sprint 2 is closed too, which needs pm to restamp a PR review closed without its main merge commit.",
+   "strict": [
+    "sprints/pm-codex-2"
+   ],
+   "extended": [
+    "sprints/pm-codex-2",
+    "design/sprint-lifecycle",
+    "design/pm-cli",
+    "design/work-store",
+    "design/pm-product"
+   ]
+  },
+  "sprints/pm-codex-5": {
+   "opened": "2026-10-13T19:18:56Z",
+   "title": "pm init turns on Codex's auto mode in the repo's .codex/config.toml",
+   "goal": "A Codex session in a repo that pm set up runs in Codex's auto mode: commands run in the workspace-write sandbox, approval is on request, and the automatic reviewer decides each request (approval_policy = \"on-request\", approvals_reviewer = \"auto_review\", sandbox_mode = \"workspace-write\", the config form of --approve-for-me).",
+   "strict": [
+    "sprints/pm-codex-3"
+   ],
+   "extended": [
+    "sprints/pm-codex-3",
+    "design/pm-in-codex",
+    "design/pm-product"
+   ]
+  },
+  "sprints/pm-harness-10": {
+   "opened": "2026-10-04T14:14:30Z",
+   "title": "One-command clone setup",
+   "goal": "A fresh clone is ready for agents after one command: Beads connected, git hooks installed, and the records store checked out and linked.",
+   "strict": [],
+   "extended": [
+    "design/records-store",
+    "design/pm-cli"
+   ]
+  },
+  "sprints/pm-harness-100": {
+   "opened": "2026-10-09T04:17:34Z",
+   "title": "Sort sprints and tasks by number, not as text",
+   "goal": "The site and pm show list sprints and tasks in numeric id order, so Sprint 34 (.39) comes before Sprint 91 (.100).",
+   "strict": [
+    "sprints/pm-harness-34",
+    "sprints/pm-harness-91"
+   ],
+   "extended": [
+    "sprints/pm-harness-34",
+    "sprints/pm-harness-91"
+   ]
+  },
+  "sprints/pm-harness-102": {
+   "opened": "2026-10-09T12:49:08Z",
+   "title": "pm moves to its own public repo, Yeeef/pm",
+   "goal": "pm lives in its own public GitHub repo, Yeeef/pm, with its source, history, CI and releases, so any machine downloads pm without a token and pm is one product of its own.",
+   "strict": [
+    "sprints/pm-harness-79"
+   ],
+   "extended": [
+    "sprints/pm-harness-79"
+   ]
+  },
+  "sprints/pm-harness-104": {
+   "opened": "2026-10-09T16:13:30Z",
+   "title": "pm's work store is served by the pm service, not opened by each command",
+   "goal": "Every pm command reaches the work store through the pm service, which holds the Dolt store open and serves it over a Unix socket, so commands never wait on the store's exclusive lock and every read is warm.",
+   "strict": [
+    "design/pm-go"
+   ],
+   "extended": [
+    "design/pm-go",
+    "design/work-store"
+   ]
+  },
+  "sprints/pm-harness-105": {
+   "opened": "2026-10-10T00:36:12Z",
+   "title": "The site's change check survives a records file that git rewrites mid-walk",
+   "goal": "The pm service's per-second change check (servedSite.Stamp() in Yeeef/pm internal/cli/serve.go) no longer fails when a record file disappears between the directory walk and its read, so a page viewed while the records sync rebases shows the records, not \"error: open \u2026: no such file or directory\".",
+   "strict": [
+    "sprints/pm-harness-103",
+    "sprints/pm-harness-104"
+   ],
+   "extended": [
+    "sprints/pm-harness-103",
+    "sprints/pm-harness-104"
+   ]
+  },
+  "sprints/pm-harness-106": {
+   "opened": "2026-10-10T00:54:41Z",
+   "title": "Move pm-harness tracking to Yeeef/pm",
+   "goal": "pm's own development is tracked in Yeeef/pm, where its code lives: Yeeef/pm runs pm on itself, and its work store and records hold all of pm-harness, so unfinished pm work continues there.",
+   "strict": [
+    "sprints/pm-harness-79"
+   ],
+   "extended": [
+    "sprints/pm-harness-79"
+   ]
+  },
+  "sprints/pm-harness-107": {
+   "opened": "2026-10-10T01:18:58Z",
+   "title": "Owner-request hook: autopilot and interactive modes",
+   "goal": "pm's rule on requests to the owner, as prime.md states it, is the rule the owner-request hook enforces, and the hook's reprompt tells the agent how to meet it: do the step itself first; raise a need, under a sprint or task it opens first when none holds the request, for what only the owner can do; ask with AskUserQuestion, never in plain text, when there is a clear reason not to raise a need.",
+   "strict": [],
+   "extended": [
+    "design/owner-request-hook"
+   ]
+  },
+  "sprints/pm-harness-109": {
+   "opened": "2026-10-10T02:44:08Z",
+   "title": "Retire Python pm from Yeeef/pm",
+   "goal": "Yeeef/pm holds one implementation of pm, Go, and no Python pm: the Python package, its launcher and the Python-vs-Go parity machinery are deleted, and the black-box harness suite keeps checking Go pm on every PR.",
+   "strict": [
+    "sprints/pm-harness-79"
+   ],
+   "extended": [
+    "sprints/pm-harness-79"
+   ]
+  },
+  "sprints/pm-harness-11": {
+   "opened": "2026-10-04T14:24:12Z",
+   "title": "A site that is always current",
+   "goal": "The owner opens the local site and always sees the current state of records and Beads, with no command to run first and no stale page.",
+   "strict": [],
+   "extended": [
+    "design/views-and-site"
+   ]
+  },
+  "sprints/pm-harness-113": {
+   "opened": "2026-10-11T17:16:09Z",
+   "title": "A marketing website for pm on GitHub Pages",
+   "goal": "pm has a public marketing website that sells it in one page to someone who runs coding agents: what pm is (a human-agent project management suite), why it beats a pack of prompt files (it structurally enforces the agents' decisions and actions through the pm cli and hooks), the outcomes, the site as the owner's view of a swarm of agents, and how to install it.",
+   "strict": [
+    "sprints/pm-harness-112"
+   ],
+   "extended": [
+    "sprints/pm-harness-112"
+   ]
+  },
+  "sprints/pm-harness-116": {
+   "opened": "2026-10-13T19:06:27Z",
+   "title": "pm releases by a written policy, automatically",
+   "goal": "pm releases by a written policy, not by courtesy.",
+   "strict": [],
+   "extended": [
+    "design/pm-versioning"
+   ]
+  },
+  "sprints/pm-harness-117": {
+   "opened": "2026-10-13T19:48:47Z",
+   "title": "Pin moves across many releases: every crossed release's steps shown, old pins pruned",
+   "goal": "Releases now come on every merge, so a repo's pin move often crosses several releases, and each one leaves a binary behind.",
+   "strict": [],
+   "extended": [
+    "design/pm-versioning",
+    "design/pm-go",
+    "design/pm-product",
+    "design/release-policy"
+   ]
+  },
+  "sprints/pm-harness-118": {
+   "opened": "2026-10-13T20:35:26Z",
+   "title": "Ask-tool questions answerable on the site as well as in chat, first answer wins",
+   "goal": "An agent's ask-tool question (Claude Code's AskUserQuestion, Codex's request_user_input_async) shows on the owner's site as a request the owner can answer there or in the session's chat; the first answer reaches the session and the other surface closes. pm's rules also tell agents which kind of request they are making, so they choose the right tool: a question steers this session and goes through the ask tool; a decision rules a project's or sprint's outcome and is a decision need; a step only the owner can do is an action need.",
+   "strict": [],
+   "extended": [
+    "design/work-store",
+    "design/owner-request-hook",
+    "design/reply-delivery",
+    "design/site-replies",
+    "design/pm-in-codex",
+    "design/views-and-site",
+    "design/agent-lifecycle",
+    "design/pm-cli",
+    "design/pm-product",
+    "design/pm-go",
+    "design/sprint-lifecycle"
+   ]
+  },
+  "sprints/pm-harness-119": {
+   "opened": "2026-10-13T20:50:30Z",
+   "title": "Per-session interactive mode: pm interactive / pm autopilot gate the owner-request judge",
+   "goal": "A session the owner is chatting in can turn off the owner-request Stop hook for itself with pm interactive, and turn it back on with pm autopilot.",
+   "strict": [],
+   "extended": [
+    "design/owner-request-hook",
+    "design/agent-lifecycle",
+    "design/pm-cli",
+    "design/pm-product",
+    "design/pm-in-codex",
+    "design/pm-go",
+    "design/session-claims"
+   ]
+  },
+  "sprints/pm-harness-12": {
+   "opened": "2026-10-04T14:27:01Z",
+   "title": "Sandboxed sessions can write the records store",
+   "goal": "A sandboxed session, which may write only inside its own worktree, can edit records in .records directly and commit them with pm, like an unsandboxed one.",
+   "strict": [
+    "sprints/pm-harness-9",
+    "sprints/pm-harness-10"
+   ],
+   "extended": [
+    "sprints/pm-harness-9",
+    "sprints/pm-harness-10",
+    "design/records-store"
+   ]
+  },
+  "sprints/pm-harness-120": {
+   "opened": "2026-10-13T20:53:43Z",
+   "title": "Opening a project, sprint or task the owner asked for needs no leave",
+   "goal": "An agent opens the project, sprint or task that holds work the owner asked for without asking leave, as it already commits, pushes and opens PRs.",
+   "strict": [],
+   "extended": [
+    "design/owner-request-hook"
+   ]
+  },
+  "sprints/pm-harness-122": {
+   "opened": "2026-10-14T21:19:30Z",
+   "title": "pm retires its post-checkout git hook and stops owning core.hooksPath",
+   "goal": "pm installs no git hook and no longer sets core.hooksPath: a new worktree is set up by the session-start hook (pm init --session-start), which already runs the same clone setup, or by pm init by hand.",
+   "strict": [],
+   "extended": [
+    "design/records-store",
+    "design/pm-product",
+    "design/pm-go",
+    "design/pm-cli",
+    "design/release-policy",
+    "design/record-drafts",
+    "design/work-store"
+   ]
+  },
+  "sprints/pm-harness-123": {
+   "opened": "2026-10-14T22:44:16Z",
+   "title": "Move this repo's pm pin to 0.11.0",
+   "goal": "This repo runs pm 0.11.0, which includes 0.10.0's ask-tool questions on the site (sprint 118), so pm's own sessions use what pm-harness built.",
+   "strict": [
+    "sprints/pm-harness-118"
+   ],
+   "extended": [
+    "sprints/pm-harness-118"
+   ]
+  },
+  "sprints/pm-harness-125": {
+   "opened": "2026-10-15T21:56:26Z",
+   "title": "Design-page index at sprint open and first claim",
+   "goal": "An agent starting work sees, once, the design pages that hold its area's current state.",
+   "strict": [],
+   "extended": [
+    "design/session-claims",
+    "design/sprint-lifecycle",
+    "design/agent-lifecycle"
+   ]
+  },
+  "sprints/pm-harness-126": {
+   "opened": "2026-10-17T11:50:56Z",
+   "title": "pm search: find prior sprints, decisions and design sections by topic",
+   "goal": "An agent can find earlier sprints, decisions, design sections, docs and work items on a topic in one command, before it frames a sprint.",
+   "strict": [
+    "design/work-context",
+    "sprints/pm-harness-125"
+   ],
+   "extended": [
+    "design/work-context",
+    "sprints/pm-harness-125",
+    "design/pm-cli"
+   ]
+  },
+  "sprints/pm-harness-128": {
+   "opened": "2026-10-17T19:29:22Z",
+   "title": "Search index RFC: pm search at scale",
+   "goal": "A design for pm search that stays fast and exact as the records and the work store grow, with measured performance and resource costs, so the build-or-wait call rests on numbers rather than guesses.",
+   "strict": [
+    "design/pm-search"
+   ],
+   "extended": [
+    "design/pm-search"
+   ]
+  },
+  "sprints/pm-harness-13": {
+   "opened": "2026-10-04T14:56:51Z",
+   "title": "Decisions and actions awaiting the owner",
+   "goal": "What waits on the owner splits into two kinds, each cheap to raise and easy to see: decisions (the owner chooses, and the answer is recorded) and actions (the owner does something: review a PR, run a command, apply a setting).",
+   "strict": [],
+   "extended": [
+    "design/pm-cli",
+    "design/work-layer",
+    "design/views-and-site"
+   ]
+  },
+  "sprints/pm-harness-15": {
+   "opened": "2026-10-04T21:53:04Z",
+   "title": "Rendered record links",
+   "goal": "An agent asked to link a sprint or design page gives the owner the rendered page straight from pm output, never raw Markdown and with no investigation.",
+   "strict": [],
+   "extended": [
+    "design/pm-cli",
+    "design/views-and-site"
+   ]
+  },
+  "sprints/pm-harness-16": {
+   "opened": "2026-10-05T00:50:27Z",
+   "title": "Answer owner requests on the site",
+   "goal": "The owner answers what awaits them on the site itself: for a decision, states what they want; for an action, pastes the evidence that it is done.",
+   "strict": [
+    "sprints/pm-harness-15"
+   ],
+   "extended": [
+    "sprints/pm-harness-15"
+   ]
+  },
+  "sprints/pm-harness-19": {
+   "opened": "2026-10-05T03:07:00Z",
+   "title": "Sprints close on merge",
+   "goal": "A sprint closes only when its PR is merged to main, and the owner reads a draft delivery report on the sprint page while reviewing the PR.",
+   "strict": [
+    "sprints/pm-harness-18"
+   ],
+   "extended": [
+    "sprints/pm-harness-18"
+   ]
+  },
+  "sprints/pm-harness-20": {
+   "opened": "2026-10-05T13:49:41Z",
+   "title": "Faster site reloads",
+   "goal": "Reloading a page on the local site feels instant: today a reload takes 0.75\u20130.86 s (sprint 14 page, 41 pages rendered on every request), of which bd list --all --json alone is 0.46 s.",
+   "strict": [
+    "sprints/pm-harness-14",
+    "sprints/pm-harness-11"
+   ],
+   "extended": [
+    "sprints/pm-harness-14",
+    "sprints/pm-harness-11"
+   ]
+  },
+  "sprints/pm-harness-21": {
+   "opened": "2026-10-05T14:33:40Z",
+   "title": "Scoped Beads reads in pm",
+   "goal": "pm reads only the issues each command needs instead of every issue in Beads, so what it reads stays small as projects grow (context efficiency, owner decision on yeeef-agents-9va.19.3).",
+   "strict": [
+    "sprints/pm-harness-16"
+   ],
+   "extended": [
+    "sprints/pm-harness-16"
+   ]
+  },
+  "sprints/pm-harness-22": {
+   "opened": "2026-10-05T14:59:14Z",
+   "title": "Sessions never duplicate each other's work",
+   "goal": "Two sessions never start the same work without knowing it.",
+   "strict": [
+    "sprints/pm-harness-21"
+   ],
+   "extended": [
+    "sprints/pm-harness-21"
+   ]
+  },
+  "sprints/pm-harness-23": {
+   "opened": "2026-10-05T15:04:13Z",
+   "title": "Dates on design pages",
+   "goal": "The owner sees how recent each design page is: the site shows each design page's created and last-updated dates, taken from git history of the records store, and orders the overview's design pages by date.",
+   "strict": [],
+   "extended": [
+    "design/views-and-site"
+   ]
+  },
+  "sprints/pm-harness-24": {
+   "opened": "2026-10-05T15:41:50Z",
+   "title": "Requests wait for their answer by themselves",
+   "goal": "An agent that raises a request for the owner is woken when it is answered, without remembering to start a waiter: pm decision need and pm action need start the wait themselves, and a PR review also wakes the agent when the PR merges.",
+   "strict": [
+    "sprints/pm-harness-23",
+    "sprints/pm-harness-21"
+   ],
+   "extended": [
+    "sprints/pm-harness-23",
+    "sprints/pm-harness-21",
+    "design/site-replies",
+    "design/pm-cli"
+   ]
+  },
+  "sprints/pm-harness-25": {
+   "opened": "2026-10-05T15:48:26Z",
+   "title": "Harness rules win over generic defaults",
+   "goal": "Agents follow the harness's own rules where generic defaults (Claude Code's system prompt, the bd-managed Beads block in CLAUDE.md, bd prime) say otherwise, and never hand the owner a step without checking it is needed.",
+   "strict": [
+    "sprints/pm-harness-22"
+   ],
+   "extended": [
+    "sprints/pm-harness-22"
+   ]
+  },
+  "sprints/pm-harness-26": {
+   "opened": "2026-10-05T17:36:25Z",
+   "title": "Owner-request hook accepts short ids",
+   "goal": "When an agent ends its turn by asking the owner for something sprint work waits on, the owner-request Stop hook checks that the reply cites the request's id, so the request is on the site and not only in chat.",
+   "strict": [
+    "sprints/pm-harness-24"
+   ],
+   "extended": [
+    "sprints/pm-harness-24"
+   ]
+  },
+  "sprints/pm-harness-27": {
+   "opened": "2026-10-05T18:25:09Z",
+   "title": "Review requests always use the review form",
+   "goal": "Every request to review or merge a PR uses the review template (pm action need --pr URL --sprint ID --focus \"\u2026\"), so its card links the PR, sprints and design pages, says what to focus on, and its wait wakes on the merge.",
+   "strict": [
+    "sprints/pm-harness-25"
+   ],
+   "extended": [
+    "sprints/pm-harness-25"
+   ]
+  },
+  "sprints/pm-harness-28": {
+   "opened": "2026-10-05T18:36:54Z",
+   "title": "Beads team-maintainer profile",
+   "goal": "Agents in every clone run under the Beads team-maintainer profile, so committing, pushing and syncing are routine instead of forbidden by the conservative default.",
+   "strict": [
+    "sprints/pm-harness-25"
+   ],
+   "extended": [
+    "sprints/pm-harness-25"
+   ]
+  },
+  "sprints/pm-harness-31": {
+   "opened": "2026-10-05T19:57:27Z",
+   "title": "Move the clone out of ~/Desktop",
+   "goal": "This Mac's clone lives outside macOS-protected folders, so the scheduled push job runs, with nothing on the machine still pointing at the old path.",
+   "strict": [
+    "sprints/pm-harness-25",
+    "sprints/pm-harness-22"
+   ],
+   "extended": [
+    "sprints/pm-harness-25",
+    "sprints/pm-harness-22"
+   ]
+  },
+  "sprints/pm-harness-36": {
+   "opened": "2026-10-06T00:59:13Z",
+   "title": "Fork or replace bd so pm is one product",
+   "goal": "The owner decides, from evidence, whether pm forks Beads, replaces it, or stays layered on it, so that pm can become one product with its own context layering and CLI rather than a layer working around bd's.",
+   "strict": [
+    "sprints/pm-harness-33"
+   ],
+   "extended": [
+    "sprints/pm-harness-33"
+   ]
+  },
+  "sprints/pm-harness-40": {
+   "opened": "2026-10-06T01:42:41Z",
+   "title": "Deliver every owner reply at least once",
+   "goal": "Every owner reply on the site reaches the session that raised the request at least once, however many requests are open and whenever the replies arrive.",
+   "strict": [
+    "sprints/pm-harness-34"
+   ],
+   "extended": [
+    "sprints/pm-harness-34"
+   ]
+  },
+  "sprints/pm-harness-42": {
+   "opened": "2026-10-06T02:16:01Z",
+   "title": "Sprint close without a draft report",
+   "goal": "Closing a sprint after its PR merges is one pm sprint close, with no hand-made draft state: the sprint page shows the sprint's open needs (its PR review included) where the draft banner was, and the close stamps the merge commit into the report and commits it.",
+   "strict": [],
+   "extended": [
+    "design/record-layer"
+   ]
+  },
+  "sprints/pm-harness-44": {
+   "opened": "2026-10-06T16:03:11Z",
+   "title": "Package pm as an installable tool",
+   "goal": "pm runs as an installed pm tool built from the pm/ package in this repo, with its agent context and hooks served by pm prime and pm hook <name> and its version pinned per repo, so the installer sprint has something to install.",
+   "strict": [
+    "design/pm-product",
+    "sprints/pm-harness-34"
+   ],
+   "extended": [
+    "design/pm-product",
+    "sprints/pm-harness-34"
+   ]
+  },
+  "sprints/pm-harness-45": {
+   "opened": "2026-10-06T16:03:15Z",
+   "title": "pm init, upgrade, doctor and uninstall",
+   "goal": "One line installs pm into any GitHub repo, including a brand-new one, and pm upgrade, pm doctor and pm uninstall act on exactly the pieces pm manages.",
+   "strict": [
+    "design/pm-product"
+   ],
+   "extended": [
+    "design/pm-product"
+   ]
+  },
+  "sprints/pm-harness-46": {
+   "opened": "2026-10-06T16:03:17Z",
+   "title": "Move yeeef-agents onto installed pm",
+   "goal": "yeeef-agents uses pm the way any other repo does, installed and pinned, with its legacy pieces gone, so the product is proven on its first real user.",
+   "strict": [
+    "design/pm-product"
+   ],
+   "extended": [
+    "design/pm-product"
+   ]
+  },
+  "sprints/pm-harness-49": {
+   "opened": "2026-10-06T22:09:11Z",
+   "title": "Owner-request check reads Beads, not ids in the reply",
+   "goal": "A reply that asks the owner for something passes the Stop hook when every request in it matches an open need or action this session raised, with no id in the text; a request that exists only in chat is still blocked.",
+   "strict": [
+    "sprints/pm-harness-40",
+    "sprints/pm-harness-44"
+   ],
+   "extended": [
+    "sprints/pm-harness-40",
+    "sprints/pm-harness-44"
+   ]
+  },
+  "sprints/pm-harness-5": {
+   "opened": "2026-10-04T00:10:53Z",
+   "title": "Design page schema",
+   "goal": "Design pages share one template of sections, so every design reads the same way and agents know where things go, while keeping the free-form detail that makes a design page useful.",
+   "strict": [],
+   "extended": [
+    "design/record-layer"
+   ]
+  },
+  "sprints/pm-harness-51": {
+   "opened": "2026-10-06T22:24:14Z",
+   "title": "Decision needs have one fixed, readable layout",
+   "goal": "Every decision need card the owner reads has the same layout: a question, facts, each option with its cost, and a default. pm builds that layout from structured input, so no agent can produce an unreadable card.",
+   "strict": [
+    "sprints/pm-harness-33",
+    "sprints/pm-harness-49"
+   ],
+   "extended": [
+    "sprints/pm-harness-33",
+    "sprints/pm-harness-49"
+   ]
+  },
+  "sprints/pm-harness-52": {
+   "opened": "2026-10-06T22:34:24Z",
+   "title": "New worktrees always get their records link",
+   "goal": "Every new worktree reaches the records store through its records/ link, whatever tool created it, so a session never starts without its records.",
+   "strict": [],
+   "extended": [
+    "design/records-store"
+   ]
+  },
+  "sprints/pm-harness-54": {
+   "opened": "2026-10-06T23:43:18Z",
+   "title": "Agent lifecycle page: push reply delivery",
+   "goal": "The Agent lifecycle design page describes owner replies as sprint 40 delivered them, so agents and the owner read how replies reach a session today.",
+   "strict": [
+    "sprints/pm-harness-40"
+   ],
+   "extended": [
+    "sprints/pm-harness-40",
+    "design/agent-lifecycle"
+   ]
+  },
+  "sprints/pm-harness-56": {
+   "opened": "2026-10-07T00:17:43Z",
+   "title": "Rethink the records layout: the records/ link and main's records/ copy",
+   "goal": "The owner decides, from evidence, whether each worktree still needs its records/ link and whether main still needs its records/ copy, so that records need no per-worktree setup unless a need for it is shown.",
+   "strict": [
+    "sprints/pm-harness-52"
+   ],
+   "extended": [
+    "sprints/pm-harness-52"
+   ]
+  },
+  "sprints/pm-harness-57": {
+   "opened": "2026-10-07T00:47:49Z",
+   "title": "pm show discloses project state level by level",
+   "goal": "An agent sees only top-level project state at session start, and reads deeper levels of pm show (a project, a sprint, a record section) when its work needs them.",
+   "strict": [
+    "sprints/pm-harness-45"
+   ],
+   "extended": [
+    "sprints/pm-harness-45",
+    "design/pm-cli",
+    "design/agent-lifecycle"
+   ]
+  },
+  "sprints/pm-harness-58": {
+   "opened": "2026-10-07T01:08:15Z",
+   "title": "Claude Code writes records through records/ without asking",
+   "goal": "A Claude Code session in any worktree writes records through records/ without a permission prompt, so hand edits of records do not stop for the owner.",
+   "strict": [
+    "sprints/pm-harness-52",
+    "sprints/pm-harness-56"
+   ],
+   "extended": [
+    "sprints/pm-harness-52",
+    "sprints/pm-harness-56",
+    "design/records-store"
+   ]
+  },
+  "sprints/pm-harness-6": {
+   "opened": "2026-10-04T00:17:44Z",
+   "title": "pm CLI v1",
+   "goal": "Agents write records and run multi-step project actions through a pm CLI, so the harness's rules are enforced by commands rather than remembered.",
+   "strict": [
+    "sprints/pm-harness-1"
+   ],
+   "extended": [
+    "sprints/pm-harness-1"
+   ]
+  },
+  "sprints/pm-harness-60": {
+   "opened": "2026-10-07T13:26:32Z",
+   "title": "No pm command hangs on an open stdin",
+   "goal": "No pm command waits forever on a stdin that stays open, so agents in Claude Code and Codex never lose hours to a hung write.",
+   "strict": [
+    "sprints/pm-harness-45"
+   ],
+   "extended": [
+    "sprints/pm-harness-45"
+   ]
+  },
+  "sprints/pm-harness-61": {
+   "opened": "2026-10-07T15:25:45Z",
+   "title": "Heavy integration tests run only in CI",
+   "goal": "Agents run only light tests while they work, and the heavy integration tests run in CI on every PR, so a test run never costs an agent minutes or flakes under the load of parallel sessions.",
+   "strict": [
+    "sprints/pm-harness-45"
+   ],
+   "extended": [
+    "sprints/pm-harness-45"
+   ]
+  },
+  "sprints/pm-harness-63": {
+   "opened": "2026-10-07T19:35:29Z",
+   "title": "Migrate the Linux server's clone onto installed pm",
+   "goal": "The Linux server's clone of yeeef-agents runs installed pm like this Mac's, so sessions there get pm prime context and its records push through the pm service.",
+   "strict": [
+    "sprints/pm-harness-46",
+    "sprints/pm-harness-34"
+   ],
+   "extended": [
+    "sprints/pm-harness-46",
+    "sprints/pm-harness-34"
+   ]
+  },
+  "sprints/pm-harness-64": {
+   "opened": "2026-10-07T20:07:11Z",
+   "title": "pm explains its own setup: one install command, every setting in --help",
+   "goal": "An agent in any repo finds every pm setting and setup step from pm itself (pm --help, a command's --help, pm prime), with pm init as the one install command, so nobody reads pm's source to configure it.",
+   "strict": [
+    "sprints/pm-harness-34",
+    "sprints/pm-harness-57"
+   ],
+   "extended": [
+    "sprints/pm-harness-34",
+    "sprints/pm-harness-57"
+   ]
+  },
+  "sprints/pm-harness-7": {
+   "opened": "2026-10-04T01:01:53Z",
+   "title": "pm CLI v2",
+   "goal": "Single-step bd actions that carry harness rules go through pm too, so the rules hold without relying on agents remembering them.",
+   "strict": [
+    "sprints/pm-harness-6"
+   ],
+   "extended": [
+    "sprints/pm-harness-6",
+    "design/pm-cli"
+   ]
+  },
+  "sprints/pm-harness-70": {
+   "opened": "2026-10-08T00:19:45Z",
+   "title": "pm decision need takes its parts as flags",
+   "goal": "pm decision need takes the question, facts, options with their costs and the default as flags, so an agent can raise a well-formed need from --help alone.",
+   "strict": [
+    "sprints/pm-harness-67"
+   ],
+   "extended": [
+    "sprints/pm-harness-67"
+   ]
+  },
+  "sprints/pm-harness-75": {
+   "opened": "2026-10-08T02:47:45Z",
+   "title": "Agents change code only in their own worktree",
+   "goal": "Every agent session that changes code in a pm repo does it in its own git worktree, never in the main checkout or another session's worktree, so that sessions never mix edits, branches or stashes.",
+   "strict": [
+    "sprints/pm-harness-57",
+    "sprints/pm-harness-55"
+   ],
+   "extended": [
+    "sprints/pm-harness-57",
+    "sprints/pm-harness-55"
+   ]
+  },
+  "sprints/pm-harness-76": {
+   "opened": "2026-10-08T02:50:00Z",
+   "title": "Drop main's records/ copy; keep the records/ link",
+   "goal": "main no longer carries a records/ copy. pm installs no copy Action, no PR guard, no pre-commit records guard and no sparse checkout, and each worktree keeps its records/ link to the store.",
+   "strict": [
+    "sprints/pm-harness-56"
+   ],
+   "extended": [
+    "sprints/pm-harness-56"
+   ]
+  },
+  "sprints/pm-harness-77": {
+   "opened": "2026-10-08T02:53:54Z",
+   "title": "Design pm's own work store to replace Beads",
+   "goal": "A design page fixes pm's own work store, so the build sprint can start without open design questions.",
+   "strict": [
+    "sprints/pm-harness-36"
+   ],
+   "extended": [
+    "sprints/pm-harness-36",
+    "design/work-layer-bd-boundary"
+   ]
+  },
+  "sprints/pm-harness-78": {
+   "opened": "2026-10-08T02:54:15Z",
+   "title": "Go port: work store core (P3)",
+   "goal": "Go pm has its work store: the Go package work on embedded Dolt holds every item with its fields, ids, readiness and the store gate, and imports and exports this repo's bd data without loss.",
+   "strict": [],
+   "extended": [
+    "design/work-store",
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-harness-79": {
+   "opened": "2026-10-08T02:54:23Z",
+   "title": "Go port: cut-over of yeeef-agents (P10)",
+   "goal": "This repo runs Go pm on its own Dolt work store in every clone, Beads is gone from its agent context and hooks, and, after a soak, Python pm is deleted.",
+   "strict": [],
+   "extended": [
+    "design/pm-go",
+    "design/work-store"
+   ]
+  },
+  "sprints/pm-harness-8": {
+   "opened": "2026-10-04T01:38:36Z",
+   "title": "Compact views for agents",
+   "goal": "Agents read project state and records through compact pm views instead of whole files, so a session starts and works with a small context.",
+   "strict": [],
+   "extended": [
+    "design/pm-cli",
+    "design/record-layer"
+   ]
+  },
+  "sprints/pm-harness-81": {
+   "opened": "2026-10-08T03:37:29Z",
+   "title": "The pm service collects Dolt garbage on a schedule",
+   "goal": "The pm service reclaims the Dolt store's dead chunks on a schedule, so the store stays near its live size. bd's store here is 123 MB for 596 KB of exported data (2,041 commits), and a dolt gc on a copy brought it to 47 MB.",
+   "strict": [
+    "sprints/pm-harness-77"
+   ],
+   "extended": [
+    "sprints/pm-harness-77"
+   ]
+  },
+  "sprints/pm-harness-83": {
+   "opened": "2026-10-08T04:02:22Z",
+   "title": "Go port: implementation-neutral tests (P1)",
+   "goal": "pm's pytest suite runs against either implementation, so every later port sprint proves parity with the same 100 tests and a differential transcript instead of new tests.",
+   "strict": [],
+   "extended": [
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-harness-84": {
+   "opened": "2026-10-08T04:02:34Z",
+   "title": "Go port: Go skeleton with every command and its help (P2)",
+   "goal": "A Go pm builds on both targets with the full command tree and the shared types, so the work store, records-and-site and service sprints can start in parallel against one fixed work.Item type and store interface.",
+   "strict": [],
+   "extended": [
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-harness-85": {
+   "opened": "2026-10-08T04:02:48Z",
+   "title": "Go port: records and site (P4)",
+   "goal": "Go pm parses, checks and renders every record the way Python pm does, so the agent commands and the service have records and pages to build on.",
+   "strict": [],
+   "extended": [
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-harness-86": {
+   "opened": "2026-10-08T04:02:53Z",
+   "title": "Go port: agent commands, part one (P5)",
+   "goal": "The record-and-task commands agents use most run on Go pm with the same outputs, refusals and writes as Python pm.",
+   "strict": [],
+   "extended": [
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-harness-87": {
+   "opened": "2026-10-08T04:03:01Z",
+   "title": "Go port: agent commands, part two (P6)",
+   "goal": "The commands that carry the owner's needs and replies run on Go pm with Python's behaviour, so every agent-facing command exists in Go before install and release.",
+   "strict": [],
+   "extended": [
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-harness-89": {
+   "opened": "2026-10-08T04:03:18Z",
+   "title": "Go port: work-store commands and sync (P7)",
+   "goal": "Agents can do everything they did with plain bd through Go pm, and two clones keep one work store in step through the git remote.",
+   "strict": [],
+   "extended": [
+    "design/work-store",
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-harness-9": {
+   "opened": "2026-10-04T02:45:03Z",
+   "title": "Records shared across worktrees",
+   "goal": "Records behave like Beads for agents: one live store per clone that does not depend on branch or worktree, so every pm write is immediately visible to pm show, make render and the owner, whatever branch or worktree the writer is in.",
+   "strict": [],
+   "extended": [
+    "design/pm-cli"
+   ]
+  },
+  "sprints/pm-harness-90": {
+   "opened": "2026-10-08T04:03:26Z",
+   "title": "Go port: the pm service (P8)",
+   "goal": "Go pm runs the clone's background service with the behaviour of Python's, on macOS and Linux, so install and release can wire it end to end.",
+   "strict": [
+    "sprints/pm-harness-81"
+   ],
+   "extended": [
+    "sprints/pm-harness-81",
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-harness-91": {
+   "opened": "2026-10-08T04:03:37Z",
+   "title": "Go port: install, launcher and release (P9)",
+   "goal": "Go pm can be installed, pinned and released, and a repo pinned to a Go version runs it on a machine that has only the Python tool.",
+   "strict": [],
+   "extended": [
+    "design/pm-go",
+    "design/work-store"
+   ]
+  },
+  "sprints/pm-harness-98": {
+   "opened": "2026-10-09T03:12:52Z",
+   "title": "A pm release passes its own hooks, so agents can release pm",
+   "goal": "An agent releases a new pm version with a normal commit, push and PR, never skipping a git hook.",
+   "strict": [
+    "sprints/pm-harness-91"
+   ],
+   "extended": [
+    "sprints/pm-harness-91"
+   ]
+  },
+  "sprints/pm-quality-1": {
+   "opened": "2026-10-10T04:29:58Z",
+   "title": "Port option C to Go pm: drop main's records/ copy, keep the link",
+   "goal": "Go pm in Yeeef/pm builds the owner's option C: main keeps no records/ copy, nothing exists only for that copy, and each worktree keeps its records/ link.",
+   "strict": [
+    "sprints/pm-harness-56"
+   ],
+   "extended": [
+    "sprints/pm-harness-56"
+   ]
+  },
+  "sprints/pm-quality-10": {
+   "opened": "2026-10-10T13:22:27Z",
+   "title": "The Stop hooks block only what is the agent's to fix",
+   "goal": "The owner-request judge passes the non-requests agents reported, and does so on labelled cases that make test-live measures. pm hook stop no longer blocks a parent over a record that its running subagent is writing.",
+   "strict": [
+    "sprints/pm-codex-1"
+   ],
+   "extended": [
+    "sprints/pm-codex-1"
+   ]
+  },
+  "sprints/pm-quality-11": {
+   "opened": "2026-10-10T13:22:43Z",
+   "title": "A clone's pm service can be stopped, uninstalled and linked locally",
+   "goal": "The owner or an agent can: - stop a clone's service and keep it stopped; - uninstall pm while the service is down; - get a record's localhost link; - learn that a newer release exists.",
+   "strict": [
+    "sprints/pm-harness-68"
+   ],
+   "extended": [
+    "sprints/pm-harness-68",
+    "design/pm-go",
+    "design/pm-versioning"
+   ]
+  },
+  "sprints/pm-quality-13": {
+   "opened": "2026-10-10T14:10:55Z",
+   "title": "Review follow-ups from the 2026-10-10 sprint wave",
+   "goal": "The low-severity defects that fresh-context reviews and sprint agents found in the 2026-10-10 wave of pm-quality PRs are fixed, each with the check that catches it, so none of them stays known and unfixed.",
+   "strict": [
+    "sprints/pm-quality-11",
+    "sprints/pm-quality-4"
+   ],
+   "extended": [
+    "sprints/pm-quality-11",
+    "sprints/pm-quality-4"
+   ]
+  },
+  "sprints/pm-quality-15": {
+   "opened": "2026-10-10T17:53:46Z",
+   "title": "The pm service's goroutines end when Run returns",
+   "goal": "When service.Run returns, no goroutine it started still touches the work store, so a stopped service never opens the store behind a caller that believes it is down.",
+   "strict": [
+    "sprints/pm-quality-13"
+   ],
+   "extended": [
+    "sprints/pm-quality-13"
+   ]
+  },
+  "sprints/pm-quality-16": {
+   "opened": "2026-10-10T18:28:50Z",
+   "title": "A pin move names the worktrees it will strand, before it strands them",
+   "goal": "Moving a repo's pin never surprises an open worktree: pm upgrade --to X lists every worktree of the clone whose branch will still pin the old version once the service runs X, with the command that fixes each, and pm where and pm doctor in such a worktree say so before any work-store command is refused.",
+   "strict": [],
+   "extended": [
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-quality-17": {
+   "opened": "2026-10-10T19:12:39Z",
+   "title": "CI fails on Go code that gofmt would change",
+   "goal": "No unformatted Go reaches main: CI fails when gofmt -l lists any file.",
+   "strict": [
+    "sprints/pm-quality-16"
+   ],
+   "extended": [
+    "sprints/pm-quality-16"
+   ]
+  },
+  "sprints/pm-quality-2": {
+   "opened": "2026-10-10T04:30:10Z",
+   "title": "The site's change check survives a records file that git rewrites mid-walk",
+   "goal": "The pm service's per-second change check (servedSite.Stamp() in Yeeef/pm internal/cli/serve.go) no longer fails when a record file disappears between the directory walk and its read, so a page viewed while the records sync rebases shows the records, not \"error: open \u2026: no such file or directory\".",
+   "strict": [
+    "sprints/pm-harness-103",
+    "sprints/pm-harness-105",
+    "sprints/pm-harness-104"
+   ],
+   "extended": [
+    "sprints/pm-harness-103",
+    "sprints/pm-harness-105",
+    "sprints/pm-harness-104"
+   ]
+  },
+  "sprints/pm-quality-21": {
+   "opened": "2026-10-11T19:28:11Z",
+   "title": "Split internal/cli by noun and retire the Python-port leftovers",
+   "goal": "internal/cli stops being a god package: 8.9k LOC, 34% of non-test code, writes.go 1,463 code lines.",
+   "strict": [
+    "sprints/pm-quality-20",
+    "sprints/pm-quality-19"
+   ],
+   "extended": [
+    "sprints/pm-quality-20",
+    "sprints/pm-quality-19",
+    "design/pm-cli",
+    "design/pm-go",
+    "design/pm-product",
+    "design/decision-need-layout",
+    "design/sprint-lifecycle",
+    "design/session-claims",
+    "design/reply-delivery"
+   ]
+  },
+  "sprints/pm-quality-22": {
+   "opened": "2026-10-12T18:58:31Z",
+   "title": "A change to covered code updates or waives its design page",
+   "goal": "A PR cannot go to the owner for review, and its sprint cannot close, while a design page covering code the PR changed was neither updated in the sprint nor waived with a recorded reason.",
+   "strict": [
+    "sprints/pm-codex-1"
+   ],
+   "extended": [
+    "sprints/pm-codex-1",
+    "design/record-layer",
+    "design/sprint-lifecycle",
+    "design/pm-cli",
+    "design/pm-go",
+    "design/pm-product",
+    "design/views-and-site"
+   ]
+  },
+  "sprints/pm-quality-24": {
+   "opened": "2026-10-13T19:28:47Z",
+   "title": "The race CI job does not flake",
+   "goal": "The race job passes or fails for a reason in the code under test.",
+   "strict": [],
+   "extended": [
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-quality-26": {
+   "opened": "2026-10-13T21:03:28Z",
+   "title": "A covers pattern for unmerged code does not fail pm check for every session",
+   "goal": "pm check passes on main while other sessions' branches are in flight.",
+   "strict": [],
+   "extended": [
+    "design/sprint-lifecycle",
+    "design/record-layer",
+    "design/pm-cli"
+   ]
+  },
+  "sprints/pm-quality-27": {
+   "opened": "2026-10-13T21:08:45Z",
+   "title": "A PR's CI finishes in about 90 s and queues less for macOS runners",
+   "goal": "A PR's CI finishes in about 90 s, and two PRs running at once wait less for macOS runners.",
+   "strict": [],
+   "extended": [
+    "design/views-and-site"
+   ]
+  },
+  "sprints/pm-quality-28": {
+   "opened": "2026-10-13T21:32:52Z",
+   "title": "A sprint's close checks only the covers patterns it added, not other sessions' pending ones",
+   "goal": "A sprint closes on the strength of its own work.",
+   "strict": [
+    "sprints/pm-quality-26"
+   ],
+   "extended": [
+    "sprints/pm-quality-26",
+    "design/sprint-lifecycle",
+    "design/record-layer",
+    "design/pm-cli"
+   ]
+  },
+  "sprints/pm-quality-3": {
+   "opened": "2026-10-10T04:30:22Z",
+   "title": "pm CI: a PR's slowest check under 5 minutes",
+   "goal": "A typical pm PR's slowest check finishes in under 5 minutes, so a sprint's PR is ready for review soon after it is pushed.",
+   "strict": [
+    "sprints/pm-harness-110"
+   ],
+   "extended": [
+    "sprints/pm-harness-110"
+   ]
+  },
+  "sprints/pm-quality-30": {
+   "opened": "2026-10-14T07:07:43Z",
+   "title": "The agents md CI jobs finish within the PR's other checks",
+   "goal": "The agents md workflow's two jobs, check (grades AGENTS.md) and cases (tests the grader on 13 labelled cases), stop setting how long a PR's CI takes, with every verdict unchanged.",
+   "strict": [],
+   "extended": [
+    "design/agents-md-evaluation"
+   ]
+  },
+  "sprints/pm-quality-31": {
+   "opened": "2026-10-14T07:08:58Z",
+   "title": "The Go tests do less work: macOS CI compute halves",
+   "goal": "The free macOS runner's 3 cores spend about 96\u201398 s per PR on Go work, plus 25\u201335 s of checkout and cache restore, so a code PR takes a median 138 s (sprint 27).",
+   "strict": [
+    "sprints/pm-quality-27"
+   ],
+   "extended": [
+    "sprints/pm-quality-27"
+   ]
+  },
+  "sprints/pm-quality-32": {
+   "opened": "2026-10-14T11:06:11Z",
+   "title": "A PR runs only the Go tests its change can affect",
+   "goal": "A PR runs only the Go test packages that its changed files can affect, and the full suite still runs on every push to main.",
+   "strict": [
+    "sprints/pm-quality-31",
+    "sprints/pm-quality-27"
+   ],
+   "extended": [
+    "sprints/pm-quality-31",
+    "sprints/pm-quality-27",
+    "design/pm-go"
+   ]
+  },
+  "sprints/pm-quality-33": {
+   "opened": "2026-10-14T12:59:49Z",
+   "title": "The AGENTS.md check gives the same verdict on every rerun",
+   "goal": "The agents md workflow's grading of AGENTS.md is deterministic enough to gate PRs: a rerun of the same commit gives the same verdict.",
+   "strict": [],
+   "extended": [
+    "design/agents-md-evaluation"
+   ]
+  },
+  "sprints/pm-quality-34": {
+   "opened": "2026-10-14T19:21:31Z",
+   "title": "Remove pm reply wait and pm hook inbox: owner replies reach a session by push alone",
+   "goal": "An owner's reply reaches the session that asked by one route: the service's push (Claude Code socket, codex queue), with the pm show flag and pm reply read as the safety net for a session that did not get it.",
+   "strict": [],
+   "extended": [
+    "design/reply-delivery",
+    "design/site-replies",
+    "design/agent-lifecycle",
+    "design/views-and-site",
+    "design/sprint-lifecycle",
+    "design/pm-in-codex",
+    "design/owner-request-hook",
+    "design/pm-cli",
+    "design/pm-go",
+    "design/pm-harness",
+    "design/pm-product"
+   ]
+  },
+  "sprints/pm-quality-35": {
+   "opened": "2026-10-14T19:28:06Z",
+   "title": "The code and test metrics doc measures current main",
+   "goal": "The pm code and test metrics doc describes current origin/main: every table, figure and reading in it is measured at one commit of today's main.",
+   "strict": [
+    "sprints/pm-quality-30"
+   ],
+   "extended": [
+    "sprints/pm-quality-30"
+   ]
+  },
+  "sprints/pm-quality-36": {
+   "opened": "2026-10-14T20:53:44Z",
+   "title": "make test-go passes on every run",
+   "goal": "make test-go passes on every run at main.",
+   "strict": [
+    "sprints/pm-quality-35"
+   ],
+   "extended": [
+    "sprints/pm-quality-35"
+   ]
+  },
+  "sprints/pm-quality-38": {
+   "opened": "2026-10-15T22:21:55Z",
+   "title": "Simplify the pm command surface: wave 1 plus help and prime",
+   "goal": "The audit pm command surface: quality audit and simplifications found the friction concentrated in a few commands, plus drift and machinery noise in help and prime.md.",
+   "strict": [],
+   "extended": [
+    "design/pm-cli",
+    "design/decision-need-layout",
+    "design/agent-lifecycle"
+   ]
+  },
+  "sprints/pm-quality-39": {
+   "opened": "2026-10-17T13:01:31Z",
+   "title": "One CLI grammar: scope flags, need close verb, and a naming check",
+   "goal": "Wave 2 of the command audit.",
+   "strict": [
+    "docs/2026-10-16-pm-command-quality-audit",
+    "design/pm-cli"
+   ],
+   "extended": [
+    "docs/2026-10-16-pm-command-quality-audit",
+    "design/pm-cli"
+   ]
+  },
+  "sprints/pm-quality-4": {
+   "opened": "2026-10-10T04:39:42Z",
+   "title": "pm sprint move: move a sprint to another project in one command",
+   "goal": "One command moves an open sprint, with its frame, tasks, decisions and findings, to another project.",
+   "strict": [
+    "sprints/pm-site-1"
+   ],
+   "extended": [
+    "sprints/pm-site-1"
+   ]
+  },
+  "sprints/pm-quality-6": {
+   "opened": "2026-10-10T13:10:39Z",
+   "title": "pm clean removes agent worktrees nobody needs",
+   "goal": "The owner or an agent runs pm clean and every agent worktree that no live session owns and whose work is saved is removed, while anything live, dirty or unsaved is kept with the reason printed.",
+   "strict": [
+    "sprints/pm-harness-55"
+   ],
+   "extended": [
+    "sprints/pm-harness-55"
+   ]
+  },
+  "sprints/pm-quality-8": {
+   "opened": "2026-10-10T13:21:50Z",
+   "title": "pm task close and move cover dropped, held, foreign-commit and orphan tasks",
+   "goal": "Closing or moving a task records what happened, with no stand-in commits and no silent override of another session.",
+   "strict": [
+    "sprints/pm-quality-4"
+   ],
+   "extended": [
+    "sprints/pm-quality-4"
+   ]
+  },
+  "sprints/pm-records-2": {
+   "opened": "2026-10-15T07:19:31Z",
+   "title": "Published view and page versions on the site",
+   "goal": "The owner reads each record's published version on the site, and every draft of it beside it, so live edits are visible and labelled instead of mixed into the page.",
+   "strict": [
+    "design/record-drafts"
+   ],
+   "extended": [
+    "design/record-drafts",
+    "design/views-and-site",
+    "design/records-store"
+   ]
+  },
+  "sprints/pm-records-3": {
+   "opened": "2026-10-15T10:47:52Z",
+   "title": "Rename a design page or a doc",
+   "goal": "An agent can rename a design page or a doc, its slug, its title or both, in one command that keeps every record's links to it working.",
+   "strict": [],
+   "extended": [
+    "design/pm-cli",
+    "design/record-layer"
+   ]
+  },
+  "sprints/pm-records-4": {
+   "opened": "2026-10-15T19:25:23Z",
+   "title": "Per-worktree records workspaces and journal publish",
+   "goal": "Each code worktree edits records in its own workspace, so no session's commit can carry another's edit and the owner sees each worktree's edits as its own labelled version.",
+   "strict": [
+    "design/record-drafts",
+    "sprints/pm-records-2"
+   ],
+   "extended": [
+    "design/record-drafts",
+    "sprints/pm-records-2",
+    "design/records-store",
+    "design/pm-cli",
+    "design/agent-lifecycle",
+    "design/pm-product",
+    "design/session-claims",
+    "design/views-and-site"
+   ]
+  },
+  "sprints/pm-records-5": {
+   "opened": "2026-10-15T21:36:27Z",
+   "title": "Design pages publish at sprint close",
+   "goal": "A design page's edits reach the published records only when its sprint closes, with its code on main, so a page never describes code before the code merges, and two sprints' drafts of one page meet at the close where the closing session can resolve them.",
+   "strict": [
+    "design/record-drafts",
+    "sprints/pm-records-4"
+   ],
+   "extended": [
+    "design/record-drafts",
+    "sprints/pm-records-4",
+    "design/sprint-lifecycle",
+    "design/records-store",
+    "design/record-layer",
+    "design/pm-cli",
+    "design/agent-lifecycle"
+   ]
+  },
+  "sprints/pm-records-6": {
+   "opened": "2026-10-15T22:48:34Z",
+   "title": "Drafts across clones, and this repo on the new record layer",
+   "goal": "A draft made in one clone shows on every other clone's site, a sprint closed from any clone publishes it, and this repo runs the release that carries the whole record layer.",
+   "strict": [
+    "design/record-drafts"
+   ],
+   "extended": [
+    "design/record-drafts",
+    "design/decision-need-layout",
+    "design/records-store",
+    "design/sprint-lifecycle",
+    "design/pm-cli",
+    "design/pm-go",
+    "design/pm-product",
+    "design/agent-lifecycle",
+    "design/views-and-site"
+   ]
+  },
+  "sprints/pm-site-4": {
+   "opened": "2026-10-15T20:07:43Z",
+   "title": "Docs render math, MDX diagrams and links, with a docs index",
+   "goal": "A doc imported from a research notes repo renders on the site as written: TeX math typeset, inline SVG diagrams drawn, links between docs resolved, and a docs index lists every doc.",
+   "strict": [],
+   "extended": [
+    "design/views-and-site"
+   ]
+  }
+ }
+}
