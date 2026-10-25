@@ -58,6 +58,8 @@ None yet.
 
 done: this repo pins pm 0.15.9, moved with `pm upgrade --to 0.15.9`, which also wrote Codex's auto mode into `.codex/config.toml`.
 
+Merged as 5ca0ce8 (PR #120).
+
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
