@@ -105,6 +105,11 @@ An explicit pm sprint promote <id> makes a proposal an ordinary sprint of its pr
 The owner wants starting a proposal to be a deliberate step, not a side effect of the first task
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page records-store stays as it is for this sprint's code changes.
+pm where's report moved to internal/cli/where unchanged; the page describes none of its code layout
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
