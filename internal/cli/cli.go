@@ -4,7 +4,8 @@
 // required arguments, mutually exclusive groups, choices, positional counts, and --option LABEL TEXT. Each noun's body
 // has its own file (task.go, sprint.go, decision.go, …), the setup package holds pm init, doctor, upgrade and
 // uninstall, the clean package pm clean, the served package the site as the pm service serves it, needform a decision
-// need's parts, rules and layout, and fsutil the path helpers cli and setup share. store_commands.go holds the
+// need's parts, rules and layout, dayactivity the day's activity pm day summarize gives the model, and fsutil the path
+// helpers cli and setup share. store_commands.go holds the
 // work-store commands' bodies, and the forms show ID and task add --task TASK, the one argv Execute routes before the
 // tree (storeFormOf); their --help goes through the tree's renderer (storeHelpCommand). Every command pm runs is in the
 // tree, so in pm --help --all (pm --help leaves out the Hidden machinery): commands_test.go fails otherwise.
