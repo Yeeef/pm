@@ -72,6 +72,11 @@ Agents raise what needs fixing in the repo as sprint proposals (pm sprint propos
 One mechanism keeps one triage place; a proposal carries a frame the owner can accept, where feedback prose waits for someone to turn it into a sprint; pm feedback is about a tool whose code is not in the repo
 :::
 
+::: decision {source=owner date=2026-10-25}
+A sprint proposal needs no owner accept: it is an open sprint marked proposed, grouped in one collapsed Proposed section on the site, and becomes ordinary work when someone starts it
+The owner wants proposals collected where they can browse them, not a triage queue to answer; an accept step adds a site write path and a wait for little gain
+:::
+
 ## Design pages
 
 > Where is the detail?
