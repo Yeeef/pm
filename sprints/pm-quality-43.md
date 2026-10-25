@@ -104,10 +104,18 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: agents can give feedback on the repo itself with `pm feedback add --repo`, answering the questions `pm feedback questions` prints.
+
+- `records/docs/repo-feedback.md`, kept apart from the pm feedback doc; both docs are now one table in `internal/records/feedback.go`.
+- `prompts/repo_feedback_questions.txt`: five questions (navigation, blockers, docs, tools, next fix).
+- `prime.md`: answer them once per sprint, when the delivery report is written.
+- `pm show`: a `repo feedback:` line, and `repo_feedback` in `--json`.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `--repo` writes `records/docs/repo-feedback.md` and leaves the pm doc alone: met; `test_feedback_on_the_repo_goes_to_its_own_doc_and_answers_the_questions` passes (`tests/test_pm.py -k feedback`: 4 passed).
+- `pm feedback questions` prints the set; `--help` and `prime.md` name it: met; the same test checks the output, `help.golden` was regenerated, and `make test-go` passes; `tests/test_hooks.py`: 25 passed.
+- `pm show` prints the repo feedback line with count and URL: met; the same test checks the text at both levels and `--json`.
+- The PR's CI is green: see PR #118's checks before its merge.
