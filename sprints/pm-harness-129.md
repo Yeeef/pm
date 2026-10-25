@@ -94,6 +94,19 @@ Model 2 rewrites code that is not on main yet, and PR #112 merges only once this
   creation time from labels.json (the sprint item's), which an agent
   approximates by sprint number.
 
+- Model 2 single query, strict: R@10 .507 [.422, .591] against stage 0 .282
+  (+0.225 [+0.175, +0.279]), rg AND newest first .427 (+0.080 [+0.007,
+  +0.153]; MRR +0.003 [-0.054, +0.060]), whole-record BM25 OR .521 (-0.014
+  [-0.064, +0.034]); zero-result rate 0 against .155 for stage 0 and .105 for
+  rg AND. Extended set (111 sprints, 260 targets): single R@10 .544 against
+  stage 0 .311 and the best rg, OR by match count, .534 (+0.010 [-0.052,
+  +0.072]); best of 3 R@10 .708 against .707 (+0.002 [-0.061, +0.067]), MRR
+  .591 against .506 (+0.085 [+0.010, +0.160]). Title words as one query,
+  strict: R@10 .578 against stage 0 .210 and the best rg .349. Tokens to the
+  first strict target, medians over queries both reach: model 2 144 against rg
+  AND newest first 13 for the file list and 2,447 for its rg -n lines (n=117);
+  334 against 9,656 for whole-record BM25 read as rg -n lines (n=210).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
