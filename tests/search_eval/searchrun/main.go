@@ -12,6 +12,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"flag"
@@ -115,12 +116,11 @@ func runCase(c evalCase, recs []*records.Record, items []item.Item) (result, err
 }
 
 func readItems(path string) ([]item.Item, error) {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	z, err := gzip.NewReader(f)
+	z, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
