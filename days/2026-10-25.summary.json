@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T09:52:32+00:00",
- "digest": "cd205985c09984dc",
+ "generated_at": "2026-10-25T10:09:05+00:00",
+ "digest": "2097ab0ce169aea1",
  "model": "claude-haiku-5-5",
- "text": "- **Search retrieval:** Search ranks whole records and items now, showing each hit at its best unit. The new model passes against the earlier baseline but fails the rg and newest-first baselines on the strict test.\n- **Cross-repo PR review:** pm can now raise, close and restamp a review of another GitHub repo's pull request. The merge watcher stores that pull request's merge once it lands.\n- **Sprint proposals and feedback:** Repo feedback work stopped, because the owner chose sprint proposals for repo improvements. Work started on a design page for the sprint proposal lifecycle.\n- **Project overview layout:** The overview lists open projects first. Closed projects now sit in a collapsed section at the bottom."
+ "text": "- **Search ranking:** Search now ranks whole records and items, showing each hit at its best unit. The new ranking fails the eval gate against the rg and newest-first baselines.\n- **Sprint proposals and feedback:** The owner chose sprint proposals as the one way to improve the repo. Repo feedback was dropped, and its questions moved into the feedback help text.\n- **Reviews and tooling:** Reviews of another repo's pull request now run through gh, and the merge is stored. This repo's pin moved to a newer pm release, which also wrote Codex's auto mode into its config.\n- **Site overview:** The site overview lists open projects first. Closed projects now sit in a collapsed section at the bottom."
 }
