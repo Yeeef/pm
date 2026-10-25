@@ -79,6 +79,10 @@ end-to-end flow; the sprint record's sections are under
 ```mermaid
 stateDiagram-v2
   [*] --> Open: pm sprint open
+  [*] --> Proposed: pm sprint propose
+  Proposed --> Open: pm sprint promote (the owner asks)
+  Proposed --> Dropped: pm sprint close --dropped
+  Dropped --> Proposed: pm sprint reopen
   Open --> Plan: pm task add
   Plan --> Work: pm task claim
   Work --> Report: report written, pm commit
@@ -93,7 +97,22 @@ stateDiagram-v2
 
 A sprint moves through six stages to closed; review can send it back to work,
 a sprint without a PR goes from work straight to close, and a reopen sends a
-closed sprint back to plan.
+closed sprint back to plan. A proposed sprint ([Sprint proposals](sprint-proposals.md)) is an open sprint labelled
+`proposal`. It takes no task until `pm sprint promote`, run when the owner asks, deletes the label; from there it is
+an ordinary sprint. Dropped, it is closed as not done and reopens as a proposal.
+
+### Propose and drop
+
+`pm sprint propose` makes the sprint as `pm sprint open` does, labelled `proposal`, with the body's `## Evidence` as the
+record's first finding. `pm task add --sprint` and `pm task move --to` refuse a proposal and name `pm sprint promote <id>`, which deletes the
+label and leaves a dated note, `pm sprint promote`, by the session. `pm sprint close <id>` refuses a proposal and names
+the drop; `pm sprint close <id> --dropped
+--reason "…"` closes it with resolution dismissed and the reason, writing no records: no Delivery report, no stamp, no
+design-page publish. Because it publishes nothing, the drop refuses while a need under the proposal is open (naming
+`pm need close <id> --dropped`) and while a design-page draft is tagged with it (restore the page as published and
+`pm commit --sprint <id>` it, which leaves no draft). `--dropped` on a sprint that is not a proposal is refused: it closes with
+its report, voided when a finding voided it. `pm action need --pr` refuses to name a proposal, which has no work to
+review.
 
 ### Open
 

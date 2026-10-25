@@ -24,6 +24,7 @@ covers:
   - "internal/cli/commit.go"
   - "internal/cli/show*.go"
   - "internal/cli/where.go"
+  - "internal/cli/where/**"
   - "internal/cli/check.go"
 ---
 
@@ -146,11 +147,12 @@ The grammar every command follows; a new command or flag uses it, and a deviatio
 | Concept | Rule | Examples |
 |---|---|---|
 | Shape | `pm <noun> <verb>` for an act on an object; a bare top-level verb only for a whole-repo act | `pm task close`, `pm sprint open`; `pm show`, `pm check`, `pm commit`, `pm init` |
-| Create a container | `open` | `project open`, `sprint open` |
+| Create a container | `open`; `propose` for a sprint that nobody has started ([Sprint proposals](sprint-proposals.md)) | `project open`, `sprint open`, `sprint propose` |
 | Add an item or a note | `add` | `task add`, `finding add`, `decision add`, `dep add`, `comment add`, `feedback add` |
 | Create a record from its template | `new` | `design new`, `doc new`, `postmortem new` |
 | Ask the owner | `need`, under the kind of need | `decision need`, `action need` |
-| Close | `close`, for work items and for a need that sets no rule; a need that sets a rule closes through `decision add --need`; `--dropped` closes as not done | `task close`, `sprint close`, `project close`, `need close`; `task close --dropped`, `need close --dropped` |
+| Close | `close`, for work items and for a need that sets no rule; a need that sets a rule closes through `decision add --need`; `--dropped` closes as not done | `task close`, `sprint close`, `project close`, `need close`; `task close --dropped`, `need close --dropped`, `sprint close --dropped` (a proposal) |
+| Promote a proposal | `promote`, for a sprint proposal the owner takes on | `sprint promote` |
 | Change | `edit` for a title or body, `move --to` for a parent, `rename --to` for a slug | `sprint edit`, `need edit`, `task move --to`, `design rename --to` |
 | Reopen a closed container | `reopen`, with the reason as its body | `project reopen`, `sprint reopen` |
 | Scope of a write | `--sprint ID`, `--task ID` or `--project NAME`, each meaning that container on every command; no other flag names a container (`--parent`, `--level` were removed) | `finding add --sprint`, `decision need --sprint\|--task`, `decision add --project\|--sprint`, `doc new --sprint\|--task\|--project` |

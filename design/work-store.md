@@ -142,7 +142,7 @@ An item has a fixed set of typed fields, stored as the columns and tables under 
 | `number` | int, only on `type=sprint` | minted at create, and again by `pm sprint move` | the sprint's number in its record name (`pm-harness-77`); see Ids |
 | `parent` | id or null | create, `pm task move`, `pm sprint move` | the id does not follow a move: 11 sample items have a parent that is not their id's prefix |
 | `blocked_by` | list of ids | `pm dep add/rm` | the only dependency kind; bd's `parent-child` link becomes `parent` |
-| `labels` | set of strings | create | free tags for what no field covers (`bug`, `[TEST]` marks); pm's logic reads no label |
+| `labels` | set of strings | create | free tags for what no field covers (`bug`, `[TEST]` marks); pm's logic reads one label, `proposal`, which marks a sprint `pm sprint propose` made and `pm sprint promote` deletes (`Store.Promote`, with a dated note comment `pm sprint promote`; [Sprint proposals](sprint-proposals.md)) |
 | `holder` | `{session, host, claimed_at}` or null | `pm task claim`, `release`, close | replaces `assignee` and the `claimed_by`/`claimed_at` metadata |
 | `started_at` | timestamp or null | first claim | day pages count "started" from it |
 | `created_at`, `updated_at`, `closed_at` | timestamp | the store | UTC, `YYYY-MM-DDTHH:MM:SSZ` |
@@ -335,6 +335,7 @@ The whole computation is in process over one read of the store (64 ms for 466 it
 | Close | `close <id> --reason=` | `work.Close(id, reason, resolution)` |
 | Holder | `update --claim --set-metadata claimed_by=… claimed_at=…` | `work.Claim(id, session)`: compare-and-set in one write transaction |
 | Move | `update --parent=` | `work.Move(id, parent)`; the id stays |
+| Promote a proposal | none | `work.Promote(id, session)`: the label `proposal` deleted and a note `pm sprint promote` by session, in one write |
 | Labels | `update --add-label=no-decision` | `work.SetResolution(id, "no-decision")` |
 | Close reason | none: new in pm | `work.SetCloseReason(id, reason)` on a closed item, called by `pm need close` to restamp a PR review closed without `merged as <sha>` |
 | Reopen | `reopen <id>` | `work.Reopen(id)` on a closed item: open, with no close reason, resolution, closing session or close time; called by `pm project reopen` and `pm sprint reopen` |
