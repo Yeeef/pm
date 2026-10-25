@@ -35,7 +35,9 @@ bead: yeeef-agents-9va.139
 
 > Where is the detail?
 
-None yet.
+- [Search index](../design/search-index.md)
+- [pm search](../design/pm-search.md)
+- [Work context](../design/work-context.md)
 
 ## Progress
 
