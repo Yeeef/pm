@@ -56,6 +56,11 @@ A proposal is an open sprint with the label proposal, not a new status; no schem
 The design review showed a new status forces every clone to upgrade and breaks the merge rules (a merged row can fail Check on every clone), while the existing labels table merges row by row and already serves as a type (bug)
 :::
 
+::: decision {source=owner date=2026-10-25}
+pm show lists no proposals at any level, nor in --json; only the site shows them, and pm sprint propose prints the project's proposals for its duplicate check; pm show --sprint ID still shows one by id
+The owner wants pm show to stay the state of running work; proposals are for the owner to browse on the site
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
