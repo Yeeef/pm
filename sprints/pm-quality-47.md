@@ -36,7 +36,10 @@ A project's title can be changed through pm, so the work store and the record ne
 
 > Where is the detail?
 
-None yet.
+- [Sprint lifecycle](../design/sprint-lifecycle.md): Rename a project, `pm project edit`, its cases and refusals.
+- [Record layer](../design/record-layer.md): `pm check` reports project title drift, without failing.
+- [pm CLI](../design/pm-cli.md): Naming gains `project edit`.
+- [Views and the site](../design/views-and-site.md): `covers:` gains `internal/cli/dayactivity/**`, where a day's activity moved.
 
 ## Progress
 
