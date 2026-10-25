@@ -73,6 +73,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 The covered files changed in sprint 126's commits on this PR (rebased onto main in sprint 129, no change of behavior); sprint 129 changed only internal/search, the pm search help text and tests, which this page does not describe
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page session-claims stays as it is for this sprint's code changes.
+The covered files changed in sprint 126's commits on this PR (rebased onto main in sprint 129, no change of behavior); sprint 129 changed only internal/search, the pm search help text and tests, which this page does not describe
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
