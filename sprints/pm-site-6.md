@@ -56,7 +56,10 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check: a scratch clone's pm service run served the overview as: Live
+  one (open), then <details> 'Closed projects (2)' holding Demo and Old;
+  Chromium showed the closed headings hidden before clicking the summary
+  (is_visible False) and visible after (True).
 
 ## Delivery report
 
