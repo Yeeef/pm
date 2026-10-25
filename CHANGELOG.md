@@ -29,6 +29,29 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.9] - 2026-10-25
+
+A pm repo can now review, close and stamp a pull request of another GitHub repo, so one pm project can track work
+merged in the repos it manages, its own remote on GitHub or not.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.9/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.9`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- `pm action need --pr URL` takes another GitHub repo's PR: one whose OWNER/REPO the remote's URL does not name, or
+  any GitHub PR when the remote is not on GitHub. The PR must target that repo's default branch, and the design-page
+  check does not run on it, since the pages' covers are this repo's paths.
+- `pm need close <review> --reason "merged as <sha>"`, at the close or at a restamp, checks another repo's PR's
+  `<sha>` against the merge commit gh gives for it into that repo's default branch, instead of this repo's main.
+- `pm sprint close` stamps another repo's PR as `OWNER/REPO#N` in the Outcome, and `--merged SHA --pr URL` takes
+  another repo's PR the same way.
+- The pm service sees another repo's PR merged into that repo's default branch and tells the session to close its
+  review, without asking it to pull this repo's main.
+
 ## [0.15.8] - 2026-10-25
 
 The site's overview lists the open projects first and closed ones in a collapsed section at the bottom.
@@ -1353,6 +1376,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.9]: https://github.com/Yeeef/pm/compare/pm-v0.15.8...pm-v0.15.9
 [0.15.8]: https://github.com/Yeeef/pm/compare/pm-v0.15.7...pm-v0.15.8
 [0.15.7]: https://github.com/Yeeef/pm/compare/pm-v0.15.6...pm-v0.15.7
 [0.15.6]: https://github.com/Yeeef/pm/compare/pm-v0.15.5...pm-v0.15.6
