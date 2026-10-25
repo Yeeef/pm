@@ -164,7 +164,7 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return cmdPush(cfg, here, stdout)
 	case "init":
 		return runInit(p, here, stdout)
-	case "feedback questions": // the set an agent answers with pm feedback add --repo, outside any repo too
+	case "feedback questions": // the set an agent answers with pm feedback add --repo
 		_, err := fmt.Fprintln(stdout, pm.RepoFeedbackQuestions)
 		return err
 	case "version": // this build's version, outside any repo too; dev when untagged
