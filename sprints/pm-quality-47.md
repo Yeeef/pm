@@ -60,6 +60,11 @@ The design page agent-lifecycle stays as it is for this sprint's code changes.
 prime.md only adds pm project edit to the move-or-rename line; the agent lifecycle it describes is unchanged.
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page pm-product stays as it is for this sprint's code changes.
+prime.md only adds pm project edit to its move-or-rename line; the product design it describes is unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
