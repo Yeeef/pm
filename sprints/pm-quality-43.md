@@ -119,18 +119,10 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: agents can give feedback on the repo itself with `pm feedback add --repo`, answering the questions its `--help` lists.
-
-- `records/docs/repo-feedback.md`, kept apart from the pm feedback doc; both docs are now one table in `internal/records/feedback.go`.
-- `pm feedback add --help`: five questions (navigation, blockers, docs, tools, next fix); no separate questions command, per the owner's decision.
-- `prime.md`: answer them once per sprint, when the delivery report is written.
-- `pm show`: a `repo feedback:` line, and `repo_feedback` in `--json`.
+voided: the owner chose sprint proposals as the one mechanism for repo improvements (pm-quality project decision), so repo feedback was dropped and PR #118 closed unmerged.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-- `--repo` writes `records/docs/repo-feedback.md` and leaves the pm doc alone: met; `test_feedback_on_the_repo_goes_to_its_own_doc` passes (`tests/test_pm.py -k feedback`: 4 passed).
-- `pm feedback add --help` lists the questions and `prime.md` names when to answer: met; `help.golden` was regenerated, and `make test-go` passes; `tests/test_hooks.py`: 25 passed.
-- `pm show` prints the repo feedback line with count and URL: met; the same test checks the text at both levels and `--json`.
-- The PR's CI is green: see PR #118's checks before its merge.
+None met: the goal was replaced before merge. The branch `repo-feedback` (CI green) holds the work; its doc table in `internal/records/feedback.go` is not carried forward.
