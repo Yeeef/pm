@@ -100,6 +100,11 @@ The design page pm-go stays as it is for this sprint's code changes.
 dolt.go only adds a move note inside Move; work-store, which this sprint updated, describes it
 :::
 
+::: decision {source=owner date=2026-10-25}
+An explicit pm sprint promote <id> makes a proposal an ordinary sprint of its project; pm task add or pm task move into a proposal is refused until it is promoted
+The owner wants starting a proposal to be a deliberate step, not a side effect of the first task
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
