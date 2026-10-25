@@ -372,7 +372,7 @@ def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
     # sprint that holds a review are refused with nothing written.
     # (sprint 1 is closed above and repo-demo.1.2 dismissed there, so this closes a new sprint 3)
     repo.git("init", "-q", "--bare", str(tmp_path / "origin.git"))
-    repo.git("remote", "add", "origin", str(tmp_path / "origin.git"))
+    repo.add_origin(tmp_path / "origin.git")
     repo.git("push", "-q", "origin", "main")
     on_main = repo.git("rev-parse", "HEAD").strip()
     wt = repo.worktree("unmerged")
@@ -424,7 +424,7 @@ def test_need_close_restamps_a_review_closed_before_its_pr_reached_main(repo, tm
     main, pm need close <review> --reason "merged as <sha>" restamps it, keeping the old reason, and the sprint closes.
     A reason without it, a sha not on main, a review closed as merged and any other closed action are refused."""
     repo.git("init", "-q", "--bare", str(tmp_path / "origin.git"))
-    repo.git("remote", "add", "origin", str(tmp_path / "origin.git"))
+    repo.add_origin(tmp_path / "origin.git")
     repo.git("push", "-q", "origin", "main")
     on_main = repo.git("rev-parse", "HEAD").strip()
     wt = repo.worktree("stacked")
@@ -463,6 +463,82 @@ def test_need_close_restamps_a_review_closed_before_its_pr_reached_main(repo, tm
     assert f"Merged as {on_main[:7]} (PR #12)." in (repo.records / "sprints/demo-1.md").read_text()
 
 
+OTHER = "https://github.com/b/lib/pull/"  # a PR of another GitHub repo, b/lib, whose default branch is trunk
+
+
+@pytest.mark.integration
+def test_a_review_of_another_repos_pr_is_held_to_that_repos_merge(repo, tmp_path):
+    """A PR of another GitHub repo (this repo's remote is not on GitHub, so every GitHub PR is another repo's): its
+    review is held to that repo's default branch, not this repo's main; the design gate does not run, as the pages'
+    covers are this repo's paths; "merged as <sha>" must be the merge commit gh gives, at the close and at a restamp;
+    the Outcome names the PR as OWNER/REPO#N, and pm sprint close --merged --pr takes another repo's PR the same way."""
+    repo.git("init", "-q", "--bare", str(tmp_path / "origin.git"))
+    repo.git("remote", "add", "origin", str(tmp_path / "origin.git"))
+    repo.git("push", "-q", "origin", "main")
+    repo.set_issue("repo-demo.1.2", status="closed", close_reason="Dismissed", closed_at="2026-10-02T12:00:00Z")
+    (repo.records / "design").mkdir()
+    repo.write("design/parser.md", design_page("[src/parser/**]"))
+    commit_on(repo, "2026-09-30", "the parser page, before the sprints opened")
+    report(repo, "Done: shipped the thing.")
+    repo.set_repo("b/lib", "trunk")
+    pr, merge = OTHER + "5", "c0ffee0123456789abcdef0123456789abcdef01"
+    set_pr_files(repo, pr, ["src/parser/lex.go"])  # a path the page covers: this repo's gate would refuse
+    repo.set_pr(pr, "OPEN")  # into main, which is this repo's main branch but not b/lib's default
+    review = ("action", "need", "--pr", pr, "--sprint", "repo-demo.1", "--focus", "F")
+    repo.mark()
+    refused(repo, *review, match=r"--pr https://github.com/b/lib/pull/5 merges into \"main\", not trunk, b/lib's "
+                                 r"default branch, so its merge does not deliver the sprint")
+    repo.set_pr(pr, "OPEN", base="trunk")
+    res = repo.pm(*review)
+    assert res.returncode == 0, res.stderr
+    assert "Design pages covering" not in repo.items()["repo-demo.1.3"]["description"]
+    repo.mark()
+    refused(repo, "need", "close", "repo-demo.1.3", "--reason", f"merged as {merge[:7]}",
+            match=rf"merged as {merge[:7]}: {pr} is OPEN on GitHub, not merged; give its merge commit once it is "
+                  r"merged into trunk")
+    repo.set_pr(pr, "MERGED", merge=merge, base="trunk")
+    refused(repo, "need", "close", "repo-demo.1.3", "--reason", f"merged as {SHA[:7]}",
+            match=rf"merged as {SHA[:7]} is not the merge commit of {pr}: GitHub gives {merge}")
+    assert repo.pm("need", "close", "repo-demo.1.3", "--reason", f"merged as {merge[:7]}").returncode == 0
+    res = repo.pm("sprint", "close", "repo-demo.1")
+    assert res.returncode == 0, res.stderr
+    assert f"Merged as {merge[:7]} (b/lib#5).\n" in (repo.records / "sprints/demo-1.md").read_text()
+
+    # A review first closed another way (its PR merged into a stacked base) is restamped once gh gives the merge.
+    assert repo.pm("sprint", "open", "demo", "--title", "Third", text=FRAME).returncode == 0
+    report(repo, "Done: shipped the thing.", name="demo-3")
+    pr, merge = OTHER + "6", "decade0123456789abcdef0123456789abcdef02"
+    repo.set_pr(pr, "OPEN", base="trunk")
+    assert repo.pm("action", "need", "--pr", pr, "--sprint", "repo-demo.3", "--focus", "F").returncode == 0
+    first = "merged into a stacked base, not yet on trunk"
+    assert repo.pm("need", "close", "repo-demo.3.1", "--reason", first).returncode == 0
+    repo.set_pr(pr, "MERGED", merge=merge, base="stacked")
+    repo.mark()
+    refused(repo, "need", "close", "repo-demo.3.1", "--reason", f"merged as {merge[:7]}",
+            match=rf"merged as {merge[:7]}: {pr} merged into \"stacked\", not trunk, b/lib's default branch")
+    repo.set_pr(pr, "MERGED", merge=merge, base="trunk")
+    res = repo.pm("need", "close", "repo-demo.3.1", "--reason", f"merged as {merge[:7]}")
+    assert res.returncode == 0, res.stderr
+    assert repo.changes() == {"repo-demo.3.1": {"close_reason": f"merged as {merge[:7]}; first closed as: {first}"}}
+    res = repo.pm("sprint", "close", "repo-demo.3")
+    assert res.returncode == 0, res.stderr
+    assert f"Merged as {merge[:7]} (b/lib#6)." in (repo.records / "sprints/demo-3.md").read_text()
+
+    # A PR of another repo merged with no review: --merged must be the merge commit gh gives for --pr.
+    assert repo.pm("sprint", "open", "demo", "--title", "Fourth", text=FRAME).returncode == 0
+    report(repo, "Done: shipped the thing.", name="demo-4")
+    pr, merge = OTHER + "7", "facade0123456789abcdef0123456789abcdef03"
+    repo.set_pr(pr, "MERGED", merge=merge, base="trunk")
+    set_pr_files(repo, pr, ["src/parser/lex.go"])
+    repo.mark()
+    refused(repo, "sprint", "close", "repo-demo.4", "--merged", SHA, "--pr", pr,
+            match=rf"--merged {SHA} is not the merge commit of {pr}: GitHub gives {merge}")
+    res = repo.pm("sprint", "close", "repo-demo.4", "--merged", merge[:10], "--pr", pr)
+    assert res.returncode == 0, res.stderr
+    assert committed(repo, [f"[SPRINT] demo sprint 4: closed, merged as {merge[:7]}"])
+    assert f"Merged as {merge[:7]} (b/lib#7).\n" in (repo.records / "sprints/demo-4.md").read_text()
+
+
 # ---------------------------------------------------------------- design pages: covers and the gate
 
 
@@ -499,7 +575,7 @@ def push_main(repo, tmp_path, *files: str) -> str:
     origin = tmp_path / "origin.git"
     if not origin.exists():
         repo.git("init", "-q", "--bare", str(origin))
-        repo.git("remote", "add", "origin", str(origin))
+        repo.add_origin(origin)
     for rel in files:
         (repo.root / rel).parent.mkdir(parents=True, exist_ok=True)
         (repo.root / rel).write_text("x\n")
@@ -2078,7 +2154,7 @@ def review_with_origin(repo) -> str:
                     "updated_at": "2026-10-01T12:00:00Z", "metadata": {"review": REVIEW}})
     origin = repo.root.parent / "origin.git"
     repo.git("init", "-q", "--bare", "-b", "main", str(origin))
-    repo.git("remote", "add", "origin", str(origin))
+    repo.add_origin(origin)
     repo.git("push", "-q", "origin", "main")
     other = repo.root.parent / "other"
     repo.git("clone", "-q", str(origin), str(other))

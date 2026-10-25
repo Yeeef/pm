@@ -573,6 +573,19 @@ class Repo:
         prs[url] = {"state": state, "baseRefName": base, "mergeCommit": {"oid": merge} if merge else None}
         path.write_text(json.dumps(prs))
 
+    def set_repo(self, slug: str, default: str) -> None:
+        """A GitHub repo the fake gh's `gh repo view <slug>` finds, with its default branch."""
+        path = Path(self.env["FAKE_GH_STATE"])
+        state = json.loads(path.read_text())
+        state[f"repos/{slug}"] = {"defaultBranchRef": {"name": default}}
+        path.write_text(json.dumps(state))
+
+    def add_origin(self, path: Path) -> None:
+        """An origin remote whose URL names the GitHub repo o/r, the one the tests' PR URLs are of, and that git
+        reaches at the bare repo `path`."""
+        self.git("remote", "add", "origin", "https://github.com/o/r.git")
+        self.git("config", f"url.{path}.insteadOf", "https://github.com/o/r.git")
+
     def set_commit(self, slug: str, sha: str) -> None:
         """A commit the fake gh's `gh api repos/<slug>/commits/<ref>` finds, under its full sha and its 7-character
         prefix."""
