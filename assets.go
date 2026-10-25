@@ -36,6 +36,7 @@ var (
 	// pm autopilot print
 	RequestRuleAutopilot   = prompt(requestRuleAutopilot)
 	RequestRuleInteractive = prompt(requestRuleInteractive)
+	RepoFeedbackQuestions  = prompt(repoFeedbackQuestions) // what pm feedback questions prints
 )
 
 //go:embed prompts/owner_request_system.txt
@@ -55,5 +56,8 @@ var requestRuleAutopilot string
 
 //go:embed prompts/request_rule_interactive.txt
 var requestRuleInteractive string
+
+//go:embed prompts/repo_feedback_questions.txt
+var repoFeedbackQuestions string
 
 func prompt(file string) string { return strings.TrimSuffix(file, "\n") }

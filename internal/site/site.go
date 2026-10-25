@@ -1163,7 +1163,7 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 
 	out = append(out, indexDays(recs))
 	out = append(out, unsprintedTable(unsprinted(recs, items), nil, "h2"))
-	var feedback []*Record // the repo's pm feedback doc, which no project lists
+	var feedback []*Record // the repo's feedback docs, which no project lists
 	for _, r := range recs {
 		if records.IsFeedbackDoc(r) {
 			feedback = append(feedback, r)
@@ -1209,8 +1209,8 @@ func RenderDocsIndex(recs []*Record, items *Items) (string, error) {
 			where := ""
 			if p := records.ProjectOf(d, recs, items); p != nil {
 				where = `<a href="` + link(frm, p.Out()) + `">` + esc(p.Title()) + "</a>"
-			} else if records.IsFeedbackDoc(d) {
-				where = "the repo's pm feedback, about any project"
+			} else if f := records.FeedbackOf(d); f != nil {
+				where = "the repo's " + f.Title + ", about any project"
 			}
 			if d.Has("bead") {
 				where += " · " + esc(d.Meta["bead"].Str)

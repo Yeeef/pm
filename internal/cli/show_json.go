@@ -10,11 +10,12 @@ import (
 // pm show --json: the top level as JSON, each object's keys in its struct's field order.
 
 type showJSON struct {
-	Site     string            `json:"site"`
-	Projects []showProjectJSON `json:"projects"`
-	Push     []string          `json:"push"`
-	Today    showTodayJSON     `json:"today"`
-	Feedback *showFeedbackJSON `json:"feedback"`
+	Site         string            `json:"site"`
+	Projects     []showProjectJSON `json:"projects"`
+	Push         []string          `json:"push"`
+	Today        showTodayJSON     `json:"today"`
+	Feedback     *showFeedbackJSON `json:"feedback"`
+	RepoFeedback *showFeedbackJSON `json:"repo_feedback"`
 }
 
 type showProjectJSON struct {
@@ -135,8 +136,11 @@ func (d *showData) json() showJSON {
 		summary := firstSentence(records.SummaryLine(d.summary.Text), 160)
 		out.Today.Summary, out.Today.GeneratedAt = &summary, &d.summary.GeneratedAt
 	}
-	if d.feedback != nil {
-		out.Feedback = &showFeedbackJSON{d.feedback.entries, d.feedback.url}
+	if f := d.feedback.pm; f != nil {
+		out.Feedback = &showFeedbackJSON{f.entries, f.url}
+	}
+	if f := d.feedback.repo; f != nil {
+		out.RepoFeedback = &showFeedbackJSON{f.entries, f.url}
 	}
 	return out
 }

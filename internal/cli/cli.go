@@ -25,6 +25,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Yeeef/pm"
 	"github.com/Yeeef/pm/internal/ask"
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/cli/clean"
@@ -163,6 +164,9 @@ func dispatch(p *Parsed, stdin io.Reader, stdout, stderr io.Writer) error {
 		return cmdPush(cfg, here, stdout)
 	case "init":
 		return runInit(p, here, stdout)
+	case "feedback questions": // the set an agent answers with pm feedback add --repo, outside any repo too
+		_, err := fmt.Fprintln(stdout, pm.RepoFeedbackQuestions)
+		return err
 	case "version": // this build's version, outside any repo too; dev when untagged
 		_, err := fmt.Fprintln(stdout, buildinfo.Version)
 		return err

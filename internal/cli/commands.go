@@ -31,10 +31,10 @@ var tree = &command{
 		{
 			Name:        "show",
 			Help:        "compact status of open projects for agents, level by level",
-			Description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).",
+			Description: "Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's two feedback docs, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).",
 			Args: []arg{
 				{Flags: []string{"--json"}, Dest: "json", Kind: switchOn, Help: "every level's data as one JSON object"},
-				{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "one open project (its name or id): its goal, owner requests in full, the repo's pm feedback doc, open sprints with their tasks, and last decisions"},
+				{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "one open project (its name or id): its goal, owner requests in full, the repo's two feedback docs, open sprints with their tasks, and last decisions"},
 				{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "one sprint's frame, findings and tasks"},
 				{Flags: []string{"--record"}, Dest: "record", Metavar: []string{"PATH"}, Kind: value, Help: "the record to read (a path, sprint id or name, project name or design slug); alone, its outline: header ids and each section with its line count"},
 				{Flags: []string{"--section"}, Dest: "section", Metavar: []string{"NAME"}, Kind: value, Help: "with --record: print that one section, heading included"},
@@ -78,15 +78,16 @@ var tree = &command{
 		},
 		{
 			Name:    "feedback",
-			Help:    "feedback on pm itself",
+			Help:    "feedback on pm itself, or on the repo's code, docs and tools (--repo)",
 			SubDest: "sub",
 			Subs: []*command{
 				{
 					Name:        "add",
-					Help:        "append an entry to the repo's pm feedback doc; the text with --text",
-					Description: "When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say once what happened and what would have helped. Appends a dated entry with this session's id to the repo's one feedback doc, records/docs/pm-feedback.md, creating it on first use; --project, --sprint and --task tag the entry with what it is about. pm show and pm show --project link the doc.",
+					Help:        "append an entry to the repo's pm feedback doc, or with --repo its repo feedback doc; the text with --text",
+					Description: "When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say once what happened and what would have helped. Appends a dated entry with this session's id to the repo's one feedback doc, records/docs/pm-feedback.md, creating it on first use; --project, --sprint and --task tag the entry with what it is about. With --repo the entry is about the repo itself (its code, docs and tools) and goes to records/docs/repo-feedback.md instead: once per sprint, when its delivery report is written, answer pm feedback questions in one entry. pm show and pm show --project link both docs.",
 					Groups:      []bool{false},
 					Args: []arg{
+						{Flags: []string{"--repo"}, Dest: "repo", Kind: switchOn, Help: "feedback on the repo's code, docs and tools, answering pm feedback questions: append to records/docs/repo-feedback.md"},
 						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "the project the feedback is about"},
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "the sprint the feedback is about"},
 						{Flags: []string{"--task"}, Dest: "task", Metavar: []string{"ID"}, Kind: value, Help: "the task the feedback is about"},
@@ -94,6 +95,11 @@ var tree = &command{
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 						{Flags: []string{"--session"}, Dest: "session", Metavar: []string{"ID"}, Kind: value, Help: "the session to record; default: this session's id from the environment"},
 					},
+				},
+				{
+					Name:        "questions",
+					Help:        "print the questions pm feedback add --repo answers",
+					Description: "Print the questions an agent answers about the repo itself (its code, docs and tools), once per sprint when its delivery report is written, in one pm feedback add --repo entry. Answer only what you have evidence for; skip a question with nothing to say.",
 				},
 			},
 		},

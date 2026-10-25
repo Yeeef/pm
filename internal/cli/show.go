@@ -176,8 +176,8 @@ type showData struct {
 	push     []string
 	today    string
 	summary  *records.Summary
-	feedback *showFeedback // nil before the repo's pm feedback doc has an entry
-	asks     []string      // a line for each open question with no parent: from a session that held no task
+	feedback *showFeedback
+	asks     []string // a line for each open question with no parent: from a session that held no task
 }
 
 type showProject struct {
@@ -217,7 +217,10 @@ type showDecision struct {
 	order                             int
 }
 
-type showFeedback struct {
+// showFeedback is the repo's two feedback docs, each nil before its first entry.
+type showFeedback struct{ pm, repo *showFeedbackDoc }
+
+type showFeedbackDoc struct {
 	entries int
 	url     string
 }
@@ -257,7 +260,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 			}
 		}
 	}
-	data := &showData{site: url}
+	data := &showData{site: url, feedback: &showFeedback{}}
 	for _, p := range r.recs {
 		if p.Type() != "project" {
 			continue
@@ -328,8 +331,13 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 		}
 		data.asks = append(data.asks, line)
 	}
-	if doc := feedbackDoc(r.recs); doc != nil {
-		data.feedback = &showFeedback{entries: len(feedbackEntry.FindAllStringIndex(doc.Body, -1)), url: url + "/" + doc.Out()}
+	for _, f := range []struct {
+		doc  records.Feedback
+		dest **showFeedbackDoc
+	}{{records.PMFeedback, &data.feedback.pm}, {records.RepoFeedback, &data.feedback.repo}} {
+		if doc := feedbackDoc(r.recs, f.doc); doc != nil {
+			*f.dest = &showFeedbackDoc{entries: len(feedbackEntry.FindAllStringIndex(doc.Body, -1)), url: url + "/" + doc.Out()}
+		}
 	}
 	cfg, err := config.Load(e.here)
 	if err != nil {
@@ -378,16 +386,24 @@ func showSprintNames(p *showProject) map[string]string {
 	return names
 }
 
-// showFeedbackLine is the repo's pm feedback doc, which both levels link, and how to add to it.
+// showFeedbackLine is the repo's two feedback docs, which both levels link, and how to add to each, a line each.
 func showFeedbackLine(f *showFeedback) string {
-	doc := "none yet"
-	if f != nil {
-		doc = fmt.Sprintf("%d entries -> %s", f.entries, f.url)
+	if f == nil {
+		f = &showFeedback{}
 	}
-	return "feedback: " + doc + `; when pm gets in your way, run pm feedback add [--project NAME] --text="…"`
+	line := func(label string, f *showFeedbackDoc, hint string) string {
+		doc := "none yet"
+		if f != nil {
+			doc = fmt.Sprintf("%d entries -> %s", f.entries, f.url)
+		}
+		return label + ": " + doc + "; " + hint
+	}
+	return line("feedback", f.pm, `when pm gets in your way, run pm feedback add [--project NAME] --text="…"`) + "\n" +
+		line("repo feedback", f.repo, `once per sprint, with its delivery report, answer pm feedback questions with `+
+			`pm feedback add --repo --text-file - <<'EOF' … EOF`)
 }
 
-// showText is the top level: push failures, tasks other live sessions hold, the site, the feedback doc, and one line
+// showText is the top level: push failures, tasks other live sessions hold, the site, the feedback docs, and one line
 // per project with each open owner request and undelivered reply.
 func showText(d *showData) string {
 	var out []string
@@ -445,7 +461,7 @@ func showText(d *showData) string {
 	return strings.Join(out, "\n")
 }
 
-// showProjectText is the project level: its goal, owner requests in full, the repo's feedback doc, each open sprint
+// showProjectText is the project level: its goal, owner requests in full, the repo's feedback docs, each open sprint
 // with its goal, done-when and open tasks, and its last decisions.
 func showProjectText(p *showProject, feedback *showFeedback) string {
 	e := p.bead

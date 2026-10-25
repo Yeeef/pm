@@ -191,24 +191,55 @@ func CheckBlocks(text, rel string) error {
 // dated is the folder of a doc and a postmortem, and the key it names besides project.
 var dated = map[string][2]string{"doc": {"docs", "bead"}, "postmortem": {"postmortems", "sprint"}}
 
-// The repo's one pm feedback doc, which pm feedback add appends to: a doc at a fixed path, so a repo cannot hold two,
-// with no date in its name and neither bead nor project in its header, since each entry names its own project. A doc
-// with its title anywhere else fails CheckFeedbackDoc.
-const (
-	FeedbackDoc   = "docs/pm-feedback"
-	FeedbackTitle = "pm feedback"
+// Feedback is one of the repo's two feedback docs, which pm feedback add appends to: a doc at a fixed path, so a repo
+// cannot hold two of one, with no date in its name and neither bead nor project in its header, since each entry names
+// its own project. A doc with its title anywhere else fails CheckFeedbackDoc.
+type Feedback struct {
+	Rel, Title string
+	Add        string // the command that appends to it
+	Intro      string // the line under its header
+}
+
+var (
+	PMFeedback = Feedback{"docs/pm-feedback", "pm feedback", "pm feedback add",
+		"Where pm got in the way, one entry per `pm feedback add`, newest last; each names the project it is about, " +
+			"when it is about one."}
+	RepoFeedback = Feedback{"docs/repo-feedback", "repo feedback", "pm feedback add --repo",
+		"What slowed agents down in this repo's code, docs and tools, one entry per `pm feedback add --repo`, newest " +
+			"last; each answers `pm feedback questions` and names the project it is about, when it is about one."}
+	Feedbacks = []Feedback{PMFeedback, RepoFeedback}
 )
 
-// IsFeedbackDoc says whether the record is the repo's pm feedback doc.
-func IsFeedbackDoc(rec *Record) bool { return rec.Type() == "doc" && rec.Rel == FeedbackDoc }
+// FeedbackAt is the feedback doc at rel, a path under records/ without .md, or nil.
+func FeedbackAt(rel string) *Feedback {
+	for i := range Feedbacks {
+		if Feedbacks[i].Rel == rel {
+			return &Feedbacks[i]
+		}
+	}
+	return nil
+}
 
-// CheckFeedbackDoc fails on a pm feedback doc outside FeedbackDoc, such as one of the per-project docs
-// (docs/<date>-<project>-feedback.md) that pm feedback add wrote before the repo's one doc.
+// FeedbackOf is the feedback doc the record is, or nil.
+func FeedbackOf(rec *Record) *Feedback {
+	if rec.Type() != "doc" {
+		return nil
+	}
+	return FeedbackAt(rec.Rel)
+}
+
+// IsFeedbackDoc says whether the record is one of the repo's feedback docs.
+func IsFeedbackDoc(rec *Record) bool { return FeedbackOf(rec) != nil }
+
+// CheckFeedbackDoc fails on a feedback doc outside its path, such as one of the per-project docs
+// (docs/<date>-<project>-feedback.md) that pm feedback add wrote before the repo's one pm feedback doc.
 func CheckFeedbackDoc(rec *Record) error {
-	if rec.Type() == "doc" && rec.Title() == FeedbackTitle && rec.Rel != FeedbackDoc {
-		return errorf("%s: a repo keeps one pm feedback doc, records/%s.md; move this doc's entries into it in time "+
-			"order, each tagged with its project (About project `<name>`.), delete this doc and commit both with pm commit",
-			rec.Rel, FeedbackDoc)
+	for _, f := range Feedbacks {
+		if rec.Type() == "doc" && rec.Title() == f.Title && rec.Rel != f.Rel {
+			return errorf("%s: a repo keeps one %s doc, records/%s.md; move this doc's entries into it in time "+
+				"order, each tagged with its project (About project `<name>`.), delete this doc and commit both with pm commit",
+				rec.Rel, f.Title, f.Rel)
+		}
 	}
 	return nil
 }
@@ -218,19 +249,22 @@ func checkDatedHeader(meta Meta, rel string) error {
 	folder, key := dated[kind][0], dated[kind][1]
 	_, hasKey := meta[key]
 	_, hasProject := meta["project"]
-	feedback := kind == "doc" && rel == FeedbackDoc
-	if feedback && (hasKey || hasProject) {
-		return errorf("%s: the pm feedback doc is the repo's, about any project; its header names neither 'bead' nor "+
-			"'project'", rel)
+	var feedback *Feedback
+	if kind == "doc" {
+		feedback = FeedbackAt(rel)
 	}
-	if !feedback && hasKey == hasProject {
+	if feedback != nil && (hasKey || hasProject) {
+		return errorf("%s: the %s doc is the repo's, about any project; its header names neither 'bead' nor "+
+			"'project'", rel, feedback.Title)
+	}
+	if feedback == nil && hasKey == hasProject {
 		return errorf("%s: a %s names exactly one of '%s' or 'project' in its header", rel, kind, key)
 	}
 	day := meta["date"].Str
 	if !dayRE.MatchString(day) {
 		return errorf("%s: date must be YYYY-MM-DD, got %q", rel, day)
 	}
-	if feedback {
+	if feedback != nil {
 		return nil
 	}
 	if !regexp.MustCompile(`^` + folder + `/` + day + `-[a-z0-9]+(-[a-z0-9]+)*$`).MatchString(rel) {

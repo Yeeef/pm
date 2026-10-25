@@ -343,6 +343,44 @@ def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
                   r"doc's entries into it")
 
 
+def test_feedback_on_the_repo_goes_to_its_own_doc_and_answers_the_questions(repo):
+    """pm feedback questions prints the set; pm feedback add --repo appends to records/docs/repo-feedback.md, tagged
+    as pm feedback add tags, and leaves the pm feedback doc alone; pm show and --json link it."""
+    res = repo.pm("feedback", "questions")
+    assert res.returncode == 0, res.stderr
+    assert "pm feedback add --repo" in res.stdout and "what one change would make the next task here fastest?" in \
+        res.stdout.lower()
+    assert "repo feedback: none yet; once per sprint" in repo.pm("show").stdout
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
+    (repo.records / "docs").mkdir()
+    repo.write("docs/repo-feedback.md", "---\ntype: day\ndate: 2026-10-01\n---\n\nKeep this.\n")
+    repo.commit("a record at the repo feedback doc's path")
+    refused(repo, "feedback", "add", "--repo", text="x",
+            match=r"records/docs/repo-feedback.md exists but is no repo feedback doc \(type: doc\); move it")
+    shutil.rmtree(repo.records / "docs")
+    repo.commit("no record at the repo feedback doc's path")
+    for args, text in [(("--repo", "--sprint", "repo-demo.1"), "The test map was stale."), (("--repo",), "Builds ran slow.")]:
+        res = repo.pm("feedback", "add", *args, text=text)
+        assert res.returncode == 0, res.stderr
+        assert committed(repo, ["pm: added feedback to records/docs/repo-feedback.md"])
+    assert [p.name for p in (repo.records / "docs").iterdir()] == ["repo-feedback.md"]
+    doc = (repo.records / "docs/repo-feedback.md").read_text()
+    assert doc.startswith(f"---\ntype: doc\ntitle: repo feedback\ndate: {TODAY}\n---\n\nWhat slowed agents down in "
+                          "this repo's code, docs and tools, one entry per `pm feedback add --repo`")
+    entries = re.split(r"(?m)^### .* UTC, session `sess-1`\n\n", doc)[1:]
+    assert entries == ["About sprint `repo-demo.1`.\n\nThe test map was stale.\n\n", "Builds ran slow.\n"]
+    site = re.search(r"site: (\S+) ", repo.pm("show").stdout)[1]
+    for args in [(), ("--project", "demo")]:
+        res = repo.pm("show", *args)
+        assert res.returncode == 0, res.stderr
+        assert f"repo feedback: 2 entries -> {site}/docs/repo-feedback.html; once per sprint" in res.stdout
+        assert "\nfeedback: none yet; when pm gets in your way" in res.stdout
+    shown = json.loads(repo.pm("show", "--json").stdout)
+    assert shown["feedback"] is None
+    assert shown["repo_feedback"] == {"entries": 2, "url": f"{site}/docs/repo-feedback.html"}
+    assert repo.pm("check").returncode == 0
+
+
 @pytest.mark.integration
 def test_sprint_closes_after_its_pr_merges(repo, tmp_path):
     """The whole loop: a written report, a review under the sprint, a refusal while the review is open, the review

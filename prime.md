@@ -29,7 +29,7 @@ Each fact has one home: the work store holds the status, the records hold the wh
 | Decision | none | `::: decision` block in a project or sprint record | A ruling that changes what the team does, with its reason. |
 | Finding | none | bullet in a sprint's Findings | What the work showed, with its numbers. |
 | Design page | none | `records/design/<name>.md` | The reference for one area of a design, in its final state. |
-| Doc | none | `records/docs/<date>-<slug>.md` | A free-form result or explainer, tied to a sprint, a task or a project, or the repo's one feedback doc. |
+| Doc | none | `records/docs/<date>-<slug>.md` | A free-form result or explainer, tied to a sprint, a task or a project, or one of the repo's two feedback docs: on pm, and on the repo. |
 | Postmortem | none | `records/postmortems/<date>-<slug>.md` | A costly incident: timeline, cost, root cause, what changed, what would have caught it earlier. |
 | Day page | none | generated; nobody writes it | What moved on one date, across all projects. |
 
@@ -121,6 +121,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - close a sprint: `pm sprint close <id>`, once its report is written, its tasks are closed and its PR review is closed as merged. For a PR merged with no review: `pm sprint close <id> --merged <sha> --pr URL`. It then publishes the sprint's design page drafts, from every worktree, in one records commit. A draft that overlaps another commit is named: run any pm write in that worktree, resolve the conflict markers, `pm commit --sprint <id>` the page, and close again; `--discard <slug> --reason "…"` drops the draft instead.
 - find a link: Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.
 - Report where pm got in your way: `pm feedback add [--project NAME]`, once, with what happened and what would have helped.
+- Once per sprint, when its delivery report is written, answer `pm feedback questions` with `pm feedback add --repo`.
 - setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and workspace, and the pm service. `pm init --site-url URL` sets the public site link.
 
 Less frequent, each detailed in its `--help`:

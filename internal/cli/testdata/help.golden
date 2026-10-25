@@ -8,7 +8,7 @@ positional arguments:
   {show,finding,feedback,decision,action,need,reply,doc,design,postmortem,project,sprint,task,dep,comment,record,check,service,doctor,upgrade,uninstall,init,where,clean,interactive,version,commit}
     show                compact status of open projects for agents, level by level
     finding             sprint findings
-    feedback            feedback on pm itself
+    feedback            feedback on pm itself, or on the repo's code, docs and tools (--repo)
     decision            decisions: record one, or ask the owner for one
     action              actions: ask the owner to do something (run, apply), or to review a PR (--pr)
     need                needs of any kind: decisions, actions and reviews
@@ -51,7 +51,7 @@ positional arguments:
     show                compact status of open projects for agents, level by level
     day                 day pages: generated from the day's activity; nobody writes a day record
     finding             sprint findings
-    feedback            feedback on pm itself
+    feedback            feedback on pm itself, or on the repo's code, docs and tools (--repo)
     decision            decisions: record one, or ask the owner for one
     action              actions: ask the owner to do something (run, apply), or to review a PR (--pr)
     need                needs of any kind: decisions, actions and reviews
@@ -91,12 +91,12 @@ pm runs the pm version the repo pins in .pm/config.toml: another version's relea
 usage: pm show [-h] [--json] [--project NAME] [--sprint ID] [--record PATH]
                [--section NAME] [--refresh-inbox]
 
-Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's pm feedback doc, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).
+Project state, level by level. Without a flag, the top level: push failures, tasks other live sessions hold, the site, the repo's two feedback docs, and per open project a line with each open owner request and undelivered reply. Each level names the command for the next: --project, then --sprint, then --record, then --record with --section. pm show ID [--json] prints one item of any type instead: its fields, holder, blockers, children, needs and comments (pm show ID --help).
 
 options:
   -h, --help       show this help message and exit
   --json           every level's data as one JSON object
-  --project NAME   one open project (its name or id): its goal, owner requests in full, the repo's pm feedback doc, open sprints with their tasks, and last decisions
+  --project NAME   one open project (its name or id): its goal, owner requests in full, the repo's two feedback docs, open sprints with their tasks, and last decisions
   --sprint ID      one sprint's frame, findings and tasks
   --record PATH    the record to read (a path, sprint id or name, project name or design slug); alone, its outline: header ids and each section with its line count
   --section NAME   with --record: print that one section, heading included
@@ -142,28 +142,38 @@ options:
   --text-file PATH  the finding instead, read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the finding instead, inline, for one plain line only; backticks, $ or quotes go in --text-file
 ===== pm feedback --help
-usage: pm feedback [-h] {add} ...
+usage: pm feedback [-h] {add,questions} ...
 
 positional arguments:
-  {add}
-    add       append an entry to the repo's pm feedback doc; the text with --text
+  {add,questions}
+    add            append an entry to the repo's pm feedback doc, or with --repo its repo feedback doc; the text with --text
+    questions      print the questions pm feedback add --repo answers
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help       show this help message and exit
 ===== pm feedback add --help
-usage: pm feedback add [-h] [--project NAME] [--sprint ID] [--task ID]
-                       [--text-file PATH | --text TEXT] [--session ID]
+usage: pm feedback add [-h] [--repo] [--project NAME] [--sprint ID]
+                       [--task ID] [--text-file PATH | --text TEXT]
+                       [--session ID]
 
-When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say once what happened and what would have helped. Appends a dated entry with this session's id to the repo's one feedback doc, records/docs/pm-feedback.md, creating it on first use; --project, --sprint and --task tag the entry with what it is about. pm show and pm show --project link the doc.
+When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say once what happened and what would have helped. Appends a dated entry with this session's id to the repo's one feedback doc, records/docs/pm-feedback.md, creating it on first use; --project, --sprint and --task tag the entry with what it is about. With --repo the entry is about the repo itself (its code, docs and tools) and goes to records/docs/repo-feedback.md instead: once per sprint, when its delivery report is written, answer pm feedback questions in one entry. pm show and pm show --project link both docs.
 
 options:
   -h, --help        show this help message and exit
+  --repo            feedback on the repo's code, docs and tools, answering pm feedback questions: append to records/docs/repo-feedback.md
   --project NAME    the project the feedback is about
   --sprint ID       the sprint the feedback is about
   --task ID         the task the feedback is about
   --text-file PATH  required: what happened and what would have helped; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF
   --text TEXT       the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file
   --session ID      the session to record; default: this session's id from the environment
+===== pm feedback questions --help
+usage: pm feedback questions [-h]
+
+Print the questions an agent answers about the repo itself (its code, docs and tools), once per sprint when its delivery report is written, in one pm feedback add --repo entry. Answer only what you have evidence for; skip a question with nothing to say.
+
+options:
+  -h, --help  show this help message and exit
 ===== pm decision --help
 usage: pm decision [-h] {add,need} ...
 

@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-// feedbackDoc is the repo's pm feedback doc, or nil before its first entry.
-func feedbackDoc(recs []*records.Record) *records.Record {
+// feedbackDoc is the repo's feedback doc f, or nil before its first entry.
+func feedbackDoc(recs []*records.Record, f records.Feedback) *records.Record {
 	for _, r := range recs {
-		if records.IsFeedbackDoc(r) {
+		if r.Type() == "doc" && r.Rel == f.Rel {
 			return r
 		}
 	}
@@ -66,16 +66,18 @@ func cmdFeedbackAdd(e *env, p *Parsed) (string, error) {
 		entry += "About " + strings.Join(about, ", ") + ".\n\n"
 	}
 	entry += text + "\n"
-	path := filepath.Join(r.records, records.FeedbackDoc+".md")
+	f := records.PMFeedback
+	if p.Get("repo") == "true" {
+		f = records.RepoFeedback
+	}
+	path := filepath.Join(r.records, f.Rel+".md")
 	var old string
-	if doc := feedbackDoc(r.recs); doc != nil {
+	if doc := feedbackDoc(r.recs, f); doc != nil {
 		old = doc.Text
 	} else if fsutil.Exists(path) {
-		return "", refuse("%s exists but is no pm feedback doc (type: doc); move it, then run this again", r.rel(path))
+		return "", refuse("%s exists but is no %s doc (type: doc); move it, then run this again", r.rel(path), f.Title)
 	} else {
-		old = fmt.Sprintf("---\ntype: doc\ntitle: %s\ndate: %s\n---\n\n"+
-			"Where pm got in the way, one entry per `pm feedback add`, newest last; each names the project it is about, "+
-			"when it is about one.\n", records.FeedbackTitle, store.Today())
+		old = fmt.Sprintf("---\ntype: doc\ntitle: %s\ndate: %s\n---\n\n%s\n", f.Title, store.Today(), f.Intro)
 	}
 	w := []store.Write{{Path: path, Text: strings.TrimRight(old, "\n") + "\n\n" + entry}}
 	if err := r.checkPlanned(w, nil); err != nil {
