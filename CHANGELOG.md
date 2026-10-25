@@ -29,6 +29,21 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.15.8] - 2026-10-25
+
+The site's overview lists the open projects first and closed ones in a collapsed section at the bottom.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.15.8/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.15.8`, then commit what it changes and merge it, as an ordinary PR.
+
+### Changed
+
+- The overview page lists every open project first, then folds the closed ones into one "Closed projects (N)"
+  section at the bottom, collapsed until opened. Before, closed projects sat among the open ones in name order.
+
 ## [0.15.7] - 2026-10-19
 
 A closed project or sprint can be reopened, keeping its history in one record.
@@ -1338,6 +1353,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.15.8]: https://github.com/Yeeef/pm/compare/pm-v0.15.7...pm-v0.15.8
 [0.15.7]: https://github.com/Yeeef/pm/compare/pm-v0.15.6...pm-v0.15.7
 [0.15.6]: https://github.com/Yeeef/pm/compare/pm-v0.15.5...pm-v0.15.6
 [0.15.5]: https://github.com/Yeeef/pm/compare/pm-v0.15.4...pm-v0.15.5
