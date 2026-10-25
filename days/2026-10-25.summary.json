@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T11:10:30+00:00",
- "digest": "859a95929c7e3466",
+ "generated_at": "2026-10-25T14:11:23+00:00",
+ "digest": "98bc4db34de25844",
  "model": "claude-haiku-5-5",
- "text": "- **Repo sprint proposals:** Agents can now propose sprints for repo needs, which replace repo feedback. The owner accepts or dismisses each proposal in the CLI or site.\n- **Search ranking evaluation:** A new search model ranks whole records and items, and shows each hit at its best unit. In the eval gate, it fails against the rg and newest-first baselines.\n- **Other-repo PR reviews:** pm can now raise and close a review of a pull request in another GitHub repo. A merge watcher then stores that pull request's merge.\n- **Overview project layout:** The overview lists open projects first. Closed projects sit in one collapsed section at the bottom."
+ "text": "- **Agent sprint proposals:** Agents can now propose sprints for what the repo needs, and the owner accepts or dismisses them. Sprint proposals replace repo feedback as the one mechanism for repo improvements.\n- **Search retrieval:** A new retrieval model ranks whole records and items and shows each hit at its best match. The eval gate passes the baseline but fails against rg and newest-first ordering.\n- **Pins and cross-repo reviews:** This repo now pins the newer pm release, which also sets Codex auto mode. Reviews of another repo's pull request now close end to end through gh.\n- **Overview page:** The overview lists open projects first. Closed projects sit in a collapsed section at the bottom."
 }
