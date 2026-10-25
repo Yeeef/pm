@@ -1,0 +1,67 @@
+---
+type: sprint
+title: Close a PR review whose PR is in another repo
+bead: pm-d2k5.42
+---
+
+## Goal
+
+> What should be true when this sprint ends, and why now?
+
+A pm repo can raise, close and stamp a PR review whose PR is in another GitHub repo, verified through gh, because the owner runs a pm project that manages several other repos and today the review cannot be closed (restamp, sprint close --merged and the merge watcher all check the sha against this repo's main).
+
+## Scope
+
+> What's in, and what's explicitly out? Keep this high level; implementation
+> details go in a design page.
+
+**In:** telling another repo's PR from this repo's; checking `merged as <sha>` for another repo's PR against gh's merge commit and that repo's default branch (need close, restamp, sprint close --merged --pr); the raise check of the PR's base against that repo's default branch; the service's merge watcher for such a PR; the sprint Outcome naming the PR as OWNER/REPO#N; skipping this repo's design gate for another repo's PR; tests and help texts.
+**Out:** design pages covering another repo's files; non-GitHub hosts for PRs.
+
+## Done when
+
+> What evidence will show the goal is met?
+
+- A harness test raises a review for another repo's PR, closes it with `merged as <its merge sha>`, restamps a review first closed another way, and closes the sprint, all exit 0; a wrong sha is refused naming gh's merge commit.
+- The service stores the merge of another repo's PR (a test).
+- `make test`, `make test-go` and the PR's CI pass.
+
+## Design pages
+
+> Where is the detail?
+
+None yet.
+
+## Progress
+
+> Where is the sprint now? Generated from the work store when the page is rendered.
+> Do not write here.
+
+## Decisions
+
+> What did we choose inside this sprint, and why?
+
+None yet.
+
+## Findings
+
+> What did we learn that changes the design, the plan, or how we work? Add
+> results with their numbers.
+
+None yet.
+
+## Delivery report
+
+> Written at close. Each part holds "Not closed yet." until then.
+
+### Outcome
+
+> Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
+
+Not closed yet.
+
+### Against "Done when"
+
+> Each item, met or not, with its evidence (a page, a command, a number).
+
+Not closed yet.
