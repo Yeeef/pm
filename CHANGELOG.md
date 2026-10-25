@@ -29,6 +29,24 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.16.1] - 2026-10-25
+
+A project can be renamed, and `pm check` names a project whose record title has drifted from the work store.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.16.1/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.16.1`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- `pm project edit <name> --title "…"`, with the reason as its body, renames a project, open or closed: its
+  work-store title and its record's title header, in one records commit that records the rename as a project
+  decision (source=owner with `--confirmed`). Its name, record path and links stay as they are.
+- `pm check` lists each project whose record `title:` differs from its work-store title, with the
+  `pm project edit` that fixes it. It is a report: neither `pm check` nor `pm commit` fails on it.
+
 ## [0.16.0] - 2026-10-25
 
 The site can serve a company network without Cloudflare: where it listens (`listen`), the link pm prints (`site_url`)
@@ -1408,6 +1426,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.16.1]: https://github.com/Yeeef/pm/compare/pm-v0.16.0...pm-v0.16.1
 [0.16.0]: https://github.com/Yeeef/pm/compare/pm-v0.15.9...pm-v0.16.0
 [0.15.9]: https://github.com/Yeeef/pm/compare/pm-v0.15.8...pm-v0.15.9
 [0.15.8]: https://github.com/Yeeef/pm/compare/pm-v0.15.7...pm-v0.15.8
