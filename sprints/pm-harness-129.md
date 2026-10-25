@@ -83,6 +83,11 @@ The design page pm-cli stays as it is for this sprint's code changes.
 Sprint 129 changed pm search's ranking and help text and renamed its positional's dest to words for main's naming grammar; the page's one line on search (find sections, decisions and items on a topic, via the pm search page) still holds, and the ranking lives on the pm search page
 :::
 
+::: decision {source=owner date=2026-10-25}
+pm search keeps its own ranking, retrieval model 2 (BM25 over whole records and items), and is not replaced by an rg-style AND match sorted newest first.
+Model 2 ties the best rg variant on each label set while each rg variant wins only one; newest first leans on the eval labels favoring recent sprints, and pm search also covers the work store and prints far shorter output.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
