@@ -74,7 +74,14 @@ Follows the owner decisions of 2026-10-25 (no accept; pm show lists no proposals
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Live check in a scratch origin and clone (dev build at 7223483, own service
+  on :33479, HOME and CODEX_HOME in a temp dir): 5 of 5 steps pass. propose
+  lists the project's open sprints and proposals; pm show, --project and
+  --json name no proposal; pm task ready offers none; the site's collapsed
+  Proposed (2) opens on click in headless Chromium and links to the sprint
+  page with its evidence finding; a first task makes it an open sprint
+  (Proposed (1)); close --dropped shows DROPPED with its reason; reopen puts
+  it back in Proposed.
 
 ## Delivery report
 
