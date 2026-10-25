@@ -119,6 +119,12 @@ Model 2 rewrites code that is not on main yet, and PR #112 merges only once this
   searchrun on the working tree before fcd1631, the variants switched by
   environment variables that were then removed.
 
+- One query on this store with model 2 (fcd1631 built as 0.15.4, through the
+  running service), wall time and peak RSS, 3 runs each: claim history
+  0.15-0.18 s, design covers 0.16-0.17 s, owner-request judge 0.18-0.19 s,
+  retrieval eval rg 0.16-0.17 s; 109-120 MB. claim history prints '17 records
+  hold all of: claim, history; 155 hold some'.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
