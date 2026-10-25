@@ -46,7 +46,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-25}
+Model 2 and the eval harness land on PR #112 branch pm-search, rebased onto main, so one PR delivers sprints 126 and 129.
+Model 2 rewrites code that is not on main yet, and PR #112 merges only once this sprint eval passes; a stacked PR or a dependency either way would deadlock the two closes.
+:::
 
 ## Findings
 
