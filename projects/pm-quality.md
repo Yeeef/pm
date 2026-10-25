@@ -67,6 +67,11 @@ A scope was named five ways, a measured source of agent confusion; one vocabular
 Answers `pm-d2k5.39.1.1`.
 :::
 
+::: decision {source=owner date=2026-10-25}
+Agents raise what needs fixing in the repo as sprint proposals (pm sprint propose), the one mechanism for it; there is no repo feedback doc; pm feedback stays for pm itself
+One mechanism keeps one triage place; a proposal carries a frame the owner can accept, where feedback prose waits for someone to turn it into a sprint; pm feedback is about a tool whose code is not in the repo
+:::
+
 ## Design pages
 
 > Where is the detail?
