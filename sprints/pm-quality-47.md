@@ -55,6 +55,11 @@ pm project edit renames a closed project too, unlike pm sprint edit.
 pm check now flags title drift on every project, closed ones included, so a closed project needs a way to fix the finding; a title is display text and changes no outcome a close recorded.
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+prime.md only adds pm project edit to the move-or-rename line; the agent lifecycle it describes is unchanged.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
