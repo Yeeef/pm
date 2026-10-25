@@ -172,6 +172,18 @@ reason stays after the new one ("…; first closed as: <old>"). A review
 already closed as merged, a dismissed one and any other closed action are
 refused.
 
+A review of another repo's PR (its URL's OWNER/REPO differs from the GitHub
+repo the remote names, or the remote is not on GitHub; with no remote the PR
+counts as this repo's) is held to that repo instead:
+
+- Raise: the PR must target that repo's default branch, and this repo's
+  design-page gate does not apply, since its covers are this repo's paths;
+  the raise says the PR counts as another repo's.
+- Close, restamp and `--merged SHA --pr URL`: the sha must be a prefix of
+  the merge commit `gh` gives, with the PR merged into that repo's default
+  branch; nothing is fetched or checked in this clone.
+- The Outcome names it as OWNER/REPO#N, not PR #N.
+
 ### Reopen
 
 `pm sprint reopen <id>` and `pm project reopen <name>` set a closed sprint or

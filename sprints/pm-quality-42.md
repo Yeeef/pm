@@ -91,6 +91,8 @@ The change adds another repo's PR to the review checks; this page's area is unch
 
 done: a pm repo raises, closes, restamps and sprint-closes a review of another GitHub repo's PR, verified through gh against that repo's merge commit and default branch, and the service stores that PR's merge.
 
+Merged as 31c8f88 (PR #119).
+
 - Another repo's PR told from this repo's own by the remote's GitHub repo, in every remote form (ssh host aliases through `ssh -G`); a remote not on GitHub makes every GitHub PR another repo's.
 - The raise says when a PR counts as another repo's; this repo's design gate does not apply to it.
 - The Outcome names such a PR OWNER/REPO#N; the merge watcher names no `git pull` for it.

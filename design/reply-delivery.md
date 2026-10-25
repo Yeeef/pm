@@ -172,7 +172,7 @@ Closing a decision need or an action through pm (`pm decision add --need`, `pm n
 
 ### Merges of reviewed PRs
 
-At start and every `MergePoll` (60 s) the service checks each open review's PR: `gh pr view`, then `git fetch` and whether the merge commit is an ancestor of the remote's main (a PR merged into a stacked base is not). Each call has a 60 s timeout; a failing look is logged and retried at the next tick. A merge on main is stored on the review and delivered through the same routes as a reply, naming `pm need close` and the `git pull --ff-only` that updates the main checkout.
+At start and every `MergePoll` (60 s) the service checks each open review's PR: `gh pr view`, then `git fetch` and whether the merge commit is an ancestor of the remote's main (a PR merged into a stacked base is not). Each call has a 60 s timeout; a failing look is logged and retried at the next tick. A merge on main is stored on the review and delivered through the same routes as a reply, naming `pm need close` and the `git pull --ff-only` that updates the main checkout. Another repo's PR (Sprint lifecycle, Close) counts as merged when `gh` gives it merged into that repo's default branch, with no fetch here, and its delivery names no `git pull`.
 
 ### Questions
 
