@@ -1,0 +1,7 @@
+{
+ "date": "2026-10-25",
+ "generated_at": "2026-10-25T08:29:53+00:00",
+ "digest": "62e6a2b9899b20c0",
+ "model": "claude-haiku-5-5",
+ "text": "- **Repo feedback for agents:** A new sprint started to let agents give feedback on the repo itself. Feedback questions and their docs are in progress.\n- **Cross-repo PR review:** A new sprint started to close a PR review that lives in another repo. Verification through gh is in progress.\n- **Overview page layout:** Work started to show open projects first, with closed projects in a collapsed section at the bottom."
+}
