@@ -117,10 +117,18 @@ only small helper or wording edits for proposals; the page states nothing they c
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: agents propose sprints for what the repo needs with `pm sprint propose`; proposals stay out of `pm show` and gather in a collapsed Proposed section on the site, and start when their first task is added.
+
+- `pm sprint propose`, with the frame, `## Evidence` and a duplicate list; drop with `pm sprint close --dropped`, restore with `pm sprint reopen`.
+- A proposal is an open sprint labelled `proposal` with no task: no schema change.
+- The site's Proposed section, dropped proposals among closed sprints, day-page rows; `pm task move` leaves a move note.
+- The `prime.md` rule; `pm feedback` is for pm itself.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `pm sprint propose` writes a proposal that `pm show`, `--json` and `pm task ready` leave out and `pm show --sprint` shows; its first task starts it; `--dropped` closes it with its reason: met; `tests/test_proposals.py` 8 passed, `make test` 163 passed, and the live check's steps 1, 2, 4 and 5.
+- The site shows proposals in a collapsed Proposed section: met; the live check opened it in headless Chromium in a scratch clone (Findings).
+- `prime.md` and `--help` name the rule: met; `help.golden` regenerated, `make test-go` 20 packages ok, `tests/test_hooks.py` 25 passed.
+- The PR's CI is green: see PR #121's checks before its merge.
