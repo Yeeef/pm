@@ -47,7 +47,10 @@ None yet.
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-25}
+pm project edit renames a closed project too, unlike pm sprint edit.
+pm check now flags title drift on every project, closed ones included, so a closed project needs a way to fix the finding; a title is display text and changes no outcome a close recorded.
+:::
 
 ## Findings
 
