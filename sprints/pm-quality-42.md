@@ -46,6 +46,11 @@ The design page pm-cli stays as it is for this sprint's code changes.
 The change adds another repo's PR to the review checks; this page's area is unchanged
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page pm-go stays as it is for this sprint's code changes.
+The change adds another repo's PR to the review checks; this page's area is unchanged
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
