@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T09:42:10+00:00",
- "digest": "dab4f000f8d23066",
+ "generated_at": "2026-10-25T09:52:32+00:00",
+ "digest": "cd205985c09984dc",
  "model": "claude-haiku-5-5",
- "text": "- **Search retrieval model:** `pm search` now ranks whole records and items with BM25 OR matching, shown at each hit's best unit. The strict eval showed no clear gain over rg or newest-first ordering.\n- **Cross-repo PR review:** The pm service now raises, closes, and sprint-closes reviews of PRs in other GitHub repos. A merge watcher stores that PR's merge after it lands.\n- **Repo improvement proposals:** The owner chose sprint proposals as the only way to make repo improvements, so repo feedback was dropped. This repo's pm version pin moved to a newer release, and proposal work has started.\n- **Project overview page:** The overview now lists open projects first. Closed projects fold into one collapsed section at the bottom."
+ "text": "- **Search retrieval:** Search ranks whole records and items now, showing each hit at its best unit. The new model passes against the earlier baseline but fails the rg and newest-first baselines on the strict test.\n- **Cross-repo PR review:** pm can now raise, close and restamp a review of another GitHub repo's pull request. The merge watcher stores that pull request's merge once it lands.\n- **Sprint proposals and feedback:** Repo feedback work stopped, because the owner chose sprint proposals for repo improvements. Work started on a design page for the sprint proposal lifecycle.\n- **Project overview layout:** The overview lists open projects first. Closed projects now sit in a collapsed section at the bottom."
 }
