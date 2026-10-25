@@ -15,7 +15,7 @@ const maxPackageLines = 5000
 // oversized holds the packages already past the cap at the size each may reach, a ratchet: lower an entry as its
 // package shrinks, and drop it once the package fits the cap.
 var oversized = map[string]int{
-	"internal/cli": 7301,
+	"internal/cli": 7257,
 }
 
 // TestPackagesStayUnderTheSizeCap counts each package directory's lines in its non-test .go files.

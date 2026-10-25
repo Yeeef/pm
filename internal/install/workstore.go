@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/Yeeef/pm/internal/proc"
@@ -150,6 +151,52 @@ func SetupStore(c context.Context, d *work.Dolt, main, remote string) ([]string,
 		return nil, err
 	}
 	return append(out, fmt.Sprintf("pushed the work store to %s's %s", remote, work.RemoteRef)), nil
+}
+
+// SyncStore is the sync the pm service runs (every 600 s, and for pm_sync(): pm sync, pm push), on a connection of
+// its own: pull, merge, push, said in one line, then a warning per claim the merge overrode. A store with no remote yet
+// (the repo's remote was added after pm init made the store) is first attached to the config's remote, under
+// work.RemoteRef, and the line says so; refused when the remote holds a work store already, which a store made apart
+// from it shares no history with. The sync stops once ctx is done; a ctx done already starts none, since Dolt's first
+// reach of a remote, killed, leaves a remote cache no sync repairs.
+func SyncStore(ctx context.Context, d *work.Dolt, main, remote string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	attached := ""
+	if _, ok, err := d.Remote(); err != nil {
+		return nil, err
+	} else if !ok {
+		url := RemoteURL(main, remote)
+		if url == "" {
+			return nil, fmt.Errorf("work store: it has no remote to sync with, and this repo has no remote %s", remote)
+		}
+		held, err := RemoteHasStore(ctx, main, remote) // within the sync's bound
+		if err != nil {
+			return nil, fmt.Errorf("work store: it has no remote to sync with, and %v", err)
+		}
+		if held {
+			return nil, fmt.Errorf("work store: it has no remote, and %s holds a work store under %s already, "+
+				"which this one, made apart from it, shares no history with; move %s away and run pm init, which "+
+				"clones it", remote, work.RemoteRef, filepath.Join(main, ".pm/store/work"))
+		}
+		if err := d.AddRemote(url); err != nil {
+			return nil, err
+		}
+		attached = fmt.Sprintf("attached the work store to %s under %s; ", remote, work.RemoteRef)
+	}
+	r, err := d.SyncContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	lines := []string{attached + fmt.Sprintf("synced: pulled %d commits, resolved %d items both sides changed, "+
+		"pushed %d commits", r.Pulled, r.Resolved, r.Pushed)}
+	for _, o := range r.Overrides {
+		lines = append(lines, fmt.Sprintf("warning: %s: the claim by %s (%s) was overridden by the later claim "+
+			"of %s (%s)", o.ID, o.Lost.Session, o.Lost.ClaimedAt.Format(time.RFC3339), o.Kept.Session,
+			o.Kept.ClaimedAt.Format(time.RFC3339)))
+	}
+	return lines, nil
 }
 
 // WorkDrift is how the clone's work store differs from what pm init makes, one line each; a service that does not
