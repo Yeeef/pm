@@ -65,6 +65,11 @@ The design page pm-product stays as it is for this sprint's code changes.
 prime.md only adds pm project edit to its move-or-rename line; the product design it describes is unchanged.
 :::
 
+::: decision {source=owner date=2026-10-25}
+The agent merges PR #122 itself, through make merge-ready.
+The owner asked in chat: "plz merge it yourself".
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
