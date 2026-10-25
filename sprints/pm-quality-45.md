@@ -95,6 +95,11 @@ The design page session-claims stays as it is for this sprint's code changes.
 only small helper or wording edits for proposals; the page states nothing they change
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page pm-go stays as it is for this sprint's code changes.
+dolt.go only adds a move note inside Move; work-store, which this sprint updated, describes it
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
