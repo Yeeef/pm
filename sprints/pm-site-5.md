@@ -101,6 +101,11 @@ The design page reply-delivery stays as it is for this sprint's code changes.
 who may post a reply changed (site-replies holds it); delivery of a stored reply to its session is unchanged
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page work-store stays as it is for this sprint's code changes.
+the service's pm_sync() step moved from internal/cli/serve.go into install/workstore.go beside pm_setup()'s, unchanged, for internal/cli's size ratchet; the work store's design is untouched
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
