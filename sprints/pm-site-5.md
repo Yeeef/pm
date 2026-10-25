@@ -106,6 +106,11 @@ The design page work-store stays as it is for this sprint's code changes.
 the service's pm_sync() step moved from internal/cli/serve.go into install/workstore.go beside pm_setup()'s, unchanged, for internal/cli's size ratchet; the work store's design is untouched
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page session-claims stays as it is for this sprint's code changes.
+store_commands_test.go only calls the work-store sync by its new name, install.SyncStore; claims are untouched
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
