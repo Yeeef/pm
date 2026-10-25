@@ -56,10 +56,10 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: this repo pins pm 0.15.9, moved with `pm upgrade --to 0.15.9`, which also wrote Codex's auto mode into `.codex/config.toml`.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- `pm version` in the branch's worktree prints 0.15.9: met. CI on PR #120 is the check before the review.
