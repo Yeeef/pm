@@ -97,7 +97,7 @@ func serveEvery(t *testing.T, w *fakeWork, main string, mergePoll time.Duration,
 		spool: filepath.Join(main, ".git", SpoolName), out: &syncBuffer{}, log: &syncBuffer{}, done: make(chan error, 1)}
 	s.setPin(Version())
 	go func() {
-		d := Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Port: 0, Pin: s.pin,
+		d := Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Listen: "127.0.0.1", Port: 0, Pin: s.pin,
 			Spool: s.spool, WorkDir: main, Open: w.Open, Mark: w.Mark, Sync: w.Sync, GC: w.GC, Site: s.site,
 			Summarize: func() (bool, string) { return true, "summarized" }, Style: []byte("body{}"), Out: s.out,
 			Log: s.log}
@@ -627,7 +627,7 @@ func TestAFailedOpenIsTriedAgainAtTheNextLookAndAnOversizedReplyIsRefused(t *tes
 		spool: filepath.Join(main, SpoolName), out: &syncBuffer{}, log: &syncBuffer{}, done: make(chan error, 1)}
 	s.setPin(Version())
 	go func() {
-		s.done <- Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Pin: s.pin,
+		s.done <- Run(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main", Listen: "127.0.0.1", Pin: s.pin,
 			Spool: s.spool, WorkDir: main, Open: open, Mark: w.Mark, Sync: w.Sync, GC: w.GC, Site: s.site,
 			Summarize: func() (bool, string) { return true, "" }, Style: []byte("x"), Out: s.out, Log: s.log})
 	}()

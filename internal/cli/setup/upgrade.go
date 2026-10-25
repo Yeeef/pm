@@ -59,7 +59,8 @@ func Upgrade(p Arguments, here string, stdout io.Writer) error {
 		return err
 	}
 	fmt.Fprint(stdout, guide)
-	planned, err := install.Rewrite(top, install.SettingsOf(c))
+	migrated, _ := c.Migrated() // the pin it moves to reads access: the rewrite carries it, so the service starts on it
+	planned, err := install.Rewrite(top, install.SettingsOf(migrated))
 	if err != nil {
 		return err
 	}

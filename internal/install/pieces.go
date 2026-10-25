@@ -67,6 +67,8 @@ type Settings struct {
 	MainBranch string
 	Port       int
 	SiteURL    string
+	Listen     string // listen, "" when unset (the site binds loopback)
+	Access     string // access, cloudflare or none; "" when unset
 	AccessTeam string // the Cloudflare Access keys, set by hand: carried so a config holding them is pm's own
 	AccessAud  string
 	// SummaryRuntime is summary_runtime, set by hand ("" when unset): carried so a config holding it is pm's own
@@ -79,7 +81,7 @@ type Settings struct {
 // to, so every key the config reads is here.
 func SettingsOf(c config.Config) Settings {
 	return Settings{Remote: c.Remote, MainBranch: c.MainBranch, Port: int(c.Port), SiteURL: c.SiteURL,
-		AccessTeam: c.AccessTeam, AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime, DesignSources: c.DesignSources}
+		Listen: c.Listen, Access: c.Access, AccessTeam: c.AccessTeam, AccessAud: c.AccessAud, SummaryRuntime: c.SummaryRuntime, DesignSources: c.DesignSources}
 }
 
 // Piece is one managed piece. A text is nil when the file is absent.
@@ -100,7 +102,7 @@ func ptr(s string) *string { return &s }
 // ConfigText is .pm/config.toml as pm init writes it.
 func ConfigText(s Settings) string {
 	site := ""
-	for _, kv := range [][2]string{{"site_url", s.SiteURL}, {"access_team", s.AccessTeam}, {"access_aud", s.AccessAud},
+	for _, kv := range [][2]string{{"site_url", s.SiteURL}, {"listen", s.Listen}, {"access", s.Access}, {"access_team", s.AccessTeam}, {"access_aud", s.AccessAud},
 		{"summary_runtime", s.SummaryRuntime}} {
 		if kv[1] != "" {
 			site += kv[0] + " = " + tomlString(kv[1]) + "\n"

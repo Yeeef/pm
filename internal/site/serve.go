@@ -156,6 +156,12 @@ func FillReplies(page, token string, replies map[string]Reply) string {
 	})
 }
 
+// FillReadOnly is page with each card's reply slot replaced by rule, why this viewer cannot reply: a page served to a
+// viewer who may read but not reply carries no form and no token.
+func FillReadOnly(page, rule string) string {
+	return slotRE.ReplaceAllLiteralString(page, `<p class="k">No reply from here: `+pyEscape(rule)+`.</p>`)
+}
+
 // ServeBehind is how many seconds a served page may be behind the records and the work store before it says so.
 const ServeBehind = 10
 

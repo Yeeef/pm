@@ -3,12 +3,10 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/Yeeef/pm/internal/buildinfo"
 	"github.com/Yeeef/pm/internal/cli/served"
@@ -43,7 +41,9 @@ func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io
 		return err
 	}
 	h, err := work.NewHost(work.HostOptions{Main: main, Version: buildinfo.Version, Ops: work.Ops{
-		Sync: func(c context.Context, d *work.Dolt) ([]string, error) { return syncStore(c, d, main, cfg.Remote) },
+		Sync: func(c context.Context, d *work.Dolt) ([]string, error) {
+			return install.SyncStore(c, d, main, cfg.Remote)
+		},
 		Setup: func(c context.Context, d *work.Dolt) ([]string, error) {
 			return install.SetupStore(c, d, main, cfg.Remote)
 		},
@@ -54,7 +54,7 @@ func serviceRun(cfg config.Config, here, main, records string, stdout, stderr io
 	defer h.Close()
 	dir, _ := work.Locations(main)
 	return service.Run(service.Deps{Main: main, Records: records, Remote: cfg.Remote, MainBranch: cfg.MainBranch,
-		SiteURL: cfg.SiteURL, AccessTeam: cfg.AccessTeam, AccessAud: cfg.AccessAud, Port: port, Pin: cfg.Path, Spool: filepath.Join(common, service.SpoolName), WorkDir: dir,
+		SiteURL: cfg.SiteURL, Listen: cfg.ListenAddr(), Access: cfg.Access, AccessTeam: cfg.AccessTeam, AccessAud: cfg.AccessAud, Port: port, Pin: cfg.Path, Spool: filepath.Join(common, service.SpoolName), WorkDir: dir,
 		Open: func() (work.Store, error) {
 			return work.DialSock(h.Sock(), main, work.Options{Prefix: filepath.Base(main)})
 		},
@@ -83,52 +83,6 @@ func serviceInstall(cfg config.Config, main string) (string, error) {
 	}
 	_, line := service.Health(main)
 	return "already installed and current\n" + line, nil
-}
-
-// syncStore is the sync the pm service runs (every 600 s, and for pm_sync(): pm sync, pm push), on a connection of
-// its own: pull, merge, push, said in one line, then a warning per claim the merge overrode. A store with no remote yet
-// (the repo's remote was added after pm init made the store) is first attached to the config's remote, under
-// work.RemoteRef, and the line says so; refused when the remote holds a work store already, which a store made apart
-// from it shares no history with. The sync stops once ctx is done; a ctx done already starts none, since Dolt's first
-// reach of a remote, killed, leaves a remote cache no sync repairs.
-func syncStore(ctx context.Context, d *work.Dolt, main, remote string) ([]string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	attached := ""
-	if _, ok, err := d.Remote(); err != nil {
-		return nil, err
-	} else if !ok {
-		url, err := git(main, "remote", "get-url", remote)
-		if err != nil {
-			return nil, fmt.Errorf("work store: it has no remote to sync with, and %v", err)
-		}
-		held, err := install.RemoteHasStore(ctx, main, remote) // within the sync's bound
-		if err != nil {
-			return nil, fmt.Errorf("work store: it has no remote to sync with, and %v", err)
-		}
-		if held {
-			return nil, fmt.Errorf("work store: it has no remote, and %s holds a work store under %s already, "+
-				"which this one, made apart from it, shares no history with; move %s away and run pm init, which "+
-				"clones it", remote, work.RemoteRef, filepath.Join(main, ".pm/store/work"))
-		}
-		if err := d.AddRemote(url); err != nil {
-			return nil, err
-		}
-		attached = fmt.Sprintf("attached the work store to %s under %s; ", remote, work.RemoteRef)
-	}
-	r, err := d.SyncContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	lines := []string{attached + fmt.Sprintf("synced: pulled %d commits, resolved %d items both sides changed, "+
-		"pushed %d commits", r.Pulled, r.Resolved, r.Pushed)}
-	for _, o := range r.Overrides {
-		lines = append(lines, fmt.Sprintf("warning: %s: the claim by %s (%s) was overridden by the later claim "+
-			"of %s (%s)", o.ID, o.Lost.Session, o.Lost.ClaimedAt.Format(time.RFC3339), o.Kept.Session,
-			o.Kept.ClaimedAt.Format(time.RFC3339)))
-	}
-	return lines, nil
 }
 
 // summarizeDay is the sync's summary step: pm day summarize from the main checkout, ok and what it did, or why not.

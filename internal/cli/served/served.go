@@ -181,6 +181,8 @@ func (s *Site) FillReplies(page, token string, replies map[string]service.Reply)
 	return site.FillReplies(page, token, shown)
 }
 
+func (s *Site) FillReadOnly(page, rule string) string { return site.FillReadOnly(page, rule) }
+
 func (s *Site) FillStatus(page string, asOf time.Time, digest string, now time.Time) string {
 	return site.FillStatus(page, asOf, digest, now)
 }

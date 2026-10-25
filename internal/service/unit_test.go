@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Yeeef/pm/internal/config"
 )
 
 func TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers(t *testing.T) {
@@ -23,7 +25,7 @@ func TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers(t *testing.T) {
 	}
 	defer held.Close()
 	port := held.Addr().(*net.TCPAddr).Port
-	if err := CheckPort(main, port); err == nil || !strings.Contains(err.Error(),
+	if err := CheckPort(main, config.Loopback, port); err == nil || !strings.Contains(err.Error(),
 		"the site port :"+strconv.Itoa(port)+" is held by a process that does not answer HTTP") {
 		t.Fatal(err)
 	}
@@ -31,12 +33,12 @@ func TestCheckPortTakesItsOwnUnitsPortWhereNothingAnswers(t *testing.T) {
 	os.MkdirAll(filepath.Dir(unit), 0o755)
 	b, _ := UnitBytes(main, PlatformKind(), "/bin", port+1, Command("/pm"))
 	os.WriteFile(unit, b, 0o644)
-	if err := CheckPort(main, port); err == nil { // its unit serves on another port
+	if err := CheckPort(main, config.Loopback, port); err == nil { // its unit serves on another port
 		t.Fatal("refused nothing")
 	}
 	b, _ = UnitBytes(main, PlatformKind(), "/bin", port, Command("/pm"))
 	os.WriteFile(unit, b, 0o644)
-	if err := CheckPort(main, port); err != nil {
+	if err := CheckPort(main, config.Loopback, port); err != nil {
 		t.Fatal(err)
 	}
 	// The unit files pm writes for each case of testdata/units, byte for byte: the files Python pm 0.1.x wrote for the

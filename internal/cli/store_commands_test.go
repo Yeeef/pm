@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Yeeef/pm/internal/install"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 	"github.com/Yeeef/pm/internal/work/worktest"
@@ -64,7 +65,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Cleanup(func() { os.RemoveAll(main) })
 	f := &fixture{t: t, main: main}
 	worktest.ServeAt(t, main, work.Ops{Sync: func(c context.Context, d *work.Dolt) ([]string, error) {
-		return syncStore(c, d, main, "origin")
+		return install.SyncStore(c, d, main, "origin")
 	}})
 	d := must(f.open())
 	defer d.Shutdown()

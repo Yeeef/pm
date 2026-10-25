@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -9,9 +10,14 @@ import (
 	"encoding/json"
 	"io"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	gosync "sync"
 	"testing"
@@ -114,9 +120,18 @@ func (k *teamKeys) sign(key *rsa.PrivateKey, head, claims map[string]any) string
 	return signed + "." + base64.RawURLEncoding.EncodeToString(sig)
 }
 
-// request is a GET of / with Host host and the headers (name, value pairs).
+// lan is a peer on the network, not this machine.
+const lan = "192.0.2.1:1234"
+
+// request is a GET of / from a peer on the network (lan) with Host host and the headers (name, value pairs).
 func request(host string, headers ...string) *http.Request {
+	return from(lan, host, headers...)
+}
+
+// from is request from the TCP peer peer.
+func from(peer, host string, headers ...string) *http.Request {
 	r := httptest.NewRequest("GET", "http://127.0.0.1/", nil)
+	r.RemoteAddr = peer
 	r.Host = host
 	for i := 0; i+1 < len(headers); i += 2 {
 		r.Header.Set(headers[i], headers[i+1])
@@ -124,8 +139,14 @@ func request(host string, headers ...string) *http.Request {
 	return r
 }
 
+// accessServer is a server with access = "cloudflare" once site_url is set, as pm init writes it; without a site_url
+// no access, which only a loopback listen allows.
 func accessServer(siteURL, accessTeam, accessAud string) *server {
-	return &server{d: Deps{SiteURL: siteURL, AccessTeam: accessTeam, AccessAud: accessAud, Port: 8000}}
+	access := ""
+	if siteURL != "" {
+		access = "cloudflare"
+	}
+	return &server{d: Deps{SiteURL: siteURL, Access: access, AccessTeam: accessTeam, AccessAud: accessAud, Port: 8000}}
 }
 
 func TestThePublicHostNeedsACloudflareAccessTokenThatVerifies(t *testing.T) {
@@ -238,22 +259,31 @@ func TestWithoutTheAccessKeysEveryPublicRequestIsRefusedNamingThem(t *testing.T)
 	}
 }
 
-func TestLocalhostIsServedAsBeforeAndAnEdgeForwardedRequestNeedsTheTokenWhateverItsHost(t *testing.T) {
+func TestALoopbackPeerNamingThisMachineIsLocalAndAnEdgeForwardedRequestNeedsTheTokenWhateverItsHost(t *testing.T) {
 	k := newTeamKeys(t)
 	for _, s := range []*server{accessServer(site, team, aud), accessServer("", "", ""), accessServer(site, "", "")} {
-		for _, host := range []string{"127.0.0.1:8000", "localhost", "LocalHost:1"} {
-			if got := s.refusal(request(host)); got != "" {
-				t.Errorf("site %q, Host %s: %q", s.d.SiteURL, host, got)
+		for _, peer := range []string{"127.0.0.1:50000", "[::1]:50000", "127.0.0.2:1"} {
+			for _, host := range []string{"127.0.0.1:8000", "localhost", "LocalHost:1", "[::1]:8000"} {
+				if got := s.refusal(from(peer, host)); got != "" {
+					t.Errorf("site %q, peer %s, Host %s: %q", s.d.SiteURL, peer, host, got)
+				}
 			}
 		}
-		for _, host := range []string{"evil.example:80", ""} { // a rebinding domain, and no Host at all
-			shown := "None"
-			if host != "" {
-				shown = `"` + host + `"`
+		// a rebinding domain and no Host, from this machine (a browser a rebinding domain points here) or the network;
+		// and a peer on the network claiming this machine's name: none is local
+		for _, peer := range []string{"127.0.0.1:50000", lan} {
+			for _, host := range []string{"evil.example:80", ""} {
+				want := "refused: Host " + map[bool]string{true: "None", false: `"` + host + `"`}[host == ""] +
+					" is neither this machine nor the configured site_url; open the site at "
+				if got := s.refusal(from(peer, host, AccessHeader, k.sign(nil, nil, nil))); !strings.HasPrefix(got, want) {
+					t.Errorf("site %q, peer %s, Host %q: got %q, want %q…", s.d.SiteURL, peer, host, got, want)
+				}
 			}
-			want := "refused: Host " + shown + " is neither this machine nor the configured site_url; open the site at "
-			if got := s.refusal(request(host, AccessHeader, k.sign(nil, nil, nil))); !strings.HasPrefix(got, want) {
-				t.Errorf("site %q, Host %q: got %q, want %q…", s.d.SiteURL, host, got, want)
+		}
+		for _, host := range []string{"localhost", "127.0.0.1:8000", "LocalHost:1"} {
+			want := "refused: Host \"" + host + "\" is neither this machine nor the configured site_url; open the site at "
+			if got := s.refusal(request(host)); !strings.HasPrefix(got, want) {
+				t.Errorf("site %q, a LAN peer with Host %q: got %q, want %q…", s.d.SiteURL, host, got, want)
 			}
 		}
 	}
@@ -261,20 +291,57 @@ func TestLocalhostIsServedAsBeforeAndAnEdgeForwardedRequestNeedsTheTokenWhatever
 		t.Errorf("site_url's host with no site_url set: %q", got)
 	}
 	s := accessServer(site, team, aud)
-	for _, host := range []string{"localhost", "127.0.0.1:8000", "evil.example"} { // a tunnel that rewrites Host
-		if got := s.refusal(request(host, EdgeHeader, "203.0.113.9")); !strings.HasPrefix(got, "refused: the request carries no Cloudflare Access token") {
-			t.Errorf("edge-forwarded, Host %s, no token: %q", host, got)
+	for _, peer := range []string{"127.0.0.1:50000", lan} { // cloudflared connects from loopback
+		for _, host := range []string{"localhost", "127.0.0.1:8000", "evil.example"} { // a tunnel that rewrites Host
+			if got := s.refusal(from(peer, host, EdgeHeader, "203.0.113.9")); !strings.HasPrefix(got, "refused: the request carries no Cloudflare Access token") {
+				t.Errorf("edge-forwarded from %s, Host %s, no token: %q", peer, host, got)
+			}
+			if got := s.refusal(from(peer, host, EdgeHeader, "203.0.113.9", AccessHeader, k.sign(nil, nil, nil))); got != "" {
+				t.Errorf("edge-forwarded from %s, Host %s, a valid token: %q", peer, host, got)
+			}
 		}
-		if got := s.refusal(request(host, EdgeHeader, "203.0.113.9", AccessHeader, k.sign(nil, nil, nil))); got != "" {
-			t.Errorf("edge-forwarded, Host %s, a valid token: %q", host, got)
+	}
+}
+
+// With access = "none" the network is the gate: a peer on it reads site_url's host with no token, but its Host must
+// still be site_url's (the rebinding guard), it is never local (so read-only: run_test.go has the reply), and a
+// request Cloudflare's edge forwarded, which came from the internet, is refused.
+func TestAccessNoneLetsTheNetworkReadSiteURLsHostOnly(t *testing.T) {
+	s := &server{d: Deps{SiteURL: "http://devbox:8123", Listen: "0.0.0.0", Access: "none", Port: 8123}}
+	for _, host := range []string{"devbox:8123", "DEVBOX", "devbox"} {
+		if got := s.refusal(request(host)); got != "" {
+			t.Errorf("access none, LAN peer, Host %s: %q", host, got)
 		}
+		if !s.readOnly(request(host)) {
+			t.Errorf("access none, LAN peer, Host %s: may reply", host)
+		}
+	}
+	for _, host := range []string{"localhost", "127.0.0.1:8123", "evil.example", ""} {
+		if got := s.refusal(request(host)); !strings.Contains(got, "is neither this machine nor the configured site_url; open the site at http://devbox:8123") {
+			t.Errorf("access none, LAN peer, Host %q: %q", host, got)
+		}
+	}
+	for _, peer := range []string{lan, "127.0.0.1:50000"} {
+		if got := s.refusal(from(peer, "devbox:8123", EdgeHeader, "203.0.113.9")); !strings.Contains(got, `Cloudflare's edge forwarded this request, and access = "none"`) {
+			t.Errorf("access none, edge-forwarded from %s: %q", peer, got)
+		}
+	}
+	if got := s.refusal(from("127.0.0.1:50000", "localhost")); got != "" || s.readOnly(from("127.0.0.1:50000", "localhost")) {
+		t.Errorf("access none, loopback peer: refusal %q, read-only %v", got, s.readOnly(from("127.0.0.1:50000", "localhost")))
+	}
+	// this machine's browser on site_url's name is not local either: it reads, and replies from localhost
+	if got := s.refusal(from("127.0.0.1:50000", "devbox:8123")); got != "" || !s.readOnly(from("127.0.0.1:50000", "devbox:8123")) {
+		t.Errorf("access none, loopback peer on site_url's host: refusal %q", got)
+	}
+	if accessServer(site, team, aud).readOnly(request("pm.example.com")) {
+		t.Error("access cloudflare: a viewer through Access is read-only")
 	}
 }
 
 func TestTheServiceChecksAccessOnEveryRequestAndARefusalNamesNoStore(t *testing.T) {
 	k := newTeamKeys(t)
 	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
-	s := serve(t, w, "", func(d *Deps) { d.SiteURL, d.AccessTeam, d.AccessAud = site, team, aud })
+	s := serve(t, w, "", func(d *Deps) { d.SiteURL, d.Access, d.AccessTeam, d.AccessAud = site, "cloudflare", team, aud })
 	tok := s.token() // from localhost, served as before
 	do := func(method, path, host string, body url.Values, headers ...string) (response, string) {
 		t.Helper()
@@ -335,4 +402,152 @@ func TestTheServiceChecksAccessOnEveryRequestAndARefusalNamesNoStore(t *testing.
 		t.Fatalf("a reply with a valid token through a tunnel that rewrote Host: %d %q", resp.StatusCode, body)
 	}
 	eventually(t, "stored", func() bool { return len(w.item("p-1.2.1").Comments) == 1 })
+}
+
+// Under access = "none" a viewer on the network reads the pages, with the rule in place of each reply form and no
+// token, and its reply is refused naming the rule; this machine's viewer replies as before. /version digests the page
+// each viewer is served, so neither sees a newer page that is not there.
+func TestUnderAccessNoneANetworkViewerReadsWithNoReplyFormAndItsReplyIsRefused(t *testing.T) {
+	w := newFakeWork(need("p-1.2.1", work.Decision, ""))
+	main := shortTemp(t)
+	for _, d := range []string{".pm/store/records", ".git"} {
+		if err := os.MkdirAll(filepath.Join(main, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := newServer(Deps{Main: main, Records: store(main), Remote: "origin", MainBranch: "main",
+		SiteURL: "http://devbox:8123", Listen: "0.0.0.0", Access: "none", Port: 8123,
+		Spool: filepath.Join(main, ".git", SpoolName), WorkDir: main, Open: w.Open, Mark: w.Mark, Site: &fakeSite{},
+		Out: io.Discard, Log: io.Discard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.stop()
+	s.setSnap(s.refresh(nil))
+	do := func(peer, method, path, host string, body url.Values) (int, string) {
+		t.Helper()
+		var rd io.Reader
+		if body != nil {
+			rd = strings.NewReader(body.Encode())
+		}
+		r := httptest.NewRequest(method, "http://"+host+path, rd)
+		r.RemoteAddr, r.Host = peer, host
+		if body != nil {
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		}
+		rec := httptest.NewRecorder()
+		s.ServeHTTP(rec, r)
+		return rec.Code, rec.Body.String()
+	}
+	statusRE := regexp.MustCompile(`\[status (\w+)\]`)
+	for _, c := range []struct {
+		peer, host, slot string
+	}{
+		{lan, "devbox:8123", "[read-only p-1.2.1: " + ReadOnlyRule + "]"},
+		{"127.0.0.1:50000", "devbox:8123", "[read-only p-1.2.1: " + ReadOnlyRule + "]"}, // this machine, on the network's name
+		{"127.0.0.1:50000", "localhost:8123", "[form p-1.2.1 token=" + s.token + " "},
+	} {
+		code, body := do(c.peer, "GET", "/", c.host, nil)
+		if code != 200 || !strings.Contains(body, c.slot) || (c.host != "localhost:8123" && strings.Contains(body, s.token)) {
+			t.Fatalf("GET / from %s Host %s: %d %q, want %q", c.peer, c.host, code, body, c.slot)
+		}
+		code, version := do(c.peer, "GET", "/version?page=/", c.host, nil)
+		if m := statusRE.FindStringSubmatch(body); code != 200 || m == nil || !strings.Contains(version, `"page":"`+m[1]+`"`) {
+			t.Errorf("/version from %s Host %s: %d %q, page %q", c.peer, c.host, code, version, body)
+		}
+	}
+	form := url.Values{"token": {s.token}, "id": {"p-1.2.1"}, "text": {"yes"}}
+	if code, body := do(lan, "POST", "/reply", "devbox:8123", form); code != 403 || body != "refused: "+ReadOnlyRule+"\n" {
+		t.Errorf("a reply from the network: %d %q", code, body)
+	}
+	if code, body := do("127.0.0.1:50000", "POST", "/reply", "localhost:8123", form); code != 303 {
+		t.Errorf("a reply from this machine: %d %q", code, body)
+	}
+}
+
+// The service does not start when the site is exposed (a non-loopback listen, or a site_url) and access is unset,
+// naming the key.
+func TestTheServiceRefusesToStartExposedWithNoAccess(t *testing.T) {
+	for _, set := range []func(*Deps){
+		func(d *Deps) { d.Listen = "0.0.0.0" },
+		func(d *Deps) { d.SiteURL = site },
+	} {
+		d := Deps{Main: "m", Records: "r", Spool: "s", Pin: "p", WorkDir: "w", Listen: "127.0.0.1", Open: newFakeWork().Open,
+			Mark: func() (string, error) { return "", nil }, Sync: func(context.Context) ([]string, error) { return nil, nil },
+			GC: func(context.Context) error { return nil }, Site: &fakeSite{}, Summarize: func() (bool, string) { return true, "" },
+			Out: io.Discard, Log: io.Discard}
+		set(&d)
+		err := Run(d)
+		if err == nil || !strings.Contains(err.Error(), "sets no access, so the pm service does not start: set access = \"cloudflare\"") {
+			t.Errorf("listen %s site_url %q: %v", d.Listen, d.SiteURL, err)
+		}
+	}
+}
+
+// Binds is the listen address, and 127.0.0.1 beside a specific other one, where this machine's probes reach it.
+func TestBindsAddLoopbackBesideASpecificAddress(t *testing.T) {
+	for listen, want := range map[string][]string{"127.0.0.1": {"127.0.0.1"}, "0.0.0.0": {"0.0.0.0"}, "::": {"::"},
+		"192.168.1.5": {"192.168.1.5", "127.0.0.1"}, "::1": {"::1", "127.0.0.1"}} {
+		if got := Binds(listen); !slices.Equal(got, want) {
+			t.Errorf("Binds(%s) = %v, want %v", listen, got, want)
+		}
+	}
+	held, err := net.Listen("tcp", "0.0.0.0:0") // the wildcard held: 127.0.0.1 at its port is not free either
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := held.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	addr, ok := held.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("%v is not a TCP address", held.Addr())
+	}
+	port := addr.Port
+	for _, listen := range []string{"0.0.0.0", "127.0.0.1"} {
+		if PortFree(listen, port) {
+			t.Errorf("listen %s: port %d free while 0.0.0.0 holds it", listen, port)
+		}
+	}
+}
+
+// Binds compares addresses, not spellings: 127.0.0.1 written another way binds once, so its port is free.
+func TestBindsTakesAnyLoopbackSpellingOf127001Once(t *testing.T) {
+	for _, listen := range []string{"::ffff:127.0.0.1", "127.000.000.001"} {
+		if ip := net.ParseIP(listen); ip == nil {
+			continue // a spelling this Go does not parse is refused by config.Read
+		}
+		if got := Binds(listen); !slices.Equal(got, []string{listen}) {
+			t.Errorf("Binds(%s) = %v, want it alone", listen, got)
+		}
+	}
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("%v is not a TCP address", l.Addr())
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !PortFree("::ffff:127.0.0.1", addr.Port) {
+		t.Errorf("listen ::ffff:127.0.0.1: port %d not free", addr.Port)
+	}
+}
+
+// hostName is a Host header's name without the port, brackets or case, with or without a port.
+func TestHostNameStripsThePortAndIPv6Brackets(t *testing.T) {
+	for host, want := range map[string]string{"[::1]": "::1", "[::1]:8000": "::1", "LocalHost": "localhost",
+		"localhost:1": "localhost", "pm.example.com:443": "pm.example.com", "": "", "::1": "::1"} {
+		if got := hostName(host); got != want {
+			t.Errorf("hostName(%q) = %q, want %q", host, got, want)
+		}
+	}
+	if !local(from("[::1]:5", "[::1]")) || !local(from("127.0.0.1:5", "[::1]:8000")) {
+		t.Error("an IPv6 loopback Host from a loopback peer is not local")
+	}
 }
