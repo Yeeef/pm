@@ -99,6 +99,11 @@ Repo feedback has no pm feedback questions command; its questions live in pm fee
 Plain pm feedback has no questions command either; a separate command adds surface for text the help already carries
 :::
 
+::: decision {source=agent date=2026-10-25}
+Moved pm-d2k5.43.4 to pm-d2k5.44: The pin-move task was filed in sprint 43 by mistake.
+It belongs to sprint 44, opened for the pin move.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
