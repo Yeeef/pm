@@ -61,6 +61,11 @@ pm show lists no proposals at any level, nor in --json; only the site shows them
 The owner wants pm show to stay the state of running work; proposals are for the owner to browse on the site
 :::
 
+::: decision {source=agent date=2026-10-25}
+The frame drops the owner accept and dismiss: a proposal is an open sprint labelled proposal that its first task starts, pm show lists none, the site shows them in a collapsed Proposed section, and pm sprint propose prints the duplicate list in its output
+Follows the owner decisions of 2026-10-25 (no accept; pm show lists no proposals) and the agent decision for a label over a new status
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
