@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Yeeef/pm/internal/cli/where"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/service"
@@ -153,7 +154,7 @@ func cmdRecordLink(e *env, p *Parsed) (string, error) {
 	if p.Get("local") != "" {
 		return fmt.Sprintf("http://127.0.0.1:%d/%s", port, rec.Out()), nil
 	}
-	url, err := showSiteURL(e.here, main)
+	url, err := where.SiteURL(e.here, main)
 	if err != nil {
 		return "", err
 	}
@@ -234,7 +235,7 @@ func showDecisionsOf(rec *records.Record, level string) []showDecision {
 	var out []showDecision
 	for _, d := range records.Decisions(rec.Text) {
 		out = append(out, showDecision{date: d.Attrs["date"], source: d.Attrs["source"], level: level, record: rec.Rel,
-			text: firstSentence(d.Body, 100)})
+			text: records.FirstSentence(d.Body, 100)})
 	}
 	return out
 }
@@ -245,7 +246,7 @@ var showListItem = regexp.MustCompile(`(?m)^(?:[-*]|\d+\.) `)
 // feedback, the push flags and today's summary.
 func showDataOf(e *env, r *repo) (*showData, error) {
 	main := store.MainOf(r.records)
-	url, err := showSiteURL(e.here, main)
+	url, err := where.SiteURL(e.here, main)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +277,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 		}
 		var sprints []*showSprint
 		for _, sp := range r.x.Children(epic) {
-			if sp.Type != work.Sprint {
+			if sp.Type != work.Sprint || r.x.Proposal(sp) { // a proposal is on the site, never in pm show
 				continue
 			}
 			rec := sprintRecs[sp.ID]
@@ -318,7 +319,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 				session: session, replied: service.ReplyWaiting(n) || service.MergeWaiting(n) != ""})
 		}
 		data.projects = append(data.projects, &showProject{name: p.Name(), bead: epic, title: p.Title(),
-			url: url + "/" + p.Out(), goal: firstSentence(records.SectionText(p.Body, "Goal"), 110), sprints: sprints,
+			url: url + "/" + p.Out(), goal: records.FirstSentence(records.SectionText(p.Body, "Goal"), 110), sprints: sprints,
 			needs: needs, decisions: last})
 	}
 	for _, n := range site.OwnerTasks(r.x, "") {
@@ -578,11 +579,11 @@ func (r *repo) showSprintOf(sp *work.Item, rec *records.Record, name, url string
 		doneWhen = records.SectionText(rec.Body, "Done when")
 		rel, out := rec.Rel, url+"/"+rec.Out()
 		s.record, s.url = &rel, &out
-		s.goal = firstSentence(records.SectionText(rec.Body, "Goal"), 110)
+		s.goal = records.FirstSentence(records.SectionText(rec.Body, "Goal"), 110)
 	}
 	s.doneWhenItems = len(showListItem.FindAllStringIndex(doneWhen, -1))
 	if s.doneWhenItems == 0 {
-		s.doneWhen = firstSentence(doneWhen, 110)
+		s.doneWhen = records.FirstSentence(doneWhen, 110)
 	}
 	for _, t := range tasks {
 		if t.Status == work.Closed {

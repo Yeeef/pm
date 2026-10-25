@@ -103,6 +103,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
   - Drill down one level at a time, only as far as your work needs: `pm show --project NAME`, then `pm show --sprint ID`, then `pm show --record <sprint id, project name, design slug or path>` for the record's outline, then the same with `--section <name>` for one section. Do not read the whole file for one part.
   - `pm show <id>`: one item, its holder and its needs. `pm where`: every location and its state; `pm where records` prints the store's path.
 - open a sprint: `pm sprint open <project> --title "…"`; body: the frame as `## Goal`, `## Scope` and `## Done when`.
+- propose a sprint: for something the repo needs outside your task, once you can name the fix and its check, `pm sprint propose <project> --title "…"`; body: the frame plus `## Evidence`, what you saw. If its output lists a sprint that covers yours, drop yours: `pm sprint close <id> --dropped --reason "duplicate of …"`. Promote one with `pm sprint promote <id>` only when the owner asks; tasks go under it after that.
 - add tasks: `pm task add --sprint ID --title "…"`; body (optional): the description. A sub-task: `pm task add --task <task> --title "…"`. A dependency: `pm dep add <id> --on <blocker>`.
 - claim a task: `pm task claim <id>`, from your own worktree. Your first claim in a sprint prints its design pages: read the ones the task touches before changing their code. Do not take or brief work that another live session holds.
 - close a task: `pm task close <id> --reason "<what was done>"`. It names the commit that holds the work: HEAD when newer than the task, else `--commit REF` (a commit here, `OWNER/REPO@SHA` or a PR URL). A task not done: `pm task close <id> --dropped --reason "<why>"`, with no commit.
@@ -120,7 +121,7 @@ Use raw HTML only for what Markdown cannot show, such as a mock-up.
 - close a need that sets no rule: `pm need close <id> --reason "…"`; a decision need takes the owner's answer as its body; a need that became moot, or a replaced PR's review, takes `--dropped`.
 - close a sprint: `pm sprint close <id>`, once its report is written, its tasks are closed and its PR review is closed as merged. For a PR merged with no review: `pm sprint close <id> --merged <sha> --pr URL`. It then publishes the sprint's design page drafts, from every worktree, in one records commit. A draft that overlaps another commit is named: run any pm write in that worktree, resolve the conflict markers, `pm commit --sprint <id>` the page, and close again; `--discard <slug> --reason "…"` drops the draft instead.
 - find a link: Give the owner a record's URL from `pm record link <target>`; never a `records/…` path or a URL you built.
-- Report where pm got in your way: `pm feedback add [--project NAME]`, once, with what happened and what would have helped.
+- Report where pm itself got in your way: `pm feedback add [--project NAME]`, once, with what happened and what would have helped; what the repo needs is a sprint proposal.
 - setup pm: `pm init` installs pm in the repo, clone and worktree, doing only what is missing: the repo's files and hooks, the records store and workspace, and the pm service. `pm init --site-url URL` sets the public site link.
 
 Less frequent, each detailed in its `--help`:

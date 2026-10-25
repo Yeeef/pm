@@ -132,7 +132,7 @@ func (d *showData) json() showJSON {
 		out.Projects = append(out.Projects, pj)
 	}
 	if d.summary != nil {
-		summary := firstSentence(records.SummaryLine(d.summary.Text), 160)
+		summary := records.FirstSentence(records.SummaryLine(d.summary.Text), 160)
 		out.Today.Summary, out.Today.GeneratedAt = &summary, &d.summary.GeneratedAt
 	}
 	if d.feedback != nil {

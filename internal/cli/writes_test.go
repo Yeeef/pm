@@ -26,7 +26,7 @@ func TestWrapFillPutsALongWordOnItsOwnLine(t *testing.T) {
 		}
 	})
 	t.Run("FirstSentenceEndsAtAUnicodeSpace", func(t *testing.T) {
-		if got := firstSentence("Ends here. Next one.", 110); got != "Ends here." {
+		if got := records.FirstSentence("Ends here. Next one.", 110); got != "Ends here." {
 			t.Errorf("got %q", got)
 		}
 	})

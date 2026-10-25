@@ -8,6 +8,7 @@ package item
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -73,7 +74,7 @@ type Item struct {
 	CloseReason string     `json:"close_reason,omitempty"` // a review keeps "merged as <sha>"
 	Number      int        `json:"number,omitempty"`       // a sprint's number in its record name; sprints only
 	BlockedBy   []string   `json:"blocked_by,omitempty"`   // ids of the items that must close first
-	Labels      []string   `json:"labels,omitempty"`       // free tags; pm's logic reads none
+	Labels      []string   `json:"labels,omitempty"`       // free tags; pm's logic reads one, ProposalLabel
 	Holder      *Holder    `json:"holder,omitempty"`       // nil on every closed item
 	StartedAt   time.Time  `json:"started_at,omitzero"`    // the first claim
 	CreatedAt   time.Time  `json:"created_at"`
@@ -82,6 +83,26 @@ type Item struct {
 	ClosedBy    string     `json:"closed_by,omitempty"` // the session that closed it
 	Comments    []Comment  `json:"comments,omitempty"`
 	Need        *NeedInfo  `json:"need,omitempty"` // needs only
+}
+
+// ProposalLabel marks a proposal: a sprint pm sprint propose made, which pm sprint promote makes ordinary by
+// deleting the label (the sprint-proposals design page).
+const ProposalLabel = "proposal"
+
+// PromoteNote is the note pm sprint promote leaves on the sprint, by the promoting session: the promote's date.
+const PromoteNote = "pm sprint promote"
+
+// IsProposal is whether s is a sprint labelled ProposalLabel: open, a proposal; closed, a dropped proposal.
+func IsProposal(s *Item) bool { return s.Type == Sprint && slices.Contains(s.Labels, ProposalLabel) }
+
+// Promoted is when sprint s was promoted (its PromoteNote); zero when it never was.
+func Promoted(s *Item) time.Time {
+	for _, c := range s.Comments {
+		if c.Kind == Note && c.Text == PromoteNote {
+			return c.CreatedAt
+		}
+	}
+	return time.Time{}
 }
 
 // HasReply is whether the item holds an owner's reply: a need the owner answered.

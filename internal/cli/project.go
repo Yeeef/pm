@@ -91,14 +91,17 @@ func cmdProjectClose(e *env, p *Parsed) (string, error) {
 	}
 	var open []string
 	for _, k := range r.x.Children(epicID) {
-		if k.Status != work.Closed {
+		if r.x.Proposal(k) {
+			open = append(open, fmt.Sprintf("%s (%s; a proposal: pm sprint close %s --dropped --reason \"…\")", k.ID,
+				k.Title, k.ID))
+		} else if k.Status != work.Closed {
 			open = append(open, fmt.Sprintf("%s (%s)", k.ID, k.Title))
 		}
 	}
 	if open != nil {
 		return "", refuse("open sprints in the project: %s; close them with pm sprint close first", strings.Join(open, ", "))
 	}
-	reason := fmt.Sprintf("%s (commit %s)", firstSentence(text, 200), head)
+	reason := fmt.Sprintf("%s (commit %s)", records.FirstSentence(text, 200), head)
 	if err := r.checkPlanned(nil, r.with(closedCopy(epic, reason))); err != nil {
 		return "", err
 	}

@@ -30,6 +30,9 @@ type Store interface {
 	Reopen(id string) error
 	// Move gives a task or a need a new parent; its id stays.
 	Move(id, parent string) error
+	// Promote makes an open proposal an ordinary sprint: it deletes the label proposal and leaves the note
+	// pm sprint promote by session, dated, in one write.
+	Promote(id, session string) error
 	// MoveSprint moves an open sprint to an open project and returns it as it is after: its id stays, its number is
 	// the project's next, and a move note records where it was (SprintMoves). A sprint under the project already is
 	// returned as it is, with nothing written.

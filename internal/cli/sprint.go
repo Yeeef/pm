@@ -10,6 +10,7 @@ import (
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -45,23 +46,51 @@ func parseSections(text string, allowed []string) (map[string]string, error) {
 
 var trailingNumber = regexp.MustCompile(`^[0-9]+$`)
 
-func cmdSprintOpen(e *env, p *Parsed) (string, error) {
-	title := strip(p.Get("title"))
-	if title == "" {
-		return "", refuse("--title is empty")
+func cmdSprintOpen(e *env, p *Parsed) (string, error) { return createSprint(e, p, false) }
+
+// cmdSprintPropose is pm sprint propose: pm sprint open's sprint, labelled proposal, its body's Evidence the record's
+// first finding, then the duplicate list (proposalPeers) in place of the design pages.
+func cmdSprintPropose(e *env, p *Parsed) (string, error) { return createSprint(e, p, true) }
+
+// sprintFrame is the body's sections: the frame, and with propose its Evidence; refused when one is missing or empty
+// or the Scope lacks its lists.
+func sprintFrame(p *Parsed, propose bool) (map[string]string, error) {
+	sections := frame
+	if propose {
+		sections = append(append([]string{}, frame...), "Evidence")
 	}
-	fr, err := parseSections(p.Get("text"), frame)
+	fr, err := parseSections(p.Get("text"), sections)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	for _, name := range frame {
-		if fr[name] == "" {
-			return "", refuse("'## %s' is missing or empty in --text; %s", name, frameShape)
+	for _, name := range sections {
+		if fr[name] == "" && name == "Evidence" {
+			return nil, refuse("'## Evidence' is missing or empty in --text; give what you saw after the frame: a " +
+				"command and its output, a file and line, a number")
+		} else if fr[name] == "" {
+			return nil, refuse("'## %s' is missing or empty in --text; %s", name, frameShape)
 		}
 	}
 	//nolint:gocritic // weakCond: FindStringSubmatch gives nil or a slice holding every group
 	if m := scopeRE.FindStringSubmatch(fr["Scope"]); m == nil || strip(m[1]) == "" || strip(m[2]) == "" {
-		return "", refuse("Scope needs a non-empty **In:** list followed by a non-empty **Out:** list; %s", frameShape)
+		return nil, refuse("Scope needs a non-empty **In:** list followed by a non-empty **Out:** list; %s", frameShape)
+	}
+	return fr, nil
+}
+
+// createSprint is pm sprint open, or with propose pm sprint propose (the sprint-proposals design page).
+func createSprint(e *env, p *Parsed, propose bool) (string, error) {
+	title := strip(p.Get("title"))
+	if title == "" {
+		return "", refuse("--title is empty")
+	}
+	labels := []string(nil)
+	if propose {
+		labels = []string{work.ProposalLabel}
+	}
+	fr, err := sprintFrame(p, propose)
+	if err != nil {
+		return "", err
 	}
 	r, err := e.load(false)
 	if err != nil {
@@ -91,7 +120,7 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 	full := fmt.Sprintf("Sprint %d: %s", n, title)
 	plannedID := fmt.Sprintf("%s.%d", epicID, suffix+1)
 	plan := planned(plannedID, work.Sprint, epicID, full)
-	plan.Number = n
+	plan.Number, plan.Labels = n, labels
 	text := func(id string) string { return records.SprintText(records.YAMLStr(title), id, fr) }
 	if err := r.checkPlanned([]store.Write{{Path: path, Text: text(plannedID)}}, r.with(plan)); err != nil {
 		return "", err
@@ -100,7 +129,7 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	made, err := ws.Create(work.New{Type: work.Sprint, Parent: epicID, Title: full})
+	made, err := ws.Create(work.New{Type: work.Sprint, Parent: epicID, Title: full, Labels: labels})
 	if err != nil {
 		return "", err
 	}
@@ -108,12 +137,29 @@ func cmdSprintOpen(e *env, p *Parsed) (string, error) {
 	if err := r.checkPlanned(w, r.with(made)); err != nil {
 		return "", undoCreate(ws, made.ID, err)
 	}
-	out, err := r.apply(w, fmt.Sprintf("opened sprint %d of %s: epic %s, record %s", n, project, made.ID, r.rel(path)),
+	verb := "opened"
+	if propose {
+		verb = "proposed"
+	}
+	out, err := r.apply(w, fmt.Sprintf("%s sprint %d of %s: epic %s, record %s", verb, n, project, made.ID, r.rel(path)),
 		"pm: ")
 	if err != nil {
 		return "", undoCreate(ws, made.ID, err)
 	}
+	if propose {
+		return out + "\n" + r.proposalPeers(epicID, made.ID), nil
+	}
 	return out + designindex.Block(func() (string, error) { return designindex.Of(r.recs, e.siteURL, prec) }), nil
+}
+
+// proposalPeers is pm sprint propose's duplicate list (site.OpenSprintRows), and how to drop id as a duplicate.
+func (r *repo) proposalPeers(epicID, id string) string {
+	rows := site.OpenSprintRows(epicID, id, r.recs, r.x)
+	if rows == nil {
+		rows = []string{"  none"}
+	}
+	return "the project's other proposals and open sprints; if one covers yours, drop yours: pm sprint close " + id +
+		` --dropped --reason "duplicate of <id>"` + "\n" + strings.Join(rows, "\n")
 }
 
 // requireCommitted is the records commit a close names; the closed record itself must be committed.
@@ -150,6 +196,9 @@ func statusText(it *work.Item) string {
 }
 
 func cmdSprintClose(e *env, p *Parsed) (string, error) {
+	if p.Get("dropped") != "" {
+		return dropProposal(e, p)
+	}
 	merged, agentMerge := given(p, "merged")
 	pr, prGiven := given(p, "pr")
 	if prGiven && !agentMerge {
@@ -177,16 +226,13 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	id := p.Get("sprint_id")
-	rec, err := r.sprint(id)
+	rec, epic, err := r.closingSprint(id)
 	if err != nil {
 		return "", err
 	}
-	epic := r.item(id)
-	if epic == nil {
-		return "", refuse("sprint %s is not in the work store", id)
-	}
-	if epic.Status == work.Closed {
-		return "", refuse("sprint %s is already closed", id)
+	if r.x.Proposal(epic) {
+		return "", refuse("sprint %s is a proposal; drop it with pm sprint close %s --dropped --reason "+
+			"\"…\", or, when the owner asks, promote it with pm sprint promote %s", id, id, id)
 	}
 	head, err := r.requireCommitted(rec.Path)
 	if err != nil {
@@ -250,6 +296,99 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		out += "; " + said
 	}
 	return out, nil
+}
+
+// cmdSprintPromote is pm sprint promote: an open proposal becomes an ordinary sprint of its project, on the owner's
+// word (Store.Promote: the label deleted, a dated note left).
+func cmdSprintPromote(e *env, p *Parsed) (string, error) {
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	id := p.Get("sprint_id")
+	if it := r.item(id); it == nil || !r.x.Proposal(it) {
+		return "", refuse("sprint %s is not an open proposal; pm sprint promote makes an open proposal (pm sprint "+
+			"propose) an ordinary sprint", id)
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	by := currentSession()
+	if by == "" {
+		by = "owner"
+	}
+	if err := ws.Promote(id, by); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("promoted %s: an ordinary sprint now; add its tasks with pm task add --sprint %s", id, id), nil
+}
+
+// closingSprint is the record and the epic of the open sprint id, which pm sprint close closes.
+func (r *repo) closingSprint(id string) (*records.Record, *work.Item, error) {
+	rec, err := r.sprint(id)
+	if err != nil {
+		return nil, nil, err
+	}
+	epic := r.item(id)
+	if epic == nil {
+		return nil, nil, refuse("sprint %s is not in the work store", id)
+	}
+	if epic.Status == work.Closed {
+		return nil, nil, refuse("sprint %s is already closed", id)
+	}
+	return rec, epic, nil
+}
+
+// dropProposal is pm sprint close --dropped: the proposal closes as not done (dismissed) with its one-line --reason,
+// with no records write and no report. It refuses a sprint that is not a proposal.
+func dropProposal(e *env, p *Parsed) (string, error) {
+	if _, merged := given(p, "merged"); merged || p.Get("pr") != "" || len(p.Values["discard"]) > 0 {
+		return "", refuse("--dropped closes a proposal, with one --reason; it takes no --merged, --pr or " +
+			"--discard")
+	}
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	id := p.Get("sprint_id")
+	_, epic, err := r.closingSprint(id)
+	if err != nil {
+		return "", err
+	}
+	if !r.x.Proposal(epic) {
+		return "", refuse("sprint %s is not a proposal, so --dropped does not close it: it closes with its "+
+			"Delivery report, voided when a finding voided it", id)
+	}
+	if len(p.Values["reason"]) != 1 {
+		return "", refuse("--dropped needs one --reason: why the proposal is not done, e.g. \"duplicate of <id>\"")
+	}
+	reason, err := decisionLine("--reason", p.Values["reason"][0])
+	if err != nil {
+		return "", err
+	}
+	for _, k := range r.x.Children(id) {
+		if k.Status != work.Closed {
+			return "", refuse("proposal %s holds an open %s, %s (%s); close it first: pm %s close %s --dropped "+
+				"--reason \"…\" when the drop makes it moot", id, k.Type, k.ID, k.Title, k.Type, k.ID)
+		}
+	}
+	if drafted, _, err := store.Drafted(r.records); err != nil {
+		return "", err
+	} else if pages := slices.Sorted(maps.Keys(drafted[id])); pages != nil {
+		return "", refuse("proposal %s holds design-page drafts only its close publishes (%s), which a drop would strand; "+
+			"in the draft's worktree, put each page back as the records branch has it (git show records:<path>) and pm "+
+			"commit --sprint %s it, then drop again", id, strings.Join(pages, ", "), id)
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	if err := ws.Close(epic.ID, reason, work.Dismissed, closer(epic)); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("dropped proposal %s: %s; pm sprint reopen %s makes it a proposal again", epic.ID, reason,
+		epic.ID), nil
 }
 
 // closeDone finishes the close's drafts (design.Closing.Done); a variable so a test can fail it.
@@ -478,6 +617,10 @@ func (r *repo) openSprint(id string) (*records.Record, error) {
 	}
 	if it.Status == work.Closed {
 		return nil, refuse("sprint %s is closed; use an open sprint", id)
+	}
+	if r.x.Proposal(it) {
+		return nil, refuse("sprint %s is a proposal; its tasks wait until the owner asks to promote it: pm sprint "+
+			"promote %s", id, id)
 	}
 	return rec, nil
 }

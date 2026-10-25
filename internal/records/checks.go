@@ -67,6 +67,9 @@ func (x *Items) Children(parent string) []*item.Item {
 	return out
 }
 
+// Proposal is whether it is an open proposal: a sprint labelled proposal (item.IsProposal).
+func (x *Items) Proposal(it *item.Item) bool { return it.Status == item.Open && item.IsProposal(it) }
+
 // ProjectOf is the project record a record belongs to: by the item tree for sprints and docs with a bead, by its
 // sprint for a postmortem with one, by `project:` otherwise; nil when there is none.
 func ProjectOf(rec *Record, recs []*Record, items *Items) *Record {

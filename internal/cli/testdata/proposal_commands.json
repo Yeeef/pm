@@ -1,0 +1,587 @@
+[
+ {
+  "covers": "action need --sprint",
+  "argv": [
+   "action",
+   "need",
+   "--title",
+   "[TEST] run the check",
+   "--sprint",
+   "{P}",
+   "--text=Run the check."
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "action need --sprint",
+  "argv": [
+   "action",
+   "need",
+   "--pr",
+   "https://github.com/o/r/pull/1",
+   "--sprint",
+   "{P}",
+   "--focus",
+   "the diff"
+  ],
+  "outcome": "refused",
+  "says": "sprint {P} is a proposal, not promoted; it has no work to review"
+ },
+ {
+  "covers": "action need --task",
+  "argv": [
+   "action",
+   "need",
+   "--title",
+   "[TEST] run it",
+   "--task",
+   "{P}",
+   "--text=Run it."
+  ],
+  "outcome": "refused",
+  "says": "is a sprint, not a task"
+ },
+ {
+  "covers": "commit --sprint",
+  "argv": [
+   "commit",
+   "--sprint",
+   "{P}",
+   "-m",
+   "refine the goal",
+   "{P_RECORD}"
+  ],
+  "outcome": "allowed",
+  "edit": true
+ },
+ {
+  "covers": "decision add --sprint",
+  "argv": [
+   "decision",
+   "add",
+   "--sprint",
+   "{P}",
+   "--decision",
+   "Retry the setup",
+   "--reason",
+   "The flake is in setup"
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "decision add --need",
+  "argv": [
+   "decision",
+   "add",
+   "--sprint",
+   "{S}",
+   "--need",
+   "{P}",
+   "--decision",
+   "Retry",
+   "--reason",
+   "Cheap"
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "decision need --sprint",
+  "argv": [
+   "decision",
+   "need",
+   "--title",
+   "[TEST] which retry",
+   "--sprint",
+   "{P}",
+   "--question",
+   "Which retry?",
+   "--fact",
+   "It fails in setup.",
+   "--option",
+   "A",
+   "retry the setup",
+   "--cost",
+   "A",
+   "a slower test",
+   "--option",
+   "B",
+   "fix the race",
+   "--cost",
+   "B",
+   "a day",
+   "--default",
+   "A",
+   "cheap"
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "decision need --task",
+  "argv": [
+   "decision",
+   "need",
+   "--title",
+   "[TEST] which retry",
+   "--task",
+   "{P}",
+   "--question",
+   "Which retry?",
+   "--fact",
+   "It fails in setup.",
+   "--option",
+   "A",
+   "retry the setup",
+   "--cost",
+   "A",
+   "a slower test",
+   "--option",
+   "B",
+   "fix the race",
+   "--cost",
+   "B",
+   "a day",
+   "--default",
+   "A",
+   "cheap"
+  ],
+  "outcome": "refused",
+  "says": "is a sprint, not a task"
+ },
+ {
+  "covers": "dep add id",
+  "argv": [
+   "dep",
+   "add",
+   "{P}",
+   "--on",
+   "{S}"
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "dep add --on",
+  "argv": [
+   "dep",
+   "add",
+   "{S}",
+   "--on",
+   "{P}"
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "dep rm id",
+  "argv": [
+   "dep",
+   "rm",
+   "{P}",
+   "--on",
+   "{S}"
+  ],
+  "outcome": "allowed",
+  "setup": [
+   [
+    "dep",
+    "add",
+    "{P}",
+    "--on",
+    "{S}"
+   ]
+  ]
+ },
+ {
+  "covers": "dep rm --on",
+  "argv": [
+   "dep",
+   "rm",
+   "{S}",
+   "--on",
+   "{P}"
+  ],
+  "outcome": "allowed",
+  "setup": [
+   [
+    "dep",
+    "add",
+    "{S}",
+    "--on",
+    "{P}"
+   ]
+  ]
+ },
+ {
+  "covers": "design unchanged --sprint",
+  "argv": [
+   "design",
+   "unchanged",
+   "parser",
+   "--sprint",
+   "{P}",
+   "--reason",
+   "The parser stays as it is"
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "doc new --sprint",
+  "argv": [
+   "doc",
+   "new",
+   "flake-note",
+   "--title",
+   "Flake note",
+   "--sprint",
+   "{P}",
+   "--text=Where it fails."
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "doc new --task",
+  "argv": [
+   "doc",
+   "new",
+   "flake-note",
+   "--title",
+   "Flake note",
+   "--task",
+   "{P}",
+   "--text=Where it fails."
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "feedback add --sprint",
+  "argv": [
+   "feedback",
+   "add",
+   "--sprint",
+   "{P}",
+   "--text=A refusal was unclear."
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "feedback add --task",
+  "argv": [
+   "feedback",
+   "add",
+   "--task",
+   "{P}",
+   "--text=A refusal was unclear."
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "finding add --sprint",
+  "argv": [
+   "finding",
+   "add",
+   "--sprint",
+   "{P}",
+   "--text=It fails in setup only."
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "need close need_id",
+  "argv": [
+   "need",
+   "close",
+   "{P}",
+   "--reason",
+   "done"
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "need edit need_id",
+  "argv": [
+   "need",
+   "edit",
+   "{P}",
+   "--text=A new body."
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "postmortem new --sprint",
+  "argv": [
+   "postmortem",
+   "new",
+   "flake",
+   "--title",
+   "The flake",
+   "--sprint",
+   "{P}"
+  ],
+  "outcome": "allowed"
+ },
+ {
+  "covers": "record link target",
+  "argv": [
+   "record",
+   "link",
+   "{P}"
+  ],
+  "outcome": "allowed",
+  "service": true,
+  "says": "https://pm.example.test/sprints/demo-"
+ },
+ {
+  "covers": "reply read ids",
+  "argv": [
+   "reply",
+   "read",
+   "{P}"
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "reply add id",
+  "argv": [
+   "reply",
+   "add",
+   "{P}",
+   "--text=An answer."
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "show --sprint",
+  "argv": [
+   "show",
+   "--sprint",
+   "{P}"
+  ],
+  "outcome": "allowed",
+  "says": "{P}  proposed"
+ },
+ {
+  "covers": "show id",
+  "argv": [
+   "show",
+   "{P}"
+  ],
+  "outcome": "allowed",
+  "says": "labels: proposal"
+ },
+ {
+  "covers": "sprint close sprint_id",
+  "argv": [
+   "sprint",
+   "close",
+   "{P}"
+  ],
+  "outcome": "refused",
+  "says": "sprint {P} is a proposal; drop it with pm sprint close {P} --dropped"
+ },
+ {
+  "covers": "sprint close sprint_id",
+  "argv": [
+   "sprint",
+   "close",
+   "{P}",
+   "--dropped",
+   "--reason",
+   "duplicate of {S}"
+  ],
+  "outcome": "drops"
+ },
+ {
+  "covers": "sprint edit sprint_id",
+  "argv": [
+   "sprint",
+   "edit",
+   "{P}",
+   "--title",
+   "Fix the setup flake",
+   "--text-file",
+   "-"
+  ],
+  "outcome": "allowed",
+  "stdin": "Refine it.\nThe proposal said too little.\n"
+ },
+ {
+  "covers": "sprint move sprint_id",
+  "argv": [
+   "sprint",
+   "move",
+   "{P}",
+   "--to",
+   "other",
+   "--text-file",
+   "-"
+  ],
+  "outcome": "allowed",
+  "stdin": "Refine it.\nThe proposal said too little.\n"
+ },
+ {
+  "covers": "sprint promote sprint_id",
+  "argv": [
+   "sprint",
+   "promote",
+   "{P}"
+  ],
+  "outcome": "promotes",
+  "says": "promoted {P}"
+ },
+ {
+  "covers": "sprint promote sprint_id",
+  "argv": [
+   "sprint",
+   "promote",
+   "{P}"
+  ],
+  "outcome": "refused",
+  "says": "sprint {P} is not an open proposal",
+  "setup": [
+   [
+    "sprint",
+    "close",
+    "{P}",
+    "--dropped",
+    "--reason",
+    "duplicate"
+   ]
+  ]
+ },
+ {
+  "covers": "sprint reopen sprint_id",
+  "argv": [
+   "sprint",
+   "reopen",
+   "{P}",
+   "--text-file",
+   "-"
+  ],
+  "outcome": "allowed",
+  "setup": [
+   [
+    "sprint",
+    "close",
+    "{P}",
+    "--dropped",
+    "--reason",
+    "duplicate"
+   ]
+  ],
+  "stdin": "Refine it.\nThe proposal said too little.\n"
+ },
+ {
+  "covers": "task add --sprint",
+  "argv": [
+   "task",
+   "add",
+   "--sprint",
+   "{P}",
+   "--title",
+   "[TEST] retry the setup"
+  ],
+  "outcome": "refused",
+  "says": "pm sprint promote {P}"
+ },
+ {
+  "covers": "task add --task",
+  "argv": [
+   "task",
+   "add",
+   "--task",
+   "{P}",
+   "--title",
+   "[TEST] retry the setup"
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "task claim task_id",
+  "argv": [
+   "task",
+   "claim",
+   "{P}"
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "task close task_id",
+  "argv": [
+   "task",
+   "close",
+   "{P}",
+   "--reason",
+   "done"
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "task edit id",
+  "argv": [
+   "task",
+   "edit",
+   "{P}",
+   "--title",
+   "Retry"
+  ],
+  "outcome": "refused",
+  "says": "is a sprint, not a task"
+ },
+ {
+  "covers": "task move task_id",
+  "argv": [
+   "task",
+   "move",
+   "{P}",
+   "--to",
+   "{S}",
+   "--text-file",
+   "-"
+  ],
+  "outcome": "refused",
+  "stdin": "Refine it.\nThe proposal said too little.\n"
+ },
+ {
+  "covers": "task move --to",
+  "argv": [
+   "task",
+   "move",
+   "{T}",
+   "--to",
+   "{P}",
+   "--text-file",
+   "-"
+  ],
+  "outcome": "refused",
+  "stdin": "Refine it.\nThe proposal said too little.\n",
+  "says": "pm sprint promote {P}"
+ },
+ {
+  "covers": "task ready --sprint",
+  "argv": [
+   "task",
+   "ready",
+   "--sprint",
+   "{P}"
+  ],
+  "outcome": "allowed",
+  "says": "no ready tasks"
+ },
+ {
+  "covers": "task release id",
+  "argv": [
+   "task",
+   "release",
+   "{P}"
+  ],
+  "outcome": "refused"
+ },
+ {
+  "covers": "comment add id",
+  "argv": [
+   "comment",
+   "add",
+   "{P}",
+   "--text=Seen it fail twice."
+  ],
+  "outcome": "allowed"
+ }
+]

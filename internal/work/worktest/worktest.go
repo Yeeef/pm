@@ -78,6 +78,7 @@ func (s *Store) SetResolution(string, work.Resolution) error         { return er
 func (s *Store) SetCloseReason(string, string) error                 { return errReadOnly }
 func (s *Store) Reopen(string) error                                 { return errReadOnly }
 func (s *Store) Move(string, string) error                           { return errReadOnly }
+func (s *Store) Promote(string, string) error                        { return errReadOnly }
 func (s *Store) MoveSprint(string, string, string) (work.Item, error) {
 	return work.Item{}, errReadOnly
 }

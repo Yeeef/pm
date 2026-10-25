@@ -1238,6 +1238,23 @@ func (d *Dolt) Move(id, parent string) error {
 	})
 }
 
+// Promote makes an open proposal an ordinary sprint (Store.Promote); the label row's delete merges per entry.
+func (d *Dolt) Promote(id, session string) error {
+	return d.update("promote", id, func(it *Item, _ *Index) error {
+		if it.Type != Sprint || it.Status != Open || !slices.Contains(it.Labels, ProposalLabel) {
+			return itemError(id, "is no open proposal; only an open sprint labelled %s is promoted", ProposalLabel)
+		}
+		cid, err := newUUID()
+		if err != nil {
+			return err
+		}
+		it.Labels = slices.DeleteFunc(it.Labels, func(l string) bool { return l == ProposalLabel })
+		it.Comments = append(it.Comments, Comment{ID: cid, Kind: Note, Author: session, Text: PromoteNote,
+			CreatedAt: d.now()})
+		return nil
+	})
+}
+
 // Claim makes h the holder, as a compare-and-set in one transaction: it succeeds when the item has no holder, is held
 // by h.Session, or is held by a session that live reports not live; it sets StartedAt on the first claim. The claim
 // time is the store's clock.

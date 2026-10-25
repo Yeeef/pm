@@ -133,8 +133,9 @@ var (
 	// citeFlags name an item or a session without scoping the write: the need a decision answers, the session that
 	// acts, and the new parent of a move (move --to).
 	citeFlags = map[string]bool{"--need": true, "--session": true, "--to": true}
-	// createVerbs is each create verb and the nouns it serves; nil serves every noun.
-	createVerbs = map[string][]string{"open": {"project", "sprint"}, "add": nil,
+	// createVerbs is each create verb and the nouns it serves; nil serves every noun. propose creates a sprint that
+	// nobody has started.
+	createVerbs = map[string][]string{"open": {"project", "sprint"}, "propose": {"sprint"}, "add": nil,
 		"new": {"design", "doc", "postmortem"}, "need": {"decision", "action"}}
 	// offVerbs are create or close verbs outside the grammar: a container opens, an item is added, a record is new,
 	// and everything closes with close.

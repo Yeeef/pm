@@ -4,7 +4,8 @@
 //
 // serve.go holds what only the service's pages have: the reply forms and the status line. versions.go serves each
 // draft beside the published records as a version, with the version bar and the URLs under DraftsDir; diff.go is a
-// version's diff by section. The pages load Mermaid at one exact version, MermaidVersion. A page change shows in the
+// version's diff by section. activity.go is a day's activity: the sprint rows a day page shows and the text pm day
+// summarize sends the model. The pages load Mermaid at one exact version, MermaidVersion. A page change shows in the
 // golden pages (testdata/constructs/pages); a construct the fixture lacks gets a record or item in testdata/constructs.
 package site
 
@@ -45,7 +46,7 @@ type Dates = map[string]store.Dates
 func errorf(format string, a ...any) error { return &records.Error{Msg: fmt.Sprintf(format, a...)} }
 
 var pills = map[string][2]string{"done": {"done", "DONE"}, "dropped": {"dropped", "DROPPED"},
-	"running": {"run", "RUNNING"}, "blocked": {"blocked", "BLOCKED"}, "ready": {"queued", "READY"}}
+	"proposed": {"proposed", "PROPOSED"}, "running": {"run", "RUNNING"}, "blocked": {"blocked", "BLOCKED"}, "ready": {"queued", "READY"}}
 
 func pill(st string) string {
 	p := pills[st]
@@ -56,21 +57,26 @@ func pill(st string) string {
 
 func isEpic(it *Item) bool { return it.Type == item.Project || it.Type == item.Sprint }
 
-// State is one of done, dropped, running, blocked and ready: done once closed, dropped for a task closed as dismissed
-// (pm task close --dropped: not done), running while held or, for a project or sprint, once any child has started or
-// finished; blocked while a blocker is not closed.
+// State is one of done, dropped, proposed, running, blocked and ready: done once closed, dropped for a task closed as
+// dismissed (pm task close --dropped: not done) and for a closed proposal, proposed for an open one
+// (item.IsProposal), running while held or, for a project or sprint, once any child has started or finished; blocked
+// while a blocker is not closed.
 func State(it *Item, items *Items) string {
 	switch {
 	case it.Status == item.Closed && it.Type == item.Task && it.Resolution == item.Dismissed:
 		return "dropped"
+	case it.Status == item.Closed && item.IsProposal(it):
+		return "dropped"
 	case it.Status == item.Closed:
 		return "done"
+	case item.IsProposal(it):
+		return "proposed"
 	case it.Holder != nil:
 		return "running"
 	}
 	if isEpic(it) {
 		for _, k := range items.All() {
-			if k.Parent == it.ID && (k.Holder != nil || k.Status == item.Closed) {
+			if k.Parent == it.ID && (k.Holder != nil || k.Status == item.Closed && !item.IsProposal(k)) {
 				return "running"
 			}
 		}
@@ -193,7 +199,7 @@ func inline(text string) string {
 
 func progress(project *Record, recs []*Record, items *Items, frm *Record) (string, error) {
 	root := project.Bead()
-	graph := TaskGraph(childrenWhere(items, root, nil), items)
+	graph := TaskGraph(childrenWhere(items, root, func(it *Item) bool { return !item.IsProposal(it) }), items)
 	var sprints []*Record
 	for _, r := range recs {
 		if r.Type() == "sprint" && records.ProjectOf(r, recs, items) == project {
@@ -207,6 +213,9 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 		if b == nil {
 			return "", errorf("%s: bead %s not found in the work store", r.Rel, r.Bead())
 		}
+		if items.Proposal(b) { // the Proposed section lists it
+			continue
+		}
 		report, err := records.Outcome(r)
 		if err != nil {
 			return "", err
@@ -214,6 +223,8 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 		out := "<span class=empty>not closed</span>"
 		if report != "" {
 			out = inline(report)
+		} else if item.IsProposal(b) {
+			out = "dropped: " + esc(b.CloseReason)
 		}
 		rows = append(rows, `<tr><td><a href="`+link(frm, r.Out())+`">`+esc(r.Title())+"</a></td>"+
 			"<td>"+esc(utcDate(b.CreatedAt))+"</td>"+
@@ -225,7 +236,51 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 		table = `<div class="tbl"><table><tr><th>Sprint</th><th>Opened</th><th>Goal</th>` +
 			"<th>Outcome</th><th>Status</th></tr>" + strings.Join(rows, "") + "</table></div>\n"
 	}
-	return graph + table, nil
+	return graph + table + proposedSection(childrenWhere(items, root, nil), recs, items, frm), nil
+}
+
+// OpenSprintRows is pm sprint propose's duplicate list: a line per open sprint under project but except, proposals
+// included, with its state, id, title and its goal's first sentence.
+func OpenSprintRows(project, except string, recs []*Record, items *Items) []string {
+	var out []string
+	for _, sp := range sprintsOf(items, project) {
+		if sp.Status == item.Closed || sp.ID == except {
+			continue
+		}
+		line := fmt.Sprintf("  %-8s  %s  %s", State(sp, items), sp.ID, sp.Title)
+		for _, r := range recs {
+			if b, ok := r.ID("bead"); ok && b == sp.ID && r.Type() == "sprint" {
+				line += "  " + records.FirstSentence(records.SectionText(r.Body, "Goal"), 110)
+			}
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// proposedSection is the collapsed Proposed section: a row per open proposal among sprints, with its pill, its title
+// linking its record, and its goal's first sentence; empty when there is none.
+func proposedSection(sprints []*Item, recs []*Record, items *Items, frm *Record) string {
+	var rows []string
+	for _, sp := range sprints {
+		if !items.Proposal(sp) {
+			continue
+		}
+		title, goal := esc(sp.Title), ""
+		for _, r := range recs {
+			if b, ok := r.ID("bead"); ok && b == sp.ID && r.Type() == "sprint" {
+				title = `<a href="` + link(frm, r.Out()) + `">` + title + "</a>"
+				goal = `<span class="k">` + inline(records.FirstSentence(records.SectionText(r.Body, "Goal"), 200)) +
+					"</span>"
+			}
+		}
+		rows = append(rows, "<li>"+pill("proposed")+" "+title+goal+"</li>")
+	}
+	if rows == nil {
+		return ""
+	}
+	return fmt.Sprintf(`<details class="proposals"><summary>Proposed (%d)</summary><ul class="list">%s</ul></details>`+"\n",
+		len(rows), strings.Join(rows, ""))
 }
 
 type unsprintedItem struct {
@@ -374,10 +429,18 @@ func dayActivity(day string, items *Items, under string, recs []*Record, frm *Re
 	var out []string
 	for _, sp := range sprintsOf(items, under) {
 		var rows []string
-		if LocalDay(sp.CreatedAt) == day {
-			rows = append(rows, `<li><span class="pill queued">OPENED</span> this sprint</li>`)
+		for _, m := range sprintMarks(sp, func(t time.Time) bool { return LocalDay(t) == day }) {
+			row := `<li><span class="pill queued">OPENED</span> this sprint</li>`
+			switch m {
+			case "proposed":
+				row = "<li>" + pill("proposed") + " this sprint</li>"
+			case "started":
+				row = `<li><span class="pill run">STARTED</span> this sprint: promoted from a proposal</li>`
+			case "dropped":
+				row = "<li>" + pill("dropped") + ` this proposal <span class="k">` + esc(sp.CloseReason) + "</span></li>"
+			}
+			rows = append(rows, row)
 		}
-		moved := false
 		for _, t := range items.Children(sp.ID) {
 			for _, v := range dayVerbs {
 				if LocalDay(v.at(t)) == day {
@@ -386,12 +449,11 @@ func dayActivity(day string, items *Items, under string, recs []*Record, frm *Re
 					}
 					rows = append(rows, `<li><span class="pill `+v.class+`">`+strings.ToUpper(v.verb)+"</span> "+
 						esc(t.Title)+` <span class="k">`+esc(t.ID)+"</span></li>")
-					moved = true
 					break
 				}
 			}
 		}
-		if moved || LocalDay(sp.CreatedAt) == day {
+		if rows != nil {
 			out = append(out, `<section class="card"><h4>`+pill(State(sp, items))+sprintTitle(sp.ID, sp.Title, recs, frm)+
 				`</h4><ul class="list">`+strings.Join(rows, "")+"</ul></section>")
 		}
@@ -417,6 +479,10 @@ func activityDays(recs []*Record, items *Items) map[string]bool {
 		}
 		for _, sp := range sprintsOf(items, p.Bead()) {
 			days[LocalDay(sp.CreatedAt)] = true
+			if item.IsProposal(sp) { // a dropped proposal's day
+				days[LocalDay(sp.ClosedAt)] = true
+			}
+			days[LocalDay(item.Promoted(sp))] = true
 			for _, t := range items.Children(sp.ID) {
 				for _, v := range dayVerbs {
 					days[LocalDay(v.at(t))] = true
@@ -1021,7 +1087,10 @@ func sprintBody(rec, proj *Record, recs []*Record, items *Items, render func(str
 	b := items.Get(rec.Bead())
 	pre := `<p class="meta">` + pill(State(b, items)) + "<span>" + esc(rec.Bead()) + "</span>" +
 		"<span>opened " + esc(utcDate(b.CreatedAt)) + "</span></p>"
-	generated := TaskGraph([]*Item{b}, items)
+	generated := `<p class="empty">No tasks yet.</p>` // a chart of one empty box says no more
+	if len(items.Children(b.ID)) > 0 {
+		generated = TaskGraph([]*Item{b}, items)
+	}
 	body = replaceFirst(progressRE, body, func(g string) string { return g + "\n" + generated + "\n" })
 	var cards []card
 	for _, it := range OwnerTasks(items, rec.Bead()) {
@@ -1271,7 +1340,7 @@ func indexSprints(p *Record, recs []*Record, items *Items) string {
 	}
 	var rows []string
 	for _, sp := range sprints {
-		if sp.Status != item.Closed || shown[sp.ID] {
+		if (sp.Status != item.Closed || shown[sp.ID]) && !items.Proposal(sp) {
 			n, m := 0, 0
 			for _, t := range items.Children(sp.ID) {
 				switch State(t, items) {
@@ -1286,18 +1355,22 @@ func indexSprints(p *Record, recs []*Record, items *Items) string {
 			if r := sprintRecs[sp.ID]; r != nil {
 				title = `<a href="` + r.Out() + `">` + esc(sp.Title) + "</a>"
 			}
-			rows = append(rows, "<li>"+pill(State(sp, items))+" "+title+
-				fmt.Sprintf(`<span class="k">%d of %d tasks done</span></li>`, n, m))
+			count := fmt.Sprintf("%d of %d tasks done", n, m)
+			if item.IsProposal(sp) {
+				count = "dropped: " + esc(sp.CloseReason)
+			}
+			rows = append(rows, "<li>"+pill(State(sp, items))+" "+title+`<span class="k">`+count+"</span></li>")
 		}
 	}
 	if hidden := len(done) - DoneSprintsShown; hidden > 0 {
 		rows = append(rows, fmt.Sprintf(`<li><span class="k">%d older done sprints not shown; `+
 			`<a href="%s">the project page</a> lists every sprint</span></li>`, hidden, p.Out()))
 	}
+	list := ""
 	if rows != nil {
-		return `<h3>Sprints</h3><ul class="list">` + strings.Join(rows, "") + "</ul>"
+		list = `<h3>Sprints</h3><ul class="list">` + strings.Join(rows, "") + "</ul>"
 	}
-	return ""
+	return list + proposedSection(sprints, recs, items, nil)
 }
 
 func indexDesigns(p *Record, recs []*Record, items *Items, dates Dates) string {

@@ -245,6 +245,7 @@ func (s *fakeStore) SetResolution(string, work.Resolution) error { return errUnu
 func (s *fakeStore) SetCloseReason(string, string) error         { return errUnused }
 func (s *fakeStore) Reopen(string) error                         { return errUnused }
 func (s *fakeStore) Move(string, string) error                   { return errUnused }
+func (s *fakeStore) Promote(string, string) error                { return errUnused }
 func (s *fakeStore) MoveSprint(string, string, string) (work.Item, error) {
 	return work.Item{}, errUnused
 }

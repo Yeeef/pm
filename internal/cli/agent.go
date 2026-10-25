@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"io"
-	"os"
-	"path/filepath"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -260,21 +257,6 @@ const (
 	liveWindow      = int(session.LiveWindow / time.Second) // seconds, as refusals name it
 )
 
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	h, _ := os.UserHomeDir()
-	return h
-}
-
-func codexHome() string {
-	if h := os.Getenv("CODEX_HOME"); h != "" {
-		return h
-	}
-	return filepath.Join(homeDir(), ".codex")
-}
-
 // holder is who holds an item, as pm show gives it: the session pm task claim recorded, when, and whether it is live.
 // The work store has no assignee, which Python pm gives from bd; it is always null here.
 type holder struct {
@@ -318,18 +300,4 @@ func (e *env) body(p *Parsed) (string, error) {
 		return config.PyStrip(p.Get("text")), nil
 	}
 	return readTextFile(path[len(path)-1], e.stdin)
-}
-
-var sentenceEnd = regexp.MustCompile(`^(.+?[.!?])(` + records.PyS + `|$)`) // Python's \s
-
-// firstSentence is the first sentence of text's first paragraph, cut to limit characters with "…".
-func firstSentence(text string, limit int) string {
-	s := records.FirstPara(text)
-	if m := sentenceEnd.FindStringSubmatch(s); m != nil {
-		s = m[1]
-	}
-	if r := []rune(s); len(r) > limit {
-		return strings.TrimRightFunc(string(r[:limit-1]), config.IsPySpace) + "…"
-	}
-	return s
 }

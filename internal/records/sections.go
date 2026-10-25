@@ -158,6 +158,20 @@ func FirstPara(text string) string {
 	return Strip(spaceRun.ReplaceAllString(first, " "))
 }
 
+var sentenceEnd = regexp.MustCompile(`^(.+?[.!?])(` + pyS + `|$)`) // Python's \s
+
+// FirstSentence is the first sentence of text's first paragraph, cut to limit characters with "…".
+func FirstSentence(text string, limit int) string {
+	s := FirstPara(text)
+	if m := sentenceEnd.FindStringSubmatch(s); m != nil {
+		s = m[1]
+	}
+	if r := []rune(s); len(r) > limit {
+		return strings.TrimRightFunc(string(r[:limit-1]), config.IsPySpace) + "…"
+	}
+	return s
+}
+
 var bulletRE = regexp.MustCompile(`(?m)^` + pyS + `*[-*]` + pyS + `+(.+?)` + pyS + `*$`)
 
 // SummaryLine is a day summary on one line for lists: its bullets ("- " or "* ") joined with " · ", else its first

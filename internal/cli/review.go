@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/where"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/proc"
@@ -79,7 +80,7 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 		desc += "\n\nDesign pages: " + strings.Join(designs, ", ")
 	}
 	if verdicts != nil {
-		site, err := showSiteURL(e.here, store.MainOf(r.records))
+		site, err := where.SiteURL(e.here, store.MainOf(r.records))
 		if err != nil {
 			return "", err
 		}
@@ -116,6 +117,8 @@ func (r *repo) reviewReports(sprints []string) error {
 		if it := r.item(sid); it != nil && it.Status == work.Closed {
 			return refuse("sprint %s is closed, but a sprint closes only after its PR merges; a PR under review "+
 				"delivers only open sprints", sid)
+		} else if it != nil && r.x.Proposal(it) {
+			return refuse("sprint %s is a proposal, not promoted; it has no work to review", sid)
 		}
 		line, err := records.Outcome(rec)
 		if err != nil {
