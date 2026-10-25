@@ -231,8 +231,8 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	if r.x.Proposal(epic) {
-		return "", refuse("sprint %s is a proposal nobody started; drop it with pm sprint close %s --dropped --reason "+
-			"\"…\", or start it, when the owner asks, with pm task add --sprint %s", id, id, id)
+		return "", refuse("sprint %s is a proposal; drop it with pm sprint close %s --dropped --reason "+
+			"\"…\", or, when the owner asks, promote it with pm sprint promote %s", id, id, id)
 	}
 	head, err := r.requireCommitted(rec.Path)
 	if err != nil {
@@ -298,6 +298,32 @@ func cmdSprintClose(e *env, p *Parsed) (string, error) {
 	return out, nil
 }
 
+// cmdSprintPromote is pm sprint promote: an open proposal becomes an ordinary sprint of its project, on the owner's
+// word (Store.Promote: the label deleted, a dated note left).
+func cmdSprintPromote(e *env, p *Parsed) (string, error) {
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	id := p.Get("sprint_id")
+	if it := r.item(id); it == nil || !r.x.Proposal(it) {
+		return "", refuse("sprint %s is not an open proposal; pm sprint promote makes an open proposal (pm sprint "+
+			"propose) an ordinary sprint", id)
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	by := currentSession()
+	if by == "" {
+		by = "owner"
+	}
+	if err := ws.Promote(id, by); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("promoted %s: an ordinary sprint now; add its tasks with pm task add --sprint %s", id, id), nil
+}
+
 // closingSprint is the record and the epic of the open sprint id, which pm sprint close closes.
 func (r *repo) closingSprint(id string) (*records.Record, *work.Item, error) {
 	rec, err := r.sprint(id)
@@ -315,10 +341,10 @@ func (r *repo) closingSprint(id string) (*records.Record, *work.Item, error) {
 }
 
 // dropProposal is pm sprint close --dropped: the proposal closes as not done (dismissed) with its one-line --reason,
-// with no records write and no report. It refuses a sprint that is not a proposal nobody started.
+// with no records write and no report. It refuses a sprint that is not a proposal.
 func dropProposal(e *env, p *Parsed) (string, error) {
 	if _, merged := given(p, "merged"); merged || p.Get("pr") != "" || len(p.Values["discard"]) > 0 {
-		return "", refuse("--dropped closes a proposal nobody started, with one --reason; it takes no --merged, --pr or " +
+		return "", refuse("--dropped closes a proposal, with one --reason; it takes no --merged, --pr or " +
 			"--discard")
 	}
 	r, err := e.load(false)
@@ -331,7 +357,7 @@ func dropProposal(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	if !r.x.Proposal(epic) {
-		return "", refuse("sprint %s is not a proposal nobody started, so --dropped does not close it: it closes with its "+
+		return "", refuse("sprint %s is not a proposal, so --dropped does not close it: it closes with its "+
 			"Delivery report, voided when a finding voided it", id)
 	}
 	if len(p.Values["reason"]) != 1 {
@@ -341,10 +367,10 @@ func dropProposal(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, k := range r.x.Children(id) { // needs only: a proposal has no task
+	for _, k := range r.x.Children(id) {
 		if k.Status != work.Closed {
-			return "", refuse("proposal %s holds an open need, %s (%s); close it first: pm need close %s --dropped "+
-				"--reason \"…\" when the drop makes it moot", id, k.ID, k.Title, k.ID)
+			return "", refuse("proposal %s holds an open %s, %s (%s); close it first: pm %s close %s --dropped "+
+				"--reason \"…\" when the drop makes it moot", id, k.Type, k.ID, k.Title, k.Type, k.ID)
 		}
 	}
 	if drafted, _, err := store.Drafted(r.records); err != nil {
@@ -591,6 +617,10 @@ func (r *repo) openSprint(id string) (*records.Record, error) {
 	}
 	if it.Status == work.Closed {
 		return nil, refuse("sprint %s is closed; use an open sprint", id)
+	}
+	if r.x.Proposal(it) {
+		return nil, refuse("sprint %s is a proposal; its tasks wait until the owner asks to promote it: pm sprint "+
+			"promote %s", id, id)
 	}
 	return rec, nil
 }

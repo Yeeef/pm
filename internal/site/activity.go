@@ -1,7 +1,6 @@
 package site
 
 import (
-	"slices"
 	"strings"
 	"time"
 
@@ -12,29 +11,24 @@ import (
 
 // A day's activity: what the day page shows of a sprint, and DayActivity, the text pm day summarize sends the model.
 
-// sprintMarks is what a sprint itself did on the day, oldest first: "proposed" (a sprint labelled proposal) or
-// "opened" on its create date; "started", for a proposal, on the date of its first task when that is a later day;
-// "dropped" on the date a proposal nobody started closed. A finished sprint is the caller's: the page shows no row
-// for it, the text its Outcome.
-func sprintMarks(sp *Item, items *Items, on func(time.Time) bool) []string {
+// sprintMarks is what a sprint itself did on the day, oldest first: "proposed" (a proposal, or a sprint promoted from
+// one) or "opened" on its create date; "started" on the date pm sprint promote made it ordinary (its note); "dropped"
+// on the date a proposal closed. A finished sprint is the caller's: the page shows no row for it, the text its Outcome.
+// Each mark is dated by its own event, so a day's marks never change later.
+func sprintMarks(sp *Item, on func(time.Time) bool) []string {
 	var marks []string
-	proposal := slices.Contains(sp.Labels, item.ProposalLabel)
+	promoted := item.Promoted(sp)
+	proposal := item.IsProposal(sp) || !promoted.IsZero()
 	switch {
 	case on(sp.CreatedAt) && proposal:
 		marks = append(marks, "proposed")
 	case on(sp.CreatedAt):
 		marks = append(marks, "opened")
 	}
-	var first time.Time
-	for _, t := range items.Children(sp.ID) {
-		if at := item.Arrived(t, sp.ID); t.Type == item.Task && (first.IsZero() || at.Before(first)) {
-			first = at
-		}
-	}
-	if proposal && !first.IsZero() && on(first) && LocalDay(first) > LocalDay(sp.CreatedAt) {
+	if !promoted.IsZero() && on(promoted) {
 		marks = append(marks, "started")
 	}
-	if sp.Status == item.Closed && items.Unstarted(sp) && on(sp.ClosedAt) {
+	if sp.Status == item.Closed && item.IsProposal(sp) && on(sp.ClosedAt) {
 		marks = append(marks, "dropped")
 	}
 	return marks
@@ -102,7 +96,7 @@ func DayActivity(day, dir string, recs []*Record, items *Items) (string, error) 
 
 func sprintActivity(sp *Item, recs []*Record, items *Items, on func(time.Time) bool) ([]string, error) {
 	var rows []string
-	if on(sp.ClosedAt) && !items.Unstarted(sp) {
+	if on(sp.ClosedAt) && !item.IsProposal(sp) {
 		row := "    sprint finished"
 		for _, rec := range recs {
 			if rec.Type() == "sprint" && rec.Bead() == sp.ID {
@@ -118,7 +112,7 @@ func sprintActivity(sp *Item, recs []*Record, items *Items, on func(time.Time) b
 		}
 		rows = append(rows, row)
 	}
-	for _, m := range sprintMarks(sp, items, on) {
+	for _, m := range sprintMarks(sp, on) {
 		if m == "dropped" {
 			rows = append(rows, "    proposal dropped ("+sp.CloseReason+")")
 		} else {

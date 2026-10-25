@@ -118,7 +118,7 @@ func (r *repo) reviewReports(sprints []string) error {
 			return refuse("sprint %s is closed, but a sprint closes only after its PR merges; a PR under review "+
 				"delivers only open sprints", sid)
 		} else if it != nil && r.x.Proposal(it) {
-			return refuse("sprint %s is a proposal nobody started; it has no work to review", sid)
+			return refuse("sprint %s is a proposal, not promoted; it has no work to review", sid)
 		}
 		line, err := records.Outcome(rec)
 		if err != nil {

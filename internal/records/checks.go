@@ -67,13 +67,8 @@ func (x *Items) Children(parent string) []*item.Item {
 	return out
 }
 
-// Unstarted is item.Unstarted with the item's children: a sprint labelled proposal with no task under it.
-func (x *Items) Unstarted(it *item.Item) bool {
-	return it.Type == item.Sprint && item.Unstarted(it, x.Children(it.ID)) // the type first: Children scans every item
-}
-
-// Proposal is whether it is an open sprint that is a proposal nobody started.
-func (x *Items) Proposal(it *item.Item) bool { return it.Status == item.Open && x.Unstarted(it) }
+// Proposal is whether it is an open proposal: a sprint labelled proposal (item.IsProposal).
+func (x *Items) Proposal(it *item.Item) bool { return it.Status == item.Open && item.IsProposal(it) }
 
 // ProjectOf is the project record a record belongs to: by the item tree for sprints and docs with a bead, by its
 // sprint for a postmortem with one, by `project:` otherwise; nil when there is none.

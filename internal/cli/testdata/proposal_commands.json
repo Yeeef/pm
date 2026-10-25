@@ -25,7 +25,7 @@
    "the diff"
   ],
   "outcome": "refused",
-  "says": "sprint {P} is a proposal nobody started; it has no work to review"
+  "says": "sprint {P} is a proposal, not promoted; it has no work to review"
  },
  {
   "covers": "action need --task",
@@ -374,7 +374,7 @@
    "{P}"
   ],
   "outcome": "refused",
-  "says": "sprint {P} is a proposal nobody started; drop it with pm sprint close {P} --dropped"
+  "says": "sprint {P} is a proposal; drop it with pm sprint close {P} --dropped"
  },
  {
   "covers": "sprint close sprint_id",
@@ -417,6 +417,36 @@
   "stdin": "Refine it.\nThe proposal said too little.\n"
  },
  {
+  "covers": "sprint promote sprint_id",
+  "argv": [
+   "sprint",
+   "promote",
+   "{P}"
+  ],
+  "outcome": "promotes",
+  "says": "promoted {P}"
+ },
+ {
+  "covers": "sprint promote sprint_id",
+  "argv": [
+   "sprint",
+   "promote",
+   "{P}"
+  ],
+  "outcome": "refused",
+  "says": "sprint {P} is not an open proposal",
+  "setup": [
+   [
+    "sprint",
+    "close",
+    "{P}",
+    "--dropped",
+    "--reason",
+    "duplicate"
+   ]
+  ]
+ },
+ {
   "covers": "sprint reopen sprint_id",
   "argv": [
    "sprint",
@@ -448,7 +478,8 @@
    "--title",
    "[TEST] retry the setup"
   ],
-  "outcome": "starts"
+  "outcome": "refused",
+  "says": "pm sprint promote {P}"
  },
  {
   "covers": "task add --task",
@@ -519,8 +550,9 @@
    "--text-file",
    "-"
   ],
-  "outcome": "starts",
-  "stdin": "Refine it.\nThe proposal said too little.\n"
+  "outcome": "refused",
+  "stdin": "Refine it.\nThe proposal said too little.\n",
+  "says": "pm sprint promote {P}"
  },
  {
   "covers": "task ready --sprint",

@@ -82,8 +82,8 @@ func TestEveryItemIDArgumentIsClassedForAProposal(t *testing.T) {
 		if !want[c.Covers] {
 			t.Errorf("case %q covers no id argument of the command tree", c.Covers)
 		}
-		if !slices.Contains([]string{"allowed", "starts", "drops", "refused"}, c.Outcome) {
-			t.Errorf("case %q: outcome %q is none of allowed, starts, drops, refused", c.Covers, c.Outcome)
+		if !slices.Contains([]string{"allowed", "promotes", "drops", "refused"}, c.Outcome) {
+			t.Errorf("case %q: outcome %q is none of allowed, promotes, drops, refused", c.Covers, c.Outcome)
 		}
 	}
 	for k := range want {

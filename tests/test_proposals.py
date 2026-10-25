@@ -1,7 +1,7 @@
 """Sprint proposals end to end against a temp repo, as the sprint-proposals design page gives them: pm sprint propose
 writes the labelled sprint, its record and the evidence finding, refuses a frame or evidence it lacks, and lists the
 project's other proposals and open sprints; pm show (text and --json) and pm task ready leave a proposal out while
-pm show --sprint shows it; its first task starts it; pm sprint close --dropped drops it with its reason and pm sprint
+pm show --sprint shows it; it takes no task until pm sprint promote makes it ordinary; pm sprint close --dropped drops it with its reason and pm sprint
 reopen makes it a proposal again; pm project close names the drop. test_every_item_id_command_on_a_proposal runs each
 case of internal/cli/testdata/proposal_commands.json, which TestEveryItemIDArgumentIsClassedForAProposal holds to the
 command tree, against a fresh proposal; the cases that need the site served (pm record link) run in
@@ -71,7 +71,8 @@ def test_propose_refuses_a_missing_frame_or_evidence_and_writes_nothing(repo):
     assert not (repo.records / "sprints/demo-3.md").exists()
 
 
-def test_pm_show_and_task_ready_leave_a_proposal_out_until_its_first_task_starts_it(repo):
+def test_pm_show_leaves_a_proposal_out_and_it_takes_tasks_once_promoted(repo):
+    repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
     pid = proposed(repo)
     before = repo.pm("show").stdout
     assert "2 open sprints" in before and pid not in before
@@ -80,15 +81,25 @@ def test_pm_show_and_task_ready_leave_a_proposal_out_until_its_first_task_starts
     assert repo.pm("task", "ready").stdout.strip() == "no ready tasks"
     detail = repo.pm("show", "--sprint", pid).stdout
     assert detail.startswith(f"Sprint 3: Fix the sync flake  {pid}  proposed  ") and "Proposal evidence:" in detail
-    assert repo.pm("task", "add", "--sprint", pid, "--title", "[TEST] retry the setup").returncode == 0
+    res = repo.pm("task", "add", "--sprint", pid, "--title", "[TEST] retry the setup")
+    assert res.returncode != 0 and f"sprint {pid} is a proposal; its tasks wait until the owner asks to promote it: " \
+        f"pm sprint promote {pid}" in res.stderr
+    res = repo.pm("sprint", "promote", pid)
+    assert res.returncode == 0 and res.stdout.startswith(f"promoted {pid}"), res.stderr
+    item = repo.items()[pid]
+    assert item["labels"] == [] and [(c["kind"], c["author"], c["text"]) for c in item["comments"]] == [
+        ("note", "sess-1", "pm sprint promote")]
     assert pid in shown_sprints(repo) and "3 open sprints" in repo.pm("show").stdout
+    assert repo.pm("task", "add", "--sprint", pid, "--title", "[TEST] retry the setup").returncode == 0
+    res = repo.pm("sprint", "promote", pid)
+    assert res.returncode != 0 and f"sprint {pid} is not an open proposal" in res.stderr
 
 
 def test_a_dropped_proposal_keeps_its_reason_and_a_reopen_makes_it_a_proposal_again(repo):
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
     pid = proposed(repo)
     res = repo.pm("sprint", "close", pid)
-    assert res.returncode != 0 and f"sprint {pid} is a proposal nobody started; drop it with" in res.stderr
+    assert res.returncode != 0 and f"sprint {pid} is a proposal; drop it with" in res.stderr
     assert repo.pm("sprint", "close", "repo-demo.1", "--dropped", "--reason", "x").returncode != 0
     res = repo.pm("sprint", "close", pid, "--dropped", "--reason", "duplicate of repo-demo.1")
     assert res.returncode == 0, res.stderr
@@ -101,11 +112,11 @@ def test_a_dropped_proposal_keeps_its_reason_and_a_reopen_makes_it_a_proposal_ag
     assert repo.items()[pid]["status"] == "open" and pid not in shown_sprints(repo)
 
 
-def test_a_started_proposal_closes_as_a_sprint_and_refuses_dropped(repo):
+def test_a_promoted_proposal_closes_as_a_sprint_and_refuses_dropped(repo):
     pid = proposed(repo)
-    assert repo.pm("task", "add", "--sprint", pid, "--title", "[TEST] retry the setup").returncode == 0
+    assert repo.pm("sprint", "promote", pid).returncode == 0
     res = repo.pm("sprint", "close", pid, "--dropped", "--reason", "x")
-    assert res.returncode != 0 and f"sprint {pid} is not a proposal nobody started" in res.stderr
+    assert res.returncode != 0 and f"sprint {pid} is not a proposal" in res.stderr
 
 
 def test_project_close_names_the_drop_of_an_open_proposal(repo):
@@ -128,8 +139,8 @@ def fill(text: str, values: dict[str, str]) -> str:
 
 
 def run_cases(repo, cases: list[dict]) -> None:
-    """Run each case with a fresh proposal as {P}: allowed leaves it a proposal, starts gives it a task and puts it in
-    pm show, drops closes it as dismissed, refused fails and changes nothing of it; a case's says is in its output."""
+    """Run each case with a fresh proposal as {P}: allowed leaves it a proposal, promotes makes it a sprint without
+    the label that pm show lists, drops closes it as dismissed, refused fails and changes nothing of it; a case's says is in its output."""
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
     write_config(repo.root, site_url="https://pm.example.test")  # what pm record link prints
     (repo.records / "design").mkdir(exist_ok=True)
@@ -160,7 +171,7 @@ def run_cases(repo, cases: list[dict]) -> None:
         after = repo.items()
         it, kids = after[pid], [i for i in after.values() if i.get("parent") == pid and i["type"] == "task"]
         ok = {"allowed": res.returncode == 0 and it["status"] == "open" and not kids,
-              "starts": res.returncode == 0 and bool(kids) and pid in shown_sprints(repo),
+              "promotes": res.returncode == 0 and "proposal" not in it["labels"] and pid in shown_sprints(repo),
               "drops": res.returncode == 0 and (it["status"], it["resolution"]) == ("closed", "dismissed"),
               "refused": res.returncode != 0 and it == before}[case["outcome"]]
         says = fill(case.get("says", ""), values)

@@ -85,16 +85,24 @@ type Item struct {
 	Need        *NeedInfo  `json:"need,omitempty"` // needs only
 }
 
-// ProposalLabel marks a sprint that pm sprint propose made; it is never removed (the sprint-proposals design page).
+// ProposalLabel marks a proposal: a sprint pm sprint propose made, which pm sprint promote makes ordinary by
+// deleting the label (the sprint-proposals design page).
 const ProposalLabel = "proposal"
 
-// Unstarted is whether sprint s is a proposal nobody started: labelled ProposalLabel, with no task among kids, its
-// children (needs do not count). Open, it is a proposal; closed, a dropped proposal. Derived on read, never stored.
-func Unstarted(s *Item, kids []*Item) bool {
-	if s.Type != Sprint || !slices.Contains(s.Labels, ProposalLabel) {
-		return false
+// PromoteNote is the note pm sprint promote leaves on the sprint, by the promoting session: the promote's date.
+const PromoteNote = "pm sprint promote"
+
+// IsProposal is whether s is a sprint labelled ProposalLabel: open, a proposal; closed, a dropped proposal.
+func IsProposal(s *Item) bool { return s.Type == Sprint && slices.Contains(s.Labels, ProposalLabel) }
+
+// Promoted is when sprint s was promoted (its PromoteNote); zero when it never was.
+func Promoted(s *Item) time.Time {
+	for _, c := range s.Comments {
+		if c.Kind == Note && c.Text == PromoteNote {
+			return c.CreatedAt
+		}
 	}
-	return !slices.ContainsFunc(kids, func(k *Item) bool { return k.Type == Task })
+	return time.Time{}
 }
 
 // HasReply is whether the item holds an owner's reply: a need the owner answered.
@@ -264,23 +272,4 @@ func SprintMoves(it *Item) []SprintMove {
 		out = append(out, SprintMove{From: m[1], FromNumber: from, To: m[3], ToNumber: to, Reason: reason})
 	}
 	return out
-}
-
-// TaskMoveText is the move note pm task move leaves on the task or need it moves: the parent it left and the one it
-// joined.
-func TaskMoveText(from, to string) string { return "pm task move: from " + from + " to " + to }
-
-var taskMoveLine = regexp.MustCompile(`^pm task move: from \S+ to (\S+)$`)
-
-// Arrived is when the item came under parent: its latest move note into parent, else its creation (made there, or
-// moved before move notes were kept).
-func Arrived(it *Item, parent string) time.Time {
-	at := it.CreatedAt
-	for _, c := range it.Comments {
-		if m := taskMoveLine.FindStringSubmatch(c.Text); c.Kind == Note && c.Author == MoveAuthor && m != nil &&
-			m[1] == parent {
-			at = c.CreatedAt
-		}
-	}
-	return at
 }

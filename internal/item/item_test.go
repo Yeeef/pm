@@ -31,46 +31,30 @@ func TestTheItemReadersLinkNoDolt(t *testing.T) {
 	}
 }
 
-// A proposal's state follows from its label and its tasks alone (the sprint-proposals design page, Representation):
-// no task leaves it unstarted, open or closed; any task, of any status, starts it, and once every task moved out it
-// is unstarted again; a need under it does not count, and a sprint without the label is never one.
-func TestAProposalIsUnstartedUntilATaskIsUnderIt(t *testing.T) {
-	proposal := &Item{ID: "p.1", Type: Sprint, Labels: []string{ProposalLabel}}
-	closed := &Item{ID: "p.2", Type: Sprint, Labels: []string{"bug", ProposalLabel}, Status: Closed}
-	plain := &Item{ID: "p.3", Type: Sprint}
-	task := &Item{ID: "p.1.1", Type: Task, Parent: "p.1", Status: Closed}
-	need := &Item{ID: "p.1.2", Type: Need, Parent: "p.1"}
+// A proposal is a sprint carrying the label (the sprint-proposals design page, Representation), whatever is under it;
+// a task carrying it is none. Promoted dates the promote by its note, and is zero without one.
+func TestAProposalIsASprintLabelledProposalAndItsPromoteIsDatedByItsNote(t *testing.T) {
+	at := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
 	for _, c := range []struct {
 		name string
-		s    *Item
-		kids []*Item
+		it   *Item
 		want bool
 	}{
-		{"no task", proposal, nil, true},
-		{"a need only", proposal, []*Item{need}, true},
-		{"a closed task", proposal, []*Item{need, task}, false},
-		{"closed with no task", closed, nil, true},
-		{"no label", plain, nil, false},
-		{"a task labelled proposal", &Item{ID: "p.1.3", Type: Task, Labels: []string{ProposalLabel}}, nil, false},
+		{"labelled", &Item{Type: Sprint, Labels: []string{ProposalLabel}}, true},
+		{"labelled and closed", &Item{Type: Sprint, Labels: []string{"bug", ProposalLabel}, Status: Closed}, true},
+		{"promoted", &Item{Type: Sprint}, false},
+		{"a task labelled proposal", &Item{Type: Task, Labels: []string{ProposalLabel}}, false},
 	} {
-		if got := Unstarted(c.s, c.kids); got != c.want {
-			t.Errorf("%s: Unstarted = %v, want %v", c.name, got, c.want)
+		if got := IsProposal(c.it); got != c.want {
+			t.Errorf("%s: IsProposal = %v, want %v", c.name, got, c.want)
 		}
 	}
-}
-
-// Arrived dates an item's coming under a parent by its latest move note into it, else by its creation.
-func TestArrivedIsTheLatestMoveIntoTheParent(t *testing.T) {
-	made, first, second := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC),
-		time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
-	note := func(from, to string, at time.Time) Comment {
-		return Comment{Kind: Note, Author: MoveAuthor, Text: TaskMoveText(from, to), CreatedAt: at}
+	promoted := &Item{Type: Sprint, Comments: []Comment{{Kind: Reply, Text: PromoteNote, CreatedAt: at.AddDate(0, 0, 1)},
+		{Kind: Note, Author: "sess", Text: PromoteNote, CreatedAt: at}}}
+	if got := Promoted(promoted); !got.Equal(at) {
+		t.Errorf("Promoted = %v, want %v", got, at)
 	}
-	it := &Item{CreatedAt: made, Comments: []Comment{note("s.1", "s.2", first), note("s.2", "s.1", second),
-		{Kind: Note, Author: "sess", Text: TaskMoveText("s.1", "s.2"), CreatedAt: second}}}
-	for parent, want := range map[string]time.Time{"s.2": first, "s.1": second, "s.3": made} {
-		if got := Arrived(it, parent); !got.Equal(want) {
-			t.Errorf("Arrived(%s) = %v, want %v", parent, got, want)
-		}
+	if got := Promoted(&Item{Type: Sprint}); !got.IsZero() {
+		t.Errorf("Promoted of a sprint never promoted = %v, want zero", got)
 	}
 }

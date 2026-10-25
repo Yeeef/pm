@@ -35,6 +35,7 @@ var agentCommands = map[string]agentCommand{
 	"project reopen":   cmdProjectReopen,
 	"sprint open":      cmdSprintOpen,
 	"sprint propose":   cmdSprintPropose,
+	"sprint promote":   cmdSprintPromote,
 	"sprint close":     cmdSprintClose,
 	"sprint move":      cmdSprintMove,
 	"sprint edit":      cmdSprintEdit,

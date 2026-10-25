@@ -58,25 +58,25 @@ func pill(st string) string {
 func isEpic(it *Item) bool { return it.Type == item.Project || it.Type == item.Sprint }
 
 // State is one of done, dropped, proposed, running, blocked and ready: done once closed, dropped for a task closed as
-// dismissed (pm task close --dropped: not done) and for a closed proposal nobody started, proposed for an open one
-// (Items.Unstarted), running while held or, for a project or sprint, once any child has started or finished; blocked
+// dismissed (pm task close --dropped: not done) and for a closed proposal, proposed for an open one
+// (item.IsProposal), running while held or, for a project or sprint, once any child has started or finished; blocked
 // while a blocker is not closed.
 func State(it *Item, items *Items) string {
 	switch {
 	case it.Status == item.Closed && it.Type == item.Task && it.Resolution == item.Dismissed:
 		return "dropped"
-	case it.Status == item.Closed && items.Unstarted(it):
+	case it.Status == item.Closed && item.IsProposal(it):
 		return "dropped"
 	case it.Status == item.Closed:
 		return "done"
-	case items.Unstarted(it):
+	case item.IsProposal(it):
 		return "proposed"
 	case it.Holder != nil:
 		return "running"
 	}
 	if isEpic(it) {
 		for _, k := range items.All() {
-			if k.Parent == it.ID && (k.Holder != nil || k.Status == item.Closed && !items.Unstarted(k)) {
+			if k.Parent == it.ID && (k.Holder != nil || k.Status == item.Closed && !item.IsProposal(k)) {
 				return "running"
 			}
 		}
@@ -199,7 +199,7 @@ func inline(text string) string {
 
 func progress(project *Record, recs []*Record, items *Items, frm *Record) (string, error) {
 	root := project.Bead()
-	graph := TaskGraph(childrenWhere(items, root, func(it *Item) bool { return !items.Unstarted(it) }), items)
+	graph := TaskGraph(childrenWhere(items, root, func(it *Item) bool { return !item.IsProposal(it) }), items)
 	var sprints []*Record
 	for _, r := range recs {
 		if r.Type() == "sprint" && records.ProjectOf(r, recs, items) == project {
@@ -223,7 +223,7 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 		out := "<span class=empty>not closed</span>"
 		if report != "" {
 			out = inline(report)
-		} else if items.Unstarted(b) {
+		} else if item.IsProposal(b) {
 			out = "dropped: " + esc(b.CloseReason)
 		}
 		rows = append(rows, `<tr><td><a href="`+link(frm, r.Out())+`">`+esc(r.Title())+"</a></td>"+
@@ -429,13 +429,13 @@ func dayActivity(day string, items *Items, under string, recs []*Record, frm *Re
 	var out []string
 	for _, sp := range sprintsOf(items, under) {
 		var rows []string
-		for _, m := range sprintMarks(sp, items, func(t time.Time) bool { return LocalDay(t) == day }) {
+		for _, m := range sprintMarks(sp, func(t time.Time) bool { return LocalDay(t) == day }) {
 			row := `<li><span class="pill queued">OPENED</span> this sprint</li>`
 			switch m {
 			case "proposed":
 				row = "<li>" + pill("proposed") + " this sprint</li>"
 			case "started":
-				row = `<li><span class="pill run">STARTED</span> this proposal: its first task</li>`
+				row = `<li><span class="pill run">STARTED</span> this sprint: promoted from a proposal</li>`
 			case "dropped":
 				row = "<li>" + pill("dropped") + ` this proposal <span class="k">` + esc(sp.CloseReason) + "</span></li>"
 			}
@@ -479,9 +479,10 @@ func activityDays(recs []*Record, items *Items) map[string]bool {
 		}
 		for _, sp := range sprintsOf(items, p.Bead()) {
 			days[LocalDay(sp.CreatedAt)] = true
-			if items.Unstarted(sp) { // a dropped proposal's day; a started one's is its first task's
+			if item.IsProposal(sp) { // a dropped proposal's day
 				days[LocalDay(sp.ClosedAt)] = true
 			}
+			days[LocalDay(item.Promoted(sp))] = true
 			for _, t := range items.Children(sp.ID) {
 				for _, v := range dayVerbs {
 					days[LocalDay(v.at(t))] = true
@@ -1355,7 +1356,7 @@ func indexSprints(p *Record, recs []*Record, items *Items) string {
 				title = `<a href="` + r.Out() + `">` + esc(sp.Title) + "</a>"
 			}
 			count := fmt.Sprintf("%d of %d tasks done", n, m)
-			if items.Unstarted(sp) {
+			if item.IsProposal(sp) {
 				count = "dropped: " + esc(sp.CloseReason)
 			}
 			rows = append(rows, "<li>"+pill(State(sp, items))+" "+title+`<span class="k">`+count+"</span></li>")
