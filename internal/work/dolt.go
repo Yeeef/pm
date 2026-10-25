@@ -1227,12 +1227,19 @@ func (d *Dolt) Reopen(id string) error {
 }
 
 // Move gives a task or a need a new parent (pm task move takes any open item that is no project or sprint); its id
-// stays.
+// stays, and a move note (item.TaskMoveText, by MoveAuthor) records the move and its time.
 func (d *Dolt) Move(id, parent string) error {
 	return d.update("move", id, func(it *Item, _ *Index) error {
 		if it.Type != Task && it.Type != Need {
 			return itemError(id, "is a %s; only a task or a need moves", it.Type)
 		}
+		cid, err := newUUID()
+		if err != nil {
+			return err
+		}
+		// the move's own event, which dates a proposal's start (item.Arrived)
+		it.Comments = append(it.Comments, Comment{ID: cid, Kind: Note, Author: MoveAuthor,
+			Text: TaskMoveText(it.Parent, parent), CreatedAt: d.now()})
 		it.Parent = parent
 		return nil
 	})

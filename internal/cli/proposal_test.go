@@ -3,11 +3,16 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
+
+	"github.com/Yeeef/pm/internal/work"
+	"github.com/Yeeef/pm/internal/work/worktest"
 )
 
 // The class mechanism of the sprint-proposals design page (Every command on a proposal): every command argument that
@@ -86,5 +91,47 @@ func TestEveryItemIDArgumentIsClassedForAProposal(t *testing.T) {
 			t.Errorf("pm %s takes an item id, and no case in testdata/proposal_commands.json classes it for a "+
 				"proposal", k)
 		}
+	}
+}
+
+// A drop writes no records, so it refuses what it would strand or leave open (the sprint-proposals design page,
+// Commands): an open need under the proposal, named with how to close it, and a design-page draft tagged with it,
+// until a commit tags the page with another sprint; then the drop closes it as dismissed.
+func TestADropRefusesAnOpenNeedAndADraftTaggedWithTheProposal(t *testing.T) {
+	_, storeDir, one, _ := workspaces(t)
+	writeFile(t, filepath.Join(storeDir, "sprints/demo-2.md"), recordsSprint("Two", "demo.2",
+		"[Parser](../design/parser.md)"))
+	run(t, storeDir, "git commit -qam 'sprint 2 links the parser'")
+	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	items := []work.Item{{ID: "demo", Type: work.Project, Title: "Demo", Status: work.Open, CreatedAt: at},
+		{ID: "demo.1", Type: work.Sprint, Parent: "demo", Title: "One", Number: 1, Status: work.Open, CreatedAt: at},
+		{ID: "demo.2", Type: work.Sprint, Parent: "demo", Title: "Two", Number: 2, Status: work.Open, CreatedAt: at,
+			Labels: []string{work.ProposalLabel}},
+		{ID: "demo.2.1", Type: work.Need, Parent: "demo.2", Title: "Which retry?", Status: work.Open, CreatedAt: at,
+			Need: &work.NeedInfo{Kind: work.Decision}},
+		{ID: "demo.1.1", Type: work.Task, Parent: "demo.1", Title: "T", Status: work.Open, CreatedAt: at,
+			Holder: &work.Holder{Session: "s1", ClaimedAt: at}}}
+	closed := &[]string{}
+	use := func(items []work.Item) {
+		OpenWork = func(string) (work.Store, error) { return closingStore{worktest.New(items), closed}, nil }
+	}
+	drop := []string{"sprint", "close", "demo.2", "--dropped", "--reason", "duplicate of demo.1"}
+	use(items)
+	if _, stderr, code := runPM(t, one.Code, drop...); code == 0 || !strings.Contains(stderr, "proposal demo.2 holds "+
+		`an open need, demo.2.1 (Which retry?); close it first: pm need close demo.2.1 --dropped`) {
+		t.Errorf("a drop with an open need: exit %d, %q", code, stderr)
+	}
+	use(slices.Delete(items, 3, 4)) // the need closed
+	page := filepath.Join(one.Dir, "design/parser.md")
+	edit(t, page, "\nP1\n", "\nP1 for the proposal\n")
+	mustPM(t, one.Code, "commit", "-m", "the parser, for the proposal", "--sprint", "demo.2", "records/design/parser.md")
+	if _, stderr, code := runPM(t, one.Code, drop...); code == 0 || !strings.Contains(stderr,
+		"proposal demo.2 holds design-page drafts only its close publishes (design/parser.md)") {
+		t.Errorf("a drop with a draft tagged with it: exit %d, %q", code, stderr)
+	}
+	edit(t, page, "\nP1 for the proposal\n", "\nP1\n") // the draft put back to the published page: no draft left
+	mustPM(t, one.Code, "commit", "-m", "the parser as published", "--sprint", "demo.2", "records/design/parser.md")
+	if out := mustPM(t, one.Code, drop...); !strings.Contains(out, "dropped proposal demo.2") || len(*closed) != 1 {
+		t.Errorf("the drop said %q, closed %v", out, *closed)
 	}
 }

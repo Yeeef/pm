@@ -71,6 +71,9 @@ const (
 	ProposalLabel = model.ProposalLabel
 )
 
+// TaskMoveText is item.TaskMoveText.
+func TaskMoveText(from, to string) string { return model.TaskMoveText(from, to) }
+
 // HasReply is item.HasReply.
 func HasReply(it *Item) bool { return model.HasReply(it) }
 

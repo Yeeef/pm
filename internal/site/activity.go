@@ -27,8 +27,8 @@ func sprintMarks(sp *Item, items *Items, on func(time.Time) bool) []string {
 	}
 	var first time.Time
 	for _, t := range items.Children(sp.ID) {
-		if t.Type == item.Task && (first.IsZero() || t.CreatedAt.Before(first)) {
-			first = t.CreatedAt
+		if at := item.Arrived(t, sp.ID); t.Type == item.Task && (first.IsZero() || at.Before(first)) {
+			first = at
 		}
 	}
 	if proposal && !first.IsZero() && on(first) && LocalDay(first) > LocalDay(sp.CreatedAt) {

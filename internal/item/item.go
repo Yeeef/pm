@@ -265,3 +265,22 @@ func SprintMoves(it *Item) []SprintMove {
 	}
 	return out
 }
+
+// TaskMoveText is the move note pm task move leaves on the task or need it moves: the parent it left and the one it
+// joined.
+func TaskMoveText(from, to string) string { return "pm task move: from " + from + " to " + to }
+
+var taskMoveLine = regexp.MustCompile(`^pm task move: from \S+ to (\S+)$`)
+
+// Arrived is when the item came under parent: its latest move note into parent, else its creation (made there, or
+// moved before move notes were kept).
+func Arrived(it *Item, parent string) time.Time {
+	at := it.CreatedAt
+	for _, c := range it.Comments {
+		if m := taskMoveLine.FindStringSubmatch(c.Text); c.Kind == Note && c.Author == MoveAuthor && m != nil &&
+			m[1] == parent {
+			at = c.CreatedAt
+		}
+	}
+	return at
+}

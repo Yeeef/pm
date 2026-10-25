@@ -219,7 +219,8 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
                   r"sprints")
     res = repo.pm("task", "move", "repo-demo.3", "--to", "repo-demo.1", text="Sprint 1 needs it.\nThe parser uses it.")
     assert res.returncode == 0, res.stderr
-    assert repo.changes() == {"repo-demo.3": {"parent": "repo-demo.1"}}
+    assert repo.changes() == {"repo-demo.3": {"parent": "repo-demo.1", "comments": [  # the move note dates the move
+        {"kind": "note", "author": "pm", "text": "pm task move: from repo-demo to repo-demo.1"}]}}
     assert committed(repo, ["pm: moved repo-demo.3 from project repo-demo to repo-demo.1 and added a sprint decision "
                             "to records/sprints/demo-1.md"])
     record = (repo.records / "sprints/demo-1.md").read_text()
@@ -257,7 +258,8 @@ def test_new_records_feedback_projects_and_moves_write_what_they_say(repo):
     assert "About project `demo`, sprint `repo-demo.1`.\n\nThe refusal" in feedback
     res = repo.pm("task", "move", "repo-demo.1.2", "--to", "repo-demo.2", text="Moved on.\nIt fits sprint 2.")
     assert res.returncode == 0, res.stderr
-    assert repo.changes() == {"repo-demo.1.2": {"parent": "repo-demo.2"}}
+    assert repo.changes() == {"repo-demo.1.2": {"parent": "repo-demo.2", "comments": [
+        {"kind": "note", "author": "pm", "text": "pm task move: from repo-demo.1 to repo-demo.2"}]}}
     assert committed(repo, ["pm: moved repo-demo.1.2 from repo-demo.1 to repo-demo.2 and added a sprint decision to "
                             "records/sprints/demo-1.md"])
     repo.mark()

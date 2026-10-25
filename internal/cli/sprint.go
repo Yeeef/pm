@@ -10,6 +10,7 @@ import (
 	"github.com/Yeeef/pm/internal/site"
 	"github.com/Yeeef/pm/internal/store"
 	"github.com/Yeeef/pm/internal/work"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -151,25 +152,14 @@ func createSprint(e *env, p *Parsed, propose bool) (string, error) {
 	return out + designindex.Block(func() (string, error) { return designindex.Of(r.recs, e.siteURL, prec) }), nil
 }
 
-// proposalPeers is pm sprint propose's duplicate list: the project's open sprints and proposals but id, each with its
-// state, id, title and its goal's first sentence, and how to drop id as a duplicate of one.
+// proposalPeers is pm sprint propose's duplicate list (site.OpenSprintRows), and how to drop id as a duplicate.
 func (r *repo) proposalPeers(epicID, id string) string {
-	lines := []string{"the project's other proposals and open sprints; if one covers yours, drop yours: pm sprint close " +
-		id + ` --dropped --reason "duplicate of <id>"`}
-	for _, sp := range r.x.Children(epicID) {
-		if sp.Type != work.Sprint || sp.Status == work.Closed || sp.ID == id {
-			continue
-		}
-		line := "  " + showPad(site.State(sp, r.x), 8) + "  " + sp.ID + "  " + sp.Title
-		if rec, err := r.sprint(sp.ID); err == nil {
-			line += "  " + records.FirstSentence(records.SectionText(rec.Body, "Goal"), 110)
-		}
-		lines = append(lines, line)
+	rows := site.OpenSprintRows(epicID, id, r.recs, r.x)
+	if rows == nil {
+		rows = []string{"  none"}
 	}
-	if len(lines) == 1 {
-		lines = append(lines, "  none")
-	}
-	return strings.Join(lines, "\n")
+	return "the project's other proposals and open sprints; if one covers yours, drop yours: pm sprint close " + id +
+		` --dropped --reason "duplicate of <id>"` + "\n" + strings.Join(rows, "\n")
 }
 
 // requireCommitted is the records commit a close names; the closed record itself must be committed.
@@ -351,8 +341,18 @@ func dropProposal(e *env, p *Parsed) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, err := r.closedSprintReviews(epic.ID); err != nil { // an open need under it
+	for _, k := range r.x.Children(id) { // needs only: a proposal has no task
+		if k.Status != work.Closed {
+			return "", refuse("proposal %s holds an open need, %s (%s); close it first: pm need close %s --dropped "+
+				"--reason \"…\" when the drop makes it moot", id, k.ID, k.Title, k.ID)
+		}
+	}
+	if drafted, _, err := store.Drafted(r.records); err != nil {
 		return "", err
+	} else if pages := slices.Sorted(maps.Keys(drafted[id])); pages != nil {
+		return "", refuse("proposal %s holds design-page drafts only its close publishes (%s), which a drop would strand; "+
+			"in the draft's worktree, put each page back as the records branch has it (git show records:<path>) and pm "+
+			"commit --sprint %s it, then drop again", id, strings.Join(pages, ", "), id)
 	}
 	ws, err := e.work()
 	if err != nil {

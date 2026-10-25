@@ -81,6 +81,12 @@ func TestDayActivityHoldsOnlyThatDaysEvents(t *testing.T) {
 		{ID: "repo-demo.13", Type: item.Sprint, Parent: "repo-demo", Title: "Sprint 13: Dropped", CreatedAt: before,
 			Labels: []string{item.ProposalLabel}, Status: item.Closed, ClosedAt: at, Resolution: item.Dismissed,
 			CloseReason: "duplicate of sprint 11"},
+		// started today by a task moved in from another sprint, made before the proposal: dated by its move note
+		{ID: "repo-demo.14", Type: item.Sprint, Parent: "repo-demo", Title: "Sprint 14: Moved in", CreatedAt: before,
+			Labels: []string{item.ProposalLabel}},
+		{ID: "repo-demo.14.1", Type: item.Task, Parent: "repo-demo.14", Title: "Moved", CreatedAt: before.AddDate(0, 0, -1),
+			Comments: []item.Comment{{Kind: item.Note, Author: item.MoveAuthor, CreatedAt: at,
+				Text: item.TaskMoveText("repo-demo.2", "repo-demo.14")}}},
 	}
 	items := records.NewItems(all)
 	got, err := DayActivity(day, dir, recs, items)
@@ -104,6 +110,8 @@ func TestDayActivityHoldsOnlyThatDaysEvents(t *testing.T) {
 		"    task opened: First\n" +
 		"  sprint Sprint 13: Dropped\n" +
 		"    proposal dropped (duplicate of sprint 11)\n" +
+		"  sprint Sprint 14: Moved in\n" +
+		"    sprint started\n" +
 		"doc A note (docs/" + day + "-note)\n" +
 		"records commit: records [docs/" + day + "-note.md, projects/demo.md, sprints/demo-2.md]"
 	if got != want {

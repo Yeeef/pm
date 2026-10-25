@@ -4,6 +4,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The packages that only read items build, and link their test binaries, without Dolt: a Dolt link costs 5-8 s of
@@ -54,6 +55,22 @@ func TestAProposalIsUnstartedUntilATaskIsUnderIt(t *testing.T) {
 	} {
 		if got := Unstarted(c.s, c.kids); got != c.want {
 			t.Errorf("%s: Unstarted = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// Arrived dates an item's coming under a parent by its latest move note into it, else by its creation.
+func TestArrivedIsTheLatestMoveIntoTheParent(t *testing.T) {
+	made, first, second := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
+	note := func(from, to string, at time.Time) Comment {
+		return Comment{Kind: Note, Author: MoveAuthor, Text: TaskMoveText(from, to), CreatedAt: at}
+	}
+	it := &Item{CreatedAt: made, Comments: []Comment{note("s.1", "s.2", first), note("s.2", "s.1", second),
+		{Kind: Note, Author: "sess", Text: TaskMoveText("s.1", "s.2"), CreatedAt: second}}}
+	for parent, want := range map[string]time.Time{"s.2": first, "s.1": second, "s.3": made} {
+		if got := Arrived(it, parent); !got.Equal(want) {
+			t.Errorf("Arrived(%s) = %v, want %v", parent, got, want)
 		}
 	}
 }

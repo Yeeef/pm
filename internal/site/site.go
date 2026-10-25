@@ -239,6 +239,25 @@ func progress(project *Record, recs []*Record, items *Items, frm *Record) (strin
 	return graph + table + proposedSection(childrenWhere(items, root, nil), recs, items, frm), nil
 }
 
+// OpenSprintRows is pm sprint propose's duplicate list: a line per open sprint under project but except, proposals
+// included, with its state, id, title and its goal's first sentence.
+func OpenSprintRows(project, except string, recs []*Record, items *Items) []string {
+	var out []string
+	for _, sp := range sprintsOf(items, project) {
+		if sp.Status == item.Closed || sp.ID == except {
+			continue
+		}
+		line := fmt.Sprintf("  %-8s  %s  %s", State(sp, items), sp.ID, sp.Title)
+		for _, r := range recs {
+			if b, ok := r.ID("bead"); ok && b == sp.ID && r.Type() == "sprint" {
+				line += "  " + records.FirstSentence(records.SectionText(r.Body, "Goal"), 110)
+			}
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
 // proposedSection is the collapsed Proposed section: a row per open proposal among sprints, with its pill, its title
 // linking its record, and its goal's first sentence; empty when there is none.
 func proposedSection(sprints []*Item, recs []*Record, items *Items, frm *Record) string {
@@ -1067,7 +1086,10 @@ func sprintBody(rec, proj *Record, recs []*Record, items *Items, render func(str
 	b := items.Get(rec.Bead())
 	pre := `<p class="meta">` + pill(State(b, items)) + "<span>" + esc(rec.Bead()) + "</span>" +
 		"<span>opened " + esc(utcDate(b.CreatedAt)) + "</span></p>"
-	generated := TaskGraph([]*Item{b}, items)
+	generated := `<p class="empty">No tasks yet.</p>` // a chart of one empty box says no more
+	if len(items.Children(b.ID)) > 0 {
+		generated = TaskGraph([]*Item{b}, items)
+	}
 	body = replaceFirst(progressRE, body, func(g string) string { return g + "\n" + generated + "\n" })
 	var cards []card
 	for _, it := range OwnerTasks(items, rec.Bead()) {

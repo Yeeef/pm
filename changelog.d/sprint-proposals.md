@@ -9,10 +9,12 @@ site.
 - A proposal stays out of `pm show` (every level, `--json` too) and `pm task ready`; `pm show --sprint ID` shows it.
   Adding its first task starts it as an ordinary sprint.
 - `pm sprint close <id> --dropped --reason "…"` drops a proposal nobody started; `pm sprint reopen` makes it a
-  proposal again.
+  proposal again. It refuses while a need under the proposal is open or a design-page draft is tagged with it.
 - The site lists proposals in a collapsed Proposed section on the overview and each project page, shows a dropped one
   among the closed sprints with its reason, and the day page names a sprint proposed, started or dropped.
 
 ### Changed
 
+- `pm task move` leaves a move note on the item (`pm show ID` lists it), which dates when the task joined its sprint.
+- A sprint page with no tasks says "No tasks yet." in place of an empty chart.
 - `pm feedback add` is for pm itself; the rules now send what the repo needs to `pm sprint propose`.
