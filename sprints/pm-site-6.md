@@ -38,7 +38,8 @@ test-go` and the PR's CI pass; a live check on a scratch service shows the same.
 
 > Where is the detail?
 
-None yet.
+- [Views and site](../design/views-and-site.md): the Root page row now says closed projects fold into one
+  collapsed section at the bottom.
 
 ## Progress
 
@@ -69,10 +70,19 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: the overview lists the open projects first and folds the closed ones into one collapsed "Closed projects (N)"
+section at the bottom.
+
+- `RenderIndex` splits projects by their work-store status; a project record with no item counts as open.
+- Two stylesheet rules give the section's summary the weight of a project heading, muted.
+- The constructs golden overview, a new site test, the Views and site design page, a changelog entry.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+| Item | Met | Evidence |
+|---|---|---|
+| A test with an open and a closed project renders the open one before a collapsed "Closed projects" section that holds the closed one | yes | `TestTheOverviewListsClosedProjectsCollapsedAfterTheOpenOnes` adds a closed project that sorts before the open one and asserts the order open, `Closed projects (2)`, both closed headings, `</details>`; it fails on the old `RenderIndex` and passes on the new |
+| `make test-go` and the PR's CI pass | yes locally | `make test-go` exit 0; `make test` 156 passed, 169 skipped; CI on the PR |
+| A live check on a scratch service shows the same | yes | A scratch clone's `pm service run` (harness fixture: one project closed by seed, one opened by `pm project open`) served `/` with the open project's heading, then the section holding both closed ones; in Chromium the closed headings were hidden until the summary was clicked, then visible |
