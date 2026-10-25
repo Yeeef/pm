@@ -104,6 +104,12 @@ Moved pm-d2k5.43.4 to pm-d2k5.44: The pin-move task was filed in sprint 43 by mi
 It belongs to sprint 44, opened for the pin move.
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page pm-cli stays as it is for this sprint's code changes.
+repo feedback dropped with PR #118
+Its drafts are discarded at the sprint's close, not published.
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
