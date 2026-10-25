@@ -178,4 +178,75 @@ func (r *repo) reopen(e *env, p *Parsed, rec *records.Record, kind, label, secti
 	return out, nil
 }
 
+// cmdProjectEdit gives a project, open or closed, a new title, as pm sprint edit does a sprint: the work-store title
+// first, then one records commit that sets the record's title header and adds the rename as a project decision; a
+// failed records step puts the old title back. Only a title both layers hold already is refused, so a record header
+// edited by hand ahead of the store (the drift pm check names) is fixed by this command too.
+func cmdProjectEdit(e *env, p *Parsed) (string, error) {
+	title, reason := strip(p.Get("title")), p.Get("text")
+	if title == "" {
+		return "", refuse("--title is empty")
+	}
+	r, err := e.load(false)
+	if err != nil {
+		return "", err
+	}
+	rec, err := r.project(p.Get("project"))
+	if err != nil {
+		return "", err
+	}
+	id := rec.Bead()
+	it := r.item(id)
+	if it == nil {
+		return "", refuse("project %s (%s) is not in the work store", rec.Name(), id)
+	}
+	header := rec.Meta["title"].Str
+	if it.Title == title && header == title {
+		return "", refuse("project %s is titled %s already", rec.Name(), strconv.Quote(title))
+	}
+	if err := decisionBody(reason); err != nil {
+		return "", err
+	}
+	source := "agent"
+	if p.Get("confirmed") != "" {
+		source = "owner"
+	}
+	old := it.Title // the stale side; when the store holds the new title already, the header is
+	if old == title {
+		old = header
+	}
+	text, err := records.WithTitle(rec.Text, r.rel(rec.Path), title)
+	if err == nil {
+		text, err = records.InsertEntry(text, "Decisions", decisionBlock(source,
+			fmt.Sprintf("Renamed the project from \"%s\" to \"%s\": %s", old, title, reason)))
+	}
+	if err != nil {
+		return "", err
+	}
+	renamed := *it
+	renamed.Title = title
+	w := []store.Write{{Path: rec.Path, Text: text}}
+	if err := r.checkPlanned(w, r.with(renamed)); err != nil {
+		return "", err
+	}
+	ws, err := e.work()
+	if err != nil {
+		return "", err
+	}
+	if it.Title != title {
+		if err := ws.Edit(id, &title, nil); err != nil {
+			return "", err
+		}
+	}
+	out, err := r.apply(w, fmt.Sprintf("renamed project %s (%s) to %s and added a project decision to %s", rec.Name(), id,
+		strconv.Quote(title), r.rel(rec.Path)), "pm: ")
+	if err != nil && it.Title != title {
+		if uerr := ws.Edit(id, &it.Title, nil); uerr != nil {
+			return "", fmt.Errorf("%w; putting back the title %s failed too: %v", err, strconv.Quote(it.Title), uerr)
+		}
+		return "", fmt.Errorf("%w; the work-store step is undone: %s is titled %s again", err, id, strconv.Quote(it.Title))
+	}
+	return out, err
+}
+
 // ---------------------------------------------------------------- tasks

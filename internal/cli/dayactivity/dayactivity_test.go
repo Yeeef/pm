@@ -1,4 +1,4 @@
-package cli
+package dayactivity
 
 import (
 	"os"
@@ -16,7 +16,7 @@ const dayProject = "---\ntype: project\ntitle: Demo\nbead: repo-demo\n---\n\n## 
 const daySprint = "---\ntype: sprint\ntitle: Second\nbead: repo-demo.2\n---\n\n## Goal\n\nShip it.\n\n" +
 	"## Delivery report\n\n### Outcome\n\nDone: shipped.\n\n### Against \"Done when\"\n\n- It works: met.\n"
 
-func TestDayActivityHoldsOnlyThatDaysEvents(t *testing.T) {
+func TestOfHoldsOnlyThatDaysEvents(t *testing.T) {
 	now := time.Now()
 	at := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.Local)
 	day, before := at.Format(time.DateOnly), at.AddDate(0, 0, -3)
@@ -73,8 +73,7 @@ func TestDayActivityHoldsOnlyThatDaysEvents(t *testing.T) {
 		{ID: "repo-demo.2.4", Type: work.Task, Parent: "repo-demo.2", Title: "Dropped task", CreatedAt: before,
 			Status: work.Closed, ClosedAt: at, Resolution: work.Dismissed, CloseReason: "a library does it"},
 	}
-	r := &repo{records: dir, items: items, x: records.NewItems(items), recs: recs}
-	got, err := r.dayActivity(day)
+	got, err := Of(dir, recs, items, day)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +92,7 @@ func TestDayActivityHoldsOnlyThatDaysEvents(t *testing.T) {
 	if got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
-	if got, err := r.dayActivity(at.AddDate(0, 0, -1).Format(time.DateOnly)); err != nil || got != "" {
+	if got, err := Of(dir, recs, items, at.AddDate(0, 0, -1).Format(time.DateOnly)); err != nil || got != "" {
 		t.Errorf("a day without events: %q, %v", got, err)
 	}
 }

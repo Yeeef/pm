@@ -344,6 +344,19 @@ var tree = &command{
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 					},
 				},
+				{
+					Name:        "edit",
+					Help:        "rename a project, open or closed; reason with --text",
+					Description: "Give a project, open or closed, a new title: its work-store title, and its record's title header, in one records commit that also adds the rename, from the work store's old title, as a decision to the project's Decisions: source=agent, or source=owner with --confirmed. The work store is written first; when the records step fails, the old title is put back. The project's name, record path and links stay as they are. The reason (--text) states why, on at least two lines. Refuses an empty title, and a title that both the work store and the record's header hold already; a header edited by hand to the new title while the work store still holds the old one (the drift pm check names) is renamed as any other.",
+					Groups:      []bool{false},
+					Args: []arg{
+						{Dest: "project", Required: true, Kind: value, Help: "the project's name"},
+						{Flags: []string{"--title"}, Dest: "title", Required: true, Kind: value, Help: "the new title"},
+						{Flags: []string{"--confirmed"}, Dest: "confirmed", Kind: switchOn, Help: "source=owner: the owner asked for the rename"},
+						{Flags: []string{"--text-file"}, Dest: "text_file", Metavar: []string{"PATH"}, Kind: value, Group: 1, Help: "required: why the title changes, on at least two lines; read from PATH, or with - from stdin as a quoted heredoc: --text-file - <<'EOF' … EOF"},
+						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
+					},
+				},
 			},
 		},
 		{
@@ -568,7 +581,7 @@ var tree = &command{
 		{
 			Name:        "check",
 			Help:        "check that every record renders with the work store, writing nothing; the check before a commit, and the one pm commit runs",
-			Description: "Check that every record renders with the work store, writing nothing; pm commit runs the same check. In a worktree with a records workspace it checks the published records with this workspace's drafts over them. It lists the tracked source files no design page covers: those the path patterns of design_sources in .pm/config.toml match (e.g. design_sources = [\"internal/**\", \"prime.md\"]; unset, no list), and fails on a design_sources pattern that matches no tracked file. It fails on a design page's covers: pattern that matches no file where the page holds it: a published page's on the remote's main (its remote-tracking branch, fetched when a pattern matches nothing there), since a page publishes at its sprint's close once its code is on main; a draft page's in this worktree's tracked files. A published pattern main lacks while a draft of the page in this clone no longer holds it (a merged PR removed the file, its sprint not closed yet) does not fail: it is listed as waiting on that sprint's close, naming the sprint. A drafts/ branch pm cannot read (a commit made by hand) is named in a warning and left out. A malformed pattern fails.",
+			Description: "Check that every record renders with the work store, writing nothing; pm commit runs the same check. In a worktree with a records workspace it checks the published records with this workspace's drafts over them. It names each project record, open or closed, whose title header differs from its work-store title, on a line of its own after the design report, with the pm project edit --title, quoted for the shell, that carries the header's title to the work store (it takes the reason as its body, as every rename does); this is a report, and neither pm check nor pm commit fails on it. It lists the tracked source files no design page covers: those the path patterns of design_sources in .pm/config.toml match (e.g. design_sources = [\"internal/**\", \"prime.md\"]; unset, no list), and fails on a design_sources pattern that matches no tracked file. It fails on a design page's covers: pattern that matches no file where the page holds it: a published page's on the remote's main (its remote-tracking branch, fetched when a pattern matches nothing there), since a page publishes at its sprint's close once its code is on main; a draft page's in this worktree's tracked files. A published pattern main lacks while a draft of the page in this clone no longer holds it (a merged PR removed the file, its sprint not closed yet) does not fail: it is listed as waiting on that sprint's close, naming the sprint. A drafts/ branch pm cannot read (a commit made by hand) is named in a warning and left out. A malformed pattern fails.",
 		},
 		{
 			Name:   "sync",
