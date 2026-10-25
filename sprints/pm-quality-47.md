@@ -71,6 +71,11 @@ prime.md only adds pm project edit to the move-or-rename line; the agent lifecyc
   already holds the title); internal/cli and internal/records Go tests ok;
   make lint 0 issues.
 
+- internal/cli sat exactly at its size ratchet (7301 of 7301 lines), so the
+  day's activity code moved to internal/cli/dayactivity first; after the
+  rebase onto 0.16.0 the package is 7227 lines and the ratchet is lowered to
+  that.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
