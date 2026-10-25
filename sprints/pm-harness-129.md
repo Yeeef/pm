@@ -88,6 +88,12 @@ Model 2 rewrites code that is not on main yet, and PR #112 merges only once this
   earlier sprints a frame cites as 'sprint N', usually the latest ones, which
   is the order newest first gives.
 
+- Why newest first is strong on this eval: of the 83 strict sprint targets,
+  the median is the 5th newest sprint record in the as-of corpus, 58 are among
+  the 10 newest and 31 among the 3 newest. Its 'newest' is each record's
+  creation time from labels.json (the sprint item's), which an agent
+  approximates by sprint number.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
