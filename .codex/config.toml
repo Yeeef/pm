@@ -1,0 +1,4 @@
+# Codex's auto mode, which pm sets: a value you change here stays yours
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+sandbox_mode = "workspace-write"
