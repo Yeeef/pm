@@ -110,21 +110,11 @@ func All(here string) (string, error) {
 	}
 	out = append(out, fmt.Sprintf("work      %s  %s", workDir, workState))
 
-	home := codexHome()
-	switch {
-	case !fsutil.IsDir(home):
-		out = append(out, fmt.Sprintf("codex     %s  missing, so Codex is not used here", home))
-	case !fsutil.IsDir(storeDir):
-		out = append(out, fmt.Sprintf("codex     %s  writable_roots not checked without the store; run %s",
-			filepath.Join(home, "config.toml"), whereSetup))
-	default:
-		path := filepath.Join(home, "config.toml")
-		state, err := install.CodexState(path, main)
-		if err != nil {
-			return "", err
-		}
-		out = append(out, fmt.Sprintf("codex     %s  %s", path, state))
+	codex, err := codexLine(storeDir, main)
+	if err != nil {
+		return "", err
 	}
+	out = append(out, codex)
 
 	_, health := service.Health(main)
 	out = append(out, health)
@@ -139,6 +129,24 @@ func All(here string) (string, error) {
 	}
 	out = append(out, fmt.Sprintf("site      %s (served by the pm service)", url))
 	return strings.Join(out, "\n"), nil
+}
+
+// codexLine is All's line for Codex's config: missing, unchecked before setup, or its writable roots' state.
+func codexLine(storeDir, main string) (string, error) {
+	home := codexHome()
+	switch {
+	case !fsutil.IsDir(home):
+		return fmt.Sprintf("codex     %s  missing, so Codex is not used here", home), nil
+	case !fsutil.IsDir(storeDir):
+		return fmt.Sprintf("codex     %s  writable_roots not checked without the store; run %s",
+			filepath.Join(home, "config.toml"), whereSetup), nil
+	}
+	path := filepath.Join(home, "config.toml")
+	state, err := install.CodexState(path, main)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("codex     %s  %s", path, state), nil
 }
 
 // SiteURL is Python's site_url(): the repo's site_url, else http://localhost:<port>.
@@ -161,7 +169,10 @@ func homeDir() string {
 	if h := os.Getenv("HOME"); h != "" {
 		return h
 	}
-	h, _ := os.UserHomeDir()
+	h, err := os.UserHomeDir()
+	if err != nil {
+		return "" // as before the move: no home, so a relative .codex
+	}
 	return h
 }
 

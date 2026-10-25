@@ -28,7 +28,7 @@ type Store interface {
 	SetCloseReason(id, reason string) error
 	// Reopen sets a closed item open again: no close reason, resolution, closing session or close time.
 	Reopen(id string) error
-	// Move gives a task or a need a new parent; its id stays, and a move note records the move.
+	// Move gives a task or a need a new parent; its id stays.
 	Move(id, parent string) error
 	// MoveSprint moves an open sprint to an open project and returns it as it is after: its id stays, its number is
 	// the project's next, and a move note records where it was (SprintMoves). A sprint under the project already is
