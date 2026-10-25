@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T14:52:14+00:00",
- "digest": "1a9a32da80dfbbcf",
+ "generated_at": "2026-10-25T15:02:39+00:00",
+ "digest": "0c4d1ecb0653768e",
  "model": "claude-haiku-5-5",
- "text": "- **Search retrieval:** pm search now ranks whole records and items together, and each hit shows its best matching part. Model 2 passes the baseline eval but fails the strict test against rg and newest-first.\n- **Agent sprint proposals:** Agents can now propose, accept and dismiss sprints from pm and the site. The owner chose this route over repo feedback, so repo feedback was dropped.\n- **Other-repo reviews:** pm now raises and closes a review of another GitHub repo's PR, and the merge watcher records its merge. The repo's pm version pin also moved to a new release.\n- **Project overview page:** The overview lists open projects first. Closed projects now fold into one collapsed section at the bottom."
+ "text": "- **Agent sprint proposals:** Agents can propose sprints, and the owner can accept or dismiss them on the site. Repo feedback was dropped; proposals now carry all repo improvements.\n- **Search ranking:** pm search now ranks records and items by BM25 OR matching, showing each hit at its best unit. On the eval gate, model 2 passed against stage 0 but failed against rg and newest first.\n- **Site network and overview:** The site can serve a network without Cloudflare, with separate settings for reach, address and access. The overview lists open projects first and folds closed projects into a collapsed section.\n- **Cross-repo PR reviews:** A pm repo can now raise and close a review of a PR in another GitHub repo. A merge watcher now stores the merge of that PR."
 }
