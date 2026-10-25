@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Yeeef/pm/internal/cli/where"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/service"
@@ -153,7 +154,7 @@ func cmdRecordLink(e *env, p *Parsed) (string, error) {
 	if p.Get("local") != "" {
 		return fmt.Sprintf("http://127.0.0.1:%d/%s", port, rec.Out()), nil
 	}
-	url, err := showSiteURL(e.here, main)
+	url, err := where.SiteURL(e.here, main)
 	if err != nil {
 		return "", err
 	}
@@ -245,7 +246,7 @@ var showListItem = regexp.MustCompile(`(?m)^(?:[-*]|\d+\.) `)
 // feedback, the push flags and today's summary.
 func showDataOf(e *env, r *repo) (*showData, error) {
 	main := store.MainOf(r.records)
-	url, err := showSiteURL(e.here, main)
+	url, err := where.SiteURL(e.here, main)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Yeeef/pm/internal/cli/where"
 	"github.com/Yeeef/pm/internal/config"
 	"github.com/Yeeef/pm/internal/design"
 	"github.com/Yeeef/pm/internal/proc"
@@ -79,7 +80,7 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 		desc += "\n\nDesign pages: " + strings.Join(designs, ", ")
 	}
 	if verdicts != nil {
-		site, err := showSiteURL(e.here, store.MainOf(r.records))
+		site, err := where.SiteURL(e.here, store.MainOf(r.records))
 		if err != nil {
 			return "", err
 		}

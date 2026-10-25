@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"github.com/Yeeef/pm/internal/cli/fsutil"
 	"io"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -258,21 +256,6 @@ const (
 	codexSessionEnv = session.CodexThreadEnv
 	liveWindow      = int(session.LiveWindow / time.Second) // seconds, as refusals name it
 )
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	h, _ := os.UserHomeDir()
-	return h
-}
-
-func codexHome() string {
-	if h := os.Getenv("CODEX_HOME"); h != "" {
-		return h
-	}
-	return filepath.Join(homeDir(), ".codex")
-}
 
 // holder is who holds an item, as pm show gives it: the session pm task claim recorded, when, and whether it is live.
 // The work store has no assignee, which Python pm gives from bd; it is always null here.
