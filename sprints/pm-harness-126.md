@@ -104,6 +104,12 @@ The sprint 128 eval shows PR #112 beats rg on recall only with three query wordi
   0.10-0.15 s for pm show; all 1,370 record addresses printed for pm search
   the open with pm show --record.
 
+- The ranking this sprint shipped (a unit must hold every word, units ranked)
+  was replaced in sprint 129 (pm-harness-129) by retrieval model 2: records
+  and items ranked as BM25 documents on any word, each shown at its best unit;
+  on the retrieval eval best-of-3 recall@10 went from .509 to .705 on the
+  strict labels.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
