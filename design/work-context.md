@@ -85,29 +85,7 @@ The output shape; the ids and the session are illustrative.
 
 ### pm search
 
-`pm search <terms…> [--kind K]… [--project NAME] [-n N]` ranks units of the records store and the work store and prints one line per hit, best first, default `-n 10`.
-
-| Source | Unit | Kind |
-|---|---|---|
-| Sprint record | each `##` section; each `::: decision` block of Decisions on its own | `sprint`, `decision` |
-| Project record | each `##` section; each `::: decision` block | `project`, `decision` |
-| Design page | each `###` under Design; each other `##` | `design` |
-| Doc, postmortem | each `##` section; the whole text when it has none | `doc`, `postmortem` |
-| Work store | a task's or need's title with its close reason, dropped items included | `task`, `need` |
-
-- **Ranking**: BM25 (k1 = 1.2, b = 0.75) over `records.Words` tokens, lower-cased; a unit's heading and title count in its text. Exact and deterministic: equal scores order by date, newest first.
-- **Line**: `kind  where  date  state  link  "snippet"`. `where` is what `pm show --record … --section …` or `pm show <id>` takes; `state` is the work store's (`done`, `dropped`, `running`) for sprints, tasks and needs; the snippet is the first sentence of the unit holding a term, cut at 100 characters.
-- **Scope**: the shared store `env.records` reads; the work store through the service, as every command. No index file: every run scans.
-- **No hit**: `no match for <terms>; try other words` and exit 0. The procedure says to try two or three wordings before concluding there is no prior work.
-
-```text
-$ pm search claim history
-decision  pm-harness-112  2026-09-30  done     https://…/sprints/pm-harness-112.html  "Claims keep only the current holder; history is the …"
-design    session-claims#Claiming  2026-10-02  -  https://…/design/session-claims.html  "A claim records who holds the task and when; …"
-task      yeeef-agents-9va.88.2  2026-09-12  dropped  -  "Record every claim in an events table"
-```
-
-The output shape; these hits are illustrative, not from the store.
+`pm search <term>… [--kind K]… [--project NAME] [-n N]` finds, across every project, the records and work items that hold any of the query's words. It ranks them with BM25, each record one document, and prints one capped line per hit at the record's best unit (a section, a decision, or the item), giving its kind, date, state and the `pm show` address to read next. The header says how many hits hold every word and how many hold some. The detail is the sub page [pm search](pm-search.md); how the ranking is judged against `rg`, and how search grows, is the sub page [Search index](search-index.md).
 
 ### Procedure
 

@@ -10,7 +10,7 @@ project: pm-harness
 
 Part of the [pm search](pm-search.md) design. This page is an RFC: it is the target design, and today's scan is its first stage. Two questions decide whether `pm search` is worth having and how it has to grow.
 
-- **Is it better than `rg`?** An agent already has `rg records/`. On this repo, PR #112's search ties `rg` on recall for single queries, and it loses on design-page-heavy labels. It wins on tokens: about 190 to the first relevant record, against about 9,400 for `rg -n` lines (Findings of pm-harness-128). Whole-record BM25 that matches any term has the best recall of every system measured. So the retrieval model needs to change before speed matters.
+- **Is it better than `rg`?** An agent already has `rg records/`. PR #112's first ranking (a unit must hold every word) lost to `rg` on recall. Retrieval model 2 (stage 1, built in sprint 129 on PR #112, which is held until the gate passes) beats that ranking and `rg` by match count, and ties `rg` newest first: best of 3 queries, recall@10 .705 against .692, a difference whose 95 % CI spans 0 (pm-harness-129 Findings). It reads fewer tokens to the first relevant record: a median of 144 against 2,447 for `rg -n` lines of the same files. So the gate against `rg` is not met yet.
 - **Does it stay fast?** Every run rebuilds the index from a full scan. The scan takes 0.11 s at today's 2.1 MB, 0.96 s at 10×, and 15 s at 100× on one core. At the measured growth rate, the store reaches about 24× in a year. That is a linear extrapolation from 16 days of history.
 
 ## Goals and non-goals
@@ -87,8 +87,8 @@ Each stage ships alone. The trigger is a measured condition, not a date.
 
 | Stage | What | Trigger | Cost at 10× / 100× |
 |---|---|---|---|
-| 0 (PR #112) | Full scan per query; a unit must hold every term; BM25 over units | — | 0.96 s / 15 s on one core |
-| 1 | Retrieval model 2: rank records, point at the best unit (below) | Now: the eval shows units and AND lose recall to whole-record OR | Same as the scan |
+| 0 (PR #112, sprint 126) | Full scan per query; a unit must hold every term; BM25 over units | — | 0.96 s / 15 s on one core |
+| 1 (sprint 129, on PR #112) | Retrieval model 2: rank records, point at the best unit (below) | The eval showed units and AND lose recall to whole-record OR | Same as the scan |
 | 2 | Scan fixes: compute `ProjectOf`'s project list once; scan files and units in parallel | p50 over 0.3 s, or the corpus past 5× (about 10 MB) | Expected 0.2 s / 2.2 s on 32 cores (measured with the parallel scan; the `ProjectOf` fix is not yet measured) |
 | 3 | In-memory index in the pm service, versioned by (records HEAD, work mark), with catch-up at query time | p50 over 0.3 s after stage 2, or the corpus past 10× (about 21 MB; about 20 weeks away at the measured rate) | Under 25 MB / 190 MB of heap; query under 0.1 ms |
 | 4 | Snapshot on disk and append-only updates (segments with tombstones) | Service start over 1 s, or an update p50 over 10 ms (about 100×) | 6 MB / 56 MB on disk; start 31 ms / 0.24 s |
@@ -96,14 +96,15 @@ Each stage ships alone. The trigger is a measured condition, not a date.
 
 ### Retrieval model 2
 
-The eval measured the parts separately. BM25 over whole records with OR has the best recall: recall@10 .368, against .314 for units with AND and .301 for `rg`. Units are what keep the output short. Model 2 keeps both:
+Sprint 128's eval measured the parts separately: BM25 over whole records with OR had the best recall, and units are what keep the output short. Model 2 keeps both. The [pm search](pm-search.md) page has its formulas and output.
 
-1. **Rank records and items, not units.** A record is one document for BM25. An item is its title, description and close reason. The query matches **any** term, so the score orders by how many query terms a record holds and how rare they are, and a record holding all of them is not lost because they fall in different sections.
-2. **Point at the best unit.** For each of the top `n` records, the address is the unit, a section or a decision, with the highest BM25 score for the query, using the corpus's unit statistics. That keeps the line's `pm show --record … --section …` address and its short snippet.
-3. **Header.** It gives `<a> records hold all terms, <b> hold some`. The count of records holding some terms is the OR result's size, which no longer needs every hit scored: top-k with MaxScore or block-max WAND applies (Turtle and Flood 1995; Ding and Suel 2011).
-4. **Phrase and path terms** stay a filter on the record's text.
+1. **Rank records and items, not units.** A record is one document for BM25: its title once, then each unit's heading and body. An item is its title, description and close reason. The query matches **any** term, so the score orders by how many query terms a record holds and how rare they are, and a record holding all of them is not lost because they fall in different sections.
+2. **Normalize each set by its own mean length.** The document frequencies count records and items together; avgdl is the records' mean for a record and the items' for an item. Against one mean, the short items took 40 % of the top-10 lines, and best-of-3 recall@10 was .610 against .705.
+3. **Point at the best unit.** For each hit, the address is its unit, a section or a decision, with the highest BM25 score for the query, using the corpus's unit statistics. That keeps the line's `pm show --record … --section …` address and its short snippet.
+4. **Header.** It gives `<a> records hold all of: <terms>; <b> hold some`. The count of records holding some terms is the OR result's size, which no longer needs every hit scored: top-k with MaxScore or block-max WAND applies (Turtle and Flood 1995; Ding and Suel 2011).
+5. **Phrase and path terms** stay a filter on the record's text.
 
-Model 2 changes the meaning of a hit, so it ships only if the eval below shows it beating stage 0 and `rg`.
+Model 2 is built on PR #112 (sprint 129). On the eval it beats stage 0, and it does not beat the best `rg` variant: the gate's second half fails (below), so the PR stays held.
 
 ### The index (stage 3)
 
@@ -148,37 +149,39 @@ The eval decides every ranking stage, and it is what "beats `rg`" means.
 
 **Offline retrieval eval** (stage gate, in `make test-live`'s style: run on demand, not in CI):
 
-- **Labels.** The records' own citations. A sprint's Goal and Scope link to earlier records; those links are its relevant set, at record granularity. Targets newer than the sprint, and self-references, are dropped. Two sets:
-  - **strict:** 68 sprints, 87 targets;
-  - **extended:** plus the design pages the sprint lists that existed when it opened, giving 98 sprints and 237 targets.
+- **Harness.** `tests/search_eval/eval.py`, run by `make search-eval` with the `pm search` builds to compare as `LABEL=REV`; its docstring is the method. It builds `internal/search` at each revision and calls it on each as-of corpus.
+- **Labels.** The records' own citations, at record granularity. A sprint's Goal and Scope cite earlier records by a Markdown link, a record name (`pm-harness-12`), an item id (a task's id cites its sprint), or `sprint N` (in its own project unless a project name precedes it); those are its relevant set. Targets created at or after the sprint opened, and self-references, are dropped. A design page counts as created when the first sprint that links it opened, since the records branch starts with a bulk move. Two sets, at records commit 41db306c:
+  - **strict:** 73 sprints, 95 targets (83 sprints, 11 design pages, 1 doc);
+  - **extended:** plus the design pages the sprint lists that existed when it opened, giving 111 sprints and 260 targets.
 - **Queries.** A model writes 3 keyword queries of 1–4 words from the sprint's title and the first sentence of its Goal, with the links removed. A second set uses the title's content words.
-- **As-of corpus.** Each sprint is searched against the store without the records created after it opened, and its own record is excluded.
-- **Systems.** `pm search`, plus `rg` as an agent uses it: AND of all terms ordered by match count, OR ordered by match count, and AND newest first.
-- **Metrics.** recall@5, recall@10, MRR, nDCG@10, the zero-result rate, and the tokens read up to the first relevant record. Single query, best of 3, and the union. Paired bootstrap 95% CIs on the differences.
+- **As-of corpus.** Each sprint is searched against the records created before it opened, without its own record, and the work items created before it opened.
+- **Systems.** `pm search`, plus `rg` as an agent uses it: AND of all terms ordered by match count, OR ordered by match count, and AND newest first; and BM25 over whole records with OR as a reference.
+- **Metrics.** recall@5, recall@10, MRR, nDCG@10, the zero-result rate, and the tokens read up to the first relevant record. A record counts once, at its first line; an item's line is never relevant. Single query, best of 3, and the union. Paired bootstrap 95% CIs over sprints on the differences.
 - **Gate.** A ranking change ships when its recall@10 and MRR CIs against the previous model do not fall below 0, and against the best `rg` variant lie above 0 on the strict set for best-of-3 queries.
-- **Frozen inputs.** The labels, queries and corpus commit are frozen and checked in beside the harness, so runs compare.
+- **Frozen inputs.** The labels, queries, items and corpus commit are frozen and checked in beside the harness, so runs compare.
 
-::: result {title="Stage 0 against rg, strict labels (pm-harness-128 Findings)"}
-| Queries | pm search R@10 | best rg R@10 | difference [95% CI] | whole-record BM25 OR R@10 |
-|---|---|---|---|---|
-| single model query (204) | .314 | .301 | +0.012 [−0.047, +0.071] | .368 |
-| best of 3 (68 sprints) | .551 | .449 | +0.103 [+0.007, +0.206] | .588 |
-| title words (68) | — | — | −0.059 [−0.154, +0.029] | — |
+::: result {title="Strict labels, 73 sprints, 95 targets (pm-harness-129 Findings)"}
+| Queries | Stage 0 R@10 / MRR | Model 2 R@10 / MRR | Best `rg` R@10 / MRR | Model 2 − stage 0, R@10 | Model 2 − best `rg`, R@10; MRR | Whole-record BM25 OR R@10 |
+|---|---|---|---|---|---|---|
+| single model query | .282 / .203 | .507 / .302 | .427 / .299 (AND newest first) | +0.225 [+0.175, +0.279] | +0.080 [+0.007, +0.153]; +0.003 [−0.054, +0.060] | .521 |
+| best of 3 | .509 / .417 | .705 / .531 | .692 / .505 (AND newest first) | +0.196 [+0.116, +0.285] | +0.014 [−0.089, +0.116]; +0.026 [−0.079, +0.133] | .767 |
+| title words | .210 / .199 | .578 / .388 | .349 / .191 (OR by count) | +0.368 [+0.265, +0.473] | +0.228 [+0.103, +0.358]; +0.197 [+0.092, +0.300] | .591 |
 :::
 
-Stage 0 beats `rg` only when the agent tries three wordings. It loses on the extended labels (single query −0.072 [−0.139, −0.007]). Whole-record BM25 OR leads on every recall measure, which is why stage 1 is model 2.
+Model 2 passes the gate against stage 0 and fails it against `rg` AND newest first, whose CI on best-of-3 recall@10 spans 0; whole-record BM25 OR would fail it too (+0.075 [−0.021, +0.178]). Most strict targets are the latest sprints: of 83 sprint targets, the median is the 5th newest sprint record. On the extended labels (111 sprints, 260 targets) model 2 ties the best `rg`, OR by match count: best of 3 recall@10 .708 against .707, MRR .591 against .506 (+0.085 [+0.010, +0.160]). Stage 0 reproduces sprint 128's numbers within its CIs (.282 [.214, .355] against .314 single, `rg` AND by count .326 [.251, .406] against .301); this harness's label sets are larger (73/95 against 68/87) because its extractor also reads item ids and project-qualified `sprint N`.
 
-**Live agent eval** (designed here, not run):
+**Live agent eval** (designed here, not run). It measures what the offline eval cannot: whether an agent searches at all, and what it does with the hits.
 
 - **Task.** Re-frame a past sprint. In a scratch clone whose records store is checked out at the commit before the sprint opened, an agent gets the owner's request as recorded, and writes the sprint frame and its Design pages.
 - **Arms.**
   - **A:** `rg` and `pm show` only.
   - **B:** A plus `pm search` and the `prime.md` clause.
+  - **C:** A plus a `prime.md` clause that tells the agent to grep the records for prior decisions before it writes the frame. C against A measures the reminder to search; B against C measures the tool's ranking (pm-harness project decision, 2026-10-25).
 - **Scores.**
   - the share of the sprint's actual cited records that the agent's frame cites or lists;
   - the tokens and turns spent before the frame is written;
   - a model judge's check that the frame contradicts no decision in force at that commit.
-- **Size.** 30 sprints × 2 arms × 3 runs = 180 sessions; paired by sprint.
+- **Size.** 30 sprints × 3 arms × 3 runs = 270 sessions; paired by sprint.
 
 ## Alternatives considered
 
@@ -208,7 +211,6 @@ Stage 0 beats `rg` only when the agent tries three wordings. It loses on the ext
 
 > What is not decided yet?
 
+- Model 2 does not beat `rg` AND newest first on the strict labels, whose targets are mostly the latest sprints. Whether a recency signal belongs in the ranking (it is not lexical, and would need its own eval), whether the gate should weigh the extended labels, or whether the live agent eval decides it.
 - Model 2's best-unit pointer is not yet evaluated: the eval scores records. A unit-level label set (the section that holds the cited fact) would test it.
-- Whether to rework PR #112 to model 2 before it merges, or merge stage 0 and follow with model 2.
-- Where the frozen eval inputs live: beside the harness in `tests/`, or as a doc record.
 - How catch-up reads items changed between two Dolt commits through the work store's client (`dolt_diff`), and what it costs.
