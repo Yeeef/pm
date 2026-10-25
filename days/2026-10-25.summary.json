@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T09:21:46+00:00",
- "digest": "a7155dd0f1045e94",
+ "generated_at": "2026-10-25T09:42:10+00:00",
+ "digest": "dab4f000f8d23066",
  "model": "claude-haiku-5-5",
- "text": "- **Search retrieval:** The new retrieval model ranks whole records and items by term frequency, with OR matching. Each hit now shows its best unit, with a header of match counts. The eval gate passed against the baseline. It failed against the rg and newest-first models. A delivery report and design pages were written.\n- **Agent repo feedback:** Agents can now give feedback on the repo itself, using pm feedback add --repo. The feedback questions moved into the command help. The separate questions command was removed. Matching docs were updated.\n- **Cross-repo PR reviews:** pm now raises, closes, and sprint-closes a review of another GitHub repo's pull request. The merge watcher stores that pull request's merge.\n- **Project overview page:** The overview lists open projects first. Closed projects now sit in one collapsed section at the bottom."
+ "text": "- **Search retrieval model:** `pm search` now ranks whole records and items with BM25 OR matching, shown at each hit's best unit. The strict eval showed no clear gain over rg or newest-first ordering.\n- **Cross-repo PR review:** The pm service now raises, closes, and sprint-closes reviews of PRs in other GitHub repos. A merge watcher stores that PR's merge after it lands.\n- **Repo improvement proposals:** The owner chose sprint proposals as the only way to make repo improvements, so repo feedback was dropped. This repo's pm version pin moved to a newer release, and proposal work has started.\n- **Project overview page:** The overview now lists open projects first. Closed projects fold into one collapsed section at the bottom."
 }
