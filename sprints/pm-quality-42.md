@@ -89,10 +89,16 @@ The change adds another repo's PR to the review checks; this page's area is unch
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a pm repo raises, closes, restamps and sprint-closes a review of another GitHub repo's PR, verified through gh against that repo's merge commit and default branch, and the service stores that PR's merge.
+
+- Another repo's PR told from this repo's own by the remote's GitHub repo, in every remote form (ssh host aliases through `ssh -G`); a remote not on GitHub makes every GitHub PR another repo's.
+- The raise says when a PR counts as another repo's; this repo's design gate does not apply to it.
+- The Outcome names such a PR OWNER/REPO#N; the merge watcher names no `git pull` for it.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Harness test raising, closing, restamping and sprint-closing another repo's PR, a wrong sha refused naming gh's merge commit: met, `test_a_review_of_another_repos_pr_is_held_to_that_repos_merge` passes (`make test-full -k …`: 7 review tests passed).
+- The service stores another repo's PR's merge: met, `TestAnotherReposMergeIsStoredWithoutThisClonesMain` passes.
+- `make test`, `make test-go`, CI: `make test` 156 passed, `make test-go` 20 packages ok; CI on PR #119 is the check before the review.
