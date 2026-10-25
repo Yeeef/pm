@@ -51,7 +51,10 @@ An agent that finds something in the repo worth fixing or improving, outside its
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-25}
+A proposal is an open sprint with the label proposal, not a new status; no schema migration
+The design review showed a new status forces every clone to upgrade and breaks the merge rules (a merged row can fail Check on every clone), while the existing labels table merges row by row and already serves as a type (bug)
+:::
 
 ## Findings
 
