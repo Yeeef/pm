@@ -200,8 +200,6 @@ func TestPagesEqualTheGoldenPages(t *testing.T) {
 	t.Logf("%d pages compared", len(pages))
 }
 
-// A clone that never fetched the remote's main still renders every page; each design page with covers says once that
-// its code changes were not checked, and why, where the covered-code line would be.
 // A closed project that sorts before an open one still follows it, in the collapsed section with the other closed one.
 func TestTheOverviewListsClosedProjectsCollapsedAfterTheOpenOnes(t *testing.T) {
 	inZone(t)
@@ -230,6 +228,8 @@ func TestTheOverviewListsClosedProjectsCollapsedAfterTheOpenOnes(t *testing.T) {
 	}
 }
 
+// A clone that never fetched the remote's main still renders every page; each design page with covers says once that
+// its code changes were not checked, and why, where the covered-code line would be.
 func TestADesignPageSaysWhyItsCoveredCodeWasNotChecked(t *testing.T) {
 	inZone(t)
 	dir := constructsStore(t, nil)
