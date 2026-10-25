@@ -29,6 +29,38 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.16.0] - 2026-10-25
+
+The site can serve a company network without Cloudflare: where it listens (`listen`), the link pm prints (`site_url`)
+and how a request from beyond this machine gets in (`access`) are now three settings.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.16.0/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.16.0`, then commit what it changes and merge it, as an ordinary PR.
+3. Commit `.pm/config.toml` once `pm upgrade` (or `pm init`) has added `access = "cloudflare"` to a config that sets
+   `access_team`. A config with `site_url` and no `access_team` gets no access: set one with
+   `pm init --access cloudflare` or `pm init --access none`, or the pm service does not start.
+
+### Added
+
+- `pm init --listen ADDR` sets `listen`, the IP the site binds (127.0.0.1 when unset; `0.0.0.0` for every
+  interface), and `pm init --access cloudflare|none` sets `access`. With `access = "none"` the network is the gate:
+  colleagues read the site at `site_url` with no login, but replies are taken only from this machine; their pages
+  show the rule in place of each reply form. `pm where` and the service log state a non-loopback `listen`.
+
+### Changed
+
+- `access` is required once `listen` is not loopback or `site_url` is set: the pm service does not start without
+  it, and `pm doctor` names it.
+
+### Security
+
+- A request is local only when its TCP peer is loopback, its `Host` names this machine and Cloudflare's edge did not
+  forward it; the `Host` header alone no longer grants local trust, so a client on the network sending
+  `Host: localhost` is refused.
+
 ## [0.15.9] - 2026-10-25
 
 A pm repo can now review, close and stamp a pull request of another GitHub repo, so one pm project can track work
@@ -1376,6 +1408,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.16.0]: https://github.com/Yeeef/pm/compare/pm-v0.15.9...pm-v0.16.0
 [0.15.9]: https://github.com/Yeeef/pm/compare/pm-v0.15.8...pm-v0.15.9
 [0.15.8]: https://github.com/Yeeef/pm/compare/pm-v0.15.7...pm-v0.15.8
 [0.15.7]: https://github.com/Yeeef/pm/compare/pm-v0.15.6...pm-v0.15.7
