@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T11:00:11+00:00",
- "digest": "5640af249fdf38ff",
+ "generated_at": "2026-10-25T11:10:30+00:00",
+ "digest": "859a95929c7e3466",
  "model": "claude-haiku-5-5",
- "text": "- **Search ranking:** Search scores records and items with BM25 and shows each hit at its best unit. The new ranking passes the eval against the baseline but fails against rg and newest-first.\n- **Cross-repo PR reviews:** pm can now raise, close and sprint-close a review of another repo's pull request. The merge watcher now stores that pull request's merge.\n- **Repo planning:** Sprint proposals became the only way to suggest repo changes, so repo feedback was dropped. This repo's pm pin moved to a new release, and sprint proposals are in progress.\n- **Site overview:** The overview now lists open projects first. Closed projects fold into one collapsed section at the bottom."
+ "text": "- **Repo sprint proposals:** Agents can now propose sprints for repo needs, which replace repo feedback. The owner accepts or dismisses each proposal in the CLI or site.\n- **Search ranking evaluation:** A new search model ranks whole records and items, and shows each hit at its best unit. In the eval gate, it fails against the rg and newest-first baselines.\n- **Other-repo PR reviews:** pm can now raise and close a review of a pull request in another GitHub repo. A merge watcher then stores that pull request's merge.\n- **Overview project layout:** The overview lists open projects first. Closed projects sit in one collapsed section at the bottom."
 }
