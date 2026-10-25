@@ -17,7 +17,7 @@ func cmdSearch(e *env, p *Parsed) (string, error) {
 			return "", err
 		}
 	}
-	q := search.Query{Terms: p.Values["terms"], Kinds: p.Values["kind"], Project: p.Get("project"), N: n}
+	q := search.Query{Terms: p.Values["words"], Kinds: p.Values["kind"], Project: p.Get("project"), N: n}
 	if err := search.Check(q); err != nil {
 		return "", err
 	}
