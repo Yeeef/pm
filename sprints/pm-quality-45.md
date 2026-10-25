@@ -69,6 +69,11 @@ The frame drops the owner accept and dismiss: a proposal is an open sprint label
 Follows the owner decisions of 2026-10-25 (no accept; pm show lists no proposals) and the agent decision for a label over a new status
 :::
 
+::: decision {source=agent date=2026-10-25}
+The design page agent-lifecycle stays as it is for this sprint's code changes.
+only small helper or wording edits for proposals; the page states nothing they change
+:::
+
 ## Findings
 
 > What did we learn that changes the design, the plan, or how we work? Add
