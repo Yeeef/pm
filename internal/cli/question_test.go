@@ -89,12 +89,12 @@ func TestShowListsQuestionsAndThoseAskedOutsideAnyTask(t *testing.T) {
 	d := showNeed{sprint: "demo-pxy.1", id: "demo-pxy.1.2", title: "Which?", kind: "decision"}
 	p := &showProject{name: "p", bead: "demo-pxy", needs: []showNeed{q, d},
 		sprints: []*showSprint{{id: "demo-pxy.1", name: "sprint 1"}}}
-	if out := showProjectText(p, nil); !strings.Contains(out, "questions await you (1):\n  .1.1.1  Session s1 asks: "+
+	if out := showProjectText(p, &showFeedback{}); !strings.Contains(out, "questions await you (1):\n  .1.1.1  Session s1 asks: "+
 		"Ship it?  (sprint 1, task .1.1)") || !strings.Contains(out, "decisions await you (1):") {
 		t.Errorf("project level:\n%s", out)
 	}
 	p.needs = []showNeed{d}
-	if out := showProjectText(p, nil); !strings.Contains(out, "questions await you (0):") {
+	if out := showProjectText(p, &showFeedback{}); !strings.Contains(out, "questions await you (0):") {
 		t.Errorf("a project with no question:\n%s", out)
 	}
 	p.needs = []showNeed{q, d}

@@ -2,7 +2,7 @@
 // decides its required header fields and sections; fenced-div blocks are limited to the names in Blocks; sections carry
 // line ranges so a command can insert into a named section and leave the rest of the file untouched.
 //
-// covers.go holds a design page's covers: and its doublestar matcher; rename.go plans a design page's or a doc's
+// covers.go holds a design page's covers: and its doublestar matcher; feedback.go the repo's two feedback docs; rename.go plans a design page's or a doc's
 // rename and rewrites the links to it. testdata/expected.json holds the scanning functions and YAML 1.1 typing; it is
 // edited by hand.
 package records
@@ -190,59 +190,6 @@ func CheckBlocks(text, rel string) error {
 
 // dated is the folder of a doc and a postmortem, and the key it names besides project.
 var dated = map[string][2]string{"doc": {"docs", "bead"}, "postmortem": {"postmortems", "sprint"}}
-
-// Feedback is one of the repo's two feedback docs, which pm feedback add appends to: a doc at a fixed path, so a repo
-// cannot hold two of one, with no date in its name and neither bead nor project in its header, since each entry names
-// its own project. A doc with its title anywhere else fails CheckFeedbackDoc.
-type Feedback struct {
-	Rel, Title string
-	Add        string // the command that appends to it
-	Intro      string // the line under its header
-}
-
-var (
-	PMFeedback = Feedback{"docs/pm-feedback", "pm feedback", "pm feedback add",
-		"Where pm got in the way, one entry per `pm feedback add`, newest last; each names the project it is about, " +
-			"when it is about one."}
-	RepoFeedback = Feedback{"docs/repo-feedback", "repo feedback", "pm feedback add --repo",
-		"What slowed agents down in this repo's code, docs and tools, one entry per `pm feedback add --repo`, newest " +
-			"last; each answers `pm feedback questions` and names the project it is about, when it is about one."}
-	Feedbacks = []Feedback{PMFeedback, RepoFeedback}
-)
-
-// FeedbackAt is the feedback doc at rel, a path under records/ without .md, or nil.
-func FeedbackAt(rel string) *Feedback {
-	for i := range Feedbacks {
-		if Feedbacks[i].Rel == rel {
-			return &Feedbacks[i]
-		}
-	}
-	return nil
-}
-
-// FeedbackOf is the feedback doc the record is, or nil.
-func FeedbackOf(rec *Record) *Feedback {
-	if rec.Type() != "doc" {
-		return nil
-	}
-	return FeedbackAt(rec.Rel)
-}
-
-// IsFeedbackDoc says whether the record is one of the repo's feedback docs.
-func IsFeedbackDoc(rec *Record) bool { return FeedbackOf(rec) != nil }
-
-// CheckFeedbackDoc fails on a feedback doc outside its path, such as one of the per-project docs
-// (docs/<date>-<project>-feedback.md) that pm feedback add wrote before the repo's one pm feedback doc.
-func CheckFeedbackDoc(rec *Record) error {
-	for _, f := range Feedbacks {
-		if rec.Type() == "doc" && rec.Title() == f.Title && rec.Rel != f.Rel {
-			return errorf("%s: a repo keeps one %s doc, records/%s.md; move this doc's entries into it in time "+
-				"order, each tagged with its project (About project `<name>`.), delete this doc and commit both with pm commit",
-				rec.Rel, f.Title, f.Rel)
-		}
-	}
-	return nil
-}
 
 func checkDatedHeader(meta Meta, rel string) error {
 	kind := meta["type"].Str

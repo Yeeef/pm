@@ -136,12 +136,7 @@ func (d *showData) json() showJSON {
 		summary := firstSentence(records.SummaryLine(d.summary.Text), 160)
 		out.Today.Summary, out.Today.GeneratedAt = &summary, &d.summary.GeneratedAt
 	}
-	if f := d.feedback.pm; f != nil {
-		out.Feedback = &showFeedbackJSON{f.entries, f.url}
-	}
-	if f := d.feedback.repo; f != nil {
-		out.RepoFeedback = &showFeedbackJSON{f.entries, f.url}
-	}
+	out.Feedback, out.RepoFeedback = d.feedback.pm, d.feedback.repo
 	return out
 }
 

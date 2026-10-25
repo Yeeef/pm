@@ -28,14 +28,10 @@ const (
 var (
 	frame       = []string{"Goal", "Scope", "Done when"}
 	slugRE      = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-	feedbackRE  = regexp.MustCompile(`(?m)^### \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC, session ` + "`")
 	mergedAs    = regexp.MustCompile(`^merged as ([0-9a-f]{7,40})\b`)
 	sectionHead = regexp.MustCompile(`(?m)^## (.+?)` + records.PyS + `*$`) // Python's \s
 	scopeRE     = regexp.MustCompile(`^(?s)\*\*In:\*\*(.*?)\*\*Out:\*\*(.*)`)
 )
-
-// feedbackEntry matches the heading of each entry in a feedback doc.
-var feedbackEntry = feedbackRE
 
 func isEpic(it *work.Item) bool { return it.Type == work.Project || it.Type == work.Sprint }
 

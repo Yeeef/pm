@@ -65,7 +65,7 @@ func RenameTarget(recs []*Record, kind, arg string) (*Record, error) {
 		return nil, fmt.Errorf("no doc %s under records/docs", strconv.Quote(arg))
 	case IsFeedbackDoc(rec):
 		return nil, fmt.Errorf("records/%s.md is the repo's feedback doc, which %s writes at that path; "+
-			"it is not renamed", rec.Rel, FeedbackOf(rec).Add)
+			"it is not renamed", rec.Rel, FeedbackOf(rec).Cmd)
 	}
 	return rec, nil
 }

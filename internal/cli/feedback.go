@@ -6,19 +6,8 @@ import (
 	"github.com/Yeeef/pm/internal/records"
 	"github.com/Yeeef/pm/internal/store"
 	"path/filepath"
-	"strings"
 	"time"
 )
-
-// feedbackDoc is the repo's feedback doc f, or nil before its first entry.
-func feedbackDoc(recs []*records.Record, f records.Feedback) *records.Record {
-	for _, r := range recs {
-		if r.Type() == "doc" && r.Rel == f.Rel {
-			return r
-		}
-	}
-	return nil
-}
 
 func noSession() error {
 	return refuse("no agent session: neither %s nor %s is set; name one with --session", sessionEnv, codexSessionEnv)
@@ -61,25 +50,18 @@ func cmdFeedbackAdd(e *env, p *Parsed) (string, error) {
 			return "", refuse("%s", err)
 		}
 	}
-	entry := fmt.Sprintf("### %s UTC, session `%s`\n\n", time.Now().UTC().Format("2006-01-02 15:04"), sid)
-	if about != nil {
-		entry += "About " + strings.Join(about, ", ") + ".\n\n"
-	}
-	entry += text + "\n"
 	f := records.PMFeedback
 	if p.Get("repo") == "true" {
 		f = records.RepoFeedback
 	}
 	path := filepath.Join(r.records, f.Rel+".md")
-	var old string
-	if doc := feedbackDoc(r.recs, f); doc != nil {
+	old := ""
+	if doc := f.Doc(r.recs); doc != nil {
 		old = doc.Text
 	} else if fsutil.Exists(path) {
 		return "", refuse("%s exists but is no %s doc (type: doc); move it, then run this again", r.rel(path), f.Title)
-	} else {
-		old = fmt.Sprintf("---\ntype: doc\ntitle: %s\ndate: %s\n---\n\n%s\n", f.Title, store.Today(), f.Intro)
 	}
-	w := []store.Write{{Path: path, Text: strings.TrimRight(old, "\n") + "\n\n" + entry}}
+	w := []store.Write{{Path: path, Text: f.Append(old, store.Today(), time.Now(), sid, about, text)}}
 	if err := r.checkPlanned(w, nil); err != nil {
 		return "", err
 	}

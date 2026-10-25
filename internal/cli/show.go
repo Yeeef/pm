@@ -61,7 +61,7 @@ func cmdShow(e *env, p *Parsed) (string, error) {
 		}
 		for _, pr := range data.projects {
 			if name == pr.name || name == pr.bead {
-				return showProjectText(pr, data.feedback), nil
+				return showProjectText(pr, &data.feedback), nil
 			}
 		}
 		open := make([]string, len(data.projects))
@@ -176,7 +176,7 @@ type showData struct {
 	push     []string
 	today    string
 	summary  *records.Summary
-	feedback *showFeedback
+	feedback showFeedback
 	asks     []string // a line for each open question with no parent: from a session that held no task
 }
 
@@ -218,12 +218,7 @@ type showDecision struct {
 }
 
 // showFeedback is the repo's two feedback docs, each nil before its first entry.
-type showFeedback struct{ pm, repo *showFeedbackDoc }
-
-type showFeedbackDoc struct {
-	entries int
-	url     string
-}
+type showFeedback struct{ pm, repo *showFeedbackJSON }
 
 // showShort is Python's short(): an id under `under` without that prefix.
 func showShort(id, under string) string {
@@ -260,7 +255,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 			}
 		}
 	}
-	data := &showData{site: url, feedback: &showFeedback{}}
+	data := &showData{site: url}
 	for _, p := range r.recs {
 		if p.Type() != "project" {
 			continue
@@ -331,14 +326,7 @@ func showDataOf(e *env, r *repo) (*showData, error) {
 		}
 		data.asks = append(data.asks, line)
 	}
-	for _, f := range []struct {
-		doc  records.Feedback
-		dest **showFeedbackDoc
-	}{{records.PMFeedback, &data.feedback.pm}, {records.RepoFeedback, &data.feedback.repo}} {
-		if doc := feedbackDoc(r.recs, f.doc); doc != nil {
-			*f.dest = &showFeedbackDoc{entries: len(feedbackEntry.FindAllStringIndex(doc.Body, -1)), url: url + "/" + doc.Out()}
-		}
-	}
+	data.feedback.pm, data.feedback.repo = showFeedbackOf(r, records.PMFeedback, url), showFeedbackOf(r, records.RepoFeedback, url)
 	cfg, err := config.Load(e.here)
 	if err != nil {
 		return nil, err
@@ -386,15 +374,20 @@ func showSprintNames(p *showProject) map[string]string {
 	return names
 }
 
+// showFeedbackOf is the feedback doc f's entries and page, or nil before its first entry.
+func showFeedbackOf(r *repo, f records.Feedback, url string) *showFeedbackJSON {
+	if doc := f.Doc(r.recs); doc != nil {
+		return &showFeedbackJSON{records.FeedbackEntries(doc.Body), url + "/" + doc.Out()}
+	}
+	return nil
+}
+
 // showFeedbackLine is the repo's two feedback docs, which both levels link, and how to add to each, a line each.
 func showFeedbackLine(f *showFeedback) string {
-	if f == nil {
-		f = &showFeedback{}
-	}
-	line := func(label string, f *showFeedbackDoc, hint string) string {
+	line := func(label string, f *showFeedbackJSON, hint string) string {
 		doc := "none yet"
 		if f != nil {
-			doc = fmt.Sprintf("%d entries -> %s", f.entries, f.url)
+			doc = fmt.Sprintf("%d entries -> %s", f.Entries, f.URL)
 		}
 		return label + ": " + doc + "; " + hint
 	}
@@ -430,7 +423,7 @@ func showText(d *showData) string {
 	}
 	out = append(out, "site: "+d.site+" (the pm service); a record's page is <site>/<its path under records/, without .md>"+
 		".html; pm record link <target> prints one")
-	out = append(out, showFeedbackLine(d.feedback))
+	out = append(out, showFeedbackLine(&d.feedback))
 	if len(d.asks) > 0 {
 		out = append(append(out, "sessions ask you, outside any task:"), d.asks...)
 	}
