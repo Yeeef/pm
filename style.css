@@ -81,6 +81,7 @@ td.n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .run{color:var(--run);background:var(--run-bg)} .done{color:var(--done);background:var(--done-bg)}
 .queued{color:var(--queue);background:var(--queue-bg)} .blocked{color:var(--block);background:var(--block-bg)}
 .dropped{color:var(--muted);background:var(--line)}
+.proposed{color:var(--muted);border:1px dashed var(--muted)}
 .card{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:10px 14px;margin:10px 0}
 .card h4{margin:0 0 4px;font-size:.95rem;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 .card .k{color:var(--muted);font-size:.8rem}
@@ -118,6 +119,8 @@ details.same{margin:.4rem 0}
 details.same summary{cursor:pointer;color:var(--muted);font-size:.9rem}
 details.closed-projects{margin-top:2.6rem}
 details.closed-projects>summary{cursor:pointer;font:600 1.35rem/1.25 var(--display);color:var(--muted)}
+details.proposals{margin:.4rem 0}
+details.proposals>summary{cursor:pointer;color:var(--muted);font-weight:600}
 
 /* classes used by hand-built mock blocks inside design pages */
 .split{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}

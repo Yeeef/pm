@@ -8,6 +8,7 @@ package item
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -73,7 +74,7 @@ type Item struct {
 	CloseReason string     `json:"close_reason,omitempty"` // a review keeps "merged as <sha>"
 	Number      int        `json:"number,omitempty"`       // a sprint's number in its record name; sprints only
 	BlockedBy   []string   `json:"blocked_by,omitempty"`   // ids of the items that must close first
-	Labels      []string   `json:"labels,omitempty"`       // free tags; pm's logic reads none
+	Labels      []string   `json:"labels,omitempty"`       // free tags; pm's logic reads one, ProposalLabel
 	Holder      *Holder    `json:"holder,omitempty"`       // nil on every closed item
 	StartedAt   time.Time  `json:"started_at,omitzero"`    // the first claim
 	CreatedAt   time.Time  `json:"created_at"`
@@ -82,6 +83,18 @@ type Item struct {
 	ClosedBy    string     `json:"closed_by,omitempty"` // the session that closed it
 	Comments    []Comment  `json:"comments,omitempty"`
 	Need        *NeedInfo  `json:"need,omitempty"` // needs only
+}
+
+// ProposalLabel marks a sprint that pm sprint propose made; it is never removed (the sprint-proposals design page).
+const ProposalLabel = "proposal"
+
+// Unstarted is whether sprint s is a proposal nobody started: labelled ProposalLabel, with no task among kids, its
+// children (needs do not count). Open, it is a proposal; closed, a dropped proposal. Derived on read, never stored.
+func Unstarted(s *Item, kids []*Item) bool {
+	if s.Type != Sprint || !slices.Contains(s.Labels, ProposalLabel) {
+		return false
+	}
+	return !slices.ContainsFunc(kids, func(k *Item) bool { return k.Type == Task })
 }
 
 // HasReply is whether the item holds an owner's reply: a need the owner answered.

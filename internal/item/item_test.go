@@ -29,3 +29,31 @@ func TestTheItemReadersLinkNoDolt(t *testing.T) {
 		}
 	}
 }
+
+// A proposal's state follows from its label and its tasks alone (the sprint-proposals design page, Representation):
+// no task leaves it unstarted, open or closed; any task, of any status, starts it, and once every task moved out it
+// is unstarted again; a need under it does not count, and a sprint without the label is never one.
+func TestAProposalIsUnstartedUntilATaskIsUnderIt(t *testing.T) {
+	proposal := &Item{ID: "p.1", Type: Sprint, Labels: []string{ProposalLabel}}
+	closed := &Item{ID: "p.2", Type: Sprint, Labels: []string{"bug", ProposalLabel}, Status: Closed}
+	plain := &Item{ID: "p.3", Type: Sprint}
+	task := &Item{ID: "p.1.1", Type: Task, Parent: "p.1", Status: Closed}
+	need := &Item{ID: "p.1.2", Type: Need, Parent: "p.1"}
+	for _, c := range []struct {
+		name string
+		s    *Item
+		kids []*Item
+		want bool
+	}{
+		{"no task", proposal, nil, true},
+		{"a need only", proposal, []*Item{need}, true},
+		{"a closed task", proposal, []*Item{need, task}, false},
+		{"closed with no task", closed, nil, true},
+		{"no label", plain, nil, false},
+		{"a task labelled proposal", &Item{ID: "p.1.3", Type: Task, Labels: []string{ProposalLabel}}, nil, false},
+	} {
+		if got := Unstarted(c.s, c.kids); got != c.want {
+			t.Errorf("%s: Unstarted = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

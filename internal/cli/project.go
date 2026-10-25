@@ -98,7 +98,7 @@ func cmdProjectClose(e *env, p *Parsed) (string, error) {
 	if open != nil {
 		return "", refuse("open sprints in the project: %s; close them with pm sprint close first", strings.Join(open, ", "))
 	}
-	reason := fmt.Sprintf("%s (commit %s)", firstSentence(text, 200), head)
+	reason := fmt.Sprintf("%s (commit %s)", records.FirstSentence(text, 200), head)
 	if err := r.checkPlanned(nil, r.with(closedCopy(epic, reason))); err != nil {
 		return "", err
 	}

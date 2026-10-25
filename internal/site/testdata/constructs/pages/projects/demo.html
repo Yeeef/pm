@@ -80,6 +80,10 @@ records when the page is rendered. Do not write here.</p>
     direction TB
     demo_13_empty[&#34;no tasks yet&#34;]
   end
+  subgraph demo_15[&#34;Sprint 15: Index the docs&#34;]
+    direction TB
+    demo_15_1[&#34;Build the index&#34;]:::ready
+  end
   subgraph demo_20[&#34;A project-level task&#34;]
     direction TB
     demo_20_empty[&#34;no tasks yet&#34;]
@@ -100,7 +104,8 @@ records when the page is rendered. Do not write here.</p>
   classDef ready fill:#f6efd9,stroke:#8a6a12,color:#1d2321
   classDef blocked fill:#f7e3e1,stroke:#a8322d,color:#1d2321</pre>
 <p class="meta"><span class="pill done">DONE</span> <span class="pill dropped">DROPPED</span> <span class="pill run">RUNNING</span> <span class="pill queued">READY</span> <span class="pill blocked">BLOCKED</span><span>arrows: must finish first</span></p>
-<div class="tbl"><table><tr><th>Sprint</th><th>Opened</th><th>Goal</th><th>Outcome</th><th>Status</th></tr><tr><td><a href="../sprints/demo-1.html">First</a></td><td>2026-10-01</td><td>Ship the <em>parser</em>, because the site needs <a href="../design/parser.md#tables">tables</a> and <code>code</code>.</td><td><span class=empty>not closed</span></td><td><span class="pill run">RUNNING</span></td></tr><tr><td><a href="../sprints/demo-2.html">Second: the follow-up</a></td><td>2026-10-01</td><td>Follow up on <a href="demo-1.html">the first</a>.</td><td>Done: shipped the follow-up, see <a href="../design/parser.html">the parser</a>.</td><td><span class="pill done">DONE</span></td></tr></table></div>
+<div class="tbl"><table><tr><th>Sprint</th><th>Opened</th><th>Goal</th><th>Outcome</th><th>Status</th></tr><tr><td><a href="../sprints/demo-1.html">First</a></td><td>2026-10-01</td><td>Ship the <em>parser</em>, because the site needs <a href="../design/parser.md#tables">tables</a> and <code>code</code>.</td><td><span class=empty>not closed</span></td><td><span class="pill run">RUNNING</span></td></tr><tr><td><a href="../sprints/demo-2.html">Second: the follow-up</a></td><td>2026-10-01</td><td>Follow up on <a href="demo-1.html">the first</a>.</td><td>Done: shipped the follow-up, see <a href="../design/parser.html">the parser</a>.</td><td><span class="pill done">DONE</span></td></tr><tr><td><a href="../sprints/demo-16.html">Cache the parser</a></td><td>2026-10-05</td><td>Cache the parser output. A repeat render reparses every record.</td><td>dropped: duplicate of sprint 14</td><td><span class="pill dropped">DROPPED</span></td></tr></table></div>
+<details class="proposals"><summary>Proposed (1)</summary><ul class="list"><li><span class="pill proposed">PROPOSED</span> <a href="../sprints/demo-14.html">Sprint 14: Retry the flaky sync test</a><span class="k">Make the sync test pass on every run.</span></li></ul></details>
 <h3 id="not-in-a-sprint">Not in a sprint</h3>
 <div class="tbl"><table><tr><th>Item</th><th>Type</th><th>Title</th><th>Project</th></tr><tr><td>demo.20</td><td>task</td><td>A project-level task</td><td><a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a></td></tr><tr><td>demo.21</td><td>bug</td><td>Fix &lt;b&gt; &amp; &#34;co&#34;</td><td><a href="../projects/demo.html">Demo &amp; &#34;friends&#34;</a></td></tr></table></div>
 <h2 id="decisions">Decisions</h2>

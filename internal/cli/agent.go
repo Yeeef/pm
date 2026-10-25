@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -318,18 +317,4 @@ func (e *env) body(p *Parsed) (string, error) {
 		return config.PyStrip(p.Get("text")), nil
 	}
 	return readTextFile(path[len(path)-1], e.stdin)
-}
-
-var sentenceEnd = regexp.MustCompile(`^(.+?[.!?])(` + records.PyS + `|$)`) // Python's \s
-
-// firstSentence is the first sentence of text's first paragraph, cut to limit characters with "…".
-func firstSentence(text string, limit int) string {
-	s := records.FirstPara(text)
-	if m := sentenceEnd.FindStringSubmatch(s); m != nil {
-		s = m[1]
-	}
-	if r := []rune(s); len(r) > limit {
-		return strings.TrimRightFunc(string(r[:limit-1]), config.IsPySpace) + "…"
-	}
-	return s
 }
