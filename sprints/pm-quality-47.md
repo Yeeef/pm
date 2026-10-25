@@ -65,7 +65,11 @@ prime.md only adds pm project edit to the move-or-rename line; the agent lifecyc
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- PR #122 CI green on all jobs, light and integration included. Locally: make
+  test 159 passed, 169 skipped; tests/test_pm.py 59 passed, 3 of them new
+  (rename with its refusals and rollback; pm check drift then fix; store
+  already holds the title); internal/cli and internal/records Go tests ok;
+  make lint 0 issues.
 
 ## Delivery report
 
