@@ -89,10 +89,15 @@ prime.md only adds pm project edit to the move-or-rename line; the agent lifecyc
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: `pm project edit` renames a project's title in the work store and its record together, and `pm check` names every project whose two titles differ.
+
+- `pm project edit <name> --title "…"`: writes the work-store title, then one records commit with the `title:` header and a project decision (agent, or owner with `--confirmed`). A failed records step puts the old store title back. It refuses only a title that the store and the header both already hold, so a header that a hand edit already changed is fixed. Closed projects are allowed. The name, path and links are unchanged.
+- `pm check` reports title drift with a pasteable `pm project edit` hint; this is a report, not a failure, so `pm commit` never refuses on it.
+- The day's activity code moved to `internal/cli/dayactivity` to keep `internal/cli` under its size cap.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- The harness tests for `pm project edit` pass (store and header both updated, decision added, unchanged title refused, header-only drift accepted, failed records step restores the store title): met. `tests/test_pm.py` 59 passed, with the rename, drift and store-holds-title tests; PR #122's `light` and `integration` jobs pass.
+- `pm check` prints a finding that names the project and `pm project edit` when the header and the store title differ, and the PR's CI is green: met. `test_check_names_a_hand_edited_project_title_and_project_edit_fixes_it` asserts the exact line, and `test_check_holds_covers_to_main_and_lists_uncovered_sources` asserts it runs after the design report on its own line. Every job on PR #122 passed.
