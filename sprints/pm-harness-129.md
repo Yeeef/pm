@@ -73,6 +73,21 @@ Model 2 rewrites code that is not on main yet, and PR #112 merges only once this
   the best rg on the strict set: .427 single, .692 R@10 and .505 MRR best of
   3; stage 0 trails it by -0.183 [-0.290, -0.075] R@10 best of 3.
 
+- Gate FAILS. make search-eval SEARCH_EVAL_PM='stage0=83c3785 model2=fcd1631'
+  (commit 133ac98 harness, records 41db306c, ripgrep 15.1.0, 10,000 paired
+  bootstrap resamples over sprints). Strict set (73 sprints, 95 targets), best
+  of 3 queries: model 2 R@10 .705 [.603, .801], MRR .531; against stage 0
+  +0.196 [+0.116, +0.285] R@10 and +0.114 [+0.045, +0.182] MRR (pass: not
+  below 0); against the best rg variant, rg AND newest first (R@10 .692, MRR
+  .505), +0.014 [-0.089, +0.116] R@10 and +0.026 [-0.079, +0.133] MRR (fail:
+  not above 0). Against sprint 128's rg (AND by match count) it passes: +0.167
+  [+0.082, +0.260] R@10, +0.221 [+0.146, +0.300] MRR. Whole-record BM25 OR
+  over records only leads model 2 by 0.062 [0.014, 0.123] R@10 best of 3, and
+  itself would not pass against rg AND newest first: +0.075 [-0.021, +0.178]
+  R@10, +0.058 [-0.045, +0.162] MRR. Most strict targets (83 of 95) are
+  earlier sprints a frame cites as 'sprint N', usually the latest ones, which
+  is the order newest first gives.
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
