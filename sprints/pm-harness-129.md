@@ -56,7 +56,22 @@ Model 2 rewrites code that is not on main yet, and PR #112 merges only once this
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Eval harness (tests/search_eval, make search-eval; commit cdffb71) on
+  records commit 41db306c, ripgrep 15.1.0, model queries frozen in
+  queries.json (3 per sprint, 1-4 words). Labels rebuilt from the records'
+  citations: strict 73 sprints / 95 targets, extended 111 / 260, against
+  sprint 128's 68/87 and 98/237: this extractor also reads item ids (a task id
+  cites its sprint) and 'sprint N' with a project name before it, and dates a
+  design page by the first sprint that links it, since the records branch
+  starts with a bulk move. Stage 0 (83c3785) reproduces sprint 128 within its
+  95% CIs: strict single-query R@10 pm search .282 [.214, .355] (128: .314),
+  rg AND by match count .326 [.251, .406] (128: .301); best of 3 .509 [.404,
+  .616] (.551) and .539 [.429, .648] (.449). Whole-record BM25 OR does not:
+  .521 [.443, .598] single, .767 [.671, .849] best of 3, against 128's .368
+  and .588; this harness filters every system to the as-of corpus, which 128's
+  baseline may not have. A variant 128 did not report, rg AND newest first, is
+  the best rg on the strict set: .427 single, .692 R@10 and .505 MRR best of
+  3; stage 0 trails it by -0.183 [-0.290, -0.075] R@10 best of 3.
 
 ## Delivery report
 
