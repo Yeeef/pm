@@ -392,7 +392,7 @@ func showFeedbackLine(f *showFeedback) string {
 		return label + ": " + doc + "; " + hint
 	}
 	return line("feedback", f.pm, `when pm gets in your way, run pm feedback add [--project NAME] --text="…"`) + "\n" +
-		line("repo feedback", f.repo, `once per sprint, with its delivery report, answer pm feedback questions with `+
+		line("repo feedback", f.repo, `once per sprint, with its delivery report, report what slowed you down: `+
 			`pm feedback add --repo --text-file - <<'EOF' … EOF`)
 }
 

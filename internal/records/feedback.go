@@ -22,7 +22,7 @@ var (
 			"when it is about one."}
 	RepoFeedback = Feedback{"docs/repo-feedback", "repo feedback", "pm feedback add --repo",
 		"What slowed agents down in this repo's code, docs and tools, one entry per `pm feedback add --repo`, newest " +
-			"last; each answers `pm feedback questions` and names the project it is about, when it is about one."}
+			"last; each names the project it is about, when it is about one."}
 	Feedbacks = []Feedback{PMFeedback, RepoFeedback}
 )
 

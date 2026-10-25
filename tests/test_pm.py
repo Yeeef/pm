@@ -343,13 +343,9 @@ def test_feedback_about_any_project_goes_to_the_repo_s_one_feedback_doc(repo):
                   r"doc's entries into it")
 
 
-def test_feedback_on_the_repo_goes_to_its_own_doc_and_answers_the_questions(repo):
-    """pm feedback questions prints the set; pm feedback add --repo appends to records/docs/repo-feedback.md, tagged
-    as pm feedback add tags, and leaves the pm feedback doc alone; pm show and --json link it."""
-    res = repo.pm("feedback", "questions")
-    assert res.returncode == 0, res.stderr
-    assert "pm feedback add --repo" in res.stdout and "what one change would make the next task here fastest?" in \
-        res.stdout.lower()
+def test_feedback_on_the_repo_goes_to_its_own_doc(repo):
+    """pm feedback add --repo appends to records/docs/repo-feedback.md, tagged as pm feedback add tags, and leaves the
+    pm feedback doc alone; pm show and --json link it."""
     assert "repo feedback: none yet; once per sprint" in repo.pm("show").stdout
     repo.env = dict(repo.env, CLAUDE_CODE_SESSION_ID="sess-1")
     (repo.records / "docs").mkdir()

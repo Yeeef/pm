@@ -84,10 +84,10 @@ var tree = &command{
 				{
 					Name:        "add",
 					Help:        "append an entry to the repo's pm feedback doc, or with --repo its repo feedback doc; the text with --text",
-					Description: "When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say once what happened and what would have helped. Appends a dated entry with this session's id to the repo's one feedback doc, records/docs/pm-feedback.md, creating it on first use; --project, --sprint and --task tag the entry with what it is about. With --repo the entry is about the repo itself (its code, docs and tools) and goes to records/docs/repo-feedback.md instead: once per sprint, when its delivery report is written, answer pm feedback questions in one entry. pm show and pm show --project link both docs.",
+					Description: "When pm got in the way (a confusing refusal, a missing command, a rule that cost time), say once what happened and what would have helped. Appends a dated entry with this session's id to the repo's one feedback doc, records/docs/pm-feedback.md, creating it on first use; --project, --sprint and --task tag the entry with what it is about. With --repo the entry is about the repo itself (its code, docs and tools) and goes to records/docs/repo-feedback.md instead: once per sprint, when its delivery report is written, one entry on navigation (were the code, docs and tools easy to find your way through and understand), blockers (what blocked or slowed understanding or implementation, and what it cost), docs (which doc was wrong, stale or missing), tools (which command, test or build step was slow, flaky or hard to find) and next (what one change would make the next task fastest); answer only what you have evidence for. pm show and pm show --project link both docs.",
 					Groups:      []bool{false},
 					Args: []arg{
-						{Flags: []string{"--repo"}, Dest: "repo", Kind: switchOn, Help: "feedback on the repo's code, docs and tools, answering pm feedback questions: append to records/docs/repo-feedback.md"},
+						{Flags: []string{"--repo"}, Dest: "repo", Kind: switchOn, Help: "feedback on the repo's code, docs and tools: append to records/docs/repo-feedback.md"},
 						{Flags: []string{"--project"}, Dest: "project", Metavar: []string{"NAME"}, Kind: value, Help: "the project the feedback is about"},
 						{Flags: []string{"--sprint"}, Dest: "sprint", Metavar: []string{"ID"}, Kind: value, Help: "the sprint the feedback is about"},
 						{Flags: []string{"--task"}, Dest: "task", Metavar: []string{"ID"}, Kind: value, Help: "the task the feedback is about"},
@@ -95,11 +95,6 @@ var tree = &command{
 						{Flags: []string{"--text"}, Dest: "text", Kind: value, Def: "", Group: 1, Help: "the same body inline, for one plain line only; several lines, backticks, $ or quotes go in --text-file"},
 						{Flags: []string{"--session"}, Dest: "session", Metavar: []string{"ID"}, Kind: value, Help: "the session to record; default: this session's id from the environment"},
 					},
-				},
-				{
-					Name:        "questions",
-					Help:        "print the questions pm feedback add --repo answers",
-					Description: "Print the questions an agent answers about the repo itself (its code, docs and tools), once per sprint when its delivery report is written, in one pm feedback add --repo entry. Answer only what you have evidence for; skip a question with nothing to say.",
 				},
 			},
 		},

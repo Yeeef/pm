@@ -1,7 +1,0 @@
-Answer each question you have evidence for, from this sprint's work, in one pm feedback add --repo entry; skip one with nothing to say.
-
-1. Navigation: were this repo's code, docs and tools easy to find your way through and understand?
-2. Blockers: what blocked or slowed your understanding or your implementation, and what did it cost?
-3. Docs: which doc (AGENTS.md or CLAUDE.md, a README, a package doc, a --help) was wrong, stale or missing what you needed?
-4. Tools: which command, test or build step was slow, flaky or hard to find?
-5. Next: what one change would make the next task here fastest?
