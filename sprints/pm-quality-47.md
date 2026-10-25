@@ -101,6 +101,8 @@ The owner asked in chat: "plz merge it yourself".
 
 done: `pm project edit` renames a project's title in the work store and its record together, and `pm check` names every project whose two titles differ.
 
+Merged as 9520997 (PR #122).
+
 - `pm project edit <name> --title "…"`: writes the work-store title, then one records commit with the `title:` header and a project decision (agent, or owner with `--confirmed`). A failed records step puts the old store title back. It refuses only a title that the store and the header both already hold, so a header that a hand edit already changed is fixed. Closed projects are allowed. The name, path and links are unchanged.
 - `pm check` reports title drift with a pasteable `pm project edit` hint; this is a report, not a failure, so `pm commit` never refuses on it.
 - The day's activity code moved to `internal/cli/dayactivity` to keep `internal/cli` under its size cap.

@@ -191,7 +191,10 @@ matches no file the worktree tracks; `pm sprint close` holds each pattern a
 page it publishes adds to the remote's main ([Sprint lifecycle](sprint-lifecycle.md), Covers hold on main at the
 close). `pm check` also lists the tracked files that `design_sources` in
 `.pm/config.toml` names and no page covers, and fails on a `design_sources`
-pattern that matches none. A
+pattern that matches none. It names each project record whose `title:`
+header differs from its work-store title, with the `pm project edit` that
+fixes it; like the uncovered files, that is a report, not a failure, so
+`pm commit` never refuses on it. A
 PR that changes a covered file waits until its sprint updates or waives the
 page ([Sprint lifecycle](sprint-lifecycle.md), Design pages follow the code),
 and the site says when covered code changed after a page's last edit

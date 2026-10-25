@@ -210,6 +210,21 @@ closed: new work is a new sprint or task. A reopen on one clone merges whole
 against the other clone's unchanged close, since each field changed on one
 side only ([Work store](work-store.md), merge rules).
 
+### Rename a project
+
+`pm project edit <name> --title "…"` renames a project as `pm sprint edit`
+renames a sprint: the work-store title first, then one records commit that
+sets the record's `title:` header and adds the rename to the project's
+Decisions (source agent, or owner with `--confirmed`); a failed records step
+puts the old work-store title back. The body is the reason, two lines or
+more. The project's name, its record path and its links stay as they are.
+
+| Case | What it does |
+|---|---|
+| The store and the header both hold the title | Refused: nothing to rename |
+| Only the header holds it (a hand edit) | The store takes it and the decision is recorded; this is the fix `pm check` names for title drift |
+| A closed project | Renamed; it stays closed, so `pm check`'s title drift has a fix on every project |
+
 ### Design pages follow the code
 
 A design page names the code its area is about in its header, `covers:`

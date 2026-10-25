@@ -151,7 +151,7 @@ The grammar every command follows; a new command or flag uses it, and a deviatio
 | Create a record from its template | `new` | `design new`, `doc new`, `postmortem new` |
 | Ask the owner | `need`, under the kind of need | `decision need`, `action need` |
 | Close | `close`, for work items and for a need that sets no rule; a need that sets a rule closes through `decision add --need`; `--dropped` closes as not done | `task close`, `sprint close`, `project close`, `need close`; `task close --dropped`, `need close --dropped` |
-| Change | `edit` for a title or body, `move --to` for a parent, `rename --to` for a slug | `sprint edit`, `need edit`, `task move --to`, `design rename --to` |
+| Change | `edit` for a title or body, `move --to` for a parent, `rename --to` for a slug | `project edit`, `sprint edit`, `need edit`, `task move --to`, `design rename --to` |
 | Reopen a closed container | `reopen`, with the reason as its body | `project reopen`, `sprint reopen` |
 | Scope of a write | `--sprint ID`, `--task ID` or `--project NAME`, each meaning that container on every command; no other flag names a container (`--parent`, `--level` were removed) | `finding add --sprint`, `decision need --sprint\|--task`, `decision add --project\|--sprint`, `doc new --sprint\|--task\|--project` |
 | Sub-item | the scope flag of its parent's kind | `task add --task <task>` |

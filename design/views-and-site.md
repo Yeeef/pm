@@ -6,6 +6,7 @@ covers:
   - "internal/site/**"
   - "style.css"
   - "internal/cli/day*.go"
+  - "internal/cli/dayactivity/**"
   - "prompts/day_summary.txt"
   - "internal/ask/ask.go"
   - "internal/cli/serve*.go"
