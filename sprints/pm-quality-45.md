@@ -40,7 +40,7 @@ An agent that finds something in the repo worth fixing or improving, outside its
 
 > Where is the detail?
 
-None yet.
+- [Sprint proposals](../design/sprint-proposals.md): the proposal lifecycle: a sprint status, the commands, the site's verdict, the tests.
 
 ## Progress
 
