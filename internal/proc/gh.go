@@ -44,19 +44,53 @@ func GHJSON(dir string, v any, args ...string) error {
 }
 
 var (
-	githubRemote = regexp.MustCompile(`^(?:(?:https?|ssh|git)://(?:[^@/]+@)?(?i:github\.com)(?::[0-9]+)?/` +
-		`|[^@/:]+@(?i:github\.com):)([\w.-]+/[\w.-]+?)(?:\.git)?/?$`)
+	urlRemote  = regexp.MustCompile(`^([a-z][a-z0-9+.-]*)://(?:[^@/]+@)?([^/:@]+)(?::[0-9]*)?/(.*)$`)
+	scpRemote  = regexp.MustCompile(`^(?:[^@/:]+@)?([^/:@]+):(.*)$`)
+	repoPath   = regexp.MustCompile(`^/?([\w.-]+/[\w.-]+?)(?:\.git)?/?$`)
 	githubPull = regexp.MustCompile(`^https://github\.com/([\w.-]+/[\w.-]+)/pull/[0-9]+$`)
 	repoCommit = regexp.MustCompile(`^([\w.-]+/[\w.-]+)@([0-9a-fA-F]{4,40})$`)
 )
 
-// GitHubRepo is the OWNER/REPO a git remote URL names on GitHub, in its https, ssh or scp-like form; "" for a URL
-// elsewhere.
-func GitHubRepo(url string) string {
-	if m := githubRemote.FindStringSubmatch(strings.TrimSpace(url)); m != nil {
-		return m[1]
+// SSHHostName is the host ssh connects to for host, an alias ~/.ssh/config may map (ssh -G's hostname line); "" when
+// ssh cannot tell. A variable so a test can resolve an alias without ssh.
+var SSHHostName = func(host string) string {
+	res, err := Run([]string{"ssh", "-G", host}, Options{Timeout: 10 * time.Second, TimeoutText: "10"})
+	if err != nil || res.Code != 0 {
+		return ""
+	}
+	for _, line := range strings.Split(res.Stdout, "\n") {
+		if name, ok := strings.CutPrefix(line, "hostname "); ok {
+			return strings.TrimSpace(name)
+		}
 	}
 	return ""
+}
+
+func isGitHub(host string) bool {
+	host = strings.ToLower(host)
+	return host == "github.com" || host == "www.github.com"
+}
+
+// GitHubRepo is the OWNER/REPO a git remote URL names on GitHub, in its URL form (https, ssh, git) or scp-like one
+// ([user@]host:path); an ssh host other than github.com counts when it is an alias ssh resolves to github.com
+// (SSHHostName). "" for a URL elsewhere, and for an alias ssh cannot resolve.
+func GitHubRepo(url string) string {
+	url = strings.TrimSpace(url)
+	var scheme, host, path string
+	if m := urlRemote.FindStringSubmatch(url); m != nil {
+		scheme, host, path = strings.ToLower(m[1]), m[2], m[3]
+	} else if m := scpRemote.FindStringSubmatch(url); m != nil {
+		scheme, host, path = "ssh", m[1], m[2]
+	}
+	p := repoPath.FindStringSubmatch(path)
+	if p == nil {
+		return ""
+	}
+	ssh := scheme == "ssh" || scheme == "git+ssh" || scheme == "ssh+git"
+	if !isGitHub(host) && !(ssh && isGitHub(SSHHostName(host))) {
+		return ""
+	}
+	return p[1]
 }
 
 // OtherRepoPR is the OWNER/REPO of pr when it is another repo's pull request than dir's: a GitHub PR URL whose
@@ -64,23 +98,29 @@ func GitHubRepo(url string) string {
 // GitHub. "" for this repo's PR, for a URL that is no GitHub PR, and when dir has no such remote, which leaves no other
 // repo to tell apart: this repo's checks then run, and those that need the remote refuse without it.
 func OtherRepoPR(dir, remote, pr string) (string, error) {
+	other, _, err := otherRepoPR(dir, remote, pr)
+	return other, err
+}
+
+// otherRepoPR is OtherRepoPR, and the OWNER/REPO the remote's URL names ("" off GitHub).
+func otherRepoPR(dir, remote, pr string) (other, here string, err error) {
 	m := githubPull.FindStringSubmatch(pr)
 	if m == nil {
-		return "", nil
+		return "", "", nil
 	}
 	res, err := Run([]string{"git", "config", "--get", "remote." + remote + ".url"}, Options{Cwd: &dir})
 	switch {
 	case err != nil:
-		return "", fmt.Errorf("git config remote.%s.url did not run: %v", remote, err)
+		return "", "", fmt.Errorf("git config remote.%s.url did not run: %v", remote, err)
 	case res.Code == 1: // no such remote
-		return "", nil
+		return "", "", nil
 	case res.Code != 0:
-		return "", fmt.Errorf("git config remote.%s.url failed: %s", remote, strings.TrimSpace(res.Stderr))
+		return "", "", fmt.Errorf("git config remote.%s.url failed: %s", remote, strings.TrimSpace(res.Stderr))
 	}
-	if here := GitHubRepo(res.Stdout); here != "" && strings.EqualFold(here, m[1]) {
-		return "", nil
+	if here = GitHubRepo(res.Stdout); here != "" && strings.EqualFold(here, m[1]) {
+		return "", here, nil
 	}
-	return m[1], nil
+	return m[1], here, nil
 }
 
 // PR is a GitHub pull request's merge as gh gives it: its state (OPEN, CLOSED, MERGED), the branch it merges into,
@@ -127,29 +167,36 @@ var shaRE = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 
 // PRReachesMain is nil unless pr is a GitHub PR whose base is not main, the main branch of dir's repo (whose remote is
 // remote), or for another repo's PR (OtherRepoPR) that repo's default branch (OtherBase); else why, as a refusal says
-// it: a stacked PR merges into another PR's branch, so its review could never close as merged.
-func PRReachesMain(dir, remote, main, pr string) error {
+// it: a stacked PR merges into another PR's branch, so its review could never close as merged. For another repo's PR,
+// note says so, naming both repos, for the raise to print.
+func PRReachesMain(dir, remote, main, pr string) (note string, err error) {
 	if !githubPull.MatchString(pr) {
-		return nil
+		return "", nil
 	}
-	switch other, err := OtherRepoPR(dir, remote, pr); {
+	other, here, err := otherRepoPR(dir, remote, pr)
+	switch {
 	case err != nil:
-		return err
+		return "", err
 	case other != "":
-		return OtherBase(dir, other, pr)
+		mine := "this repo is " + here
+		if here == "" {
+			mine = "this repo's remote is not on GitHub"
+		}
+		return fmt.Sprintf("; %s is another repo's PR, of %s (%s): it is held to %s's default branch, and this "+
+			"repo's design-page check does not apply", pr, other, mine, other), OtherBase(dir, other, pr)
 	}
 	var got struct {
 		Base string `json:"baseRefName"`
 	}
 	if err := GHJSON(dir, &got, "pr", "view", pr, "--json", "baseRefName"); err != nil {
-		return fmt.Errorf("--pr %s: pm reads its base branch from GitHub, and cannot: %v", pr, err)
+		return "", fmt.Errorf("--pr %s: pm reads its base branch from GitHub, and cannot: %v", pr, err)
 	}
 	if got.Base != main {
-		return fmt.Errorf("--pr %s merges into %s, not %s, so its merge does not deliver the sprint; raise the review "+
+		return "", fmt.Errorf("--pr %s merges into %s, not %s, so its merge does not deliver the sprint; raise the review "+
 			"on the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)", pr,
 			strconv.Quote(got.Base), main, main, pr, main)
 	}
-	return nil
+	return "", nil
 }
 
 // OtherBase is nil when pr, a PR of the GitHub repo slug, merges into that repo's default branch; else why not, as a

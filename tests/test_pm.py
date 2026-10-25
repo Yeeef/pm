@@ -491,6 +491,9 @@ def test_a_review_of_another_repos_pr_is_held_to_that_repos_merge(repo, tmp_path
     repo.set_pr(pr, "OPEN", base="trunk")
     res = repo.pm(*review)
     assert res.returncode == 0, res.stderr
+    assert res.stdout.rstrip().endswith(f"; {pr} is another repo's PR, of b/lib (this repo's remote is not on GitHub): it "
+                                        "is held to b/lib's default branch, and this repo's design-page check does not "
+                                        "apply"), res.stdout
     assert "Design pages covering" not in repo.items()["repo-demo.1.3"]["description"]
     repo.mark()
     refused(repo, "need", "close", "repo-demo.1.3", "--reason", f"merged as {merge[:7]}",

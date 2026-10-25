@@ -47,7 +47,8 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 	if err := r.reviewReports(sprints); err != nil {
 		return "", err
 	}
-	if err := prReachesMain(e.here, r.root, pr); err != nil {
+	note, err := prReachesMain(e.here, r.root, pr)
+	if err != nil {
 		return "", err
 	}
 	parent := sprints[0]
@@ -102,8 +103,8 @@ func raiseReview(e *env, p *Parsed) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("raised review %s under %s; %s; the pm service pushes the PR's merge to main the same way; once "+
-		"the PR is on main: pm need close %s --reason \"merged as <sha>\"", made.ID, parent, deliveryHint(made.ID),
-		made.ID), nil
+		"the PR is on main: pm need close %s --reason \"merged as <sha>\"%s", made.ID, parent, deliveryHint(made.ID),
+		made.ID, note), nil
 }
 
 func (r *repo) reviewReports(sprints []string) error {
@@ -141,12 +142,11 @@ func (r *repo) reviewReports(sprints []string) error {
 	return nil
 }
 
-// prReachesMain refuses a GitHub PR that does not merge into the main branch, or another repo's PR that does not
-// merge into that repo's default branch (proc.PRReachesMain).
-func prReachesMain(here, root, pr string) error {
+// prReachesMain is proc.PRReachesMain on the config's remote and main branch: the raise's note, or its refusal.
+func prReachesMain(here, root, pr string) (string, error) {
 	cfg, err := config.Load(here)
 	if err != nil {
-		return err
+		return "", err
 	}
 	return proc.PRReachesMain(root, cfg.Remote, cfg.MainBranch, pr)
 }
