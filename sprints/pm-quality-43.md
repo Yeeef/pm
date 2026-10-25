@@ -49,7 +49,10 @@ An agent can report its development experience in the repo it works in, not only
 
 > What did we choose inside this sprint, and why?
 
-None yet.
+::: decision {source=agent date=2026-10-25}
+The design page record-layer stays as it is for this sprint's code changes.
+only the feedback doc table and its repo feedback twin changed; this page names neither
+:::
 
 ## Findings
 
