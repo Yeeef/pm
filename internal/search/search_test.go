@@ -13,25 +13,26 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 )
 
-// unit is a unit with its tokens, as Units builds it.
+// unit is a unit with its tokens, as Units builds it, a document of its own (an item's when kind is task or need).
 func unit(kind, date, address, text string) Unit {
 	return Unit{Kind: kind, Date: date, State: "-", Address: address, Text: text, snips: []string{text},
-		tokens: Tokens(text)}
+		tokens: Tokens(text), doc: address}
 }
 
-// corpus is three units whose BM25 scores the tests compute by hand:
+// corpus is three records of one unit each, whose BM25 scores the tests compute by hand:
 //
 //	a: "alpha beta"               |a| = 2
 //	b: "alpha alpha gamma delta"  |b| = 4
 //	c: "beta gamma"               |c| = 2
 //
-// N = 3, avgdl = 8/3. alpha and beta are each in 2 units: idf = ln(1 + (3 − 2 + 0.5)/(2 + 0.5)) = ln 1.6 = 0.4700036.
+// N = 3, avgdl = 8/3. alpha and beta are each in 2 records: idf = ln(1 + (3 − 2 + 0.5)/(2 + 0.5)) = ln 1.6 = 0.4700036.
 // For alpha:
 //
 //	a: tf 1, K = 1.2·(0.25 + 0.75·2/(8/3)) = 0.975: 0.4700036 · 1·2.2/(1 + 0.975)  = 0.4700036 · 1.1139241 = 0.5235484
 //	b: tf 2, K = 1.2·(0.25 + 0.75·4/(8/3)) = 1.65:  0.4700036 · 2·2.2/(2 + 1.65)   = 0.4700036 · 1.2054795 = 0.5665797
 //
-// For alpha beta only a holds both: 0.5235484 + 0.5235484 (beta in a is alpha's case again) = 1.0470968.
+// For alpha beta: a holds both, 0.5235484 + 0.5235484 (beta in a is alpha's case again) = 1.0470968; b holds alpha,
+// 0.5665797; c holds beta, 0.5235484 (c's beta is a's alpha again).
 func corpus() []Unit {
 	return []Unit{
 		unit("doc", "2026-10-01", "docs/a", "alpha beta"),
@@ -48,6 +49,14 @@ func scores(hits []Hit) map[string]float64 {
 	return out
 }
 
+func addresses(hits []Hit) []string {
+	var out []string
+	for _, h := range hits {
+		out = append(out, h.Address)
+	}
+	return out
+}
+
 func near(a, b float64) bool { return math.Abs(a-b) < 1e-6 }
 
 func TestBM25ScoresAndOrderMatchTheHandComputedValues(t *testing.T) {
@@ -59,15 +68,72 @@ func TestBM25ScoresAndOrderMatchTheHandComputedValues(t *testing.T) {
 		t.Errorf("alpha: got %v, want 0.5665797 and 0.5235484", scores(hits))
 	}
 	hits = Rank(corpus(), Query{Terms: []string{"Alpha", "betas"}, N: 10})
-	if len(hits) != 1 || hits[0].Address != "docs/a" || !near(hits[0].Score, 1.0470968) {
-		t.Errorf("alpha beta: got %v, want docs/a alone at 1.0470968: a unit holds every word", scores(hits))
+	want := []string{"docs/a", "s-1 Goal", "docs/c"}
+	if !reflect.DeepEqual(addresses(hits), want) || !near(hits[0].Score, 1.0470968) ||
+		!near(hits[1].Score, 0.5665797) || !near(hits[2].Score, 0.5235484) {
+		t.Fatalf("alpha beta: got %v, want %v at 1.0470968, 0.5665797, 0.5235484: any word matches", scores(hits), want)
 	}
-	if hits := Rank(corpus(), Query{Terms: []string{"alpha", "epsilon"}, N: 10}); hits != nil {
-		t.Errorf("a word no unit holds: got %v, want no hit", scores(hits))
+	if !hits[0].All || hits[1].All || hits[2].All {
+		t.Errorf("alpha beta: only docs/a holds every word: got %v %v %v", hits[0].All, hits[1].All, hits[2].All)
+	}
+	if hits := Rank(corpus(), Query{Terms: []string{"epsilon", "zeta"}, N: 10}); hits != nil {
+		t.Errorf("words no record holds: got %v, want no hit", scores(hits))
 	}
 }
 
-func TestFiltersKeepUnitsWithoutChangingTheirScores(t *testing.T) {
+// A record is one document, so it holds every word even when they are in different sections, and its line points at
+// its best section. Records r (units "alpha gamma" and "beta beta") and s ("alpha delta"):
+//
+//	documents: |r| = 4, |s| = 2, N = 2, avgdl = 3; idf alpha = ln(1 + 0.5/2.5) = 0.1823216, beta = ln(1 + 1.5/1.5) = 0.6931472
+//	r: alpha tf 1, K = 1.2·(0.25 + 0.75·4/3) = 1.5: 0.1823216 · 2.2/2.5 = 0.1604430;
+//	   beta tf 2: 0.6931472 · 4.4/3.5 = 0.8713850; together 1.0318280
+//	s: alpha tf 1, K = 1.2·(0.25 + 0.75·2/3) = 0.9: 0.1823216 · 2.2/1.9 = 0.2111092
+//	units: N = 3, avgdl = 2; alpha's idf ln 1.6 = 0.4700036, beta's ln(1 + 2.5/1.5) = 0.9808293: "alpha gamma" scores
+//	0.4700036, "beta beta" 0.9808293 · 4.4/3.2 = 1.3486403, so r's line is r Beta
+func TestARecordIsOneDocumentShownAtItsBestUnit(t *testing.T) {
+	units := []Unit{
+		unit("sprint", "2026-10-01", "r Alpha", "alpha gamma"),
+		unit("sprint", "2026-10-01", "r Beta", "beta beta"),
+		unit("doc", "2026-10-02", "docs/s", "alpha delta"),
+	}
+	units[0].doc, units[1].doc = "sprints/r", "sprints/r"
+	hits := Rank(units, Query{Terms: []string{"alpha", "beta"}, N: 10})
+	if want := []string{"r Beta", "docs/s"}; !reflect.DeepEqual(addresses(hits), want) {
+		t.Fatalf("got %v, want %v", addresses(hits), want)
+	}
+	if !near(hits[0].Score, 1.0318280) || !near(hits[1].Score, 0.2111092) || !hits[0].All || hits[1].All {
+		t.Errorf("got %v, all %v %v; want r at 1.0318280 holding both, s at 0.2111092", scores(hits), hits[0].All,
+			hits[1].All)
+	}
+	q := Query{Terms: []string{"alpha", "beta"}, N: 10}
+	if got := strings.SplitN(Format(q, hits), "\n", 2)[0]; got != "1 record holds all of: alpha, beta; 2 hold some" {
+		t.Errorf("header: got %q", got)
+	}
+}
+
+// Records and items are each normalized by their own mean length, so a short item does not outrank a record for being
+// short. Records R (40 tokens, word twice) and F (40, none), items I (4 tokens, word once) and G (4, none):
+//
+//	N = 4, df 2: idf = ln(1 + 2.5/2.5) = ln 2 = 0.6931472
+//	R: K = 1.2·(0.25 + 0.75·40/40) = 1.2: 0.6931472 · 4.4/3.2 = 0.9530774
+//	I: K = 1.2·(0.25 + 0.75·4/4) = 1.2:   0.6931472 · 2.2/2.2 = 0.6931472
+//
+// Against one mean of 22, I would score 0.6931472 · 2.2/1.4636 = 1.0418 and R 0.6931472 · 4.4/3.9364 = 0.7748.
+func TestRecordsAndItemsEachKeepTheirOwnMeanLength(t *testing.T) {
+	units := []Unit{
+		unit("doc", "-", "docs/r", "word word"+strings.Repeat(" x", 38)),
+		unit("doc", "-", "docs/f", strings.TrimSpace(strings.Repeat("y ", 40))),
+		unit("task", "-", "p.1", "word ab cd ef"),
+		unit("task", "-", "p.2", "gh ij kl mn"),
+	}
+	hits := Rank(units, Query{Terms: []string{"word"}, N: 10})
+	if want := []string{"docs/r", "p.1"}; !reflect.DeepEqual(addresses(hits), want) ||
+		!near(hits[0].Score, 0.9530774) || !near(hits[1].Score, 0.6931472) {
+		t.Errorf("got %v, want docs/r at 0.9530774 then p.1 at 0.6931472", scores(hits))
+	}
+}
+
+func TestFiltersKeepRecordsWithoutChangingTheirScores(t *testing.T) {
 	all := scores(Rank(corpus(), Query{Terms: []string{"gamma"}, N: 10}))
 	docs := Rank(corpus(), Query{Terms: []string{"gamma"}, Kinds: []string{"doc"}, N: 10})
 	if len(docs) != 1 || docs[0].Address != "docs/c" || docs[0].Score != all["docs/c"] {
@@ -78,8 +144,21 @@ func TestFiltersKeepUnitsWithoutChangingTheirScores(t *testing.T) {
 	demo := Rank(units, Query{Terms: []string{"alpha"}, Project: "demo", N: 10})
 	other := Rank(units, Query{Terms: []string{"beta"}, Project: "other", N: 10})
 	if len(demo) != 2 || !near(demo[0].Score, 0.5665797) || other != nil {
-		t.Errorf("--project: got %v and %v, want both alpha units at their scores, and nothing for other",
+		t.Errorf("--project: got %v and %v, want both alpha records at their scores, and nothing for other",
 			scores(demo), scores(other))
+	}
+	// --kind decision shows a record's decision that holds a word, though its Goal scores higher, and drops a record
+	// whose decisions hold none.
+	units = []Unit{
+		unit("sprint", "-", "s-1 Goal", "lexer lexer lexer"),
+		unit("decision", "2026-10-02", "s-1 Decisions", "Use a lexer library."),
+		unit("sprint", "-", "s-2 Goal", "lexer"),
+		unit("decision", "2026-10-03", "s-2 Decisions", "Use a parser."),
+	}
+	units[0].doc, units[1].doc, units[2].doc, units[3].doc = "s-1", "s-1", "s-2", "s-2"
+	if got := addresses(Rank(units, Query{Terms: []string{"lexer"}, Kinds: []string{"decision"}, N: 10})); !reflect.DeepEqual(
+		got, []string{"s-1 Decisions"}) {
+		t.Errorf("--kind decision: got %v, want s-1 Decisions alone", got)
 	}
 }
 
@@ -89,11 +168,8 @@ func TestEqualScoresGoNewestFirstThenByAddress(t *testing.T) {
 		unit("doc", "2026-10-05", "docs/b", "same words"),
 		unit("doc", "2026-10-05", "docs/a", "same words"),
 	}
-	var got []string
-	for _, h := range Rank(units, Query{Terms: []string{"same"}, N: 10}) {
-		got = append(got, h.Address)
-	}
-	if want := []string{"docs/a", "docs/b", "docs/old"}; !reflect.DeepEqual(got, want) {
+	if got, want := addresses(Rank(units, Query{Terms: []string{"same"}, N: 10})), []string{"docs/a", "docs/b",
+		"docs/old"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
@@ -104,16 +180,14 @@ func TestAPhraseOrAPathMustAppearAsWritten(t *testing.T) {
 		unit("doc", "-", "docs/words", "The task list in internal tools, for cli users; go on."),
 		unit("doc", "-", "docs/wrapped", "Each design\npage holds one area."),
 		unit("doc", "-", "docs/apart", "A page about design."),
+		unit("doc", "-", "docs/none", "Nothing here."),
 	}
 	for terms, want := range map[string][]string{
 		"internal/cli/task.go": {"docs/path"},
 		"design page":          {"docs/wrapped"},
-		"design|page":          {"docs/apart", "docs/wrapped"}, // two terms: words anywhere
+		"design|page":          {"docs/apart", "docs/wrapped"}, // two terms: words anywhere, any of them
 	} {
-		var got []string
-		for _, h := range Rank(units, Query{Terms: strings.Split(terms, "|"), N: 10}) {
-			got = append(got, h.Address)
-		}
+		got := addresses(Rank(units, Query{Terms: strings.Split(terms, "|"), N: 10}))
 		sort.Strings(got)
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("%q: got %v, want %v", terms, got, want)
@@ -121,7 +195,7 @@ func TestAPhraseOrAPathMustAppearAsWritten(t *testing.T) {
 	}
 }
 
-func TestOutputHasTheCountTheCappedAlignedLinesAndTheReadHint(t *testing.T) {
+func TestOutputHasTheCountsTheCappedAlignedLinesAndTheReadHint(t *testing.T) {
 	units := []Unit{
 		unit("decision", "2026-09-30", "pm-harness-112 Decisions", "Claims keep only the holder. Claim history is not kept."),
 		unit("task", "2026-09-12", "pm-9.88.2", "Record every claim in an events table"),
@@ -129,7 +203,7 @@ func TestOutputHasTheCountTheCappedAlignedLinesAndTheReadHint(t *testing.T) {
 	}
 	units[0].State, units[1].State = "done", "dropped"
 	q := Query{Terms: []string{"claim"}, N: 2}
-	want := "3 units hold all of: claim\n" +
+	want := "3 records hold all of: claim; 3 hold some\n" +
 		"decision  2026-09-30  done     pm-harness-112 Decisions  Claims keep only the holder.\n" +
 		"task      2026-09-12  dropped  pm-9.88.2                 Record every claim in an events table\n" +
 		"read one: pm show --record <record> --section <section>; an item: pm show <id>"
@@ -137,11 +211,15 @@ func TestOutputHasTheCountTheCappedAlignedLinesAndTheReadHint(t *testing.T) {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
 	q = Query{Terms: []string{"events"}, N: 10}
-	if got := Format(q, Rank(units, q)); !strings.HasPrefix(got, "1 unit holds all of: events\ntask  ") {
+	if got := Format(q, Rank(units, q)); !strings.HasPrefix(got, "1 record holds all of: events; 1 holds some\ntask  ") {
 		t.Errorf("one hit: got\n%s", got)
 	}
 	q = Query{Terms: []string{"claim", "nowhere"}, N: 10}
-	if got, want := Format(q, Rank(units, q)), "no unit holds all of: claim, nowhere; try other words"; got != want {
+	if got := Format(q, Rank(units, q)); !strings.HasPrefix(got, "0 records hold all of: claim, nowhere; 3 hold some\n") {
+		t.Errorf("some words: got\n%s", got)
+	}
+	q = Query{Terms: []string{"nowhere", "never"}, N: 10}
+	if got, want := Format(q, Rank(units, q)), "no record or item holds any of: nowhere, never; try other words"; got != want {
 		t.Errorf("no hit: got %q, want %q", got, want)
 	}
 }
@@ -250,7 +328,7 @@ func TestRunRefusesAnUnknownProjectAndTakesAProjectsId(t *testing.T) {
 		t.Fatal(err)
 	}
 	byID, err := Run(Query{Terms: []string{"lexer"}, Project: "p", N: 3}, recs, items, dates)
-	if err != nil || byID != byName || !strings.HasPrefix(byName, "11 units hold all of: lexer\n") {
+	if err != nil || byID != byName || !strings.HasPrefix(byName, "7 records hold all of: lexer; 7 hold some\n") {
 		t.Errorf("by name:\n%s\nby id:\n%s %v", byName, byID, err)
 	}
 	if lines := strings.Split(byName, "\n"); len(lines) != 5 {

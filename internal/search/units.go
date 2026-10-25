@@ -11,7 +11,8 @@ import (
 	"github.com/Yeeef/pm/internal/store"
 )
 
-// Unit is one thing a hit points at: a record section, a decision block, a task or a need.
+// Unit is one thing a hit points at: a record section, a decision block, a task or a need. A record's units together
+// are one document, which Rank scores; an item's one unit is its document.
 type Unit struct {
 	Kind    string // one of Kinds
 	Date    string // YYYY-MM-DD, or "-" when the store has none
@@ -21,6 +22,8 @@ type Unit struct {
 	Text    string // what is indexed: the record's title, the heading and the body, or an item's texts
 	snips   []string
 	tokens  []string
+	doc     string // the document it is part of: its record's rel, or the item's id
+	lead    int    // how many of tokens are its record's title, which its document counts once; 0 for an item
 }
 
 // Kinds is the kinds of unit, as --kind takes them.
@@ -67,7 +70,7 @@ func Units(recs []*records.Record, items []item.Item, dates map[string]store.Dat
 		}
 		texts := []string{it.Title, it.Description, it.CloseReason}
 		out = append(out, Unit{Kind: string(it.Type), Date: itemDate(it), State: site.State(it, x), Address: it.ID,
-			Project: project, Text: strings.Join(texts, "\n"), snips: texts})
+			Project: project, Text: strings.Join(texts, "\n"), snips: texts, doc: it.ID})
 	}
 	for i := range out {
 		out[i].tokens = Tokens(out[i].Text)
@@ -106,6 +109,7 @@ func recordUnits(rec *records.Record, target string, recs []*records.Record, x *
 		project = p.Name()
 	}
 	var out []Unit
+	lead := len(Tokens(rec.Title()))
 	parts, headings := sections(rec.Body, kind)
 	add := func(kind, date, heading, body string, indexed ...string) { // indexed: the title, then these, then body
 		if body = clean(body); body == "" {
@@ -117,7 +121,7 @@ func recordUnits(rec *records.Record, target string, recs []*records.Record, x *
 		}
 		text := strings.Join(append(append([]string{rec.Title()}, indexed...), body), "\n")
 		out = append(out, Unit{Kind: kind, Date: date, State: state, Address: address, Project: project, Text: text,
-			snips: []string{body}})
+			snips: []string{body}, doc: rec.Rel, lead: lead})
 	}
 	for _, s := range parts {
 		switch {
