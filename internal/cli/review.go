@@ -141,26 +141,40 @@ func (r *repo) reviewReports(sprints []string) error {
 	return nil
 }
 
-// prReachesMain refuses a GitHub PR whose base is not the main branch: a stacked PR merges into another PR's branch,
-// so its review could never close as merged on main.
+// prReachesMain refuses a GitHub PR that does not merge into the main branch, or another repo's PR that does not
+// merge into that repo's default branch (proc.PRReachesMain).
 func prReachesMain(here, root, pr string) error {
-	if !pullURL.MatchString(pr) {
-		return nil
-	}
 	cfg, err := config.Load(here)
 	if err != nil {
 		return err
 	}
-	var got struct {
-		Base string `json:"baseRefName"`
+	return proc.PRReachesMain(root, cfg.Remote, cfg.MainBranch, pr)
+}
+
+// otherRepo is the OWNER/REPO of pr when it is another repo's GitHub PR (proc.OtherRepoPR, on the config's remote).
+func otherRepo(root, pr string) (string, error) {
+	cfg, err := config.Load(root)
+	if err != nil {
+		return "", err
 	}
-	if err := proc.GHJSON(root, &got, "pr", "view", pr, "--json", "baseRefName"); err != nil {
-		return refuse("--pr %s: pm reads its base branch from GitHub, and cannot: %v", pr, err)
+	return proc.OtherRepoPR(root, cfg.Remote, pr)
+}
+
+// mergeOf is the full sha that sha (given names it in a refusal) names as pr's merge: for another repo's PR, its merge
+// commit as gh gives it (proc.OtherMerge); for this repo's, a commit on the remote's main (onMain), checked only with
+// main.
+func mergeOf(e *env, pr, given, sha string, main bool) (string, error) {
+	root, err := store.CodeRoot(e.here, e.records)
+	if err != nil {
+		return "", err
 	}
-	if got.Base != cfg.MainBranch {
-		return refuse("--pr %s merges into %s, not %s, so its merge does not deliver the sprint; raise the review on "+
-			"the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)", pr, strconv.Quote(got.Base),
-			cfg.MainBranch, cfg.MainBranch, pr, cfg.MainBranch)
+	switch other, err := otherRepo(root, pr); {
+	case err != nil:
+		return "", err
+	case other != "":
+		return proc.OtherMerge(root, other, pr, given, sha)
+	case main:
+		return onMain(e, given, sha)
 	}
-	return nil
+	return sha, nil
 }

@@ -29,6 +29,11 @@ func closeAction(e *env, r *repo, need *work.Item, reason string) (string, error
 	if err := refuseUnread(need); err != nil {
 		return "", err
 	}
+	if m := mergedAs.FindStringSubmatch(reason); m != nil && need.Need != nil && need.Need.Review != nil {
+		if _, err := mergeOf(e, need.Need.Review.PR, "merged as", m[1], false); err != nil { // another repo's PR
+			return "", err
+		}
+	}
 	if err := r.checkPlanned(nil, r.with(closedCopy(need, reason))); err != nil {
 		return "", err
 	}
@@ -43,8 +48,8 @@ func closeAction(e *env, r *repo, need *work.Item, reason string) (string, error
 }
 
 // restampReview gives a PR review closed without "merged as <sha>" (its PR merged into a stacked base) that reason
-// once sha is on the remote's main, so its sprint can close; the old reason stays after it. Any other closed action
-// is refused.
+// once sha is on the remote's main (for another repo's PR, its merge commit: mergeOf), so its sprint can close; the
+// old reason stays after it. Any other closed action is refused.
 func restampReview(e *env, r *repo, need *work.Item, reason string) (string, error) {
 	id, old := need.ID, need.CloseReason
 	if need.Need == nil || need.Need.Kind != work.Review || need.Resolution != work.Done || mergedAs.MatchString(old) {
@@ -55,7 +60,7 @@ func restampReview(e *env, r *repo, need *work.Item, reason string) (string, err
 		return "", refuse("review %s is closed as %s, without 'merged as <sha>'; once its work is on main, restamp it "+
 			"with pm need close %s --reason \"merged as <sha>\"", id, strconv.Quote(old), id)
 	}
-	if _, err := onMain(e, "merged as", m[1]); err != nil {
+	if _, err := mergeOf(e, need.Need.Review.PR, "merged as", m[1], true); err != nil {
 		return "", err
 	}
 	reason += "; first closed as: " + old

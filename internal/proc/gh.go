@@ -3,6 +3,7 @@ package proc
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -40,4 +41,192 @@ func GHJSON(dir string, v any, args ...string) error {
 		return fmt.Errorf("gh %s printed no JSON: %v", strings.Join(args, " "), err)
 	}
 	return nil
+}
+
+var (
+	githubRemote = regexp.MustCompile(`^(?:(?:https?|ssh|git)://(?:[^@/]+@)?(?i:github\.com)(?::[0-9]+)?/` +
+		`|[^@/:]+@(?i:github\.com):)([\w.-]+/[\w.-]+?)(?:\.git)?/?$`)
+	githubPull = regexp.MustCompile(`^https://github\.com/([\w.-]+/[\w.-]+)/pull/[0-9]+$`)
+	repoCommit = regexp.MustCompile(`^([\w.-]+/[\w.-]+)@([0-9a-fA-F]{4,40})$`)
+)
+
+// GitHubRepo is the OWNER/REPO a git remote URL names on GitHub, in its https, ssh or scp-like form; "" for a URL
+// elsewhere.
+func GitHubRepo(url string) string {
+	if m := githubRemote.FindStringSubmatch(strings.TrimSpace(url)); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// OtherRepoPR is the OWNER/REPO of pr when it is another repo's pull request than dir's: a GitHub PR URL whose
+// OWNER/REPO (ignoring case) is not the one remote's configured URL names, or any GitHub PR URL when that URL is not on
+// GitHub. "" for this repo's PR, for a URL that is no GitHub PR, and when dir has no such remote, which leaves no other
+// repo to tell apart: this repo's checks then run, and those that need the remote refuse without it.
+func OtherRepoPR(dir, remote, pr string) (string, error) {
+	m := githubPull.FindStringSubmatch(pr)
+	if m == nil {
+		return "", nil
+	}
+	res, err := Run([]string{"git", "config", "--get", "remote." + remote + ".url"}, Options{Cwd: &dir})
+	switch {
+	case err != nil:
+		return "", fmt.Errorf("git config remote.%s.url did not run: %v", remote, err)
+	case res.Code == 1: // no such remote
+		return "", nil
+	case res.Code != 0:
+		return "", fmt.Errorf("git config remote.%s.url failed: %s", remote, strings.TrimSpace(res.Stderr))
+	}
+	if here := GitHubRepo(res.Stdout); here != "" && strings.EqualFold(here, m[1]) {
+		return "", nil
+	}
+	return m[1], nil
+}
+
+// PR is a GitHub pull request's merge as gh gives it: its state (OPEN, CLOSED, MERGED), the branch it merges into,
+// its repo's default branch and, once merged, its merge commit's full sha.
+type PR struct{ State, Base, Default, Merge string }
+
+// MergedToDefault is whether the PR merged into its repo's default branch: a PR merged into a stacked base did not.
+func (p PR) MergedToDefault() bool {
+	return p.State == "MERGED" && p.Merge != "" && p.Base == p.Default
+}
+
+// ViewPR is the merge of pr, a pull request of the GitHub repo slug (OWNER/REPO), read with gh in dir; a gh that fails
+// is an error naming why.
+func ViewPR(dir, slug, pr string) (PR, error) {
+	var got struct {
+		State       string `json:"state"`
+		Base        string `json:"baseRefName"`
+		MergeCommit *struct {
+			OID string `json:"oid"`
+		} `json:"mergeCommit"`
+	}
+	if err := GHJSON(dir, &got, "pr", "view", pr, "--json", "state,mergeCommit,baseRefName"); err != nil {
+		return PR{}, err
+	}
+	var repo struct {
+		Default *struct {
+			Name string `json:"name"`
+		} `json:"defaultBranchRef"`
+	}
+	if err := GHJSON(dir, &repo, "repo", "view", slug, "--json", "defaultBranchRef"); err != nil {
+		return PR{}, err
+	}
+	if repo.Default == nil || repo.Default.Name == "" {
+		return PR{}, fmt.Errorf("gh repo view %s gave no default branch", slug)
+	}
+	p := PR{State: got.State, Base: got.Base, Default: repo.Default.Name}
+	if got.MergeCommit != nil {
+		p.Merge = got.MergeCommit.OID
+	}
+	return p, nil
+}
+
+var shaRE = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+
+// PRReachesMain is nil unless pr is a GitHub PR whose base is not main, the main branch of dir's repo (whose remote is
+// remote), or for another repo's PR (OtherRepoPR) that repo's default branch (OtherBase); else why, as a refusal says
+// it: a stacked PR merges into another PR's branch, so its review could never close as merged.
+func PRReachesMain(dir, remote, main, pr string) error {
+	if !githubPull.MatchString(pr) {
+		return nil
+	}
+	switch other, err := OtherRepoPR(dir, remote, pr); {
+	case err != nil:
+		return err
+	case other != "":
+		return OtherBase(dir, other, pr)
+	}
+	var got struct {
+		Base string `json:"baseRefName"`
+	}
+	if err := GHJSON(dir, &got, "pr", "view", pr, "--json", "baseRefName"); err != nil {
+		return fmt.Errorf("--pr %s: pm reads its base branch from GitHub, and cannot: %v", pr, err)
+	}
+	if got.Base != main {
+		return fmt.Errorf("--pr %s merges into %s, not %s, so its merge does not deliver the sprint; raise the review "+
+			"on the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)", pr,
+			strconv.Quote(got.Base), main, main, pr, main)
+	}
+	return nil
+}
+
+// OtherBase is nil when pr, a PR of the GitHub repo slug, merges into that repo's default branch; else why not, as a
+// refusal says it: a stacked PR's merge does not deliver its sprint.
+func OtherBase(dir, slug, pr string) error {
+	got, err := ViewPR(dir, slug, pr)
+	if err != nil {
+		return fmt.Errorf("--pr %s: pm reads its base branch and %s's default branch from GitHub, and cannot: %v", pr,
+			slug, err)
+	}
+	if got.Base != got.Default {
+		return fmt.Errorf("--pr %s merges into %s, not %s, %s's default branch, so its merge does not deliver the "+
+			"sprint; raise the review on the PR that reaches %s, or retarget this one first (gh pr edit %s --base %s)",
+			pr, strconv.Quote(got.Base), got.Default, slug, got.Default, pr, got.Default)
+	}
+	return nil
+}
+
+// OtherMerge is the full sha of the merge commit of pr, a PR of the GitHub repo slug, when gh gives it merged into
+// that repo's default branch with a merge commit sha names (a prefix of it); else why not, as a refusal says it, given
+// naming sha (--merged, merged as). Another repo's commit is not in this clone, so gh, not git, tells.
+func OtherMerge(dir, slug, pr, given, sha string) (string, error) {
+	if !shaRE.MatchString(sha) {
+		return "", fmt.Errorf("%s %s is not a commit sha: 7 to 40 hex digits", given, strconv.Quote(sha))
+	}
+	got, err := ViewPR(dir, slug, pr)
+	switch {
+	case err != nil:
+		return "", fmt.Errorf("%s %s: pm reads the merge of %s, a PR of %s, from GitHub, and cannot: %v", given, sha,
+			pr, slug, err)
+	case got.State != "MERGED" || got.Merge == "":
+		return "", fmt.Errorf("%s %s: %s is %s on GitHub, not merged; give its merge commit once it is merged into %s",
+			given, sha, pr, got.State, got.Default)
+	case got.Base != got.Default:
+		return "", fmt.Errorf("%s %s: %s merged into %s, not %s, %s's default branch; give the merge commit once its "+
+			"work is on %s", given, sha, pr, strconv.Quote(got.Base), got.Default, slug, got.Default)
+	case !strings.HasPrefix(got.Merge, sha):
+		return "", fmt.Errorf("%s %s is not the merge commit of %s: GitHub gives %s", given, sha, pr, got.Merge)
+	}
+	return got.Merge, nil
+}
+
+// GitHubRef is how a close names the work ref gives on GitHub, resolved with gh in dir: "commit OWNER/REPO@<short>" for
+// OWNER/REPO@SHA and "PR <url>" (with its merge commit once merged) for a PR URL; "" for a ref of neither form. A ref
+// that does not resolve, or a PR closed without merging, is an error naming why.
+func GitHubRef(dir, ref string) (string, error) {
+	if m := repoCommit.FindStringSubmatch(ref); m != nil {
+		var c struct {
+			SHA string `json:"sha"`
+		}
+		if err := GHJSON(dir, &c, "api", "repos/"+m[1]+"/commits/"+m[2]); err != nil {
+			return "", fmt.Errorf("--commit %s is not a commit of %s on GitHub: %v", ref, m[1], err)
+		}
+		if len(c.SHA) < 7 {
+			return "", fmt.Errorf("--commit %s is not a commit of %s on GitHub: gh api gave no sha", ref, m[1])
+		}
+		return "commit " + m[1] + "@" + c.SHA[:7], nil
+	}
+	if m := githubPull.FindStringSubmatch(strings.TrimSuffix(ref, "/")); m != nil {
+		ref = strings.TrimSuffix(ref, "/")
+		var pr struct {
+			State       string `json:"state"`
+			MergeCommit *struct {
+				OID string `json:"oid"`
+			} `json:"mergeCommit"`
+		}
+		if err := GHJSON(dir, &pr, "pr", "view", ref, "--json", "state,mergeCommit"); err != nil {
+			return "", fmt.Errorf("--commit %s is not a pull request on GitHub: %v", ref, err)
+		}
+		switch {
+		case pr.State == "MERGED" && pr.MergeCommit != nil && len(pr.MergeCommit.OID) >= 7:
+			return "PR " + ref + ", merged as " + m[1] + "@" + pr.MergeCommit.OID[:7], nil
+		case pr.State == "CLOSED":
+			return "", fmt.Errorf("--commit %s was closed without merging, so it holds no work; name the commit or "+
+				"PR that does, or close the task with --dropped", ref)
+		}
+		return "PR " + ref, nil
+	}
+	return "", nil
 }

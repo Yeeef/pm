@@ -732,6 +732,9 @@ func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {
 	}
 	git(".", "init", "-q", "--bare", "-b", "main", origin)
 	git(".", "clone", "-q", origin, main)
+	// the PR's repo, o/r, is this clone's: its remote's URL names it, and git reaches it at the bare origin
+	git(main, "remote", "set-url", "origin", "https://github.com/o/r.git")
+	git(main, "config", "url."+origin+".insteadOf", "https://github.com/o/r.git")
 	git(main, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "merge")
 	git(main, "push", "-q", "origin", "HEAD:main")
 	sha := git(main, "rev-parse", "HEAD")
@@ -750,6 +753,39 @@ func TestAMergeToMainIsStoredAndPushedOnce(t *testing.T) {
 	case l := <-lines:
 		t.Fatalf("pushed again: %s", l)
 	case <-time.After(300 * time.Millisecond): // three more polls
+	}
+}
+
+// TestAnotherReposMergeIsStoredWithoutThisClonesMain: a review's PR of another GitHub repo than the clone's (here a
+// clone whose remote is not on GitHub) is merged once gh gives it merged into that repo's default branch; the clone's
+// main, which cannot hold its commit, is not fetched, and the message does not say to pull it.
+func TestAnotherReposMergeIsStoredWithoutThisClonesMain(t *testing.T) {
+	main := shortTemp(t)
+	for _, args := range [][]string{{"init", "-q", main}, {"-C", main, "remote", "add", "origin", "/no/such/origin.git"}} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatal(err, string(out))
+		}
+	}
+	fakeBin(t, map[string]string{"gh": fakeGH})
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	// one answer for both gh pr view and gh repo view: the PR merged into trunk, the repo's default branch
+	t.Setenv("FAKE_GH_JSON", `{"state":"MERGED","baseRefName":"trunk","mergeCommit":{"oid":"`+sha+`"},`+
+		`"defaultBranchRef":{"name":"trunk"}}`)
+	path, lines := inbox(t)
+	w := newFakeWork(need("p-1.2.1", work.Review, path))
+	s := serve(t, w, main)
+	got := receive(t, lines)
+	want := "pm: PR o/r#7 of review p-1.2.1 (Pick a port) merged into o/r's default branch as " + sha +
+		"\nnext: pm need close p-1.2.1 --reason \"merged as " + sha + "\""
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+	eventually(t, "reported", func() bool {
+		r := w.item("p-1.2.1").Need.Review
+		return r.MergeReported == sha && r.Merged == sha
+	})
+	if strings.Contains(s.log.String(), "git fetch") {
+		t.Fatalf("the clone's main was fetched for another repo's merge: %s", s.log.String())
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Yeeef/pm/internal/proc"
 	"github.com/Yeeef/pm/internal/session"
 	"github.com/Yeeef/pm/internal/work"
 )
@@ -124,12 +125,26 @@ func (t Texts) replyText(n *work.Item, replies []work.Comment) string {
 	default:
 		next = fmt.Sprintf("check the evidence, then pm need close %s --reason \"<what you saw>\", or ask again if it "+
 			"falls short", id)
-		if reviewPR(n) != "" {
+		if pr := reviewPR(n); pr != "" && t.otherRepo(pr) == "" {
 			next += "; once its PR is on main, update the main checkout: " + t.pullMain()
 		}
 	}
 	return fmt.Sprintf("pm: owner reply to %s %s (%s), relayed from the site:\n%s\nnext: %s", k, id, n.Title,
 		strings.Join(said, "\n"), next)
+}
+
+// otherRepo is the OWNER/REPO of pr when it is another repo's PR than this clone's (proc.OtherRepoPR); "" for this
+// repo's, with no main checkout to read the remote's URL in, and when git cannot read it: the text then names the
+// pull of main, which fails on its own.
+func (t Texts) otherRepo(pr string) string {
+	if t.Main == "" {
+		return ""
+	}
+	other, err := proc.OtherRepoPR(t.Main, t.Remote, pr)
+	if err != nil {
+		return ""
+	}
+	return other
 }
 
 var prNumber = regexp.MustCompile(`/pull/(\d+)`)
@@ -139,8 +154,13 @@ func (t Texts) mergeText(n *work.Item, sha string) string {
 	if n.Need != nil && n.Need.Review != nil && n.Need.Review.PR != "" {
 		pr = n.Need.Review.PR
 	}
+	other := t.otherRepo(pr)
 	if m := prNumber.FindStringSubmatch(pr); m != nil {
-		pr = "#" + m[1]
+		pr = other + "#" + m[1]
+	}
+	if other != "" { // its merge is on that repo's default branch, which this clone's main checkout does not hold
+		return fmt.Sprintf("pm: PR %s of review %s (%s) merged into %s's default branch as %s\nnext: pm need close %s "+
+			"--reason \"merged as %s\"", pr, n.ID, n.Title, other, sha, n.ID, sha)
 	}
 	return fmt.Sprintf("pm: PR %s of review %s (%s) merged to %s as %s\nnext: pm need close %s --reason \"merged as "+
 		"%s\", then update the main checkout: %s", pr, n.ID, n.Title, t.MainBranch, sha, n.ID, sha, t.pullMain())
@@ -306,9 +326,27 @@ func run(dir string, argv ...string) (code int, stdout, stderr string, timedOut 
 }
 
 // mergedOnMain is the merge commit of pr once it is merged and on the remote's main branch (a PR merged into a
-// stacked base is not); "" otherwise. A gh or git failure is logged and counts as not merged yet, so the wait goes on.
+// stacked base is not), or for another repo's PR once gh gives it as merged into that repo's default branch, whose
+// commit this clone does not hold; "" otherwise. A gh or git failure is logged and counts as not merged yet, so the
+// wait goes on.
 func (s *server) mergedOnMain(pr string) string {
 	main, remote, branch := s.d.Main, s.d.Remote, s.d.MainBranch
+	other, err := proc.OtherRepoPR(main, remote, pr)
+	if err != nil {
+		s.logf("warning: %s: %v, still waiting", pr, err)
+		return ""
+	}
+	if other != "" {
+		got, err := proc.ViewPR(main, other, pr)
+		if err != nil {
+			s.logf("warning: %s: %v, still waiting", pr, err)
+			return ""
+		}
+		if !got.MergedToDefault() {
+			return ""
+		}
+		return got.Merge
+	}
 	code, out, errs, late, err := run(main, "gh", "pr", "view", pr, "--json", "state,mergeCommit")
 	switch {
 	case late:
