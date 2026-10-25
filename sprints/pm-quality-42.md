@@ -72,7 +72,14 @@ The change adds another repo's PR to the review checks; this page's area is unch
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- Reproduced in a scratch harness (repo A, a review of o/other#7 whose merge
+  commit is not in A): closing the open review with "merged as <B sha>" passed
+  unchecked; a review first closed another way could not be restamped ("merged
+  as abcdef0 is no commit of this repo, origin/main included"); sprint close
+  --merged --pr refused the same way; a B PR touching paths A's covers match
+  was refused by A's design gate; the service watcher never stored B's merge
+  (review.merged still None after 5 s, set within 5 s for a same-repo
+  control).
 
 ## Delivery report
 
