@@ -619,6 +619,11 @@ pm search is evaluated on (A) citation labels widened to every record citing ear
 Citations alone are incomplete relevance judgments; a time split and frozen inputs keep tuning from fitting the test, and about 250 cases bring the CI near +/-0.05.
 :::
 
+::: decision {source=owner date=2026-10-25}
+The live agent eval of pm search gets a third arm, rg plus a prime.md clause telling the agent to grep the records for prior decisions first, so the reminder to search and the tool ranking are measured apart.
+Part of pm search benefit is that the prime.md clause makes an agent look for prior decisions at all; the two-arm design cannot tell that from ranking, and the offline eval assumes the agent already searches.
+:::
+
 ## Design pages
 
 > Where is the detail?
