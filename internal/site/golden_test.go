@@ -200,6 +200,34 @@ func TestPagesEqualTheGoldenPages(t *testing.T) {
 	t.Logf("%d pages compared", len(pages))
 }
 
+// A closed project that sorts before an open one still follows it, in the collapsed section with the other closed one.
+func TestTheOverviewListsClosedProjectsCollapsedAfterTheOpenOnes(t *testing.T) {
+	inZone(t)
+	old, err := os.ReadFile(filepath.Join(constructs, "records/projects/old.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := strings.NewReplacer("bead: old", "bead: aardvark", "title: Old", "title: Aardvark").Replace(string(old))
+	dir := constructsStore(t, map[string]string{"projects/aardvark.md": project})
+	pages, err := renderStore(dir, constructsItems(t, `{"id": "aardvark", "type": "project", "title": "Aardvark", `+
+		`"status": "closed", "resolution": "done", "created_at": "2026-09-01T12:00:00Z", `+
+		`"closed_at": "2026-09-02T12:00:00Z"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := pages["index.html"]
+	order := []string{`<a href="projects/demo.html">`, `<details class="closed-projects"><summary>Closed projects (2)`,
+		`<a href="projects/aardvark.html">Aardvark</a></h2>`, `<a href="projects/old.html">Old</a></h2>`, "</details>"}
+	at := 0
+	for _, s := range order {
+		i := strings.Index(index[at:], s)
+		if i < 0 {
+			t.Fatalf("index.html has no %q after offset %d:\n%s", s, at, index)
+		}
+		at += i + len(s)
+	}
+}
+
 // A clone that never fetched the remote's main still renders every page; each design page with covers says once that
 // its code changes were not checked, and why, where the covered-code line would be.
 func TestADesignPageSaysWhyItsCoveredCodeWasNotChecked(t *testing.T) {

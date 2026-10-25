@@ -1132,8 +1132,9 @@ func toc(doc ast.Node, source []byte) string {
 // DoneSprintsShown is how many done sprints the overview lists, latest closed first; it lists every sprint not done.
 const DoneSprintsShown = 8
 
-// RenderIndex is the root page: the overview of everything open, across all projects. Design pages are listed by
-// last update, newest first (by title within a day), with both dates; without dates, by title.
+// RenderIndex is the root page: the overview of everything open, across all projects. The open projects come first;
+// the closed ones follow in one collapsed section. Design pages are listed by last update, newest first (by title
+// within a day), with both dates; without dates, by title.
 func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (string, error) {
 	c := &ctx{}
 	md := func(s string) (string, error) { return render(plainMD, s) }
@@ -1170,12 +1171,20 @@ func RenderIndex(recs []*Record, items *Items, siteName string, dates Dates) (st
 	}
 	out = append(out, docList(feedback, nil, "h2", "Feedback"))
 
+	var closed []string
 	for _, p := range projects {
-		out = append(out, `<h2><a href="`+p.Out()+`">`+esc(p.Title())+"</a></h2>")
-		out = append(out, indexSprints(p, recs, items))
-		out = append(out, indexDesigns(p, recs, items, dates))
-		out = append(out, docList(projectDocs(p, recs, items, "doc"), nil, "h3", "Docs"))
-		out = append(out, docList(projectDocs(p, recs, items, "postmortem"), nil, "h3", "Postmortems"))
+		section := `<h2><a href="` + p.Out() + `">` + esc(p.Title()) + "</a></h2>" + indexSprints(p, recs, items) +
+			indexDesigns(p, recs, items, dates) + docList(projectDocs(p, recs, items, "doc"), nil, "h3", "Docs") +
+			docList(projectDocs(p, recs, items, "postmortem"), nil, "h3", "Postmortems")
+		if it := items.Get(p.Bead()); it != nil && it.Status == item.Closed {
+			closed = append(closed, section)
+		} else {
+			out = append(out, section)
+		}
+	}
+	if closed != nil {
+		out = append(out, fmt.Sprintf(`<details class="closed-projects"><summary>Closed projects (%d)</summary>%s</details>`,
+			len(closed), strings.Join(closed, "")))
 	}
 	return page(nil, "overview", siteName, strings.Join(out, ""), c, "")
 }
