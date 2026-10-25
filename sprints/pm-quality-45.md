@@ -41,6 +41,9 @@ An agent that finds something in the repo worth fixing or improving, outside its
 > Where is the detail?
 
 - [Sprint proposals](../design/sprint-proposals.md): the proposal lifecycle: the `proposal` label and derived state, the commands, what `pm show` and the site show, the tests.
+- [pm CLI](../design/pm-cli.md): Naming gains `sprint propose` and `sprint close --dropped`.
+- [Work store](../design/work-store.md): `labels` names the one label pm reads, `proposal`.
+- [Views and site](../design/views-and-site.md): the Proposed section on the overview and project page, the day page's proposal rows.
 
 ## Progress
 
