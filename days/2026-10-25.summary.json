@@ -1,7 +1,7 @@
 {
  "date": "2026-10-25",
- "generated_at": "2026-10-25T15:43:42+00:00",
- "digest": "989f53504421daba",
+ "generated_at": "2026-10-25T18:24:40+00:00",
+ "digest": "3807c86117938dd3",
  "model": "claude-haiku-5-5",
- "text": "- **Search retrieval model:** Search now ranks whole records and items by keyword relevance, and shows each hit at its best unit. The new model did not beat ripgrep or newest-first on the strict eval test.\n- **Agent sprint proposals:** Agents can now propose sprints, and the owner accepts or dismisses them on the site. The owner chose sprint proposals as the only mechanism for repo improvements, so repo feedback was dropped.\n- **Site access and overview:** The site can now serve a network without Cloudflare, with separate settings for reach, address and access. The overview now lists open projects first and collapses closed ones at the bottom.\n- **Cross-repo reviews and titles:** Pm can now raise and close a review of another GitHub repo's PR, and store that PR's merge. `pm project edit` renames a title in the work store and record, and `pm check` flags titles that differ."
+ "text": "- **Search ranking:** pm search ranks records and items by relevance, and shows each hit at its best matching part. The new ranking fails the strict eval gate against the rg baseline and newest-first ordering.\n- **Sprint proposals:** Agents can now propose sprints for what the repo needs, and the owner accepts or dismisses each one. Repo feedback was removed because sprint proposals became the only route for repo changes.\n- **Site access and layout:** The site can serve a network without Cloudflare, with separate settings for reach, address and access. The overview now lists open projects first and collapses closed ones at the bottom.\n- **Project titles:** pm project edit renames a project's title in both the work store and its record. pm check names each project whose titles differ between its store and record."
 }
