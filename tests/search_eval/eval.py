@@ -486,7 +486,7 @@ def chars_to_tokens(text: str) -> int:
 
 
 def token_costs(system: str, ranks: dict, texts: dict | None, sprints: dict, tree: Path, qsets: dict) -> dict:
-    """{(sprint, i): tokens to the first strict target} for the queries that reach one."""
+    """{"sprint#i": tokens to the first strict target} for the queries that reach one."""
     out = {}
     for rel, s in sprints.items():
         if not s["strict"]:
@@ -498,7 +498,7 @@ def token_costs(system: str, ranks: dict, texts: dict | None, sprints: dict, tre
                 continue
             if texts is not None:
                 lines = texts[rel, i].splitlines()
-                out[rel, i] = {"lines": chars_to_tokens("\n".join(lines[:hit + 2]))}
+                out[f"{rel}#{i}"] = {"lines": chars_to_tokens("\n".join(lines[:hit + 2]))}
                 continue
             files = ranked[:hit + 1]
             listing = "\n".join(f + ".md" for f in files)
@@ -508,7 +508,7 @@ def token_costs(system: str, ranks: dict, texts: dict | None, sprints: dict, tre
                 for n, line in enumerate((tree / (f + ".md")).read_text().splitlines(), 1):
                     if any(t in line.lower() for t in terms):
                         grep.append(f"{f}.md:{n}:{line}")
-            out[rel, i] = {"files": chars_to_tokens(listing), "lines": chars_to_tokens("\n".join(grep))}
+            out[f"{rel}#{i}"] = {"files": chars_to_tokens(listing), "lines": chars_to_tokens("\n".join(grep))}
     return out
 
 
@@ -595,6 +595,14 @@ def print_report(report: dict, pm_labels: list[str], args) -> None:
         cols = sorted({c for v in per.values() for c in v})
         print(f"  {sys_:16} n={len(per):3} " + "  ".join(
             f"{c} {statistics.median(v[c] for v in per.values()):.0f}" for c in cols))
+    last = report["tokens"][f"pm:{pm_labels[-1]}"]
+    print(f"paired with pm:{pm_labels[-1]} (median over the queries both reach)")
+    for sys_, per in report["tokens"].items():
+        both = sorted(set(per) & set(last))
+        if sys_ == f"pm:{pm_labels[-1]}" or not both:
+            continue
+        print(f"  {sys_:16} n={len(both):3} pm {statistics.median(last[k]['lines'] for k in both):.0f}  " + "  ".join(
+            f"{c} {statistics.median(per[k][c] for k in both):.0f}" for c in sorted(per[both[0]])))
 
 
 def main() -> None:
