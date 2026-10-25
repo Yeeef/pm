@@ -326,9 +326,9 @@ stateDiagram-v2
   writing and the page is behind; it never blocks. A page that does not exist
   yet offers a reload once it does; a state that fails to render is served as
   the error, never as an old page.
-- **Replies.** The POST checks the host (on `site_url`'s host, after the
-  Cloudflare Access token every request there needs; see
-  [Replies on the site](site-replies.md)), token and issue against the
+- **Replies.** The POST checks who may reply (a local request; else
+  `site_url`'s host under `access`, and none from the network under
+  `access = "none"`; see [Replies on the site](site-replies.md)), token and issue against the
   snapshot, appends the reply (its reply id, request id, text and time) to
   the spool, `pm-replies.jsonl` in the clone's git dir, fsyncs it and only
   then answers 303. One write thread delivers each spooled reply: unless a

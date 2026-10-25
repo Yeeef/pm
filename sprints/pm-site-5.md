@@ -154,6 +154,8 @@ store_commands_test.go only calls the work-store sync by its new name, install.S
 
 done: the site can serve a network without Cloudflare, with reach (`listen`), address (`site_url`) and gate (`access`) as three settings, and a network viewer under `access = "none"` reads but does not reply.
 
+Merged as 548f486 (PR #115).
+
 - `listen` (an IP, 127.0.0.1 when unset; 127.0.0.1 also bound beside another specific address) and `access` (`cloudflare` or `none`, required once the site is exposed) in `.pm/config.toml`, written by `pm init --listen` and `--access`.
 - Local trust by the TCP peer (loopback), a `Host` naming this machine and no `Cf-Connecting-IP`; a LAN peer sending `Host: localhost` is refused.
 - `access = "none"`: pages for a network viewer show the rule in place of each reply form and carry no token; their `POST /reply` gets a 403 naming the rule (the owner's decision).

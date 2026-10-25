@@ -123,10 +123,10 @@ shows no form that could not work. The form posts `token`, `id`, `rid` and
 submit and kept while the text is unchanged, so a double click sends one id;
 a failed reply's card puts its id back with its text.
 
-The POST handler checks, in order: the `Host` header names 127.0.0.1,
-localhost or `site_url`'s host (against DNS rebinding), a request to
-`site_url`'s host carries a Cloudflare Access token that verifies (both
-checked on every request; see Security), the token matches (403 otherwise), the issue is an open issue labelled `human` in the server's last read of Beads
+The POST handler checks, in order: the request is local, or names
+`site_url`'s host and passes `access` (both checked on every request; see
+Security), a non-local one is not under `access = "none"` (403 naming the
+rule), the token matches (403 otherwise), the issue is an open issue labelled `human` in the server's last read of Beads
 and the text is not empty (400 otherwise). It then appends the reply to the
 spool on disk, unless the spool already holds that reply id, and answers 303
 back to the card; a background thread stores it, retrying a failed write, and
@@ -177,44 +177,68 @@ flagged by `pm show` and read with `pm reply read`. See
 [Reply delivery](../design/reply-delivery.md).
 
 ### Security
-The server binds 127.0.0.1 only. A Cloudflare tunnel exposes it at the
-repo's `site_url`, and a reply becomes an instruction in an agent session,
-so a request is checked by the `Host` it names (port stripped):
+A reply becomes an instruction in an agent session, so who reaches the
+site and who may reply are three settings in `.pm/config.toml`, each on its
+own (Grafana's `http_addr`, `root_url` and auth, Jupyter's `ip`,
+`custom_display_url` and token, split the same way):
 
-| Host | Every request (GET, HEAD, POST, any path) | POST `/reply` |
+| Setting | Holds | Unset |
 |---|---|---|
-| 127.0.0.1, localhost | Served | Token, then issue and text |
-| `site_url`'s host | 403 unless the Access token verifies | Same, then token, issue and text |
-| Any other, or none | 403 (a rebinding domain) | 403 |
+| `listen` | The IP the HTTP server binds; beside a specific address other than 127.0.0.1 the service binds 127.0.0.1 too, where this machine's probes, `pm record link --local` and a tunnel reach it | 127.0.0.1 |
+| `site_url` | The link pm prints, and the one `Host` besides this machine's that the site serves | links use `http://localhost:<port>`; with a network `listen` every request from the network is refused, which `pm doctor` and `pm init` warn of |
+| `access` | How a request from beyond this machine gets in: `cloudflare` (an Access token) or `none` (the network is the gate) | Required once `listen` is not loopback or `site_url` is set: the service does not start, and `pm doctor` names it |
 
-Hosts compare without the port and without case. A request carrying
+A request is **local** only when its TCP peer is a loopback address, its
+`Host` is `localhost`, `127.0.0.1` or `[::1]`, and it carries no
 `Cf-Connecting-IP`, which Cloudflare's edge adds to every request it
-forwards, is checked as the public host whatever its `Host`, so a tunnel
-that rewrites `Host` to localhost does not skip Access. A 403 carries
-neither the store-path nor the build header.
+forwards (cloudflared connects from loopback). The peer decides, so a client
+on the network that sends `Host: localhost` is not local; the `Host` is
+checked too, since a browser here that a rebinding domain points at
+127.0.0.1 connects from loopback. Hosts compare without the port and
+without case.
 
-- **Localhost.** A per-server random token, embedded in the served pages,
+| Request | `access = "cloudflare"` | `access = "none"` |
+|---|---|---|
+| Local | Served; POST `/reply`: token, then need and text | Same |
+| Not local, `Host` `site_url`'s host, no `Cf-Connecting-IP` | 403 unless the Access token verifies; then as local | Read; POST `/reply` 403 naming the rule, pages show the rule in place of each form |
+| `Cf-Connecting-IP`, any `Host` | 403 unless the Access token verifies; then as local | 403: the internet, not the network |
+| Not local, any other `Host`, or none | 403 (a rebinding domain, or a LAN peer claiming this machine) | Same |
+
+A 403 carries neither the store-path nor the build header.
+
+- **Local.** A per-server random token, embedded in the served pages,
   guards the POST against cross-site requests: another origin can post to
   localhost but cannot read the page to learn it. A rebinding domain names
   its own `Host`, so it can neither read a page nor post. No other
-  authentication: anyone with a shell on the machine can already run `bd`.
-- **Public host.** Each request must carry `Cf-Access-Jwt-Assertion`, a JWT
-  that verifies: RS256 signature against the team's keys at
-  `https://<access_team>/cdn-cgi/access/certs` (fetched by the service and
-  cached; an unknown `kid` refetches them at most once a minute), `aud`
-  holding `access_aud`, `type` equal to `app` (the login redirect hands anyone
-  a `meta` token signed by the same key for the same `aud`; `org` is the
-  team's global session token), `iss` equal to `https://<access_team>`, `exp`
-  present and not past, `nbf` and `iat` not in the future. A request is
-  public when its `Host` is `site_url`'s host or it carries
-  `Cf-Connecting-IP` (a tunnel may rewrite `Host` to localhost); any other
-  `Host` is refused. `access_team` (the team domain, `<team>.cloudflareaccess.com`) and
-  `access_aud` (the Access application's AUD tag) are set by hand in
-  `.pm/config.toml`; `pm doctor` names a missing one.
-- **Fails closed.** With `site_url` set and either key missing, every
-  request to its host gets a 403 naming the key; certs that cannot be
-  fetched or parsed, or any other failure to verify, refuse the request. A missing Access policy in Cloudflare therefore leaves
-  the site unreachable, not open.
+  authentication: anyone with a shell on the machine can already run `pm`.
+- **`access = "cloudflare"`.** Each non-local request must carry
+  `Cf-Access-Jwt-Assertion`, a JWT that verifies: RS256 signature against
+  the team's keys at `https://<access_team>/cdn-cgi/access/certs` (fetched
+  by the service and cached; an unknown `kid` refetches them at most once a
+  minute), `aud` holding `access_aud`, `type` equal to `app` (the login
+  redirect hands anyone a `meta` token signed by the same key for the same
+  `aud`; `org` is the team's global session token), `iss` equal to
+  `https://<access_team>`, `exp` present and not past, `nbf` and `iat` not
+  in the future. `access_team` (the team domain,
+  `<team>.cloudflareaccess.com`) and `access_aud` (the Access application's
+  AUD tag) are set by hand; `pm doctor` names a missing one. A config from
+  before `access` existed, with `access_team` and no `access`, gets
+  `access = "cloudflare"` from `pm init` (session start runs it): that
+  explicit rewrite is the only inference.
+- **`access = "none"`: read-only beyond this machine** (owner decision, the
+  sprint record `pm-site-5`). pm cannot tell the owner from a colleague, and
+  the reply token is in every page, so a non-local viewer only reads: its
+  pages carry the rule in place of each reply form and no token, `/version`
+  digests the page that viewer is served, and its POST `/reply` gets a 403
+  naming the rule. The owner replies from `http://localhost:<port>` on this
+  machine. A tunnel's request is refused: `none` opens the site to the
+  network, never to the internet.
+- **Fails closed.** An exposed site with no `access` does not start. With
+  `access = "cloudflare"` and either key missing, every non-local request
+  gets a 403 naming the key; certs that cannot be fetched or parsed, or any
+  other failure to verify, refuse the request. A missing Access policy in
+  Cloudflare therefore leaves the site unreachable, not open. An unknown
+  `access` or a `listen` that is not an IP fails every pm command.
 - **The wait socket.** The service's other listener,
   `<main checkout>/.pm/run/wait.sock`, is a unix socket of mode 0600, which
   no tunnel and no other user reaches. It serves only `GET /need?id=` for
