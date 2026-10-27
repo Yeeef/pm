@@ -34,7 +34,8 @@ A Claude Code question the owner skips in the Claude app (Remote Control) leaves
 
 > Where is the detail?
 
-None yet.
+- [Owner questions](../design/owner-questions.md): the measured fact of an app's skip, its branch in the
+  Claude Code sequence, and the chat-answer table.
 
 ## Progress
 
@@ -68,10 +69,19 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a Claude Code question skipped in the Claude app closes as dismissed when the session's turn ends, instead of
+staying open until the session's process exits. PR #124.
+
+- Claude Code's Stop group runs `pm hook ask`, which closes the session's open questions as dismissed.
+- Codex unchanged; `runtimeDifferences` gives the Stop difference its reason.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Go test: met. `TestStopDismissesTheSessionsQuestionsStillOpen` closes the session's open question as dismissed and
+  leaves an answered one and another session's open one; it fails with the Stop branch disabled.
+  `go test ./internal/hooks ./internal/install ./internal/cli` ok; `make test` 159 passed, 169 skipped.
+- Live: met. The `[TEST] skip probe` question, skipped in the Claude app at 18:24:53 UTC, was still open with its hook
+  waiting 16 min later; the built pm (stamped 0.15.9) run on a Stop event for this session closed it as dismissed
+  with the new reason, the waiting hook exited, and the site's count of the probe went from 1 to 0.
