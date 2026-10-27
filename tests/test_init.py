@@ -40,7 +40,8 @@ CLAUDE_PM = {"SessionStart": [*RULES, "pm prime --state --hook-json", "pm prime 
              "SubagentStart": [*RULES, "pm prime --subagent --hook-json"],
              "PermissionRequest": ["pm hook ask --runtime claude || exit 1"],
              "PostToolUse": ["pm hook ask --runtime claude || exit 1"],
-             "Stop": ["pm hook owner-request --runtime claude || exit 1", "pm hook stop || exit 1"],
+             "Stop": ["pm hook owner-request --runtime claude || exit 1", "pm hook stop || exit 1",
+                      "pm hook ask --runtime claude || exit 1"],
              "SessionEnd": ["pm hook session-end || exit 1"]}
 # Codex's are Claude Code's, but for the judge and the ask-tool hook, which run on each session's own runtime: Codex's
 # ask tool returns at once and asks no permission, so its question is raised at the tool's PostToolUse, and the owner's

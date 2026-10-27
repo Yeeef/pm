@@ -686,6 +686,40 @@ const codexPostToolUse = `{"session_id": "01a13bd6-f478-73e2-b37d-8485a2e11c09",
 	`"tool_name": %q, "tool_input": {"questions": [{"title": "Red or blue?", "options": ["Red", "Blue"]}]}, ` +
 	`"tool_response": "{\"accepted\":true}", "tool_use_id": "call_4bc62352c7ef4ed2aa545bfc42dbfa71"}`
 
+// TestStopDismissesTheSessionsQuestionsStillOpen: a question skipped (the dialog's Chat about this, or a skip in the
+// Claude app) is still open when its turn ends; Stop closes it as dismissed, and leaves an answered question and
+// another session's open one as they are.
+func TestStopDismissesTheSessionsQuestionsStillOpen(t *testing.T) {
+	st := newAskStore(heldTasks...)
+	mine, err := raise(st.open, "/here", work.RaisedBy{Session: "s"}, []work.AskInfo{colorAsk("p1-a"), colorAsk("p2-b")}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := raise(st.open, "/here", work.RaisedBy{Session: "t"}, []work.AskInfo{colorAsk("p3-c")}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(mine[1], service.AnsweredOnSite, work.Answered, "s"); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	stop := `{"hook_event_name": "Stop", "session_id": "s", "cwd": "/here", "stop_hook_active": false}`
+	if err := HookAsk("/here", ask.Claude, st.open, strings.NewReader(stop), &out, &errb); err != nil ||
+		out.Len() != 0 || errb.Len() != 0 {
+		t.Fatalf("%v, out %q, stderr %q", err, out.String(), errb.String())
+	}
+	if n := st.item(mine[0]); n.Status != work.Closed || n.Resolution != work.Dismissed || n.CloseReason != skipped ||
+		n.ClosedBy != "s" {
+		t.Errorf("skipped: %+v", n)
+	}
+	if n := st.item(mine[1]); n.Resolution != work.Answered || n.CloseReason != service.AnsweredOnSite {
+		t.Errorf("answered: %+v", n)
+	}
+	if n := st.item(other[0]); n.Status == work.Closed {
+		t.Errorf("another session's: %+v", n)
+	}
+}
+
 // TestCodexPostToolUseRaisesTheAsyncQuestionOnce: request_user_input_async's question, options as labels, by its
 // tool_use_id, under the rollout's CODEX_HOME; the same call again raises none; another tool steps aside.
 func TestCodexPostToolUseRaisesTheAsyncQuestionOnce(t *testing.T) {
