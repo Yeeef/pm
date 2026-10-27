@@ -1,7 +1,7 @@
 {
  "date": "2026-10-27",
- "generated_at": "2026-10-27T18:17:18+00:00",
- "digest": "33fb8cdf0cc86b70",
+ "generated_at": "2026-10-27T18:47:44+00:00",
+ "digest": "49d02c9a97cd7214",
  "model": "claude-haiku-5-5",
- "text": "- **Owner needs on project pages:** A project page now shows open questions, decisions and actions above its Decisions list. The owner review of this change was raised and closed that day."
+ "text": "- **Project page owner needs:** The project page now shows open questions, decisions and actions for all work under it. These needs appear above the Decisions section. The review request for this change was answered, and the change was merged.\n- **Claude question handling:** Work started on closing a skipped Claude question when the turn stops."
 }
