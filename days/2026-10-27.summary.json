@@ -1,7 +1,7 @@
 {
  "date": "2026-10-27",
- "generated_at": "2026-10-27T18:57:56+00:00",
- "digest": "eff7f07a8b62df19",
+ "generated_at": "2026-10-27T19:38:19+00:00",
+ "digest": "2a7f0141ed32d6e3",
  "model": "claude-haiku-5-5",
- "text": "- **Owner needs on project pages:** The project page now shows open questions, decisions and actions for all work under it. These needs appear above the Decisions list. This change shipped.\n- **Skipped question handling:** Claude Code now closes skipped Claude questions when a turn ends. Questions skipped in the Claude app or Chat about this are included. A review request for this change was raised."
+ "text": "- **Skipped question handling:** A skipped Claude Code question now closes when the session's turn ends. It no longer stays open until the session's process exits.\n- **Owner needs on project page:** A project page now shows the open needs for everything under it. These needs appear above Decisions, as they do on sprint pages."
 }
