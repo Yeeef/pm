@@ -9,8 +9,9 @@ package hooks
 // the need has a site reply or is closed. On a site reply it closes the need as answered on the site and prints the
 // decision that answers the tool, which closes the dialog; on a close elsewhere it exits silent. The dialog's answer
 // closes the need at PostToolUse of AskUserQuestion, from the answers the tool returned; Esc fires no hook, but Claude
-// Code sends the waiting hook SIGTERM, on which it closes the need as dismissed. A skip in the Claude app through Remote
-// Control fires neither: the agent gets "Denied by user" and goes on, the hook waits on. So at Stop it closes the
+// Code sends the waiting hook SIGTERM, on which it closes the need as dismissed. The dialog's "Chat about this", and a
+// skip in the Claude app through Remote Control, fire neither: the agent gets the rejection and goes on, the hook waits
+// on. So at Stop it closes the
 // session's open questions as dismissed, since a dialog never outlives its turn. A subagent's call, or another tool's,
 // is no dialog the owner sees: it steps aside.
 //
@@ -79,9 +80,11 @@ var AskStopBudget = 800 * time.Millisecond
 // the session ending with the dialog open. Claude Code tells the two apart to no hook.
 const stopped = "the session stopped waiting for the answer: Esc in the dialog, or the session ended"
 
-// skipped is the close reason of a Claude Code question still open when its session's turn ended: the owner skipped it
-// in the Claude app through Remote Control, which stops no hook and fires no PostToolUse (Claude Code 2.1.310).
-const skipped = "the turn ended without an answer: the owner skipped the question in the Claude app"
+// skipped is the close reason of a Claude Code question still open when its session's turn ended: the owner skipped it,
+// with the dialog's "Chat about this" (2.1.311) or in the Claude app through Remote Control (2.1.310), which stop no hook
+// and fire no PostToolUse.
+const skipped = "the turn ended without an answer: the owner skipped the question (Chat about this, or a skip in the " +
+	"Claude app)"
 
 // HookAsk is pm hook ask: the hook input JSON on stdin; on a Claude Code question answered on the site, the decision
 // that answers the tool on stdout. here is the process's directory; runtime is the session's.

@@ -222,7 +222,7 @@ func claudeHooks() entries {
 			"PostToolUse": func() *object { // the dialog's answer closes the question
 				return obj("hooks", []any{h("pm hook ask --runtime claude || exit 1", 10)}, "matcher", "AskUserQuestion")
 			},
-			"Stop": func() *object { // pm hook ask: a question still open at the turn's end was skipped in the app
+			"Stop": func() *object { // pm hook ask: a question still open at the turn's end was skipped
 				return obj("hooks", []any{h("pm hook owner-request --runtime claude || exit 1", 30), h("pm hook stop || exit 1", 10),
 					h("pm hook ask --runtime claude || exit 1", 10)})
 			},

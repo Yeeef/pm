@@ -34,8 +34,8 @@ var runtimeDifferences = map[runtimeDifference]string{
 	{"PostToolUse", "matcher"}: "both run pm hook ask on their ask tool: Claude Code's AskUserQuestion, whose " +
 		"PostToolUse carries the dialog's answer and closes the question with it; Codex's request_user_input_async, " +
 		"whose PostToolUse raises the question by its call id (tool_use_id)",
-	{"Stop", "commands"}: "Claude Code only: a skip of AskUserQuestion in the Claude app through Remote Control " +
-		"stops no hook and fires no PostToolUse, and no dialog outlives its turn, so pm hook ask closes the " +
+	{"Stop", "commands"}: "Claude Code only: AskUserQuestion's Chat about this, and a skip in the Claude app through Remote " +
+		"Control, stop no hook and fire no PostToolUse, and no dialog outlives its turn, so pm hook ask closes the " +
 		"session's questions still open at Stop. A Codex question outlives its turn by design",
 	{"UserPromptSubmit", "commands"}: "Codex only: request_user_input_async returns at once, and the owner's next " +
 		"message is its chat answer, so pm hook ask closes the session's open questions with the prompt; Claude " +

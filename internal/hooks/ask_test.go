@@ -686,10 +686,9 @@ const codexPostToolUse = `{"session_id": "01a13bd6-f478-73e2-b37d-8485a2e11c09",
 	`"tool_name": %q, "tool_input": {"questions": [{"title": "Red or blue?", "options": ["Red", "Blue"]}]}, ` +
 	`"tool_response": "{\"accepted\":true}", "tool_use_id": "call_4bc62352c7ef4ed2aa545bfc42dbfa71"}`
 
-// TestCodexPostToolUseRaisesTheAsyncQuestionOnce: request_user_input_async's question, options as labels, by its
-// tool_use_id, under the rollout's CODEX_HOME; the same call again raises none; another tool steps aside.
-// TestStopDismissesTheSessionsQuestionsStillOpen: a question skipped in the Claude app is still open when its turn
-// ends; Stop closes it as dismissed, and leaves an answered question and another session's open one as they are.
+// TestStopDismissesTheSessionsQuestionsStillOpen: a question skipped (the dialog's Chat about this, or a skip in the
+// Claude app) is still open when its turn ends; Stop closes it as dismissed, and leaves an answered question and
+// another session's open one as they are.
 func TestStopDismissesTheSessionsQuestionsStillOpen(t *testing.T) {
 	st := newAskStore(heldTasks...)
 	mine, err := raise(st.open, "/here", work.RaisedBy{Session: "s"}, []work.AskInfo{colorAsk("p1-a"), colorAsk("p2-b")}, false)
@@ -721,6 +720,8 @@ func TestStopDismissesTheSessionsQuestionsStillOpen(t *testing.T) {
 	}
 }
 
+// TestCodexPostToolUseRaisesTheAsyncQuestionOnce: request_user_input_async's question, options as labels, by its
+// tool_use_id, under the rollout's CODEX_HOME; the same call again raises none; another tool steps aside.
 func TestCodexPostToolUseRaisesTheAsyncQuestionOnce(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "sessions", "2026", "10", "14")
