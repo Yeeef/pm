@@ -949,7 +949,7 @@ func renderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 	case "project":
 		c.mermaid = true
 		var err error
-		body, err = projectBody(rec, recs, items)
+		body, err = projectBody(rec, recs, items, render)
 		if err != nil {
 			return "", nil, err
 		}
@@ -998,7 +998,7 @@ func renderRecord(rec *Record, recs []*Record, items *Items, dates Dates) (strin
 	return p, c.broken, err
 }
 
-func projectBody(rec *Record, recs []*Record, items *Items) (string, error) {
+func projectBody(rec *Record, recs []*Record, items *Items, render func(string) (string, error)) (string, error) {
 	body := rec.Body
 	generated, err := progress(rec, recs, items, rec)
 	if err != nil {
@@ -1012,6 +1012,12 @@ func projectBody(rec *Record, recs []*Record, items *Items) (string, error) {
 	}
 	generated += unsprintedTable(mine, rec, "h3")
 	body = replaceFirst(progressRE, body, func(g string) string { return g + "\n" + generated + "\n" })
+	cards, err := cardsFor(items, rec, recs, rec, render)
+	if err != nil {
+		return "", err
+	}
+	needs := awaiting(cards, true)
+	body = replaceFirst(decisionsRE, body, func(l string) string { return needs + "\n\n" + l })
 	body = withDocs(body, "## Outcome", projectDocs(rec, recs, items, "doc"), projectDocs(rec, recs, items, "postmortem"), rec)
 	return body, nil
 }
