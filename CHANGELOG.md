@@ -29,6 +29,24 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.16.3] - 2026-10-27
+
+A question skipped with "Chat about this" or in the Claude app no longer stays under "Sessions ask you".
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.16.3/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.16.3`, then commit what it changes and merge it, as an ordinary PR.
+
+### Fixed
+
+- A Claude Code question the owner skips, with the dialog's "Chat about this" or in the Claude app (Remote Control),
+  closes as dismissed when the session's
+  turn ends. Before, Claude Code told no pm hook about the skip, and the question stayed open on the site until the
+  session's process exited, in one case 18 hours later. Claude Code's Stop hook now runs `pm hook ask` as well, which
+  `pm upgrade` adds to `.claude/settings.json`.
+
 ## [0.16.2] - 2026-10-27
 
 A project's site page shows what waits on the owner, as a sprint's page does.
@@ -1441,6 +1459,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.16.3]: https://github.com/Yeeef/pm/compare/pm-v0.16.2...pm-v0.16.3
 [0.16.2]: https://github.com/Yeeef/pm/compare/pm-v0.16.1...pm-v0.16.2
 [0.16.1]: https://github.com/Yeeef/pm/compare/pm-v0.16.0...pm-v0.16.1
 [0.16.0]: https://github.com/Yeeef/pm/compare/pm-v0.15.9...pm-v0.16.0
