@@ -1,7 +1,7 @@
 {
  "date": "2026-10-27",
- "generated_at": "2026-10-27T18:47:44+00:00",
- "digest": "49d02c9a97cd7214",
+ "generated_at": "2026-10-27T18:57:56+00:00",
+ "digest": "eff7f07a8b62df19",
  "model": "claude-haiku-5-5",
- "text": "- **Project page owner needs:** The project page now shows open questions, decisions and actions for all work under it. These needs appear above the Decisions section. The review request for this change was answered, and the change was merged.\n- **Claude question handling:** Work started on closing a skipped Claude question when the turn stops."
+ "text": "- **Owner needs on project pages:** The project page now shows open questions, decisions and actions for all work under it. These needs appear above the Decisions list. This change shipped.\n- **Skipped question handling:** Claude Code now closes skipped Claude questions when a turn ends. Questions skipped in the Claude app or Chat about this are included. A review request for this change was raised."
 }
