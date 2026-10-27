@@ -82,6 +82,8 @@ None yet.
 done: a Claude Code question skipped, with the dialog's Chat about this or in the Claude app, closes as dismissed when the session's turn ends, instead of
 staying open until the session's process exits. PR #124.
 
+Merged as 2f764a7 (PR #124).
+
 - Claude Code's Stop group runs `pm hook ask`, which closes the session's open questions as dismissed.
 - Codex unchanged; `runtimeDifferences` gives the Stop difference its reason.
 

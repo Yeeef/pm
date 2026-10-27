@@ -55,13 +55,14 @@ Measured with Claude Code 2.1.296 and Codex 0.162.1, TUIs under a pty (sprint pm
 | PostToolUse of AskUserQuestion fires once the dialog is answered | 17 to 24 ms after a chosen answer, and after the hook's own answer too (2 runs per case); its input adds `tool_use_id` and `tool_response`, and `tool_input` and `tool_response` are one object: the questions, `answers` by question text, and `annotations` (left out when the hook answered) |
 | On Esc no hook fires, but the waiting PermissionRequest hook gets SIGTERM | 79 to 81 ms after the dialog closed, then SIGKILL about 1.2 s later; not Stop, and PermissionDenied fires only on an auto-mode classifier's denial |
 | A session stopped with the dialog open sends the hook SIGTERM | 21 ms after; no hook process outlives the session |
+| The dialog's "Chat about this" (2.1.311), and a skip in the Claude app through Remote Control (`claude rc`, 2.1.310; the mobile app has no Chat about this), fire no hook and send the hook no signal | the agent gets the rejection ("Denied by user"; for Chat about this, "The user wants to clarify these questions") and its turn goes on, often with a follow-up question; the hook waited 16 min until pm closed the need, and in one session the need stayed open 18 h, until the session's process ended; the turn then ends with Stop |
 | A chosen answer sends the hook no signal | the hook runs on until it exits itself, so pm's hook must notice the close and exit |
 | A hook timeout of 86,400 s is accepted | the settings schema sets no maximum |
 | A hook that fails or prints nothing leaves the dialog usable | |
 | A subagent cannot call AskUserQuestion | 3 cases: background, foreground, `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`; ToolSearch found no such tool |
 :::
 
-Reading: every ending of the dialog reaches pm through an event: a chosen answer through PostToolUse with the answers, Esc and a stopped session through the waiting hook's SIGTERM. The hook can race the dialog for as long as a day and answer it, but it never learns the call's id before PostToolUse.
+Reading: every ending of the dialog reaches pm through an event: a chosen answer through PostToolUse with the answers, Esc and a stopped session through the waiting hook's SIGTERM, and Chat about this or a skip in the Claude app through the turn's Stop, since no dialog outlives its turn. The hook can race the dialog for as long as a day and answer it, but it never learns the call's id before PostToolUse.
 
 ::: result {title="Codex 0.162.1: request_user_input_async and its tool hooks"}
 | Fact | Measured |
@@ -149,7 +150,7 @@ sequenceDiagram
   participant D as Dialog in the TUI
   participant A as Claude Code session
   participant H as pm hook ask (PermissionRequest)
-  participant P as pm hook ask (PostToolUse)
+  participant P as pm hook ask (PostToolUse, Stop)
   participant S as pm service (site, wait socket)
   participant W as Work store, through the pm service
   A->>D: AskUserQuestion
@@ -179,10 +180,17 @@ sequenceDiagram
     A->>H: SIGTERM, about 80 ms after
     H->>W: close as dismissed, within 0.8 s
     H->>H: exits
+  else the owner picks Chat about this, or skips it in the Claude app (Remote Control)
+    O->>D: Chat about this, or skip
+    A->>A: the agent gets the rejection; no hook fires, no signal
+    A->>P: Stop, as the turn ends
+    P->>W: close the session's open questions as dismissed
+    S->>H: the next look shows it closed: 200
+    H->>H: exits, printing nothing
   end
 ```
 
-Reading: the PermissionRequest hook is the only path into the dialog and holds one call to the service for the site; PostToolUse brings the dialog's answer and SIGTERM brings Esc, so whichever closes the need first is the answer the session gets. The service never pushes a Claude Code question's reply into the messaging socket.
+Reading: the PermissionRequest hook is the only path into the dialog and holds one call to the service for the site; PostToolUse brings the dialog's answer, SIGTERM brings Esc and Stop brings Chat about this or an app's skip, so whichever closes the need first is the answer the session gets. The service never pushes a Claude Code question's reply into the messaging socket.
 
 ### How the Claude Code hook waits for the site
 
@@ -248,10 +256,10 @@ The question's card ([Replies on the site](site-replies.md)) shows in "Sessions 
 
 | | Claude Code | Codex |
 |---|---|---|
-| Where the owner answers | the dialog: an option, Other, or Esc | the chat: the pick list while the turn runs, else a typed message |
-| How pm learns it | PostToolUse of AskUserQuestion: `tool_response.answers`, matched to the question by the call key. Esc: the waiting hook's SIGTERM | UserPromptSubmit: the `prompt`, which answers each open question of the session; a message the service relayed (a site answer it queued, a delivery's `pm: ` text) is left out |
-| When | 17 to 24 ms after the dialog closes; Esc about 80 ms after | as the prompt is submitted |
-| What the need records | the answer as `<question>: <answer>` lines, by the session; Esc dismisses it as "the session stopped waiting for the answer: Esc in the dialog, or the session ended" | the typed message, by the session |
+| Where the owner answers | the dialog: an option, Other, Esc, or Chat about this; in the Claude app, a skip | the chat: the pick list while the turn runs, else a typed message |
+| How pm learns it | PostToolUse of AskUserQuestion: `tool_response.answers`, matched to the question by the call key. Esc: the waiting hook's SIGTERM. Chat about this or an app's skip: Stop, which closes the session's open questions | UserPromptSubmit: the `prompt`, which answers each open question of the session; a message the service relayed (a site answer it queued, a delivery's `pm: ` text) is left out |
+| When | 17 to 24 ms after the dialog closes; Esc about 80 ms after; Chat about this or an app's skip at the turn's end | as the prompt is submitted |
+| What the need records | the answer as `<question>: <answer>` lines, by the session; Esc dismisses it as "the session stopped waiting for the answer: Esc in the dialog, or the session ended"; Chat about this or an app's skip as "the turn ended without an answer: the owner skipped the question (Chat about this, or a skip in the Claude app)" | the typed message, by the session |
 
 A chat answer is stored as the need's answer comment. A site reply the need held when the chat answer closed it lost the race: it counts as delivered, with the note "answered in chat first; the site's reply did not reach the session".
 
