@@ -1,7 +1,7 @@
 {
  "date": "2026-10-27",
- "generated_at": "2026-10-27T17:56:58+00:00",
- "digest": "edea066b9843dfe7",
+ "generated_at": "2026-10-27T18:17:18+00:00",
+ "digest": "33fb8cdf0cc86b70",
  "model": "claude-haiku-5-5",
- "text": "- **Owner need display:** The project page now shows owner need cards above the Decisions section. A review of this change was requested from the owner.\n- **Sprint planning records:** A new sprint for the site was opened. A delivery report and a design link were added to its record."
+ "text": "- **Owner needs on project pages:** A project page now shows open questions, decisions and actions above its Decisions list. The owner review of this change was raised and closed that day."
 }
