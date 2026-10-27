@@ -52,7 +52,13 @@ None yet.
 > What did we learn that changes the design, the plan, or how we work? Add
 > results with their numbers.
 
-None yet.
+- On Claude Code 2.1.311 in a terminal, Esc and a killed terminal both still
+  close a question as dismissed within 3 s (needs pm-u6wb, pm-mw4l). Through
+  Remote Control (2.1.310), a skip in the Claude app returns Denied by user to
+  the agent but fires no PostToolUse and signals no hook: the probe question
+  stayed open with its hook waiting 16 min. Across the owner's 6 repos, one
+  question (poker-n1cu) stayed open 18 h; its session's transcript ends at the
+  AskUserQuestion call.
 
 ## Delivery report
 
