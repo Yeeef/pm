@@ -32,7 +32,7 @@ A project's site page shows the open decision, action and question needs of ever
 
 > Where is the detail?
 
-None yet.
+- [Views and site](../design/views-and-site.md): the Project page row now names the await-you sections.
 
 ## Progress
 
@@ -60,10 +60,17 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-Not closed yet.
+done: a project's page shows the open question, decision and action needs of everything under it, above its
+Decisions, as a sprint page does. PR #123.
+
+- `projectBody` renders the cards with `cardsFor` and `awaiting`, the sprint page's code.
 
 ### Against "Done when"
 
 > Each item, met or not, with its evidence (a page, a command, a number).
 
-Not closed yet.
+- Golden test: met. `go test -tags gms_pure_go ./internal/site -run Golden -update` adds the three sections to
+  `projects/demo.html` (one question, two decision and two action cards, from its sprints and the project) above
+  Decisions; `make test`: 159 passed, 169 skipped.
+- Live: met. A scratch clone's running pm service served `projects/demo.html` with an action need raised on sprint 1
+  as a card with a reply form, between "Actions await you" (offset 5793) and Decisions (offset 6986).
