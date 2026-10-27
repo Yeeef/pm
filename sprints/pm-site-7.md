@@ -70,7 +70,7 @@ Decisions, as a sprint page does. PR #123.
 > Each item, met or not, with its evidence (a page, a command, a number).
 
 - Golden test: met. `go test -tags gms_pure_go ./internal/site -run Golden -update` adds the three sections to
-  `projects/demo.html` (one question, two decision and two action cards, from its sprints and the project) above
+  `projects/demo.html` (one question, three decision and two action cards, from its sprints, a task and the project) above
   Decisions; `make test`: 159 passed, 169 skipped.
 - Live: met. A scratch clone's running pm service served `projects/demo.html` with an action need raised on sprint 1
   as a card with a reply form, between "Actions await you" (offset 5793) and Decisions (offset 6986).
