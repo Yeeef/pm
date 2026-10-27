@@ -61,6 +61,14 @@ None yet.
   question (poker-n1cu) stayed open 18 h; its session's transcript ends at the
   AskUserQuestion call.
 
+- Chat about this (Claude Code 2.1.311 terminal dialog) rejects
+  AskUserQuestion like an app skip: the agent got The user wants to clarify
+  these questions (is_error) and asked a follow-up question; no PostToolUse,
+  no SIGTERM. On pinned 0.15.9 the first question (pm-2ia9) stayed open with
+  its hook waiting across two turn ends; the fixed pm's Stop closed it as
+  dismissed, the hook exited, and the site dropped it. The Claude mobile app
+  has no Chat about this option (owner).
+
 ## Delivery report
 
 > Written at close. Each part holds "Not closed yet." until then.
