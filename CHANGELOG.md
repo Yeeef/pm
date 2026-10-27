@@ -29,6 +29,21 @@ pin for a step beyond installing it and `pm upgrade` (or removes something), and
 `release/changelog.py check` checks these rules, on this file and each entry file; the release workflow publishes
 each release's section as its notes.
 
+## [0.16.2] - 2026-10-27
+
+A project's site page shows what waits on the owner, as a sprint's page does.
+
+### Upgrade guide
+
+1. On each machine, install the release:
+   `curl -fsSL https://github.com/Yeeef/pm/releases/download/pm-v0.16.2/install.sh | sh`.
+2. In the repo, run `pm upgrade --to 0.16.2`, then commit what it changes and merge it, as an ordinary PR.
+
+### Added
+
+- A project's page shows the open questions, decision needs and action needs (PR reviews included) of the project
+  and of every sprint and task under it, each with its reply form, above the project's Decisions.
+
 ## [0.16.1] - 2026-10-25
 
 A project can be renamed, and `pm check` names a project whose record title has drifted from the work store.
@@ -1426,6 +1441,7 @@ work store instead of Beads, and installs and downloads releases with no token.
   with a token from `$GH_TOKEN` or `gh auth token`; `$PM_RELEASE_URL` names a mirror.
 - `pm prime`'s rules name the work store and pm's commands instead of `bd`; `bd remember` is gone.
 
+[0.16.2]: https://github.com/Yeeef/pm/compare/pm-v0.16.1...pm-v0.16.2
 [0.16.1]: https://github.com/Yeeef/pm/compare/pm-v0.16.0...pm-v0.16.1
 [0.16.0]: https://github.com/Yeeef/pm/compare/pm-v0.15.9...pm-v0.16.0
 [0.15.9]: https://github.com/Yeeef/pm/compare/pm-v0.15.8...pm-v0.15.9
