@@ -77,7 +77,7 @@ None yet.
 
 > Done, partial or voided, plus one sentence; then, optionally, bullets of what shipped.
 
-done: a Claude Code question skipped in the Claude app closes as dismissed when the session's turn ends, instead of
+done: a Claude Code question skipped, with the dialog's Chat about this or in the Claude app, closes as dismissed when the session's turn ends, instead of
 staying open until the session's process exits. PR #124.
 
 - Claude Code's Stop group runs `pm hook ask`, which closes the session's open questions as dismissed.
@@ -93,3 +93,6 @@ staying open until the session's process exits. PR #124.
 - Live: met. The `[TEST] skip probe` question, skipped in the Claude app at 18:24:53 UTC, was still open with its hook
   waiting 16 min later; the built pm (stamped 0.15.9) run on a Stop event for this session closed it as dismissed
   with the new reason, the waiting hook exited, and the site's count of the probe went from 1 to 0.
+  Chat about this in a terminal session, the same check: the question stayed open on 0.15.9 across two turn ends, and
+  the fixed pm's Stop closed it, its hook exited, the site dropped it. CI's first run failed 3 integration tests on the
+  harness's expected hook list; fixed, and those 3 pass locally (`make test-full`, 215 passed).
