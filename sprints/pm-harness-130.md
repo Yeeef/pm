@@ -36,6 +36,8 @@ A Claude Code question the owner skips in the Claude app (Remote Control) leaves
 
 - [Owner questions](../design/owner-questions.md): the measured fact of an app's skip, its branch in the
   Claude Code sequence, and the chat-answer table.
+- [pm in Codex](../design/pm-in-codex.md): Claude Code's Stop among where `pm hook ask` runs.
+- [pm product](../design/pm-product.md): the Stop entry in `.claude/settings.json`.
 
 ## Progress
 
