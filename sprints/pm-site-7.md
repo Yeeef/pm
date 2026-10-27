@@ -63,6 +63,8 @@ None yet.
 done: a project's page shows the open question, decision and action needs of everything under it, above its
 Decisions, as a sprint page does. PR #123.
 
+Merged as 505fcdf (PR #123).
+
 - `projectBody` renders the cards with `cardsFor` and `awaiting`, the sprint page's code.
 
 ### Against "Done when"
